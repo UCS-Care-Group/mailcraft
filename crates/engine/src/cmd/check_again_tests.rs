@@ -269,3 +269,69 @@ fn a_whole_download_again_takes_the_files_and_the_original_together() {
     assert_eq!(m.attachments.len(), 1);
     assert!(!m.parts_removed);
 }
+
+/// The server's copy put there from its parts: not signed, as Microsoft Graph makes a message.
+const UNPROTECTED: &[u8] =
+    b"From: Ada <ada@example.org>\r\nTo: avery@example.org\r\nSubject: Signed\r\nMessage-ID: <ca-1@example.org>\r\n\r\nSigned text.\r\n";
+
+/// [`read_before`], the message keeping the bytes it came as.
+fn kept_whole(kind: AccountKind) -> (Session, Id) {
+    let (mut s, id) = read_before(kind, SIGNED);
+    s.mailbox.message_mut(id).unwrap().original = mailcraft_model::Original::new(SIGNED.to_vec());
+    (s, id)
+}
+
+/// A download that brings no original (the server's copy was put there from its parts) leaves
+/// the one kept here, whether it was asked for alone or the message was fetched whole.
+#[test]
+fn a_download_without_an_original_keeps_the_one_here() {
+    for wanted in [true, false] {
+        let (mut s, id) = kept_whole(AccountKind::Imap);
+        let m = s.mailbox.message_mut(id).unwrap();
+        (m.refetch, m.original_wanted) = (true, wanted);
+        imap_again::take_again(&mut s.mailbox, id, mailcraft_mime::parse_fetched(UNPROTECTED));
+        assert_eq!(s.mailbox.message(id).unwrap().original_bytes(), Some(SIGNED), "IMAP, wanted {wanted}");
+
+        let (mut s, id) = kept_whole(AccountKind::Microsoft);
+        let account = s.mailbox.message(id).unwrap().account;
+        let m = s.mailbox.message_mut(id).unwrap();
+        graph_down::thin_message(m, "preview".into());
+        m.original_wanted = wanted;
+        let mut index = Default::default();
+        assert!(graph_down::take_fetched(&mut s.mailbox, &mut index, account, "AAkA1", UNPROTECTED));
+        assert_eq!(s.mailbox.message(id).unwrap().original_bytes(), Some(SIGNED), "Graph, wanted {wanted}");
+    }
+}
+
+/// A signed message moved to a Microsoft account goes there made of its parts (Graph makes no
+/// message of MIME): fetched from there again, the copy here keeps the bytes it came as, and
+/// they are what Save As writes and what goes to an IMAP server next.
+#[test]
+fn a_message_whose_server_copy_isnt_protected_keeps_its_original() {
+    let (mut s, id) = kept_whole(AccountKind::Microsoft);
+    let account = s.mailbox.message(id).unwrap().account;
+    graph_down::thin_message(s.mailbox.message_mut(id).unwrap(), "preview".into());
+    let mut index = Default::default();
+    assert!(graph_down::take_fetched(&mut s.mailbox, &mut index, account, "AAkA1", UNPROTECTED));
+    let saved = s.run("file.exportMessage", &json!({"id": id})).unwrap();
+    let data = mailcraft_charset::base64::STANDARD.decode(saved["data"].as_str().unwrap()).unwrap();
+    let body = |b: &[u8]| b.windows(4).position(|w| w == b"\r\n\r\n").map(|at| b[at + 4..].to_vec()).unwrap();
+    assert_eq!(body(&data), body(SIGNED));
+    let placed = mailcraft_mime::write_placed(&s.loaded_message(id).unwrap(), &Default::default(), "m");
+    assert_eq!(body(&placed), body(SIGNED));
+}
+
+/// On IMAP, Check again on a message whose text was read wrongly (U+FFFD) takes the whole of
+/// the download, not the original alone: the text is downloaded again only once.
+#[test]
+fn check_again_on_text_read_wrongly_takes_the_text_too() {
+    let (mut s, id) = read_before(AccountKind::Imap, SIGNED);
+    s.mailbox.message_mut(id).unwrap().body.text = "Signed t\u{fffd}xt.".into();
+    s.run("mail.checkAgain", &json!({"id": id})).unwrap();
+    assert_eq!(imap_again::mark_unreadable(&mut s.mailbox), 0, "marked already");
+    imap_again::take_again(&mut s.mailbox, id, mailcraft_mime::parse_fetched(SIGNED));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.original_bytes(), Some(SIGNED));
+    assert_eq!(m.body.text.trim(), "Signed text.");
+    assert!(m.refetched && !m.refetch && !m.original_wanted);
+}

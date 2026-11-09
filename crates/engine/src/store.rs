@@ -1333,17 +1333,24 @@ pub(crate) fn end_session_for_test(path: &Path) {
 }
 
 /// Which of the 256 folders of two digits are folders of their own (not links to somewhere
-/// else), each looked at once however many files are read from it.
-struct Folders([OnceLock<bool>; 256]);
+/// else), each looked at once however many files are read from it; and whether the content
+/// folder is whole ([`Folders::whole`]), looked at once too.
+struct Folders([OnceLock<bool>; 256], OnceLock<bool>);
 
 impl Folders {
     fn new() -> Folders {
-        Folders(std::array::from_fn(|_| OnceLock::new()))
+        Folders(std::array::from_fn(|_| OnceLock::new()), OnceLock::new())
     }
 
     fn real(&self, hash: &Digest, sub: &Path) -> bool {
         let first = hash.0.first().copied().unwrap_or(0);
         self.0.get(usize::from(first)).is_some_and(|seen| *seen.get_or_init(|| fs::symlink_metadata(sub).is_ok_and(|m| m.file_type().is_dir())))
+    }
+
+    /// Whether the content folder `dir` is there and whole, by a content file in it that reads
+    /// ([`one_reads`], `sub` looked in first): looked at once.
+    fn whole(&self, dir: &Path, sub: &Path) -> bool {
+        *self.1.get_or_init(|| one_reads(dir, sub))
     }
 }
 
@@ -2237,17 +2244,40 @@ fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref
     on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect()
 }
 
-/// Whether the content `r` is surely not under `dir`: the content folder is there, and the
-/// file isn't (the system says there is no such file) or isn't the length it must be. A look
-/// that fails any other way (a folder on a drive that is away for a moment, a file another
-/// program holds) is no answer, and says not.
+/// Whether the content `r` is surely not under `dir`: the folder it would be in is a real one,
+/// and a content file in the folder reads ([`Folders::whole`]), so the content folder is there
+/// and whole (not an empty mount point, a share that dropped, a cloud drive that put its files
+/// away); and the file isn't (the system says there is no such file, and no cloud drive keeps a
+/// stand-in for it) or isn't the length it must be. A look that fails any other way (a file
+/// another program holds, one that can't be looked at) is no answer, and says not.
 fn absent_in(dir: &Path, r: &Ref, folders: &Folders) -> bool {
-    if !fs::metadata(dir).is_ok_and(|m| m.is_dir()) {
-        return false;
-    }
-    blob_path(dir, &r.hash).is_some_and(|(sub, file)| match fs::symlink_metadata(&file) {
-        Err(e) => e.kind() == std::io::ErrorKind::NotFound,
-        Ok(m) => folders.real(&r.hash, &sub) && !(m.file_type().is_file() && m.len() == r.len),
+    blob_path(dir, &r.hash).is_some_and(|(sub, file)| {
+        folders.real(&r.hash, &sub)
+            && match fs::symlink_metadata(&file) {
+                Err(e) => e.kind() == std::io::ErrorKind::NotFound && !evicted(&sub, &r.hash) && folders.whole(dir, &sub),
+                Ok(m) => !(m.file_type().is_file() && m.len() == r.len) && folders.whole(dir, &sub),
+            }
+    })
+}
+
+/// Whether a cloud drive keeps a stand-in for the content `hash` in `sub` (iCloud's
+/// `.<name>.icloud`): the file is away, not gone.
+fn evicted(sub: &Path, hash: &Digest) -> bool {
+    fs::symlink_metadata(sub.join(format!(".{}.icloud", hash.hex()))).is_ok()
+}
+
+/// How many entries of the content folder's subfolders are looked at for a content file that
+/// reads ([`Folders::whole`]).
+const WHOLE_LOOKS: usize = 1_024;
+
+/// Whether a content file under `dir` reads (its first byte), `first` (a subfolder) looked in
+/// before the others, within [`WHOLE_LOOKS`] entries.
+fn one_reads(dir: &Path, first: &Path) -> bool {
+    let others = fs::read_dir(dir).into_iter().flatten().flatten().filter(|e| e.file_name().to_str().is_some_and(|n| n.len() == 2 && is_hex(n)));
+    let subs = std::iter::once(first.to_path_buf()).chain(others.map(|e| e.path()));
+    subs.flat_map(|sub| fs::read_dir(sub).into_iter().flatten().flatten()).take(WHOLE_LOOKS).any(|e| {
+        e.file_name().to_str().is_some_and(|n| Digest::parse(n).is_some())
+            && open_plain(&e.path()).is_some_and(|(mut f, len)| len > 0 && std::io::Read::read(&mut f, &mut [0u8; 1]).is_ok_and(|n| n == 1))
     })
 }
 
@@ -2585,15 +2615,11 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
                 p.held = false;
             }
             // Its file surely gone (a build from before #30 swept it, say): the message is
-            // written from its parts, and asks its server for the bytes again
-            // ([`crate::cmd::mail::check_again::lost`]).
+            // written from its parts, and asks its server for the bytes again, keeping them
+            // named until a download brings them ([`crate::cmd::mail::check_again::lost`]).
             if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| gone_originals.contains(&Ref::from_model(&r))) {
                 let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
-                if crate::cmd::mail::check_again::lost(kind, m)
-                    && let Some(p) = held.as_mut()
-                {
-                    p.original = None;
-                }
+                crate::cmd::mail::check_again::lost(kind, m);
             }
         }
         if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {

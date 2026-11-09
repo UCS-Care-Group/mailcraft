@@ -2211,12 +2211,30 @@ impl Session {
         text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
+    /// [`Session::readable_whole`] but for the bytes a protected message came as (#30), which
+    /// [`Session::original_waiting`] answers for: what a copy put on a server is made of when
+    /// they are surely gone.
+    pub(crate) fn parts_readable(&self, m: &Message) -> bool {
+        let mut parts = Message::clone(m);
+        parts.original = None;
+        self.readable_whole(&parts)
+    }
+
     /// Whether every attachment of `m` that isn't in memory, and its original, can be read back whole.
     fn files_readable(&self, m: &Message) -> bool {
         // (And the bytes a Digitally signed or Encrypted message came as, #30: the copy put
         // elsewhere is made of them.)
         let original = m.original.as_ref().and_then(|o| o.kept.filter(|_| o.data.is_empty()));
         m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).chain(original).all(|r| self.fetch(&r).is_ok())
+    }
+
+    /// Whether the bytes protected message `m` came as (#30) are named, can't be read now, and
+    /// aren't surely gone ([`crate::io::ContentSource::absent`]): a copy of it put on a server
+    /// waits for them, rather than be made of its parts and taken for the message, the copy it
+    /// came from let go once it is there.
+    pub(crate) fn original_waiting(&self, m: &Message) -> bool {
+        let Some(r) = m.original.as_ref().filter(|o| o.data.is_empty()).and_then(|o| o.kept) else { return false };
+        self.fetch(&r).is_err() && !self.path.clone().zip(self.source()).is_some_and(|(path, source)| source.absent(&path, &r))
     }
 
     /// Bring the body of message `id` and the attachments `pick` chooses into memory, in the
@@ -2363,15 +2381,14 @@ impl Session {
         if !marked.is_empty() || !hidden_gone.is_empty() {
             self.loads += 1;
         }
-        // An original (#30) named among them is surely gone (`store::check_parts` looks for it
-        // so): the message asks its server for it again, or keeps it named when none has it.
-        let originals: Vec<Id> = self
-            .mailbox
-            .messages
-            .iter()
-            .filter(|(_, m)| m.original.as_ref().is_some_and(|o| o.data.is_empty() && gone(o.kept)))
-            .map(|(id, _)| *id)
-            .collect();
+        // An original (#30) named among them that is surely gone asks its server for it again,
+        // keeping it named. Looked at again for that: content of the same bytes (an attachment
+        // that is the same file) is named among them when a look at it only found it unreadable.
+        let source = self.path.clone().zip(self.source());
+        let surely = |o: &mailcraft_model::Original| {
+            o.data.is_empty() && gone(o.kept) && o.kept.zip(source.as_ref()).is_some_and(|(r, (path, source))| source.absent(path, &r))
+        };
+        let originals: Vec<Id> = self.mailbox.messages.iter().filter(|(_, m)| m.original.as_ref().is_some_and(surely)).map(|(id, _)| *id).collect();
         let mut asked = false;
         for id in originals {
             let Some(m) = self.mailbox.messages.get(&id) else { continue };

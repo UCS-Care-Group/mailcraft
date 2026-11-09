@@ -351,6 +351,62 @@ fn long_content_fields_are_folded_or_left_out() {
     assert!(!String::from_utf8_lossy(&out).contains(&"a".repeat(1200)));
 }
 
+/// A long field folded is the same field: the message still reads as protected, with the
+/// same boundary and parameters.
+#[test]
+fn a_folded_content_type_says_what_it_said() {
+    let smime = String::from_utf8_lossy(SMIME_SIGNED).into_owned();
+    let long = smime.replace("micalg=sha-256;", &format!("micalg=sha-256; x-a=\"{}\";", "a ".repeat(700)));
+    let out = write(&parse_fetched(long.as_bytes()), &WriteOptions::default());
+    assert!(head(&out).split("\r\n").all(|line| line.len() <= 998));
+    assert_eq!(protection(&out), Some(Protection::Signed));
+    let params = |bytes: &[u8]| {
+        let (headers, _) = crate::header::split(bytes, true);
+        crate::header::parse_params(headers.get("content-type").unwrap())
+    };
+    let (before, after) = (params(long.as_bytes()), params(&out));
+    assert_eq!(after.value, "multipart/signed");
+    for name in ["boundary", "protocol", "micalg", "x-a"] {
+        assert_eq!(after.get(name), before.get(name), "{name}");
+    }
+    assert_eq!(after.get("boundary"), Some("sig-b"));
+}
+
+/// A fold goes only past the field's colon, and leaves no line of white space alone: where it
+/// can't, the message is written from its parts.
+#[test]
+fn a_fold_is_never_in_a_name_nor_of_white_space_alone() {
+    let content = |field: &str| {
+        let bytes = format!("{field}\r\nMIME-Version: 1.0\r\n\r\nbody\r\n");
+        crate::protected::content_of(bytes.as_bytes()).map(|(fields, _)| String::from_utf8(fields).unwrap())
+    };
+    let lines_ok = |fields: &str| fields.split("\r\n").filter(|l| !l.is_empty()).all(|l| l.len() <= 998 && !l.trim().is_empty());
+    // White space before the value, and white space at the end: folded within the value.
+    let spaced = format!("Content-Type:{}text/plain; a=\"{}\"{}", " ".repeat(990), "x ".repeat(600), " ".repeat(40));
+    let fields = content(&spaced).unwrap();
+    assert!(lines_ok(&fields), "{fields}");
+    assert!(fields.starts_with("Content-Type:"));
+    // A name the colon comes far after (white space before it): nowhere to fold.
+    assert_eq!(content(&format!("Content-Type{}: text/plain", " ".repeat(1200))), None);
+    // White space only after the last word: no fold of it.
+    assert_eq!(content(&format!("Content-Type: text/{}{}", "p".repeat(1000), " ".repeat(50))), None);
+    // A fold of the original's that is long.
+    let folded = format!("Content-Type: text/plain;\r\n\t{}", "a=b ".repeat(400));
+    let fields = content(&folded).unwrap();
+    assert!(lines_ok(&fields), "{fields}");
+}
+
+/// A lone `.asc` file sent as the message is no protection of it; an S/MIME message that says
+/// `attachment` is.
+#[test]
+fn a_top_level_attachment_is_protected_only_as_smime() {
+    let asc = b"From: ada@example.org\r\nContent-Type: text/plain\r\nContent-Disposition: attachment; filename=\"key.asc\"\r\n\r\n\
+-----BEGIN PGP MESSAGE-----\r\n\r\nhQEMA\r\n-----END PGP MESSAGE-----\r\n";
+    assert_eq!(protection(asc), None);
+    let inline = String::from_utf8_lossy(asc).replace("Content-Disposition: attachment; filename=\"key.asc\"\r\n", "");
+    assert_eq!(protection(inline.as_bytes()), Some(Protection::InlinePgp));
+}
+
 /// The sending server's DKIM and a forwarder's ARC seals cover the header as it came, which a
 /// copy put on another server doesn't keep: they don't go there.
 #[test]

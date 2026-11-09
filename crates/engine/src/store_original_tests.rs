@@ -85,14 +85,13 @@ fn the_original_is_kept_outside_named_read_back_and_written_whole() {
     clear_cache();
     assert_eq!(whole(&path).message(id).unwrap().original_bytes(), Some(bytes.as_slice()));
 
-    // Back to its headers and preview, the message no longer names it.
+    // Back to its headers and preview, the message still names it: its server's copy may be
+    // one put there from its parts, which would bring none back.
     let mut thin = Message::clone(whole(&path).message(id).unwrap());
-    let before = content_names(id, &Arc::new(thin.clone()));
     crate::cmd::graph_down::thin_message(&mut thin, "preview".into());
     let after = content_names(id, &Arc::new(thin.clone()));
     let r = ContentRef { sha256: Digest::of(&bytes).0, len: bytes.len() as u64 };
-    assert!(before.contains(&r) && !after.contains(&r));
-    assert!(thin.original.is_none());
+    assert!(after.contains(&r) && thin.has_original());
 }
 
 /// [`with_signed`], in an IMAP account's Inbox as UID 7.
@@ -120,7 +119,8 @@ fn a_missing_original_is_asked_for_again() {
     assert!(opened.notice().is_none(), "{:?}", opened.notice());
     let m = opened.mailbox.message(id).unwrap();
     assert_ne!(m.body.text, UNAVAILABLE);
-    assert!(m.original.is_none());
+    // Still named until a download brings it: a look that wrongly found it gone loses nothing.
+    assert!(m.has_original() && m.original_bytes().is_none());
     assert!(m.original_wanted && m.refetch);
     // Written whole meanwhile, it is built from its parts.
     let written = String::from_utf8_lossy(&mailcraft_mime::write(m, &Default::default())).into_owned();
@@ -149,13 +149,13 @@ fn an_original_that_cant_be_read_writes_the_message_from_its_parts_and_is_asked_
     assert!(!mailcraft_mime::write(&m, &Default::default()).is_empty());
     // Nor can it be put elsewhere whole meanwhile (#451: the server's copy stays).
     assert!(!s.readable_whole(s.mailbox.message(id).unwrap()));
-    // At the next command, the file surely gone, it lets the original go and asks for it again,
-    // and that is a change to save and to show.
+    // At the next command, the file surely gone, it asks for the original again, keeping it
+    // named, and that is a change to save and to show.
     let (rev, dirty) = (s.rev(), s.dirty);
     assert!(!dirty);
     s.ask_for_lost_originals();
     let m = s.mailbox.message(id).unwrap();
-    assert!(m.original.is_none() && m.original_wanted && m.refetch);
+    assert!(m.has_original() && m.original_wanted && m.refetch);
     assert!(s.rev() > rev && s.dirty);
 }
 
@@ -241,8 +241,100 @@ fn an_opening_for_a_window_looks_for_originals_afterwards() {
     assert_eq!(missing.count, 0, "an original is counted nowhere");
     s.mark_unavailable(&missing.refs);
     let m = s.mailbox.message(id).unwrap();
-    assert!(m.original.is_none() && m.original_wanted && m.refetch);
+    assert!(m.has_original() && m.original_wanted && m.refetch);
     assert!(s.dirty);
+}
+
+/// [`with_signed_on_imap`] saved at `path`, the file that keeps its original, and the folder
+/// that holds that file.
+fn saved_on_imap(path: &Path) -> (Id, PathBuf, PathBuf) {
+    let (mb, id) = with_signed_on_imap();
+    save(path, &mb).unwrap();
+    clear_cache();
+    let file = blob_file(path, &signed_bytes());
+    let sub = file.parent().unwrap().to_path_buf();
+    (id, file, sub)
+}
+
+/// Whether the message opened from `path` asked for its original again; it is named either way.
+fn asked_at_opening(path: &Path, id: Id) -> bool {
+    *lock(&shared(path).state) = State::default();
+    clear_cache();
+    let opened = open(path).unwrap();
+    let m = opened.mailbox.message(id).unwrap();
+    assert!(m.has_original());
+    m.original_wanted
+}
+
+/// Only a content folder found there and whole says a file is gone: an empty one (a drive not
+/// mounted where it was), one without the file's own folder, or a file that can't be looked
+/// at says nothing, and nothing is asked for.
+#[test]
+fn an_original_is_gone_only_from_a_content_folder_that_is_whole() {
+    let tmp = Temp::new("original-sure");
+    let path = tmp.file();
+    let (id, file, sub) = saved_on_imap(&path);
+    let dir = sub.parent().unwrap().to_path_buf();
+
+    // An empty content folder, as an empty mount point is.
+    fs::rename(&dir, tmp.0.join("away")).unwrap();
+    fs::create_dir(&dir).unwrap();
+    assert!(!asked_at_opening(&path, id));
+    fs::remove_dir(&dir).unwrap();
+    fs::rename(tmp.0.join("away"), &dir).unwrap();
+
+    // The file's own folder missing, the rest there.
+    fs::rename(&sub, tmp.0.join("sub-away")).unwrap();
+    assert!(!asked_at_opening(&path, id));
+    fs::rename(tmp.0.join("sub-away"), &sub).unwrap();
+
+    // A cloud drive's stand-in in its place: away, not gone.
+    fs::remove_file(&file).unwrap();
+    let stand_in = sub.join(format!(".{}.icloud", file.file_name().unwrap().to_str().unwrap()));
+    fs::write(&stand_in, b"stand-in").unwrap();
+    assert!(!asked_at_opening(&path, id));
+    fs::remove_file(&stand_in).unwrap();
+
+    // Missing from a content folder that is whole: gone.
+    assert!(asked_at_opening(&path, id));
+}
+
+/// A file that can't be looked at (its folder can't be read) is no answer.
+#[cfg(unix)]
+#[test]
+fn an_original_that_cant_be_looked_at_isnt_gone() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let tmp = Temp::new("original-denied");
+    let path = tmp.file();
+    let (id, file, sub) = saved_on_imap(&path);
+    fs::remove_file(&file).unwrap();
+    fs::set_permissions(&sub, fs::Permissions::from_mode(0o000)).unwrap();
+    // (Not where permissions don't hold, as for root.)
+    let denied = fs::symlink_metadata(&file).is_err_and(|e| e.kind() == std::io::ErrorKind::PermissionDenied);
+    let asked = asked_at_opening(&path, id);
+    fs::set_permissions(&sub, fs::Permissions::from_mode(0o755)).unwrap();
+    if denied {
+        assert!(!asked);
+    }
+}
+
+/// Content of the same bytes as an attachment found unreadable after the window showed is no
+/// word that the original is gone.
+#[test]
+fn an_original_sharing_its_file_isnt_gone_for_a_read_that_failed() {
+    let tmp = Temp::new("original-shared");
+    let path = tmp.file();
+    let (id, file, _) = saved_on_imap(&path);
+    // The bytes damaged for now: of their length, but not their content.
+    fs::remove_file(&file).unwrap();
+    fs::write(&file, vec![b'z'; signed_bytes().len()]).unwrap();
+    let mut s = Session::new(open(&path).unwrap().mailbox);
+    s.path = Some(path.clone());
+    let r = s.mailbox.message(id).unwrap().original.as_ref().and_then(|o| o.kept).unwrap();
+    s.mark_unavailable(&[r]);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.has_original() && !m.original_wanted && !m.refetch);
+    assert!(!s.dirty);
 }
 
 #[test]

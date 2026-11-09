@@ -497,7 +497,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30): nothing else of it changes.
     if std::mem::take(&mut m.original_wanted) {
-        if !m.parts_removed {
+        // (A copy that brings none, one put on the server from its parts, takes nothing away.)
+        if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
         }
         (m.unfetched, m.attachments_on_server) = (false, false);
@@ -528,7 +529,13 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.attachments = read.attachments;
     // The bytes it came as, when it is Digitally signed or Encrypted (#30): with its files from
     // the same download, so nothing removed here before comes back in one and not the other.
-    (m.original, m.parts_removed) = (read.original, false);
+    // A copy that brings none (one put on the server from its parts, as Microsoft Graph puts a
+    // message) leaves the one kept here: it is the message as it came, and what Save As and a
+    // move to another server write.
+    if read.original.is_some() {
+        m.original = read.original;
+    }
+    m.parts_removed = false;
     (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
@@ -565,7 +572,8 @@ pub(crate) fn still_to_fetch(mb: &Mailbox, m: &Message) -> bool {
 }
 
 /// Back to its headers and `preview` (#143): what [`take_fetched`] brought in goes, and the
-/// message is not fetched again, as it was when it came down. Everything else stays as it is:
+/// message is not fetched again, as it was when it came down. Everything else stays as it is
+/// (the bytes a protected message came as, #30, too):
 /// where it is, its marks, the server's state of it, what waits to go up, its headers. It wears
 /// the paperclip still when it had attachments; opening it fetches it whole again.
 pub fn thin_message(m: &mut Message, preview: String) {
@@ -576,7 +584,9 @@ pub fn thin_message(m: &mut Message, preview: String) {
     m.hidden_text = String::new();
     m.attachments.clear();
     m.kept = None;
-    (m.original, m.original_wanted) = (None, false);
+    // The bytes a Digitally signed or Encrypted message came as stay (#30): the server's copy
+    // may be one put there from its parts, which brings none back.
+    m.original_wanted = false;
     m.unfetched = true;
 }
 

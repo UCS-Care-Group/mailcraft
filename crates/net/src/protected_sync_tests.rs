@@ -69,3 +69,52 @@ fn a_signed_message_too_large_to_download_keeps_no_original() {
     assert!(header_only.not_downloaded > 0);
     assert!(header_only.original.is_none());
 }
+
+/// The last message the fake server has in "Projects".
+fn put_in_projects(imap: &FakeImap) -> Vec<u8> {
+    let world = imap.world();
+    world.mailboxes.iter().find(|m| m.raw == "Projects").unwrap().messages.last().unwrap().body.clone()
+}
+
+/// What is put on a server, with a marker or without one, carries no DKIM signature or ARC
+/// seal of the sender's: they cover a header written otherwise there, and would fail.
+#[test]
+fn a_copy_put_on_a_server_carries_no_dkim_or_arc_seal() {
+    let sealed = [&b"DKIM-Signature: v=1; d=example.org; b=x\r\nARC-Seal: i=1; b=y\r\nARC-Message-Signature: i=1; b=z\r\n"[..], SIGNED].concat();
+    let mut message = mailcraft_mime::parse_fetched(&sealed);
+    assert!(message.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("dkim-signature")));
+    message.id = 4_243;
+    for marker in ["m4rk-3r", ""] {
+        let other = two_way(true, true);
+        let folders = synced_folders(&other);
+        let place = ImapPlace { message: message.clone(), to: "Projects".into(), to_folder: PROJECTS, marker: marker.into(), ..Default::default() };
+        let up = sync(&SyncRequest { places: vec![place], ..request(account(Some(&other), None), folders) });
+        assert_eq!(up.errors, Vec::<String>::new());
+        let put = put_in_projects(&other);
+        let text = String::from_utf8_lossy(&put).to_ascii_lowercase();
+        assert!(!text.contains("dkim-signature") && !text.contains("arc-seal") && !text.contains("arc-message-signature"), "{marker}: {text}");
+        assert_eq!(body(&put), body(SIGNED), "{marker}");
+    }
+}
+
+/// A protected message with a part sent as `binary` goes written from its parts: an APPEND
+/// doesn't carry bytes that aren't lines.
+#[test]
+fn a_binary_part_goes_up_written_from_its_parts() {
+    let der: &[u8] = b"\x30\x0a\x06\x09\n\x2a\x86\nraw\r\n\n";
+    let head = b"From: ada@example.org\r\nSubject: Sealed\r\nMessage-ID: <bin@example.org>\r\nMIME-Version: 1.0\r\n\
+Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=\"smime.p7m\"\r\nContent-Transfer-Encoding: binary\r\n\r\n";
+    let bytes = [&head[..], der].concat();
+    let mut message = mailcraft_mime::parse_fetched(&bytes);
+    assert_eq!(message.original_bytes(), Some(bytes.as_slice()));
+    message.id = 4_244;
+    let other = two_way(true, true);
+    let folders = synced_folders(&other);
+    let place = ImapPlace { message, to: "Projects".into(), to_folder: PROJECTS, marker: "m4rk-3r".into(), ..Default::default() };
+    let up = sync(&SyncRequest { places: vec![place], ..request(account(Some(&other), None), folders) });
+    assert_eq!(up.errors, Vec::<String>::new());
+    assert_eq!(up.placed.len(), 1);
+    let put = put_in_projects(&other);
+    assert!(!put.windows(der.len()).any(|w| w == der));
+    assert!(!String::from_utf8_lossy(&put).to_ascii_lowercase().contains("content-transfer-encoding: binary"));
+}

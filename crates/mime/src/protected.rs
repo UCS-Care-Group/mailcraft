@@ -45,15 +45,17 @@ pub fn is_protected(bytes: &[u8]) -> bool {
 
 fn of_part(headers: &Headers, body: &[u8], depth: usize) -> Option<Protection> {
     let content_type = headers.get("content-type").map(parse_params).unwrap_or_default();
-    // A part of such a type sent along as a file isn't the message's protection; the message
-    // itself may say `attachment; filename="smime.p7m"`, as S/MIME programs write (RFC 8551
-    // §3.2.1), and is protected all the same.
+    let media_type = content_type.value.as_str();
+    // A part of such a type sent along as a file isn't the message's protection (nor is a lone
+    // `.asc` file sent as the message); an S/MIME message itself may say `attachment;
+    // filename="smime.p7m"`, as S/MIME programs write (RFC 8551 §3.2.1), and is protected all
+    // the same.
     let disposition = headers.get("content-disposition").map(parse_params).unwrap_or_default();
-    if depth > 0 && disposition.value == "attachment" {
+    let pkcs7 = matches!(media_type, "application/pkcs7-mime" | "application/x-pkcs7-mime");
+    if disposition.value == "attachment" && (depth > 0 || !pkcs7) {
         return None;
     }
     let encoding = headers.get("content-transfer-encoding").map(|e| e.trim().to_ascii_lowercase()).unwrap_or_default();
-    let media_type = content_type.value.as_str();
     let whole = body.iter().any(|b| !b.is_ascii_whitespace());
     match media_type {
         "multipart/signed" => well_formed_signed(&content_type, body).then_some(Protection::Signed),
@@ -136,7 +138,7 @@ const MAX_PARTS_LOOKED: usize = 64;
 
 /// Whether the message `bytes`, or a part of it as deep as [`MAX_DEPTH`], is sent as `binary`
 /// (RFC 2045 §6.2): bytes with no lines, whose LF bytes are data, not line ends.
-fn has_binary(bytes: &[u8]) -> bool {
+pub fn has_binary(bytes: &[u8]) -> bool {
     fn within(headers: &Headers, body: &[u8], depth: usize) -> bool {
         let encoding = headers.get("content-transfer-encoding").map(|e| e.trim().to_ascii_lowercase()).unwrap_or_default();
         if encoding == "binary" {
@@ -157,7 +159,11 @@ fn has_binary(bytes: &[u8]) -> bool {
 }
 
 /// `bytes` as a Digital signature is checked against: in CRLF lines ([`crlf`]), but for a
-/// message with a part sent as `binary`, which is kept byte for byte.
+/// message with a part sent as `binary`, which is kept byte for byte, all of it. Such a part's
+/// LF bytes are data, told from line ends only by the exact boundaries around it, and a message
+/// can only come with one over a way that keeps every byte (SMTP's BINARYMIME, IMAP's BINARY),
+/// which brings its lines in CRLF already: what makes CRLF of LF lines is for a message read
+/// from a file, where a part sent as `binary` can't be kept whole anyway.
 fn canonical(bytes: &[u8]) -> Vec<u8> {
     if has_binary(bytes) { bytes.to_vec() } else { crlf(bytes) }
 }
@@ -199,15 +205,23 @@ pub fn crlf(bytes: &[u8]) -> Vec<u8> {
 const MAX_HEADER_LINE: usize = 998;
 
 /// Push the header line `line` onto `out`, ending in CRLF, folded before white space where it
-/// is longer than [`MAX_HEADER_LINE`]. `None` when it can't be folded so (no white space where
-/// it would have to be).
-fn push_folded(out: &mut Vec<u8>, mut line: &[u8]) -> Option<()> {
+/// is longer than [`MAX_HEADER_LINE`]: past the field's colon (never inside its name), and only
+/// where something other than white space comes before and after, so that no line is white
+/// space alone. `None` when it can't be folded so.
+fn push_folded(out: &mut Vec<u8>, line: &[u8]) -> Option<()> {
+    // (White space at its end is nothing a reader keeps.)
+    let mut line = line.trim_ascii_end();
+    let blank = |b: &u8| matches!(b, b' ' | b'\t');
+    // A fold of the original's goes on from its first byte; a field's first line from its colon.
+    let mut from = if line.first().is_some_and(blank) { 1 } else { line.iter().position(|b| *b == b':')?.saturating_add(1) };
     while line.len() > MAX_HEADER_LINE {
-        // The last white space a fold can go before, past the line's first byte.
-        let at = line.get(1..=MAX_HEADER_LINE)?.iter().rposition(|b| matches!(b, b' ' | b'\t'))?.saturating_add(1);
+        let first = line.iter().position(|b| !b.is_ascii_whitespace())?;
+        let last = line.iter().rposition(|b| !b.is_ascii_whitespace())?;
+        let at = (from.max(first.saturating_add(1))..=MAX_HEADER_LINE.min(last)).rev().find(|i| line.get(*i).is_some_and(blank))?;
         out.extend_from_slice(line.get(..at)?);
         out.extend_from_slice(b"\r\n");
         line = line.get(at..)?;
+        from = 1;
     }
     out.extend_from_slice(line);
     out.extend_from_slice(b"\r\n");

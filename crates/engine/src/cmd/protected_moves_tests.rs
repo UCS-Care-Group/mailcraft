@@ -73,3 +73,53 @@ fn a_signed_message_of_lf_lines_goes_up_in_crlf_with_its_body_canonical() {
     assert!(!put.starts_with(b"\n"));
     assert_eq!(body(&put), body(STAMPED));
 }
+
+/// A copy of a signed message whose original can't be read for now waits for it, and says
+/// nothing: made of its parts, it would be taken for the message, and the copy it came from let
+/// go. One whose original is surely gone goes made of its parts.
+#[test]
+fn a_copy_waits_while_its_original_cant_be_read_for_now() {
+    // Large enough that the original and the text are kept outside the mailbox file.
+    let long = String::from_utf8_lossy(STAMPED).replace("Pay the invoice.", &"Pay the invoice. ".repeat(100));
+    let mut s = Session::empty();
+    let read = mailcraft_model::Message { uid: 1, ..mailcraft_mime::parse_fetched(long.as_bytes()) };
+    let from = imap_account(&mut s, "avery@mail.example", vec![read]);
+    let to = imap_account(&mut s, "work@mail.example", vec![]);
+    let id = s.mailbox.messages.values().find(|m| m.account == from).unwrap().id;
+    s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap()})).unwrap();
+
+    let dir = std::env::temp_dir().join(format!("mailcraft-protected-moves-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("mailbox.mailcraft");
+    crate::store::save(&path, &s.mailbox).unwrap();
+    crate::store::clear_cache();
+    let mut s = Session::new(crate::store::open(&path).unwrap().mailbox);
+    s.path = Some(path.clone());
+    let original = s.mailbox.message(id).unwrap().original.as_ref().and_then(|o| o.kept).unwrap();
+    let digest = original.sha256.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let file = crate::store::blob_dir(&path).join(&digest[..2]).join(&digest);
+    let bytes = std::fs::read(&file).unwrap();
+
+    // Of its length, its bytes not what they should be (as with a file another program holds).
+    std::fs::write(&file, vec![b'z'; bytes.len()]).unwrap();
+    crate::store::clear_cache();
+    assert!(sync_request(&s, to).unwrap().places.is_empty());
+    assert_eq!(crate::cmd::graph_place::unreadable_waiting(&s, to), Vec::<String>::new());
+
+    // Readable again: it goes as it came.
+    std::fs::write(&file, &bytes).unwrap();
+    crate::store::clear_cache();
+    let asked = sync_request(&s, to).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert_eq!(place.message.original_bytes(), Some(bytes.as_slice()));
+
+    // Surely gone: it goes made of its parts.
+    std::fs::remove_file(&file).unwrap();
+    crate::store::clear_cache();
+    let asked = sync_request(&s, to).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert!(place.message.original_bytes().is_none());
+    assert_eq!(crate::cmd::graph_place::unreadable_waiting(&s, to), Vec::<String>::new());
+    let _ = std::fs::remove_dir_all(&dir);
+}

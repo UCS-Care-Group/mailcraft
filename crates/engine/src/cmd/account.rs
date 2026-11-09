@@ -1040,6 +1040,12 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
             continue;
         }
         spent = spent.saturating_add(m.size());
+        // (Nor one whose original can't be read for now, #30: made of its parts, it would be
+        // taken for the message, and the copy it came from let go.)
+        if s.original_waiting(m) {
+            log::warn!("message {} waits to go to the server: the bytes it came as can't be read for now", m.id);
+            continue;
+        }
         match s.loaded_message(m.id) {
             Ok(whole) => {
                 let (to, create) = destination(mb, folder);

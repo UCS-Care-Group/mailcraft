@@ -73,16 +73,18 @@ pub(crate) fn ask(kind: Option<AccountKind>, m: &mut Message) {
 }
 
 /// The original of `m`, of an account of `kind`, is surely gone from the content folder (a
-/// build before #30 swept it, say): a message a server still has whole lets it go and asks the
-/// server for it again ([`ask`]); one no server has keeps it named, as missing content stays
-/// named, so that a file put back is found, and is written from its parts meanwhile. Whether
-/// the original was let go of.
+/// build before #30 swept it, say): a message a server still has whole asks the server for it
+/// again ([`ask`]). Either way it stays named, until a download brings the bytes it came as to
+/// take its place: a look that wrongly found it gone (a drive put back later) loses nothing, and
+/// a server whose copy isn't protected (one put there from its parts) never takes it away. It is
+/// written from its parts meanwhile. Whether the server was asked.
+// ponytail: asked again at each opening while the file stays gone and the server's copy brings
+// none; a mark of "asked, none came" if that ever costs.
 pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
-    if m.draft || m.parts_removed || !on_server(kind, m) {
+    if m.draft || m.parts_removed || m.original_wanted || !on_server(kind, m) {
         log::warn!("message {}: the bytes it came as are missing from the content folder; it is written from its parts", m.id);
         return false;
     }
-    m.original = None;
     ask(kind, m);
     true
 }

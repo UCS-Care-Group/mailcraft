@@ -86,8 +86,10 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     }
     let Ok(m) = mb.message_mut(id) else { return };
     (m.refetch, m.refetched) = (false, true);
-    // Check again asked for the bytes it came as alone (#30): nothing else of it changes.
-    if std::mem::take(&mut m.original_wanted) {
+    // Check again asked for the bytes it came as alone (#30): nothing else of it changes, but
+    // for text read wrongly before (U+FFFD), which is taken from the same download too, as it
+    // would have been had it been marked for that.
+    if std::mem::take(&mut m.original_wanted) && (m.draft || !unreadable(m)) {
         if !m.parts_removed && read.original.is_some() {
             m.original = read.original;
         }

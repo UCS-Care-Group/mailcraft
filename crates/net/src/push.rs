@@ -578,10 +578,20 @@ impl<'a> Push<'a> {
             // Without who got a blind copy: the copy is for anyone else who can open the mailbox
             // to see too.
             let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-            let written = match marker {
-                Some(marker) => mailcraft_mime::write_placed(message, &options, marker),
-                None => mailcraft_mime::write(message, &options),
+            // A protected message with a part sent as `binary` (#30) goes written from its parts:
+            // its bytes aren't the lines an APPEND carries (RFC 3501; the BINARY extension's
+            // literals, RFC 3516, aren't sent), and a server may refuse or change them. Its
+            // Digital signature doesn't check on that copy; the one kept here, and the copy it
+            // came from, stay as they came.
+            let parts;
+            let message = if message.original_bytes().is_some_and(mailcraft_mime::has_binary) {
+                log::info!("message {}: a part of it is binary, so the copy put on the server is written from its parts", message.id);
+                parts = mailcraft_model::Message { original: None, ..message.clone() };
+                &parts
+            } else {
+                message
             };
+            let written = mailcraft_mime::write_placed(message, &options, marker.unwrap_or_default());
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));

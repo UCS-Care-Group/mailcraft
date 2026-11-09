@@ -57,6 +57,12 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
             continue;
         }
         spent = spent.saturating_add(m.size());
+        // (Nor one whose original can't be read for now, #30: made of its parts, it would be
+        // taken for the message, and the copy it came from let go.)
+        if s.original_waiting(m) {
+            log::warn!("message {} waits to go to another mailbox: the bytes it came as can't be read for now", m.id);
+            continue;
+        }
         match s.loaded_message(m.id) {
             Ok(m) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
             Err(e) => log::warn!("message {} waits to go to another mailbox: {e}", m.id),
@@ -85,7 +91,12 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
             break;
         }
         spent = spent.saturating_add(m.size());
-        if m.kept.as_deref().is_some_and(|k| k.failed) || !s.readable_whole(m) {
+        // One whose original can't be read for now waits for it, and says nothing (#30); one
+        // whose original is surely gone goes made of its parts.
+        if s.original_waiting(m) {
+            continue;
+        }
+        if m.kept.as_deref().is_some_and(|k| k.failed) || !s.parts_readable(m) {
             let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
             said.push(format!("Couldn't put \"{subject}\" on the server: it couldn't be read on this computer"));
         } else {
