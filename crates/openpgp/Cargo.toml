@@ -11,6 +11,8 @@ workspace = true
 [dependencies]
 pgp = { workspace = true }
 thiserror = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # Random numbers in the browser, which rPGP's dependencies ask for even when it only checks.
@@ -20,3 +22,6 @@ pgp = { workspace = true, features = ["wasm"] }
 proptest = { workspace = true }
 # Keys and signatures made in the tests, from a seed: the random numbers rPGP 0.21 takes.
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+sha1 = { workspace = true }
+ed25519-dalek = { workspace = true }
+rsa = { workspace = true }

@@ -7,8 +7,9 @@ use pgp::composed::{
     SubkeyParamsBuilder,
 };
 use pgp::crypto::hash::HashAlgorithm;
+use pgp::packet::{SignatureConfig, SignatureType, Subpacket, SubpacketData};
 use pgp::ser::Serialize;
-use pgp::types::{KeyVersion, Password, SigningKey};
+use pgp::types::{KeyDetails, KeyVersion, Password, SigningKey, Timestamp};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -64,13 +65,15 @@ pub(crate) struct Make {
     /// A subkey signs, not the primary key.
     pub(crate) subkey: bool,
     pub(crate) v6: bool,
-    /// RSA rather than EdDSA: rPGP makes MD5 and SHA-1 signatures only with RSA.
-    pub(crate) rsa: bool,
+    /// RSA of this many bits rather than EdDSA: rPGP makes MD5 and SHA-1 signatures only with RSA.
+    pub(crate) rsa: Option<usize>,
+    /// A second User ID, `Alias <alias@example.org>`.
+    pub(crate) alias: bool,
 }
 
 impl Default for Make {
     fn default() -> Make {
-        Make { seed: 1, subkey: false, v6: false, rsa: false }
+        Make { seed: 1, subkey: false, v6: false, rsa: None, alias: false }
     }
 }
 
@@ -79,12 +82,15 @@ pub(crate) fn secret(user_id: &str, make: Make) -> SignedSecretKey {
     let rng = StdRng::seed_from_u64(make.seed);
     let version = if make.v6 { KeyVersion::V6 } else { KeyVersion::V4 };
     let key_type = match (make.rsa, make.v6) {
-        (true, _) => KeyType::Rsa(2048),
-        (false, true) => KeyType::Ed25519,
-        (false, false) => KeyType::Ed25519Legacy,
+        (Some(bits), _) => KeyType::Rsa(bits as u32),
+        (None, true) => KeyType::Ed25519,
+        (None, false) => KeyType::Ed25519Legacy,
     };
     let mut params = SecretKeyParamsBuilder::default();
     params.version(version).key_type(key_type.clone()).can_certify(true).can_sign(!make.subkey).primary_user_id(user_id.into());
+    if make.alias {
+        params.user_ids(vec!["Alias <alias@example.org>".into()]);
+    }
     if make.subkey {
         let mut sub = SubkeyParamsBuilder::default();
         sub.version(version).key_type(key_type).can_sign(true).can_encrypt(EncryptionCaps::None);
@@ -106,7 +112,7 @@ pub(crate) fn armoured_public(secret: &SignedSecretKey) -> String {
 
 /// The key that signs: rPGP takes either kind through this box alone.
 #[allow(clippy::redundant_allocation)]
-fn signer(secret: &SignedSecretKey) -> Box<&dyn SigningKey> {
+pub(crate) fn signer(secret: &SignedSecretKey) -> Box<&dyn SigningKey> {
     match secret.secret_subkeys.first() {
         Some(sub) => Box::new(&sub.key),
         None => Box::new(&secret.primary_key),
@@ -123,6 +129,36 @@ pub(crate) fn detached(secret: &SignedSecretKey, data: &[u8], hash: HashAlgorith
         DetachedSignature::sign_binary_data(rng, &key, &Password::empty(), hash, data).unwrap()
     };
     sig.to_armored_string(ArmorOptions::default()).unwrap()
+}
+
+/// When `secret`'s primary key was made, in seconds since 1970.
+pub(crate) fn made(secret: &SignedSecretKey) -> u32 {
+    secret.primary_key.created_at().as_secs()
+}
+
+/// A signature of `typ` by `key` made at `at`, its issuer's fingerprint and `extra` in its
+/// hashed area: to be signed.
+pub(crate) fn config(key: &impl SigningKey, typ: SignatureType, at: u32, extra: Vec<SubpacketData>) -> SignatureConfig {
+    let mut config = SignatureConfig::from_key(StdRng::seed_from_u64(11), key, typ).unwrap();
+    config.hashed_subpackets = [SubpacketData::SignatureCreationTime(Timestamp::from_secs(at)), SubpacketData::IssuerFingerprint(key.fingerprint())]
+        .into_iter()
+        .chain(extra)
+        .map(|d| Subpacket::regular(d).unwrap())
+        .collect();
+    config
+}
+
+/// A PGP/MIME message from alice@example.org over [`SIGNED_PART`], signed by `secret`'s
+/// signing key at `at`.
+pub(crate) fn signed_at(secret: &SignedSecretKey, at: u32) -> Vec<u8> {
+    let key = signer(secret);
+    let sig = config(&key, SignatureType::Binary, at, vec![]).sign(&key, &Password::empty(), SIGNED_PART.as_bytes()).unwrap();
+    pgp_mime("alice@example.org", SIGNED_PART, &DetachedSignature::new(sig).to_armored_string(ArmorOptions::default()).unwrap())
+}
+
+/// The keys in `key`, read as the crate reads them, as a ring.
+pub(crate) fn ring_of(key: &SignedPublicKey) -> crate::KeyRing {
+    PublicKey::parse(&key.to_bytes().unwrap()).unwrap().into_iter().collect()
 }
 
 /// A cleartext-signed `text` by `secret`.
@@ -153,4 +189,25 @@ pub(crate) fn signed_message(secret: &SignedSecretKey, hash: HashAlgorithm) -> V
 pub(crate) fn plain(from: &str, encoding: &str, body: &str) -> Vec<u8> {
     format!("From: {from}\r\nSubject: Note\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: {encoding}\r\n\r\n{body}")
         .into_bytes()
+}
+
+/// `bytes` in base64, a line break after every 76 characters.
+pub(crate) fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for (n, chunk) in bytes.chunks(3).enumerate() {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let v = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(ALPHABET[((v >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+        if n % 19 == 18 {
+            out.push_str("\r\n");
+        }
+    }
+    out
 }

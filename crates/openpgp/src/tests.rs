@@ -5,7 +5,7 @@
 use pgp::crypto::hash::HashAlgorithm;
 
 use crate::fixtures::*;
-use crate::{CantCheck, Fingerprint, KeyRing, NotVerified, Outcome, PublicKey, keys_in_message, verify};
+use crate::{CantCheck, Coverage, Fingerprint, KeyRing, NotVerified, Outcome, PublicKey, keys_in_message};
 
 const ALICE: &str = "Alice <alice@example.org>";
 
@@ -13,12 +13,17 @@ fn ring(keys: &[&pgp::composed::SignedSecretKey]) -> KeyRing {
     keys.iter().map(|k| public(k)).collect()
 }
 
-fn yes(_: &Fingerprint) -> bool {
+fn yes(_: &Fingerprint, _: &str) -> bool {
     true
 }
 
-fn no(_: &Fingerprint) -> bool {
+fn no(_: &Fingerprint, _: &str) -> bool {
     false
+}
+
+/// The outcome alone, for the tests that don't look at what is covered.
+fn verify(message: &[u8], from: &str, keys: &KeyRing, now: u64, verified: impl Fn(&Fingerprint, &str) -> bool) -> Option<Outcome> {
+    crate::verify(message, from, keys, now, verified).map(|c| c.outcome)
 }
 
 #[test]
@@ -32,7 +37,7 @@ fn pgp_mime_by_a_verified_key_from_its_address_is_verified() {
     assert_eq!(signer.addresses, vec!["alice@example.org".to_string()]);
     assert_eq!(signer.hash, "SHA-256");
     assert_eq!(signer.algorithm, "EdDSA");
-    assert!(signer.signed.is_some());
+    assert!(signer.signed > 0);
 }
 
 #[test]
@@ -41,7 +46,7 @@ fn a_key_not_verified_is_valid_but_not_verified() {
     let message = signed_message(&alice, HashAlgorithm::Sha256);
     let outcome = verify(&message, "alice@example.org", &ring(&[&alice]), LATER, no);
     let Some(Outcome::Valid { why, .. }) = outcome else { panic!("{outcome:?}") };
-    assert_eq!(why, NotVerified { key_unverified: true, address_differs: false });
+    assert_eq!(why, NotVerified { key_unverified: true, ..NotVerified::default() });
 }
 
 #[test]
@@ -50,7 +55,7 @@ fn a_from_address_not_on_the_key_is_valid_but_not_verified() {
     let message = signed_message(&alice, HashAlgorithm::Sha256);
     let outcome = verify(&message, "Mallory <mallory@example.org>", &ring(&[&alice]), LATER, yes);
     let Some(Outcome::Valid { why, .. }) = outcome else { panic!("{outcome:?}") };
-    assert_eq!(why, NotVerified { key_unverified: false, address_differs: true });
+    assert_eq!(why, NotVerified { address_differs: true, ..NotVerified::default() });
 }
 
 #[test]
@@ -78,12 +83,13 @@ fn no_public_key_cant_be_checked_and_names_the_signer() {
     let outcome = verify(&message, ALICE, &ring(&[&bob]), LATER, yes);
     let Some(Outcome::CantCheck { why: CantCheck::NoPublicKey, issuer }) = outcome else { panic!("{outcome:?}") };
     assert_eq!(issuer.fingerprint.as_ref(), Some(public(&alice).fingerprint()));
-    assert_eq!(issuer.key_id, Some(public(&alice).key_id()));
+    // rPGP writes the key id in the unhashed area, which anybody can change: not believed.
+    assert_eq!(issuer.key_id, None);
 }
 
 #[test]
 fn sha1_and_md5_are_algorithms_no_longer_safe() {
-    let alice = secret(ALICE, Make { rsa: true, ..Make::default() });
+    let alice = secret(ALICE, Make { rsa: Some(2048), ..Make::default() });
     for (hash, name) in [(HashAlgorithm::Sha1, "SHA-1"), (HashAlgorithm::Md5, "MD5")] {
         let armour = detached(&alice, SIGNED_PART.as_bytes(), hash, false);
         let message = pgp_mime("alice@example.org", SIGNED_PART, &armour);
@@ -129,7 +135,7 @@ fn a_text_mode_signature_checks() {
 }
 
 #[test]
-fn a_signed_message_inside_a_mailing_list_wrapper_is_found() {
+fn a_signed_message_inside_a_mailing_list_wrapper_is_found_but_only_partly_signed() {
     let alice = secret(ALICE, Make::default());
     let inner = String::from_utf8(signed_message(&alice, HashAlgorithm::Sha256)).unwrap();
     // The signed message's own Content-Type becomes the first part's header.
@@ -138,7 +144,11 @@ fn a_signed_message_inside_a_mailing_list_wrapper_is_found() {
     let wrapped = format!(
         "From: list@example.org\r\nContent-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n--outer\r\n{content_type}\r\n\r\n{body}\r\n--outer\r\nContent-Type: text/plain\r\n\r\nList footer\r\n--outer--\r\n"
     );
-    assert!(matches!(verify(wrapped.as_bytes(), ALICE, &ring(&[&alice]), LATER, yes), Some(Outcome::Verified(_))));
+    // The footer isn't signed: the signature is good, but the message isn't Verified.
+    let checked = crate::verify(wrapped.as_bytes(), ALICE, &ring(&[&alice]), LATER, yes).unwrap();
+    assert_eq!(checked.coverage, Coverage { whole: false, path: vec![0], span: None });
+    let Outcome::Valid { why, .. } = checked.outcome else { panic!("{checked:?}") };
+    assert_eq!(why, NotVerified { partly_signed: true, ..NotVerified::default() });
 }
 
 #[test]
@@ -171,26 +181,6 @@ fn inline_text_in_quoted_printable_and_base64_checks() {
     assert!(matches!(verify(&message, ALICE, &ring(&[&alice]), LATER, yes), Some(Outcome::Verified(_))), "base64");
 }
 
-fn base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for (n, chunk) in bytes.chunks(3).enumerate() {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
-        let v = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(ALPHABET[((v >> (18 - 6 * i)) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-        if n % 19 == 18 {
-            out.push_str("\r\n");
-        }
-    }
-    out
-}
-
 #[test]
 fn rfc9580_sample_cleartext_message_checks_against_the_sample_certificate() {
     let keys: KeyRing = PublicKey::parse(RFC9580_A3_CERT.as_bytes()).unwrap().into_iter().collect();
@@ -200,7 +190,7 @@ fn rfc9580_sample_cleartext_message_checks_against_the_sample_certificate() {
     let message = plain("someone@example.org", "7bit", RFC9580_A6_CLEARTEXT);
     let outcome = verify(&message, "someone@example.org", &keys, LATER, yes);
     let Some(Outcome::Valid { signer, why }) = outcome else { panic!("{outcome:?}") };
-    assert_eq!(why, NotVerified { key_unverified: false, address_differs: true });
+    assert_eq!(why, NotVerified { address_differs: true, ..NotVerified::default() });
     assert_eq!(signer.algorithm, "Ed25519");
     // A changed grocery list is a changed message.
     let changed = plain("someone@example.org", "7bit", &RFC9580_A6_CLEARTEXT.replace("tofu", "tempeh"));
@@ -236,7 +226,7 @@ fn a_signature_by_another_key_with_the_same_address_is_changed_only_when_named()
     let message = pgp_mime("alice@example.org", SIGNED_PART, &armour);
     assert!(matches!(verify(&message, ALICE, &ring(&[&alice, &other]), LATER, yes), Some(Outcome::Changed(_))));
     // Without the named key, the other key of the address isn't blamed.
-    assert!(matches!(verify(&message, ALICE, &ring(&[&other]), LATER, yes), Some(Outcome::CantCheck { why: CantCheck::NoPublicKey, .. })));
+    assert!(matches!(verify(&message, ALICE, &ring(&[&other]), LATER, yes), Some(Outcome::CantCheck { why: CantCheck::NoMatchingKey, .. })));
 }
 
 #[test]
@@ -351,4 +341,150 @@ fn a_revoked_key_cant_be_checked() {
     let message = signed_message(&alice, HashAlgorithm::Sha256);
     let outcome = verify(&message, ALICE, &keys, LATER, yes);
     assert!(matches!(outcome, Some(Outcome::CantCheck { why: CantCheck::KeyRevoked, .. })), "{outcome:?}");
+}
+
+/// Binary signature packets by `secret`'s signing key over `data`, made at `at`.
+fn packets(secret: &pgp::composed::SignedSecretKey, data: &[u8], at: u32) -> Vec<u8> {
+    let key = signer(secret);
+    let sig = config(&key, pgp::packet::SignatureType::Binary, at, vec![]).sign(&key, &pgp::types::Password::empty(), data).unwrap();
+    pgp::ser::Serialize::to_bytes(&pgp::composed::DetachedSignature::new(sig)).unwrap()
+}
+
+fn context(keys: &KeyRing) -> crate::check::Context<'_> {
+    crate::check::Context {
+        from: "alice@example.org".into(),
+        keys,
+        now: LATER,
+        verified: &|_, _| true,
+        verifications: Default::default(),
+        data_passes: Default::default(),
+    }
+}
+
+#[test]
+fn keys_tried_for_one_signature_and_one_message_are_capped_and_the_text_hashed_once() {
+    // Twelve keys claim the address; the signature is by a thirteenth, not here.
+    let keys: KeyRing = (10..22).map(|seed| public(&secret(ALICE, Make { seed, ..Make::default() }))).collect();
+    let stranger = secret(ALICE, Make { seed: 40, ..Make::default() });
+    let t = made(&stranger);
+    let cx = context(&keys);
+    let outcome = crate::check::check(&packets(&stranger, b"data", t), b"data", &cx);
+    assert!(matches!(outcome, Outcome::CantCheck { why: CantCheck::NoMatchingKey, .. }), "{outcome:?}");
+    assert!(cx.verifications.get() <= crate::check::MAX_CANDIDATES, "{}", cx.verifications.get());
+    // Eight such signatures together: the message's budget, and one pass over the text.
+    let cx = context(&keys);
+    let many: Vec<u8> = (0..8).flat_map(|i| packets(&stranger, b"data", t + i)).collect();
+    let _ = crate::check::check(&many, b"data", &cx);
+    assert!(cx.verifications.get() <= crate::check::MAX_VERIFICATIONS, "{}", cx.verifications.get());
+    assert_eq!(cx.data_passes.get(), 1);
+}
+
+#[test]
+fn a_key_is_verified_only_for_the_address_it_was_verified_for() {
+    let alice = secret(ALICE, Make { alias: true, ..Make::default() });
+    let fingerprint = public(&alice).fingerprint().clone();
+    let keys = ring(&[&alice]);
+    let only_alice = |fp: &Fingerprint, address: &str| *fp == fingerprint && address == "alice@example.org";
+    let message = signed_message(&alice, HashAlgorithm::Sha256);
+    assert!(matches!(verify(&message, ALICE, &keys, LATER, only_alice), Some(Outcome::Verified(_))));
+    // The key's other address (a User ID added later, say) wasn't the one compared.
+    let outcome = verify(&message, "alias@example.org", &keys, LATER, only_alice);
+    let Some(Outcome::Valid { why, .. }) = outcome else { panic!("{outcome:?}") };
+    assert_eq!(why, NotVerified { key_unverified: true, ..NotVerified::default() });
+}
+
+/// A PGP/MIME message whose signature is `sig`, over [`SIGNED_PART`].
+fn with_signature(sig: pgp::packet::Signature) -> Vec<u8> {
+    let armour = pgp::composed::DetachedSignature::new(sig).to_armored_string(Default::default()).unwrap();
+    pgp_mime("alice@example.org", SIGNED_PART, &armour)
+}
+
+fn two_mpis() -> pgp::types::SignatureBytes {
+    pgp::types::SignatureBytes::Mpis(vec![pgp::types::Mpi::from_slice(&[1; 32]), pgp::types::Mpi::from_slice(&[1; 32])])
+}
+
+#[test]
+fn dsa_and_version_3_signatures_are_refused() {
+    use pgp::crypto::public_key::PublicKeyAlgorithm;
+    use pgp::packet::{Signature, SignatureConfig, SignatureType, Subpacket, SubpacketData};
+    use pgp::types::{KeyDetails, Timestamp};
+    let alice = secret(ALICE, Make::default());
+    let keys = ring(&[&alice]);
+    let mut dsa = SignatureConfig::v4(SignatureType::Binary, PublicKeyAlgorithm::DSA, HashAlgorithm::Sha256);
+    dsa.hashed_subpackets = vec![Subpacket::regular(SubpacketData::SignatureCreationTime(Timestamp::from_secs(made(&alice)))).unwrap()];
+    let outcome = verify(&with_signature(Signature::from_config(dsa, [0, 0], two_mpis()).unwrap()), ALICE, &keys, LATER, yes);
+    assert!(matches!(outcome, Some(Outcome::CantCheck { why: CantCheck::WeakAlgorithm("DSA"), .. })), "{outcome:?}");
+    let v3 = SignatureConfig::v3(
+        SignatureType::Binary,
+        PublicKeyAlgorithm::EdDSALegacy,
+        HashAlgorithm::Sha256,
+        Timestamp::from_secs(made(&alice)),
+        alice.primary_key.legacy_key_id(),
+    );
+    let outcome = verify(&with_signature(Signature::from_config(v3, [0, 0], two_mpis()).unwrap()), ALICE, &keys, LATER, yes);
+    assert!(matches!(outcome, Some(Outcome::CantCheck { why: CantCheck::UnknownAlgorithm, .. })), "{outcome:?}");
+}
+
+#[test]
+fn the_unhashed_area_never_decides_who_is_blamed() {
+    use pgp::packet::{Subpacket, SubpacketData};
+    use pgp::types::{KeyDetails, Password};
+    let mallory = secret("Mallory <mallory@example.org>", Make { seed: 6, ..Make::default() });
+    let bob = secret("Bob <bob@example.org>", Make { seed: 2, ..Make::default() });
+    let keys = ring(&[&bob]);
+    let t = made(&mallory);
+    let sign = |unhashed: Vec<SubpacketData>| {
+        let mut config = config(&mallory.primary_key, pgp::packet::SignatureType::Binary, t, vec![]);
+        config.unhashed_subpackets = unhashed.into_iter().map(|d| Subpacket::regular(d).unwrap()).collect();
+        with_signature(config.sign(&mallory.primary_key, &Password::empty(), SIGNED_PART.as_bytes()).unwrap())
+    };
+    // Mallory's signature, its unhashed area naming Bob: Bob isn't blamed for it.
+    let framed = verify(&sign(vec![SubpacketData::IssuerFingerprint(bob.primary_key.fingerprint())]), ALICE, &keys, LATER, yes);
+    assert!(matches!(framed, Some(Outcome::CantCheck { why: CantCheck::NoPublicKey, .. })), "{framed:?}");
+    assert_eq!(framed, verify(&sign(vec![]), ALICE, &keys, LATER, yes));
+
+    // An issuer only in the unhashed area finds a key, which counts because it fits.
+    let alice = secret(ALICE, Make::default());
+    let mut config = config(&alice.primary_key, pgp::packet::SignatureType::Binary, t, vec![]);
+    config.hashed_subpackets.retain(|p| matches!(p.data, SubpacketData::SignatureCreationTime(_)));
+    config.unhashed_subpackets = vec![Subpacket::regular(SubpacketData::IssuerFingerprint(alice.primary_key.fingerprint())).unwrap()];
+    let sig = config.sign(&alice.primary_key, &Password::empty(), SIGNED_PART.as_bytes()).unwrap();
+    let outcome = verify(&with_signature(sig), "Carol <carol@example.org>", &ring(&[&alice, &bob]), LATER, yes);
+    assert!(matches!(outcome, Some(Outcome::Valid { .. })), "{outcome:?}");
+}
+
+#[test]
+fn a_malformed_signature_is_unreadable_not_changed() {
+    use pgp::packet::Signature;
+    let alice = secret(ALICE, Make::default());
+    let config = config(&alice.primary_key, pgp::packet::SignatureType::Binary, made(&alice), vec![]);
+    // Legacy EdDSA has two MPIs; one is no signature of its kind.
+    let one = pgp::types::SignatureBytes::Mpis(vec![pgp::types::Mpi::from_slice(&[1; 32])]);
+    let outcome = verify(&with_signature(Signature::from_config(config, [0, 0], one).unwrap()), ALICE, &ring(&[&alice]), LATER, yes);
+    assert!(matches!(outcome, Some(Outcome::CantCheck { why: CantCheck::Unreadable, .. })), "{outcome:?}");
+}
+
+#[test]
+fn autocrypt_in_a_report_is_ignored() {
+    let alice = secret(ALICE, Make::default());
+    let keydata = base64(&pgp::ser::Serialize::to_bytes(&pgp::composed::SignedPublicKey::from(alice)).unwrap()).replace("\r\n", "");
+    let message = |media: &str| {
+        format!(
+            "From: alice@example.org\r\nAutocrypt: addr=alice@example.org; keydata={keydata}\r\nContent-Type: {media}; boundary=r\r\n\r\n--r\r\n\r\nHi\r\n--r--\r\n"
+        )
+    };
+    assert!(keys_in_message(message("multipart/mixed").as_bytes()).autocrypt.is_some());
+    assert!(keys_in_message(message("multipart/report").as_bytes()).autocrypt.is_none());
+}
+
+#[test]
+fn a_from_field_with_two_mailboxes_matches_no_address() {
+    let alice = secret(ALICE, Make::default());
+    let two = "alice@example.org, Mallory <mallory@example.org>";
+    let outcome = verify(&signed_message(&alice, HashAlgorithm::Sha256), two, &ring(&[&alice]), LATER, yes);
+    let Some(Outcome::Valid { why, .. }) = outcome else { panic!("{outcome:?}") };
+    assert_eq!(why, NotVerified { key_unverified: true, address_differs: true, partly_signed: false });
+    let keydata = base64(&pgp::ser::Serialize::to_bytes(&pgp::composed::SignedPublicKey::from(alice)).unwrap()).replace("\r\n", "");
+    let message = format!("From: {two}\r\nAutocrypt: addr=alice@example.org; keydata={keydata}\r\n\r\nHi\r\n");
+    assert!(keys_in_message(message.as_bytes()).autocrypt.is_none());
 }

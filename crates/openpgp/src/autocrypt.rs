@@ -4,7 +4,7 @@
 //! message, for the address it came from. Read, never acted on here: the caller keeps the key
 //! for that address (R9), and nothing is sent.
 
-use crate::keys::{MAX_KEY_BYTES, PublicKey};
+use crate::keys::{Budget, MAX_CHECKS_PER_CALL, MAX_KEY_BYTES, PublicKey};
 use crate::{Error, mime};
 
 /// How long a header value may be: a key for Autocrypt is meant to be small (Level 1 §2.1
@@ -27,7 +27,7 @@ pub struct Autocrypt {
 /// whole header one to ignore), or carries no key that checks; [`Error::TooLarge`] when it is
 /// longer than a key for Autocrypt needs.
 pub fn parse_autocrypt(value: &str) -> Result<Autocrypt, Error> {
-    attributes(value)?.read()
+    attributes(value)?.read(&mut Budget::new(MAX_CHECKS_PER_CALL))
 }
 
 /// A header's attributes, read before its key is: the key is the costly part.
@@ -63,13 +63,13 @@ pub(crate) fn attributes(value: &str) -> Result<Attributes<'_>, Error> {
 
 impl Attributes<'_> {
     /// The header with its key read.
-    pub(crate) fn read(self) -> Result<Autocrypt, Error> {
+    pub(crate) fn read(self, total: &mut Budget) -> Result<Autocrypt, Error> {
         let bytes = mime::base64(self.keydata.as_bytes());
         if bytes.len() > MAX_KEY_BYTES {
             return Err(Error::TooLarge);
         }
         // Level 1 §2.1: the keydata is one Transferable Public Key.
-        let key = PublicKey::binary(&bytes).into_iter().next().ok_or(Error::Unreadable)?;
+        let key = PublicKey::binary(&bytes, 1, total).into_iter().next().ok_or(Error::Unreadable)?;
         Ok(Autocrypt { address: self.address, prefer_encrypt_mutual: self.mutual, key })
     }
 }

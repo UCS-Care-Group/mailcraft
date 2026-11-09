@@ -94,6 +94,16 @@ hmac = { version = "0.13", default-features = false }
 # and its fixed vectors run before it comes in. No default features: bzip2 compression isn't
 # needed to check a signature.
 pgp = { version = "=0.21.0", default-features = false }
+# The hashes rPGP itself uses (RustCrypto, MIT OR Apache-2.0, in the tree through it), named so
+# that `mailcraft-openpgp` hashes what was signed once for all the keys it tries. The test
+# vector built without rPGP signs with Ed25519 and SHA-1 fingerprints (tests only).
+sha2 = { version = "0.10", default-features = false }
+sha3 = { version = "0.10", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+ed25519-dalek = { version = "2", default-features = false }
+# A 1024-bit RSA key, which rPGP refuses to make, for the test that such a key is refused (tests
+# only; in the tree through rPGP).
+rsa = { version = "0.9", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO

@@ -28,6 +28,9 @@ impl Kind {
 struct Line<'a> {
     raw: &'a [u8],
     text: &'a [u8],
+    /// Where it starts in the text, and where the next line starts.
+    start: usize,
+    next: usize,
 }
 
 fn lines(text: &[u8]) -> impl Iterator<Item = Line<'_>> {
@@ -39,9 +42,10 @@ fn lines(text: &[u8]) -> impl Iterator<Item = Line<'_>> {
         let rest = text.get(at..).unwrap_or_default();
         let len = rest.iter().position(|b| *b == b'\n');
         let raw = rest.get(..len.unwrap_or(rest.len())).unwrap_or_default();
+        let start = at;
         at = len.map_or(text.len(), |n| at.saturating_add(n).saturating_add(1));
         let raw = raw.strip_suffix(b"\r").unwrap_or(raw);
-        Some(Line { raw, text: trim_end(raw) })
+        Some(Line { raw, text: trim_end(raw), start, next: at })
     })
 }
 
@@ -152,6 +156,13 @@ pub(crate) struct Cleartext {
     pub(crate) signed: Vec<u8>,
     /// The signature packets, decoded from their armour.
     pub(crate) signature: Vec<u8>,
+    /// Where the block is in the text: from its first line to the end of its last.
+    pub(crate) span: (usize, usize),
+    /// Nothing but white space around the block, and so no other block: the block is the text.
+    pub(crate) alone: bool,
+    /// Its armour headers are `Hash:` lines only, and no line of the signed text is unescaped
+    /// armour. One that isn't would show words that aren't signed, so it can't be checked.
+    pub(crate) well_formed: bool,
 }
 
 /// The first cleartext-signed text in `text`, if there is a whole one: `-----BEGIN PGP SIGNED
@@ -172,15 +183,19 @@ pub(crate) fn cleartext(text: &[u8], limit: usize) -> Option<Cleartext> {
     let mut signed: Vec<u8> = Vec::new();
     let mut first_line = true;
     let mut body = Body::new(limit);
+    let (mut start, mut alone, mut well_formed) = (0usize, true, true);
     for line in lines(text) {
         let line_text = line.text.strip_prefix(b"\xef\xbb\xbf").unwrap_or(line.text);
         match at {
-            At::Before if line_text == begin.as_slice() => at = At::Headers,
-            At::Before => {}
-            // RFC 9580 §7.1: one or more `Hash:` lines (or none, in newer writers), then an
-            // empty line.
+            At::Before if line_text == begin.as_slice() => {
+                at = At::Headers;
+                start = line.start;
+            }
+            At::Before => alone &= line_text.iter().all(u8::is_ascii_whitespace),
+            // RFC 9580 §7.1: `Hash:` lines (or none, in newer writers), then an empty line.
+            // Anything else there would be shown and isn't signed.
             At::Headers if line_text.is_empty() => at = At::Text,
-            At::Headers => {}
+            At::Headers => well_formed &= line_text.starts_with(b"Hash:"),
             At::Text if line_text == sig_begin.as_slice() => at = At::Signature,
             At::Text => {
                 if !first_line {
@@ -188,13 +203,18 @@ pub(crate) fn cleartext(text: &[u8], limit: usize) -> Option<Cleartext> {
                 }
                 first_line = false;
                 // Dash-escaping undone (§7.1), then the white space the line ends in removed
-                // (§7.2).
+                // (§7.2). Every line that starts with a dash is escaped: one that isn't is
+                // armour where text belongs.
                 let raw = line.raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(line.raw);
+                if raw.starts_with(b"-") && !raw.starts_with(b"- ") {
+                    well_formed = false;
+                }
                 signed.extend_from_slice(trim_end(raw.strip_prefix(b"- ").unwrap_or(raw)));
             }
             At::Signature if line_text == sig_end.as_slice() => {
                 let signature = body.finish()?;
-                return Some(Cleartext { signed, signature });
+                alone &= text.get(line.next..).unwrap_or_default().iter().all(u8::is_ascii_whitespace);
+                return Some(Cleartext { signed, signature, span: (start, line.next), alone, well_formed });
             }
             At::Signature => body.line(line_text),
         }

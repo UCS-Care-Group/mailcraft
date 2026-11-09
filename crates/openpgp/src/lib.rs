@@ -34,21 +34,28 @@ mod armour_tests;
 #[cfg(test)]
 mod autocrypt_tests;
 #[cfg(test)]
+mod coverage_tests;
+#[cfg(test)]
 mod fixtures;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod mime_tests;
 #[cfg(test)]
 mod prop_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vector_tests;
 
 pub use autocrypt::{Autocrypt, parse_autocrypt};
-pub use check::{CantCheck, Issuer, NotVerified, Outcome, Signer};
+pub use check::{CantCheck, Checked, Coverage, Issuer, NotVerified, Outcome, Signer};
 pub use keys::{Fingerprint, KeyId, KeyRing, PublicKey};
 
 /// The largest message looked at, as large as the largest any server is fetched for.
 pub const MAX_MESSAGE: usize = 150 << 20;
-/// How deep into multiparts the signed text, or an attached key, is looked for.
+/// How deep into wrapping `multipart/mixed` parts the signed part is looked for, and how deep
+/// into multiparts an attached key.
 const MAX_DEPTH: usize = 8;
 /// How many parts of a message are looked at for attached keys.
 const MAX_PARTS: usize = 256;
@@ -73,19 +80,51 @@ pub(crate) fn guard<T>(f: impl FnOnce() -> T) -> Option<T> {
 
 /// Checks the OpenPGP Digital signature of the message `original` (its bytes as they came),
 /// sent from `from` (the From field's value or its address), against `keys`, at `now` (seconds
-/// since 1970), where `verified` says whether the owner has Verified a key by its primary
-/// fingerprint (R6). `None` when the message has no OpenPGP Digital signature (an S/MIME one
-/// isn't this crate's). Never fails: what can't be read is [`CantCheck::Unreadable`].
-pub fn verify(original: &[u8], from: &str, keys: &KeyRing, now: u64, verified: impl Fn(&Fingerprint) -> bool) -> Option<Outcome> {
+/// since 1970). `verified(fingerprint, address)` says whether the owner has Verified that key
+/// for that address (R6): marked it after comparing its fingerprint, or their GnuPG keyring
+/// trusts it fully with that User ID.
+///
+/// `None` when the message has no OpenPGP Digital signature (an S/MIME one isn't this crate's,
+/// and one inside `multipart/alternative` is none: the other alternative would be shown
+/// unsigned). Never fails: what can't be read is [`CantCheck::Unreadable`]. A message is
+/// [`Outcome::Verified`] only when the signature covers all of it ([`Coverage::whole`]); one
+/// that covers part of it is at best [`Outcome::Valid`] with [`NotVerified::partly_signed`].
+pub fn verify(original: &[u8], from: &str, keys: &KeyRing, now: u64, verified: impl Fn(&Fingerprint, &str) -> bool) -> Option<Checked> {
     if original.len() > MAX_MESSAGE {
-        return None;
+        return looks_signed(original).then(|| Checked { outcome: Outcome::cant(CantCheck::TooLarge), coverage: Coverage::default() });
     }
-    let cx = check::Context { from, keys, now, verified: &verified };
+    let cx = check::Context {
+        from: mime::address(from),
+        keys,
+        now,
+        verified: &verified,
+        verifications: std::cell::Cell::new(0),
+        data_passes: std::cell::Cell::new(0),
+    };
     let (headers, body) = mime::split(original);
-    find(&headers, body, 0, &cx)
+    let mut checked = find(&headers, body, &mut Vec::new(), &cx)?;
+    if !checked.coverage.whole {
+        checked.outcome = match checked.outcome {
+            Outcome::Verified(signer) => Outcome::Valid { signer, why: NotVerified { partly_signed: true, ..NotVerified::default() } },
+            Outcome::Valid { signer, why } => Outcome::Valid { signer, why: NotVerified { partly_signed: true, ..why } },
+            other => other,
+        };
+    }
+    Some(checked)
 }
 
-fn find(headers: &mime::Headers, body: &[u8], depth: usize, cx: &check::Context<'_>) -> Option<Outcome> {
+/// Whether a message too large to check is a signed one, told cheaply: a PGP/MIME type at the
+/// top, or a cleartext-signed block anywhere in it.
+fn looks_signed(original: &[u8]) -> bool {
+    let (headers, _) = mime::split(original.get(..1 << 20).unwrap_or(original));
+    let content_type = headers.content_type();
+    let pgp_mime = content_type.value == "multipart/signed"
+        && content_type.get("protocol").is_some_and(|p| p.trim().eq_ignore_ascii_case("application/pgp-signature"));
+    pgp_mime || original.windows(34).any(|w| w == b"-----BEGIN PGP SIGNED MESSAGE-----")
+}
+
+/// The signed part of a message at `path`, checked.
+fn find(headers: &mime::Headers, body: &[u8], path: &mut Vec<usize>, cx: &check::Context<'_>) -> Option<Checked> {
     let content_type = headers.content_type();
     match content_type.value.as_str() {
         "multipart/signed" => {
@@ -93,29 +132,36 @@ fn find(headers: &mime::Headers, body: &[u8], depth: usize, cx: &check::Context<
             if protocol != "application/pgp-signature" {
                 return None;
             }
-            let boundary = content_type.get("boundary").filter(|b| !b.is_empty())?;
+            // Only a PGP/MIME message at the top is all of the message.
+            let coverage = Coverage { whole: path.is_empty(), path: path.clone(), span: None };
+            let Some(boundary) = content_type.get("boundary").filter(|b| !b.is_empty()) else {
+                return Some(Checked { outcome: Outcome::cant(CantCheck::Unreadable), coverage });
+            };
             let parts = mime::parts(body, boundary, 3);
-            let unreadable = Outcome::CantCheck { why: CantCheck::Unreadable, issuer: Issuer::default() };
             // RFC 1847 §2.1: exactly two parts, what was signed and the signature.
-            let [signed, signature] = parts.as_slice() else { return Some(unreadable) };
+            let [signed, signature] = parts.as_slice() else { return Some(Checked { outcome: Outcome::cant(CantCheck::Unreadable), coverage }) };
             let (sig_headers, sig_body) = mime::split(signature);
             let sig_bytes = mime::decode(&sig_headers.encoding(), sig_body);
             let packets = signature_packets(&sig_bytes);
             // RFC 3156 §5: the signed part with its header, in canonical form (CR LF).
-            Some(check::check(&packets, &mime::crlf(signed), cx))
+            Some(Checked { outcome: check::check(&packets, &mime::crlf(signed), cx), coverage })
         }
         "text/plain" => {
             let text = mime::decode(&headers.encoding(), body);
             let clear = armour::cleartext(&text, check::MAX_SIGNATURE_BYTES)?;
-            Some(check::check(&clear.signature, &clear.signed, cx))
+            let coverage = Coverage { whole: path.is_empty() && clear.alone, path: path.clone(), span: Some(clear.span) };
+            // Words shown in the block that aren't signed: nothing in it can be vouched for.
+            let outcome = if clear.well_formed { check::check(&clear.signature, &clear.signed, cx) } else { Outcome::cant(CantCheck::Unreadable) };
+            Some(Checked { outcome, coverage })
         }
-        // A multipart around it (a mailing list's, say), or the alternatives of one: the first
-        // part, as `mailcraft_mime::protection` looks for it.
-        multipart if multipart.starts_with("multipart/") && multipart != "multipart/encrypted" && depth < MAX_DEPTH => {
+        // A mailing list's wrapper: its first part, which is then only part of the message.
+        // Never into `multipart/alternative`, whose other alternatives would be shown unsigned.
+        "multipart/mixed" if path.len() < MAX_DEPTH => {
             let boundary = content_type.get("boundary").filter(|b| !b.is_empty())?;
             let first = *mime::parts(body, boundary, 1).first()?;
             let (part_headers, part_body) = mime::split(first);
-            find(&part_headers, part_body, depth.saturating_add(1), cx)
+            path.push(0);
+            find(&part_headers, part_body, path, cx)
         }
         _ => None,
     }
@@ -149,36 +195,42 @@ const MAX_ATTACHED: usize = 16;
 const MAX_AUTOCRYPT: usize = 8;
 
 /// Reads the Public keys in the message `original`: attached key parts and the `Autocrypt:`
-/// header. Nothing is fetched or sent; what can't be read is left out.
+/// header. Nothing is fetched or sent; what can't be read is left out. All of it together costs
+/// at most a fixed number of signature checks.
 pub fn keys_in_message(original: &[u8]) -> Found {
     let mut found = Found::default();
     if original.len() > MAX_MESSAGE {
         return found;
     }
+    let mut total = keys::Budget::new(keys::MAX_CHECKS_PER_CALL);
     let (headers, body) = mime::split(original);
+    // One From mailbox, or none counts.
     let from = headers.get("from").map(mime::address).unwrap_or_default();
-    // Level 1 §2.3: more than one header for the address is as good as none. The attributes
-    // are read first, and the key, which costs, only of the one header that counts.
-    let mut headers_for_from =
-        headers.all("autocrypt").take(MAX_AUTOCRYPT).filter_map(|v| autocrypt::attributes(v).ok()).filter(|a| !from.is_empty() && a.address == from);
-    if let (Some(one), None) = (headers_for_from.next(), headers_for_from.next()) {
-        found.autocrypt = one.read().ok();
+    // Level 1 §2.3: not in a report (a bounce quotes the message it is about), and more than
+    // one header for the address is as good as none. The attributes are read first, and the
+    // key, which costs, only of the one header that counts.
+    if headers.content_type().value != "multipart/report" && !from.is_empty() {
+        let mut headers_for_from =
+            headers.all("autocrypt").take(MAX_AUTOCRYPT).filter_map(|v| autocrypt::attributes(v).ok()).filter(|a| a.address == from);
+        if let (Some(one), None) = (headers_for_from.next(), headers_for_from.next()) {
+            found.autocrypt = one.read(&mut total).ok();
+        }
     }
-    let mut budget = MAX_PARTS;
-    attached(&headers, body, 0, &mut budget, &mut found.attached);
+    let mut parts = MAX_PARTS;
+    attached(&headers, body, 0, &mut parts, &mut total, &mut found.attached);
     found
 }
 
-fn attached(headers: &mime::Headers, body: &[u8], depth: usize, budget: &mut usize, out: &mut Vec<PublicKey>) {
-    if *budget == 0 || out.len() >= MAX_ATTACHED {
+fn attached(headers: &mime::Headers, body: &[u8], depth: usize, parts: &mut usize, total: &mut keys::Budget, out: &mut Vec<PublicKey>) {
+    if *parts == 0 || out.len() >= MAX_ATTACHED {
         return;
     }
-    *budget = budget.saturating_sub(1);
+    *parts = parts.saturating_sub(1);
     let content_type = headers.content_type();
     let media = content_type.value.as_str();
     if media == "application/pgp-keys" {
         let bytes = mime::decode(&headers.encoding(), body);
-        if let Ok(keys) = PublicKey::parse(&bytes) {
+        if let Ok(keys) = PublicKey::parse_with(&bytes, total) {
             let room = MAX_ATTACHED.saturating_sub(out.len());
             out.extend(keys.into_iter().take(room));
         }
@@ -186,9 +238,9 @@ fn attached(headers: &mime::Headers, body: &[u8], depth: usize, budget: &mut usi
     }
     if media.starts_with("multipart/") && depth < MAX_DEPTH {
         let Some(boundary) = content_type.get("boundary").filter(|b| !b.is_empty()) else { return };
-        for part in mime::parts(body, boundary, *budget) {
+        for part in mime::parts(body, boundary, *parts) {
             let (part_headers, part_body) = mime::split(part);
-            attached(&part_headers, part_body, depth.saturating_add(1), budget, out);
+            attached(&part_headers, part_body, depth.saturating_add(1), parts, total, out);
         }
     }
 }

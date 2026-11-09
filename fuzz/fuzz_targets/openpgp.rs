@@ -26,7 +26,7 @@ I8kWVkXU6vFOi+HWvv/ira7ofJu16NnoUkhclkUrk0mXubZvyl4GBg==
 static KEYS: LazyLock<KeyRing> = LazyLock::new(|| PublicKey::parse(CERT.as_bytes()).unwrap_or_default().into_iter().collect());
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
-    let _ = mailcraft_openpgp::verify(data, "someone@example.org", &KEYS, 4_102_444_800, |_| true);
+    let _ = mailcraft_openpgp::verify(data, "someone@example.org", &KEYS, 4_102_444_800, |_, _| true);
     let _ = mailcraft_openpgp::keys_in_message(data);
     let _ = PublicKey::parse(data);
     let _ = mailcraft_openpgp::parse_autocrypt(&String::from_utf8_lossy(data));

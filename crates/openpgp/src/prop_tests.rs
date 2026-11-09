@@ -47,13 +47,13 @@ proptest! {
     #[test]
     fn verify_never_panics(bytes in prop::collection::vec(any::<u8>(), 0..2048)) {
         let keys: KeyRing = ALICE_FOR_PROPS.iter().cloned().collect();
-        let _ = verify(&bytes, "a@example.org", &keys, LATER, |_| true);
+        let _ = verify(&bytes, "a@example.org", &keys, LATER, |_, _| true);
     }
 
     #[test]
     fn verify_never_panics_on_mail_like_bytes(bytes in mail_like()) {
         let keys: KeyRing = ALICE_FOR_PROPS.iter().cloned().collect();
-        let _ = verify(&bytes, "a@example.org", &keys, LATER, |_| true);
+        let _ = verify(&bytes, "a@example.org", &keys, LATER, |_, _| true);
         let _ = keys_in_message(&bytes);
     }
 
@@ -61,7 +61,7 @@ proptest! {
     fn packets_never_panic(bytes in prop::collection::vec(any::<u8>(), 0..2048)) {
         let _ = PublicKey::parse(&bytes);
         let keys: KeyRing = ALICE_FOR_PROPS.iter().cloned().collect();
-        let _ = crate::check::check(&bytes, b"data", &crate::check::Context { from: "a@example.org", keys: &keys, now: LATER, verified: &|_| true });
+        let _ = crate::check::check(&bytes, b"data", &crate::check::Context { from: "a@example.org".into(), keys: &keys, now: LATER, verified: &|_, _| true, verifications: Default::default(), data_passes: Default::default() });
     }
 
     #[test]

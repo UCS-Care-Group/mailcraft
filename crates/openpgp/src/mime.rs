@@ -315,6 +315,23 @@ fn quoted_printable(text: &[u8]) -> Vec<u8> {
 /// The address in a From field (or an address given as it is): what is inside the last `<…>`,
 /// else the whole value, trimmed and in lower case. Empty when there is no `@` in it.
 pub(crate) fn address(value: &str) -> String {
+    // A field with more than one mailbox (RFC 5322 §3.6.2) has no one address to match: an
+    // `@` outside quoted strings and comments for each.
+    let (mut quoted, mut escaped, mut comment, mut ats) = (false, false, 0usize, 0usize);
+    for c in value.chars() {
+        match c {
+            _ if escaped => escaped = false,
+            '\\' if quoted || comment > 0 => escaped = true,
+            '"' if comment == 0 => quoted = !quoted,
+            '(' if !quoted => comment = comment.saturating_add(1),
+            ')' if !quoted => comment = comment.saturating_sub(1),
+            '@' if !quoted && comment == 0 => ats = ats.saturating_add(1),
+            _ => {}
+        }
+    }
+    if ats > 1 {
+        return String::new();
+    }
     let inner = match (value.rfind('<'), value.rfind('>')) {
         (Some(open), Some(close)) if open < close => value.get(open.saturating_add(1)..close).unwrap_or_default(),
         _ => value,
