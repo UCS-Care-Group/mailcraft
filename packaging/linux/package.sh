@@ -22,7 +22,7 @@ APP_ID=io.github.billsecond.mailcraft
 
 SKIP_BUILD=0
 FORMATS="appimage deb rpm tar"
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=1; shift ;;
     --formats) FORMATS="$2"; shift 2 ;;
@@ -43,8 +43,8 @@ BASENAME="mailcraft-$VERSION-linux-$ARCH"
 
 echo "==> MailCraft $VERSION for Linux $ARCH ($FORMATS)"
 
-if [ "$SKIP_BUILD" = 0 ]; then
-  if [ -n "${CROSS_TARGET:-}" ]; then
+if [[ $SKIP_BUILD == 0 ]]; then
+  if [[ -n "${CROSS_TARGET:-}" ]]; then
     (cd "$ROOT" && cargo build --release --locked -p mailcraft -p mailcraft-cli --target "$CROSS_TARGET")
   else
     (cd "$ROOT" && cargo build --release --locked -p mailcraft -p mailcraft-cli)
@@ -126,8 +126,8 @@ if has appimage; then
   esac
   # fetch_pinned <url> <file> <sha256>: download unless a copy with that hash is already there.
   fetch_pinned() {
-    if [ -z "$3" ]; then echo "error: no pinned checksum for $(basename "$2") on $ARCH; set APPIMAGETOOL and APPIMAGE_RUNTIME" >&2; exit 1; fi
-    if [ -f "$2" ] && echo "$3  $2" | sha256sum -c --status -; then return; fi
+    if [[ -z "$3" ]]; then echo "error: no pinned checksum for $(basename "$2") on $ARCH; set APPIMAGETOOL and APPIMAGE_RUNTIME" >&2; exit 1; fi
+    if [[ -f "$2" ]] && echo "$3  $2" | sha256sum -c --status -; then return; fi
     rm -f "$2"
     curl -fsSL --proto '=https' --tlsv1.2 -o "$2.part" "$1"
     if ! echo "$3  $2.part" | sha256sum -c --status -; then
@@ -138,13 +138,13 @@ if has appimage; then
     mv "$2.part" "$2"
   }
   TOOL="${APPIMAGETOOL:-$(command -v appimagetool || true)}"
-  if [ -z "$TOOL" ]; then
+  if [[ -z "$TOOL" ]]; then
     TOOL="$CARGO_TARGET_DIR/appimagetool-$APPIMAGETOOL_VERSION-$ARCH.AppImage"
     fetch_pinned "https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-$ARCH.AppImage" "$TOOL" "$TOOL_SHA256"
     chmod +x "$TOOL"
   fi
   RUNTIME="${APPIMAGE_RUNTIME:-}"
-  if [ -z "$RUNTIME" ]; then
+  if [[ -z "$RUNTIME" ]]; then
     RUNTIME="$CARGO_TARGET_DIR/appimage-runtime-$APPIMAGE_RUNTIME_VERSION-$ARCH"
     fetch_pinned "https://github.com/AppImage/type2-runtime/releases/download/$APPIMAGE_RUNTIME_VERSION/runtime-$ARCH" "$RUNTIME" "$RUNTIME_SHA256"
   fi
@@ -167,16 +167,16 @@ if has appimage; then
   # package) appimagetool also writes the .zsync, into its working directory, hence the cd.
   (cd "$DIST" && ARCH="$ARCH" APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream --runtime-file "$RUNTIME" -u "$UPDATE_INFO" "$APPDIR" "$OUT")
   echo "wrote $OUT"
-  if [ -s "$OUT.zsync" ]; then
+  if [[ -s "$OUT.zsync" ]]; then
     echo "wrote $OUT.zsync"
   else
     warn "zsyncmake not found, so $OUT.zsync was not written; AppImage delta updates need it"
   fi
 fi
 
-if [ -z "${CROSS_TARGET:-}" ]; then
+if [[ -z "${CROSS_TARGET:-}" ]]; then
   "$STAGE/usr/bin/mailcraft-cli" --version
-elif [ -n "${EMULATOR:-}" ]; then
+elif [[ -n "${EMULATOR:-}" ]]; then
   "$EMULATOR" "$STAGE/usr/bin/mailcraft-cli" --version
 fi
 echo "==> done"

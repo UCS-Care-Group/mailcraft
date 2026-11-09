@@ -136,6 +136,7 @@ pub(crate) enum Menu {
     MoveFolder,
     ReadingPane,
     TodoBar,
+    GmailCategories,
     Preview,
     ArrangeBy,
     Theme,
@@ -975,17 +976,19 @@ fn view(app: &MailApp) -> Tab {
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
     let tight = app.session.prefs.tight_spacing;
+    let mut layout = vec![
+        Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
+        Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
+        Item::big_menu("todoBar", "todoBar", "To-Do\nBar", "To-Do Bar", Menu::TodoBar).at(0, 2),
+    ];
+    // Gmail's categories as folders or as tabs (#911): only with a Gmail account that shows them.
+    if mailcraft_engine::gmail::offered(&app.session).is_none() {
+        layout.push(Item::big_menu("gmailCategories", "inbox", "Gmail\nCategories", "Gmail Categories", Menu::GmailCategories).at(0, 3));
+    }
+    layout.push(Item::big_menu("ribbonLayout", "ribbon", "Ribbon\nLayout", "Ribbon Layout", Menu::RibbonLayout).at(3, 4));
     Tab::of(vec![
         g("Current View", vec![Item::big_menu("changeView", "changeView", "Change\nView", "Change View", Menu::ChangeView).at(0, 1)]),
-        g(
-            "Layout",
-            vec![
-                Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
-                Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
-                Item::big_menu("todoBar", "todoBar", "To-Do\nBar", "To-Do Bar", Menu::TodoBar).at(0, 2),
-                Item::big_menu("ribbonLayout", "ribbon", "Ribbon\nLayout", "Ribbon Layout", Menu::RibbonLayout).at(3, 4),
-            ],
-        ),
+        g("Layout", layout),
         g(
             "Messages",
             vec![
@@ -1425,6 +1428,11 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 mi_check(ui, app, label, on, "view.todoBar", json!({"part": code, "value": !on}));
             }
             mi_check(ui, app, "Off", !parts.any(), "view.todoBar", json!({"part": "off"}));
+        }
+        Menu::GmailCategories => {
+            let tabs = app.session.view.gmail_tabs;
+            mi_check(ui, app, "As Folders", !tabs, "view.gmailCategories", json!({"value": "folders"}));
+            mi_check(ui, app, "As Tabs above the Inbox", tabs, "view.gmailCategories", json!({"value": "tabs"}));
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;

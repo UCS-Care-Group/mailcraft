@@ -27,6 +27,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.people", "People", "Navigation", people).reads().key("Mod+3"),
         CommandSpec::new("view.tasks", "Tasks", "Navigation", tasks).reads().key("Mod+4"),
         CommandSpec::new("view.readingPane", "Reading Pane", "View › Layout", reading_pane).reads().params(r#"{"value": "right"|"bottom"|"off"}"#),
+        CommandSpec::new("view.gmailCategories", "Gmail Categories", "View › Layout", gmail_categories)
+            .reads()
+            .when(crate::gmail::offered)
+            .params(r#"{"value": "folders"|"tabs"} — Gmail's inbox categories as five folders under a Gmail account's Inbox in the folder pane, or as a row of tabs above its message list (#911)"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
         CommandSpec::new("view.todoBar", "To-Do Bar", "View › Layout", todo_bar).reads().params(
             r#"{"part": "calendar"|"people"|"tasks"|"off", "value"?: bool (default: toggle), "module"?: "mail"|"calendar"|"people"|"tasks" (default: the one in front)} — the To-Do Bar beside that module: its date navigator and next appointments, its favourite contacts, its tasks, each on or off; "off" closes it. Each module keeps its own. Answers what that module's bar shows"#,
@@ -100,6 +104,15 @@ fn tasks(s: &mut Session, _: &Value) -> CmdResult {
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
     s.view.reading_pane = parse_enum::<Pane>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is right, bottom or off"))?;
     Ok(json!({"value": s.view.reading_pane}))
+}
+
+fn gmail_categories(s: &mut Session, v: &Value) -> CmdResult {
+    s.view.gmail_tabs = match p::req_str(v, "value")? {
+        "folders" => false,
+        "tabs" => true,
+        _ => return Err(bad("`value` is folders or tabs")),
+    };
+    Ok(json!({"value": if s.view.gmail_tabs { "tabs" } else { "folders" }}))
 }
 
 fn folder_pane(s: &mut Session, v: &Value) -> CmdResult {

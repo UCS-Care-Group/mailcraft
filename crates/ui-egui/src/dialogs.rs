@@ -1280,7 +1280,7 @@ fn host_and_port(typed: &str) -> bool {
 }
 
 /// Every command (engine and window) as `(id, label, location, shortcut, enabled)`, for search.
-fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
+pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
     let mut out: Vec<(String, String, String, String, bool)> = app
         .session
         .registry
@@ -1311,6 +1311,8 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
                     | "tasks.select"
             ) && !c.id.ends_with(".get")
                 && !c.id.ends_with(".list")
+                // Not even greyed while it waits for Google's review (#911).
+                && (c.id != "mail.setGmailCategory" || crate::gmail_move::switched_on(app))
         })
         .map(|c| {
             (
@@ -1333,7 +1335,7 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
 
 /// How well `query` matches a command: lower is better, `None` is no match. Every word must be
 /// found in the label, the location or the id.
-fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
+pub(crate) fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
     let (l, loc, i) = (label.to_lowercase(), location.to_lowercase(), id.to_lowercase());
     let mut total = 0;
     for word in query.to_lowercase().split_whitespace() {
