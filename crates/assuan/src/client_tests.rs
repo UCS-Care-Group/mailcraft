@@ -181,3 +181,23 @@ fn status_lines_handed_over_as_they_come_are_not_capped_by_max_status() {
     assert_eq!(seen, MAX_STATUS * 3);
     assert!(r.status.is_empty());
 }
+
+/// The text of `source` from `start` up to `end`.
+fn section<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
+    let from = source.find(start).unwrap();
+    let to = from + source[from..].find(end).unwrap();
+    &source[from..to]
+}
+
+#[test]
+fn what_the_agent_sends_only_grows_through_the_wiping_helpers() {
+    // A plain `extend_from_slice` or `drain` on these buffers leaves an unwiped copy of what
+    // the agent sent (a session key, perhaps) in memory that is given back: the reading and the
+    // gathering of data must go through `extend_wiped` and `discard_front`.
+    let fill = section(include_str!("line.rs"), "fn fill(", "fn write_line(");
+    assert!(fill.contains("crate::discard_front(") && fill.contains("crate::extend_wiped("), "{fill}");
+    assert!(!fill.contains("extend_from_slice") && !fill.contains(".drain(") && !fill.contains(".extend("), "{fill}");
+    let data = section(include_str!("client.rs"), "Line::Data(", "Line::Status(");
+    assert!(data.contains("crate::extend_wiped(&mut response.data") && data.contains("crate::wipe(&mut data)"), "{data}");
+    assert!(!data.contains("extend_from_slice") && !data.contains(".extend("), "{data}");
+}

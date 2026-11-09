@@ -43,7 +43,16 @@ fn a_redirect() {
         parse(b"%Assuan%\nsocket=/run/user/1000/gnupg/S.gpg-agent\n").unwrap(),
         SocketFile::Redirect("/run/user/1000/gnupg/S.gpg-agent".into())
     );
-    assert_eq!(parse(b"%Assuan%\r\nsocket=C:\\gnupg\\S.gpg-agent\r\n").unwrap(), SocketFile::Redirect("C:\\gnupg\\S.gpg-agent".into()));
+    let windows = parse(b"%Assuan%\r\nsocket=C:\\gnupg\\S.gpg-agent\r\n");
+    let forward = parse(b"%Assuan%\nsocket=C:/gnupg/S.gpg-agent\n");
+    if cfg!(windows) {
+        assert_eq!(windows.unwrap(), SocketFile::Redirect("C:\\gnupg\\S.gpg-agent".into()));
+        assert_eq!(forward.unwrap(), SocketFile::Redirect("C:/gnupg/S.gpg-agent".into()));
+    } else {
+        // A drive letter means nothing elsewhere: `C:/…` would be a relative name.
+        assert_eq!(windows, Err(SocketFileError::BadRedirect));
+        assert_eq!(forward, Err(SocketFileError::BadRedirect));
+    }
     for bad in [
         &b"%Assuan%\n"[..],
         b"%Assuan%\nsocket=relative/path\n",

@@ -234,6 +234,12 @@ fn a_program_gpgconf_leaves_running_doesnt_hold_it_up() {
     let started = Instant::now();
     assert_eq!(gpgconf.agent_socket().unwrap(), PathBuf::from("/run/S.gpg-agent"));
     assert!(started.elapsed() < Duration::from_secs(10), "{:?}", started.elapsed());
+    // Without a line feed the output never ends while the program it left runs: that is waited
+    // for no longer than gpgconf's own time, not until the program ends.
+    let gpgconf = script(&dir, "sleep 30 &\nprintf /run/S.gpg-agent\n", Duration::from_secs(2));
+    let started = Instant::now();
+    assert_eq!(gpgconf.agent_socket(), Err(Unavailable::NotWorking("gpgconf's output didn't end".into())));
+    assert!(started.elapsed() < Duration::from_secs(10), "{:?}", started.elapsed());
     let gpgconf = script(&dir, "sleep 30 &\n", Duration::from_secs(3));
     let started = Instant::now();
     gpgconf.launch().unwrap();
@@ -326,5 +332,26 @@ fn a_stale_port_file_is_launched_past() {
     let (nonce, lines) = server.join().unwrap();
     assert_eq!(&nonce, b"newnonce-newnonc");
     assert_eq!(lines, [format!("HAVEKEY {GRIP}"), "BYE".to_string()]);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn the_agent_is_launched_before_the_first_open() {
+    let dir = temp("launch-first");
+    let socket = dir.join("S.gpg-agent");
+    let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    let body = format!(
+        "case \"$1\" in\n--list-dirs) echo '{}' ;;\n--launch) echo launch >> '{}' ;;\nesac\n",
+        socket.display(),
+        dir.join("launches").display()
+    );
+    let gpgconf = script(&dir, &body, std::time::Duration::from_secs(5));
+    let server = std::thread::spawn(move || serve(listener.accept().unwrap().0));
+    let agent = super::gpg_agent::connect_with(&gpgconf, &PinentryHints::default()).unwrap();
+    drop(agent.close());
+    server.join().unwrap();
+    // Once, before the socket was opened, and not again: the first open worked.
+    assert_eq!(std::fs::read_to_string(dir.join("launches")).unwrap(), "launch\n");
     let _ = std::fs::remove_dir_all(&dir);
 }

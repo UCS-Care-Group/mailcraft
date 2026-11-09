@@ -75,7 +75,10 @@ fn redirect(rest: &[u8]) -> Result<SocketFile, SocketFileError> {
     // is not followed, nor a name on another computer (`//host/share`, `\\host\share`: on
     // Windows, opening one would reach out over SMB), nor a name with a drive given after a
     // slash (`/C:/…`, `\\?\…`).
-    let drive = name.as_bytes().first().is_some_and(u8::is_ascii_alphabetic) && (name.get(1..3) == Some(":\\") || name.get(1..3) == Some(":/"));
+    // A drive letter (`C:\…`, `C:/…`) is a name on this computer only on Windows.
+    let drive = cfg!(windows)
+        && name.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+        && (name.get(1..3) == Some(":\\") || name.get(1..3) == Some(":/"));
     let absolute = (name.starts_with('/') && !name.starts_with("//") && !name.contains('\\')) || drive;
     let remote = name.starts_with("//") || name.starts_with("\\\\") || name.starts_with("/\\") || name.starts_with("\\/");
     if !absolute || remote || name.contains("${") || name.chars().any(char::is_control) || name.len() > 1024 {

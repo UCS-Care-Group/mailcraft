@@ -249,10 +249,15 @@ pub(crate) fn connect() -> Result<GpgAgent<AgentStream>, Unavailable> {
     connect_with(&Gpgconf::at(gpgconf), &hints)
 }
 
-/// Connect through `gpgconf`: the socket it names, and when that can't be opened, once more
-/// after `gpgconf --launch gpg-agent`.
+/// Connect through `gpgconf`: `gpgconf --launch gpg-agent` first (it does nothing when the agent
+/// runs, and otherwise starts it, so that a socket or port file an agent left behind isn't
+/// opened, or found taken by another program), then the socket it names, and when that can't be
+/// opened, once more after launching again.
 pub(crate) fn connect_with(gpgconf: &Gpgconf, hints: &PinentryHints) -> Result<GpgAgent<AgentStream>, Unavailable> {
     let socket = gpgconf.agent_socket()?;
+    if let Err(why) = gpgconf.launch() {
+        log::info!("gpg-agent couldn't be started first: {why}");
+    }
     match open(&socket, hints) {
         Ok(agent) => Ok(agent),
         Err(first) => {
