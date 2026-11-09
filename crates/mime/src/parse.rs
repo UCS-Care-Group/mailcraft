@@ -51,7 +51,9 @@ const MAX_IDS: usize = 1000;
 /// Attachments: every part with `Content-Disposition: attachment`, every part with a file name,
 /// and every part that is neither text nor multipart. A `message/rfc822` part is one attachment;
 /// it is not opened. `inline` is set for `Content-Disposition: inline`, and for a part with a
-/// `Content-ID` inside `multipart/related`.
+/// `Content-ID` inside `multipart/related`. An S/MIME opaque signed part (`application/pkcs7-mime`
+/// signed data, #30) is an attachment, and what it holds is read as if it stood in its place:
+/// its text joins the body and its files the attachments.
 pub fn parse(bytes: &[u8]) -> Message {
     let (headers, body) = header::split(bytes, true);
     let mut message = Message::default();
@@ -273,7 +275,19 @@ impl Walk {
         };
         let name = file_name.unwrap_or_else(|| media::default_name(&mime));
         let inline = disposition.value == "inline" || (!content_id.is_empty() && parent == Parent::Related);
-        self.attachments.push(Attachment { name, mime, content_id, inline, data: Arc::new(decode(body, &encoding)), kept: None });
+        let data = Arc::new(decode(body, &encoding));
+        // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
+        // the file itself (which its Digital signature is checked from). Not one sent along as a
+        // file inside another message, and nothing is checked here.
+        let pkcs7 = matches!(mime.as_str(), "application/pkcs7-mime" | "application/x-pkcs7-mime");
+        let signed = (pkcs7 && (depth == 0 || disposition.value != "attachment") && depth < MAX_DEPTH)
+            .then(|| mailcraft_model::ber::signed_content(&data))
+            .flatten();
+        self.attachments.push(Attachment { name, mime, content_id, inline, data, kept: None });
+        if let Some(content) = signed {
+            let (inner_headers, inner_body) = header::split(&content, false);
+            self.part(&inner_headers, inner_body, depth.saturating_add(1), parent);
+        }
     }
 
     fn add_text(&mut self, text: String, parent: Parent) {

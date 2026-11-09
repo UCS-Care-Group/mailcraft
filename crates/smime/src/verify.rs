@@ -12,7 +12,7 @@ use mailcraft_model::digital_signature::{Coverage, DigitalSignature, SignatureFo
 use mailcraft_time::Timestamp;
 
 use crate::algorithms::{self, Fault, Hash};
-use crate::ber::{self, Tlv};
+use mailcraft_model::ber::{self, Tlv};
 use crate::cert::Cert;
 use crate::chain::{self, Anchors};
 
@@ -233,19 +233,6 @@ fn econtent<'a>(encap: &Tlv<'a>) -> Option<&'a [u8]> {
     (octets.tag == 0x04 && rest.is_empty()).then_some(octets.value)
 }
 
-/// The content an opaque signed message holds (`application/pkcs7-mime` signed data): the MIME
-/// entity that was signed, for showing under what the check found. `None` when `cms` isn't
-/// signed data holding one.
-pub fn opaque_content(cms: &[u8]) -> Option<Vec<u8>> {
-    let der = ber::to_der(cms)?;
-    let parts = content_info(&der)?;
-    if parts.content_type != SIGNED_DATA {
-        return None;
-    }
-    let data = signed_data(parts.content)?;
-    econtent(&data.encap).map(<[u8]>::to_vec)
-}
-
 /// The value of the signed attribute `oid`, in DER (its one value), when there is one.
 fn attribute(info: &SignerInfo, oid: ObjectIdentifier) -> Option<Vec<u8>> {
     let attrs = info.signed_attrs.as_ref()?;
@@ -313,8 +300,12 @@ fn one_signer(
     // another one of the same name (any can be put in a message) makes no difference.
     let mut fault: Option<Fault> = None;
     let mut signer: Option<&Cert> = None;
+    let mut ran_out = false;
     for cert in candidates {
-        let Some(left) = budget.checked_sub(1) else { break };
+        let Some(left) = budget.checked_sub(1) else {
+            ran_out = true;
+            break;
+        };
         *budget = left;
         let verified = match &attributes {
             Some(bytes) => algorithms::verify(cert.public_key(), &info.signature_algorithm, Some(hash), bytes, signature),
@@ -346,6 +337,8 @@ fn one_signer(
     }
     let Some(cert) = signer else {
         return match fault {
+            // (A certificate not tried may have made it: no answer.)
+            _ if ran_out => unchecked(Why::TooMuch),
             // No key it names made it: changed after signing, or never signed by any of them;
             // nobody is named, since none of them fits.
             Some(Fault::Invalid) | None => {
@@ -386,6 +379,7 @@ fn one_signer(
         .and_then(|()| if cert.is_for(context.from) { Ok(()) } else { Err(Why::AddressMismatch) });
     let mut r = match trust {
         Ok(()) => result(Verdict::Verified, None),
+        Err(Why::TooMuch) => result(Verdict::Unchecked, Some(Why::TooMuch)),
         // (An algorithm that's no longer safe on the way to a trust anchor: the certificate can't
         // be relied on, but the message is as it was signed.)
         Err(why) => result(Verdict::NotVerified, Some(why)),

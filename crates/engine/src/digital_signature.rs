@@ -4,9 +4,13 @@
 //! message came as ([`mailcraft_model::Message::original`]), against the certificates the host
 //! trusts ([`Session::set_trust_anchors`]: the system's certification authorities on the
 //! desktop, none in the browser, whose signers are then "not verified"). The result is worked
-//! out when it is first asked for and kept in memory for the session, never written: a
-//! certificate that runs out, or trust that changes, is seen at the next start. Nothing is sent
-//! anywhere for it, and revocation isn't checked (#30 R7).
+//! out when it is first asked for and kept in memory, never written, and worked out again when
+//! what it rests on changes (the bytes, the sender, the certificates kept for them, the day, the
+//! authorities handed in). Nothing is sent anywhere for it, and revocation isn't checked (#30 R7).
+//!
+//! What an opaque signed message holds is its text and files already, read with it
+//! (`mailcraft_mime::parse`); the file it came as is the Digital signature, told here by its bytes
+//! ([`Session::digital_signature_part`]).
 //!
 //! A signer's certificate that rests on a trusted authority, is valid now and is for the sender
 //! is kept for the sender's address ([`mailcraft_model::Mailbox::public_keys`], #30 R9), at the
@@ -31,15 +35,22 @@ const MAX_TO_KEEP: usize = 256;
 pub(crate) struct SignatureChecks {
     /// The certificates the host trusts.
     anchors: Arc<mailcraft_smime::Anchors>,
-    /// Each message's result, with what it was worked out from ([`Basis`]); `None`: the message
-    /// isn't Digitally signed in a format checked here.
-    kept: HashMap<Id, (Basis, Option<Arc<DigitalSignature>>)>,
-    /// Each opaque signed message as it is shown: its body the content that was signed.
-    views: HashMap<Id, (Basis, Option<Arc<Message>>)>,
+    /// What was found of each message, with what it was worked out from ([`Basis`]).
+    kept: HashMap<Id, (Basis, Found)>,
     /// Whether the host has handed in its authorities yet (`None`: not yet).
     anchors_read: Option<bool>,
     /// Signers' certificates to keep for their addresses at the next command.
     to_keep: Vec<(String, PublicKey)>,
+}
+
+/// What a check found of one message.
+#[derive(Clone, Default)]
+struct Found {
+    /// The result; `None`: the message isn't Digitally signed in a format checked here.
+    result: Option<Arc<DigitalSignature>>,
+    /// Which of its attachments is the Digital signature itself (`smime.p7s`, or the
+    /// `smime.p7m` an opaque signed message is): the very part that was checked, by its bytes.
+    part: Option<usize>,
 }
 
 /// What a result rests on: the bytes the message came as (their size and where they are kept),
@@ -81,7 +92,6 @@ impl SignatureChecks {
     /// Another mailbox took the place of the one these were worked out for.
     pub(crate) fn forget_messages(&mut self) {
         self.kept.clear();
-        self.views.clear();
         self.to_keep.clear();
     }
 }
@@ -116,86 +126,65 @@ impl Session {
     /// bytes were kept can't be checked ([`Why::NoOriginal`]: Check again downloads them).
     /// `None` for any other message.
     pub fn digital_signature(&mut self, id: Id) -> Option<Arc<DigitalSignature>> {
-        let m = self.mailbox.messages.get(&id)?.clone();
+        self.found(id).result
+    }
+
+    /// Which attachment of message `id` is its Digital signature (the part its result was worked
+    /// out from, found by its bytes): shown in the result's Details rather than among the files.
+    /// `None` when there is none, or none could be told.
+    pub fn digital_signature_part(&mut self, id: Id) -> Option<usize> {
+        self.found(id).part
+    }
+
+    fn found(&mut self, id: Id) -> Found {
+        let Some(m) = self.mailbox.messages.get(&id).cloned() else { return Found::default() };
         let basis = basis(self, &m);
-        if let Some((kept, result)) = self.signatures.kept.get(&id)
+        if let Some((kept, found)) = self.signatures.kept.get(&id)
             && *kept == basis
         {
-            return result.clone();
+            return found.clone();
         }
-        let result = self.check_signature(&m).map(Arc::new);
+        let found = self.check_signature(&m);
         if self.signatures.kept.len() >= MAX_KEPT {
             self.signatures.kept.clear();
         }
-        self.signatures.kept.insert(id, (basis, result.clone()));
-        result
+        self.signatures.kept.insert(id, (basis, found.clone()));
+        found
     }
 
-    /// Message `id` as it is shown when it is an opaque signed message (`application/pkcs7-mime`
-    /// signed data, #30): its body the content that was signed, read from the bytes it came as,
-    /// under what the check found. `None` for any other message (shown as it is).
-    pub fn signed_view(&mut self, id: Id) -> Option<Arc<Message>> {
-        let m = self.mailbox.messages.get(&id)?.clone();
-        if !m.has_original() {
-            return None;
-        }
-        let basis = basis(self, &m);
-        if let Some((kept, view)) = self.signatures.views.get(&id)
-            && *kept == basis
-        {
-            return view.clone();
-        }
-        let view = self.opaque_view(&m).map(Arc::new);
-        if self.signatures.views.len() >= MAX_KEPT {
-            self.signatures.views.clear();
-        }
-        self.signatures.views.insert(id, (basis, view.clone()));
-        view
+    /// What was found of message `id` already, when it still holds (nothing it rests on changed).
+    fn found_already(&self, id: Id) -> Option<&Found> {
+        let m = self.mailbox.messages.get(&id)?;
+        self.signatures.kept.get(&id).filter(|(kept, _)| *kept == basis(self, m)).map(|(_, found)| found)
     }
 
-    fn opaque_view(&mut self, m: &Message) -> Option<Message> {
-        // (Only a Digital signature: an Encrypted message's CMS is no signed data.)
-        self.digital_signature(m.id)?;
-        let bytes = self.content(m.id, Part::Original).ok()?;
-        let parts = mailcraft_mime::signed_parts(&bytes)?;
-        if parts.kind != mailcraft_mime::SignedKind::SmimeOpaque {
-            return None;
-        }
-        let content = mailcraft_smime::opaque_content(&parts.signature)?;
-        let inner = mailcraft_mime::parse(&content);
-        let mut view = m.clone();
-        view.body = inner.body;
-        view.hidden_text = inner.hidden_text;
-        Some(view)
-    }
-
-    /// Whether message `id` was looked at already (signed or not): the list asks no more of it.
+    /// Whether message `id` was looked at already (signed or not), and nothing it rests on has
+    /// changed since: the list asks no more of it.
     pub fn digital_signature_checked(&self, id: Id) -> bool {
-        self.signatures.kept.contains_key(&id)
+        self.found_already(id).is_some()
     }
 
-    /// The result for message `id` worked out already, if it was: for the list, which never
-    /// reads a message's bytes to draw a row.
+    /// The result for message `id` worked out already, if it was and still holds (its keys, its
+    /// sender and the day are as they were): for the list, which never reads a message's bytes to
+    /// draw a row.
     pub fn digital_signature_known(&self, id: Id) -> Option<Arc<DigitalSignature>> {
-        self.signatures.kept.get(&id).and_then(|(_, r)| r.clone())
+        self.found_already(id).and_then(|f| f.result.clone())
     }
 
-    fn check_signature(&mut self, m: &Message) -> Option<DigitalSignature> {
+    fn check_signature(&mut self, m: &Message) -> Found {
+        let bare = |why| Found { result: Some(Arc::new(DigitalSignature::bare(SignatureFormat::Smime, Verdict::Unchecked, why))), part: None };
         if m.draft {
-            return None;
+            return Found::default();
         }
-        if !m.has_original() {
-            return looks_smime_signed(m).then(|| DigitalSignature::bare(SignatureFormat::Smime, Verdict::Unchecked, Why::NoOriginal));
-        }
-        let Ok(bytes) = self.content(m.id, Part::Original) else {
-            return looks_smime_signed(m).then(|| DigitalSignature::bare(SignatureFormat::Smime, Verdict::Unchecked, Why::NoOriginal));
+        let Some(bytes) = m.has_original().then(|| self.content(m.id, Part::Original).ok()).flatten() else {
+            return if looks_smime_signed(m) { bare(Why::NoOriginal) } else { Found::default() };
         };
-        let parts = mailcraft_mime::signed_parts(&bytes)?;
+        let Some(parts) = mailcraft_mime::signed_parts(&bytes) else { return Found::default() };
         let signed = match parts.kind {
             mailcraft_mime::SignedKind::SmimeDetached => mailcraft_smime::Signed::Detached { content: &parts.content, signature: &parts.signature },
             mailcraft_mime::SignedKind::SmimeOpaque => mailcraft_smime::Signed::Opaque(&parts.signature),
             // (OpenPGP is checked elsewhere.)
-            mailcraft_mime::SignedKind::PgpDetached => return None,
+            mailcraft_mime::SignedKind::PgpDetached => return Found::default(),
         };
         let known: Vec<Arc<Vec<u8>>> =
             self.mailbox.public_keys.of(&m.from.email).iter().filter(|k| k.format == SignatureFormat::Smime).map(|k| k.data.clone()).collect();
@@ -205,11 +194,11 @@ impl Session {
         let from = if parts.one_from { m.from.email.trim() } else { "" };
         let coverage = if parts.whole { Coverage::Whole } else { Coverage::Part };
         let context = mailcraft_smime::Context { anchors: &self.signatures.anchors, from, now, known: &known, coverage };
-        let mut checked = mailcraft_smime::check(signed, &context)?;
-        // No authority to trust here at all (none could be read, or not yet): said as that, not as
-        // an issuer this computer doesn't trust.
+        let Some(mut checked) = mailcraft_smime::check(signed, &context) else { return Found::default() };
+        // No authority to trust here at all: said as that (none could be read, or they haven't
+        // been yet), not as an issuer this computer doesn't trust.
         if checked.signature.why == Some(Why::UnknownIssuer) && self.signatures.anchors.is_empty() {
-            checked.signature.why = Some(Why::NoAuthorities);
+            checked.signature.why = Some(if self.signatures.anchors_read.is_none() { Why::AuthoritiesNotRead } else { Why::NoAuthorities });
         }
         if let (Some(der), Some(signer)) = (checked.certificate, checked.signature.signer.as_ref())
             && self.signatures.to_keep.len() < MAX_TO_KEEP
@@ -223,7 +212,16 @@ impl Session {
             };
             self.signatures.to_keep.push((m.from.email.trim().to_string(), key));
         }
-        Some(checked.signature)
+        Found { result: Some(Arc::new(checked.signature)), part: self.signature_part(m, &parts.signature) }
+    }
+
+    /// The attachment of `m` that is the Digital signature `signature`: of S/MIME's type, and
+    /// those very bytes (a file of the same name or type sent along is another part).
+    fn signature_part(&self, m: &Message, signature: &[u8]) -> Option<usize> {
+        m.attachments.iter().enumerate().find_map(|(i, a)| {
+            let fits = a.mime.to_ascii_lowercase().contains("pkcs7") && a.size() == signature.len();
+            (fits && self.content(m.id, Part::Attachment(i)).is_ok_and(|bytes| bytes.as_slice() == signature)).then_some(i)
+        })
     }
 
     /// Keep the signers' certificates the checks since the last command found (#30 R9): no step

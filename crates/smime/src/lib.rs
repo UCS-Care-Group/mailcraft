@@ -19,7 +19,6 @@
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 
 mod algorithms;
-mod ber;
 mod cert;
 mod chain;
 mod verify;
@@ -28,7 +27,7 @@ mod verify;
 mod tests;
 
 pub use chain::{Anchors, MAX_ANCHORS};
-pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, MAX_VERIFICATIONS, Signed, check, opaque_content};
+pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, MAX_VERIFICATIONS, Signed, check};
 
 /// The fingerprint and addresses of a certificate in DER, as a Digital signature's details show
 /// them: `None` when it isn't one.

@@ -8195,7 +8195,7 @@ msgstr "Alleen op deze computer: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-msgid "Only one part of this message was signed, and what's shown may not be that part: what's outside it could say anything."
+msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
 msgstr ""
 
 #. interface
@@ -13123,6 +13123,11 @@ msgid "There is no such account"
 msgstr "Er is niet zo'n account"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "There's more in this Digital signature than MailCraft checks for one message."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "There's no mailbox at {address}, or its calendar can't be reached through Microsoft."
@@ -13415,6 +13420,11 @@ msgstr "Deze agenda is nog niet verbonden met uw account. Wat elders verandert, 
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
 msgstr "Deze computer vertrouwt het certificaat niet dat de server op {host} toont. Als dit de server van uw organisatie is, kunt u dit ene certificaat voor dit account vertrouwen."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/zones.rs

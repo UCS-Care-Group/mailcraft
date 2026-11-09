@@ -58,6 +58,7 @@ Generated-in-code art is original and has no file to list: the UI icon set (`cra
 | `crates/smime/testdata/detached.eml` | MailCraft contributors | signed with RFC 9216's example key for Alice by `openssl cms -sign` (SHA-256, detached), invented text | MIT OR Apache-2.0 (the certificate in it: as above) | Test vector (#30); no private key is in the repository |
 | `crates/smime/testdata/opaque.eml` | MailCraft contributors | as `detached.eml`, `-nodetach` (opaque signed data) | MIT OR Apache-2.0 | Test vector (#30) |
 | `crates/smime/testdata/opaque-ber.eml` | MailCraft contributors | as `opaque.eml`, `-stream` (BER, indefinite lengths) | MIT OR Apache-2.0 | Test vector (#30) |
+| `crates/smime/testdata/opaque-files.eml` | MailCraft contributors | as `opaque.eml`, `-binary`, over a `multipart/mixed` with invented text and a made-up `minutes.pdf` of a few bytes | MIT OR Apache-2.0 | Test vector (#30): what an opaque signed message holds, files and all |
 | `crates/smime/testdata/sha1.eml` | MailCraft contributors | as `detached.eml`, `-md sha1` | MIT OR Apache-2.0 | Test vector (#30): an algorithm that's no longer safe |
 | `crates/smime/testdata/noattr.eml` | MailCraft contributors | as `detached.eml`, `-noattr` (no signed attributes) | MIT OR Apache-2.0 | Test vector (#30) |
 | `crates/smime/testdata/pss.eml` | MailCraft contributors | as `detached.eml`, `-md sha384 -keyopt rsa_padding_mode:pss` | MIT OR Apache-2.0 | Test vector (#30) |

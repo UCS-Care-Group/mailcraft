@@ -51,9 +51,10 @@ fn why_said(why: Why) -> &'static str {
         Why::AddressMismatch => tl!("The certificate is for another address than the sender's."),
         Why::Constrained => tl!("An authority on the way to a trusted one doesn't allow the certificate to be used this way."),
         Why::NoAuthorities => tl!("No certification authorities for mail could be read on this computer, so no signer can be verified here."),
+        Why::AuthoritiesNotRead => tl!("This computer's certification authorities haven't been read yet: the signature is checked again when they are."),
         Why::KeyNotVerified => tl!("The signer's key hasn't been marked verified."),
         Why::PartlySigned => {
-            tl!("Only one part of this message was signed, and what's shown may not be that part: what's outside it could say anything.")
+            tl!("Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything.")
         }
         Why::Altered => tl!("What you see isn't what was signed: treat it with care."),
         Why::WeakAlgorithm => tl!("It uses an algorithm that's no longer safe."),
@@ -61,6 +62,7 @@ fn why_said(why: Why) -> &'static str {
         Why::NoPublicKey => tl!("The signer's certificate isn't in the message."),
         Why::Unreadable => tl!("The Digital signature can't be read."),
         Why::NoOriginal => tl!("The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."),
+        Why::TooMuch => tl!("There's more in this Digital signature than MailCraft checks for one message."),
     }
 }
 
@@ -152,16 +154,6 @@ fn day(app: &MailApp, ts: Timestamp) -> String {
     crate::dates::medium(DateTime::from_timestamp(ts, app.session.offset_at(ts)).date)
 }
 
-/// Whether `a` is the signature part of a Digitally signed message (`smime.p7s`).
-pub(super) fn is_signature_part(a: &mailcraft_model::Attachment) -> bool {
-    let mime = a.mime.to_ascii_lowercase();
-    // An opaque signature (pkcs7-mime) is the whole signed message: its content is shown instead.
-    mime.contains("pkcs7-signature")
-        || mime.contains("pkcs7-mime")
-        || a.name.eq_ignore_ascii_case("smime.p7s")
-        || a.name.eq_ignore_ascii_case("smime.p7m")
-}
-
 /// The lines of Details: who signed, the certificate, that revocation wasn't checked, and the
 /// signature part itself (it isn't among the attachments).
 fn details(app: &mut MailApp, ui: &mut Ui, d: &DigitalSignature, m: &Message, t: &Tokens) {
@@ -196,7 +188,7 @@ fn details(app: &mut MailApp, ui: &mut Ui, d: &DigitalSignature, m: &Message, t:
     if !d.revocation_checked {
         line(ui, tl!("Revocation:"), tl!("Revocation not checked."));
     }
-    let file = m.listed_attachments().find(|(_, a)| is_signature_part(a)).map(|(i, a)| (i, mailcraft_engine::opening::file_name(&a.name)));
+    let file = app.session.digital_signature_part(m.id).and_then(|i| m.attachments.get(i).map(|a| (i, mailcraft_engine::opening::file_name(&a.name))));
     if let Some((index, name)) = file
         && m.id != 0
     {

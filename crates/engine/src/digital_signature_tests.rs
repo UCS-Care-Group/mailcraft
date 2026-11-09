@@ -14,6 +14,7 @@ const CA: &[u8] = include_bytes!("../../smime/testdata/ca.rsa.der");
 const DETACHED: &[u8] = include_bytes!("../../smime/testdata/detached.eml");
 const OPAQUE: &[u8] = include_bytes!("../../smime/testdata/opaque.eml");
 const NO_CERTS: &[u8] = include_bytes!("../../smime/testdata/nocerts.eml");
+const OPAQUE_FILES: &[u8] = include_bytes!("../../smime/testdata/opaque-files.eml");
 
 /// 2026-11-09.
 const NOW: i64 = 1_794_182_400;
@@ -35,11 +36,12 @@ fn session_with(messages: &[&[u8]]) -> (Session, Vec<u64>) {
 #[test]
 fn a_signed_message_is_verified_against_the_anchors_handed_in() {
     let (mut s, ids) = session_with(&[DETACHED, OPAQUE]);
-    // No anchors yet (the browser, or not read yet): valid, but the signer isn't verified, and
-    // the reason is that none could be read, not an issuer this computer doesn't trust.
+    // No anchors yet: valid, but the signer isn't verified, and the reason is that they haven't
+    // been read yet (#30 review 2: 6); then, none could be read; never an issuer this computer
+    // doesn't trust.
     assert_eq!(s.trust_anchors_read(), None);
     let d = s.digital_signature(ids[0]).unwrap();
-    assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::NoAuthorities)));
+    assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::AuthoritiesNotRead)));
     s.set_trust_anchors(Vec::<Vec<u8>>::new());
     assert_eq!(s.trust_anchors_read(), Some(false));
     assert_eq!(s.digital_signature(ids[0]).unwrap().why, Some(Why::NoAuthorities));
@@ -182,14 +184,92 @@ fn an_undo_leaves_the_kept_certificates() {
     assert_eq!(s.mailbox.public_keys.of("alice@smime.example").len(), 1, "the certificate stays");
 }
 
-/// An opaque signed message is shown as the content that was signed (#30 review 14).
+/// An opaque signed message is read as what it holds, its files too: the reading pane, a reply,
+/// an agent and the list all have the signed text, and the `smime.p7m` it came as is told apart
+/// as its Digital signature (#30 review 2: 1, 7).
 #[test]
-fn an_opaque_signed_message_shows_what_was_signed() {
-    let (mut s, ids) = session_with(&[OPAQUE, DETACHED]);
+fn an_opaque_signed_message_is_read_as_what_it_holds() {
+    let (mut s, ids) = session_with(&[OPAQUE_FILES]);
     s.set_trust_anchors([CA]);
-    assert!(s.mailbox.messages.get(&ids[0]).unwrap().body.text.trim().is_empty(), "nothing but the CMS as its parts are read");
-    let view = s.signed_view(ids[0]).unwrap();
-    assert!(view.body.text.contains("Hello Bob"), "{:?}", view.body.text);
-    assert_eq!(view.id, ids[0]);
-    assert!(s.signed_view(ids[1]).is_none(), "a detached signature's message is shown as it is");
+    let id = ids[0];
+    let m = s.mailbox.messages.get(&id).unwrap().clone();
+    assert!(m.body.text.contains("The signed minutes are attached."), "{:?}", m.body.text);
+    let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, ["smime.p7m", "minutes.pdf"]);
+    assert!(m.attachments[1].data.starts_with(b"%PDF-1.4"));
+    assert_eq!(s.digital_signature(id).unwrap().verdict, Verdict::Verified);
+    assert_eq!(s.digital_signature_part(id), Some(0));
+    let quoted = s.loaded_for_reply(id).unwrap();
+    assert!(quoted.body.text.contains("The signed minutes are attached."));
+    let agent = s.run("mail.get", &json!({"id": id})).unwrap().to_string();
+    assert!(agent.contains("The signed minutes are attached.") && agent.contains("minutes.pdf"), "{agent}");
+    // The file inside opens as any other.
+    assert!(s.content(id, crate::Part::Attachment(1)).unwrap().starts_with(b"%PDF-1.4"));
+}
+
+/// Only the very part that was checked is the signature: a file of the same type or name sent
+/// along (a signed message forwarded as a file, a sender's own `smime.p7s`) is a file (#30
+/// review 2: 2).
+#[test]
+fn only_the_part_that_was_checked_is_the_signature() {
+    let p7m = String::from_utf8_lossy(OPAQUE).into_owned();
+    let (_, p7m_body) = p7m.split_once("\r\n\r\n").unwrap();
+    let detached = String::from_utf8_lossy(DETACHED).into_owned();
+    let (head, body) = detached.split_once("\r\n\r\n").unwrap();
+    let boundary = head.split("boundary=\"").nth(1).unwrap().split('"').next().unwrap();
+    let close = format!("--{boundary}--");
+    // Alice's detached signature as the signed part's own file, then two more files: the
+    // forwarded opaque message, and a file the sender named `smime.p7s` (outside the signed part,
+    // as a list's footer would be: the wrapper is what carries them).
+    let wrapped = format!(
+        "From: alice@smime.example\r\nTo: bob@smime.example\r\nSubject: Fwd\r\nContent-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\n{head}\r\n\r\n{body}\r\n--outer\r\nContent-Type: application/pkcs7-mime; smime-type=signed-data; name=\"smime.p7m\"\r\nContent-Disposition: attachment; filename=\"smime.p7m\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{p7m_body}\r\n--outer\r\nContent-Type: application/octet-stream; name=\"smime.p7s\"\r\nContent-Disposition: attachment; filename=\"smime.p7s\"\r\n\r\nmy own notes\r\n--outer--\r\n"
+    );
+    assert!(wrapped.contains(&close));
+    let (mut s, ids) = session_with(&[wrapped.as_bytes(), DETACHED]);
+    s.set_trust_anchors([CA]);
+    let m = s.mailbox.messages.get(&ids[0]).unwrap().clone();
+    let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, ["smime.p7s", "smime.p7m", "smime.p7s"], "the forwarded file isn't opened");
+    assert!(s.digital_signature(ids[0]).is_some());
+    assert_eq!(s.digital_signature_part(ids[0]), Some(0));
+    assert_eq!(s.digital_signature_part(ids[1]), s.mailbox.messages.get(&ids[1]).unwrap().attachments.iter().position(|a| a.name == "smime.p7s"));
+}
+
+/// The list's word on a message's seal holds only while what it rests on does: a new day, or
+/// another key kept for the sender, and it is asked again (#30 review 2: 7).
+#[test]
+fn a_result_known_for_the_list_goes_stale_with_its_basis() {
+    let (mut s, ids) = session_with(&[DETACHED]);
+    s.set_trust_anchors([CA]);
+    assert_eq!(s.digital_signature(ids[0]).unwrap().verdict, Verdict::Verified);
+    assert!(s.digital_signature_checked(ids[0]));
+    assert!(s.digital_signature_known(ids[0]).is_some());
+    s.clock.now = Some(NOW + 86_400);
+    assert!(!s.digital_signature_checked(ids[0]), "a new day");
+    assert!(s.digital_signature_known(ids[0]).is_none());
+    s.digital_signature(ids[0]);
+    assert!(s.digital_signature_known(ids[0]).is_some());
+    s.mailbox.public_keys.add("alice@smime.example", key_of(CA));
+    assert!(s.digital_signature_known(ids[0]).is_none(), "another key kept");
+}
+
+/// A message signed in a part of a wrapper keeps the wrapper's text, after the signed part's, in
+/// the order they came (#30 review 2: 8).
+#[test]
+fn an_opaque_part_of_a_wrapper_is_read_in_its_place() {
+    let opaque = String::from_utf8_lossy(OPAQUE).into_owned();
+    let (head, body) = opaque.split_once("\r\n\r\n").unwrap();
+    let part_head: String =
+        head.lines().filter(|l| l.starts_with("Content-") && !l.starts_with("Content-Disposition")).map(|l| format!("{l}\r\n")).collect();
+    let wrapped = format!(
+        "From: alice@smime.example\r\nTo: bob@smime.example\r\nSubject: Via the list\r\nContent-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\n{part_head}\r\n{body}\r\n--outer\r\nContent-Type: text/plain\r\n\r\nYou are subscribed to minutes@lists.example.\r\n--outer--\r\n"
+    );
+    let (mut s, ids) = session_with(&[wrapped.as_bytes()]);
+    s.set_trust_anchors([CA]);
+    let text = s.mailbox.messages.get(&ids[0]).unwrap().body.text.clone();
+    let signed = text.find("Hello Bob").unwrap();
+    let footer = text.find("You are subscribed").unwrap();
+    assert!(signed < footer, "{text:?}");
+    let d = s.digital_signature(ids[0]).unwrap();
+    assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::PartlySigned)));
 }

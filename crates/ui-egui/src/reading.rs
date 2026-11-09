@@ -182,10 +182,6 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
-    // An opaque signed message shows the content that was signed, under what its check found
-    // (#30): never an empty body under the bar.
-    let view = if place == Place::Quote { None } else { app.session.signed_view(m.id) };
-    let m = view.as_ref().unwrap_or(m);
     // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
     // here, and the window takes the whole message up at its next frame.
     if place != Place::Quote && app.session.needs_load_for_display(m.id) {
@@ -610,12 +606,12 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
-    // The signature part of a message whose signature was checked is what its bar says; it is
-    // reached from the bar's Details (#30).
-    let checked = app.session.digital_signature_known(m.id).is_some();
+    // The signature part of a message whose signature was checked (that very part, by its bytes)
+    // is what its bar says; it is reached from the bar's Details (#30).
+    let signature = app.session.digital_signature_known(m.id).and_then(|_| app.session.digital_signature_part(m.id));
     let files: Vec<(usize, &mailcraft_model::Attachment)> = m
         .listed_attachments()
-        .filter(|(index, a)| !invitation::stands_for(meeting.as_deref(), *index) && !(checked && signature::is_signature_part(a)))
+        .filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index) && Some(*index) != signature)
         .collect();
     if files.is_empty() {
         return;

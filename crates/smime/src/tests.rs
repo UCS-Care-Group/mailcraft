@@ -522,6 +522,28 @@ fn name_constraints_on_directory_names_are_kept() {
 }
 
 #[test]
+fn an_excluded_directory_name_written_another_way_is_still_excluded() {
+    let root = root("Example Root");
+    let mut rogue = rcgen::DistinguishedName::new();
+    rogue.push(rcgen::DnType::OrganizationName, "Rogue Unit");
+    let ca = authority("Corp CA", &root, |p| {
+        p.name_constraints =
+            Some(rcgen::NameConstraints { permitted_subtrees: vec![], excluded_subtrees: vec![rcgen::GeneralSubtree::DirectoryName(rogue)] })
+    });
+    // The same name in another string type, case and spacing (RFC 5280 §7.1).
+    let mut dressed = signer_params("Mallory", "mallory@corp.example");
+    dressed.distinguished_name = rcgen::DistinguishedName::new();
+    dressed
+        .distinguished_name
+        .push(rcgen::DnType::OrganizationName, rcgen::DnValue::PrintableString(" ROGUE   unit ".try_into().unwrap()));
+    dressed.distinguished_name.push(rcgen::DnType::CommonName, "Mallory");
+    let dressed = issued(dressed, key(&rcgen::PKCS_ECDSA_P256_SHA256), &ca);
+    assert_eq!(path_verdict(&dressed, &[&ca], &root, "mallory@corp.example"), (Verdict::NotVerified, Some(Why::Constrained)));
+    let other = signer_by("Ada", "ada@corp.example", &ca);
+    assert_eq!(path_verdict(&other, &[&ca], &root, "ada@corp.example"), (Verdict::Verified, None));
+}
+
+#[test]
 fn an_unknown_critical_extension_is_refused() {
     let root = root("Example Root");
     let mut odd = signer_params("Ada", "ada@example.org");
@@ -591,8 +613,62 @@ fn the_search_for_a_path_keeps_to_its_budget() {
     assert_eq!(crate::chain::trust(&leaf, &pool, &anchors, NOW, &mut budget), Ok(()));
     assert_eq!(budget, 0, "three links, three signatures");
     let mut budget = 2;
-    assert!(crate::chain::trust(&leaf, &pool, &anchors, NOW, &mut budget).is_err(), "stops when it runs out");
+    assert_eq!(crate::chain::trust(&leaf, &pool, &anchors, NOW, &mut budget), Err(Why::TooMuch), "stops when it runs out, and says so");
     assert_eq!(crate::MAX_VERIFICATIONS, 32);
+}
+
+/// `cms` with its signers' information put in place of its own, in this order.
+fn with_signers(cms: &[u8], infos: &[&[u8]]) -> Vec<u8> {
+    let (info, _) = mailcraft_model::ber::read(cms).unwrap();
+    let fields = mailcraft_model::ber::children(info.value).unwrap();
+    let (sd, _) = mailcraft_model::ber::read(fields[1].value).unwrap();
+    let parts = mailcraft_model::ber::children(sd.value).unwrap();
+    let mut inner: Vec<u8> = parts[..parts.len() - 1].iter().flat_map(|p| p.whole.to_vec()).collect();
+    inner.extend(tlv(0x31, &infos.concat()));
+    let mut ci = fields[0].whole.to_vec();
+    ci.extend(tlv(0xa0, &tlv(0x30, &inner)));
+    tlv(0x30, &ci)
+}
+
+/// The first signer's information in `cms`, as it is written.
+fn first_signer(cms: &[u8]) -> Vec<u8> {
+    let (info, _) = mailcraft_model::ber::read(cms).unwrap();
+    let fields = mailcraft_model::ber::children(info.value).unwrap();
+    let (sd, _) = mailcraft_model::ber::read(fields[1].value).unwrap();
+    let parts = mailcraft_model::ber::children(sd.value).unwrap();
+    mailcraft_model::ber::children(parts.last().unwrap().value).unwrap()[0].whole.to_vec()
+}
+
+#[test]
+fn a_message_with_too_much_to_check_is_said_so() {
+    let root = root("Example Root");
+    // Thirty authorities of the right name with the wrong keys come before the one that signed:
+    // the first signer's path takes all the budget, and the second signer is left with none.
+    let mut known: Vec<Made> = (0..30).map(|_| authority("Mail CA", &root, |_| {})).collect();
+    let mail = authority("Mail CA", &root, |_| {});
+    let ada = signer_by("Ada", "ada@example.org", &mail);
+    // A signer this computer trusts itself: no link to check, only its signature.
+    let trusted = issued(signer_params("Ada", "ada@example.org"), key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    known.push(mail);
+    let first = sign(CONTENT, &ada, &[&ada], false);
+    let second = sign(CONTENT, &trusted, &[], false);
+    let cms = with_signers(&first, &[&first_signer(&first), &first_signer(&second)]);
+    let known: Vec<&[u8]> = known.iter().map(|m| m.der.as_slice()).chain([trusted.der.as_slice()]).collect();
+    let anchors = Anchors::new([&root.der, &trusted.der]);
+    let c = check(
+        Signed::Detached { content: CONTENT, signature: &cms },
+        &Context { anchors: &anchors, from: "ada@example.org", now: NOW, known: &known, coverage: Coverage::Whole },
+    )
+    .unwrap();
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Unchecked, Some(Why::TooMuch)));
+    // With the budget to spare, the trusted signer alone is verified.
+    let alone = with_signers(&first, &[&first_signer(&second)]);
+    let c = check(
+        Signed::Detached { content: CONTENT, signature: &alone },
+        &Context { anchors: &anchors, from: "ada@example.org", now: NOW, known: &known, coverage: Coverage::Whole },
+    )
+    .unwrap();
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Verified, None));
 }
 
 #[test]
@@ -648,10 +724,10 @@ fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
 
 /// `cms` with `extra` put into its SignedData just before the signers.
 fn smuggled(cms: &[u8], extra: &[u8]) -> Vec<u8> {
-    let (info, _) = crate::ber::read(cms).unwrap();
-    let fields = crate::ber::children(info.value).unwrap();
-    let (sd, _) = crate::ber::read(fields[1].value).unwrap();
-    let parts = crate::ber::children(sd.value).unwrap();
+    let (info, _) = mailcraft_model::ber::read(cms).unwrap();
+    let fields = mailcraft_model::ber::children(info.value).unwrap();
+    let (sd, _) = mailcraft_model::ber::read(fields[1].value).unwrap();
+    let parts = mailcraft_model::ber::children(sd.value).unwrap();
     let mut inner = Vec::new();
     for (i, p) in parts.iter().enumerate() {
         if i == parts.len() - 1 {
@@ -675,6 +751,21 @@ fn signed_data_with_anything_else_in_it_cant_be_checked() {
     // A field smuggled in, an OCTET STRING with other content, is refused, not passed over.
     let forged = smuggled(&cms, &tlv(0x04, b"<p>Wire 10000 EUR to Mallory</p>"));
     assert_eq!(verdict(&forged, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+    // And after the signers, where nothing may follow.
+    let signers = first_signer(&cms);
+    let mut after = with_signers(&cms, &[&signers]);
+    assert_eq!(verdict(&after, CONTENT, &anchors, "ada@example.org"), (Verdict::Verified, None));
+    after = {
+        let (info, _) = mailcraft_model::ber::read(&after).unwrap();
+        let fields = mailcraft_model::ber::children(info.value).unwrap();
+        let (sd, _) = mailcraft_model::ber::read(fields[1].value).unwrap();
+        let mut inner = sd.value.to_vec();
+        inner.extend(tlv(0x04, b"after"));
+        let mut ci = fields[0].whole.to_vec();
+        ci.extend(tlv(0xa0, &tlv(0x30, &inner)));
+        tlv(0x30, &ci)
+    };
+    assert_eq!(verdict(&after, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
     // A version that isn't one, and a detached signature that carries content too.
     let versioned = sign_data_with(CONTENT, &ada, &[&ada], false, |_| {}, |d| d.version = CmsVersion::V2);
     assert_eq!(verdict(&versioned, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
@@ -702,23 +793,27 @@ fn signed_data_with_anything_else_in_it_cant_be_checked() {
 #[test]
 fn an_opaque_signatures_content_is_given_for_showing() {
     let cms = base64(body(OPAQUE));
-    let content = crate::opaque_content(&cms).unwrap();
+    let content = mailcraft_model::ber::signed_content(&cms).unwrap();
     assert!(String::from_utf8_lossy(&content).contains("Hello Bob"), "the signed MIME entity");
     let ber = base64(body(OPAQUE_BER));
-    assert_eq!(crate::opaque_content(&ber), Some(content));
+    assert_eq!(mailcraft_model::ber::signed_content(&ber), Some(content));
     let (_, detached) = halves(DETACHED);
-    assert_eq!(crate::opaque_content(&detached), None);
+    assert_eq!(mailcraft_model::ber::signed_content(&detached), None);
 }
 
 #[test]
 fn the_ber_reader_keeps_der_as_it_is_and_joins_pieces() {
-    assert_eq!(crate::ber::to_der(CA).as_deref(), Some(CA));
+    assert_eq!(mailcraft_model::ber::to_der(CA).as_deref(), Some(CA));
     // SEQUENCE (indefinite) { OCTET STRING in pieces "ab" "c" }.
     let ber = [0x30, 0x80, 0x24, 0x80, 0x04, 0x02, b'a', b'b', 0x04, 0x01, b'c', 0x00, 0x00, 0x00, 0x00];
-    assert_eq!(crate::ber::to_der(&ber), Some(vec![0x30, 0x05, 0x04, 0x03, b'a', b'b', b'c']));
+    assert_eq!(mailcraft_model::ber::to_der(&ber), Some(vec![0x30, 0x05, 0x04, 0x03, b'a', b'b', b'c']));
+    // A definite length inside, written longer than it need be (a certificate's, say, which its
+    // signature covers), is kept as it was written.
+    let ber = [0x30, 0x80, 0x30, 0x81, 0x03, 0x02, 0x01, 0x05, 0x00, 0x00];
+    assert_eq!(mailcraft_model::ber::to_der(&ber), Some(vec![0x30, 0x06, 0x30, 0x81, 0x03, 0x02, 0x01, 0x05]));
     // Nesting past the bound is refused, not followed.
     let deep: Vec<u8> = std::iter::repeat_n([0x30u8, 0x80], 200).flatten().chain(std::iter::repeat_n(0u8, 400)).collect();
-    assert_eq!(crate::ber::to_der(&deep), None);
+    assert_eq!(mailcraft_model::ber::to_der(&deep), None);
 }
 
 proptest! {
@@ -730,7 +825,7 @@ proptest! {
         let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[&bytes], coverage: Coverage::Whole };
         let _ = check(Signed::Opaque(&bytes), &context);
         let _ = check(Signed::Detached { content: b"x", signature: &bytes }, &context);
-        let _ = crate::ber::to_der(&bytes);
+        let _ = mailcraft_model::ber::to_der(&bytes);
         let _ = Anchors::new([&bytes]);
     }
 

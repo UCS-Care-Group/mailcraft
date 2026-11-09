@@ -2,11 +2,42 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Reading the TLVs of ASN.1 BER and DER (X.690), and turning BER into DER where they differ in
 //! what CMS writers use: indefinite lengths (which streaming signers write) and OCTET STRINGs in
-//! pieces (constructed). What is DER already is kept byte for byte, so that the bytes a signature
-//! covers (signed attributes, a certificate's body) are those the signer wrote.
+//! pieces (constructed). What is DER already is kept byte for byte, an element with a definite
+//! length inside an indefinite one too, so that the bytes a signature covers (signed attributes,
+//! a certificate's body) are those the signer wrote. For S/MIME (#30): `mailcraft-smime` checks
+//! signatures with it, and a message's reader takes out what an opaque signed one holds
+//! ([`signed_content`]).
 //!
 //! The input is hostile: lengths are checked against what is there, nesting is bounded
-//! ([`MAX_DEPTH`]), and the work is linear in the input.
+//! ([`MAX_DEPTH`]), and the work is linear in the input (times the bounded depth).
+
+/// CMS's id-signedData and id-data (RFC 5652 §5.1, §4), as DER.
+const SIGNED_DATA: &[u8] = &[0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x02];
+const DATA: &[u8] = &[0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01];
+
+/// What the CMS `cms` holds when it is SignedData with its content inside, of type id-data: the
+/// MIME entity an opaque signed message (`application/pkcs7-mime`, RFC 8551 §3.5) signed, for
+/// reading as the message. Nothing is checked here (`mailcraft-smime` checks it); `None` for any
+/// other CMS (an Encrypted message's enveloped data) or bytes that aren't one.
+pub fn signed_content(cms: &[u8]) -> Option<Vec<u8>> {
+    let der = to_der(cms)?;
+    let (info, _) = read(&der)?;
+    let info = children(info.value)?;
+    let [oid, explicit] = info.as_slice() else { return None };
+    if oid.whole != SIGNED_DATA || explicit.tag != 0xa0 {
+        return None;
+    }
+    let (signed, _) = read(explicit.value)?;
+    let signed = children(signed.value)?;
+    let encap = signed.get(2).filter(|e| e.tag == 0x30)?;
+    let encap = children(encap.value)?;
+    let [kind, content] = encap.as_slice() else { return None };
+    if kind.whole != DATA || content.tag != 0xa0 {
+        return None;
+    }
+    let (octets, rest) = read(content.value)?;
+    (octets.tag == 0x04 && rest.is_empty()).then(|| octets.value.to_vec())
+}
 
 /// How deep elements may nest.
 pub const MAX_DEPTH: usize = 48;
@@ -123,6 +154,9 @@ fn der_shaped(mut bytes: &[u8], depth: usize) -> bool {
 struct Size {
     used: usize,
     content: usize,
+    /// It is DER-shaped already (a definite length, and nothing in it to change): copied as it
+    /// is, its lengths as the writer wrote them, since a signature may cover them.
+    verbatim: bool,
 }
 
 /// The sizes of the constructed elements of the input, by where each starts in it: worked out
@@ -135,6 +169,12 @@ fn measure(input: &[u8], at: usize, depth: usize, sizes: &mut Sizes) -> Option<(
         return None;
     }
     let bytes = input.get(at..)?;
+    if let Some((tlv, _)) = read(bytes)
+        && der_shaped(tlv.whole, depth)
+    {
+        sizes.insert(at, Size { used: tlv.whole.len(), content: tlv.value.len(), verbatim: true });
+        return Some((tlv.whole.len(), tlv.whole.len()));
+    }
     let t = tag_len(bytes)?;
     let tag = *bytes.first()?;
     let (len, l) = length(bytes.get(t..)?)?;
@@ -177,7 +217,7 @@ fn measure(input: &[u8], at: usize, depth: usize, sizes: &mut Sizes) -> Option<(
     {
         return None;
     }
-    sizes.insert(at, Size { used: pos, content });
+    sizes.insert(at, Size { used: pos, content, verbatim: false });
     let header_tag = if tag == OCTET_STRING_PIECES { 1 } else { t };
     Some((pos, used_der(header_tag, content)?))
 }
@@ -202,6 +242,10 @@ fn der_content(input: &[u8], at: usize, sizes: &Sizes) -> Option<usize> {
 
 /// Write the (measured) element at `at` in `input` to `out` as DER; how many bytes it was.
 fn write(input: &[u8], at: usize, sizes: &Sizes, pieces: bool, out: &mut Vec<u8>) -> Option<usize> {
+    if let Some(s) = sizes.get(&at).filter(|s| s.verbatim && !pieces) {
+        out.extend_from_slice(input.get(at..at.checked_add(s.used)?)?);
+        return Some(s.used);
+    }
     let bytes = input.get(at..)?;
     let t = tag_len(bytes)?;
     let tag_bytes = bytes.get(..t)?;

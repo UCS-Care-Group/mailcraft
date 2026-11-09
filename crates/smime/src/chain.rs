@@ -75,12 +75,14 @@ impl Anchors {
 /// (Validity is checked at the time of the check, not the signing time the signer gives: that is
 /// the signer's own word, and a certificate that ran out or was replaced since is said.)
 pub fn trust(leaf: &Cert, pool: &[Cert], anchors: &Anchors, now: Timestamp, budget: &mut usize) -> Result<(), Why> {
-    let mut search = Search { leaf, pool, anchors, now, budget, weak: false, refused: None };
+    let mut search = Search { leaf, pool, anchors, now, budget, weak: false, refused: None, ran_out: false };
     let mut path = Vec::new();
     if search.walk(leaf, &mut path) {
         return Ok(());
     }
     Err(match search.refused {
+        // (A path left untried may hold: no answer, rather than the first refusal's.)
+        _ if search.ran_out => Why::TooMuch,
         Some(why) => why,
         None if search.weak => Why::WeakAlgorithm,
         None if leaf.self_issued() => Why::SelfSigned,
@@ -98,6 +100,8 @@ struct Search<'a, 'b> {
     weak: bool,
     /// Why the first path found to an anchor didn't hold.
     refused: Option<Why>,
+    /// The budget ran out before every path was tried.
+    ran_out: bool,
 }
 
 impl<'a> Search<'a, '_> {
@@ -148,6 +152,7 @@ impl<'a> Search<'a, '_> {
 
     fn signed(&mut self, cert: &Cert, by: &Cert) -> bool {
         if *self.budget == 0 {
+            self.ran_out = true;
             return false;
         }
         *self.budget -= 1;

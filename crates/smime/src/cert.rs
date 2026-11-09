@@ -13,7 +13,7 @@ use x509_cert::ext::pkix::name::GeneralName;
 use x509_cert::ext::pkix::{BasicConstraints, ExtendedKeyUsage, KeyUsage, NameConstraints, SubjectAltName, SubjectKeyIdentifier};
 
 use crate::algorithms::{self, Fault};
-use crate::ber;
+use mailcraft_model::ber;
 
 /// The largest certificate read.
 pub const MAX_CERT_BYTES: usize = 64 * 1024;
@@ -349,9 +349,41 @@ pub fn mail_within(address: &str, base: &str) -> bool {
     host == base
 }
 
-/// Whether the name `rdns` is within the directory name `base`: it begins with all of it.
+/// Whether the name `rdns` is within the directory name `base`: it begins with all of it, each
+/// relative name compared as RFC 5280 §7.1 compares them (a name written in another case, with
+/// other spaces or in the other of the two string types is the same name).
 pub fn dir_within(rdns: &[Vec<u8>], base: &[Vec<u8>]) -> bool {
-    rdns.len() >= base.len() && rdns.iter().zip(base).all(|(a, b)| a == b)
+    rdns.len() >= base.len() && rdns.iter().zip(base).all(|(a, b)| a == b || matches!((rdn_key(a), rdn_key(b)), (Some(x), Some(y)) if x == y))
+}
+
+/// A relative name's attributes as they compare: each type with its value, a PrintableString or
+/// UTF8String's with its letters in one case and its runs of spaces made one (and none at either
+/// end), any other's as it is written; sorted, since the attributes of one are a set.
+fn rdn_key(der: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
+    use der::Tag;
+    let rdn = x509_cert::name::RelativeDistinguishedName::from_der(der).ok()?;
+    let mut key: Vec<(String, Vec<u8>)> = rdn
+        .iter()
+        .map(|atv| {
+            let value = match der::Tagged::tag(&atv.value) {
+                Tag::PrintableString | Tag::Utf8String => {
+                    let text = std::str::from_utf8(atv.value.value()).ok()?;
+                    let folded: Vec<String> = text.split_whitespace().map(str::to_lowercase).collect();
+                    let mut v = b"s".to_vec();
+                    v.extend_from_slice(folded.join(" ").as_bytes());
+                    v
+                }
+                _ => {
+                    let mut v = b"b".to_vec();
+                    v.extend(atv.value.to_der().ok()?);
+                    v
+                }
+            };
+            Some((atv.oid.to_string(), value))
+        })
+        .collect::<Option<_>>()?;
+    key.sort();
+    Some(key)
 }
 
 /// A name for people: its common name, else the whole of it as RFC 4514 writes it.

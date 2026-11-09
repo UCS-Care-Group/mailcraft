@@ -5,10 +5,13 @@
 //! (`Session::set_trust_anchors`), which never reads a store itself. Never the set trusted for web
 //! sites: an authority may be trusted for one and not the other.
 //!
-//! - Linux, FreeBSD and the other Unix systems: the bundle of authorities trusted for mail that
-//!   the system's trust store extracts (p11-kit's `email-ca-bundle.pem`), at the places the
+//! - Linux and the other Unix systems: the bundle of authorities trusted for mail that the
+//!   system's trust store extracts (p11-kit's `email-ca-bundle.pem`), at the places the
 //!   distributions put it. A system that extracts none (Debian's `ca-certificates` holds the web
 //!   sites' set alone) has none here.
+//! - FreeBSD: none. Its authorities (`certctl`'s in the base system, `ca_root_nss`'s
+//!   `/usr/local/share/certs/ca-root-nss.crt` from ports, and p11-kit's, which reads that) are
+//!   the ones trusted for web sites, and nothing there keeps a set for mail.
 //! - Windows: the authorities of the Trusted Root Certification Authorities store whose uses,
 //!   as Windows keeps them, include secure mail (or aren't limited).
 //! - macOS: none yet; the keychain's trust settings for mail aren't read. Signers there are "not
@@ -24,14 +27,12 @@ const MAX_BUNDLE_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Where the distributions keep the bundle of authorities trusted for mail.
 #[cfg(all(unix, not(target_os = "macos")))]
-pub const MAIL_BUNDLES: [&str; 4] = [
+pub const MAIL_BUNDLES: [&str; 3] = [
     // Arch, and others on p11-kit's `trust extract-compat`.
     "/etc/ca-certificates/extracted/email-ca-bundle.pem",
     // Fedora, Red Hat, CentOS, openSUSE's `ca-certificates`.
     "/etc/pki/ca-trust/extracted/pem/email-ca-bundle.pem",
     "/var/lib/ca-certificates/email-ca-bundle.pem",
-    // FreeBSD's p11-kit, from ports.
-    "/usr/local/etc/ca-certificates/extracted/email-ca-bundle.pem",
 ];
 
 /// The system's certification authorities trusted for mail, each in DER. Empty when there are

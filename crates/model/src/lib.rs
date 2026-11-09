@@ -11,6 +11,7 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod ber;
 mod calendar;
 pub mod confusables;
 mod contact;

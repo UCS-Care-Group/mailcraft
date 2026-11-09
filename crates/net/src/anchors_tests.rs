@@ -28,4 +28,6 @@ fn a_bundle_gives_its_certificates_and_leaves_out_the_rest() {
 #[test]
 fn only_the_mail_bundles_are_read() {
     assert!(MAIL_BUNDLES.iter().all(|p| p.ends_with("email-ca-bundle.pem")));
+    // FreeBSD keeps no set for mail: what its ports put under /usr/local is the web sites' set.
+    assert!(MAIL_BUNDLES.iter().all(|p| !p.starts_with("/usr/local/")));
 }

@@ -90,6 +90,77 @@ fn several_senders_are_told() {
     assert!(!signed_parts(twice.as_bytes()).unwrap_or_else(|| panic!("signed")).one_from);
 }
 
+const OPAQUE_FILES: &[u8] = include_bytes!("../../smime/testdata/opaque-files.eml");
+const OPAQUE_BER: &[u8] = include_bytes!("../../smime/testdata/opaque-ber.eml");
+
+/// An opaque signed message is read as what it holds: its text the body, its files after the
+/// `smime.p7m` it came as (#30).
+#[test]
+fn an_opaque_signed_message_is_read_as_what_it_holds() {
+    let m = crate::parse(OPAQUE_FILES);
+    assert!(m.body.text.contains("The signed minutes are attached."), "{:?}", m.body.text);
+    let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, ["smime.p7m", "minutes.pdf"]);
+    assert!(crate::parse(OPAQUE_BER).body.text.contains("Hello Bob"), "BER, in pieces");
+}
+
+/// A signed message sent along as a file isn't opened into the message carrying it, and an
+/// Encrypted one, or what isn't CMS at all, is a file as it was.
+#[test]
+fn a_signed_message_sent_as_a_file_or_enveloped_data_isnt_read_into_the_message() {
+    let opaque = String::from_utf8_lossy(OPAQUE).into_owned();
+    let (head, body) = opaque.split_once("\r\n\r\n").unwrap_or_default();
+    let part_head: String = head.lines().filter(|l| l.starts_with("Content-")).map(|l| format!("{l}\r\n")).collect();
+    let carried = format!(
+        "From: ada@example.org\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nSee the file.\r\n--b\r\n{part_head}\r\n{body}\r\n--b--\r\n"
+    );
+    let m = crate::parse(carried.as_bytes());
+    assert_eq!(m.body.text, "See the file.");
+    assert_eq!(m.attachments.len(), 1);
+    let enveloped = "From: ada@example.org\r\nContent-Type: application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m\r\nContent-Transfer-Encoding: base64\r\n\r\nMA8GCSqGSIb3DQEHA6ACMAA=\r\n";
+    let m = crate::parse(enveloped.as_bytes());
+    assert!(m.body.text.is_empty());
+    assert_eq!(m.attachments.len(), 1);
+}
+
+/// A DER element of `tag` holding `content`.
+fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
+    let mut out = vec![tag];
+    let n = content.len();
+    match n {
+        0..0x80 => out.push(n as u8),
+        0x80..0x100 => out.extend([0x81, n as u8]),
+        0x100..0x10000 => out.extend([0x82, (n >> 8) as u8, n as u8]),
+        _ => out.extend([0x83, (n >> 16) as u8, (n >> 8) as u8, n as u8]),
+    }
+    out.extend_from_slice(content);
+    out
+}
+
+/// Signed data holding `content` (no signer: nothing here checks).
+fn signed_data(content: &[u8]) -> Vec<u8> {
+    let data = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01];
+    let signed = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x02];
+    let encap = tlv(0x30, &[&data[..], &tlv(0xa0, &tlv(0x04, content))].concat());
+    let sd = tlv(0x30, &[&tlv(0x02, &[1])[..], &tlv(0x31, &[]), &encap, &tlv(0x31, &[])].concat());
+    tlv(0x30, &[&signed[..], &tlv(0xa0, &sd)].concat())
+}
+
+/// Signed data inside signed data, deeper than anything is opened: read to the bound, no further.
+#[test]
+fn signed_data_nested_deep_is_read_to_a_bound() {
+    let mut entity = b"Content-Type: text/plain\r\n\r\ndeepest\r\n".to_vec();
+    for _ in 0..40 {
+        entity = [&b"Content-Type: application/pkcs7-mime; smime-type=signed-data\r\nContent-Transfer-Encoding: binary\r\n\r\n"[..], &signed_data(&entity)]
+            .concat();
+    }
+    let m = crate::parse(&entity);
+    assert!(!m.body.text.contains("deepest"));
+    assert!(m.attachments.len() <= 21, "{}", m.attachments.len());
+    let shallow = [&b"Content-Type: application/pkcs7-mime\r\n\r\n"[..], &signed_data(b"Content-Type: text/plain\r\n\r\nnear\r\n")].concat();
+    assert_eq!(crate::parse(&shallow).body.text.trim_end(), "near");
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(512))]
 

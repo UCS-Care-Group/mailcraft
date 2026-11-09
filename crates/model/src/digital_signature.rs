@@ -87,8 +87,11 @@ pub enum Why {
     /// critical extension not known here (RFC 5280 §4.2, §6.1).
     Constrained,
     /// No certification authorities for mail could be read on this computer, so no signer can be
-    /// verified here (or not yet: they are read at start).
+    /// verified here.
     NoAuthorities,
+    /// This computer's certification authorities haven't been read yet (they are read at start):
+    /// the check is made again when they are.
+    AuthoritiesNotRead,
     /// An OpenPGP key that the owner hasn't marked Verified.
     KeyNotVerified,
     /// Only part of the message was signed (a wrapper such as a list's footer holds it), so
@@ -109,6 +112,9 @@ pub enum Why {
     /// The bytes the message came as aren't here (it was read before they were kept): Check
     /// again downloads them.
     NoOriginal,
+    /// There is more to check than a message is allowed (many certificates, or many ways to a
+    /// trusted authority): it was stopped before an answer.
+    TooMuch,
 }
 
 impl Why {
@@ -122,6 +128,7 @@ impl Why {
             Why::AddressMismatch => "addressMismatch",
             Why::Constrained => "constrained",
             Why::NoAuthorities => "noAuthorities",
+            Why::AuthoritiesNotRead => "authoritiesNotRead",
             Why::KeyNotVerified => "keyNotVerified",
             Why::PartlySigned => "partlySigned",
             Why::Altered => "altered",
@@ -130,6 +137,7 @@ impl Why {
             Why::NoPublicKey => "noPublicKey",
             Why::Unreadable => "unreadable",
             Why::NoOriginal => "noOriginal",
+            Why::TooMuch => "tooMuch",
         }
     }
 
@@ -144,6 +152,7 @@ impl Why {
             Why::AddressMismatch => "the certificate is for another address than the sender's",
             Why::Constrained => "an authority on the way to a trusted one doesn't allow the certificate to be used this way",
             Why::NoAuthorities => "no certification authorities for mail could be read on this computer, so no signer can be verified here",
+            Why::AuthoritiesNotRead => "this computer's certification authorities haven't been read yet",
             Why::KeyNotVerified => "the signer's key hasn't been marked verified",
             Why::PartlySigned => "only part of the message was signed; the rest could say anything",
             Why::Altered => "the message was changed after it was signed",
@@ -152,6 +161,7 @@ impl Why {
             Why::NoPublicKey => "the signer's certificate isn't in the message",
             Why::Unreadable => "the Digital signature can't be read",
             Why::NoOriginal => "the bytes the message came as aren't on this computer; Check again downloads them",
+            Why::TooMuch => "there is too much to check in this Digital signature",
         }
     }
 }
