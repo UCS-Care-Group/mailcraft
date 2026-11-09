@@ -320,17 +320,92 @@ fn the_keys_are_hashed_once_for_each_change() {
 /// A session on an opaque signed message as a build before #30's read it: the file it came as,
 /// and nothing else.
 fn old_opaque() -> (Session, mailcraft_model::Id) {
-    let mut mb = Mailbox::with_local_account("Bob", "bob@smime.example");
-    let inbox = mb.inbox().unwrap();
+    let (s, ids) = old_opaques(1);
+    (s, ids[0])
+}
+
+/// The message an older build kept of an opaque signed message.
+fn read_bare() -> Message {
     let mut m = mailcraft_mime::parse_fetched(OPAQUE_FILES);
-    m.folder = inbox;
     m.body = Default::default();
     m.attachments.truncate(1);
-    let id = mb.add_message(m).unwrap();
+    m
+}
+
+/// [`old_opaque`] with `n` of them.
+fn old_opaques(n: usize) -> (Session, Vec<mailcraft_model::Id>) {
+    let mut mb = Mailbox::with_local_account("Bob", "bob@smime.example");
+    let inbox = mb.inbox().unwrap();
+    let ids = (0..n).map(|_| mb.add_message(Message { folder: inbox, ..read_bare() }).unwrap()).collect();
     let mut s = Session::new(mb);
     s.clock.now = Some(NOW);
     s.set_trust_anchors([CA]);
-    (s, id)
+    (s, ids)
+}
+
+fn is_bare(s: &Session, id: mailcraft_model::Id) -> bool {
+    s.mailbox.message(id).unwrap().body.text.trim().is_empty()
+}
+
+/// Before a command, no more of the bytes they came as are read again than a budget allows,
+/// though always one message's: the rest come before the next (#30 review 5).
+#[test]
+fn old_opaque_messages_are_read_again_within_a_budget() {
+    let (mut s, ids) = old_opaques(3);
+    s.signatures.read_again_bytes = Some(1);
+    s.run("mail.get", &json!({"id": ids[0]})).unwrap();
+    assert_eq!(ids.iter().filter(|id| !is_bare(&s, **id)).count(), 1);
+    s.run("mail.get", &json!({"id": ids[0]})).unwrap();
+    assert_eq!(ids.iter().filter(|id| !is_bare(&s, **id)).count(), 2);
+    s.run("mail.get", &json!({"id": ids[0]})).unwrap();
+    assert_eq!(ids.iter().filter(|id| !is_bare(&s, **id)).count(), 3);
+}
+
+/// An undo that puts back a message as it was before it was read again has it read again at the
+/// next command (#30 review 5): through `Session::undo` (the host's) and `edit.undo`.
+#[test]
+fn an_undo_that_puts_back_an_old_opaque_message_has_it_read_again() {
+    let (mut s, ids) = old_opaques(2);
+    s.signatures.read_again_bytes = Some(1);
+    // The first command reads the last noted and flags the other, still bare; the second
+    // reads that one before it runs.
+    let bare = ids[0];
+    s.run("mail.flag", &json!({"ids": [bare]})).unwrap();
+    s.run("mail.flag", &json!({"ids": [ids[1]]})).unwrap();
+    assert!(!is_bare(&s, bare));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(!is_bare(&s, bare));
+    // The host's own undo, outside any command.
+    assert!(s.undo());
+    assert!(is_bare(&s, bare), "put back as it was before the first command");
+    s.run("mail.get", &json!({"id": bare})).unwrap();
+    assert!(!is_bare(&s, bare));
+}
+
+/// One an older build read without the bytes it came as has them come by Check Again through
+/// `sync.apply`, and is read again at the next command (#30 review 5).
+#[test]
+fn an_old_opaque_message_whose_bytes_arrive_is_read_again() {
+    use mailcraft_model::FolderKind;
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    let mut s = Session::empty();
+    s.clock.now = Some(NOW);
+    s.set_trust_anchors([CA]);
+    let servers = json!({"email": "bob@smime.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let account = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let old = Message { uid: 1, original: None, ..read_bare() };
+    let delta = |d: FolderDelta| FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, ..d };
+    let new = SyncResult { account, folders: vec![delta(FolderDelta { new: vec![old], ..Default::default() })], ..Default::default() };
+    s.run("sync.apply", &json!({"result": new})).unwrap();
+    let id = s.mailbox.messages.values().find(|m| m.account == account).unwrap().id;
+    assert!(is_bare(&s, id) && !s.mailbox.message(id).unwrap().has_original());
+    s.run("mail.checkAgain", &json!({"id": id})).unwrap();
+    let read = Message { uid: 1, ..mailcraft_mime::parse_fetched(OPAQUE_FILES) };
+    let again = SyncResult { account, folders: vec![delta(FolderDelta { refetched: vec![read], ..Default::default() })], ..Default::default() };
+    s.run("sync.apply", &json!({"result": again})).unwrap();
+    assert!(s.mailbox.message(id).unwrap().has_original() && is_bare(&s, id));
+    s.run("mail.get", &json!({"id": id})).unwrap();
+    assert!(!is_bare(&s, id));
 }
 
 /// Opening the mailbox notes such a message, and the next command reads its text and files from

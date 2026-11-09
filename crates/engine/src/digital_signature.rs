@@ -33,6 +33,8 @@ const MAX_TO_KEEP: usize = 256;
 const MAX_TO_READ_AGAIN: usize = 100_000;
 /// How many of them are read again before one command.
 const READ_AGAIN_AT_ONCE: usize = 32;
+/// How many bytes they came as are read again before one command (at least one message's).
+const READ_AGAIN_BYTES: u64 = 64 * 1024 * 1024;
 
 /// What the session knows of Digital signatures. Never saved.
 #[derive(Default)]
@@ -48,6 +50,8 @@ pub(crate) struct SignatureChecks {
     /// Opaque signed messages read by a build before #30's, to be read again from the bytes
     /// they came as ([`Session::read_opaque_again`]).
     pub(crate) to_read_again: Vec<Id>,
+    /// [`READ_AGAIN_BYTES`] but where a test sets another.
+    pub(crate) read_again_bytes: Option<u64>,
     /// The hash of the keys kept for each address, with the revision of the keys it was worked
     /// out at: a row's result is asked of at every frame, and the keys change seldom.
     key_hashes: Mutex<HashMap<String, (u64, u64)>>,
@@ -270,19 +274,39 @@ impl Session {
         self.signatures.to_read_again = found;
     }
 
-    /// Read the text and files of up to [`READ_AGAIN_AT_ONCE`] of the messages
-    /// [`Session::find_opaque_to_read_again`] noted, from the bytes they came as (with the caps
-    /// every message is read with), once each: before a command, never inside one and never
-    /// while a message is only looked at. No step of the history; the mailbox is changed (saved,
-    /// and what is worked out from it is due again) when one was read.
-    pub(crate) fn read_opaque_again(&mut self) {
-        let at = self.signatures.to_read_again.len().saturating_sub(READ_AGAIN_AT_ONCE);
-        let ids = self.signatures.to_read_again.split_off(at);
-        let mut changed = false;
+    /// Note again the messages among `ids` that are as an older build read them (an undo put
+    /// one back as it was, or the bytes it came as arrived for it): the next command reads them.
+    pub(crate) fn note_to_read_again(&mut self, ids: impl IntoIterator<Item = Id>) {
         for id in ids {
-            if !self.mailbox.message(id).is_some_and(read_bare) {
-                continue;
+            let queue = &self.signatures.to_read_again;
+            if queue.len() < MAX_TO_READ_AGAIN && !queue.contains(&id) && self.mailbox.message(id).is_some_and(read_bare) {
+                self.signatures.to_read_again.push(id);
             }
+        }
+    }
+
+    /// Read the text and files of up to [`READ_AGAIN_AT_ONCE`] of the messages noted
+    /// ([`Session::find_opaque_to_read_again`], [`Session::note_to_read_again`]), and of at most
+    /// [`READ_AGAIN_BYTES`] of the bytes they came as (always one, however big), from those
+    /// bytes (with the caps every message is read with), once each: before a command, never
+    /// inside one and never while a message is only looked at. No step of the history; the
+    /// mailbox is changed (saved, and what is worked out from it is due again) when one was read.
+    pub(crate) fn read_opaque_again(&mut self) {
+        let budget = self.signatures.read_again_bytes.unwrap_or(READ_AGAIN_BYTES);
+        let mut spent: u64 = 0;
+        let mut changed = false;
+        for _ in 0..READ_AGAIN_AT_ONCE {
+            let Some(&id) = self.signatures.to_read_again.last() else { break };
+            let Some(m) = self.mailbox.message(id).filter(|m| read_bare(m)) else {
+                self.signatures.to_read_again.pop();
+                continue;
+            };
+            let size = m.original.as_ref().map_or(0, mailcraft_model::Original::size);
+            if spent > 0 && spent.saturating_add(size) > budget {
+                break;
+            }
+            spent = spent.saturating_add(size);
+            self.signatures.to_read_again.pop();
             let Ok(bytes) = self.content(id, Part::Original) else { continue };
             if !mailcraft_mime::signed_parts(&bytes).is_some_and(|p| p.kind == mailcraft_mime::SignedKind::SmimeOpaque) {
                 continue;

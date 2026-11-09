@@ -3072,6 +3072,9 @@ impl Session {
         let counted = (self.rev, now.messages.len());
         let changes: Vec<(Id, Option<Arc<Message>>, Option<Arc<Message>>)> =
             self.mailbox.messages.changes(&now.messages).into_iter().map(|(id, a, b)| (id, a.cloned(), b.cloned())).collect();
+        // A message put back as an older build read it (from before it was read again) is read
+        // again at the next command.
+        self.note_to_read_again(changes.iter().map(|(id, _, _)| *id));
         let after = (self.rev + 1, self.mailbox.messages.len());
         self.counts_cache = self
             .counts_cache
@@ -3525,6 +3528,9 @@ impl Session {
                     let changes: Vec<(Id, Option<Arc<Message>>, Option<Arc<Message>>)> =
                         self.mailbox.messages.changes(&before.mailbox.messages).into_iter().map(|(id, a, b)| (id, a.cloned(), b.cloned())).collect();
                     self.hold_replaced(&changes);
+                    // One an older build read whose bytes it came as just arrived (Check Again,
+                    // a move's source copy) is read again at the next command.
+                    self.note_to_read_again(changes.iter().map(|(id, _, _)| *id));
                     // Read marks alone: the list and the counts stand, put right ([`Session::list_stands`]).
                     let read_marks = self.list_stands(&before.mailbox, &changes);
                     let rev_before = self.rev;
