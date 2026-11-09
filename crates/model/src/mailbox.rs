@@ -684,6 +684,15 @@ impl Account {
         self.shared_of.as_ref().map(|_| self.email.clone())
     }
 
+    /// The name an Exchange server account signs in with: the server settings' user name, or else the
+    /// account's address. A shared mailbox opened through it signs in with this name, not with its own address.
+    pub fn sign_in_name(&self) -> String {
+        match self.ews.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()) {
+            Some(name) => name.to_owned(),
+            None => self.email.trim().to_owned(),
+        }
+    }
+
     /// The name the servers know the owner by: the login name, or else the address.
     pub fn login(&self) -> &str {
         let user = self.username.trim();
@@ -1425,6 +1434,14 @@ impl Mailbox {
         self.owner_of(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
     }
 
+    /// The Exchange server account whose server, user name and password read the shared mailbox
+    /// `account` (#482): its owner, when that is an Exchange server account that is no shared
+    /// mailbox itself. `None` for any other account.
+    pub fn ews_owner_of(&self, account: Id) -> Option<&Account> {
+        let owner = self.account(account)?.shared_of.filter(|owner| *owner != account)?;
+        self.account(owner).filter(|o| o.kind == AccountKind::Exchange && !o.is_shared())
+    }
+
     pub fn owner_of(&self, account: Id) -> Option<&Account> {
         let owner = self.account(account)?.shared_of.filter(|owner| *owner != account)?;
         self.account(owner).filter(|o| o.kind == AccountKind::Microsoft && !o.is_shared())
@@ -1490,18 +1507,27 @@ impl Mailbox {
         Ok(moved)
     }
 
-    /// Open the shared mailbox at `address` under the Microsoft account `owner`: an account of
-    /// its own kind ([`AccountKind::Microsoft`]) with its standard folders, read with the owner's
-    /// sign-in ([`Account::shared_of`]). Nothing is asked of any server here: whether the owner
-    /// may open it is found at its first Send/Receive. Its id.
+    /// Open the shared mailbox at `address` under the account `owner`: a Microsoft account kept in
+    /// step through Graph, or an Exchange server account (#482). An account of its own, of its
+    /// owner's kind, with its standard folders, read with the owner's sign-in
+    /// ([`Account::shared_of`]). Over Exchange Web Services it is the owner's server, the owner's
+    /// user name and trusted certificate (copied, and kept in step when the owner's are edited:
+    /// `account.edit`), and the owner's password, with this mailbox's address named in each request.
+    /// Nothing is asked of any server here: whether the owner may open it is found at its first
+    /// Send/Receive. Its id.
     pub fn add_shared_mailbox(&mut self, owner: Id, address: &str) -> Result<Id, ModelError> {
         let address = crate::mailbox_address(address).ok_or_else(|| invalid("that isn't an e-mail address"))?;
         let o = self.account(owner).ok_or(not_found("account", owner))?;
         if o.is_shared() {
             return Err(invalid("a shared mailbox can't open another one: name the account it is opened through"));
         }
-        if o.kind != AccountKind::Microsoft {
-            return Err(invalid("shared mailboxes open under an account that is kept in step through Microsoft Graph"));
+        if !matches!(o.kind, AccountKind::Microsoft | AccountKind::Exchange) {
+            return Err(invalid(
+                "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account",
+            ));
+        }
+        if o.kind == AccountKind::Exchange && o.ews.as_ref().is_none_or(|server| server.problem().is_some()) {
+            return Err(invalid("an Exchange server account needs a server address that can be used to open a shared mailbox"));
         }
         if o.oauth.as_ref().is_some_and(|oauth| oauth.directory == Directory::Personal) {
             return Err(invalid("a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"));
@@ -1516,14 +1542,13 @@ impl Mailbox {
             return Err(invalid(format!("an account opens {MAX_SHARED} shared mailboxes at most")));
         }
         let download_in_full = o.download_in_full;
-        let shared = Account {
-            name: address.clone(),
-            email: address,
-            kind: AccountKind::Microsoft,
-            download_in_full,
-            shared_of: Some(owner),
-            ..Default::default()
-        };
+        // (Over Exchange Web Services: the owner's server and the name the owner signs in with. The
+        // folder list's sync state is this mailbox's own and starts empty.)
+        let ews = (o.kind == AccountKind::Exchange)
+            .then(|| o.ews.as_ref().map(|server| crate::EwsServer { hierarchy: String::new(), username: o.sign_in_name(), ..server.clone() }))
+            .flatten();
+        let shared =
+            Account { name: address.clone(), email: address, kind: o.kind, download_in_full, shared_of: Some(owner), ews, ..Default::default() };
         let id = self.add_account(shared);
         // Outlook doesn't put a shared mailbox's Inbox among the Favorites by itself.
         for f in self.folders.iter_mut().filter(|f| f.account == id) {

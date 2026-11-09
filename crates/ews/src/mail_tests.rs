@@ -481,3 +481,76 @@ fn a_run_is_called_off_before_its_next_request() {
     assert_eq!(pieces.len(), 1);
     assert!(last(&pieces).stopped && standin.state().requests.is_empty());
 }
+
+// ---- a shared mailbox, reached as a delegate (#482) ----
+
+const SHARED: &str = "support@example.org";
+
+fn delegate_stand_in() -> StandIn {
+    let standin = StandIn::new();
+    standin.state().mailbox = Some(SHARED.into());
+    standin
+}
+
+/// How many distinguished folders the requests named, and how many of those named a mailbox.
+fn mailbox_count(standin: &StandIn) -> (usize, usize) {
+    let state = standin.state();
+    let folders = state.requests.iter().map(|r| r.body.matches("<t:DistinguishedFolderId").count()).sum();
+    let named = state.requests.iter().map(|r| r.body.matches(&format!("<t:EmailAddress>{SHARED}</t:EmailAddress>")).count()).sum();
+    (folders, named)
+}
+
+#[test]
+fn a_shared_mailbox_is_read_with_its_address_on_every_distinguished_folder_and_nothing_of_the_callers_own() {
+    let standin = delegate_stand_in();
+    standin.state().deliver("inbox", "For the team", false);
+    let shared = client().with_mailbox(SHARED);
+    let (pieces, _) = run_as(&shared, &standin, &EwsMailRequest { mailbox: SHARED.into(), ..request() });
+    assert_eq!(subjects(&pieces), vec!["For the team".to_owned()]);
+    assert!(last(&pieces).whole && last(&pieces).errors.is_empty(), "{:?}", last(&pieces));
+    let kinds: Vec<FolderKind> = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap().changed.iter().map(|f| f.kind).collect();
+    assert!(kinds.contains(&FolderKind::Inbox) && kinds.contains(&FolderKind::Sent), "{kinds:?}");
+    let (folders, named) = mailbox_count(&standin);
+    assert!(folders > 0 && folders == named, "every distinguished folder named the mailbox: {folders} folders, {named} named");
+    assert!(standin.state().writes.is_empty());
+}
+
+#[test]
+fn a_request_that_forgets_the_mailbox_reads_nothing_of_the_shared_one() {
+    // The Inbox of the caller's own mailbox is not the shared one: the run does not find the
+    // shared Inbox, and says so, rather than showing somebody's mail as another mailbox's.
+    let standin = delegate_stand_in();
+    standin.state().deliver("inbox", "For the team", false);
+    let (pieces, _) = run(&standin, &request());
+    assert!(subjects(&pieces).is_empty());
+    assert!(!last(&pieces).whole, "{:?}", last(&pieces));
+    assert_eq!(mailbox_count(&standin).1, 0);
+    // (Not a shared mailbox's run, so not told as one: the account's own Inbox can't be found.)
+    assert!(last(&pieces).errors.iter().all(|e| e != crate::run::SHARED_NOT_OPENED), "{:?}", last(&pieces).errors);
+}
+
+#[test]
+fn a_mailbox_the_caller_may_not_open_and_one_that_is_not_there_end_the_run_without_mail() {
+    for other in ["private@example.org", "nobody@example.org"] {
+        let standin = delegate_stand_in();
+        standin.state().no_access = vec!["private@example.org".into()];
+        standin.state().deliver("inbox", "For the team", false);
+        let (pieces, _) = run_as(&client().with_mailbox(other), &standin, &EwsMailRequest { mailbox: other.into(), ..request() });
+        assert!(subjects(&pieces).is_empty(), "{other}");
+        assert!(!last(&pieces).whole && last(&pieces).folders.as_ref().is_none_or(|f| f.changed.is_empty()), "{other}: {:?}", last(&pieces));
+        assert_eq!(last(&pieces).errors, vec![crate::run::SHARED_NOT_OPENED.to_owned()], "{other}: said plainly");
+    }
+}
+
+#[test]
+fn the_callers_own_mailbox_names_no_mailbox_at_all() {
+    let standin = StandIn::new();
+    standin.state().deliver("inbox", "Mine", false);
+    let (pieces, _) = run(&standin, &request());
+    assert_eq!(subjects(&pieces), vec!["Mine".to_owned()]);
+    assert_eq!(mailbox_count(&standin).1, 0);
+    // (And a stand-in that is the caller's own holds a request that names another to the schema.)
+    let (_, other) = run_as(&client().with_mailbox(SHARED), &standin, &request());
+    assert!(other.is_empty());
+    assert!(!standin.state().requests.last().is_some_and(|r| r.status == 200 && r.code == "NoError"), "named a mailbox the caller has none of");
+}

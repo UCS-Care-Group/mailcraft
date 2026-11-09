@@ -384,6 +384,9 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 }
 
+/// What a run says when the server won't open the shared mailbox it was asked for.
+pub const SHARED_NOT_OPENED: &str = "The server won't open the shared mailbox: it isn't there, or you have no access to it";
+
 pub(crate) fn base(request: &EwsMailRequest) -> EwsMailResult {
     EwsMailResult { account: request.account, email: request.email.clone(), url: request.url.clone(), ..EwsMailResult::default() }
 }
@@ -413,6 +416,16 @@ pub async fn sync_mail<E: HttpExchange>(
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
             Asked::Stop(why) => out.stop(why),
+            // A shared mailbox the server won't open (#482): there is none at that address
+            // (`ErrorNonExistentMailbox`), or the caller has no rights to it, which Exchange says
+            // as `ErrorItemNotFound` (or `ErrorAccessDenied`, or a folder it lacks) so as not to
+            // tell who has a mailbox. Said plainly, as the owner needs to know which.
+            Asked::Code(
+                ResponseCode::ItemNotFound | ResponseCode::AccessDenied | ResponseCode::FolderNotFound | ResponseCode::NonExistentMailbox,
+            ) if !request.mailbox.is_empty() => {
+                out.incomplete = true;
+                out.line(SHARED_NOT_OPENED);
+            }
             Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable => {
                 out.incomplete = true;
                 out.line("The server's answer couldn't be used");

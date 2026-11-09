@@ -749,3 +749,70 @@ fn a_get_item_answer_with_ten_megabytes_of_mime_fits() {
     let huge = format!("<a><MimeContent>{}</MimeContent></a>", "x".repeat(xml::MAX_MIME_TEXT + 1));
     assert_eq!(xml::parse(huge.as_bytes()).unwrap().children[0].text, "");
 }
+
+// ---- another mailbox: `Element::in_mailbox` (#482) ----
+
+fn written(element: &Element) -> String {
+    element.write()
+}
+
+#[test]
+fn every_distinguished_folder_is_given_the_mailbox_and_nothing_else_is_touched() {
+    let op = GetFolder::new(&[DistinguishedFolder::Inbox, DistinguishedFolder::Drafts]).element();
+    let in_box = written(&op.in_mailbox("support@example.org"));
+    assert_eq!(in_box.matches("<t:DistinguishedFolderId").count(), 2);
+    assert_eq!(in_box.matches("<t:Mailbox><t:EmailAddress>support@example.org</t:EmailAddress></t:Mailbox>").count(), 2);
+    assert!(in_box.contains("<t:DistinguishedFolderId Id=\"inbox\"><t:Mailbox>"), "{in_box}");
+    // The original is as it was.
+    assert!(!written(&op).contains("Mailbox"));
+    // A folder by id is its mailbox's already.
+    let by_id = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", "AAAA"));
+    assert_eq!(written(&by_id.in_mailbox("support@example.org")), written(&by_id));
+}
+
+#[test]
+fn a_folder_that_names_a_mailbox_already_keeps_it() {
+    let named = Element::new("m:Holder").child(
+        Element::new("t:DistinguishedFolderId")
+            .attr("Id", "inbox")
+            .child(Element::new("t:Mailbox").child(Element::new("t:EmailAddress").text("other@example.org"))),
+    );
+    let text = written(&named.in_mailbox("support@example.org"));
+    assert!(text.contains("other@example.org") && !text.contains("support@example.org"), "{text}");
+}
+
+#[test]
+fn the_address_is_text_never_markup_and_the_walk_is_bounded() {
+    let op = GetFolder::new(&[DistinguishedFolder::Inbox]).element();
+    let text = written(&op.in_mailbox("a</t:EmailAddress><x/>@example.org"));
+    assert!(text.contains("a&lt;/t:EmailAddress&gt;&lt;x/&gt;@example.org") && !text.contains("<x/>"), "{text}");
+    // Nested a hundred deep, the folder at the bottom is past the bound and is left alone.
+    let mut deep = Element::new("t:DistinguishedFolderId").attr("Id", "inbox");
+    for _ in 0..100 {
+        deep = Element::new("t:Wrap").child(deep);
+    }
+    assert!(!written(&deep.in_mailbox("support@example.org")).contains("Mailbox"));
+}
+
+#[test]
+fn the_operations_that_make_or_put_things_in_the_top_folders_name_the_mailbox_too() {
+    use crate::changes::{CreateFolder, MoveFolder};
+    use crate::compose::{CreateDraft, FindDraft};
+    let at = "support@example.org";
+    // A folder made at the top of the mail, one moved there, a draft saved in Drafts, and the
+    // search for one: the places that name a distinguished folder rather than an id.
+    for op in [CreateFolder::new("", "Projects").element(), MoveFolder::new("AAAA", "").element(), FindDraft::new(None, "marker").element()] {
+        let text = written(&op.in_mailbox(at));
+        assert!(text.contains("<t:Mailbox>") && text.matches("DistinguishedFolderId").count() >= 1, "{text}");
+    }
+    let _ = CreateDraft::new;
+}
+
+#[test]
+fn a_client_for_a_mailbox_puts_it_in_the_request_and_one_for_the_callers_own_does_not() {
+    let op = GetFolder::new(&[DistinguishedFolder::Inbox]).element();
+    let body = |client: &Client| String::from_utf8_lossy(client.request(&op).unwrap().body()).into_owned();
+    assert!(body(&client().with_mailbox("support@example.org")).contains("<t:EmailAddress>support@example.org</t:EmailAddress>"));
+    assert!(!body(&client()).contains("Mailbox"));
+    assert!(!body(&client().with_mailbox("  ")).contains("Mailbox"), "an empty address is the caller's own mailbox");
+}

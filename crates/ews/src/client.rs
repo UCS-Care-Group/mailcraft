@@ -15,6 +15,9 @@ pub struct Client {
     endpoint: String,
     authorization: Secret,
     version: Version,
+    /// Another mailbox the requests are for (a shared mailbox), by its address: every distinguished
+    /// folder a request names is then that mailbox's ([`Element::in_mailbox`]).
+    mailbox: Option<String>,
 }
 
 impl std::fmt::Debug for Client {
@@ -29,7 +32,7 @@ impl Client {
     /// `http` only to this machine), sending `authorization` as the `Authorization` field.
     pub fn new(endpoint: &str, authorization: Secret) -> Result<Self, Error> {
         check_endpoint(endpoint)?;
-        Ok(Self { endpoint: endpoint.to_owned(), authorization, version: Version::default() })
+        Ok(Self { endpoint: endpoint.to_owned(), authorization, version: Version::default(), mailbox: None })
     }
 
     /// Asks for the schema of `version`.
@@ -39,9 +42,23 @@ impl Client {
         self
     }
 
+    /// Speaks for another mailbox the credential has been given access to (a shared mailbox, #482),
+    /// by its address; an empty address is the credential's own mailbox. The folders by id and the
+    /// items need nothing more (their ids say whose they are); the distinguished folders do.
+    #[must_use]
+    pub fn with_mailbox(mut self, address: &str) -> Self {
+        let address = address.trim();
+        self.mailbox = (!address.is_empty()).then(|| address.to_owned());
+        self
+    }
+
     /// The request for `operation`, ready to send.
     pub fn request(&self, operation: &Element) -> Result<HttpRequest, Error> {
-        Ok(HttpRequest::soap(&self.endpoint, &self.authorization, envelope(self.version, operation))?)
+        let body = match &self.mailbox {
+            Some(address) => envelope(self.version, &operation.in_mailbox(address)),
+            None => envelope(self.version, operation),
+        };
+        Ok(HttpRequest::soap(&self.endpoint, &self.authorization, body)?)
     }
 
     /// Sends `operation` and judges the answer to the point of its response messages.

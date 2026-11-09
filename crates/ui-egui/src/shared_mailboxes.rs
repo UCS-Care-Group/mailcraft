@@ -36,10 +36,17 @@ use crate::dialogs::Dialog;
 use crate::{GraphRequest, GraphResult, MailApp, Tokens};
 
 /// Whether `a` is an account a shared mailbox may be opened under: a Microsoft account kept in
-/// step through Graph, of a work or school (not a personal Microsoft account, which has none),
-/// and no shared mailbox itself.
+/// step through Graph, of a work or school (not a personal Microsoft account, which has none), or
+/// an Exchange server account whose server can be used (#482), and no shared mailbox itself.
 pub(crate) fn can_open_shared(a: &Account) -> bool {
-    a.kind == AccountKind::Microsoft && !a.is_shared() && a.oauth.as_ref().is_none_or(|oauth| oauth.directory != Directory::Personal)
+    if a.is_shared() {
+        return false;
+    }
+    match a.kind {
+        AccountKind::Microsoft => a.oauth.as_ref().is_none_or(|oauth| oauth.directory != Directory::Personal),
+        AccountKind::Exchange => a.ews.as_ref().is_some_and(|server| server.problem().is_none()),
+        _ => false,
+    }
 }
 
 /// What the owner is told when Microsoft won't open the shared mailbox at `address` (S1).
@@ -587,3 +594,7 @@ impl MailApp {
 #[cfg(test)]
 #[path = "shared_mailboxes_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "shared_ews_tests.rs"]
+mod ews_tests;

@@ -140,6 +140,35 @@ impl Element {
         self
     }
 
+    /// This element with every `t:DistinguishedFolderId` in it (at any depth, up to a bound) naming
+    /// the mailbox `address`: a `t:Mailbox` with the `t:EmailAddress`, as the schema has it. That is
+    /// how a request reaches the folders of **another mailbox** the caller has been given access to
+    /// (a shared mailbox: Full Access, or a delegate's rights): an item, or a folder named by its
+    /// id, belongs to its mailbox already, and only the distinguished names (`inbox`,
+    /// `msgfolderroot`, `drafts`, `sentitems`) mean "the caller's own" unless they are told whose.
+    /// One that names a mailbox already is left as it is.
+    #[must_use]
+    pub fn in_mailbox(&self, address: &str) -> Element {
+        let mut copy = self.clone();
+        copy.name_mailbox(address, 0);
+        copy
+    }
+
+    /// Most levels of elements [`Element::in_mailbox`] goes down: a request of ours is a handful
+    /// deep, and a bound is a bound.
+    const MAILBOX_DEPTH: u8 = 24;
+
+    fn name_mailbox(&mut self, address: &str, depth: u8) {
+        if self.name == "t:DistinguishedFolderId" && self.children.is_empty() {
+            self.children.push(Element::new("t:Mailbox").child(Element::new("t:EmailAddress").text(address)));
+        }
+        if depth < Self::MAILBOX_DEPTH {
+            for child in &mut self.children {
+                child.name_mailbox(address, depth.saturating_add(1));
+            }
+        }
+    }
+
     /// The element as text.
     pub fn write(&self) -> String {
         let mut out = String::new();

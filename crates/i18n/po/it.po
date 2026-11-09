@@ -12091,6 +12091,11 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Impossibile aggiungere la cassetta postale condivisa"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "The shared mailbox couldn't be read."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -14623,6 +14628,11 @@ msgid "add at least one recipient"
 msgstr "aggiungere almeno un destinatario"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
 msgstr ""
@@ -15427,15 +15437,13 @@ msgstr "selezionare prima un appuntamento"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
-#, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17535,6 +17543,14 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
 
 #~ msgid "Google Desktop Registration Secret"
 #~ msgstr "Segreto di registrazione Google Desktop"

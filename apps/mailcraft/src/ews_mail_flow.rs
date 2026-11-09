@@ -339,3 +339,40 @@ fn an_account_with_nothing_deleted_goes_on_from_the_folder_lists_state() {
         assert!(!hierarchy(&app).is_empty(), "the folder list goes on from its state");
     }
 }
+
+/// A shared mailbox opened through the account (#482), read the whole way by the host's own runner:
+/// the stand-in is the shared mailbox, reached as a delegate (every distinguished folder must name
+/// it), the owner's password signs in, and the owner's own Inbox is not where its mail goes.
+#[test]
+fn a_shared_mailbox_is_read_through_the_owners_sign_in_and_names_itself_on_every_folder() {
+    const SHARED: &str = "support@example.org";
+    let server = serve();
+    server.standin.state().mailbox = Some(SHARED.into());
+    server.standin.state().deliver("inbox", "For the team", false);
+    let (mut app, owner) = window(&server);
+    let shared = app.execute("account.addSharedMailbox", json!({"account": owner, "address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    // The owner's password is typed with the shared mailbox's run: it is the owner's.
+    let started = send_receive(&mut app, json!({"account": shared, "password": PASSWORD}));
+    assert_eq!(started["started"], true, "{started}");
+    let inbox = app.session.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    assert_eq!(app.session.mailbox.messages_in(inbox).map(|m| m.subject.clone()).collect::<Vec<_>>(), vec!["For the team".to_owned()]);
+    // Its mail is in its own account, not the owner's, and the owner needs no second password.
+    let own = app.session.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    assert_eq!(app.session.mailbox.count(own), 0);
+    assert!(app.dialog.is_none());
+    // Every request named the mailbox on each distinguished folder it used, and none was refused.
+    let state = server.standin.state();
+    assert!(
+        state.requests.iter().all(|r| r.status == 200 || r.status == 401),
+        "{:?}",
+        state.requests.iter().map(|r| (&r.operation, r.status)).collect::<Vec<_>>()
+    );
+    let folders: usize = state.requests.iter().map(|r| r.body.matches("<t:DistinguishedFolderId").count()).sum();
+    let named: usize = state.requests.iter().map(|r| r.body.matches(&format!("<t:EmailAddress>{SHARED}</t:EmailAddress>")).count()).sum();
+    assert!(folders > 0 && folders == named, "{folders} folders, {named} named");
+    assert!(state.writes.is_empty());
+    drop(state);
+    // The owner's own mailbox is another one: the owner's own run on this server finds nothing of it.
+    send_receive(&mut app, json!({"account": owner}));
+    assert_eq!(app.session.mailbox.count(own), 0);
+}

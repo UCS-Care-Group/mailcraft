@@ -97,15 +97,31 @@ fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdE
     Ok((a, server))
 }
 
+/// Where the server is for `account`, the name it signs in with and the certificate it trusts: its
+/// own settings, and for a shared mailbox opened through an Exchange server account (#482) its
+/// owner's *as they are now* (the copy it was made with can't have drifted, whatever was edited).
+fn connection(mb: &Mailbox, a: &Account, server: &EwsServer) -> (String, String, String) {
+    let server = mb.ews_owner_of(a.id).and_then(|owner| owner.ews.as_ref()).filter(|owner| owner.problem().is_none()).unwrap_or(server);
+    (server.url.clone(), server.username.clone(), server.trusted.clone())
+}
+
 /// The request for `account` with what every run says: where the server is, whose mailbox it is.
 fn base(s: &Session, account: Id) -> Result<EwsMailRequest, CmdError> {
     let (a, server) = ews_account(&s.mailbox, account)?;
+    let (url, username, trusted) = connection(&s.mailbox, a, server);
+    // (A shared mailbox signs in as its owner does, never with its own address.)
+    let username = if a.is_shared() && username.trim().is_empty() {
+        s.mailbox.ews_owner_of(account).map(Account::sign_in_name).unwrap_or_default()
+    } else {
+        username
+    };
     Ok(EwsMailRequest {
         account,
         email: a.email.clone(),
-        url: server.url.clone(),
-        username: server.username.clone(),
-        trusted: server.trusted.clone(),
+        url,
+        username,
+        trusted,
+        mailbox: a.shared_mailbox().unwrap_or_default(),
         ..Default::default()
     })
 }
@@ -214,15 +230,13 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
             .filter(|id| ews_down::is_id(id))
             .collect(),
     };
-    Ok(EwsFetchRequest {
-        account,
-        email: a.email.clone(),
-        url: server.url.clone(),
-        username: server.username.clone(),
-        trusted: server.trusted.clone(),
-        ids,
-        background: message.is_none(),
-    })
+    let (url, username, trusted) = connection(&s.mailbox, a, server);
+    let username = if a.is_shared() && username.trim().is_empty() {
+        s.mailbox.ews_owner_of(account).map(Account::sign_in_name).unwrap_or_default()
+    } else {
+        username
+    };
+    Ok(EwsFetchRequest { account, email: a.email.clone(), url, username, trusted, ids, background: message.is_none() })
 }
 
 fn fetch_request(s: &mut Session, v: &Value) -> CmdResult {
@@ -254,7 +268,7 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str) -> Result<String
     if !email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()) {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
-    if !url.is_empty() && server.url.trim() != url.trim() {
+    if !url.is_empty() && connection(mb, a, server).0.trim() != url.trim() {
         return Err(failed!("this Send/Receive was for the server {name} named before", name = a.name));
     }
     Ok(a.name.clone())

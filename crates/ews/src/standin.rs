@@ -198,6 +198,13 @@ pub struct State {
     /// (`folder:FolderClass` among the additional properties), as Grommunio does: its Default
     /// shape leaves it out (E8).
     pub class_only_when_asked: bool,
+    /// The address this stand-in's mailbox is reached at **as a delegate** (a shared mailbox, #482):
+    /// every distinguished folder a request names must say whose it is (`t:Mailbox`), and this is
+    /// the one answered. `None`: the caller's own mailbox, which names no mailbox at all.
+    pub mailbox: Option<String>,
+    /// Mailboxes that exist but whose folders the caller may not open (a mailbox they have no rights
+    /// to): `ErrorItemNotFound`, as Exchange answers. Any other address is `ErrorNonExistentMailbox`.
+    pub no_access: Vec<String>,
     /// Distinguished names this server's schema lacks (an older or another server's): a request
     /// that names one is a schema fault (`ErrorSchemaValidation`, HTTP 500), as for any name the
     /// schema hasn't.
@@ -273,6 +280,8 @@ impl Default for State {
             outgoing: Vec::new(),
             deletes: Vec::new(),
             class_only_when_asked: false,
+            mailbox: None,
+            no_access: Vec::new(),
             unknown_names: Vec::new(),
             refuse_names: None,
         }
@@ -379,6 +388,35 @@ impl State {
         self.folders.iter().find(|folder| if by_name { folder.distinguished == key } else { folder.id == key })
     }
 
+    /// Whose folder a `DistinguishedFolderId` names, held to the schema (at most one `t:Mailbox`
+    /// with one `t:EmailAddress`) and to the mailbox the stand-in is: the caller's own names none
+    /// ([`State::mailbox`] is `None`), and a delegate's names the one it is, whatever its case.
+    pub(crate) fn mailbox_of(&self, one: &Node) -> Result<(), Refusal> {
+        Check::no_text(one)?;
+        let named = match one.children.as_slice() {
+            [] => None,
+            [mailbox] => {
+                Check::is(mailbox, TYPES, "Mailbox", &[])?;
+                Check::no_text(mailbox)?;
+                let [address] = mailbox.children.as_slice() else { return Err(invalid("Mailbox names one address")) };
+                Check::is(address, TYPES, "EmailAddress", &[])?;
+                Check::no_children(address)?;
+                Some(address.text.trim())
+            }
+            _ => return Err(invalid("a distinguished folder is in one mailbox")),
+        };
+        match (self.mailbox.as_deref(), named) {
+            (None, None) => Ok(()),
+            (None, Some(_)) => Err(Refusal { code: "ErrorNonExistentMailbox", why: "this server's caller has no other mailbox to name".into() }),
+            (Some(_), None) => Err(Refusal { code: "ErrorFolderNotFound", why: "the caller's own mailbox is another one".into() }),
+            (Some(mine), Some(asked)) if mine.eq_ignore_ascii_case(asked) => Ok(()),
+            (Some(_), Some(asked)) if self.no_access.iter().any(|a| a.eq_ignore_ascii_case(asked)) => {
+                Err(Refusal { code: "ErrorItemNotFound", why: "the caller may not open that mailbox".into() })
+            }
+            (Some(_), Some(_)) => Err(Refusal { code: "ErrorNonExistentMailbox", why: "no such mailbox".into() }),
+        }
+    }
+
     /// The `FolderIds` of a request: the folder asked for, or none the mailbox has.
     fn folder_ids(&self, node: &Node) -> Result<Vec<Option<Folder>>, Refusal> {
         Check::is(node, MESSAGES, "FolderIds", &[])?;
@@ -390,7 +428,7 @@ impl State {
         for one in &node.children {
             if one.is(TYPES, "DistinguishedFolderId") {
                 Check::is(one, TYPES, "DistinguishedFolderId", &["Id", "ChangeKey"])?;
-                Check::empty(one)?;
+                self.mailbox_of(one)?;
                 let id = Check::attribute(one, "Id")?;
                 if !DISTINGUISHED.contains(&id) || self.unknown_names.iter().any(|name| name == id) {
                     return Err(invalid(format!("{id} is no distinguished folder")));
