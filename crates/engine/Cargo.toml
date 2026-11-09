@@ -40,7 +40,19 @@ ring = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+# The machine's physical memory (`store::physical_memory`), which Windows says only through a call
+# that needs `unsafe`.
+[target.'cfg(windows)'.dependencies]
+sysinfo = { workspace = true }
+
+[features]
+# Small limits for the tests of opening a mailbox file (`test_support`): the engine's own
+# integration tests and the fuzz targets turn it on; a build of the program never does.
+test-support = []
+
 [dev-dependencies]
+# Its own integration tests (`tests/`) with `test-support`.
+mailcraft-engine = { workspace = true, features = ["test-support"] }
 # Synthetic .pst files for the import's tests (the writer is a dev-only feature).
 mailcraft-pst = { workspace = true, features = ["test-writer"] }
 mailcraft-i18n = { workspace = true, features = ["test-support"] }

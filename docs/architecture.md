@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-07 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -260,7 +260,7 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
   `ical`, `vcard`, `pst`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
@@ -278,6 +278,7 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-07 | patch | AU3-05, AU3-06, AU3-07: a `mailbox_file` fuzz target, for mailbox files in every form |
 | 2026-11-05 | minor | #454 part 3: `model` and the window show names through `names::shown` (the window's labels, People, desktop alerts, the search box's suggestions) |
 | 2026-11-04 | minor | #815: `pst`, L2: a reader of `.pst` files from [MS-PST], capped and without I/O of its own; a `pst` fuzz target; 20 crates |
 | 2026-11-04 | minor | #232: describe registration-secret configuration and client-ID pairing, primary-address identity checks and unsupported Workspace aliases |

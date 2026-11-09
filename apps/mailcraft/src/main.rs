@@ -1120,9 +1120,13 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 refused = true;
                 out.held.push(message.id);
             }
-            // Whether it went is not known, or Microsoft said later: not sent a second way now.
+            // Whether it went is not known (then it is held for the owner), or Microsoft said
+            // later (then it goes next run): not sent a second way now.
             Err(e) => {
                 out.held.push(message.id);
+                if graph::send_unsure(&e) {
+                    out.unsure.push(message.id);
+                }
                 out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
             }
         }
@@ -1853,6 +1857,8 @@ fn services(
         microsoft_client_id: microsoft_client_id(),
         google_client_id: google_client_id(),
         google_client_secret: google_client_secret(),
+        // ponytail: false once Google has verified the app (#232).
+        google_testers_only: true,
         // Whether a new version is out: GitHub is asked about this build's repository and told
         // nothing else, once a day when the owner wants that, or when they press Check for Updates.
         update_check: Some(Box::new(move |pre_releases| {

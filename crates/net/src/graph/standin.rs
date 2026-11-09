@@ -118,6 +118,30 @@ const MAX_OCCURRENCES: usize = 2_000;
 
 thread_local! {
     static ROUTE: RefCell<Option<String>> = const { RefCell::new(None) };
+    static LOOPBACK_TOKENS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a test on this thread let a Microsoft sign-in go to a fake mail server on this
+/// computer ([`allow_loopback_tokens`]).
+pub(crate) fn loopback_tokens_allowed() -> bool {
+    LOOPBACK_TOKENS.with(std::cell::Cell::get)
+}
+
+/// A Microsoft account's token may go to a fake IMAP or SMTP server on this computer, from this
+/// thread, for as long as this lives. (Only a test asks: no other build has the stand-in.)
+pub struct LoopbackTokens(bool);
+
+/// Let this thread's Microsoft sign-ins go to a fake mail server on loopback until the guard is
+/// dropped.
+pub fn allow_loopback_tokens() -> LoopbackTokens {
+    LoopbackTokens(LOOPBACK_TOKENS.with(|allowed| allowed.replace(true)))
+}
+
+impl Drop for LoopbackTokens {
+    fn drop(&mut self) {
+        let before = self.0;
+        LOOPBACK_TOKENS.with(|allowed| allowed.set(before));
+    }
 }
 
 /// Where this thread's calls to Graph go instead, when a test has said so ([`route`]).

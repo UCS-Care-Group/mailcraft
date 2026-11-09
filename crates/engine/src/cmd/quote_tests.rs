@@ -37,7 +37,11 @@ const BODY: &str = "<table class=\"grid\"><tr><td class=\"col\"><h1>October</h1>
 fn newsletter(s: &mut Session) -> Id {
     let inbox = s.mailbox.inbox().unwrap();
     let account = s.mailbox.accounts[0].id;
-    let logo = Attachment { content_id: "logo@news.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", vec![137, 80, 78, 71]) };
+    let logo = Attachment {
+        content_id: "logo@news.example".into(),
+        inline: true,
+        ..Attachment::new("logo.png", "image/png", b"\x89PNG\r\n\x1a\n".to_vec())
+    };
     let menu = Attachment::new("menu.pdf", "application/pdf", vec![1, 2, 3]);
     let m = Message {
         account,

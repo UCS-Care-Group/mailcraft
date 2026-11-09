@@ -321,7 +321,7 @@ fn folders_in(graph: &Graph<'_>, request: &GraphMailRequest, gate: &Arc<Gate>, m
         // One of the server's own folders (#756) is never renamed, moved or deleted: the server
         // would refuse it, and a shared mailbox's 403 would stop the run before the listing that
         // marks the folder. It is refused here without asking, and put back as any refusal is.
-        if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id } = change
+        if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id, .. } = change
             && known.own.contains(id)
         {
             log::info!("graph folders: a change of one of the server's own folders is refused without asking");
@@ -898,8 +898,16 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                 _ => outcome_of(graph, &reply, &body),
             }
         }
-        FolderChange::Delete { id } => {
+        FolderChange::Delete { id, shown } => {
             let id = checked(id)?;
+            // Only what the owner was shown goes with it (AU3-H7): the server is asked what it
+            // holds there first, and anything more keeps the folder.
+            match delete_check::unshown(graph, &id, shown)? {
+                delete_check::Found::Gone => return Ok(Some(ChangeOutcome::Gone)),
+                delete_check::Found::Unshown(0) => {}
+                delete_check::Found::Unshown(items) => return Ok(Some(ChangeOutcome::NotShown { items })),
+                delete_check::Found::Unknown => return Ok(Some(refused(CHECK_FAILED))),
+            }
             let url = graph.url(&format!("{}/{}", folders(graph), http::encode(&id)));
             let reply = graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
             refusing(graph, &reply)?;
@@ -924,6 +932,9 @@ fn refusing(graph: &Graph<'_>, reply: &Reply) -> Result<(), NetError> {
     }
     Ok(())
 }
+
+/// Why a folder wasn't deleted when what the server holds in it couldn't be read first (AU3-H7).
+const CHECK_FAILED: &str = "what the server holds in it couldn't be checked first, so nothing was deleted";
 
 fn refused(why: &str) -> ChangeOutcome {
     ChangeOutcome::Refused { why: why.to_string() }
@@ -981,6 +992,7 @@ fn child_named(graph: &Graph<'_>, known: &Known, parent: &str, name: &str) -> Re
     Ok(found)
 }
 
+mod delete_check;
 mod down;
 mod drafts;
 mod fetch;
@@ -994,9 +1006,13 @@ pub use fetch::fetch_messages;
 pub use search::search_messages;
 
 #[cfg(test)]
+mod delete_check_tests;
+#[cfg(test)]
 mod down_tests;
 #[cfg(test)]
 mod draft_content_tests;
+#[cfg(test)]
+mod header_order_tests;
 #[cfg(test)]
 mod inbox_first_tests;
 #[cfg(test)]

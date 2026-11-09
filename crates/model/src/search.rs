@@ -5,6 +5,8 @@
 //! `budget from:ada has:attachment -draft after:2026-10-01`. Every term must match; `-` in front
 //! of a term excludes what it matches. Keywords: `from`, `to`, `cc`, `subject`, `body`,
 //! `category`, `attachment` (file name), `has:attachment`, `is:unread|read|flagged|important`,
+//! `gmail:primary|social|promotions|updates|forums` (Gmail's inbox categories, #911: not the
+//! owner's own, which are `category:`),
 //! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`),
 //! and `received:` with a day, a range of days as Outlook writes one (`received:10/1/2026..10/22/2026`,
 //! both days in it, #329), or one side of one (`received:>=2026-10-01`, `<=`, and `>` and `<`, the
@@ -58,6 +60,8 @@ enum Kind {
         words: Vec<String>,
     },
     Category(String),
+    /// One of Gmail's inbox categories (#911).
+    Gmail(crate::GmailCategory),
     HasAttachment,
     Unread,
     Read,
@@ -316,6 +320,7 @@ fn keyword_kind(body: &str) -> Option<Kind> {
         "subject" => words_in(SUBJECT, &v),
         "body" => words_in(BODY, &v),
         "category" | "categories" => Kind::Category(v),
+        "gmail" => Kind::Gmail(crate::GmailCategory::parse(&v)?),
         "attachment" | "attachments" => words_in(ATTACHMENT, &v),
         "has" | "hasattachment" | "hasattachments" => match v.to_ascii_lowercase().as_str() {
             "attachment" | "attachments" | "yes" | "true" => Kind::HasAttachment,
@@ -414,7 +419,7 @@ const MAX_SUGGESTED_NAME: usize = 256;
 /// The keywords offered while the start of one is typed: each once, without the other names it
 /// may be written by (`categories:`).
 const OFFERED: &[&str] =
-    &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on", "received"];
+    &["from", "to", "cc", "subject", "body", "category", "gmail", "attachment", "has", "is", "importance", "before", "after", "on", "received"];
 
 /// What `is:` and `has:` take.
 const IS_VALUES: &[&str] = &["unread", "read", "flagged", "important"];
@@ -574,6 +579,7 @@ pub fn suggestions_with(query: &str, cursor: usize, categories: &[Category], peo
         }
         "is" => IS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
         "has" => HAS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
+        "gmail" => crate::GmailCategory::ALL.iter().map(|c| c.code()).filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
         _ => Vec::new(),
     };
     out.retain(|s| query.get(s.range.clone()) != Some(s.text.trim_end()));
@@ -746,6 +752,7 @@ pub(crate) const KEYWORDS: &[&str] = &[
     "body",
     "category",
     "categories",
+    "gmail",
     "attachment",
     "attachments",
     "has",
@@ -988,6 +995,7 @@ impl Query {
                     (fields & FROM != 0 && is(&m.from)) || (fields & TO != 0 && m.to.iter().any(is)) || (fields & CC != 0 && m.cc.iter().any(is))
                 }
                 Kind::Category(x) => m.categories.iter().any(|c| contains_ci(c, x)),
+                Kind::Gmail(c) => m.gmail_category == Some(*c),
                 Kind::HasAttachment => m.has_attachments(),
                 Kind::Unread => !m.read,
                 Kind::Read => m.read,

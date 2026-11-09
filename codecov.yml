@@ -1,0 +1,17 @@
+# Codecov: informational only, never a gate on a pull request.
+comment: false
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+ignore:
+  - "fuzz/**"
+  - "xtask/**"
+  - "**/tests/**"
+  - "**/*_tests.rs"
+  - "**/tests.rs"
+  - "crates/html/corpus/**"

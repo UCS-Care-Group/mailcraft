@@ -2019,6 +2019,9 @@ mod in_session;
 #[path = "store_undo_body_tests.rs"]
 mod undo_body;
 
+#[path = "store_budget_tests.rs"]
+mod budget;
+
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
 #[cfg(unix)]
@@ -2074,8 +2077,10 @@ fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
     }
     json.push_str("}}");
     fs::write(t.file(), json).unwrap();
-    // (A small budget still reads 250,000 items; 600,000 are more.)
-    let err = with_budget(64 << 20, || open(&t.file())).err().unwrap();
+    // (A small budget still reads 250,000 items; 600,000 are more. Room enough for what parsing
+    // 250,000 builds, so that it is the count that refuses them.)
+    let room = crate::test_support::Limits { element_bytes: 1 << 30, stream: false };
+    let err = crate::test_support::with_limits(room, || with_budget(64 << 20, || open(&t.file()))).err().unwrap();
     assert!(err.contains("more items"), "{err}");
     // A reasonable file opens under the same budget.
     fs::write(t.file(), "{\"messages\":{\"1\":{},\"2\":{}}}").unwrap();
@@ -2087,6 +2092,9 @@ mod launch;
 
 #[path = "store_hidden_tests.rs"]
 mod hidden;
+
+#[path = "store_original_tests.rs"]
+mod original;
 
 /// #702: the order the owner put the accounts in goes into the mailbox file with the save after
 /// the move, and comes back from it; the default account stays the first added.
