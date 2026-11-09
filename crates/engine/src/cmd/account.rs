@@ -656,6 +656,8 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
+    // What its server was asked for, for mail moved out of it, nothing will answer now (#30).
+    super::mail::check_again::settle(&mut s.mailbox);
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
     // whose `normalize` moves the folder on screen to its Inbox and a message being written to
     // it: with no account yet, both would be left pointing at nothing.
@@ -744,7 +746,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             known.entry(f.id).or_default().push(uid);
         }
     }
-    let mut again = super::imap_again::wanted(&s.mailbox, account);
+    let mut again = super::imap_again::wanted(&s.mailbox, account, s.now());
     let folders = s
         .mailbox
         .folders
@@ -1039,9 +1041,13 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
         if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
             continue;
         }
-        spent = spent.saturating_add(m.size());
-        match s.loaded_message(m.id) {
-            Ok(whole) => {
+        // (Nor one whose original can't be read while the copy it came from may hold it, #30:
+        // made of its parts, it would be taken for the message, and that copy let go. Only what
+        // goes counts toward what a run carries.)
+        match s.placeable(m) {
+            Ok(None) => log::warn!("message {} waits to go to the server: the bytes it came as can't be read here, and are asked for", m.id),
+            Ok(Some(whole)) => {
+                spent = spent.saturating_add(m.size());
                 let (to, create) = destination(mb, folder);
                 out.push(ImapPlace { message: whole.as_ref().clone(), to, to_folder: folder.id, create, marker: marker.clone() });
             }
@@ -1213,7 +1219,10 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     run.stopped |= stopped;
     run.finished = !partial;
     if !partial {
-        for said in super::graph_place::unreadable_waiting(s, account) {
+        // What nothing will answer any more is let go of (#30).
+        super::mail::check_again::settle(&mut s.mailbox);
+        let held = super::graph_place::held_for_this_computer(s, account);
+        for said in super::graph_place::unreadable_waiting(s, account).into_iter().chain(held) {
             if !run.errors.contains(&said) {
                 run.errors.push(said);
             }
@@ -1256,6 +1265,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
+    let now = s.now();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
@@ -1287,7 +1297,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts);
+        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, now);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
@@ -1544,6 +1554,9 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
                 let uid = there.map_or(0, |(_, uid)| uid);
                 // As the server was given it: what changed here since goes up next.
                 m.synced = Some(done.flags.at(uid));
+                // Whether the bytes it came as were whole when it went (#30): what it was moved
+                // out of goes only then, or once that copy is known to hold none.
+                m.original_placed = if done.original { account } else { 0 };
                 if uid == 0 {
                     // The server didn't say where: expected there, as the message carrying the
                     // copy's marker.
@@ -1566,7 +1579,10 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
                 if let Some(at) = entry.filter(|at| *at < mb.queued.len()) {
                     mb.queued.remove(at);
                 }
-                original_goes(mb, done.message);
+                if let Ok(m) = mb.message_mut(done.message) {
+                    m.original_placed = if done.original { account } else { 0 };
+                }
+                original_goes(mb, done.message, false);
                 let synced = Some(done.flags.at(uid));
                 mb.pending.push(Pending::Move { account, message: done.message, from, uid, synced, to });
             }
@@ -1602,14 +1618,21 @@ fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
         .filter(|id| mb.message(*id).is_some_and(|m| m.account == account && m.uid != 0))
         .collect();
     for id in ids {
-        original_goes(mb, id);
+        original_goes(mb, id, false);
     }
 }
 
 /// The move out of another account that waits for `id`, by which its original goes once the
-/// message is safe where it is now, becomes a deletion of that original: it is.
-pub(crate) fn original_goes(mb: &mut Mailbox, id: Id) {
+/// message is safe where it is now, becomes a deletion of that original: it is. Only through the
+/// gate every release of a copy something was moved out of goes through (#30,
+/// [`Message::may_release`]), which a caller that read the message whole
+/// (`read`, [`super::graph_place::safe_here`]) has passed already; otherwise the move waits, and
+/// that account's run deletes the original once it may.
+pub(crate) fn original_goes(mb: &mut Mailbox, id: Id, read: bool) {
     let Some(m) = mb.message(id) else { return };
+    if !read && !m.may_release() {
+        return;
+    }
     let (account, message_id, seen) = (m.account, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)));
     for p in mb.pending.iter_mut() {
         if let Pending::Move { account: owner, message, from, uid, .. } = p
@@ -1931,6 +1954,7 @@ fn take_in(
     mut delta: FolderDelta,
     (gmail_moves, moved_now): (bool, &HashSet<u64>),
     counts: &mut Counts,
+    now: mailcraft_time::Timestamp,
 ) {
     if delta.remote.is_empty() {
         return;
@@ -2015,7 +2039,11 @@ fn take_in(
         delta.refetched.clear();
         delta.refetch_done.clear();
     } else {
-        super::imap_again::take_in(mb, &mut delta, |uid| on_server.by_uid.get(&(folder, uid)).copied());
+        // (Or one moved out of the account, asked for from the copy it came from, #30.)
+        let moved_out = super::imap_again::moved_out(mb, account);
+        super::imap_again::take_in(mb, &mut delta, now, |uid| {
+            on_server.by_uid.get(&(folder, uid)).or_else(|| moved_out.get(&(folder, uid))).copied()
+        });
     }
     let inbox = delta.kind == FolderKind::Inbox;
     let junk = delta.kind == FolderKind::Junk;

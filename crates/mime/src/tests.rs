@@ -550,6 +550,15 @@ fn message() -> impl Strategy<Value = Message> {
             sending: false,
             answers: None,
             kept: None,
+            original: None,
+            parts_removed: false,
+            original_wanted: false,
+            original_asked: false,
+            original_tries: 0,
+            original_refused: 0,
+            original_retry: 0,
+            original_no_room: 0,
+            original_placed: 0,
         },
     )
 }
