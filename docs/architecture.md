@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-20 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+21 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
@@ -28,6 +28,7 @@ egui, eframe, winit or rfd.
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L2 | `pst` | Reader of Outlook personal folders files (`.pst`, ANSI and Unicode) from [MS-PST]: over any `Read + Seek`, a block at a time, never the whole file in memory; offsets checked; items, folders, recipients, attachments and attached messages counted against caps; what one item, one folder walk or one listing reads and keeps held to a budget for the whole call, and all that is read to a multiple of the file's size; trees that lead back to themselves, blocks named twice and keys out of order refused; damaged pages named, to a cap; what is left out named with its reason; no I/O of its own, builds for wasm |
+| L2 | `openpgp` | Checking OpenPGP Digital signatures (#30) on rPGP: a PGP/MIME message over its signed part's canonical bytes (RFC 3156) or a cleartext-signed text (RFC 9580 §7), with the four results (verified, valid but not verified, changed after signing, can't be checked; MD5 and SHA-1 refused); Public keys from attached `application/pgp-keys` parts and the `Autocrypt:` header, their self-signatures checked; whether a key is Verified is the caller's answer (no web of trust). MIME, armour and the cleartext framework read here with every size, count and depth capped; no I/O and no clock of its own, builds for wasm |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `dav` | Bounded DAV XML and byte-preserving iCalendar/vCard edits over model snapshots; no sockets or browser APIs, builds for wasm |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX and Autodiscover SRV lookup, Microsoft Graph (`graph`), one HTTPS exchange with an Exchange server that can trust one certificate by its fingerprint, and a held connection that carries the legs of an NTLM sign-in on one socket and names its certificate's hash for channel binding (`https`); empty on wasm |
@@ -258,9 +259,9 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
-  `ical`, `vcard`, `pst`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
+  `ical`, `vcard`, `pst`, `openpgp`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `openpgp`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
