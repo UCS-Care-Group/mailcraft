@@ -47,8 +47,11 @@ jobs:
       - name: Linux build dependencies
         run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
       # The same tests as `cargo xtask ci` runs (the whole workspace); the doc-tests aren't counted.
+      # A test that fails here still gives its coverage: the instrumented build is several times
+      # slower, so timing bounds meant for a debug build can trip, and whether tests pass is
+      # `ci`'s to say, not this report's.
       - name: Run the tests with coverage
-        run: cargo llvm-cov --workspace --locked --lcov --output-path lcov.info
+        run: cargo llvm-cov --workspace --locked --ignore-run-fail --lcov --output-path lcov.info
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lcov
