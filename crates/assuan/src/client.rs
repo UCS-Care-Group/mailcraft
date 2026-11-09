@@ -118,7 +118,7 @@ impl<S: Read + Write> Client<S> {
     /// is the server's refusal.
     pub fn connect(stream: S) -> Result<Self, Error> {
         let mut client = Client { wire: Wire::new(stream), broken: false };
-        client.read_answer(&mut |_| Answer::Cancel)?;
+        client.read_answer(&mut |_| Answer::Cancel, None)?;
         Ok(client)
     }
 
@@ -132,18 +132,31 @@ impl<S: Read + Write> Client<S> {
     /// connection can be used again after it. After any other error it can't
     /// ([`Error::Broken`]).
     pub fn transact(&mut self, command: &str, inquire: &mut dyn FnMut(&Inquiry) -> Answer) -> Result<Response, Error> {
+        self.send(command)?;
+        self.read_answer(inquire, None)
+    }
+
+    /// As [`Client::command`], with each status line handed to `on_status` as it comes instead of
+    /// kept in the response, so that an answer may have more of them than
+    /// [`MAX_STATUS`](crate::MAX_STATUS) (a line for each key, say). The answer's lines are still
+    /// capped at [`MAX_LINES`](crate::MAX_LINES).
+    pub fn command_with_status(&mut self, command: &str, on_status: &mut dyn FnMut(Status)) -> Result<Response, Error> {
+        self.send(command)?;
+        self.read_answer(&mut |_| Answer::Cancel, Some(on_status))
+    }
+
+    fn send(&mut self, command: &str) -> Result<(), Error> {
         if self.broken {
             return Err(Error::Broken);
         }
         check_command(command.as_bytes())?;
         self.broken = true;
-        self.wire.write_line(command.as_bytes())?;
-        self.read_answer(inquire)
+        self.wire.write_line(command.as_bytes())
     }
 
     /// Read lines to the end of an answer. The connection stays marked broken unless the answer
     /// was read whole.
-    fn read_answer(&mut self, inquire: &mut dyn FnMut(&Inquiry) -> Answer) -> Result<Response, Error> {
+    fn read_answer(&mut self, inquire: &mut dyn FnMut(&Inquiry) -> Answer, mut on_status: Option<&mut dyn FnMut(Status)>) -> Result<Response, Error> {
         self.broken = true;
         let mut response = Response::default();
         let mut inquiries = 0usize;
@@ -156,21 +169,27 @@ impl<S: Read + Write> Client<S> {
             crate::wipe(&mut line);
             match parsed? {
                 Line::Comment => {}
-                Line::Data(data) => {
-                    if response.data.len().saturating_add(data.len()) > MAX_DATA {
+                Line::Data(mut data) => {
+                    let fits = response.data.len().saturating_add(data.len()) <= MAX_DATA;
+                    if fits {
+                        crate::extend_wiped(&mut response.data, &data);
+                    }
+                    crate::wipe(&mut data);
+                    if !fits {
                         return Err(Error::TooMuch);
                     }
-                    response.data.extend_from_slice(&data);
-                    let mut data = data;
-                    crate::wipe(&mut data);
                 }
                 Line::Status(keyword, args) => {
+                    let status =
+                        Status { keyword: String::from_utf8_lossy(&keyword).into_owned(), args: String::from_utf8_lossy(&args).into_owned() };
+                    if let Some(on_status) = on_status.as_mut() {
+                        on_status(status);
+                        continue;
+                    }
                     if response.status.len() >= MAX_STATUS {
                         return Err(Error::TooMuch);
                     }
-                    response
-                        .status
-                        .push(Status { keyword: String::from_utf8_lossy(&keyword).into_owned(), args: String::from_utf8_lossy(&args).into_owned() });
+                    response.status.push(status);
                 }
                 Line::Inquire(keyword, args) => {
                     inquiries = inquiries.saturating_add(1);

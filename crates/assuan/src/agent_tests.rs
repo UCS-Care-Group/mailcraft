@@ -168,7 +168,8 @@ fn decrypting_answers_the_ciphertext_inquiry() {
         .on("SETKEYDESC Open+a+message", "OK\n")
         .on("PKDECRYPT", "S INQUIRE_MAXLEN 4096\nINQUIRE CIPHERTEXT\n")
         .on("D (7:enc-val(3:rsa(1:a3:%0A%0D%25)))", "")
-        .on("END", "S PADDING 0\nD (5:value6:\x09key%0A!)\nOK\n");
+        // gpg-agent ends the value with a NUL.
+        .on("END", "S PADDING 0\nD (5:value6:\x09key%0A!)\x00\nOK\n");
     let mut agent = GpgAgent::open(agent).unwrap();
     let key = agent.decrypt(&grip(), &ciphertext(), Some("Open a message")).unwrap();
     assert_eq!(key.bytes(), b"\x09key\n!");
@@ -240,4 +241,91 @@ proptest! {
         let _ = agent.decrypt(&grip(), &ciphertext(), None);
         let _ = agent.read_key(&grip());
     }
+}
+
+#[test]
+fn an_rsa_value_without_padding_status_keeps_its_frame_and_only_one_nul_is_taken_off() {
+    // gpg-agent 2.4 answers an OpenPGP RSA decryption so: no PADDING, the PKCS#1 v1.5 frame
+    // still on (its leading zero left out), and a NUL after the S-expression, escaped or not.
+    let frame = b"\x02\x11\x22\x33\x00\x09KEY";
+    let reply = |nul: &str| {
+        let mut r = b"D (5:value9:".to_vec();
+        r.extend_from_slice(frame);
+        r.extend_from_slice(format!("){nul}\nOK\n").as_bytes());
+        r
+    };
+    let agent = FakeAgent::new()
+        .on("SETKEY *", "OK\n")
+        .on("PKDECRYPT", "INQUIRE CIPHERTEXT\n")
+        .on("D *", "")
+        .on("END", reply("%00"))
+        .on("SETKEY *", "OK\n")
+        .on("PKDECRYPT", "INQUIRE CIPHERTEXT\n")
+        .on("D *", "")
+        .on("END", reply("\x00\x00"));
+    let mut agent = GpgAgent::open(agent).unwrap();
+    let key = agent.decrypt(&grip(), &ciphertext(), None).unwrap();
+    assert_eq!(key.padding(), None);
+    assert_eq!(key.bytes(), frame);
+    assert!(matches!(agent.decrypt(&grip(), &ciphertext(), None), Err(Error::Protocol(_))));
+}
+
+#[test]
+fn more_keys_than_status_lines_an_answer_keeps() {
+    let mut lines = String::new();
+    for i in 0..(crate::MAX_KEYS + 500) {
+        lines.push_str(&format!("S KEYINFO {i:040X} D - - - P - - -\n"));
+    }
+    lines.push_str("OK\n");
+    let agent = FakeAgent::new().on("KEYINFO --list", lines).on("GETINFO version", "D 2.4.9\nOK\n");
+    let mut agent = GpgAgent::open(agent).unwrap();
+    assert_eq!(agent.list_keys().unwrap().len(), crate::MAX_KEYS);
+    // The connection is still in step.
+    assert_eq!(agent.version().unwrap(), "2.4.9");
+}
+
+#[test]
+fn each_signature_starts_with_reset_so_no_old_description_is_left() {
+    let digest = Digest::new(HashAlgorithm::Sha256, &[0; 32]).unwrap();
+    let agent = FakeAgent::new()
+        .on("SIGKEY *", "OK\n")
+        .on("SETKEYDESC Old+text", "OK\n")
+        .on("SETHASH *", "ERR 1 bad hash\n")
+        .on("SIGKEY *", "OK\n")
+        .on("SETHASH *", "OK\n")
+        .on("PKSIGN", "D (7:sig-val(3:rsa(1:s1:x)))\nOK\n")
+        .on("SETKEY *", "OK\n")
+        .on("PKDECRYPT", "ERR 99 cancelled\n");
+    let mut agent = GpgAgent::open(agent).unwrap();
+    assert!(agent.sign(&grip(), &digest, Some("Old text")).is_err());
+    agent.sign(&grip(), &digest, None).unwrap();
+    assert!(agent.decrypt(&grip(), &ciphertext(), None).is_err());
+    let fake = agent.close();
+    assert!(fake.wrong.is_empty(), "{:?}", fake.wrong);
+    let firsts: Vec<&str> = fake.sent.iter().map(|l| l.split(' ').next().unwrap()).filter(|c| ["RESET", "SIGKEY", "SETKEY"].contains(c)).collect();
+    assert_eq!(firsts, ["RESET", "SIGKEY", "RESET", "SIGKEY", "RESET", "SETKEY"]);
+}
+
+#[test]
+fn the_owner_wait_hook_is_on_only_for_the_commands_that_wait() {
+    let digest = Digest::new(HashAlgorithm::Sha256, &[0; 32]).unwrap();
+    let agent = FakeAgent::new()
+        .on("SIGKEY *", "OK\n")
+        .on("SETHASH *", "OK\n")
+        .on("PKSIGN", "INQUIRE PINENTRY_LAUNCHED 1\n")
+        .on("END", "ERR 99 cancelled\n")
+        .on("SETKEY *", "OK\n")
+        .on("PKDECRYPT", "INQUIRE CIPHERTEXT\n")
+        .on("D *", "")
+        .on("END", "D (5:value1:k)\nOK\n")
+        .on("HAVEKEY *", "OK\n");
+    let mut agent = GpgAgent::open(agent).unwrap();
+    agent.set_owner_wait(|fake: &mut FakeAgent, long| fake.long_wait = long);
+    assert!(agent.sign(&grip(), &digest, None).is_err());
+    agent.decrypt(&grip(), &ciphertext(), None).unwrap();
+    agent.have_key(&grip()).unwrap();
+    let fake = agent.close();
+    let long: Vec<&str> = fake.waits.iter().filter(|(_, long)| *long).map(|(l, _)| l.split(' ').next().unwrap()).collect();
+    assert_eq!(long, ["PKSIGN", "END", "PKDECRYPT", "D", "END"]);
+    assert!(!fake.long_wait);
 }

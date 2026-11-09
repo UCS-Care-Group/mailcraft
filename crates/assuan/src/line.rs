@@ -184,11 +184,7 @@ impl<S: Read + Write> Wire<S> {
     /// Read some more into the buffer; the end of the stream is an error.
     fn fill(&mut self) -> Result<(), Error> {
         if self.start > 0 {
-            let used = self.start.min(self.buf.0.len());
-            if let Some(gone) = self.buf.0.get_mut(..used) {
-                crate::wipe(gone);
-            }
-            self.buf.0.drain(..used);
+            crate::discard_front(&mut self.buf.0, self.start);
             self.start = 0;
         }
         let mut tmp = Held(vec![0u8; CHUNK]);
@@ -201,7 +197,7 @@ impl<S: Read + Write> Wire<S> {
                 Err(e) => return Err(io_error(&e)),
             }
         };
-        self.buf.0.extend_from_slice(tmp.0.get(..n).unwrap_or(&[]));
+        crate::extend_wiped(&mut self.buf.0, tmp.0.get(..n).unwrap_or(&[]));
         Ok(())
     }
 

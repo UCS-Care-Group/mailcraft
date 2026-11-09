@@ -153,3 +153,31 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn growing_a_buffer_wipes_the_old_allocation() {
+    let mut buf = Vec::with_capacity(4);
+    buf.extend_from_slice(b"key!");
+    let old = crate::grow(&mut buf, 9);
+    assert!(old.iter().all(|b| *b == 0), "{old:?}");
+    assert_eq!(buf, b"key!");
+    crate::extend_wiped(&mut buf, b"more bytes");
+    assert_eq!(buf, b"key!more bytes");
+
+    let mut buf = b"0123456789".to_vec();
+    crate::discard_front(&mut buf, 4);
+    assert_eq!(buf, b"456789");
+    crate::discard_front(&mut buf, 99);
+    assert!(buf.is_empty());
+}
+
+#[test]
+fn status_lines_handed_over_as_they_come_are_not_capped_by_max_status() {
+    let status = "S KEYINFO x\n".repeat(MAX_STATUS * 3);
+    let agent = FakeAgent::new().on("KEYINFO --list", format!("{status}OK\n"));
+    let mut client = Client::connect(agent).unwrap();
+    let mut seen = 0;
+    let r = client.command_with_status("KEYINFO --list", &mut |_| seen += 1).unwrap();
+    assert_eq!(seen, MAX_STATUS * 3);
+    assert!(r.status.is_empty());
+}

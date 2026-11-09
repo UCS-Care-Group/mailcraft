@@ -47,7 +47,10 @@ mod sexp_tests;
 #[cfg(test)]
 mod socket_file_tests;
 
-pub use agent::{Digest, GpgAgent, HashAlgorithm, KeyInfo, KeyStorage, Keygrip, PinentryHints, Protection, SessionKey, Signature};
+pub use agent::{
+    Digest, GpgAgent, HashAlgorithm, KeyInfo, KeyStorage, Keygrip, MAX_DESCRIPTION, MAX_KEYS, OwnerWait, PinentryHints, Protection, SessionKey,
+    Signature,
+};
 pub use client::{Answer, Client, Inquiry, Response, Status};
 pub use sexp::Sexp;
 
@@ -58,7 +61,8 @@ pub const MAX_DATA: usize = 256 * 1024;
 /// Most lines one answer may take (comments and status lines included), so that a server that
 /// talks for ever is stopped.
 pub const MAX_LINES: usize = 16 * 1024;
-/// Most status lines kept from one answer.
+/// Most status lines kept from one answer. `KEYINFO --list`, which has a line for each key, reads
+/// its lines as they come instead and keeps at most [`MAX_KEYS`].
 pub const MAX_STATUS: usize = 256;
 /// Most inquiries one command may answer.
 pub const MAX_INQUIRIES: usize = 16;
@@ -166,6 +170,43 @@ impl std::fmt::Display for ServerError {
 /// Bytes the agent sent, as one line of printable text of at most `max` characters.
 pub(crate) fn tidy(bytes: &[u8], max: usize) -> String {
     String::from_utf8_lossy(bytes).chars().map(|c| if c.is_control() { ' ' } else { c }).take(max).collect::<String>().trim().to_string()
+}
+
+/// Append `more` to `buf` without leaving a copy behind: when `buf` must grow, its bytes are moved
+/// to a new allocation and the old one is wiped before it is given back.
+pub(crate) fn extend_wiped(buf: &mut Vec<u8>, more: &[u8]) {
+    let needed = buf.len().saturating_add(more.len());
+    if needed > buf.capacity() {
+        let mut old = grow(buf, needed);
+        wipe(&mut old);
+    }
+    buf.extend_from_slice(more);
+}
+
+/// Move `buf` to an allocation of at least `needed` bytes; the old buffer, its bytes wiped, is
+/// handed back (to be dropped).
+pub(crate) fn grow(buf: &mut Vec<u8>, needed: usize) -> Vec<u8> {
+    let mut bigger = Vec::with_capacity(needed.max(buf.capacity().saturating_mul(2)));
+    bigger.extend_from_slice(buf);
+    let mut old = std::mem::replace(buf, bigger);
+    // The whole allocation: bytes past the length may be left from before.
+    let len = old.len();
+    old.resize(old.capacity(), 0);
+    wipe(&mut old);
+    old.truncate(len);
+    old
+}
+
+/// Drop the first `n` bytes of `buf`, wiping the copies that moving the rest down leaves behind.
+pub(crate) fn discard_front(buf: &mut Vec<u8>, n: usize) {
+    let n = n.min(buf.len());
+    let len = buf.len();
+    buf.copy_within(n.., 0);
+    let kept = len.saturating_sub(n);
+    if let Some(tail) = buf.get_mut(kept..) {
+        wipe(tail);
+    }
+    buf.truncate(kept);
 }
 
 /// Overwrite bytes that held a secret before their memory is given back.

@@ -19,6 +19,10 @@ pub(crate) struct FakeAgent {
     pub(crate) wrong: Vec<String>,
     /// Hand reads out a few bytes at a time.
     trickle: usize,
+    /// Set by a test's owner-wait hook: whether the client asked for a long wait.
+    pub(crate) long_wait: bool,
+    /// Each line sent with whether a long wait was on when it was sent.
+    pub(crate) waits: Vec<(String, bool)>,
 }
 
 impl FakeAgent {
@@ -35,6 +39,8 @@ impl FakeAgent {
             sent: Vec::new(),
             wrong: Vec::new(),
             trickle: 0,
+            long_wait: false,
+            waits: Vec::new(),
         }
     }
 
@@ -71,9 +77,9 @@ impl Write for FakeAgent {
                 Some(start) => line.starts_with(start),
                 None => line == *want,
             });
-            if line == "BYE" && !matches {
-                // Goodbye needs no step of its own.
-                self.out.extend(b"OK closing connection\n");
+            if (line == "BYE" || line == "RESET") && !matches {
+                // Goodbye and RESET need no step of their own (`sent` still shows them).
+                self.out.extend(b"OK\n");
             } else if matches {
                 let (_, reply) = self.steps.pop_front().unwrap();
                 self.out.extend(reply);
@@ -81,6 +87,7 @@ impl Write for FakeAgent {
                 self.wrong.push(line.clone());
                 self.out.extend(b"ERR 67109139 Unknown IPC command <User defined source 1>\n");
             }
+            self.waits.push((line.clone(), self.long_wait));
             self.sent.push(line);
         }
         Ok(buf.len())

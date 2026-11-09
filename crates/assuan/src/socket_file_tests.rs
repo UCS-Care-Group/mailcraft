@@ -64,3 +64,19 @@ proptest! {
         let _ = parse(&redirect);
     }
 }
+
+#[test]
+fn a_redirect_to_another_computer_is_refused() {
+    for remote in [
+        "//host/share/S.gpg-agent",
+        "\\\\host\\share\\S.gpg-agent",
+        "\\\\?\\C:\\S.gpg-agent",
+        "/\\host\\share",
+        "\\/host/share",
+        "1:/x",
+        "/home/x\\..\\y",
+    ] {
+        let file = format!("%Assuan%\nsocket={remote}\n");
+        assert_eq!(parse(file.as_bytes()), Err(SocketFileError::BadRedirect), "{remote}");
+    }
+}

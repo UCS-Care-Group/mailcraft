@@ -194,13 +194,20 @@ pub struct SessionKey {
 }
 
 impl SessionKey {
-    /// The decrypted value as the agent handed it over (for OpenPGP: the algorithm octet, the
-    /// key and its checksum, or what the public-key algorithm gives).
+    /// The decrypted value as the agent handed it over. What it holds depends on
+    /// [`SessionKey::padding`]: with `Some(_)` the agent took the padding off and this is the
+    /// message itself (for OpenPGP: the algorithm octet, the key and its checksum); with `None`
+    /// it took nothing off, and for RSA this is the whole PKCS#1 v1.5 frame (`02`, the random
+    /// non-zero bytes, `00`, then the message; the leading `00` of the frame is left out, as an
+    /// integer's leading zero is), which the caller must check and remove. For ECDH it is the
+    /// shared point, from which the caller derives the key.
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    /// The `PADDING` the agent said it took off, when it said one.
+    /// The `PADDING` status the agent sent: `Some(0)` when it removed PKCS#1 v1.5 padding (and
+    /// `Some(1)` for OAEP). `None` means the agent said nothing and removed nothing: the frame
+    /// is still on [`SessionKey::bytes`] (gpg-agent 2.4 answers OpenPGP's RSA so).
     pub fn padding(&self) -> Option<u32> {
         self.padding
     }
@@ -310,6 +317,11 @@ fn answer(ciphertext: Option<&[u8]>) -> impl FnMut(&Inquiry) -> Answer + '_ {
     }
 }
 
+/// Called with `true` just before a command that waits for the owner (a signature or a
+/// decryption, while the pinentry is up) and with `false` when its answer is in, so that the
+/// program can give the stream a long wait for that answer alone.
+pub type OwnerWait<S> = fn(&mut S, bool);
+
 /// A connection to gpg-agent.
 ///
 /// Each call is one or a few commands and waits for the agent's answer, which for a signature or
@@ -319,12 +331,30 @@ fn answer(ciphertext: Option<&[u8]>) -> impl FnMut(&Inquiry) -> Answer + '_ {
 #[derive(Debug)]
 pub struct GpgAgent<S> {
     client: Client<S>,
+    owner_wait: Option<OwnerWait<S>>,
 }
 
 impl<S: Read + Write> GpgAgent<S> {
     /// Take over a fresh connection to the agent (its greeting is read).
     pub fn open(stream: S) -> Result<Self, Error> {
-        Ok(GpgAgent { client: Client::connect(stream)? })
+        Ok(GpgAgent { client: Client::connect(stream)?, owner_wait: None })
+    }
+
+    /// Have `hook` called around each command that waits for the owner ([`OwnerWait`]).
+    pub fn set_owner_wait(&mut self, hook: OwnerWait<S>) {
+        self.owner_wait = Some(hook);
+    }
+
+    /// `command` with inquiries answered by `inquire`, the owner-wait hook around it.
+    fn waiting_for_owner(&mut self, command: &str, inquire: &mut dyn FnMut(&Inquiry) -> Answer) -> Result<Response, Error> {
+        if let Some(hook) = self.owner_wait {
+            hook(self.client.get_mut(), true);
+        }
+        let response = self.client.transact(command, inquire);
+        if let Some(hook) = self.owner_wait {
+            hook(self.client.get_mut(), false);
+        }
+        response
     }
 
     /// Tell the agent where its pinentry is to show. An option the agent refuses is skipped (an
@@ -368,8 +398,16 @@ impl<S: Read + Write> GpgAgent<S> {
     /// Every key the agent holds (`KEYINFO --list`), at most [`MAX_KEYS`]; status lines that
     /// can't be read are skipped.
     pub fn list_keys(&mut self) -> Result<Vec<KeyInfo>, Error> {
-        let response = self.client.command("KEYINFO --list")?;
-        Ok(response.status.iter().filter(|s| s.keyword == "KEYINFO").filter_map(|s| key_info(&s.args)).take(MAX_KEYS).collect())
+        let mut keys = Vec::new();
+        self.client.command_with_status("KEYINFO --list", &mut |s| {
+            if keys.len() < MAX_KEYS
+                && s.keyword == "KEYINFO"
+                && let Some(info) = key_info(&s.args)
+            {
+                keys.push(info);
+            }
+        })?;
+        Ok(keys)
     }
 
     /// The public key for `keygrip`, as an S-expression (`READKEY`): `(public-key (rsa (n …)
@@ -379,39 +417,45 @@ impl<S: Read + Write> GpgAgent<S> {
         sexp::parse(&response.data).map_err(|e| Error::Protocol(format!("a public key that can't be read ({e})")))
     }
 
-    /// Sign `digest` with the key for `keygrip` (`SIGKEY`, `SETKEYDESC`, `SETHASH`, `PKSIGN`).
+    /// Sign `digest` with the key for `keygrip` (`RESET`, `SIGKEY`, `SETKEYDESC`, `SETHASH`,
+    /// `PKSIGN`). `RESET` first, so that nothing an earlier call set (a description, a key, a
+    /// digest) is left for this one.
     /// The agent asks for the PIN or passphrase in its own pinentry, which shows `description`
     /// (what the key is wanted for) when one is given; the owner cancelling it is
     /// [`ErrorKind::Canceled`].
     pub fn sign(&mut self, keygrip: &Keygrip, digest: &Digest, description: Option<&str>) -> Result<Signature, Error> {
         let description = description.map(key_description).transpose()?;
+        self.reset()?;
         self.client.command(&format!("SIGKEY {keygrip}"))?;
         if let Some(d) = description {
             self.client.command(&format!("SETKEYDESC {d}"))?;
         }
         let hex: String = digest.bytes.iter().map(|b| format!("{b:02X}")).collect();
         self.client.command(&format!("SETHASH {} {hex}", digest.algorithm.number()))?;
-        let response = self.client.transact("PKSIGN", &mut answer(None))?;
+        let response = self.waiting_for_owner("PKSIGN", &mut answer(None))?;
         Signature::read(&response.data)
     }
 
     /// Decrypt `ciphertext` (an S-expression `(enc-val (<algorithm> (<name> <value>)…))`) with the
-    /// key for `keygrip` (`SETKEY`, `SETKEYDESC`, `PKDECRYPT`, which asks for the ciphertext with
-    /// `INQUIRE CIPHERTEXT`). The PIN or passphrase is asked for as for [`GpgAgent::sign`].
+    /// key for `keygrip` (`RESET`, `SETKEY`, `SETKEYDESC`, `PKDECRYPT`, which asks for the
+    /// ciphertext with `INQUIRE CIPHERTEXT`). The PIN or passphrase is asked for as for
+    /// [`GpgAgent::sign`]. See [`SessionKey::bytes`] for what comes back.
     pub fn decrypt(&mut self, keygrip: &Keygrip, ciphertext: &Sexp, description: Option<&str>) -> Result<SessionKey, Error> {
         if ciphertext.name() != Some("enc-val") {
             return Err(Error::Refused("a ciphertext that isn't an enc-val".into()));
         }
         let description = description.map(key_description).transpose()?;
         let canonical = ciphertext.to_canonical();
+        self.reset()?;
         self.client.command(&format!("SETKEY {keygrip}"))?;
         if let Some(d) = description {
             self.client.command(&format!("SETKEYDESC {d}"))?;
         }
-        let mut response: Response = self.client.transact("PKDECRYPT", &mut answer(Some(&canonical)))?;
+        let mut response: Response = self.waiting_for_owner("PKDECRYPT", &mut answer(Some(&canonical)))?;
         let padding = response.status("PADDING").and_then(|p| p.trim().parse::<u32>().ok());
         let data = std::mem::take(&mut response.data);
-        let parsed = sexp::parse(&data);
+        // gpg-agent ends the value with a NUL of its own, which isn't part of the S-expression.
+        let parsed = sexp::parse(data.strip_suffix(&[0]).unwrap_or(&data));
         let mut data = data;
         crate::wipe(&mut data);
         let value = parsed.map_err(|e| Error::Protocol(format!("a decrypted value that can't be read ({e})")))?;

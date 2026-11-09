@@ -71,9 +71,14 @@ pub fn parse(file: &[u8]) -> Result<SocketFile, SocketFileError> {
 fn redirect(rest: &[u8]) -> Result<SocketFile, SocketFileError> {
     let text = std::str::from_utf8(rest).map_err(|_| SocketFileError::BadRedirect)?;
     let name = text.lines().find_map(|l| l.strip_prefix("socket=")).map(str::trim_end).ok_or(SocketFileError::BadRedirect)?;
-    // An absolute name of printable characters; a variable to expand (`${…}`) is not followed.
-    let absolute = name.starts_with('/') || name.get(1..3) == Some(":\\") || name.get(1..3) == Some(":/");
-    if !absolute || name.contains("${") || name.chars().any(char::is_control) || name.len() > 1024 {
+    // An absolute name on this computer, of printable characters; a variable to expand (`${…}`)
+    // is not followed, nor a name on another computer (`//host/share`, `\\host\share`: on
+    // Windows, opening one would reach out over SMB), nor a name with a drive given after a
+    // slash (`/C:/…`, `\\?\…`).
+    let drive = name.as_bytes().first().is_some_and(u8::is_ascii_alphabetic) && (name.get(1..3) == Some(":\\") || name.get(1..3) == Some(":/"));
+    let absolute = (name.starts_with('/') && !name.starts_with("//") && !name.contains('\\')) || drive;
+    let remote = name.starts_with("//") || name.starts_with("\\\\") || name.starts_with("/\\") || name.starts_with("\\/");
+    if !absolute || remote || name.contains("${") || name.chars().any(char::is_control) || name.len() > 1024 {
         return Err(SocketFileError::BadRedirect);
     }
     Ok(SocketFile::Redirect(name.to_string()))
