@@ -58,30 +58,27 @@ msgstr "„{subject}“ wurde möglicherweise gesendet: Sehen Sie in „Gesendet
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
-msgstr ""
+msgstr "'{subject}' bleibt an seinem verschobenen Speicherort: Die Nachricht ist digital signiert oder verschlüsselt, und ihre Kopie im ursprünglichen Postfach wurde entfernt, während die Kopie am zuerst verlassenen Speicherort die ursprünglichen Datenbytes beibehält. Verschieben Sie sie zurück, um sie dort wieder abzulegen."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
-#, fuzzy
 msgid "(No title)"
 msgstr "(Kein Titel)"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
-#, fuzzy
 msgid "(no name)"
 msgstr "(kein Name)"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
-#, fuzzy
 msgid "(no recipients)"
 msgstr "(keine Empfänger)"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
-#, fuzzy
 msgid "(no subject)"
 msgstr "(kein Betreff)"
 
@@ -93,7 +90,6 @@ msgstr "(kein Titel)"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "(none)"
 msgstr "(keine)"
 
@@ -104,13 +100,11 @@ msgstr "* Die Größen lassen Nachrichten aus, deren Größe hier nicht bekannt 
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "+ action"
 msgstr "+ Aktion"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "+ condition"
 msgstr "+ Bedingung"
 
@@ -127,13 +121,11 @@ msgstr ", an einer Limitierung angehalten"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
-#, fuzzy
 msgid ", {n} sent"
 msgstr ", {n} gesendet"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "-----Original Message-----"
 msgstr "-----Ursprüngliche Nachricht-----"
 
@@ -144,61 +136,51 @@ msgstr "PST-Datei ({format})"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "1 day"
 msgstr "1 Tag"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "1 hour"
 msgstr "1 Stunde"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "1 month"
 msgstr "1 Monat"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "1 week"
 msgstr "1 Woche"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "10 years"
 msgstr "10 Jahre"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "12 months"
 msgstr "12 Monate"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "2 weeks"
 msgstr "2 Wochen"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "2 years"
 msgstr "2 Jahre"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "3 days"
 msgstr "3 Tage"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "3 months"
 msgstr "3 Monate"
 
@@ -209,19 +191,16 @@ msgstr "3D Modelle"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "5 years"
 msgstr "5 Jahre"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
-#, fuzzy
 msgid "6 months"
 msgstr "6 Monate"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
-#, fuzzy
 msgid "@{login}, testing since {since}"
 msgstr "@{login}, testet seit {since}"
 
@@ -1324,12 +1303,12 @@ msgstr "Anordnung"
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "As Folders"
-msgstr ""
+msgstr "Als Ordner"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "As Tabs above the Inbox"
-msgstr ""
+msgstr "Als Registerkarten über dem Posteingang"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -2158,7 +2137,7 @@ msgstr "Barrierefreiheit überprüfen"
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Check Again"
-msgstr ""
+msgstr "Erneut prüfen"
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -3086,7 +3065,7 @@ msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie vo
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Desktop alerts only for mail in Primary"
-msgstr ""
+msgstr "Desktop-Benachrichtigungen nur für E-Mails im Hauptposteingang"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4035,7 +4014,7 @@ msgstr "Ordnername"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Folder {folder} ({n} of {of})"
-msgstr ""
+msgstr "Ordner {folder} ({n} von {of})"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -4165,8 +4144,9 @@ msgstr "Als Nur-Text formatieren"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Forums"
-msgstr ""
+msgstr "Foren"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -4372,11 +4352,13 @@ msgid ""
 "Gmail\n"
 "Categories"
 msgstr ""
+"Gmail\n"
+"Kategorien"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Gmail Categories"
-msgstr ""
+msgstr "Gmail Kategorien"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4387,26 +4369,26 @@ msgstr "Gmail und Google Workspace"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Gmail categories"
-msgstr ""
+msgstr "Gmail Kategorien"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
-msgstr ""
+msgstr "Gmail hat die ID dieser Nachricht noch nicht mitgeteilt: Führen Sie zuerst Senden/Empfangen aus"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
 msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Gmail hat das Verschieben von {n} Nachricht zwischen seinen Kategorien abgelehnt; beim nächsten Durchlauf wird es erneut angefordert"
+msgstr[1] "Gmail hat das Verschieben von {n} Nachrichten zwischen seinen Kategorien abgelehnt; beim nächsten Durchlauf wird es erneut angefordert"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
 msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Gmail wollte {n} Nachricht nicht verschieben; diese bleibt dort, wo Gmail sie abgelegt hat"
+msgstr[1] "Gmail wollte {n} Nachrichten nicht verschieben; diese bleiben dort, wo Gmail sie abgelegt hat"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4542,7 +4524,7 @@ msgstr "Die Google-Anmeldung ist in diesem Build nicht eingerichtet. Verwende st
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr ""
+msgstr "Die Google-Anmeldung ist nur eingeladenen Testern zugänglich, solange Google MailCraft überprüft. Wenn Sie teilnehmen möchten, schreiben Sie eine E-Mail an systems@ucscaregroup.co.uk."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6562,7 +6544,7 @@ msgstr "In Kalender verschieben"
 #. command label, interface
 #: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
 msgid "Move to Category"
-msgstr ""
+msgstr "In Kategorie verschieben"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
@@ -6686,7 +6668,7 @@ msgstr "Erfordert „Nach neuen Versionen suchen“."
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
 msgid "Needs Google sign-in"
-msgstr ""
+msgstr "Erfordert eine Google-Anmeldung"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -6834,7 +6816,7 @@ msgstr "Neue E-Mails"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr ""
+msgstr "Neue E-Mails, die Gmail unter Soziale Netzwerke, Werbung, Updates oder Foren einsortiert, treffen ohne Benachrichtigung ein."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -7272,7 +7254,7 @@ msgstr "Nicht verbunden: Der Rest dieser Nachricht liegt auf dem Server"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Not every layout checked."
-msgstr ""
+msgstr "Nicht jedes Layout wurde geprüft."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7386,7 +7368,7 @@ msgstr "Hier gibt es nichts zu tun."
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 msgid "Nothing was done: what the agent asked about changed after you were asked."
-msgstr ""
+msgstr "Es wurde nichts ausgeführt: Das, wonach der Agent gefragt hat, hat sich geändert, nachdem Sie gefragt wurden."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7396,7 +7378,7 @@ msgstr "Es wurden keine Daten an Microsoft gesendet und Ihr Passwort wird nicht 
 #. interface
 #: crates/ui-egui/src/sending.rs
 msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
-msgstr ""
+msgstr "Es wurde nichts gesendet: Das Postfach konnte vorher nicht gespeichert werden ({error})"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -8323,12 +8305,12 @@ msgstr "Vorheriger Monat"
 #. interface
 #: crates/ui-egui/src/nav.rs
 msgid "Primary"
-msgstr ""
+msgstr "Hauptposteingang"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
-msgstr ""
+msgstr "Hauptposteingang, Soziale Netzwerke, Werbung, Updates und Foren, wie Gmail Ihren Posteingang sortiert. Ihre E-Mails bleiben im Posteingang."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -8338,7 +8320,7 @@ msgstr "Privat"
 #. interface
 #: crates/ui-egui/src/nav.rs
 msgid "Promotions"
-msgstr ""
+msgstr "Werbung"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
@@ -10171,7 +10153,7 @@ msgstr "Mitwirkende anzeigen"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Show Gmail's categories under the Inbox"
-msgstr ""
+msgstr "Gmail-Kategorien unter dem Posteingang anzeigen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -10689,7 +10671,7 @@ msgstr "Erinnerungen zurückstellen"
 #. interface
 #: crates/ui-egui/src/nav.rs
 msgid "Social"
-msgstr ""
+msgstr "Soziale Netzwerke"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -11594,8 +11576,8 @@ msgstr "Der Ordner „{folder}“ und sein gesamter Inhalt werden gelöscht."
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
 msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Der Ordner \"{name}\" wurde nicht gelöscht: Auf dem Server befindet sich darin {n} neues Element, das Sie noch nicht gesehen hatten. Es wird zusammen mit diesem Element wiederhergestellt; löschen Sie den Ordner erneut, wenn Sie ihn weiterhin entfernen möchten."
+msgstr[1] "Der Ordner \"{name}\" wurde nicht gelöscht: Auf dem Server befinden sich darin {n} neue Elemente, die Sie noch nicht gesehen hatten. Er wird zusammen mit diesen Elementen wiederhergestellt; löschen Sie den Ordner erneut, wenn Sie ihn weiterhin entfernen möchten."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11844,7 +11826,7 @@ msgstr "Die Suche nach Ihrem Exchange-Server wurde an {host} weitergeleitet. Die
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "The selected message, as .eml"
-msgstr ""
+msgstr "Die ausgewählte Nachricht als .eml"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -12571,7 +12553,7 @@ msgstr "Diese Einladung gibt nicht an, um welche Besprechung es geht, daher kann
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
-msgstr ""
+msgstr "Diese Einladung hat die ID einer Besprechung in Ihrem Kalender, stammt aber nicht von deren Organisator und kann diese Besprechung daher nicht ändern. Um zu antworten, öffnen Sie die Besprechung in Ihrem Kalender und antworten Sie dort."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -12808,7 +12790,7 @@ msgstr "Diese Nachricht ist noch nicht auf diesem Computer. Sie wird heruntergel
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
-msgstr ""
+msgstr "Diese Nachricht kann auf mehr Arten dargestellt werden, als MailCraft prüfen konnte. Daher führt ein Link in einer dieser Darstellungen möglicherweise an ein anderes Ziel als im Text angegeben."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -13273,12 +13255,12 @@ msgstr "Vor zwei Wochen"
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
-msgstr ""
+msgstr "Zwei oder mehr Konten in diesem Postfach haben dieselbe Adresse. Die Konten verbinden sich mit:"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
-msgstr ""
+msgstr "Zwei oder mehr dieser Konten haben dieselbe Adresse. Bestätigen Sie nur, wenn jeder ihrer Server Ihnen gehört."
 
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
@@ -14626,7 +14608,7 @@ msgstr "Kalender"
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 msgid "can't be done in the browser"
-msgstr ""
+msgstr "kann nicht im Browser ausgeführt werden"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -14642,7 +14624,7 @@ msgstr "schließen Sie zuerst eine Unterhaltung: in jeder der 1.000 geöffneten 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 msgid "comes once Google has reviewed MailCraft"
-msgstr ""
+msgstr "ist verfügbar, sobald Google MailCraft überprüft hat"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -14925,7 +14907,7 @@ msgstr "größer als {mb} MB: Importiere sie über Datei › Importieren."
 #. what a command says
 #: crates/engine/src/session.rs
 msgid "message {id} keeps no original"
-msgstr ""
+msgstr "Nachricht {id} enthält kein Original"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -14950,12 +14932,12 @@ msgstr "mehr als {max} Ordner"
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 msgid "needs Google sign-in"
-msgstr ""
+msgstr "erfordert eine Google-Anmeldung"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 msgid "needs a Gmail account"
-msgstr ""
+msgstr "erfordert ein Gmail-Konto"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -15256,12 +15238,12 @@ msgstr "nur eine von Ihnen gesendete Nachricht kann erneut gesendet werden"
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 msgid "only mail in a Gmail account's Inbox is in one of Gmail's categories"
-msgstr ""
+msgstr "nur E-Mails im Posteingang eines Gmail-Kontos gehören zu einer der Gmail-Kategorien"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
-msgstr ""
+msgstr "nur der Posteingang eines Gmail-Kontos, dessen Kategorien angezeigt und von Gmail sortiert werden, hat Gmail-Kategorien"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -16348,7 +16330,7 @@ msgstr "{host} (nicht verschlüsselt)"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
-msgstr ""
+msgstr "{host} befindet sich in der Domäne Ihrer Adresse, ist aber nicht der Autodiscover-Server, den Ihre Domäne angibt. Möglicherweise handelt es sich um eine Website und nicht um den Mailserver Ihrer Organisation."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -16923,15 +16905,15 @@ msgstr[1] "{n} Nachrichten in das Konto kopiert: Senden/Empfangen legt sie ohne 
 #: crates/engine/src/cmd/account.rs
 msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht konnte bei diesem Durchlauf nicht zwischen den Gmail-Kategorien verschoben werden: Gmail hat {m} davon abgelehnt; die übrigen warten auf den nächsten Durchlauf"
+msgstr[1] "{n} Nachrichten konnten bei diesem Durchlauf nicht zwischen den Gmail-Kategorien verschoben werden: Gmail hat {m} davon abgelehnt; die übrigen warten auf den nächsten Durchlauf"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht konnte bei diesem Durchlauf nicht zwischen den Gmail-Kategorien verschoben werden; sie wartet auf den nächsten Durchlauf"
+msgstr[1] "{n} Nachrichten konnten bei diesem Durchlauf nicht zwischen den Gmail-Kategorien verschoben werden; sie warten auf den nächsten Durchlauf"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -16984,8 +16966,8 @@ msgstr[1] "{n} Nachrichten entfernt"
 #: crates/engine/src/undo.rs
 msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht bleibt an den Ort verschoben, an den sie verschoben wurde: Sie ist digital signiert oder verschlüsselt, und ihre Kopie im ursprünglichen Postfach wurde entfernt, während die Kopie am Ort, von dem sie zuerst verschoben wurde, die ursprünglichen Datenbytes beibehält. Verschieben Sie sie zurück, um sie dort wieder abzulegen."
+msgstr[1] "{n} Nachrichten bleiben an den Orten, an die sie verschoben wurden: Sie sind digital signiert oder verschlüsselt, und ihre Kopien in den ursprünglichen Postfächern wurden entfernt, während die Kopien an den Orten, von denen sie zuerst verschoben wurden, die ursprünglichen Datenbytes beibehalten. Verschieben Sie sie zurück, um sie dort wieder abzulegen."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
