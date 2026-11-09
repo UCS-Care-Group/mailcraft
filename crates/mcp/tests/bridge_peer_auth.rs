@@ -78,3 +78,17 @@ fn the_app_that_proves_the_key_is_sent_the_key_and_the_request() {
     let second: Value = serde_json::from_str(&lines[1]).unwrap();
     assert_eq!((second["method"].as_str(), second["key"].as_str()), (Some("mailbox.inspect"), Some(KEY)));
 }
+
+/// What the bridge reads from a program that has not proved itself is bounded (AU3-R3): an
+/// answer to the challenge longer than 1 MiB is no proof, even with the right proof in it. That
+/// program gets no key and no request, and is not asked again.
+#[test]
+fn an_overlong_answer_to_the_challenge_is_no_proof() {
+    let (port, rx) = listener(|n| json!({"ok": true, "result": {"proof": mailcraft_control_key::proof::proof(KEY, n), "pad": "x".repeat(2 << 20)}}));
+    let mut r = Remote::connect_with_key(&format!("127.0.0.1:{port}"), KEY).unwrap();
+    let e = r.call("engine.execute", json!({"command": "mail.flag"})).unwrap_err();
+    assert!(e.contains("did not prove"), "{e}");
+    let lines = seen(&rx);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines[0].contains("auth.challenge") && !lines[0].contains(KEY), "{lines:?}");
+}

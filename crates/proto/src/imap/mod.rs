@@ -52,6 +52,9 @@ const MAX_SET_UIDS: usize = 500;
 const MAX_SET_TEXT: usize = 800;
 /// The most UIDs a search answers with that are taken in.
 const MAX_FOUND: usize = 1_000;
+/// The most UIDs one of Gmail's searches ([`Imap::uid_search_gmail`]) answers with that are taken
+/// in: as many as fit the longest line read, at the longest a UID is written.
+pub const MAX_GMAIL_FOUND: usize = 5_000;
 
 /// An IMAP session on a stream.
 pub struct Imap<S> {
@@ -75,6 +78,10 @@ pub struct Imap<S> {
     text_seen: usize,
     /// Most responses the current command may bring.
     response_cap: usize,
+    /// Untagged lines too long to take are read past instead of ending the session, for the
+    /// current command alone (a Gmail search, #911); `skipped` says one was.
+    skip_long: bool,
+    skipped: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -110,6 +117,9 @@ pub struct Fetched {
     pub internal_date: Option<String>,
     /// The whole message (BODY[]), when asked for.
     pub body: Option<Vec<u8>>,
+    /// Gmail's own id of the message (`X-GM-MSGID`, Google's "Gmail IMAP extensions"), when
+    /// asked for and given; `None` from every other server.
+    pub gmail_id: Option<u64>,
 }
 
 /// What became of the messages a UID COPY or UID MOVE named, when the server says (the `COPYUID`
@@ -253,6 +263,8 @@ struct Item {
     /// The first bytes of the message (`BODY[]<0>`).
     start: Option<Vec<u8>>,
     size: Option<u64>,
+    /// Gmail's id of the message (`X-GM-MSGID`).
+    gmail_id: Option<u64>,
 }
 
 impl Item {
@@ -275,6 +287,7 @@ impl Item {
                 ("FLAGS", Value::List(flags)) => item.flags = Some(short_flags(flags)),
                 ("INTERNALDATE", Value::Str(date)) => item.internal_date = Some(String::from_utf8_lossy(&date).into_owned()),
                 ("RFC822.SIZE", value) => item.size = value.atom().and_then(|n| n.parse().ok()),
+                ("X-GM-MSGID", value) => item.gmail_id = value.atom().and_then(gmail_id),
                 ("BODY[]" | "RFC822", Value::Str(body)) => item.body = Some(body),
                 // The start of a message, from its first byte (`BODY[]<0>`): what was asked for.
                 ("BODY[]<0>", Value::Str(start)) => item.start = Some(start),
@@ -399,6 +412,14 @@ fn flag_list(flags: &[&str]) -> Result<String, ProtoError> {
         Some(bad) => Err(ProtoError::Protocol(format!("\"{}\" can't be used as a flag", tidy(bad)))),
         None => Ok(format!("({})", flags.join(" "))),
     }
+}
+
+/// Gmail's id of a message (`X-GM-MSGID`): a 64-bit number, written in digits alone; 0 is none.
+fn gmail_id(text: &str) -> Option<u64> {
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok().filter(|id| *id != 0)
 }
 
 /// A number as IMAP writes one: digits and nothing else.
@@ -566,6 +587,8 @@ impl<S: Read + Write> Imap<S> {
             leaving: false,
             text_seen: 0,
             response_cap: MAX_RESPONSES,
+            skip_long: false,
+            skipped: false,
         }
     }
 
@@ -708,8 +731,20 @@ impl<S: Read + Write> Imap<S> {
     ///
     /// The messages come back in UID order, each once.
     pub fn uid_fetch_flags(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
-        let mut found: BTreeMap<u32, Vec<String>> = BTreeMap::new();
-        let command = Self::fetch(set, "(UID FLAGS)")?;
+        self.fetch_flags(set, false)
+    }
+
+    /// [`uid_fetch_flags`](Self::uid_fetch_flags), with Gmail's id of each message as well
+    /// (`UID FETCH <set> (UID FLAGS X-GM-MSGID)`, in [`Fetched::gmail_id`]): for Gmail's server
+    /// alone, which documents it among its IMAP extensions. A message it gives no id, or one
+    /// that isn't a number, has none.
+    pub fn uid_fetch_flags_gmail(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
+        self.fetch_flags(set, true)
+    }
+
+    fn fetch_flags(&mut self, set: &str, gmail: bool) -> Result<Vec<Fetched>, ProtoError> {
+        let mut found: BTreeMap<u32, (Vec<String>, Option<u64>)> = BTreeMap::new();
+        let command = Self::fetch(set, if gmail { "(UID FLAGS X-GM-MSGID)" } else { "(UID FLAGS)" })?;
         let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
         self.response_cap = wanted.responses();
         let answered = self.run(command, &mut |values| {
@@ -718,17 +753,20 @@ impl<S: Read + Write> Imap<S> {
                 && wanted.wants(item.uid)
                 && (found.contains_key(&item.uid) || wanted.room(found.len()))
             {
-                let flags = found.entry(item.uid).or_default();
+                let (flags, id) = found.entry(item.uid).or_default();
                 // When the server speaks of a message twice, its later word counts.
                 if let Some(later) = item.flags {
                     *flags = later;
+                }
+                if gmail && item.gmail_id.is_some() {
+                    *id = item.gmail_id;
                 }
             }
         });
         self.response_cap = MAX_RESPONSES;
         answered?;
         wanted.check()?;
-        Ok(found.into_iter().map(|(uid, flags)| Fetched { uid, flags, internal_date: None, body: None }).collect())
+        Ok(found.into_iter().map(|(uid, (flags, gmail_id))| Fetched { uid, flags, internal_date: None, body: None, gmail_id }).collect())
     }
 
     /// UID FETCH <set> (UID RFC822.SIZE): the size in bytes of every message in the set, in UID order.
@@ -874,6 +912,50 @@ impl<S: Read + Write> Imap<S> {
                 }
             }
         })?;
+        Ok(found.into_iter().collect())
+    }
+
+    /// UID SEARCH UID <set> UNDELETED X-GM-RAW "<query>": the messages of the open mailbox, among
+    /// those `set` names and not marked as deleted, that Gmail's own search finds for `query`
+    /// (`category:social`), by UID in UID order. `X-GM-RAW` is Gmail's (Google's "Gmail IMAP extensions"): for Gmail's server alone.
+    ///
+    /// The query goes in quotes, without the CR, LF and NUL that could end the command early; one
+    /// that is empty then, or isn't printable ASCII within [`MAX_QUOTED`] bytes, is refused unsent.
+    /// Of the answer, only UIDs inside `set` are taken, at most [`MAX_GMAIL_FOUND`] of them: a
+    /// caller that wants them all asks for sets of fewer messages than that. An answer longer than
+    /// [`MAX_LINE`](crate::MAX_LINE) is read past and refused ([`ProtoError::Rejected`]): the
+    /// session goes on.
+    pub fn uid_search_gmail(&mut self, set: &str, query: &str) -> Result<Vec<u32>, ProtoError> {
+        if !is_set(set) {
+            return Err(ProtoError::Protocol(format!("\"{}\" is not a set of messages", tidy(set))));
+        }
+        let ranges = set_ranges(set, u32::MAX).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        let query: String = query.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).collect();
+        if !searchable(&query) {
+            return Err(ProtoError::Protocol("the text can't be looked for on the server".into()));
+        }
+        let mut found = BTreeSet::new();
+        // Messages marked as deleted aren't shown, so they aren't asked about either.
+        let command = Command::new("UID SEARCH UID").arg(set).arg("UNDELETED X-GM-RAW").string(query.as_bytes());
+        (self.skip_long, self.skipped) = (true, false);
+        let answer = self.run(command, &mut |values| {
+            if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
+                let uids = values.iter().skip(1).filter_map(Value::number).filter(|uid| *uid != 0);
+                for uid in uids.filter(|uid| ranges.iter().any(|(from, to)| (*from..=*to).contains(uid))) {
+                    if found.len() >= MAX_GMAIL_FOUND {
+                        break;
+                    }
+                    found.insert(uid);
+                }
+            }
+        });
+        let skipped = std::mem::take(&mut self.skipped);
+        self.skip_long = false;
+        answer?;
+        // An answer too long to read is no answer: the session goes on without it.
+        if skipped {
+            return Err(ProtoError::Rejected(format!("the server's answer was longer than {} KB", crate::MAX_LINE / 1024)));
+        }
         Ok(found.into_iter().collect())
     }
 
@@ -1076,9 +1158,19 @@ impl<S: Read + Write> Imap<S> {
 
     /// A line of the server's text, counted against what one command may take.
     fn read_text(&mut self) -> Result<Vec<u8>, ProtoError> {
-        let line = self.wire.read_line()?;
-        self.text_seen = self.text_seen.saturating_add(line.len()).saturating_add(2);
-        Ok(line)
+        loop {
+            let line = if self.skip_long { self.wire.read_line_or_skip()? } else { Some(self.wire.read_line()?) };
+            let Some(line) = line else {
+                self.skipped = true;
+                self.text_seen = self.text_seen.saturating_add(crate::MAX_LINE);
+                if self.text_seen > MAX_COMMAND_TEXT {
+                    return Err(ProtoError::Protocol("the server sent too much in answer to one command".into()));
+                }
+                continue;
+            };
+            self.text_seen = self.text_seen.saturating_add(line.len()).saturating_add(2);
+            return Ok(line);
+        }
     }
 
     fn read_response(&mut self) -> Result<Response, ProtoError> {
@@ -1168,6 +1260,8 @@ impl<S: Read + Write> Imap<S> {
     }
 }
 
+#[cfg(test)]
+mod gmail_tests;
 #[cfg(test)]
 mod limits_tests;
 #[cfg(test)]

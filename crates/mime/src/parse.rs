@@ -323,7 +323,7 @@ fn decode(body: &[u8], encoding: &str) -> Vec<u8> {
 /// The parts of a multipart body: what lies between `--boundary` lines, without the line break
 /// that belongs to the delimiter. The text before the first delimiter and after the closing
 /// `--boundary--` is ignored. A body that is cut short still gives its last part.
-fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) -> Vec<&'a [u8]> {
+pub(crate) fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) -> Vec<&'a [u8]> {
     let delimiter = [b"--", boundary.as_bytes()].concat();
     let mut parts = Vec::new();
     let mut start: Option<usize> = None;

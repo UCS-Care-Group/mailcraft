@@ -12,7 +12,7 @@ fn mailbox(name: &str, raw: &str, delimiter: Option<char>, flags: &[&str]) -> Ma
 }
 
 fn fetched(uid: u32, flags: &[&str]) -> Fetched {
-    Fetched { uid, flags: flags.iter().map(|f| f.to_string()).collect(), internal_date: None, body: None }
+    Fetched { uid, flags: flags.iter().map(|f| f.to_string()).collect(), internal_date: None, body: None, gmail_id: None }
 }
 
 /// A FETCH response carrying `body` as a literal, between `before` and `after`.
@@ -350,7 +350,8 @@ fn a_message_arrives_whole_whatever_is_in_it() {
             uid: 12,
             flags: vec!["\\Seen".into(), "$Forwarded".into()],
             internal_date: Some("17-Jul-1996 02:44:25 -0700".into()),
-            body: Some(body.to_vec())
+            body: Some(body.to_vec()),
+            gmail_id: None
         }
     );
     assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[])\r\n");
@@ -426,7 +427,13 @@ fn a_header_arrives_alone() {
     let got = Imap::resume(&mut s).uid_fetch_header(12).unwrap().unwrap();
     assert_eq!(
         got,
-        Fetched { uid: 12, flags: vec!["\\Seen".into()], internal_date: Some("17-Jul-1996 02:44:25 -0700".into()), body: Some(header.to_vec()) }
+        Fetched {
+            uid: 12,
+            flags: vec!["\\Seen".into()],
+            internal_date: Some("17-Jul-1996 02:44:25 -0700".into()),
+            body: Some(header.to_vec()),
+            gmail_id: None
+        }
     );
     assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])\r\n");
     assert!(s.finished());
@@ -887,6 +894,8 @@ fn drive(server: &[u8]) {
         let _ = imap.subscribe("Projects/New");
         let _ = imap.append("Sent", &["\\Seen"], b"Subject: x\r\n\r\n");
         let _ = imap.uid_search_header("Message-ID", "<a.1@example.org>");
+        let _ = imap.uid_fetch_flags_gmail("1:*");
+        let _ = imap.uid_search_gmail("1:500", "category:social");
         let _ = imap.logout();
     }
     // Changes, by a session that was told it may make them.

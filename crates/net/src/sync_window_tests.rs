@@ -159,3 +159,37 @@ fn a_size_said_too_small_does_not_make_a_cut_message_whole() {
     // The server ended it before the bytes asked for: all of it came, whatever size was said.
     assert!(!by_subject(&inbox.new, "Short and said large").unfetched);
 }
+
+#[test]
+fn the_start_of_a_protected_message_is_no_original_of_it() {
+    // An S/MIME message (#30) older than the window: its start alone is not the bytes it came
+    // as, which come with the whole message when it is opened. One short enough to have come
+    // whole in its start keeps them.
+    let smime = |subject: &str, lines: usize| {
+        let data = "MIIBAgYJKoZIhvcNAQcDoIIB8zCCAe8CAQAxggGqMIIBpgIBADCBjTCBhzELMAkGA1UE\r\n".repeat(lines);
+        format!(
+            "From: Bob <bob@example.org>\r\nSubject: {subject}\r\nMessage-ID: <{subject}@example.org>\r\nMIME-Version: 1.0\r\n\
+             Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=\"smime.p7m\"\r\n\
+             Content-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"smime.p7m\"\r\n\r\n{data}"
+        )
+        .into_bytes()
+    };
+    let imap = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: PASSWORD.into(),
+        mailboxes: vec![mailbox(
+            "INBOX",
+            "\\HasNoChildren",
+            vec![message(1, "", OLD, smime("Sealed long", 1_000)), message(2, "", OLD, smime("Sealed short", 4))],
+        )],
+        ..Default::default()
+    });
+    let since = internal_date(NEW).unwrap() - 365 * 86_400;
+    let result = crate::sync(&request(&imap, Some(since)));
+    assert_eq!(result.errors, Vec::<String>::new());
+    let inbox = result.folders.iter().find(|f| f.remote == "INBOX").unwrap();
+    let long = by_subject(&inbox.new, "Sealed long");
+    assert!(long.unfetched && long.original.is_none());
+    let short = by_subject(&inbox.new, "Sealed short");
+    assert!(!short.unfetched && short.original.is_some());
+}

@@ -120,10 +120,11 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
     let mut seen: HashSet<Id> = HashSet::new();
     for fetched in &result.fetched {
         let here = ImapFetchKey::read(&fetched.id).and_then(|key| by_key.get(&key).copied());
+        // Whole, the bytes it came as with it when it is protected (#30): an IMAP message asks
+        // for those alone by its UID instead ([`super::imap_again`]).
         if let Some(id) = here.filter(|id| !seen.contains(id))
-            && let Ok(m) = s.mailbox.message_mut(id)
+            && super::graph_down::take_mime(&mut s.mailbox, id, account, &fetched.mime, false).is_some()
         {
-            super::graph_down::take_mime(m, account, &fetched.mime);
             seen.insert(id);
             taken.push(id);
         }

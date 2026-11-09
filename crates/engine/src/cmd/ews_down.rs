@@ -230,7 +230,7 @@ fn parents_first(folders: &mut [GraphFolder]) {
 pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDeltas, taken: &mut super::graph_mail::Taken) -> (usize, bool) {
     let own: HashSet<String> = deltas.well_known.iter().cloned().collect();
     let have = |id: &str| deltas.changed.iter().any(|f| f.id == id) || mb.folder_by_server(account, id).is_some();
-    let queued = mb.queued.iter().any(|q| matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id) && !have(id)));
+    let queued = mb.queued.iter().any(|q| matches!(q, Queued::DeleteFolder { account: a, id, .. } if *a == account && own.contains(id) && !have(id)));
     // (Not after a read afresh: what it didn't bring isn't the server's mail folder to show.)
     let missing = !deltas.afresh && own.iter().any(|id| !have(id) && !deltas.deleted.contains(id));
     let lost = queued || missing;
