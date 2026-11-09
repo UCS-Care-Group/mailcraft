@@ -279,6 +279,12 @@ pub trait ContentSource: Send + Sync {
     /// The bytes kept under `r` for the mailbox file at `mailbox`, checked against the length and
     /// SHA-256 the reference names (anything else is "missing or damaged", never bytes).
     fn fetch(&self, mailbox: &std::path::Path, r: &ContentRef) -> Result<std::sync::Arc<Vec<u8>>, String>;
+
+    /// [`ContentSource::fetch`], read from where it is kept now and from no copy kept of it in
+    /// memory: for a decision that must not stand on bytes the disk no longer holds (#30).
+    fn fetch_fresh(&self, mailbox: &std::path::Path, r: &ContentRef) -> Result<std::sync::Arc<Vec<u8>>, String> {
+        self.fetch(mailbox, r)
+    }
 }
 
 pub use mailcraft_model::ContentRef;

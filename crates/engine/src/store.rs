@@ -2704,6 +2704,12 @@ impl ContentSource for Content {
     fn fetch(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
         fetch(mailbox, r)
     }
+
+    fn fetch_fresh(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
+        let r = Ref::from_model(r);
+        let dir = blob_dir(&resolve(mailbox));
+        get(&dir, &r, &Folders::new()).map(Arc::new).ok_or_else(|| format!("the file that keeps it is missing from {} or damaged", dir.display()))
+    }
 }
 
 /// Bring every kept part of every message of `mailbox` into memory from the content folder

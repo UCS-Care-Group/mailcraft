@@ -1624,12 +1624,12 @@ fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
 /// The move out of another account that waits for `id`, by which its original goes once the
 /// message is safe where it is now, becomes a deletion of that original: it is. Only through the
 /// gate every release of a copy something was moved out of goes through (#30,
-/// [`super::mail::check_again::may_release`]), which a caller that read the message whole
+/// [`Message::may_release`]), which a caller that read the message whole
 /// (`read`, [`super::graph_place::safe_here`]) has passed already; otherwise the move waits, and
 /// that account's run deletes the original once it may.
 pub(crate) fn original_goes(mb: &mut Mailbox, id: Id, read: bool) {
     let Some(m) = mb.message(id) else { return };
-    if !read && !super::mail::check_again::may_release(m) {
+    if !read && !m.may_release() {
         return;
     }
     let (account, message_id, seen) = (m.account, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)));

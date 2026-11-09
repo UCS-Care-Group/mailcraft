@@ -557,7 +557,6 @@ fn placed_wrongly(name: &str, microsoft_too: bool) -> (Session, Id, Id, std::pat
             _ => None,
         });
         let change = PlaceUp::of(&m, "in".into(), None, marker.unwrap(), true, None);
-        assert!(!change.original);
         let made = MessageOutcome::Done { categories: None, flag: None, folder: "in".into(), id: "AAkB3".into() };
         let placed = vec![PlaceDone { change, outcome: made }];
         crate::cmd::graph_mail::apply_graph_mail(
@@ -628,5 +627,116 @@ fn a_move_here_forced_past_its_wait_never_releases_the_original() {
     assert!(!deletes(&s, from));
     s.mailbox.message_mut(id).unwrap().original_asked = true;
     assert!(deletes(&s, from));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The bytes a protected message came as lost here after it went through a second mailbox, and
+/// it is moved on from there: the copy in the first stays the one it is moved out of, and isn't
+/// deleted (#30); the one in the second, which Graph made of its parts, goes. Of an IMAP first
+/// mailbox alike: its move out of there stays, and goes on waiting for the bytes from there.
+#[test]
+fn review_moving_on_from_a_second_microsoft_account_never_deletes_the_first_original() {
+    use mailcraft_model::sync::{GraphMailResult, MessageOutcome, PlaceDone};
+    use mailcraft_model::{Pending, Queued};
+    for imap_first in [false, true] {
+        let (mut s, from, to, id) = two_imap();
+        let place_in = |s: &mut Session, account: Id, email: &str, made: &str| {
+            s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap()})).unwrap();
+            let asked = crate::cmd::graph_mail::graph_mail_request(s, account).unwrap();
+            let done = MessageOutcome::Done { categories: None, flag: None, folder: "in".into(), id: made.into() };
+            let placed = asked.places.iter().map(|p| PlaceDone { change: p.without_data(), outcome: done.clone() }).collect();
+            crate::cmd::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: email.into(), placed, ..Default::default() }).unwrap();
+        };
+        let a = microsoft(&mut s, "first@example.org");
+        if !imap_first {
+            // Its first mailbox a Microsoft one: there, the IMAP copy gone.
+            place_in(&mut s, a, "first@example.org", "AAkA2");
+            let deleted = vec![mailcraft_model::sync::Deleted { from: "INBOX".into(), uid: 1 }];
+            apply_sync(&mut s, SyncResult { account: from, deleted, ..Default::default() }).unwrap();
+            assert!(s.mailbox.message(id).unwrap().moving_out.is_none() && s.mailbox.pending.is_empty());
+        }
+        let b = microsoft(&mut s, "second@example.org");
+        place_in(&mut s, b, "second@example.org", "AAkB3");
+        let (mut s, dir) = without_original(&s, id, if imap_first { "on-from-imap" } else { "on-from-ms" });
+        s.run("mail.move", &json!({"ids": [id], "folder": s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap()})).unwrap();
+        let m = s.mailbox.message(id).unwrap();
+        let deleting = |account: Id| s.mailbox.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account: at, .. } if *at == account));
+        assert!(!deleting(a), "{imap_first}");
+        assert!(deleting(b), "{imap_first}");
+        if imap_first {
+            assert!(m.moving_out.is_none(), "{:?}", m.moving_out);
+            assert!(s.mailbox.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == id) && p.account() == from));
+            assert_eq!(crate::cmd::mail::check_again::source_copy(&s.mailbox, id), Some((from, true)));
+            assert!(!deletes(&s, from));
+        } else {
+            assert!(m.moving_out.as_ref().is_some_and(|out| out.account == a && out.id == "AAkA2"), "{:?}", m.moving_out);
+            assert_eq!(crate::cmd::mail::check_again::source_copy(&s.mailbox, id), Some((a, false)));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// A clock that was ahead when a refusal was counted, put right since: the wait it set is no
+/// wait (asked at the next run), the refusals are counted from now, and Check again asks at once
+/// a move that waits between refusals.
+#[test]
+fn a_clock_put_back_never_holds_a_move_for_good() {
+    let (mut s, from, id, dir) = moved_here_asking("clock-back");
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    let right = 1_800_000_000;
+    s.clock.now = Some(right + 30 * 24 * 60 * 60);
+    not_given(&mut s, from, true, false);
+    s.clock.now = Some(right);
+    assert!(crate::cmd::imap_again::wanted(&s.mailbox, from, s.now()).contains_key(&inbox));
+    not_given(&mut s, from, true, false);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.original_refused == right && m.original_retry > right && m.original_wanted);
+    assert!(!crate::cmd::imap_again::wanted(&s.mailbox, from, s.now()).contains_key(&inbox));
+    // Check again: asked now.
+    let m = s.mailbox.message(id).cloned().unwrap();
+    assert_eq!(crate::cmd::mail::check_again::why_not(&s.mailbox, &m), None);
+    s.run("mail.checkAgain", &json!({"id": id})).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.original_retry == 0 && m.original_tries == 0 && m.original_wanted);
+    assert!(crate::cmd::imap_again::wanted(&s.mailbox, from, s.now()).contains_key(&inbox));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Whether the bytes are whole here, for a release, is read from the disk at that time: never
+/// from a copy kept in memory of a file that has gone since.
+#[test]
+fn the_gate_reads_the_original_from_the_disk() {
+    let (s, _, _, id) = two_imap();
+    let file = std::cell::RefCell::new(None);
+    let (s, dir) = with_original_file(&s, id, "fresh", |path| *file.borrow_mut() = Some(path.to_path_buf()));
+    let m = s.mailbox.message(id).cloned().unwrap();
+    assert!(s.readable_whole(&m) && s.original_readable(&m));
+    std::fs::remove_file(file.borrow().as_ref().unwrap()).unwrap();
+    assert!(s.readable_whole(&m), "read from what memory kept");
+    assert!(!s.original_readable(&m));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The Microsoft folder the copy is in goes from the server while it is listed afresh: no page
+/// of it will come, so the copy went; the move goes made of its parts, and says so.
+#[test]
+fn a_folder_gone_while_listed_afresh_lets_the_copy_go_and_says_so() {
+    use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult, MessagePage};
+    let (mut s, to, ms, id, dir) = moved_out_of_microsoft("afresh-folder-gone");
+    s.ask_for_lost_originals();
+    let page = MessagePage { folder: "in".into(), link: "next".into(), afresh: true, ..Default::default() };
+    crate::cmd::graph_down::take_page(&mut s.mailbox, &mut Default::default(), ms, &page, &mut Default::default());
+    assert!(s.mailbox.message(id).unwrap().moving_out.as_ref().is_some_and(|out| out.listing));
+    let folders = vec![GraphFolder { id: "other".into(), name: "Other".into(), kind: FolderKind::Custom, ..Default::default() }];
+    let listing = Some(FolderListing { folders, complete: true });
+    let said = crate::cmd::graph_mail::apply_graph_mail(
+        &mut s,
+        GraphMailResult { account: ms, email: "owner@example.org".into(), listing, ..Default::default() },
+    )
+    .unwrap();
+    assert!(said["errors"].to_string().contains("went with its folder"), "{said}");
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.moving_out.as_ref().is_some_and(|out| out.left && !out.listing) && !m.original_wanted);
+    assert!(matches!(sync_request(&s, to).unwrap().places.as_slice(), [p] if p.message.original_bytes().is_none()));
     let _ = std::fs::remove_dir_all(&dir);
 }

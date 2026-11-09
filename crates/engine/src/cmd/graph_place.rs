@@ -130,11 +130,11 @@ pub(crate) fn held_for_this_computer(s: &Session, account: Id) -> Vec<String> {
 /// counts one that can't be read as it does a change the server refused.
 ///
 /// And, of a Digitally signed or Encrypted message (#30), only once the bytes it came as can't be
-/// lost with the original ([`super::mail::check_again::may_release`]), or, when `read`, are read
+/// lost with the original ([`Message::may_release`]), or, when `read`, are read
 /// whole here: the gate every release of a copy something was moved out of goes through.
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bool {
     let released = || {
-        if super::mail::check_again::may_release(m) || !read || s.original_readable(m) {
+        if m.may_release() || !read || s.original_readable(m) {
             return true;
         }
         // Read and lost: asked for from the copy it came from.
@@ -148,9 +148,7 @@ pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bo
     } else {
         let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
         // (Whole with the bytes it came as, or of its parts once those can't be lost.)
-        whole
-            && (saved || s.saved_whole.contains(&m.id))
-            && (!read || s.readable_whole(m) || (!s.held_for_original(m) && super::mail::check_again::may_release(m) && s.parts_readable(m)))
+        whole && (saved || s.saved_whole.contains(&m.id)) && (!read || (s.parts_readable(m) && released()))
     }
 }
 
@@ -210,9 +208,6 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
                 let _ = mb.forget_message(twin);
             }
             let Ok(m) = mb.message_mut(id) else { return true };
-            // Whether the bytes it came as were whole here when it went (#30): what it was moved
-            // out of goes only then, or once that copy is known to hold none.
-            m.original_placed = if change.original { account } else { 0 };
             let flag = change.flag.clone().unwrap_or_default();
             m.server = Some(ServerMessage {
                 id: made,

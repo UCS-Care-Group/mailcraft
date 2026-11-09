@@ -449,9 +449,9 @@ pub struct Message {
     /// having come: not asked for again until there is room for that much. 0: none of that.
     #[serde(skip_serializing_if = "is_zero_u64")]
     pub original_no_room: u64,
-    /// The account whose server took a copy of it, moved there, while the bytes it came as were
-    /// whole here (#30): written into that copy, or kept on this computer beside it. What it was
-    /// moved out of may go then; 0: no such copy.
+    /// The IMAP account whose server took a copy of it, moved there, written from the bytes it
+    /// came as (#30): what it was moved out of may go then. 0: no such copy. (A copy Graph makes
+    /// is made of its parts, and never holds them.)
     #[serde(skip_serializing_if = "is_zero_u64")]
     pub original_placed: Id,
 }
@@ -700,6 +700,16 @@ impl Message {
     /// Whether everything of the message is in memory: its body and every attachment.
     pub fn is_loaded(&self) -> bool {
         !self.body_is_kept() && self.attachments.iter().all(Attachment::is_loaded) && self.original.as_ref().is_none_or(Original::is_loaded)
+    }
+
+    /// Whether the copy it was moved out of may go, as far as the mailbox alone can tell (#30):
+    /// the bytes it came as can't be lost with it. It has none named, a download from a server
+    /// brought it without them ([`Message::original_asked`]), or the copy where it is now, on
+    /// an IMAP server of the account it is in, was written from them
+    /// ([`Message::original_placed`]). Otherwise only bytes read whole here at the release let
+    /// it go (the engine's gate); a placement gone wrong is a copy too many, never a loss.
+    pub fn may_release(&self) -> bool {
+        self.original.is_none() || self.original_asked || (self.original_placed != 0 && self.original_placed == self.account)
     }
 
     /// Whether the bytes it came as are here ([`Message::original`]): in memory or kept outside.

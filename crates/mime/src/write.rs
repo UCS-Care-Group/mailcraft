@@ -81,9 +81,7 @@ const NAME_PIECE: usize = 52;
 pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     let mut out = Vec::new();
     write_header(&mut out, message, opts);
-    // (An original whose content fields can't be written as header lines is no original here:
-    // the message is built from its parts.)
-    if let Some((content_fields, body)) = message.original_bytes().filter(|_| !message.draft).and_then(crate::protected::content_of) {
+    if let Some((content_fields, body)) = original_body(message) {
         out.extend_from_slice(&content_fields);
         out.extend_from_slice(b"\r\n");
         out.extend_from_slice(&body);
@@ -98,6 +96,18 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     out.extend_from_slice(&body.content);
     out.extend_from_slice(b"\r\n");
     out
+}
+
+/// The content fields and the body of the bytes `message` came as, which [`write()`] writes it
+/// with (#30). (An original whose content fields can't be written as header lines is no original
+/// here: the message is built from its parts.)
+fn original_body(message: &Message) -> Option<(Vec<u8>, Vec<u8>)> {
+    message.original_bytes().filter(|_| !message.draft).and_then(crate::protected::content_of)
+}
+
+/// Whether [`write()`] writes `message`'s body as the bytes it came as (#30), not from its parts.
+pub fn writes_original(message: &Message) -> bool {
+    original_body(message).is_some()
 }
 
 /// The header fields [`write()`] writes from the message, before `MIME-Version` and the content

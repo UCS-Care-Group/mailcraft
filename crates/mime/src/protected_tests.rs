@@ -456,7 +456,27 @@ proptest! {
         let m = parse_fetched(&bytes);
         if let Some(original) = m.original_bytes() {
             prop_assert!(is_protected(&bytes));
-            prop_assert!(original.len() <= bytes.len());
+            // (In CRLF lines: bare LFs become two bytes.)
+            prop_assert!(original.len() <= bytes.len().saturating_mul(2));
+        }
+    }
+
+    /// A protected message with whatever follows it, in its own lines or in bare LFs: told
+    /// without a panic, and an original kept is never more than its lines in CRLF.
+    #[test]
+    fn telling_a_protected_message_and_more_never_panics(
+        pick in 0usize..5,
+        lf in any::<bool>(),
+        more in proptest::collection::vec(any::<u8>(), 0..512),
+    ) {
+        let fixture = [SMIME_SIGNED, PGP_SIGNED, PGP_ENCRYPTED, PKCS7, INLINE_SIGNED].get(pick).copied().unwrap_or(SMIME_SIGNED);
+        let mut bytes = if lf { String::from_utf8_lossy(fixture).replace("\r\n", "\n").into_bytes() } else { fixture.to_vec() };
+        bytes.extend(more);
+        let _ = protection(&bytes);
+        let m = parse_fetched(&bytes);
+        if let Some(original) = m.original_bytes() {
+            prop_assert!(is_protected(&bytes));
+            prop_assert!(original.len() <= bytes.len().saturating_mul(2));
         }
     }
 

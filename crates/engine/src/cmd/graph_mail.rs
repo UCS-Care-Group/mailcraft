@@ -393,6 +393,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_said.extend(refused);
     if let Some(listing) = &result.listing {
         take_listing(&mut s.mailbox, account, listing, &mut taken);
+        errors.extend(graph_down::gone_with_folders(s, account, listing));
         if listing.complete {
             s.graph_listed_short.remove(&account);
         } else {

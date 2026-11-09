@@ -75,10 +75,6 @@ pub struct PlaceUp {
     pub categories: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<AttachmentUp>,
-    /// The message had the bytes it came as whole here when it went (#30): they stay on this
-    /// computer beside the copy, which Graph makes from its parts.
-    #[serde(skip_serializing_if = "is_false")]
-    pub original: bool,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -109,7 +105,6 @@ impl PlaceUp {
             read_receipt: m.read_receipt,
             categories: m.categories.clone(),
             attachments: m.attachments.iter().map(AttachmentUp::of).collect(),
-            original: m.original.as_ref().is_some_and(crate::Original::is_loaded),
         }
     }
 

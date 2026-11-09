@@ -94,7 +94,7 @@ pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use protected::{Protection, crlf, has_binary, is_protected, parse_fetched, protection};
 pub use words::{decode_words, encode_words};
-pub use write::{write, written_message_id};
+pub use write::{write, writes_original, written_message_id};
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

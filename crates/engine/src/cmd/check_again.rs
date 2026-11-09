@@ -92,18 +92,6 @@ pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
     true
 }
 
-/// The gate every release of the copy a message was moved out of goes through (#30: the Graph
-/// run's moved-out changes, the IMAP run's deletion of an original, [`crate::cmd::account::original_goes`],
-/// [`crate::cmd::graph_place::safe_here`] for every destination): the bytes `m` came as can't be
-/// lost with that copy. It may go when `m` has none named, when a download from a server brought
-/// the message without them ([`Message::original_asked`]), or when the copy where it is now was
-/// put there while they were whole here ([`Message::original_placed`]); a caller that reads them
-/// whole here lets it go too. Otherwise it waits: a placement gone wrong is a copy too many,
-/// never a loss.
-pub(crate) fn may_release(m: &Message) -> bool {
-    m.original.is_none() || m.original_asked || (m.original_placed != 0 && m.original_placed == m.account)
-}
-
 /// Whether the bytes `m` came as are asked for no more (#30): refused too often, too large to
 /// take here ([`Message::original_tries`]), or no room for them here until there is
 /// ([`Message::original_no_room`], which a caller with the mailbox looks at).
@@ -112,9 +100,10 @@ pub(crate) fn given_up(m: &Message) -> bool {
 }
 
 /// Whether `m`'s move waits for the bytes it came as from the copy it came from, which is asked
-/// for them no more (#30, [`given_up`]): Check again asks it once more.
+/// for them no more (#30, [`given_up`]) or not before a while (refused, [`Message::original_retry`]):
+/// Check again asks it once more, now.
 pub(crate) fn held_move(mb: &Mailbox, m: &Message) -> bool {
-    given_up(m) && !m.draft && !m.parts_removed && source_copy(mb, m.id).is_some()
+    (given_up(m) || m.original_retry != 0) && !m.draft && !m.parts_removed && source_copy(mb, m.id).is_some()
 }
 
 /// Where the copy message `id` is being moved out of is, on a server that still has it (#451):
@@ -208,7 +197,7 @@ pub(crate) fn check_again(s: &mut Session, v: &Value) -> CmdResult {
     // Asked by the owner: whatever the server said before, it is asked again, and what comes of
     // it is said again.
     let m = s.mailbox.message_mut(id)?;
-    if given_up(m) {
+    if given_up(m) || m.original_retry != 0 {
         (m.original_tries, m.original_refused, m.original_retry, m.original_no_room) = (0, 0, 0, 0);
     }
     s.forget_told_held(id);

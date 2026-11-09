@@ -64,8 +64,9 @@ pub fn mark_unreadable(mb: &mut Mailbox) -> usize {
 /// asked for by the runs after).
 pub fn wanted(mb: &Mailbox, account: Id, now: Timestamp) -> HashMap<Id, Vec<u32>> {
     let mut found: HashMap<Id, Vec<u32>> = HashMap::new();
-    // (Not one whose server refused the bytes it came as a while ago, #30: asked again later.)
-    let due = |m: &Message| m.original_retry <= now;
+    // (Not one whose server refused the bytes it came as a while ago, #30: asked again later. A
+    // time further off than the longest wait was set by a clock that was ahead: due now.)
+    let due = |m: &Message| m.original_retry <= now || m.original_retry > now.saturating_add(LONGEST_WAIT);
     // In folder and UID order, so that which are asked for first doesn't change from run to run.
     let mut marked: Vec<(Id, u32)> =
         mb.messages.values().filter(|m| m.refetch && m.uid != 0 && m.account == account && due(m)).map(|m| (m.folder, m.uid)).collect();
@@ -170,7 +171,8 @@ pub(crate) fn moved_out(mb: &Mailbox, account: Id) -> HashMap<(Id, u32), Id> {
 /// grows (a quarter of an hour, doubled each time up to four hours), and given up on once refused
 /// [`ORIGINAL_TRIES`] times over at least [`ORIGINAL_PATIENCE`].
 pub(crate) fn refused(m: &mut Message, too_large: bool, now: Timestamp) {
-    if m.original_refused == 0 {
+    // (A first refusal later than now was seen by a clock that was ahead: counted from now.)
+    if m.original_refused == 0 || m.original_refused > now {
         m.original_refused = now.max(1);
     }
     let tries = m.original_tries.saturating_add(1);
@@ -181,8 +183,11 @@ pub(crate) fn refused(m: &mut Message, too_large: bool, now: Timestamp) {
     }
     m.original_tries = tries.min(ORIGINAL_TRIES - 1);
     let wait: Timestamp = 15 * 60 * (1 << tries.saturating_sub(1).min(4));
-    m.original_retry = now.saturating_add(wait);
+    m.original_retry = now.saturating_add(wait.min(LONGEST_WAIT));
 }
+
+/// The longest wait before the bytes a message came as are asked for again after a refusal (#30).
+const LONGEST_WAIT: Timestamp = 4 * 60 * 60;
 
 /// Take in what a folder's delta says of messages downloaded again. `by_uid` finds a message of
 /// the folder by its UID.

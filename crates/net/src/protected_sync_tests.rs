@@ -48,6 +48,7 @@ fn a_signed_message_comes_down_whole_and_its_body_goes_up_byte_for_byte() {
     let up = sync(&SyncRequest { places: vec![place], ..request(account(Some(&other), None), folders) });
     assert_eq!(up.errors, Vec::<String>::new());
     assert_eq!(up.placed.len(), 1);
+    assert!(up.placed[0].original);
     let world = other.world();
     let put = world.mailboxes.iter().find(|m| m.raw == "Projects").unwrap().messages.last().unwrap().body.clone();
     drop(world);
@@ -114,6 +115,8 @@ Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=\"smime.p7
     let up = sync(&SyncRequest { places: vec![place], ..request(account(Some(&other), None), folders) });
     assert_eq!(up.errors, Vec::<String>::new());
     assert_eq!(up.placed.len(), 1);
+    // Not written from the bytes it came as, and said so.
+    assert!(!up.placed[0].original);
     let put = put_in_projects(&other);
     assert!(!put.windows(der.len()).any(|w| w == der));
     assert!(!String::from_utf8_lossy(&put).to_ascii_lowercase().contains("content-transfer-encoding: binary"));

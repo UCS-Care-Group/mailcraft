@@ -2210,9 +2210,14 @@ impl Session {
         text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
-    /// Whether the bytes message `m` came as (#30) are whole here: in memory, or read back.
+    /// Whether the bytes message `m` came as (#30) are whole here: in memory, or read back from
+    /// the disk now (not from a copy kept in memory: a copy something was moved out of goes on it).
     pub(crate) fn original_readable(&self, m: &Message) -> bool {
-        m.original.as_ref().is_some_and(|o| !o.data.is_empty() || o.kept.is_some_and(|r| self.fetch(&r).is_ok()))
+        let fresh = |r: &ContentRef| {
+            let (Some(path), Some(source)) = (self.path.as_deref(), self.source()) else { return false };
+            source.fetch_fresh(path, r).is_ok()
+        };
+        m.original.as_ref().is_some_and(|o| !o.data.is_empty() || o.kept.as_ref().is_some_and(fresh))
     }
 
     /// [`Session::readable_whole`] but for the bytes a protected message came as (#30), which

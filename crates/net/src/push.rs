@@ -535,8 +535,6 @@ impl<'a> Push<'a> {
                 Err(alive) => return alive,
             };
             let given = RemoteFlags { draft: false, ..RemoteFlags::of(message, 0) };
-            // It had the bytes it came as whole (#30): what it was moved out of may go then.
-            let original = message.original.is_some();
             // A copy without a marker that can be written (the engine always gives one) can't be
             // told from other mail there: it is only ever where the server says it put it.
             let marker = Some(marker.as_str()).filter(|m| marked(m));
@@ -558,7 +556,15 @@ impl<'a> Push<'a> {
                         // Put there before: it is the message's copy, with the flags it has there
                         // (what changed here since goes up next).
                         self.arrived.entry(destination.remote.clone()).or_default().push((*uid_validity, uid));
-                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags, original });
+                        // (What it was written from then isn't known: not said to be the bytes it came as, #30.)
+                        result.placed.push(Placed {
+                            message: message.id,
+                            to_folder: *to_folder,
+                            uid,
+                            uid_validity: *uid_validity,
+                            flags,
+                            original: false,
+                        });
                         continue;
                     }
                     Ok(None) => {}
@@ -594,6 +600,8 @@ impl<'a> Push<'a> {
                 message
             };
             let written = mailcraft_mime::write_placed(message, &options, marker.unwrap_or_default());
+            // Written from the bytes it came as (#30): what it was moved out of may go then.
+            let original = mailcraft_mime::writes_original(message);
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));

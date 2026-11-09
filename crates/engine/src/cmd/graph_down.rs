@@ -584,6 +584,41 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     Some(here)
 }
 
+/// The copies being moved out of `account` that a listing afresh of their folder hadn't come to
+/// when a complete listing of the folders left that folder out (#30): no page of it will come, so
+/// they went with it. What waited for the bytes it came as from one goes made of its parts, and
+/// says so (at most [`crate::cmd::imap_again::MAX_AGAIN`] are said).
+pub(crate) fn gone_with_folders(s: &mut crate::Session, account: Id, listing: &mailcraft_model::sync::FolderListing) -> Vec<String> {
+    if !listing.complete {
+        return Vec::new();
+    }
+    let listed: HashSet<&str> = listing.folders.iter().map(|f| f.id.as_str()).collect();
+    let gone: Vec<Id> = s
+        .mailbox
+        .messages
+        .values()
+        .filter(|m| m.moving_out.as_ref().is_some_and(|out| out.account == account && out.listing && !listed.contains(out.folder.as_str())))
+        .map(|m| m.id)
+        .collect();
+    let mut said = Vec::new();
+    for id in gone {
+        if let Ok(m) = s.mailbox.message_mut(id)
+            && let Some(out) = m.moving_out.as_mut()
+        {
+            out.listing = false;
+        }
+        let Some(m) = s.mailbox.message(id) else { continue };
+        if !m.may_release() && !s.original_readable(m) && said.len() < crate::cmd::imap_again::MAX_AGAIN {
+            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+            said.push(format!(
+                "\"{subject}\": the copy it was moved out of went with its folder on the server, so it goes made of its parts, without the bytes it came as"
+            ));
+        }
+    }
+    crate::cmd::mail::check_again::settle(&mut s.mailbox);
+    said
+}
+
 /// Whether `m`, being moved out of a Microsoft account, asks the copy it came from there for the
 /// bytes it came as (#30, [`crate::cmd::mail::check_again::ask_source`]): fetched for them alone,
 /// all it has here staying as it is.
