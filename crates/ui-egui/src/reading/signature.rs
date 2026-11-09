@@ -51,7 +51,9 @@ fn why_said(why: Why) -> &'static str {
         Why::AddressMismatch => tl!("The certificate is for another address than the sender's."),
         Why::Constrained => tl!("An authority on the way to a trusted one doesn't allow the certificate to be used this way."),
         Why::NoAuthorities => tl!("No certification authorities for mail could be read on this computer, so no signer can be verified here."),
-        Why::AuthoritiesNotRead => tl!("This computer's certification authorities haven't been read yet: the signature is checked again when they are."),
+        Why::AuthoritiesNotRead => {
+            tl!("This computer's certification authorities haven't been read yet: the signature is checked again when they are.")
+        }
         Why::KeyNotVerified => tl!("The signer's key hasn't been marked verified."),
         Why::PartlySigned => {
             tl!("Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything.")
@@ -188,7 +190,8 @@ fn details(app: &mut MailApp, ui: &mut Ui, d: &DigitalSignature, m: &Message, t:
     if !d.revocation_checked {
         line(ui, tl!("Revocation:"), tl!("Revocation not checked."));
     }
-    let file = app.session.digital_signature_part(m.id).and_then(|i| m.attachments.get(i).map(|a| (i, mailcraft_engine::opening::file_name(&a.name))));
+    let file =
+        app.session.digital_signature_part(m.id).and_then(|i| m.attachments.get(i).map(|a| (i, mailcraft_engine::opening::file_name(&a.name))));
     if let Some((index, name)) = file
         && m.id != 0
     {

@@ -609,10 +609,8 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     // The signature part of a message whose signature was checked (that very part, by its bytes)
     // is what its bar says; it is reached from the bar's Details (#30).
     let signature = app.session.digital_signature_known(m.id).and_then(|_| app.session.digital_signature_part(m.id));
-    let files: Vec<(usize, &mailcraft_model::Attachment)> = m
-        .listed_attachments()
-        .filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index) && Some(*index) != signature)
-        .collect();
+    let files: Vec<(usize, &mailcraft_model::Attachment)> =
+        m.listed_attachments().filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index) && Some(*index) != signature).collect();
     if files.is_empty() {
         return;
     }

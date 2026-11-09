@@ -533,9 +533,7 @@ fn an_excluded_directory_name_written_another_way_is_still_excluded() {
     // The same name in another string type, case and spacing (RFC 5280 §7.1).
     let mut dressed = signer_params("Mallory", "mallory@corp.example");
     dressed.distinguished_name = rcgen::DistinguishedName::new();
-    dressed
-        .distinguished_name
-        .push(rcgen::DnType::OrganizationName, rcgen::DnValue::PrintableString(" ROGUE   unit ".try_into().unwrap()));
+    dressed.distinguished_name.push(rcgen::DnType::OrganizationName, rcgen::DnValue::PrintableString(" ROGUE   unit ".try_into().unwrap()));
     dressed.distinguished_name.push(rcgen::DnType::CommonName, "Mallory");
     let dressed = issued(dressed, key(&rcgen::PKCS_ECDSA_P256_SHA256), &ca);
     assert_eq!(path_verdict(&dressed, &[&ca], &root, "mallory@corp.example"), (Verdict::NotVerified, Some(Why::Constrained)));

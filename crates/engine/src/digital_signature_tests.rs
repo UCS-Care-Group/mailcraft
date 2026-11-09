@@ -317,29 +317,53 @@ fn the_keys_are_hashed_once_for_each_change() {
     assert!(s.digital_signature_known(ids[0]).is_none(), "another key kept is seen");
 }
 
-/// An opaque signed message read by a build before its content was read with it has it read
-/// from the bytes it came as when it is first checked, once (#30 review 3).
-#[test]
-fn an_opaque_message_read_before_is_read_again_once() {
+/// A session on an opaque signed message as a build before #30's read it: the file it came as,
+/// and nothing else.
+fn old_opaque() -> (Session, mailcraft_model::Id) {
     let mut mb = Mailbox::with_local_account("Bob", "bob@smime.example");
     let inbox = mb.inbox().unwrap();
     let mut m = mailcraft_mime::parse_fetched(OPAQUE_FILES);
     m.folder = inbox;
-    // As an older build read it: the file it came as, and nothing else.
     m.body = Default::default();
     m.attachments.truncate(1);
     let id = mb.add_message(m).unwrap();
     let mut s = Session::new(mb);
     s.clock.now = Some(NOW);
     s.set_trust_anchors([CA]);
-    assert_eq!(s.digital_signature(id).unwrap().verdict, Verdict::Verified);
+    (s, id)
+}
+
+/// Opening the mailbox notes such a message, and the next command reads its text and files from
+/// the bytes it came as before it runs, once, as a change of the mailbox (#30 review 3).
+#[test]
+fn an_opaque_message_read_before_is_read_again_once() {
+    let (mut s, id) = old_opaque();
+    let rev = s.rev();
+    s.run("mail.get", &json!({"id": id})).unwrap();
     let m = s.mailbox.messages.get(&id).unwrap().clone();
     assert!(m.body.text.contains("The signed minutes are attached."), "{:?}", m.body.text);
     let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(names, ["smime.p7m", "minutes.pdf"]);
     assert!(s.dirty);
-    // Checked again (a new day): nothing read twice.
-    s.clock.now = Some(NOW + 86_400);
-    s.digital_signature(id).unwrap();
+    assert!(s.rev() > rev, "what is worked out from the mailbox is due again");
+    // Another command: nothing read twice.
+    s.run("mail.get", &json!({"id": id})).unwrap();
     assert_eq!(s.mailbox.messages.get(&id).unwrap().attachments.len(), 2);
+}
+
+/// Checking such a message changes nothing of it: the commands that give the owner or an agent
+/// its Digital signature only read (#30 review 4).
+#[test]
+fn checking_an_old_opaque_message_changes_nothing() {
+    let (mut s, id) = old_opaque();
+    // Not read again yet (as if the commands before had read others).
+    s.signatures.to_read_again.clear();
+    let before = s.mailbox.messages.get(&id).unwrap().clone();
+    s.run("mail.digitalSignature", &json!({"id": id})).unwrap();
+    s.run("mail.get", &json!({"id": id})).unwrap();
+    s.agent = Some(Vec::new());
+    s.run("mail.get", &json!({"id": id})).unwrap();
+    s.run("mail.digitalSignature", &json!({"id": id})).unwrap();
+    assert_eq!(s.digital_signature(id).unwrap().verdict, Verdict::Verified);
+    assert!(*s.mailbox.messages.get(&id).unwrap() == before);
 }

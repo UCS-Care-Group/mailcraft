@@ -29,6 +29,10 @@ use crate::{Part, Session};
 const MAX_KEPT: usize = 8_192;
 /// The most certificates waiting to be kept for their senders.
 const MAX_TO_KEEP: usize = 256;
+/// The most opaque signed messages of an older build waiting to be read again.
+const MAX_TO_READ_AGAIN: usize = 100_000;
+/// How many of them are read again before one command.
+const READ_AGAIN_AT_ONCE: usize = 32;
 
 /// What the session knows of Digital signatures. Never saved.
 #[derive(Default)]
@@ -41,6 +45,9 @@ pub(crate) struct SignatureChecks {
     anchors_read: Option<bool>,
     /// Signers' certificates to keep for their addresses at the next command.
     to_keep: Vec<(String, PublicKey)>,
+    /// Opaque signed messages read by a build before #30's, to be read again from the bytes
+    /// they came as ([`Session::read_opaque_again`]).
+    pub(crate) to_read_again: Vec<Id>,
     /// The hash of the keys kept for each address, with the revision of the keys it was worked
     /// out at: a row's result is asked of at every frame, and the keys change seldom.
     key_hashes: Mutex<HashMap<String, (u64, u64)>>,
@@ -122,7 +129,19 @@ impl SignatureChecks {
     pub(crate) fn forget_messages(&mut self) {
         self.kept.clear();
         self.to_keep.clear();
+        self.to_read_again.clear();
     }
+}
+
+/// Whether `m` is an opaque signed message as a build before #30's read it: the file it came
+/// as and nothing else (no text, no other file), with the bytes it came as to read it again from.
+fn read_bare(m: &Message) -> bool {
+    !m.draft
+        && m.has_original()
+        && !m.body_is_kept()
+        && m.body.text.trim().is_empty()
+        && m.body.html.is_none()
+        && matches!(m.attachments.as_slice(), [only] if only.mime.to_ascii_lowercase().contains("pkcs7-mime"))
 }
 
 impl Session {
@@ -215,9 +234,6 @@ impl Session {
             // (OpenPGP is checked elsewhere.)
             mailcraft_mime::SignedKind::PgpDetached => return Found::default(),
         };
-        if parts.kind == mailcraft_mime::SignedKind::SmimeOpaque {
-            self.read_opaque_again(m, &bytes);
-        }
         let known: Vec<Arc<Vec<u8>>> =
             self.mailbox.public_keys.of(&m.from.email).iter().filter(|k| k.format == SignatureFormat::Smime).map(|k| k.data.clone()).collect();
         let known: Vec<&[u8]> = known.iter().map(|k| k.as_slice()).collect();
@@ -247,26 +263,44 @@ impl Session {
         Found { result: Some(Arc::new(checked.signature)), part: self.signature_part(m, &parts.signature) }
     }
 
-    /// An opaque signed message read before its content was read with it (a build before #30's)
-    /// has nothing but the file it came as: its text and files are read now from the bytes it came
-    /// as, once (with the caps every message is read with), no step of the history.
-    fn read_opaque_again(&mut self, m: &Message, bytes: &[u8]) {
-        let bare = !m.body_is_kept()
-            && m.body.text.trim().is_empty()
-            && m.body.html.is_none()
-            && matches!(m.attachments.as_slice(), [only] if only.mime.to_ascii_lowercase().contains("pkcs7-mime"));
-        if !bare {
-            return;
+    /// Note the opaque signed messages a build before #30's read (nothing but the file they came
+    /// as): a mailbox was just opened. Nothing is read here; [`Session::read_opaque_again`] does.
+    pub(crate) fn find_opaque_to_read_again(&mut self) {
+        let found: Vec<Id> = self.mailbox.messages.values().filter(|m| read_bare(m)).map(|m| m.id).take(MAX_TO_READ_AGAIN).collect();
+        self.signatures.to_read_again = found;
+    }
+
+    /// Read the text and files of up to [`READ_AGAIN_AT_ONCE`] of the messages
+    /// [`Session::find_opaque_to_read_again`] noted, from the bytes they came as (with the caps
+    /// every message is read with), once each: before a command, never inside one and never
+    /// while a message is only looked at. No step of the history; the mailbox is changed (saved,
+    /// and what is worked out from it is due again) when one was read.
+    pub(crate) fn read_opaque_again(&mut self) {
+        let at = self.signatures.to_read_again.len().saturating_sub(READ_AGAIN_AT_ONCE);
+        let ids = self.signatures.to_read_again.split_off(at);
+        let mut changed = false;
+        for id in ids {
+            if !self.mailbox.message(id).is_some_and(read_bare) {
+                continue;
+            }
+            let Ok(bytes) = self.content(id, Part::Original) else { continue };
+            if !mailcraft_mime::signed_parts(&bytes).is_some_and(|p| p.kind == mailcraft_mime::SignedKind::SmimeOpaque) {
+                continue;
+            }
+            let read = mailcraft_mime::parse(&bytes);
+            let files: Vec<mailcraft_model::Attachment> = read.attachments.into_iter().skip(1).collect();
+            if read.body.text.trim().is_empty() && read.body.html.is_none() && files.is_empty() {
+                continue;
+            }
+            if let Ok(stored) = self.mailbox.message_mut(id) {
+                stored.body = read.body;
+                stored.hidden_text = read.hidden_text;
+                stored.attachments.extend(files);
+                changed = true;
+            }
         }
-        let read = mailcraft_mime::parse(bytes);
-        let files: Vec<mailcraft_model::Attachment> = read.attachments.into_iter().skip(1).collect();
-        if read.body.text.trim().is_empty() && read.body.html.is_none() && files.is_empty() {
-            return;
-        }
-        if let Ok(stored) = self.mailbox.message_mut(m.id) {
-            stored.body = read.body;
-            stored.hidden_text = read.hidden_text;
-            stored.attachments.extend(files);
+        if changed {
+            self.list_due();
             self.dirty = true;
         }
     }

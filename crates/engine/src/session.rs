@@ -1319,6 +1319,7 @@ impl Session {
         };
         s.view.date = s.today();
         s.normalize();
+        s.find_opaque_to_read_again();
         s
     }
 
@@ -2943,6 +2944,7 @@ impl Session {
         self.dirty = false;
         self.rev += 1;
         self.normalize();
+        self.find_opaque_to_read_again();
     }
 
     // ---- undo ----
@@ -3339,6 +3341,8 @@ impl Session {
     pub(crate) fn run_here(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         self.ask_for_lost_originals();
         self.keep_found_certificates();
+        // (Before the command, as its own change: a command that only reads changes nothing.)
+        self.read_opaque_again();
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).

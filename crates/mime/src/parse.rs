@@ -62,10 +62,16 @@ const MAX_IDS: usize = 1000;
 /// signed data, #30) is an attachment, and what it holds is read as if it stood in its place:
 /// its text joins the body and its files the attachments.
 pub fn parse(bytes: &[u8]) -> Message {
+    parse_opening(bytes, MAX_OPAQUE_BYTES)
+}
+
+/// [`parse`], opening at most `opaque_limit` bytes of opaque signed parts (for the tests, which
+/// have no 64 MB to spare).
+pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     let (headers, body) = header::split(bytes, true);
     let mut message = Message::default();
     read_headers(&headers, &mut message);
-    let mut walk = Walk::default();
+    let mut walk = Walk { opaque_limit, ..Walk::default() };
     walk.part(&headers, body, 0, Parent::None);
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
     let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
@@ -222,6 +228,8 @@ struct Walk {
     /// [`MAX_OPAQUE_BYTES`]).
     opaque: usize,
     opaque_bytes: usize,
+    /// The most bytes opened from opaque signed parts ([`MAX_OPAQUE_BYTES`] but in tests).
+    opaque_limit: usize,
 }
 
 impl Walk {
@@ -299,7 +307,7 @@ impl Walk {
             && (depth == 0 || disposition.value != "attachment")
             && depth < MAX_DEPTH
             && self.opaque < MAX_OPAQUE
-            && data.len() <= MAX_OPAQUE_BYTES.saturating_sub(self.opaque_bytes);
+            && data.len() <= self.opaque_limit.saturating_sub(self.opaque_bytes);
         let signed = openable.then(|| mailcraft_model::ber::signed_content(&data)).flatten();
         if let Some(content) = &signed {
             self.opaque = self.opaque.saturating_add(1);

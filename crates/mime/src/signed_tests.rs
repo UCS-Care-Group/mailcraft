@@ -152,8 +152,11 @@ fn signed_data(content: &[u8]) -> Vec<u8> {
 fn signed_data_inside_signed_data_opens_once() {
     let mut entity = [&b"Content-Type: text/plain\r\n\r\n"[..], &vec![b'x'; 200_000], b"\r\n"].concat();
     for _ in 0..30 {
-        entity = [&b"Content-Type: application/pkcs7-mime; smime-type=signed-data\r\nContent-Transfer-Encoding: binary\r\n\r\n"[..], &signed_data(&entity)]
-            .concat();
+        entity = [
+            &b"Content-Type: application/pkcs7-mime; smime-type=signed-data\r\nContent-Transfer-Encoding: binary\r\n\r\n"[..],
+            &signed_data(&entity),
+        ]
+        .concat();
     }
     let m = crate::parse(&entity);
     let kept: usize = m.attachments.iter().map(|a| a.data.len()).sum();
@@ -161,6 +164,18 @@ fn signed_data_inside_signed_data_opens_once() {
     assert_eq!(m.attachments.len(), 2, "the outer file, and the one inside it");
     let shallow = [&b"Content-Type: application/pkcs7-mime\r\n\r\n"[..], &signed_data(b"Content-Type: text/plain\r\n\r\nnear\r\n")].concat();
     assert_eq!(crate::parse(&shallow).body.text.trim_end(), "near");
+}
+
+/// An opaque signed part larger than the bytes opened from one message stays a file, unopened
+/// (#30 review 4; the real limit is 64 MB).
+#[test]
+fn signed_data_past_the_byte_limit_stays_a_file() {
+    let entity = [&b"Content-Type: application/pkcs7-mime\r\n\r\n"[..], &signed_data(b"Content-Type: text/plain\r\n\r\nnear\r\n")].concat();
+    let opened = crate::parse::parse_opening(&entity, 1024);
+    assert_eq!(opened.body.text.trim_end(), "near");
+    let shut = crate::parse::parse_opening(&entity, 16);
+    assert_eq!(shut.body.text.trim(), "");
+    assert_eq!(shut.attachments.len(), 1);
 }
 
 proptest! {
