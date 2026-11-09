@@ -548,10 +548,6 @@ fn is_zero_u64(n: &u64) -> bool {
     *n == 0
 }
 
-fn is_zero_u8(n: &u8) -> bool {
-    *n == 0
-}
-
 impl Message {
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
