@@ -171,7 +171,7 @@ fn what_is_asked_for_again_is_bounded_and_a_message_the_server_lost_is_left() {
         let message = mailcraft_model::Message { account, folder: inbox, uid, subject: "\u{FFFD}".into(), refetch: true, ..Default::default() };
         many.add_message(message).unwrap();
     }
-    assert_eq!(mailcraft_engine::cmd::imap_again::wanted(&many, account)[&inbox].len(), MAX_AGAIN);
+    assert_eq!(mailcraft_engine::cmd::imap_again::wanted(&many, account, 0)[&inbox].len(), MAX_AGAIN);
 }
 
 #[test]
