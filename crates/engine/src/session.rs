@@ -3343,9 +3343,13 @@ impl Session {
     /// [`Session::run`] on the message being written that is current now.
     pub(crate) fn run_here(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         self.ask_for_lost_originals();
-        self.keep_found_certificates();
-        // (Before the command, as its own change: a command that only reads changes nothing.)
-        self.read_opaque_again();
+        // (Before the outermost command, as its own change: a command that only reads changes
+        // nothing, and one run inside another would put them in its step, or let them go with
+        // it when it fails.)
+        if !self.in_command() {
+            self.keep_found_certificates();
+            self.read_opaque_again();
+        }
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).

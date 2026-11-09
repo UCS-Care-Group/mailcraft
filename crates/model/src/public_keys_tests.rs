@@ -55,6 +55,22 @@ fn keys_go_through_a_file_and_junk_is_left_out() {
     assert!(read.of("bob@example.org").is_empty());
 }
 
+/// A mailbox whose file holds anything but a map where its Public keys go opens, with none and
+/// nothing else lost (#30 review 7).
+#[test]
+fn a_mailbox_opens_whatever_stands_for_its_keys() {
+    let mut mb = crate::Mailbox::with_local_account("Ada", "ada@example.org");
+    let inbox = mb.inbox().unwrap();
+    mb.add_message(crate::Message { folder: inbox, subject: "Kept".into(), ..Default::default() }).unwrap();
+    for junk in [serde_json::json!("x"), serde_json::json!(5), serde_json::json!([]), serde_json::json!([1, {"a": 2}]), serde_json::Value::Null] {
+        let mut file = serde_json::to_value(&mb).unwrap();
+        file["publicKeys"] = junk.clone();
+        let read: crate::Mailbox = serde_json::from_str(&file.to_string()).unwrap_or_else(|e| panic!("{junk}: {e}"));
+        assert_eq!(read, mb, "{junk}");
+        assert!(read.public_keys.is_empty());
+    }
+}
+
 #[test]
 fn an_agent_is_told_the_result_and_that_it_is_data() {
     let signer = Signer { name: "Ada".into(), addresses: vec!["ada@example.org".into()], fingerprint: "AB:CD".into(), ..Signer::default() };

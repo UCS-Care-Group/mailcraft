@@ -172,7 +172,31 @@ impl<'de> Deserialize<'de> for PublicKeys {
                 }
                 Ok(keys)
             }
+            // What isn't a map in their place (a file from elsewhere, or damaged) is no keys: the
+            // mailbox still opens.
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<PublicKeys, A::Error> {
+                while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+                Ok(PublicKeys::default())
+            }
+            fn visit_str<E: serde::de::Error>(self, _: &str) -> Result<PublicKeys, E> {
+                Ok(PublicKeys::default())
+            }
+            fn visit_bool<E: serde::de::Error>(self, _: bool) -> Result<PublicKeys, E> {
+                Ok(PublicKeys::default())
+            }
+            fn visit_i64<E: serde::de::Error>(self, _: i64) -> Result<PublicKeys, E> {
+                Ok(PublicKeys::default())
+            }
+            fn visit_u64<E: serde::de::Error>(self, _: u64) -> Result<PublicKeys, E> {
+                Ok(PublicKeys::default())
+            }
+            fn visit_f64<E: serde::de::Error>(self, _: f64) -> Result<PublicKeys, E> {
+                Ok(PublicKeys::default())
+            }
+            fn visit_unit<E: serde::de::Error>(self) -> Result<PublicKeys, E> {
+                Ok(PublicKeys::default())
+            }
         }
-        d.deserialize_map(V)
+        d.deserialize_any(V)
     }
 }

@@ -382,6 +382,21 @@ fn an_undo_that_puts_back_an_old_opaque_message_has_it_read_again() {
     assert!(!is_bare(&s, bare));
 }
 
+/// Only the outermost command reads them again first: one run inside another that fails would
+/// take what it read away with it (#30 review 7).
+#[test]
+fn a_command_inside_another_reads_nothing_again() {
+    let (mut s, ids) = old_opaques(3);
+    s.signatures.read_again_bytes = Some(1);
+    let contact = s.run("people.new", &json!({"first": "Noor", "email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(ids.iter().filter(|id| !is_bare(&s, **id)).count(), 1);
+    // A meeting that can't be made: the command it runs inside fails, and so does it.
+    assert!(s.run("people.meeting", &json!({"id": contact, "start": "junk"})).is_err());
+    assert_eq!(ids.iter().filter(|id| !is_bare(&s, **id)).count(), 2);
+    s.run("mail.get", &json!({"id": ids[0]})).unwrap();
+    assert_eq!(ids.iter().filter(|id| !is_bare(&s, **id)).count(), 3, "none of them lost");
+}
+
 /// The messages a command changes that aren't as an older build read them are let go of before
 /// the queue is looked at: a command over many messages costs nothing there (#30 review 6).
 #[test]
