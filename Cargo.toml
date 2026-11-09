@@ -25,6 +25,7 @@ mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
 mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }
+mailcraft-assuan = { path = "crates/assuan" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
 mailcraft-ews = { path = "crates/ews" }

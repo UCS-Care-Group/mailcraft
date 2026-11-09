@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -13,6 +13,7 @@ license = "MIT OR Apache-2.0"
 cargo-fuzz = true
 
 [dependencies]
+mailcraft-assuan = { path = "../crates/assuan" }
 mailcraft-dav = { path = "../crates/dav" }
 # Mailbox files in every form (`mailbox_file`), with the small limits of its tests.
 mailcraft-engine = { path = "../crates/engine", features = ["test-support"] }
@@ -191,6 +192,13 @@ bench = false
 [[bin]]
 name = "smime"
 path = "fuzz_targets/smime.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "assuan"
+path = "fuzz_targets/assuan.rs"
 test = false
 doc = false
 bench = false
