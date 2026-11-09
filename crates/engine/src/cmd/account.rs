@@ -1041,12 +1041,13 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
         if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
             continue;
         }
-        spent = spent.saturating_add(m.size());
         // (Nor one whose original can't be read while the copy it came from may hold it, #30:
-        // made of its parts, it would be taken for the message, and that copy let go.)
+        // made of its parts, it would be taken for the message, and that copy let go. Only what
+        // goes counts toward what a run carries.)
         match s.placeable(m) {
             Ok(None) => log::warn!("message {} waits to go to the server: the bytes it came as can't be read here, and are asked for", m.id),
             Ok(Some(whole)) => {
+                spent = spent.saturating_add(m.size());
                 let (to, create) = destination(mb, folder);
                 out.push(ImapPlace { message: whole.as_ref().clone(), to, to_folder: folder.id, create, marker: marker.clone() });
             }

@@ -56,12 +56,16 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
             continue;
         }
-        spent = spent.saturating_add(m.size());
         // (Nor one whose original can't be read while the copy it came from may hold it, #30:
-        // made of its parts, it would be taken for the message, and that copy let go.)
+        // made of its parts, it would be taken for the message, and that copy let go. Only what
+        // goes counts toward what a run carries.)
+        let size = m.size();
         match s.placeable(m) {
             Ok(None) => log::warn!("message {} waits to go to another mailbox: the bytes it came as can't be read here, and are asked for", m.id),
-            Ok(Some(m)) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
+            Ok(Some(m)) => {
+                spent = spent.saturating_add(size);
+                out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now)));
+            }
             Err(e) => log::warn!("message {} waits to go to another mailbox: {e}", m.id),
         }
     }

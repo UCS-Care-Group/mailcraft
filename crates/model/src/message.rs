@@ -635,7 +635,8 @@ impl Message {
         if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
             return None;
         }
-        Some(self.size())
+        // The bytes it came as are a second copy of what its parts hold (#30).
+        Some(self.size().saturating_sub(self.original.as_ref().map_or(0, Original::size)))
     }
 
     /// Size in bytes, roughly: text, HTML, attachments and the bytes a Digitally signed or
