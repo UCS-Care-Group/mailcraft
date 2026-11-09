@@ -5,8 +5,8 @@
 //! on the disk here, and one put back after a refused copy has them. Synthetic messages with
 //! dummy signatures only.
 
-use mailcraft_model::sync::{FolderDelta, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult};
-use mailcraft_model::{FolderKind, Id, Pending};
+use mailcraft_model::sync::{FolderDelta, Placed, RemoteFlags, RemoteOp, ServerMessage, SyncRequest, SyncResult};
+use mailcraft_model::{FolderKind, Id, Message, Pending};
 use serde_json::json;
 
 use crate::Session;
@@ -112,6 +112,27 @@ fn put(asked: &SyncRequest, message: Id, uid: u32) -> Placed {
 /// Whether a request of `account`'s asks its server to delete anything.
 fn deletes(s: &Session, account: Id) -> bool {
     sync_request(s, account).unwrap().ops.iter().any(|op| matches!(op, RemoteOp::Delete { .. }))
+}
+
+/// Whether a run of the Microsoft account `ms` asks its server to delete or move out anything.
+fn graph_deletes(s: &Session, ms: Id) -> bool {
+    use mailcraft_model::sync::MessageChange;
+    let asked = crate::cmd::graph_mail::graph_mail_request(s, ms).unwrap();
+    asked.messages.iter().any(|c| matches!(c, MessageChange::Delete { .. } | MessageChange::MovedOut { .. }))
+}
+
+/// A Microsoft account with [`long_signed`] in its Inbox as "AAkA7", and an IMAP account, saved
+/// at `path` and opened with that message's original gone: the session, the two accounts and
+/// the message.
+fn microsoft_and_imap(path: &std::path::Path) -> (Session, Id, Id, Id) {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    let to = imap_account(&mut s, "work@mail.example", vec![]);
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let server = ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let read = mailcraft_mime::parse_fetched(&long_signed());
+    let id = s.mailbox.add_message(Message { folder: inbox, server: Some(server), ..read }).unwrap();
+    (reopened_without_original(&s, id, path), ms, to, id)
 }
 
 #[test]
@@ -256,4 +277,210 @@ fn a_copy_into_microsoft_of_a_signed_message_deleted_for_good_goes_once_its_byte
     assert_eq!(crate::cmd::graph_mail::graph_mail_request(&s, ms).unwrap().places.len(), 1);
     assert!(!deletes(&s, from), "not before the copy is there");
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Out of a Microsoft account whose server has the message, the bytes it came as are fetched
+/// from there for the copy, which goes as it came once they are saved here; only then is the
+/// server's copy deleted.
+#[test]
+fn a_copy_of_a_microsoft_message_whose_bytes_cant_be_read_here_has_them_fetched_from_its_server() {
+    use mailcraft_model::sync::{GraphFetchResult, GraphFetched};
+    let dir = folder("from-ms");
+    let path = dir.join("mailbox.mailcraft");
+    let (mut s, ms, to, id) = microsoft_and_imap(&path);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert!(sync_request(&s, to).unwrap().places.is_empty(), "waits");
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
+    s.ask_for_lost_originals();
+    assert!(!graph_deletes(&s, ms));
+    let asked = crate::cmd::graph_mail::graph_fetch_request(&s, ms, None, 10).unwrap();
+    assert_eq!(asked.ids, ["AAkA7"]);
+
+    let fetched = vec![GraphFetched { id: "AAkA7".into(), mime: long_signed() }];
+    let result = GraphFetchResult { account: ms, email: "owner@example.org".into(), fetched, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
+    assert!(s.mailbox.message(copy).unwrap().has_original());
+    assert!(crate::cmd::graph_down::fetch_queue(&s.mailbox, ms, 10, s.now()).is_empty(), "asked once");
+    assert!(sync_request(&s, to).unwrap().places.is_empty(), "in memory alone");
+    save(&mut s, &path);
+    let asked = sync_request(&s, to).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert_eq!(place.message.original_bytes(), Some(long_signed().as_slice()));
+    assert!(!graph_deletes(&s, ms), "not before the copy is there");
+    apply_sync(&mut s, SyncResult { account: to, placed: vec![put(&asked, copy, 60)], ..Default::default() }).unwrap();
+    assert!(graph_deletes(&s, ms));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The copy, still waiting to go onto the other server, moved onto this computer: the server's
+/// copy goes only once this one is safe here, whole in the mailbox file with the bytes it came
+/// as, which are asked for from that server meanwhile.
+#[test]
+fn a_waiting_copy_moved_onto_this_computer_keeps_the_delete_until_it_is_safe_here() {
+    let dir = folder("local");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let kept = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    s.run("mail.move", &json!({"ids": [copy], "folder": kept})).unwrap();
+    assert!(!deletes(&s, from), "not in the mailbox file yet");
+    save(&mut s, &path);
+    assert!(!deletes(&s, from), "the bytes it came as can't be read here");
+    s.ask_for_lost_originals();
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    assert_eq!(crate::cmd::imap_again::wanted(&s.mailbox, from, s.now()).get(&inbox).map(Vec::as_slice), Some(&[1u32][..]));
+    refetched(&mut s, from, 1, &long_signed());
+    assert!(s.mailbox.message(copy).unwrap().has_original());
+    assert!(!deletes(&s, from), "in memory alone");
+    save(&mut s, &path);
+    assert!(deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Out of a Microsoft account alike: the delete waits as a move out of that server does.
+#[test]
+fn a_waiting_copy_of_a_microsoft_message_moved_onto_this_computer_keeps_the_delete_until_it_is_safe_here() {
+    use mailcraft_model::sync::{GraphFetchResult, GraphFetched};
+    let dir = folder("ms-local");
+    let path = dir.join("mailbox.mailcraft");
+    let (mut s, ms, to, id) = microsoft_and_imap(&path);
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let kept = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    s.run("mail.move", &json!({"ids": [copy], "folder": kept})).unwrap();
+    save(&mut s, &path);
+    assert!(!graph_deletes(&s, ms), "the bytes it came as can't be read here");
+    s.ask_for_lost_originals();
+    let fetched = vec![GraphFetched { id: "AAkA7".into(), mime: long_signed() }];
+    let result = GraphFetchResult { account: ms, email: "owner@example.org".into(), fetched, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
+    assert!(s.mailbox.message(copy).unwrap().has_original());
+    save(&mut s, &path);
+    assert!(graph_deletes(&s, ms));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Copies into two accounts: each is asked for the bytes from the server that has the message,
+/// one after the other, and its delete goes once both are there.
+#[test]
+fn two_copies_of_a_signed_message_deleted_for_good_both_get_its_bytes() {
+    let dir = folder("two");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let third = imap_account(&mut s, "home@mail.example", vec![]);
+    let (b, c) = (s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(third, FolderKind::Inbox).unwrap());
+    let copy_b = s.run("mail.copy", &json!({"ids": [id], "folder": b})).unwrap()["copies"][0].as_u64().unwrap();
+    let copy_c = s.run("mail.copy", &json!({"ids": [id], "folder": c})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, third);
+    s.ask_for_lost_originals();
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    let asked = |s: &Session| crate::cmd::imap_again::moved_out(&s.mailbox, from).get(&(inbox, 1)).copied();
+    assert_eq!(asked(&s), Some(copy_b));
+    refetched(&mut s, from, 1, &long_signed());
+    assert_eq!(asked(&s), Some(copy_c));
+    refetched(&mut s, from, 1, &long_signed());
+    assert_eq!(asked(&s), None);
+    save(&mut s, &path);
+    let (asked_b, asked_c) = (sync_request(&s, to).unwrap(), sync_request(&s, third).unwrap());
+    assert_eq!((asked_b.places.len(), asked_c.places.len()), (1, 1));
+    apply_sync(&mut s, SyncResult { account: to, placed: vec![put(&asked_b, copy_b, 60)], ..Default::default() }).unwrap();
+    assert!(!deletes(&s, from), "the other copy still waits");
+    apply_sync(&mut s, SyncResult { account: third, placed: vec![put(&asked_c, copy_c, 61)], ..Default::default() }).unwrap();
+    assert!(deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// At the mailbox's cap on the bytes protected messages came as, a copy is made without them:
+/// deleted for good, the message gives them to the copy, which doesn't go made of its parts.
+#[test]
+fn at_the_cap_a_copy_of_a_signed_message_deleted_for_good_gets_the_bytes_it_came_as() {
+    let (mut s, from, to, id) = two_imap();
+    let used = s.mailbox.messages.originals_size();
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    let rest = mailcraft_model::ContentRef { sha256: [7; 32], len: mailcraft_model::MAX_ORIGINALS - used };
+    let original = Some(mailcraft_model::Original { data: std::sync::Arc::default(), kept: Some(rest) });
+    s.mailbox.add_message(Message { folder: inbox, subject: "Other".into(), original, ..Default::default() }).unwrap();
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    assert!(s.mailbox.message(copy).unwrap().original.is_none(), "no room");
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert_eq!(s.mailbox.message(copy).unwrap().original_bytes(), Some(long_signed().as_slice()));
+    let asked = sync_request(&s, to).unwrap();
+    assert!(asked.places.iter().all(|p| p.message.original_bytes().is_some()), "not made of its parts");
+    assert!(!deletes(&s, from));
+}
+
+/// The copy moved back into the account the message was deleted from, before it is there: it
+/// waits for the bytes from that server alike, and goes as it came.
+#[test]
+fn a_waiting_copy_moved_back_into_its_messages_account_waits_for_the_bytes_alike() {
+    let dir = folder("back");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let (mine, theirs) = (s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap());
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    s.run("mail.move", &json!({"ids": [copy], "folder": mine})).unwrap();
+    save(&mut s, &path);
+    assert!(sync_request(&s, from).unwrap().places.is_empty(), "made of its parts, it would be taken for the message");
+    s.ask_for_lost_originals();
+    assert_eq!(crate::cmd::imap_again::wanted(&s.mailbox, from, s.now()).get(&mine).map(Vec::as_slice), Some(&[1u32][..]));
+    refetched(&mut s, from, 1, &long_signed());
+    save(&mut s, &path);
+    let asked = sync_request(&s, from).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert_eq!(place.message.original_bytes(), Some(long_signed().as_slice()));
+    assert!(!asked.ops.iter().any(|op| matches!(op, RemoteOp::Delete { .. })));
+    apply_sync(&mut s, SyncResult { account: from, placed: vec![put(&asked, copy, 60)], ..Default::default() }).unwrap();
+    assert!(deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The server refuses the bytes: the copy waits, and Check again asks once more.
+#[test]
+fn a_refused_ask_for_a_waiting_copys_bytes_can_be_checked_again() {
+    let dir = folder("refused");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
+    s.ask_for_lost_originals();
+    let inbox =
+        FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, refetch_done: vec![1], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: from, folders: vec![inbox], ..Default::default() }).unwrap();
+    let m = s.mailbox.message(copy).unwrap();
+    assert_ne!(m.original_retry, 0);
+    assert!(crate::cmd::mail::check_again::why_not(&s.mailbox, m).is_none());
+    s.run("mail.checkAgain", &json!({"id": copy})).unwrap();
+    assert!(!deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A message that isn't protected: its copy goes at once, as before.
+#[test]
+fn a_copy_of_an_unprotected_message_deleted_for_good_goes_at_once() {
+    let mut s = Session::empty();
+    let read = Message { uid: 1, ..mailcraft_mime::parse_fetched(&long_unprotected()) };
+    let from = imap_account(&mut s, "avery@mail.example", vec![read]);
+    let to = imap_account(&mut s, "work@mail.example", vec![]);
+    let id = s.mailbox.messages.values().find(|m| m.account == from).unwrap().id;
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert_eq!(sync_request(&s, to).unwrap().places.len(), 1);
 }

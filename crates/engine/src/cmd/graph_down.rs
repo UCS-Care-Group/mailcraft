@@ -495,6 +495,7 @@ pub fn fetch_queue_passing_over(mb: &Mailbox, account: Id, most: usize, now: Tim
         .values()
         .filter(|m| (still_to_fetch(mb, m) || wants_from_source(m)) && !m.incomplete)
         .filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account && !skip(&out.id)).map(|out| out.id.clone()))
+        .chain(copies_asking(mb, account).filter(|(id, _)| !skip(id)).map(|(id, _)| id.to_string()))
         .take(most)
         .collect();
     out.extend(fetch_queue_of_account(mb, account, most.saturating_sub(out.len()), now, &skip));
@@ -565,11 +566,14 @@ pub fn take_fetched(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: 
 
 /// [`take_fetched`], answering which message it was.
 pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: &str, mime: &[u8]) -> Option<Id> {
-    let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id))?;
+    let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id));
+    // (Or the copy of one deleted for good here that asked the server for its bytes, #566.)
+    let held = here.is_none().then(|| copies_asking(mb, account).find(|(at, _)| *at == id).map(|(_, copy)| copy)).flatten();
+    let here = here.or(held)?;
     // Only while it is still what it was when it was asked for (AU3-16): headers only, no change
     // of the owner's waiting to go up, not queued to be sent. An answer that comes after it was
     // fetched another way, edited or sent is dropped, so that it never undoes what was done here.
-    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
+    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m) || held.is_some()) {
         return None;
     }
     let mut read = crate::mime::parse_fetched(mime);
@@ -697,6 +701,25 @@ pub(crate) fn gone_with_folders(s: &mut crate::Session, account: Id, listing: &m
 /// all it has here staying as it is.
 pub(crate) fn wants_from_source(m: &Message) -> bool {
     m.original_wanted && !m.unfetched && m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty())
+}
+
+/// The messages deleted for good here whose delete from `account`'s server waits for a copy of
+/// them on its way to another account's server (#566), where that copy asks the server for the
+/// bytes it came as (#30, [`crate::cmd::mail::check_again::ask_source`]): by the server's id, and
+/// the copy, fetched for them alone as one being moved out is ([`wants_from_source`]).
+pub(crate) fn copies_asking(mb: &Mailbox, account: Id) -> impl Iterator<Item = (&str, Id)> + '_ {
+    mb.queued.iter().filter_map(move |q| match q {
+        Queued::DeleteMessage { account: a, id, kept: Some(kept) } if *a == account => {
+            let copy = mb.queued.iter().find_map(|q| match q {
+                Queued::PlaceMessage { account, message, source: Some(s), .. } if *s == kept.id => {
+                    mb.message(*message).filter(|m| m.account == *account && m.original_wanted && !m.unfetched).map(|m| m.id)
+                }
+                _ => None,
+            })?;
+            Some((id.as_str(), copy))
+        }
+        _ => None,
+    })
 }
 
 /// Whether `m` is one to fetch whole, and may take what was fetched: it is still only its headers

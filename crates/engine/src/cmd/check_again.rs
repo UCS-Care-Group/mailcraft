@@ -117,8 +117,8 @@ pub(crate) fn source_copy(mb: &Mailbox, id: Id) -> Option<(Id, bool)> {
         return Some((out.account, false));
     }
     // Or a copy of one deleted for good here, which goes from its server once the copy is on its
-    // own (#566): that server has it still.
-    if let Some(held) = mb.held_for_copy(id).filter(|(account, _)| *account != m.account) {
+    // own (#566): that server has it still, also when the copy was moved back into its account.
+    if let Some(held) = mb.held_for_copy(id) {
         return Some(held);
     }
     let pending = mb.pending.iter().find(|p| matches!(p, Pending::Move { message, .. } if *message == id))?;

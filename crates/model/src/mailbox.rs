@@ -2432,7 +2432,14 @@ impl Mailbox {
     /// message again and this copy goes at once.
     fn place_called_off(&mut self, id: Id, to: Id, fresh: bool) {
         if !fresh {
+            let source = self.queued.iter().find_map(|q| match q {
+                Queued::PlaceMessage { message, source, .. } if *message == id => *source,
+                _ => None,
+            });
             self.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
+            if let Some(source) = source.filter(|_| self.account(to).is_some_and(|a| a.kind == AccountKind::Local)) {
+                self.held_delete_follows(id, source);
+            }
         }
         let elsewhere = self.original_elsewhere(id, fresh);
         let Some(m) = self.message(id) else { return };
@@ -2463,6 +2470,39 @@ impl Mailbox {
         // (An original on an IMAP server goes by its own account's move out of it.)
         if let Some(original) = original.filter(|out| !out.left) {
             self.queued.push(Queued::DeleteMessage { account: original.account, id: original.id, kept: None });
+        }
+    }
+
+    /// `copy`, a copy of `source` that was on its way to another account's server while `source`,
+    /// deleted for good here, waited to go from its own (#566), stays on this computer instead.
+    /// When no other copy of `source` waits, that delete becomes the move out of the server a
+    /// message moved onto this computer makes ([`Pending::Move`] of an IMAP account's,
+    /// [`Message::moving_out`] of a Microsoft account's): the server's copy goes only once `copy`
+    /// is safe here, whole in the mailbox file with the bytes a protected message came as (#30),
+    /// which are asked for from that server meanwhile.
+    fn held_delete_follows(&mut self, copy: Id, source: Id) {
+        let Some(here) = self.message(copy).filter(|m| m.moving_out.is_none()).map(|m| m.folder) else { return };
+        if self.copy_waits_for(source) {
+            return;
+        }
+        let held = |kept: &Option<Box<Message>>| kept.as_ref().is_some_and(|k| k.id == source);
+        for p in &mut self.pending {
+            let Pending::Delete { account, from, uid, kept, .. } = p else { continue };
+            if held(kept) {
+                let synced = kept.as_ref().and_then(|k| k.synced);
+                *p = Pending::Move { account: *account, message: copy, from: std::mem::take(from), uid: *uid, synced, to: here };
+                return;
+            }
+        }
+        let at = self.queued.iter().position(|q| matches!(q, Queued::DeleteMessage { kept, .. } if held(kept)));
+        let Some(Queued::DeleteMessage { account, id, kept }) = at.map(|at| self.queued.remove(at)) else { return };
+        // (Where the server has it: as it lay in its account, or as it was being moved out of it.)
+        let folder = kept.as_ref().and_then(|k| {
+            let lay = k.server.as_ref().filter(|s| s.id == id).map(|s| s.folder.clone());
+            lay.or_else(|| k.moving_out.as_ref().filter(|out| out.id == id).map(|out| out.folder.clone()))
+        });
+        if let Ok(m) = self.message_mut(copy) {
+            m.moving_out = Some(crate::sync::MovingOut { account, id, folder: folder.unwrap_or_default(), ..Default::default() });
         }
     }
 
@@ -2756,6 +2796,29 @@ impl Mailbox {
             })
     }
 
+    /// The copies of `source` on their way to another account's server ([`Mailbox::copy_waits_for`])
+    /// that were made without the bytes it came as (#30), at the mailbox's cap on them
+    /// ([`Mailbox::add_message`]): given them, as `source` goes for good here (#566).
+    fn originals_to_copies(&mut self, source: Id) {
+        let Some(original) = self.message(source).and_then(|m| m.original.clone()) else { return };
+        let copies: Vec<Id> = self
+            .queued
+            .iter()
+            .filter_map(|q| match q {
+                Queued::PlaceMessage { message, source: Some(s), .. } if *s == source => Some(*message),
+                _ => None,
+            })
+            .collect();
+        for copy in copies {
+            if let Ok(m) = self.message_mut(copy)
+                && m.original.is_none()
+                && !m.parts_removed
+            {
+                m.original = Some(original.clone());
+            }
+        }
+    }
+
     /// Remove a message for good, as its owner asks. When the server has it, a
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
@@ -2772,6 +2835,11 @@ impl Mailbox {
         // for that copy's answer, and comes back here should the copy be refused (#566), with the
         // copy's content, which the copy names for the mailbox file (what is kept here isn't).
         let kept = self.copy_waits_for(id).then(|| self.message(id).map(|m| Box::new(m.without_content()))).flatten();
+        // The bytes a protected message came as (#30), which a copy made at the mailbox's cap on
+        // them went without: the copies have them now, the same bytes it lets go of.
+        if kept.is_some() {
+            self.originals_to_copies(id);
+        }
         self.queue_graph_delete(id, true);
         match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
