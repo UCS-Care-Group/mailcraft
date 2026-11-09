@@ -57,6 +57,11 @@ has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being
 - Some English words mean two things. Such an entry has a `msgctxt` that says which: `msgctxt
   "folder"` with `msgid "Archive"` is the folder, the same `msgid` without a context is the
   command. Translate each as its meaning needs.
+- A month's name has two entries: the plain one is the month inside a date (`{day} {month}`),
+  the one with `msgctxt "month alone"` is the month with a year and nothing else
+  (`{month} {year}`, a calendar's heading). Most languages give both the same word and need
+  translate the plain one only; a language whose names change with their place (Russian: `11
+  октября`, `Октябрь 2026`) gives each its own. An empty one is the plain name.
 
 Translations are contributed like code, by pull request, under the [Contributor Licence
 Agreement](../CLA.md).

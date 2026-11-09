@@ -15906,6 +15906,90 @@ msgstr "несоответствие"
 msgid "month"
 msgstr "месяц"
 
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "April"
+msgstr "Апрель"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "August"
+msgstr "Август"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "December"
+msgstr "Декабрь"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "February"
+msgstr "Февраль"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "January"
+msgstr "Январь"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "July"
+msgstr "Июль"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "June"
+msgstr "Июнь"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "March"
+msgstr "Март"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "May"
+msgstr "Май"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "November"
+msgstr "Ноябрь"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "October"
+msgstr "Октябрь"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgctxt "month alone"
+msgid "September"
+msgstr "Сентябрь"
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy

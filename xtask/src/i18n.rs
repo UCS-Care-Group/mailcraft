@@ -813,6 +813,15 @@ fn dates(toks: &[Tok], file: &str, texts: &mut Texts) {
         let Some(eq) = (i..toks.len()).find(|k| toks.get(*k) == Some(&Tok::Punct('='))) else { continue };
         let end = (eq..toks.len()).find(|k| toks.get(*k) == Some(&Tok::Punct(';'))).unwrap_or(toks.len());
         let value = toks.get(eq + 1..end).unwrap_or_default();
+        // The month names where a month stands alone: a context of their own (`date.rs`).
+        if matches!(toks.get(i + 1), Some(Tok::Ident(n)) if n == "MONTHS_ALONE") {
+            for t in value {
+                if let Tok::Str(m) = t {
+                    add_in(texts, Some("month alone"), m, None, file, "date and time");
+                }
+            }
+            continue;
+        }
         match value {
             [Tok::Punct('('), Tok::Str(one), Tok::Punct(','), Tok::Str(many), Tok::Punct(')')] => {
                 add(texts, one, Some(many), file, "date and time");
@@ -996,6 +1005,7 @@ mod tests {
             fn needs_message(s: &Session) -> Option<&'static str> { if x { None } else { Some("select a message") } }
             fn all() { vec![CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).when(|s| Some("nothing to undo"))] }
             const MONTHS: [&str; 2] = ["January", "May"];
+            const MONTHS_ALONE: [&str; 2] = ["January", "May"];
             const MEDIUM: &str = "{month} {day}, {year}";
             const DAYS: (&str, &str) = ("{n} day", "{n} days");
         "#;
@@ -1005,7 +1015,22 @@ mod tests {
         reasons(&toks, "e.rs", &mut texts);
         dates(&toks, "crates/i18n/src/date.rs", &mut texts);
         let ids: Vec<&str> = texts.keys().map(String::as_str).collect();
-        assert_eq!(ids, ["Home", "January", "May", "Reply", "Respond", "nothing to undo", "select a message", "{month} {day}, {year}", "{n} day"]);
+        assert_eq!(
+            ids,
+            [
+                "Home",
+                "January",
+                "May",
+                "Reply",
+                "Respond",
+                "month alone\u{4}January",
+                "month alone\u{4}May",
+                "nothing to undo",
+                "select a message",
+                "{month} {day}, {year}",
+                "{n} day"
+            ]
+        );
         assert_eq!(texts.get("{n} day").and_then(|f| f.plural.as_deref()), Some("{n} days"));
     }
 

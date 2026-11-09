@@ -18,6 +18,11 @@ use crate::{Catalogue, Lang, fmt};
 /// The months, January first.
 const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /// The months, short (`Oct 3`).
+/// The same names where a month stands alone (`October 2026`): a language whose names change with
+/// their place in a date (Russian says `11 октября` and `Октябрь 2026`) gives them in this context
+/// (`msgctxt "month alone"`); the others need none.
+const MONTHS_ALONE: [&str; 12] =
+    ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MONTHS_SHORT: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /// The days of the week, Monday first.
 const WEEKDAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -88,6 +93,8 @@ pub trait Words {
     /// The form of `one` / `other` a count of `n` takes, placeholders unfilled.
     fn tn<'a>(&'a self, n: u64, one: &'a str, other: &'a str) -> &'a str;
     fn conventions(&self) -> Conventions;
+    /// `s` (English) in `context`, when the catalogue has an entry there.
+    fn in_context<'a>(&'a self, context: &str, s: &'a str) -> Option<&'a str>;
 }
 
 impl Words for Lang {
@@ -99,6 +106,12 @@ impl Words for Lang {
     }
     fn conventions(&self) -> Conventions {
         Lang::conventions(*self)
+    }
+    fn in_context<'a>(&'a self, context: &str, s: &'a str) -> Option<&'a str> {
+        match self {
+            Lang::English | Lang::Pseudo => None,
+            lang => super::catalogue(*lang).and_then(|c| c.get(&crate::po::key(Some(context), s))),
+        }
     }
 }
 
@@ -113,6 +126,9 @@ impl Words for (&Catalogue, Conventions) {
     }
     fn conventions(&self) -> Conventions {
         self.1
+    }
+    fn in_context<'a>(&'a self, context: &str, s: &'a str) -> Option<&'a str> {
+        self.0.get(&crate::po::key(Some(context), s))
     }
 }
 
@@ -130,6 +146,15 @@ pub struct Day {
 /// The name of `month` (1–12); empty for any other number.
 pub fn month_name<W: Words + ?Sized>(w: &W, month: u8) -> &str {
     name(w, &MONTHS, usize::from(month).wrapping_sub(1))
+}
+
+/// The name of `month` where it stands alone, with a year (`October`); [`month_name`] where the
+/// language has no other.
+pub fn month_alone<W: Words + ?Sized>(w: &W, month: u8) -> &str {
+    match MONTHS_ALONE.get(usize::from(month).wrapping_sub(1)) {
+        Some(n) => w.in_context("month alone", n).unwrap_or_else(|| w.t(n)),
+        None => "",
+    }
 }
 
 /// `Oct`.
@@ -173,7 +198,7 @@ pub fn numeric<W: Words + ?Sized>(w: &W, d: Day) -> String {
 
 /// `October 2026`.
 pub fn month_year<W: Words + ?Sized>(w: &W, year: i32, month: u8) -> String {
-    fmt(w.t(MONTH_YEAR), &[("month", month_name(w, month)), ("year", &year.to_string())])
+    fmt(w.t(MONTH_YEAR), &[("month", month_alone(w, month)), ("year", &year.to_string())])
 }
 
 /// `Wed, Oct 14, 2026`.
@@ -364,6 +389,24 @@ mod tests {
         assert_eq!(month_name(&fr, 5), "May");
     }
 
+    /// A language that names a month differently alone and in a date (Russian: `11 октября`,
+    /// `Октябрь 2026`) says so with the `month alone` context; the others need no entry.
+    #[test]
+    fn a_month_standing_alone_has_its_own_name_where_the_catalogue_gives_one() {
+        let c = Catalogue::parse(concat!(
+            "msgid \"\"\nmsgstr \"Plural-Forms: nplurals=2; plural=(n > 1);\\n\"\n\n",
+            "msgid \"October\"\nmsgstr \"octobre\"\n\n",
+            "msgctxt \"month alone\"\nmsgid \"October\"\nmsgstr \"Octobre\"\n\n",
+            "msgid \"{month} {year}\"\nmsgstr \"{month} {year}\"\n",
+        ));
+        let w = (&c, Lang::French.conventions());
+        assert_eq!((month_name(&w, 10), month_alone(&w, 10), month_year(&w, 2026, 10)), ("octobre", "Octobre", "Octobre 2026".to_string()));
+        // No entry in the context: the month's name as a date has it; English: its own.
+        assert_eq!(month_alone(&w, 5), "May");
+        assert_eq!((month_alone(&Lang::English, 10), month_alone(&Lang::English, 13)), ("October", ""));
+        assert_eq!(month_year(&Lang::German, 2026, 10), "Oktober 2026");
+    }
+
     #[test]
     fn each_language_has_its_own_clock_and_week() {
         assert_eq!(Lang::English.conventions(), Conventions { twelve_hour: true, week_start: 6, pad_numeric: false });
@@ -388,6 +431,9 @@ mod tests {
         assert_eq!(said(Lang::Dutch), ("zondag 11 oktober 2026".into(), "03-10-2025".into(), "21:05".into()));
         // Russian: the month in a date is in the genitive.
         assert_eq!(said(Lang::Russian), ("воскресенье, 11 октября 2026 г.".into(), "03.10.2025".into(), "21:05".into()));
+        // Standing alone, in the nominative.
+        assert_eq!(month_year(&Lang::Russian, 2026, 10), "Октябрь 2026 г.");
+        assert_eq!(month_year(&Lang::German, 2026, 10), "Oktober 2026");
         assert_eq!(duration(&Lang::Russian, 1), "1 минута");
         assert_eq!(
             (duration(&Lang::Russian, 2), duration(&Lang::Russian, 5), duration(&Lang::Russian, 21)),
