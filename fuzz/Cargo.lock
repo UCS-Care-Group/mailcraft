@@ -403,6 +403,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "mailcraft-assuan"
+version = "0.11.1"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "mailcraft-charset"
 version = "0.11.1"
 dependencies = [
@@ -461,6 +468,7 @@ name = "mailcraft-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "mailcraft-assuan",
  "mailcraft-charset",
  "mailcraft-dav",
  "mailcraft-engine",

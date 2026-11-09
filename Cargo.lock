@@ -2258,6 +2258,7 @@ dependencies = [
  "image",
  "keyring-core",
  "log",
+ "mailcraft-assuan",
  "mailcraft-charset",
  "mailcraft-control-key",
  "mailcraft-engine",
@@ -2284,6 +2285,14 @@ dependencies = [
  "winresource",
  "zbus",
  "zbus-secret-service-keyring-store",
+]
+
+[[package]]
+name = "mailcraft-assuan"
+version = "0.11.1"
+dependencies = [
+ "proptest",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
