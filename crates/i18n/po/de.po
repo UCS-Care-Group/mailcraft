@@ -7331,7 +7331,7 @@ msgstr "OK"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Object"
-msgstr Objekt"
+msgstr "Objekt"
 
 #. date and time
 #: crates/i18n/src/date.rs
