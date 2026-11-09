@@ -97,6 +97,79 @@ The application registration discussed below is different from your account cred
 Desktop registration value comes from the build or process environment; MailCraft does not
 provide a client-secret preference or write that value to `ui.json`.
 
+## Gmail's inbox categories
+
+Gmail sorts the mail of an Inbox into five categories: **Primary**, **Social**, **Promotions**,
+**Updates** and **Forums**. MailCraft shows them as five folders under the Inbox of every account
+on Gmail's servers (`imap.gmail.com`), personal or Google Workspace, whether it signs in with
+Google or with an app password. Each shows the Inbox's mail Gmail put in it, with its count of
+unread messages; in conversation view, a conversation is listed in a category when any of its
+messages is in it. The mail stays in the Inbox: the five are views of it, and can't be renamed,
+deleted or have mail moved into them. Mail moved or copied out of the Inbox is in none of them.
+
+At every Send/Receive, MailCraft asks Gmail's own search (the `X-GM-RAW` search of Google's
+Gmail IMAP extensions) which of the Inbox's messages are in Social, Promotions, Updates and
+Forums; Primary is the rest. Nothing else is sent for it, and it is read the same way over an
+app password as over Google sign-in. Only Inbox mail is sorted; archived mail is not. An account
+whose Inbox Gmail doesn't sort (every message in Primary) shows no categories. The browser build
+doesn't read them; a mailbox opened there keeps what was last read.
+
+In **Account Settings**, under **Gmail categories**:
+
+- **Show Gmail's categories under the Inbox** (on by default) hides the five when it is off.
+- **Desktop alerts only for mail in Primary** (off by default) keeps new mail that Gmail puts in
+  the other four categories from raising a desktop alert.
+
+### As tabs above the Inbox
+
+To have the five as a row of tabs above the Inbox's message list instead of folders in the folder
+pane, choose **View** › **Gmail Categories** › **As Tabs above the Inbox** (**As Folders** goes
+back). The choice is offered while a Gmail account shows its categories, and the window keeps it
+with its other View settings. Each tab shows its count of unread messages. The Inbox opens on all
+of its mail with no tab chosen; choosing a tab shows that category's mail, and choosing it again
+goes back to the whole Inbox. Tab reaches the tabs, the arrow keys move between them, and Enter or
+Space chooses one. In a narrow message list the tabs take two lines rather than shortening their
+names. Agents choose the same with `view.gmailCategories` (`{"value": "tabs"}` or `"folders"`).
+
+Gmail's categories are not MailCraft's own categories: search for them with
+`gmail:primary`, `gmail:social`, `gmail:promotions`, `gmail:updates` or `gmail:forums`, while
+`category:` still finds your own. Agents see a message's `gmailCategory` beside its other fields.
+
+### Moving mail between categories
+
+Gmail lets you move a message from one category to another, and MailCraft is built to as well:
+drag messages onto a category's folder or tab, or right-click them and choose **Move to Category**
+and one of the five. The move shows here at once, can be undone, and goes to Gmail at the next
+Send/Receive, also when you made it offline; in conversation view, every message of the
+conversation in that Inbox moves. A move made here wins over Gmail until Gmail has it; a change
+made only in Gmail (on the web, on a phone) is taken in at the next Send/Receive. Agents move
+mail with `mail.setGmailCategory` (`{"ids": [...], "category": "social"}`), naming the messages
+as for a move to a folder: those messages move, with any other copy here of the same Gmail message
+(Gmail keeps one category for a message), and never other messages of their conversations.
+
+**This is switched off in this version**, and comes once Google has reviewed MailCraft's use of
+Gmail's API for it: until then the item isn't in the menu or in command search, the folders and
+tabs take no messages, and nothing is sent to Gmail's API. A move left waiting by a build that had
+it switched on gives way to Gmail's category at the next Send/Receive.
+
+Gmail's IMAP extensions can read the categories but not change them, so a move goes through
+Gmail's API (`gmail.googleapis.com`, one request for each category moved to): the messages' Gmail
+ids (`X-GM-MSGID`) and the category's label (Primary is `CATEGORY_PERSONAL`; the other four are
+taken off), with the account's Google sign-in, whose `https://mail.google.com/` permission covers
+it. Nothing else of the messages goes. Gmail answers such a request as a whole: when it refuses
+one, MailCraft sends it again in halves, after every category's first request, so that the rest
+still go (at most 32 requests a Send/Receive; what is left waits for the next). A message Gmail
+refuses on its own is asked for again at the next Send/Receive; once Gmail has refused it three
+times (a Send/Receive that didn't get to try it counts neither way) the move is given up, the
+message stays where Gmail has it, and MailCraft says so ("Gmail wouldn't move 1 message"). A new
+move of yours starts the count again. A message Gmail no longer has is set right at the next reading of the
+Inbox.
+
+Once moving is switched on, an account that signs in with an **app password** will still only show
+the categories: Gmail's API takes no app password, so its Move to Category will be greyed, with a
+note that it needs Google sign-in, and switching the account to Google sign-in will let it move.
+The browser build won't move them either.
+
 ## Google restrictions and useful error distinctions
 
 A development registration and an organisation's access policy are separate checks. An HTTP

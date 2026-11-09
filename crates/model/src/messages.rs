@@ -38,7 +38,28 @@ fn chunk_of(id: Id) -> Id {
 pub struct Messages {
     chunks: BTreeMap<Id, Arc<Chunk>>,
     len: usize,
+    originals: Originals,
 }
+
+/// The bytes of originals (#30) the map holds, kept as a running total ([`Messages::originals_size`]):
+/// each chunk's share, and the chunks changed since (any way of changing one marks it), whose
+/// shares are worked out again when the total is next asked for. A total is thus at most a
+/// chunk's work, however many messages the map holds. Not part of what the map is: two maps
+/// with the same messages are equal whatever each has worked out.
+#[derive(Clone, Default)]
+struct Originals {
+    per_chunk: BTreeMap<Id, u64>,
+    stale: std::collections::BTreeSet<Id>,
+    total: u64,
+}
+
+impl PartialEq for Originals {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Originals {}
 
 /// A message that differs between two maps ([`Messages::changes`]): as it was, and as it is.
 /// `None` for one that isn't there.
@@ -51,6 +72,22 @@ impl Messages {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// How many bytes of originals (`Message::original`, #30) the messages hold, in memory or
+    /// kept outside it: a running total, brought up to date for the chunks changed since it was
+    /// last asked for.
+    pub fn originals_size(&mut self) -> u64 {
+        let o = &mut self.originals;
+        for key in std::mem::take(&mut o.stale) {
+            let share = self
+                .chunks
+                .get(&key)
+                .map_or(0, |c| c.values().filter_map(|m| m.original.as_ref()).map(crate::Original::size).fold(0u64, u64::saturating_add));
+            let was = if share == 0 { o.per_chunk.remove(&key) } else { o.per_chunk.insert(key, share) };
+            o.total = o.total.saturating_sub(was.unwrap_or(0)).saturating_add(share);
+        }
+        o.total
     }
 
     /// The chunks, in order: for an index of the messages that follows the map chunk by chunk
@@ -79,10 +116,12 @@ impl Messages {
         if !chunk.contains_key(id) {
             return None;
         }
+        self.originals.stale.insert(chunk_of(*id));
         Arc::make_mut(chunk).get_mut(id)
     }
 
     pub fn insert(&mut self, id: Id, message: Arc<Message>) -> Option<Arc<Message>> {
+        self.originals.stale.insert(chunk_of(id));
         let chunk = Arc::make_mut(self.chunks.entry(chunk_of(id)).or_default());
         let was = chunk.insert(id, message);
         if was.is_none() {
@@ -97,6 +136,7 @@ impl Messages {
         if !chunk.contains_key(id) {
             return None;
         }
+        self.originals.stale.insert(key);
         let shared = Arc::make_mut(chunk);
         let was = shared.remove(id);
         if shared.is_empty() {
@@ -111,6 +151,7 @@ impl Messages {
     pub fn clear(&mut self) {
         self.chunks.clear();
         self.len = 0;
+        self.originals = Originals::default();
     }
 
     pub fn iter(&self) -> Iter<'_> {
@@ -133,11 +174,13 @@ impl Messages {
 
     /// Every message, to change: every chunk becomes this map's own (a copy of those shared).
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Arc<Message>> {
+        self.originals.stale.extend(self.chunks.keys().copied());
         self.chunks.values_mut().flat_map(|c| Arc::make_mut(c).values_mut())
     }
 
     /// [`Messages::values_mut`] with the ids.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Id, &mut Arc<Message>)> {
+        self.originals.stale.extend(self.chunks.keys().copied());
         self.chunks.values_mut().flat_map(|c| Arc::make_mut(c).iter_mut())
     }
 
@@ -150,6 +193,7 @@ impl Messages {
             if gone.is_empty() {
                 continue;
             }
+            self.originals.stale.insert(*key);
             let own = Arc::make_mut(chunk);
             for id in &gone {
                 own.remove(id);
