@@ -397,7 +397,7 @@ fn microsoft() -> (MailApp, Recorder, Id, Jobs) {
 fn arrive(app: &mut MailApp, ctx: &egui::Context, account: Id, id: &str, subject: &str) {
     frame(app, ctx, false);
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
     frame(app, ctx, false);
     bring(app, account, id, subject);
     app.sync_rx = None;
@@ -464,7 +464,7 @@ fn a_rule_that_reads_the_text_shows_its_alert_once_the_message_is_downloaded_and
     // A download that ends during a Send/Receive: told of once that is over.
     arrive(&mut app, &ctx, account, "N3", "July");
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
     frame(&mut app, &ctx, false);
     download(&mut app, &jobs, "N3", "July", "The invoice for July.");
     frame(&mut app, &ctx, false);
@@ -475,7 +475,7 @@ fn a_rule_that_reads_the_text_shows_its_alert_once_the_message_is_downloaded_and
     // Brought and downloaded within one Send/Receive: one alert, at its end.
     frame(&mut app, &ctx, false);
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
     frame(&mut app, &ctx, false);
     bring(&mut app, account, "N5", "September");
     download(&mut app, &jobs, "N5", "September", "The invoice for September.");
