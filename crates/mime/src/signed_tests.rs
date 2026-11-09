@@ -146,17 +146,19 @@ fn signed_data(content: &[u8]) -> Vec<u8> {
     tlv(0x30, &[&signed[..], &tlv(0xa0, &sd)].concat())
 }
 
-/// Signed data inside signed data, deeper than anything is opened: read to the bound, no further.
+/// Signed data inside signed data opens once: the rest stays one file, so that nesting can't make
+/// a message many times the size it came as (#30 review 3).
 #[test]
-fn signed_data_nested_deep_is_read_to_a_bound() {
-    let mut entity = b"Content-Type: text/plain\r\n\r\ndeepest\r\n".to_vec();
-    for _ in 0..40 {
+fn signed_data_inside_signed_data_opens_once() {
+    let mut entity = [&b"Content-Type: text/plain\r\n\r\n"[..], &vec![b'x'; 200_000], b"\r\n"].concat();
+    for _ in 0..30 {
         entity = [&b"Content-Type: application/pkcs7-mime; smime-type=signed-data\r\nContent-Transfer-Encoding: binary\r\n\r\n"[..], &signed_data(&entity)]
             .concat();
     }
     let m = crate::parse(&entity);
-    assert!(!m.body.text.contains("deepest"));
-    assert!(m.attachments.len() <= 21, "{}", m.attachments.len());
+    let kept: usize = m.attachments.iter().map(|a| a.data.len()).sum();
+    assert!(kept <= 2 * entity.len(), "{kept} bytes kept of {} that came", entity.len());
+    assert_eq!(m.attachments.len(), 2, "the outer file, and the one inside it");
     let shallow = [&b"Content-Type: application/pkcs7-mime\r\n\r\n"[..], &signed_data(b"Content-Type: text/plain\r\n\r\nnear\r\n")].concat();
     assert_eq!(crate::parse(&shallow).body.text.trim_end(), "near");
 }

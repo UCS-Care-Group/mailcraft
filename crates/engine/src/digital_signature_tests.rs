@@ -4,8 +4,8 @@
 //! hands in, kept for the session, given to an agent read only, and the signer's certificate
 //! kept for the sender's address. RFC 9216's example certificates, signed by OpenSSL.
 
-use mailcraft_model::Mailbox;
 use mailcraft_model::digital_signature::{Verdict, Why};
+use mailcraft_model::{Mailbox, Message};
 use serde_json::json;
 
 use crate::Session;
@@ -201,8 +201,12 @@ fn an_opaque_signed_message_is_read_as_what_it_holds() {
     assert_eq!(s.digital_signature_part(id), Some(0));
     let quoted = s.loaded_for_reply(id).unwrap();
     assert!(quoted.body.text.contains("The signed minutes are attached."));
-    let agent = s.run("mail.get", &json!({"id": id})).unwrap().to_string();
-    assert!(agent.contains("The signed minutes are attached.") && agent.contains("minutes.pdf"), "{agent}");
+    let agent = s.run("mail.get", &json!({"id": id})).unwrap();
+    assert!(agent["body"].as_str().unwrap().contains("The signed minutes are attached."));
+    // The signature file is the result's, not among the files, as in the window.
+    let files: Vec<&str> = agent["attachments"].as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap()).collect();
+    assert_eq!(files, ["minutes.pdf"]);
+    assert_eq!(agent["digitalSignature"]["signaturePart"], 0);
     // The file inside opens as any other.
     assert!(s.content(id, crate::Part::Attachment(1)).unwrap().starts_with(b"%PDF-1.4"));
 }
@@ -272,4 +276,70 @@ fn an_opaque_part_of_a_wrapper_is_read_in_its_place() {
     assert!(signed < footer, "{text:?}");
     let d = s.digital_signature(ids[0]).unwrap();
     assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::PartlySigned)));
+}
+
+/// The signature part is told by its very bytes: a file of S/MIME's type and the same size, but
+/// other bytes, put before it is a file (#30 review 3).
+#[test]
+fn the_signature_part_is_told_by_its_bytes() {
+    let (mut s, ids) = session_with(&[DETACHED]);
+    s.set_trust_anchors([CA]);
+    let m = s.mailbox.messages.get(&ids[0]).unwrap().clone();
+    let real = m.attachments.iter().find(|a| a.name == "smime.p7s").unwrap().clone();
+    let mut decoy = real.clone();
+    let mut bytes = real.data.as_ref().clone();
+    *bytes.last_mut().unwrap() ^= 0xff;
+    decoy.data = std::sync::Arc::new(bytes);
+    decoy.name = "notes.p7s".into();
+    let mut two = Message::clone(&m);
+    two.attachments = vec![decoy, real.clone()];
+    let inbox = s.mailbox.inbox().unwrap();
+    two.folder = inbox;
+    let id = s.mailbox.add_message(two).unwrap();
+    let m = s.mailbox.messages.get(&id).unwrap().clone();
+    assert_eq!(s.signature_part(&m, &real.data), Some(1));
+}
+
+/// A row's result is asked for at every frame: the keys it rests on are hashed once for each
+/// change of them, not at each asking (#30 review 3).
+#[test]
+fn the_keys_are_hashed_once_for_each_change() {
+    use std::sync::atomic::Ordering;
+    let (mut s, ids) = session_with(&[DETACHED]);
+    s.set_trust_anchors([CA]);
+    s.digital_signature(ids[0]).unwrap();
+    let before = s.signatures.hashed.load(Ordering::Relaxed);
+    for _ in 0..100 {
+        assert!(s.digital_signature_known(ids[0]).is_some());
+    }
+    assert!(s.signatures.hashed.load(Ordering::Relaxed) <= before + 1, "{}", s.signatures.hashed.load(Ordering::Relaxed) - before);
+    s.mailbox.public_keys.add("alice@smime.example", key_of(CA));
+    assert!(s.digital_signature_known(ids[0]).is_none(), "another key kept is seen");
+}
+
+/// An opaque signed message read by a build before its content was read with it has it read
+/// from the bytes it came as when it is first checked, once (#30 review 3).
+#[test]
+fn an_opaque_message_read_before_is_read_again_once() {
+    let mut mb = Mailbox::with_local_account("Bob", "bob@smime.example");
+    let inbox = mb.inbox().unwrap();
+    let mut m = mailcraft_mime::parse_fetched(OPAQUE_FILES);
+    m.folder = inbox;
+    // As an older build read it: the file it came as, and nothing else.
+    m.body = Default::default();
+    m.attachments.truncate(1);
+    let id = mb.add_message(m).unwrap();
+    let mut s = Session::new(mb);
+    s.clock.now = Some(NOW);
+    s.set_trust_anchors([CA]);
+    assert_eq!(s.digital_signature(id).unwrap().verdict, Verdict::Verified);
+    let m = s.mailbox.messages.get(&id).unwrap().clone();
+    assert!(m.body.text.contains("The signed minutes are attached."), "{:?}", m.body.text);
+    let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(names, ["smime.p7m", "minutes.pdf"]);
+    assert!(s.dirty);
+    // Checked again (a new day): nothing read twice.
+    s.clock.now = Some(NOW + 86_400);
+    s.digital_signature(id).unwrap();
+    assert_eq!(s.mailbox.messages.get(&id).unwrap().attachments.len(), 2);
 }

@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -42,23 +43,60 @@ pub struct PublicKey {
     pub seen: Timestamp,
 }
 
-/// The Public keys of each address, by the address in lower case.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
-pub struct PublicKeys(BTreeMap<String, Vec<PublicKey>>);
+/// The Public keys of each address, by the address in lower case. Written as that map alone.
+#[derive(Clone, Debug)]
+pub struct PublicKeys {
+    keys: BTreeMap<String, Vec<PublicKey>>,
+    /// A number no other set of keys has had, taken anew at each change: what was worked out
+    /// from the keys (a Digital signature's result) holds while it is the same.
+    revision: u64,
+}
+
+/// The next [`PublicKeys::revision`].
+static NEXT_REVISION: AtomicU64 = AtomicU64::new(1);
+
+fn fresh_revision() -> u64 {
+    NEXT_REVISION.fetch_add(1, Ordering::Relaxed)
+}
+
+impl Default for PublicKeys {
+    fn default() -> Self {
+        PublicKeys { keys: BTreeMap::new(), revision: fresh_revision() }
+    }
+}
+
+impl PartialEq for PublicKeys {
+    fn eq(&self, other: &Self) -> bool {
+        self.keys == other.keys
+    }
+}
+
+impl Eq for PublicKeys {}
+
+impl Serialize for PublicKeys {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.keys.serialize(s)
+    }
+}
 
 impl PublicKeys {
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.keys.is_empty()
     }
 
     /// How many addresses have keys.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.keys.len()
     }
 
     /// The keys kept for `address`, newest seen first.
     pub fn of(&self, address: &str) -> &[PublicKey] {
-        self.0.get(&key_of(address)).map_or(&[], Vec::as_slice)
+        self.keys.get(&key_of(address)).map_or(&[], Vec::as_slice)
+    }
+
+    /// This set of keys' revision: another set, or this one once it has changed, has another.
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// Keep `key` for `address`: a key kept already (by fingerprint) is only seen again. Whether
@@ -72,7 +110,7 @@ impl PublicKeys {
         if key.fingerprint.is_empty() || key.fingerprint.len() > 256 {
             return false;
         }
-        let keys = self.0.entry(address).or_default();
+        let keys = self.keys.entry(address).or_default();
         if let Some(kept) = keys.iter_mut().find(|k| k.fingerprint == key.fingerprint && k.format == key.format) {
             if kept.seen >= key.seen {
                 return false;
@@ -84,16 +122,17 @@ impl PublicKeys {
         keys.sort_by_key(|k| std::cmp::Reverse(k.seen));
         keys.truncate(MAX_KEYS_PER_ADDRESS);
         self.trim();
+        self.revision = fresh_revision();
         true
     }
 
     /// Past [`MAX_KEY_ADDRESSES`], the addresses seen longest ago go.
     fn trim(&mut self) {
-        while self.0.len() > MAX_KEY_ADDRESSES {
-            let oldest = self.0.iter().min_by_key(|(_, keys)| keys.first().map_or(0, |k| k.seen)).map(|(a, _)| a.clone());
+        while self.keys.len() > MAX_KEY_ADDRESSES {
+            let oldest = self.keys.iter().min_by_key(|(_, keys)| keys.first().map_or(0, |k| k.seen)).map(|(a, _)| a.clone());
             match oldest {
                 Some(a) => {
-                    self.0.remove(&a);
+                    self.keys.remove(&a);
                 }
                 None => break,
             }

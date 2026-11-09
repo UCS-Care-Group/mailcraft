@@ -17,7 +17,7 @@
 //! next command: what the check learns is no step of the history (and an undo leaves it).
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use mailcraft_model::digital_signature::{Coverage, DigitalSignature, SignatureFormat, Verdict, Why};
 use mailcraft_model::public_keys::PublicKey;
@@ -41,6 +41,12 @@ pub(crate) struct SignatureChecks {
     anchors_read: Option<bool>,
     /// Signers' certificates to keep for their addresses at the next command.
     to_keep: Vec<(String, PublicKey)>,
+    /// The hash of the keys kept for each address, with the revision of the keys it was worked
+    /// out at: a row's result is asked of at every frame, and the keys change seldom.
+    key_hashes: Mutex<HashMap<String, (u64, u64)>>,
+    /// How many times keys were hashed, for the tests.
+    #[cfg(test)]
+    pub(crate) hashed: std::sync::atomic::AtomicUsize,
 }
 
 /// What a check found of one message.
@@ -65,18 +71,41 @@ struct Basis {
 }
 
 fn basis(session: &Session, m: &Message) -> Basis {
-    use std::hash::{Hash, Hasher};
-    let mut keys = std::collections::hash_map::DefaultHasher::new();
-    for k in session.mailbox.public_keys.of(&m.from.email) {
-        k.fingerprint.hash(&mut keys);
-        k.data.hash(&mut keys);
-    }
+    let from = m.from.email.trim().to_lowercase();
     Basis {
         original: m.original.as_ref().filter(|o| o.is_there()).map(|o| (o.size(), o.kept.map(|k| k.sha256))),
-        from: m.from.email.trim().to_lowercase(),
-        known: keys.finish(),
+        known: keys_hash(session, &from),
+        from,
         day: session.now().div_euclid(86_400),
     }
+}
+
+/// The hash of the keys kept for `address`: worked out once for each revision of the keys.
+fn keys_hash(session: &Session, address: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let keys = &session.mailbox.public_keys;
+    let revision = keys.revision();
+    let mut cache = session.signatures.key_hashes.lock().ok();
+    if let Some((at, hash)) = cache.as_ref().and_then(|c| c.get(address))
+        && *at == revision
+    {
+        return *hash;
+    }
+    #[cfg(test)]
+    session.signatures.hashed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for k in keys.of(address) {
+        k.fingerprint.hash(&mut hasher);
+        k.data.hash(&mut hasher);
+    }
+    let hash = hasher.finish();
+    if let Some(cache) = cache.as_mut() {
+        if cache.len() >= MAX_KEPT {
+            cache.clear();
+        }
+        cache.insert(address.to_string(), (revision, hash));
+    }
+    hash
 }
 
 /// Whether what is here of `m` (its parts, without the bytes it came as) carries an S/MIME
@@ -186,6 +215,9 @@ impl Session {
             // (OpenPGP is checked elsewhere.)
             mailcraft_mime::SignedKind::PgpDetached => return Found::default(),
         };
+        if parts.kind == mailcraft_mime::SignedKind::SmimeOpaque {
+            self.read_opaque_again(m, &bytes);
+        }
         let known: Vec<Arc<Vec<u8>>> =
             self.mailbox.public_keys.of(&m.from.email).iter().filter(|k| k.format == SignatureFormat::Smime).map(|k| k.data.clone()).collect();
         let known: Vec<&[u8]> = known.iter().map(|k| k.as_slice()).collect();
@@ -215,9 +247,33 @@ impl Session {
         Found { result: Some(Arc::new(checked.signature)), part: self.signature_part(m, &parts.signature) }
     }
 
+    /// An opaque signed message read before its content was read with it (a build before #30's)
+    /// has nothing but the file it came as: its text and files are read now from the bytes it came
+    /// as, once (with the caps every message is read with), no step of the history.
+    fn read_opaque_again(&mut self, m: &Message, bytes: &[u8]) {
+        let bare = !m.body_is_kept()
+            && m.body.text.trim().is_empty()
+            && m.body.html.is_none()
+            && matches!(m.attachments.as_slice(), [only] if only.mime.to_ascii_lowercase().contains("pkcs7-mime"));
+        if !bare {
+            return;
+        }
+        let read = mailcraft_mime::parse(bytes);
+        let files: Vec<mailcraft_model::Attachment> = read.attachments.into_iter().skip(1).collect();
+        if read.body.text.trim().is_empty() && read.body.html.is_none() && files.is_empty() {
+            return;
+        }
+        if let Ok(stored) = self.mailbox.message_mut(m.id) {
+            stored.body = read.body;
+            stored.hidden_text = read.hidden_text;
+            stored.attachments.extend(files);
+            self.dirty = true;
+        }
+    }
+
     /// The attachment of `m` that is the Digital signature `signature`: of S/MIME's type, and
     /// those very bytes (a file of the same name or type sent along is another part).
-    fn signature_part(&self, m: &Message, signature: &[u8]) -> Option<usize> {
+    pub(crate) fn signature_part(&self, m: &Message, signature: &[u8]) -> Option<usize> {
         m.attachments.iter().enumerate().find_map(|(i, a)| {
             let fits = a.mime.to_ascii_lowercase().contains("pkcs7") && a.size() == signature.len();
             (fits && self.content(m.id, Part::Attachment(i)).is_ok_and(|bytes| bytes.as_slice() == signature)).then_some(i)

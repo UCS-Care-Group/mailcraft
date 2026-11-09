@@ -588,18 +588,35 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
     // Its text, from where the mailbox keeps it when it isn't in memory (a text that can't be
     // read says so in its place).
     let _ = s.load_where(id, |_| false);
+    // What checking its Digital signature found (#30): MailCraft's own check, read only. (First:
+    // an opaque signed message read by an older build has its content read with it then.)
+    let signature = signature_for_agent(s, id);
+    let part = s.digital_signature_part(id);
     let m = s.mailbox.messages.get(&id).cloned().ok_or_else(|| failed!("no message with id {id}", id))?;
     // What may not be what it seems about it (sender warnings): worked out by MailCraft from the
     // account's server's verdict, the sender and the links, never from what the message asks.
     let warnings = s.sender_warnings(&m, true);
-    // What checking its Digital signature found (#30): MailCraft's own check, read only.
-    let signature = s.digital_signature(id).map_or(Value::Null, |d| d.for_agent(id));
     let mut v = message_json(s, &m);
     if let Some(o) = v.as_object_mut() {
         o.insert("warnings".into(), Value::Array(warnings.iter().map(mailcraft_model::sender_warnings::Warning::json).collect()));
         o.insert("digitalSignature".into(), signature);
+        // The signature file is the result's, not one of the message's files, as in the window.
+        if let (Some(part), Some(Value::Array(files))) = (part, o.get_mut("attachments")) {
+            files.retain(|f| f["index"].as_u64() != Some(part as u64));
+        }
     }
     Ok(v)
+}
+
+/// What checking message `id`'s Digital signature found, for an agent, with which attachment the
+/// signature file is (`signaturePart`, opened or saved by its index as any other).
+fn signature_for_agent(s: &mut Session, id: Id) -> Value {
+    let Some(d) = s.digital_signature(id) else { return Value::Null };
+    let mut v = d.for_agent(id);
+    if let (Some(part), Some(o)) = (s.digital_signature_part(id), v.as_object_mut()) {
+        o.insert("signaturePart".into(), json!(part));
+    }
+    v
 }
 
 /// What checking message `id`'s Digital signature found (#30), as an agent is given it.
@@ -608,7 +625,7 @@ fn digital_signature(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
-    let signature = s.digital_signature(id).map_or(Value::Null, |d| d.for_agent(id));
+    let signature = signature_for_agent(s, id);
     Ok(serde_json::json!({"id": id, "digitalSignature": signature}))
 }
 

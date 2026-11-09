@@ -17,6 +17,13 @@ const MAX_DEPTH: usize = 20;
 /// Most MIME parts read from one message.
 const MAX_PARTS: usize = 1000;
 
+/// How many S/MIME opaque signed parts of one message are opened (#30): one. Signed data inside
+/// signed data is a file, so that nesting can't make a message many times its size (each level
+/// would be kept as a file and opened again).
+const MAX_OPAQUE: usize = 1;
+/// The most bytes opened from opaque signed parts in one message: past it they stay files.
+const MAX_OPAQUE_BYTES: usize = 64 * 1024 * 1024;
+
 /// Most unmodelled header fields kept in [`Message::headers`], and their total size in bytes.
 const MAX_KEPT_HEADERS: usize = 200;
 const MAX_KEPT_BYTES: usize = 64 * 1024;
@@ -211,6 +218,10 @@ struct Walk {
     html: Option<String>,
     attachments: Vec<Attachment>,
     parts: usize,
+    /// Opaque signed parts opened so far, and the bytes of what they held ([`MAX_OPAQUE`],
+    /// [`MAX_OPAQUE_BYTES`]).
+    opaque: usize,
+    opaque_bytes: usize,
 }
 
 impl Walk {
@@ -277,12 +288,23 @@ impl Walk {
         let inline = disposition.value == "inline" || (!content_id.is_empty() && parent == Parent::Related);
         let data = Arc::new(decode(body, &encoding));
         // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
-        // the file itself (which its Digital signature is checked from). Not one sent along as a
-        // file inside another message, and nothing is checked here.
+        // the file itself. Not one sent along as a file inside another message, and nothing is
+        // checked here. The file is kept beside what it holds (about twice the room): it is the
+        // Digital signature's own file, which Details opens and saves and an agent is pointed to
+        // (`signaturePart`), and a message read without the bytes it came as (past the cap of
+        // those) has nothing else to check its signature from; the window and `mail.get` leave it
+        // out of the files.
         let pkcs7 = matches!(mime.as_str(), "application/pkcs7-mime" | "application/x-pkcs7-mime");
-        let signed = (pkcs7 && (depth == 0 || disposition.value != "attachment") && depth < MAX_DEPTH)
-            .then(|| mailcraft_model::ber::signed_content(&data))
-            .flatten();
+        let openable = pkcs7
+            && (depth == 0 || disposition.value != "attachment")
+            && depth < MAX_DEPTH
+            && self.opaque < MAX_OPAQUE
+            && data.len() <= MAX_OPAQUE_BYTES.saturating_sub(self.opaque_bytes);
+        let signed = openable.then(|| mailcraft_model::ber::signed_content(&data)).flatten();
+        if let Some(content) = &signed {
+            self.opaque = self.opaque.saturating_add(1);
+            self.opaque_bytes = self.opaque_bytes.saturating_add(content.len());
+        }
         self.attachments.push(Attachment { name, mime, content_id, inline, data, kept: None });
         if let Some(content) = signed {
             let (inner_headers, inner_body) = header::split(&content, false);
