@@ -520,6 +520,12 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
         }
     }
     out.imported = keys.join(" ");
+    // The certificates and keys of every contact merged, each once (at most what a contact keeps).
+    for key in contacts.iter().skip(1).flat_map(|c| &c.keys) {
+        if out.keys.len() < Contact::MAX_KEYS && !out.keys.contains(key) {
+            out.keys.push(key.clone());
+        }
+    }
     if out.imported_from.is_empty() {
         out.imported_from = contacts.iter().map(|c| c.imported_from.as_str()).find(|f| !f.is_empty()).unwrap_or_default().to_string();
     }

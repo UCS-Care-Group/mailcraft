@@ -48,6 +48,66 @@ impl PostalAddress {
     }
 }
 
+/// What a key on a contact's card is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KeyKind {
+    /// An S/MIME certificate (X.509, DER).
+    #[default]
+    X509,
+    /// An OpenPGP public key, binary or ASCII-armoured, as the card had it.
+    OpenPgp,
+    /// Where the card says a key is ([`ContactKey::uri`]); never fetched.
+    Uri,
+    /// A kind written by a later version: kept, never written to a vCard.
+    #[serde(other)]
+    Unknown,
+}
+
+/// A public key or certificate a contact's card carries (vCard `KEY`), kept as it came. Nothing
+/// here reads, checks or trusts it: these are bytes that travel with the contact through import
+/// and export.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactKey {
+    pub kind: KeyKind,
+    /// The key's bytes; empty for a [`KeyKind::Uri`]. Base64 in JSON.
+    #[serde(with = "key_bytes", skip_serializing_if = "Vec::is_empty")]
+    pub data: Vec<u8>,
+    /// For a [`KeyKind::Uri`]: the address the card gave (`https:`, `ldap:`, `openpgp4fpr:`).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub uri: String,
+    /// For a [`KeyKind::Uri`]: what the card says is there, [`ContactKey::X509_MEDIA_TYPE`] or
+    /// [`ContactKey::OPENPGP_MEDIA_TYPE`]; empty when it doesn't say.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub media_type: String,
+}
+
+impl ContactKey {
+    /// Most bytes of one key kept.
+    pub const MAX_BYTES: usize = 64 * 1024;
+    /// Longest address of a key kept, in bytes.
+    pub const MAX_URI: usize = 2048;
+    /// The media type of an S/MIME certificate.
+    pub const X509_MEDIA_TYPE: &str = "application/pkix-cert";
+    /// The media type of OpenPGP keys.
+    pub const OPENPGP_MEDIA_TYPE: &str = "application/pgp-keys";
+}
+
+/// A key's bytes as base64 text in JSON.
+mod key_bytes {
+    use serde::{Deserialize as _, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&mailcraft_charset::base64::STANDARD.encode(v))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let text = String::deserialize(d)?;
+        mailcraft_charset::base64::STANDARD.decode(text.trim()).map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Contact {
@@ -70,6 +130,10 @@ pub struct Contact {
     pub notes: String,
     pub categories: Vec<String>,
     pub favorite: bool,
+    /// The S/MIME certificates and OpenPGP keys the contact's card carried (vCard `KEY`), at most
+    /// [`Contact::MAX_KEYS`]: written back on export, kept by an edit and a merge, not searched.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<ContactKey>,
     /// vCard `UID`, kept so an exported card updates the same contact elsewhere.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub uid: String,
@@ -91,6 +155,9 @@ pub struct Contact {
 }
 
 impl Contact {
+    /// Most keys kept for one contact.
+    pub const MAX_KEYS: usize = 32;
+
     /// The name to show: the display name, else first and last, the company, or the first address.
     pub fn name(&self) -> String {
         if !self.display_name.trim().is_empty() {
