@@ -17401,7 +17401,7 @@ msgstr "{weekday}, {day}. {month}"
 #. date and time
 #: crates/i18n/src/date.rs
 msgid "{weekday}, {month} {day}, {year}"
-msgstr "{weekday}, {day}. {month}. {year}"
+msgstr "{weekday}, {day}. {month} {year}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
