@@ -16613,6 +16613,7 @@ msgstr[1] "{n} Dateien ausgelassen"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
+#, fuzzy
 msgid "{n} file or folder is left out: not a mailbox file, a link, or over a limit"
 msgid_plural "{n} files or folders are left out: not mailbox files, links, or over a limit"
 msgstr[0] "{n} Datei oder Ordner wird ausgelassen: keine Postfachdatei, ein Link oder über einem Grenzwert"
