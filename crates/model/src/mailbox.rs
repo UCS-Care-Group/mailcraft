@@ -2731,6 +2731,31 @@ impl Mailbox {
         })
     }
 
+    /// The account whose server still has the message `copy` was copied from, which was deleted
+    /// for good here and goes from that server once `copy` is on its own ([`Mailbox::copy_waits_for`],
+    /// #566), and whether that is a [`Pending::Delete`] of an IMAP account's (else a
+    /// [`Queued::DeleteMessage`]): where the bytes a protected message came as (#30) may be still.
+    pub fn held_for_copy(&self, copy: Id) -> Option<(Id, bool)> {
+        let m = self.message(copy)?;
+        let source = self.queued.iter().find_map(|q| match q {
+            Queued::PlaceMessage { account, message, source: Some(s), .. } if *message == copy && *account == m.account => Some(*s),
+            _ => None,
+        })?;
+        let held = |kept: &Option<Box<Message>>| kept.as_ref().is_some_and(|k| k.id == source);
+        self.pending
+            .iter()
+            .find_map(|p| match p {
+                Pending::Delete { account, kept, .. } if held(kept) => Some((*account, true)),
+                _ => None,
+            })
+            .or_else(|| {
+                self.queued.iter().find_map(|q| match q {
+                    Queued::DeleteMessage { account, kept, .. } if held(kept) => Some((*account, false)),
+                    _ => None,
+                })
+            })
+    }
+
     /// Remove a message for good, as its owner asks. When the server has it, a
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.

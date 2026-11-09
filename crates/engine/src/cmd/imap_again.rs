@@ -161,6 +161,18 @@ pub(crate) fn moved_out(mb: &Mailbox, account: Id) -> HashMap<(Id, u32), Id> {
                 let folder = mb.folders.iter().find(|f| f.account == account && f.remote == from)?;
                 Some(((folder.id, uid), m.id))
             }
+            // And a copy, made in another account, of one deleted for good here, which goes from
+            // the server once the copy is there (#566).
+            mailcraft_model::Pending::Delete { kept: Some(kept), .. } => {
+                let (from, uid) = p.source();
+                let copy = mb.queued.iter().find_map(|q| match q {
+                    mailcraft_model::Queued::PlaceMessage { message, source: Some(s), .. } if *s == kept.id => Some(*message),
+                    _ => None,
+                })?;
+                let m = mb.message(copy).filter(|m| m.refetch && m.original_wanted && m.account != account && uid != 0)?;
+                let folder = mb.folders.iter().find(|f| f.account == account && f.remote == from)?;
+                Some(((folder.id, uid), m.id))
+            }
             _ => None,
         })
         .collect()

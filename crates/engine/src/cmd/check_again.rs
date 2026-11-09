@@ -116,6 +116,11 @@ pub(crate) fn source_copy(mb: &Mailbox, id: Id) -> Option<(Id, bool)> {
     if let Some(out) = m.moving_out.as_ref().filter(|out| (!out.left || out.listing) && !out.id.is_empty()) {
         return Some((out.account, false));
     }
+    // Or a copy of one deleted for good here, which goes from its server once the copy is on its
+    // own (#566): that server has it still.
+    if let Some(held) = mb.held_for_copy(id).filter(|(account, _)| *account != m.account) {
+        return Some(held);
+    }
     let pending = mb.pending.iter().find(|p| matches!(p, Pending::Move { message, .. } if *message == id))?;
     (pending.account() != m.account).then(|| (pending.account(), true))
 }

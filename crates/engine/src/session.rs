@@ -2260,7 +2260,15 @@ impl Session {
     pub(crate) fn placeable(&self, m: &Message) -> Result<Option<Arc<Message>>, CmdError> {
         let whole = self.loaded_message(m.id)?;
         let fell_back = m.original.is_some() && whole.original.is_none();
-        Ok((!fell_back || !crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id)).then_some(whole))
+        let may_hold = crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id);
+        // A copy of one deleted for good here, which goes from its server once the copy is on its
+        // own (#566), goes only once the bytes it came as are whole on the disk here, as a copy
+        // something was moved out of is let go of ([`crate::cmd::graph_place::safe_here`]): then
+        // nothing can be lost with that one, wherever the copy is put and whatever of it.
+        if may_hold && m.original.is_some() && self.mailbox.held_for_copy(m.id).is_some() && !self.original_readable(m, true) {
+            return Ok(None);
+        }
+        Ok((!fell_back || !may_hold).then_some(whole))
     }
 
     /// Why message `m`, moved elsewhere, waits for the bytes it came as (#30), when it does

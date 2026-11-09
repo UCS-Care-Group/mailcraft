@@ -613,20 +613,21 @@ impl Message {
         self.placed.clear();
     }
 
-    /// The message without its content (its text, HTML, the words its sender hid and its files,
-    /// in memory or kept on disk): where and how it lies, for a copy that gives it its content
-    /// back (#566).
+    /// The message without its content (its text, HTML, the words its sender hid, its files and
+    /// the bytes it came as (#30), in memory or kept on disk): where and how it lies, for a copy
+    /// that gives it its content back (#566).
     pub fn without_content(&self) -> Message {
-        Message { body: Body::default(), hidden_text: String::new(), attachments: Vec::new(), kept: None, ..self.clone() }
+        Message { body: Body::default(), hidden_text: String::new(), attachments: Vec::new(), kept: None, original: None, ..self.clone() }
     }
 
-    /// The content of `other` (its text, HTML, the words its sender hid and its files, in memory
-    /// or as `other` names them on disk) in place of this one's.
+    /// The content of `other` (its text, HTML, the words its sender hid, its files and the bytes
+    /// it came as, in memory or as `other` names them on disk) in place of this one's.
     pub fn take_content_of(&mut self, other: &Message) {
         self.body = other.body.clone();
         self.hidden_text = other.hidden_text.clone();
         self.attachments = other.attachments.clone();
         self.kept = other.kept.clone();
+        self.original = other.original.clone();
     }
 
     /// A message put back with what it kept of itself, given `other`'s content ([`Message::take_content_of`])
