@@ -57,6 +57,7 @@ fn set_category(s: &mut Session, v: &Value) -> CmdResult {
     // Named messages move alone, as `mail.move` moves them; a selection in conversation view
     // takes its conversations along.
     let all = if named { ids } else { with_conversations(s, &ids) };
+    let all = with_copies(s, all);
     let before = s.rows();
     let mut moved = Vec::new();
     for id in &all {
@@ -65,6 +66,8 @@ fn set_category(s: &mut Session, v: &Value) -> CmdResult {
         if m.gmail_synced.is_none() {
             m.gmail_synced = m.gmail_category;
         }
+        // A new move of the owner's: Gmail's refusals of the one before don't count against it.
+        m.gmail_refusals = 0;
         if m.gmail_category != Some(category) {
             m.gmail_category = Some(category);
             moved.push(*id);
@@ -75,6 +78,25 @@ fn set_category(s: &mut Session, v: &Value) -> CmdResult {
         select_after_removal(s, &before, &moved);
     }
     Ok(json!({"moved": moved.len(), "category": category.code()}))
+}
+
+/// `ids`, and every other copy here of the same Gmail messages (one `X-GM-MSGID` in the same
+/// Inbox): Gmail has the message in one category, so its copies move together and the latest
+/// move is the one Gmail is told.
+fn with_copies(s: &Session, mut ids: Vec<Id>) -> Vec<Id> {
+    let mb = &s.mailbox;
+    let of: HashSet<(Id, Id, u64)> =
+        ids.iter().filter_map(|id| mb.message(*id)).filter(|m| m.gmail_id != 0).map(|m| (m.account, m.folder, m.gmail_id)).collect();
+    if of.is_empty() {
+        return ids;
+    }
+    let mut seen: HashSet<Id> = ids.iter().copied().collect();
+    for m in mb.messages.values() {
+        if m.gmail_id != 0 && of.contains(&(m.account, m.folder, m.gmail_id)) && seen.insert(m.id) && why_not_movable(s, m).is_none() {
+            ids.push(m.id);
+        }
+    }
+    ids
 }
 
 /// `ids`, and in conversation view every other message of their conversations that lies in the

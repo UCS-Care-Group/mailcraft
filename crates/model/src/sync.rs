@@ -708,6 +708,14 @@ pub struct SyncResult {
     /// here failed (see `errors`) or wasn't tried, and is asked for again next time.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub gmail_moved: Vec<GmailMove>,
+    /// The moves Gmail refused on their own, one message at a time (#911): asked for again next
+    /// time, up to [`crate::gmail::MAX_GMAIL_REFUSALS`] runs in a row.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_refused: Vec<GmailMove>,
+    /// How many moves weren't sent this run (the run's requests to Gmail's API ran out, or it
+    /// stopped on a problem said in `errors`); they wait for the next.
+    #[serde(skip_serializing_if = "is_zero_usize")]
+    pub gmail_unsent: usize,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
     /// piece of an answer: the problems since the piece before.
     pub errors: Vec<String>,
@@ -755,6 +763,8 @@ impl SyncResult {
             && self.filed.is_empty()
             && self.unfiled.is_empty()
             && self.unsure.is_empty()
+            && self.gmail_refused.is_empty()
+            && self.gmail_unsent == 0
             && self.pushed_count() == 0)
     }
 
@@ -781,6 +791,8 @@ impl SyncResult {
         self.placed.extend(later.placed);
         self.unplaced.extend(later.unplaced);
         self.gmail_moved.extend(later.gmail_moved);
+        self.gmail_refused.extend(later.gmail_refused);
+        self.gmail_unsent = self.gmail_unsent.saturating_add(later.gmail_unsent);
         self.errors.extend(later.errors);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
@@ -1248,6 +1260,10 @@ pub struct GraphFolder {
     /// which can't be deleted or moved (#756).
     #[serde(skip_serializing_if = "is_false")]
     pub well_known: bool,
+}
+
+fn is_zero_usize(n: &usize) -> bool {
+    *n == 0
 }
 
 fn is_zero_u32(n: &u32) -> bool {

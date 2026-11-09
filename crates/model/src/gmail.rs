@@ -21,6 +21,10 @@ use serde::{Deserialize, Serialize};
 // ponytail: on once Google has verified the app (#232).
 pub const GMAIL_CATEGORY_MOVES: bool = false;
 
+/// After how many runs in a row of Gmail refusing a message's move on its own the move is given
+/// up, and the message stays where Gmail has it ([`crate::Message::gmail_refusals`]).
+pub const MAX_GMAIL_REFUSALS: u8 = 3;
+
 use crate::{Account, Message, OAuthProvider};
 
 /// One of Gmail's five inbox categories.

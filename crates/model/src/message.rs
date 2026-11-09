@@ -267,6 +267,11 @@ pub struct Message {
     /// `None` until Gmail has said, and for a file from before moves.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub gmail_synced: Option<crate::GmailCategory>,
+    /// How many runs in a row Gmail refused the move waiting for this message on its own (#911):
+    /// at [`crate::gmail::MAX_GMAIL_REFUSALS`] the move is given up. 0 again when Gmail takes a
+    /// move or the owner makes a new one.
+    #[serde(skip_serializing_if = "is_zero_u8", deserialize_with = "crate::sync::lenient_or_default")]
+    pub gmail_refusals: u8,
     /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
@@ -419,6 +424,10 @@ fn is_zero_u64(n: &u64) -> bool {
     *n == 0
 }
 
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
+}
+
 impl Message {
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
@@ -436,7 +445,7 @@ impl Message {
     /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
     /// if anything (#911).
     pub fn left_gmail_inbox(&mut self) {
-        (self.gmail_category, self.gmail_synced, self.gmail_id) = (None, None, 0);
+        (self.gmail_category, self.gmail_synced, self.gmail_refusals, self.gmail_id) = (None, None, 0, 0);
     }
 
     /// Every recipient: To, Cc, Bcc.

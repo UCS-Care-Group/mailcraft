@@ -155,9 +155,13 @@ Gmail's IMAP extensions can read the categories but not change them, so a move g
 Gmail's API (`gmail.googleapis.com`, one request for each category moved to): the messages' Gmail
 ids (`X-GM-MSGID`) and the category's label (Primary is `CATEGORY_PERSONAL`; the other four are
 taken off), with the account's Google sign-in, whose `https://mail.google.com/` permission covers
-it. Nothing else of the messages goes. Gmail answers such a request as a whole; when it refuses
-one, MailCraft splits it a few times to send the rest, and a message Gmail no longer has is set
-right at the next reading of the Inbox.
+it. Nothing else of the messages goes. Gmail answers such a request as a whole: when it refuses
+one, MailCraft sends it again in halves, after every category's first request, so that the rest
+still go (at most 32 requests a Send/Receive; what is left waits for the next). A message Gmail
+refuses on its own is asked for again at the next Send/Receive; after three Send/Receives in a
+row the move is given up, the message stays where Gmail has it, and MailCraft says so ("Gmail
+wouldn't move 1 message"). A message Gmail no longer has is set right at the next reading of the
+Inbox.
 
 Once moving is switched on, an account that signs in with an **app password** will still only show
 the categories: Gmail's API takes no app password, so its Move to Category will be greyed, with a

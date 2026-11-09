@@ -98,7 +98,8 @@ pub struct State {
     pub messages: BTreeMap<u64, Vec<String>>,
     /// Every request it was sent, the latest [`MAX_KEPT`].
     pub requests: Vec<Asked>,
-    /// The statuses the next requests are answered with instead, one each, in order.
+    /// The statuses the next requests are answered with instead, one each, in order (0: that one
+    /// is answered as it would be).
     pub faults: VecDeque<u16>,
     /// A refusal repeats the request's `Authorization` header and body.
     pub echo: bool,
@@ -119,7 +120,8 @@ impl State {
 
     fn answer(&mut self, asked: &Asked) -> (u16, Value) {
         let refuse = |status: u16, why: &str| (status, json!({"error": {"code": status, "message": why, "status": "FAILED"}}));
-        if let Some(status) = self.faults.pop_front() {
+        // (0: this one is answered as it would be.)
+        if let Some(status) = self.faults.pop_front().filter(|status| *status != 0) {
             return refuse(status, "As the test asked.");
         }
         if asked.header("authorization") != format!("Bearer {}", self.token) {

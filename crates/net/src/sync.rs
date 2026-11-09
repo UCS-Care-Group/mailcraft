@@ -687,10 +687,17 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
 /// of each batch it takes go back as moved (Gmail answers a batch as a whole, so a message it no
 /// longer has goes back as moved too, and the next reading of the Inbox sets it right). Only for a
 /// Gmail account that signs in with Google, whose token the API takes, and only while moves are
-/// switched on in this build; else nothing is sent, whatever the request asks. A token or a
-/// permission Gmail doesn't take, Gmail busy or out of reach leave the rest for the next run; a
-/// batch it refuses doesn't hold up the others, and is sent again in halves. The problem is said
-/// once.
+/// switched on in this build; else nothing is sent, whatever the request asks.
+///
+/// A batch Gmail refuses (one id it no longer has refuses the lot) doesn't hold up the others: it
+/// is sent again as two halves, down to single messages, after every category's first batch has
+/// had its turn, so that one stale id costs a few requests and the rest still go this run, all of
+/// it at most `MAX_GMAIL_REQUESTS`. A message refused on its own goes back as refused
+/// ([`SyncResult::gmail_refused`]): the engine asks again at the next run, and after
+/// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] runs in a row gives the move up. Moves left
+/// when the requests run out go back as unsent ([`SyncResult::gmail_unsent`]) and wait for the
+/// next run. A token or a permission Gmail doesn't take, Gmail busy or out of reach stop the
+/// moves for this run, and that is said once.
 fn gmail_moves(run: &mut Run, host: Host) {
     /// The most requests to Gmail's API in one run, the halves of refused batches included.
     const MAX_GMAIL_REQUESTS: usize = 32;
@@ -707,53 +714,53 @@ fn gmail_moves(run: &mut Run, host: Host) {
             these.chunks(crate::gmail::MAX_BATCH).map(<[_]>::to_vec).collect::<Vec<_>>()
         })
         .collect();
-    let mut problem: Option<NetError> = None;
-    let mut failed = 0usize;
-    // Batches still to send, the next last. A batch Gmail refuses (one id it no longer has
-    // refuses the lot) is sent again as two halves, down to single messages, so that the rest
-    // still go this run: one stale id costs a few requests, all of them at most
-    // `MAX_GMAIL_REQUESTS`. A message refused alone is left for the next reading of the Inbox.
-    let mut work: Vec<Vec<_>> = batches.into_iter().rev().collect();
+    // Batches still to send, first in first out: halves queue behind every first batch.
+    let mut work: std::collections::VecDeque<Vec<_>> = batches.into();
     let mut asked = 0usize;
-    while let Some(batch) = work.pop() {
+    while let Some(mut batch) = work.pop_front() {
         if run.cancelled() {
-            break;
+            return;
         }
         if asked >= MAX_GMAIL_REQUESTS {
-            failed += batch.len() + work.iter().map(Vec::len).sum::<usize>();
-            break;
+            run.out.gmail_unsent = batch.len() + work.iter().map(Vec::len).sum::<usize>();
+            log::info!("gmail: {} moves between categories wait for the next run", run.out.gmail_unsent);
+            return;
         }
         let Some(category) = batch.first().map(|m| m.category) else { continue };
-        // Two moves of one message (two copies here with Gmail's one id) send it once.
+        // Two moves of one message (two copies here with Gmail's one id) send it once, and stay
+        // in one half when the batch is split.
+        batch.sort_by_key(|m| m.id);
         let mut ids: Vec<u64> = batch.iter().map(|m| m.id).collect();
-        ids.sort_unstable();
         ids.dedup();
         asked += 1;
         match crate::gmail::batch_modify(&request.access_token, &ids, category) {
             Ok(()) => run.out.gmail_moved.extend(batch.iter().copied().copied()),
             Err(NetError::Proto(ProtoError::Rejected(_))) if ids.len() > 1 => {
-                let (first, second) = batch.split_at(batch.len() / 2);
-                work.extend([second.to_vec(), first.to_vec()]);
+                let at = split_point(&batch);
+                let (first, second) = batch.split_at(at);
+                work.extend([first.to_vec(), second.to_vec()]);
             }
+            Err(NetError::Proto(ProtoError::Rejected(_))) => run.out.gmail_refused.extend(batch.iter().copied().copied()),
+            // Nothing was sent (it can't be, for a batch made here): it waits.
+            Err(NetError::Config(_)) => run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(batch.len()),
             Err(e) => {
-                failed += batch.len();
-                let these_alone = matches!(e, NetError::Proto(ProtoError::Rejected(_)) | NetError::Config(_));
-                problem.get_or_insert(e);
-                if !these_alone {
-                    failed += work.iter().map(Vec::len).sum::<usize>();
-                    break;
-                }
+                let failed = batch.len() + work.iter().map(Vec::len).sum::<usize>();
+                let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };
+                log::info!("gmail: {failed} moves between categories didn't go");
+                run.out.errors.push(format!("Couldn't move {what} between Gmail's categories: {e}"));
+                return;
             }
         }
     }
-    if failed > 0 && problem.is_none() {
-        problem = Some(NetError::Busy { text: "the rest goes at the next Send/Receive".into(), retry_after: None });
-    }
-    if let Some(e) = problem {
-        let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };
-        log::info!("gmail: {failed} moves between categories didn't go");
-        run.out.errors.push(format!("Couldn't move {what} between Gmail's categories: {e}"));
-    }
+}
+
+/// Where to split a batch sorted by Gmail's id in two: the middle, moved to the nearest place
+/// where the id changes, so that the moves of one message stay together. A batch with two ids
+/// or more always has one.
+fn split_point(batch: &[&mailcraft_model::sync::GmailMove]) -> usize {
+    let changes = |at: usize| at > 0 && at < batch.len() && batch.get(at - 1).map(|m| m.id) != batch.get(at).map(|m| m.id);
+    let mid = batch.len() / 2;
+    (0..batch.len()).flat_map(|d| [mid.saturating_add(d), mid.saturating_sub(d)]).find(|at| changes(*at)).unwrap_or(mid)
 }
 
 /// A size for a person to read: `100 MB`.

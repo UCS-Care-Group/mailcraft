@@ -320,7 +320,8 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
         }
         let synced = c.gmail_synced;
         if let Some(t) = out.messages.get_mut(id) {
-            Arc::make_mut(t).gmail_synced = synced;
+            let t = Arc::make_mut(t);
+            (t.gmail_synced, t.gmail_refusals) = (synced, 0);
         }
     }
     // Contacts the change didn't touch are as they are now (those an import put in and a later

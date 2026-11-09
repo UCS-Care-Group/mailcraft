@@ -8,6 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use mailcraft_model::gmail::MAX_GMAIL_REFUSALS;
 use mailcraft_model::sync::{
     Deleted, FlagsPushed, FolderDelta, FolderState, GmailMove, ImapPlace, MAX_GMAIL_MOVES, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags,
     RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
@@ -801,13 +802,69 @@ fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) -> HashSet<u6
         let ours = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0;
         let Some(m) = mb.message(done.message).filter(|m| ours(m)) else { continue };
         ids.insert(done.id);
-        if m.gmail_synced != Some(done.category)
+        if (m.gmail_synced != Some(done.category) || m.gmail_refusals != 0)
             && let Ok(m) = mb.message_mut(done.message)
         {
-            m.gmail_synced = Some(done.category);
+            (m.gmail_synced, m.gmail_refusals) = (Some(done.category), 0);
         }
     }
     ids
+}
+
+/// Moves between Gmail's categories that Gmail refused on their own this run, and how many
+/// weren't sent at all (#911). A move refused [`MAX_GMAIL_REFUSALS`] runs in a row is given up:
+/// the message stays where Gmail has it, and the owner is told. Said in `said`, in `lang`.
+fn gmail_refused(mb: &mut Mailbox, account: Id, (refused, unsent): (&[GmailMove], usize), lang: mailcraft_i18n::Lang, said: &mut Vec<String>) {
+    let (mut again, mut given_up) = (0u64, 0u64);
+    let mut seen = HashSet::new();
+    for done in refused {
+        // Still that move waiting (not moved on since), and counted once a run.
+        let waiting = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0 && m.gmail_move_waiting() == Some(done.category);
+        if !seen.insert(done.message) || !mb.message(done.message).is_some_and(waiting) {
+            continue;
+        }
+        let Ok(m) = mb.message_mut(done.message) else { continue };
+        m.gmail_refusals = m.gmail_refusals.saturating_add(1);
+        if m.gmail_refusals >= MAX_GMAIL_REFUSALS {
+            (m.gmail_category, m.gmail_refusals) = (m.gmail_synced, 0);
+            given_up += 1;
+        } else {
+            again += 1;
+        }
+    }
+    let fmt = |text: &str, n: u64, m: u64| mailcraft_i18n::fmt(text, &[("n", &n.to_string()), ("m", &m.to_string())]);
+    if given_up > 0 {
+        let text = lang.tn(
+            given_up,
+            "Gmail wouldn't move {n} message; it stays where Gmail has it",
+            "Gmail wouldn't move {n} messages; they stay where Gmail has them",
+        );
+        said.push(fmt(text, given_up, 0));
+    }
+    let unsent = u64::try_from(unsent).unwrap_or(u64::MAX);
+    if unsent > 0 && again > 0 {
+        let total = unsent.saturating_add(again);
+        let text = lang.tn(
+            total,
+            "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run",
+            "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run",
+        );
+        said.push(fmt(text, total, again));
+    } else if unsent > 0 {
+        let text = lang.tn(
+            unsent,
+            "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run",
+            "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run",
+        );
+        said.push(fmt(text, unsent, 0));
+    } else if again > 0 {
+        let text = lang.tn(
+            again,
+            "Gmail refused to move {n} message between its categories; it is asked again at the next run",
+            "Gmail refused to move {n} messages between its categories; they are asked again at the next run",
+        );
+        said.push(fmt(text, again, 0));
+    }
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -1200,6 +1257,8 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     }
     deletes_finished(mb, account, &mut on_server, &result.deleted);
     let moved_now = gmail_moved(mb, account, &result.gmail_moved);
+    let lang = s.interface_language;
+    gmail_refused(mb, account, (&result.gmail_refused, result.gmail_unsent), lang, &mut result.errors);
     places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);

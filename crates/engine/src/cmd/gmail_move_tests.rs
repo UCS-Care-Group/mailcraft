@@ -164,6 +164,87 @@ fn the_reading_of_the_run_that_moved_it_doesnt_undo_the_move() {
     assert_eq!(by_uid(&s, account, 3).gmail_category, Some(GmailCategory::Forums));
 }
 
+fn refused(account: Id, refused: Vec<GmailMove>, unsent: usize) -> SyncResult {
+    SyncResult { gmail_refused: refused, gmail_unsent: unsent, ..result(account, Vec::new(), Vec::new()) }
+}
+
+/// What a result said, taken in (the errors the run shows).
+fn said(s: &mut Session, r: SyncResult) -> Vec<String> {
+    let answer = apply_sync(s, r).unwrap();
+    answer["errors"].as_array().map(|a| a.iter().filter_map(|e| e.as_str().map(str::to_string)).collect()).unwrap_or_default()
+}
+
+#[test]
+fn a_move_gmail_keeps_refusing_is_given_up_after_three_runs() {
+    let (mut s, account, _) = sorted_inbox(true);
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    let no = vec![GmailMove { message: three, id: gmail_id(3), category: GmailCategory::Forums }];
+    // Two runs refused: asked again, and said so.
+    for run in 1..=2u8 {
+        let lines = said(&mut s, refused(account, no.clone(), 0));
+        assert!(lines.iter().any(|l| l.contains("Gmail refused to move 1 message")), "{lines:?}");
+        assert_eq!(by_uid(&s, account, 3).gmail_refusals, run);
+        assert_eq!(moves(&s, account).len(), 1);
+    }
+    // A new move of the owner's starts again from nothing.
+    s.run(ID, &json!({"ids": [three], "category": "updates"})).unwrap();
+    assert_eq!(by_uid(&s, account, 3).gmail_refusals, 0);
+    let no = vec![GmailMove { message: three, id: gmail_id(3), category: GmailCategory::Updates }];
+    said(&mut s, refused(account, no.clone(), 0));
+    said(&mut s, refused(account, no.clone(), 0));
+    // The third run in a row: given up, where Gmail has it, said once, nothing queued.
+    let lines = said(&mut s, refused(account, no.clone(), 0));
+    assert!(lines.iter().any(|l| l == "Gmail wouldn't move 1 message; it stays where Gmail has it"), "{lines:?}");
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_category, m.gmail_synced, m.gmail_refusals), (Some(GmailCategory::Social), Some(GmailCategory::Social), 0));
+    assert!(moves(&s, account).is_empty());
+    // Not said again: there is no move left to refuse.
+    assert!(said(&mut s, refused(account, no, 0)).is_empty());
+    // Gmail taking a move clears the count.
+    s.run(ID, &json!({"ids": [three], "category": "primary"})).unwrap();
+    let primary = vec![GmailMove { message: three, id: gmail_id(3), category: GmailCategory::Primary }];
+    said(&mut s, refused(account, primary.clone(), 0));
+    assert_eq!(by_uid(&s, account, 3).gmail_refusals, 1);
+    apply_sync(&mut s, result(account, Vec::new(), primary)).unwrap();
+    assert_eq!(by_uid(&s, account, 3).gmail_refusals, 0);
+}
+
+#[test]
+fn moves_left_unsent_are_said_without_blaming_gmail_for_them() {
+    let (mut s, account, _) = sorted_inbox(true);
+    let (three, four) = (id_of(&s, account, 3), id_of(&s, account, 4));
+    s.run(ID, &json!({"ids": [three, four], "category": "forums"})).unwrap();
+    let no = vec![GmailMove { message: three, id: gmail_id(3), category: GmailCategory::Forums }];
+    let lines = said(&mut s, refused(account, no, 5));
+    assert!(
+        lines.iter().any(|l| l == "6 messages couldn't be moved between Gmail's categories this run: Gmail refused 1 of them; the rest wait for the next run"),
+        "{lines:?}"
+    );
+    let lines = said(&mut s, refused(account, Vec::new(), 2));
+    assert!(lines.iter().any(|l| l == "2 messages couldn't be moved between Gmail's categories this run; they wait for the next run"), "{lines:?}");
+}
+
+#[test]
+fn copies_of_one_gmail_message_move_together_and_the_last_move_wins() {
+    let (mut s, account, inbox) = sorted_inbox(true);
+    // A second copy here of Gmail's message 3.
+    let mut copy = by_uid(&s, account, 3).clone();
+    (copy.id, copy.uid, copy.message_id) = (0, 30, "<copy@sender.example>".into());
+    let copy = s.mailbox.add_message(copy).unwrap();
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    s.run(ID, &json!({"ids": [copy], "category": "updates"})).unwrap();
+    let both = [three, copy].map(|id| s.mailbox.message(id).unwrap().gmail_category);
+    assert_eq!(both, [Some(GmailCategory::Updates); 2]);
+    let mut waiting = moves(&s, account);
+    waiting.sort();
+    let mut expected = vec![(three, gmail_id(3), GmailCategory::Updates), (copy, gmail_id(3), GmailCategory::Updates)];
+    expected.sort();
+    assert_eq!(waiting, expected);
+    let _ = inbox;
+}
+
 #[test]
 fn the_reasons_compared_are_the_reasons_given() {
     // The window compares with these: they must be what the two functions say.
