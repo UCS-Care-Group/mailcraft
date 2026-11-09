@@ -53,7 +53,7 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, Labeled, PostalAddress};
+pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use jmap_server::JmapServer;
@@ -158,6 +158,8 @@ mod auth_results_tests;
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
+#[cfg(test)]
+mod contact_key_tests;
 #[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]
