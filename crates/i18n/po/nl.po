@@ -147,8 +147,9 @@ msgstr "-----Oorspronkelijk bericht-----"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid ".pst file ({format})"
-msgstr ""
+msgstr ".pst-bestand ({format})"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -242,8 +243,9 @@ msgstr "@{login}: {prs} samengevoegde PR's, {commits} commits, +{added} / −{de
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "A .pst file is being imported: try again when it is done"
-msgstr ""
+msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het klaar is"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -1092,8 +1094,9 @@ msgstr[1] "En nog {n} dergelijke koppelingen."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Another mailbox was opened: the import stopped."
-msgstr ""
+msgstr "Er werd een ander postvak geopend: de import werd gestopt."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/meeting_dialogs.rs
@@ -1371,13 +1374,15 @@ msgstr "Rangschikking"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "As Folders"
-msgstr ""
+msgstr "Als mappen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "As Tabs above the Inbox"
-msgstr ""
+msgstr "Als tabbladen boven het Postvak IN"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -1561,13 +1566,15 @@ msgstr "Trefwoorden voor bijlagen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Attachment options"
-msgstr ""
+msgstr "Opties voor bijlagen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Attachment options for {name}"
-msgstr ""
+msgstr "Opties voor bijlagen voor {name}"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
@@ -3259,8 +3266,9 @@ msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar van Ma
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Desktop alerts only for mail in Primary"
-msgstr ""
+msgstr "Bureaubladmeldingen alleen voor e-mail in Primair"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4336,8 +4344,9 @@ msgstr "Mapnaam"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Folder {folder} ({n} of {of})"
-msgstr ""
+msgstr "Map {folder} ({n} van {of})"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -4469,8 +4478,9 @@ msgstr "Opmaken als tekst zonder opmaak"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Forums"
-msgstr ""
+msgstr "Forums"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -4689,15 +4699,19 @@ msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. Mail
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Gmail\n"
 "Categories"
 msgstr ""
+"Gmail\n"
+"Categorieën"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Gmail Categories"
-msgstr ""
+msgstr "Gmail-categorieën"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4707,8 +4721,9 @@ msgstr "Gmail en Google Workspace"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Gmail categories"
-msgstr ""
+msgstr "Gmail-categorieën"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -4872,8 +4887,9 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr ""
+msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5224,13 +5240,15 @@ msgstr "Contactpersonen importeren"
 
 #. command label
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "Import a .pst File"
-msgstr ""
+msgstr "Een .pst-bestand importeren"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Import a .pst File (preview)"
-msgstr ""
+msgstr "Een .pst-bestand importeren (voorbeeld)"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -5276,8 +5294,9 @@ msgstr "Geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "Imported from {file}"
-msgstr ""
+msgstr "Geïmporteerd uit {file}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -5287,8 +5306,9 @@ msgstr "{what} geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Imported {what} from the .pst file"
-msgstr ""
+msgstr "Geïmporteerd {what} uit het .pst-bestand"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -5316,8 +5336,9 @@ msgstr "{what} geïmporteerd; gestopt na {count}: het bestand vergt meer dan é�
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Importing a .pst file isn't supported in the browser yet."
-msgstr ""
+msgstr "Een .pst-bestand importeren wordt in de browser nog niet ondersteund."
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -5333,8 +5354,9 @@ msgstr "Wordt uitgevoerd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "In a new folder called {name} on this computer"
-msgstr ""
+msgstr "In een nieuwe map genaamd {name} op deze computer"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -5374,8 +5396,9 @@ msgstr "In de selectie"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "In {folder}"
-msgstr ""
+msgstr "In {folder}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5517,8 +5540,9 @@ msgstr "Thema van de interface"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Into your contacts on this computer, each marked as imported from the file."
-msgstr ""
+msgstr "Naar uw contactpersonen op deze computer, elk gemarkeerd als geïmporteerd uit het bestand."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6187,8 +6211,9 @@ msgstr "E-mail kan niet in een Postvak UIT worden geïmporteerd: die zou worden 
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file again brings the rest."
-msgstr ""
+msgstr "E-mail wordt binnengehaald zoals die wordt gelezen. Annuleren behoudt wat er al is; het bestand opnieuw importeren haalt de rest binnen."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -6396,8 +6421,9 @@ msgstr "MailCraft is gestopt met lezen voordat het klaar was."
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
-msgstr ""
+msgstr "MailCraft stopte met het lezen van het .pst-bestand vóór het klaar was: wat er binnenkwam, wordt behouden"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7321,8 +7347,9 @@ msgstr "Nieuwe e-mail"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr ""
+msgstr "Nieuwe e-mail die Gmail in Social, Promoties, Updates of Forums zet, komt binnen zonder melding."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -7797,8 +7824,9 @@ msgstr "Niet verbonden: de rest van dit bericht staat op de server"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Not every layout checked."
-msgstr ""
+msgstr "Niet elke weergave gecontroleerd."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7916,8 +7944,9 @@ msgstr "Hier is niets te doen."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
+#, fuzzy
 msgid "Nothing was done: what the agent asked about changed after you were asked."
-msgstr ""
+msgstr "Er werd niets gedaan: waar de agent om vroeg, is veranderd nadat u werd gevraagd."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7927,8 +7956,9 @@ msgstr "Er is niets naar Microsoft verzonden, en uw wachtwoord wordt niet bewaar
 
 #. interface
 #: crates/ui-egui/src/sending.rs
+#, fuzzy
 msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
-msgstr ""
+msgstr "Er werd niets verzonden: het postvak kon niet eerst worden opgeslagen ({error})"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -8671,8 +8701,9 @@ msgstr "Wachtwoord voor {account}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Password:"
-msgstr ""
+msgstr "Wachtwoord:"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -8930,8 +8961,9 @@ msgstr "Voorbeeldregels in de berichtenlijst"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
-msgstr ""
+msgstr "Voorbeeld: alleen de e-mail en de contactpersonen worden nu binnengehaald. Agenda-items, taken en notities worden in het rapport geteld en voor een latere versie overgelaten. Een rapport wordt naast uw postvak geschreven."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -8953,13 +8985,15 @@ msgstr "Vorige maand"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Primary"
-msgstr ""
+msgstr "Primair"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
-msgstr ""
+msgstr "Primair, Social, Promoties, Updates en Forums, zoals Gmail uw Postvak IN sorteert. Uw e-mail blijft in het Postvak IN."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -8969,8 +9003,9 @@ msgstr "Persoonlijk"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Promotions"
-msgstr ""
+msgstr "Promoties"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
@@ -9046,13 +9081,15 @@ msgstr "Voorgestelde tijd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Put the contacts"
-msgstr ""
+msgstr "De contactpersonen plaatsen"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Put the mail"
-msgstr ""
+msgstr "De e-mail plaatsen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -10893,8 +10930,9 @@ msgstr "Bijdragers weergeven"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Show Gmail's categories under the Inbox"
-msgstr ""
+msgstr "De categorieën van Gmail onder het Postvak IN tonen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -11449,8 +11487,9 @@ msgstr "Herinneringen uitstellen"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Social"
-msgstr ""
+msgstr "Social"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -11652,8 +11691,9 @@ msgstr "Gestopt ({line})"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Stopped before the end. Import the file again to bring the rest."
-msgstr ""
+msgstr "Gestopt vóór het einde. Importeer het bestand opnieuw om de rest binnen te halen."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -11669,8 +11709,9 @@ msgstr "Bezig met stoppen…"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Stopping… what has come in stays."
-msgstr ""
+msgstr "Bezig met stoppen… wat er binnenkwam, blijft."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12063,8 +12104,9 @@ msgstr "Dat is geen gedeeld postvak"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "That isn't the password of this file."
-msgstr ""
+msgstr "Dat is niet het wachtwoord van dit bestand."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -12080,8 +12122,9 @@ msgstr "De"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The .pst file has {what} to import; nothing was imported"
-msgstr ""
+msgstr "Het .pst-bestand heeft {what} om te importeren; er werd niets geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -12445,10 +12488,11 @@ msgstr "De map „{folder}” en alles daarin worden verwijderd."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
 msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
 msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "De map „{name}” werd niet verwijderd: de server heeft {n} nieuw item erin dat u niet had gezien. Ze komt terug ermee; verwijder haar opnieuw als u haar nog wilt laten verdwijnen."
+msgstr[1] "De map „{name}” werd niet verwijderd: de server heeft {n} nieuwe items erin die u niet had gezien. Ze komt terug met die items; verwijder haar opnieuw als u haar nog wilt laten verdwijnen."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12464,13 +12508,15 @@ msgstr "Het doorsturen van meerdere berichten dat wachtte, is geannuleerd: een a
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "The full report is in:"
-msgstr ""
+msgstr "Het volledige rapport staat in:"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "The import stopped unexpectedly. What came in stays; import the file again for the rest."
-msgstr ""
+msgstr "De import werd onverwacht gestopt. Wat er binnenkwam, blijft; importeer het bestand opnieuw voor de rest."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12528,8 +12574,9 @@ msgstr "Het logo is de eerste afbeelding van de handtekening: voeg er een toe me
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The mail of a .pst file, into a folder on this computer"
-msgstr ""
+msgstr "De e-mail van een .pst-bestand, in een map op deze computer"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -12717,8 +12764,9 @@ msgstr "Het zoeken naar uw Exchange-server is doorgestuurd naar {host}, dat niet
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected message, as .eml"
-msgstr ""
+msgstr "Het geselecteerde bericht, als .eml"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -13490,13 +13538,15 @@ msgstr "Deze gebeurtenis wordt bewaard door de server van {who}. Deze kan worden
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "This file can't be imported: {why}"
-msgstr ""
+msgstr "Dit bestand kan niet worden geïmporteerd: {why}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "This file has a password. Nothing is imported without it."
-msgstr ""
+msgstr "Dit bestand heeft een wachtwoord. Er wordt niets geïmporteerd zonder het."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -13518,8 +13568,9 @@ msgstr "Deze uitnodiging vermeldt niet over welke vergadering het gaat, dus deze
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
 msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
-msgstr ""
+msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar komt niet van de organisator ervan, dus kan die vergadering niet worden gewijzigd. Om te antwoorden, opent u de vergadering in uw agenda en antwoordt u daar."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -13763,8 +13814,9 @@ msgstr "Dit bericht staat nog niet op deze computer. Het wordt gedownload wannee
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
-msgstr ""
+msgstr "Dit bericht kan zich in meer weergaven opmaken dan MailCraft kon controleren, dus een koppeling in een van die weergaven kan ergens anders naartoe gaan dan de tekst ervan zegt."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -14265,13 +14317,15 @@ msgstr "Twee weken geleden"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
 msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
-msgstr ""
+msgstr "Twee of meer accounts in dit postvak hebben hetzelfde adres. De accounts verbinden met:"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
 msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
-msgstr ""
+msgstr "Twee of meer van deze accounts hebben hetzelfde adres. Bevestig alleen als elke server van hen de uwe is."
 
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
@@ -14305,8 +14359,9 @@ msgstr "Typ uw e-mailadres en MailCraft zoekt de rest: Microsoft 365, Outlook.co
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Under a folder on this computer:"
-msgstr ""
+msgstr "Onder een map op deze computer:"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -15413,13 +15468,15 @@ msgstr "`value` is true of false"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
-msgstr ""
+msgstr "er wordt een .pst-bestand in dit postvak geïmporteerd: wacht tot het klaar is, en sla het daarna op een andere plaats op"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
-msgstr ""
+msgstr "een .pst-bestand wordt alleen in een map op deze computer geïmporteerd, nooit in een account op een server of in de Outbox"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -15837,8 +15894,9 @@ msgstr "icloud.com, me.com en mac.com"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "importing a .pst file isn't supported in the browser yet"
-msgstr ""
+msgstr "een .pst-bestand importeren wordt in de browser nog niet ondersteund"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -16045,8 +16103,9 @@ msgstr "maand"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "more than {max} folders"
-msgstr ""
+msgstr "meer dan {max} mappen"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -16162,8 +16221,9 @@ msgstr "geen map met id {id}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "no free name for the folder {name}"
-msgstr ""
+msgstr "geen vrije naam voor de map {name}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16376,8 +16436,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
-msgstr ""
+msgstr "alleen het Postvak IN van een Gmail-account waarvan de categorieën worden getoond en door Gmail worden gesorteerd, heeft de categorieën van Gmail"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -16543,8 +16604,9 @@ msgstr "dat staat niet op de lijst"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "that isn't the password of this .pst file: nothing was imported"
-msgstr ""
+msgstr "dat is niet het wachtwoord van dit .pst-bestand: er werd niets geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src
@@ -16578,18 +16640,21 @@ msgstr "dat is alleen bekeken, niet volledig gelezen"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the .pst file couldn't be opened: {e}"
-msgstr ""
+msgstr "het .pst-bestand kon niet worden geopend: {e}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the .pst file couldn't be read: {why}"
-msgstr ""
+msgstr "het .pst-bestand kon niet worden gelezen: {why}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the .pst file's reader stopped before it was done"
-msgstr ""
+msgstr "de lezer van het .pst-bestand stopte voordat die klaar was"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -16713,13 +16778,15 @@ msgstr "de map waarnaar hij e-mail verplaatst, staat niet op de server"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the folder the .pst file was being imported into is gone: the import stopped"
-msgstr ""
+msgstr "de map waar het .pst-bestand in werd geïmporteerd, is weg: de import werd gestopt"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
-msgstr ""
+msgstr "de map waar het .pst-bestand in werd geïmporteerd, werd verplaatst naar Verwijderde items: de import werd gestopt"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
@@ -16729,18 +16796,21 @@ msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the import couldn't account for every item of {path}"
-msgstr ""
+msgstr "de import kon niet elk item van {path} verwerken"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the import has no folder to put mail in"
-msgstr ""
+msgstr "de import heeft geen map om e-mail in te zetten"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the import was stopped"
-msgstr ""
+msgstr "de import werd gestopt"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -17062,13 +17132,15 @@ msgstr "deze instellingen zijn voor een ander account, niet voor {who}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "this .pst file has a password: give it to import the file"
-msgstr ""
+msgstr "dit .pst-bestand heeft een wachtwoord: geef het om het bestand te importeren"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
-msgstr ""
+msgstr "dit .pst-bestand is te groot om te importeren zonder een postvakbestand met ruimte erbij: sla het postvak eerst op in een bestand en importeer het daarna opnieuw"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -17138,8 +17210,9 @@ msgstr "dit concept is nog niet gedownload: open het zodra u online bent en bewe
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "this isn't a .pst file"
-msgstr ""
+msgstr "dit is geen .pst-bestand"
 
 #. name
 #: crates/model/src/sync.rs
@@ -17149,8 +17222,9 @@ msgstr "dit postvak is niet bereikbaar via Microsoft Graph (MailboxNotEnabledFor
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
-msgstr ""
+msgstr "dit postvak is te groot ({mb} MB) om als één zelfstandig bestand op te slaan: sla het in een andere map op, die de inhoud in een map naast het bestand bewaart"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -17338,8 +17412,9 @@ msgstr "{account} · Geen toegang"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{added} brought in, of {found} found."
-msgstr ""
+msgstr "{added} binnengehaald, van {found} gevonden."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -17522,8 +17597,9 @@ msgstr "{host} (niet versleuteld)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
-msgstr ""
+msgstr "{host} zit in het eigen domein van uw adres, maar het is niet de Autodiscover-server die uw domein noemt. Het kan een webpagina zijn in plaats van de mailserver van uw organisatie."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -17969,10 +18045,11 @@ msgstr[1] "{n} afgewezen"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} distribution list, kept as a contact listing its members"
 msgid_plural "{n} distribution lists, kept as contacts listing their members"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} verdelingslijst, bewaard als een contactpersoon die haar leden opnoemt"
+msgstr[1] "{n} verdelingslijsten, bewaard als contactpersonen die hun leden opnoemen"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -18048,10 +18125,11 @@ msgstr[1] "{n} items"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} item couldn't be read and is left out"
 msgid_plural "{n} items couldn't be read and are left out"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} item kon niet worden gelezen en werd weggelaten"
+msgstr[1] "{n} items konden niet worden gelezen en werden weggelaten"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18063,10 +18141,11 @@ msgstr[1] "{n} items hier staan alleen op deze computer: niet in uw Outlook-agen
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} item is left for a later version"
 msgid_plural "{n} items are left for a later version"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} item wordt voor een latere versie overgelaten"
+msgstr[1] "{n} items worden voor een latere versie overgelaten"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18488,10 +18567,11 @@ msgstr[1] "{n} ongelezen op de server"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} was here already"
 msgid_plural "{n} were here already"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} was hier al"
+msgstr[1] "{n} waren hier al"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18667,8 +18747,9 @@ msgstr "{who} is toegevoegd door een nieuwere versie van MailCraft, {then}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{why} What came in before stays; import the file again for the rest."
-msgstr ""
+msgstr "{why} Wat er eerder binnenkwam, blijft; importeer het bestand opnieuw voor de rest."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
