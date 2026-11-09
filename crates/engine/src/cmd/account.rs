@@ -8,9 +8,10 @@
 
 use std::collections::{HashMap, HashSet};
 
+use mailcraft_model::gmail::MAX_GMAIL_REFUSALS;
 use mailcraft_model::sync::{
-    Deleted, FlagsPushed, FolderDelta, FolderState, ImapPlace, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags, RemoteOp, SyncRequest,
-    SyncResult, SyncStage, summary_line_in,
+    Deleted, FlagsPushed, FolderDelta, FolderState, GmailMove, ImapPlace, MAX_GMAIL_MOVES, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags,
+    RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
@@ -764,7 +765,128 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let (places, _) = place_ops(s, account, MAX_PLACES);
     // What is sent goes whole: the files a message keeps on disk are read for it.
     let outbox = s.loaded_outbox(outbox);
-    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, ..Default::default() })
+    let gmail_moves = gmail_moves(s, account);
+    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, gmail_moves, ..Default::default() })
+}
+
+/// The moves between Gmail's categories made in `account` that Gmail hasn't heard of (#911), for
+/// its API: [`MAX_GMAIL_MOVES`] at most, the rest at the next run. None while moves are switched
+/// off ([`crate::gmail::moves_offered`]), nor for an account that doesn't sign in with Google: no
+/// request for Gmail's API is ever made then.
+fn gmail_moves(s: &Session, account: Id) -> Vec<GmailMove> {
+    let mb = &s.mailbox;
+    if !gmail_moves_go(s, account) {
+        return Vec::new();
+    }
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox);
+    mb.messages
+        .values()
+        .filter(|m| m.account == account && Some(m.folder) == inbox)
+        .filter_map(|m| m.gmail_move_waiting().map(|category| GmailMove { message: m.id, id: m.gmail_id, category }))
+        .take(MAX_GMAIL_MOVES)
+        .collect()
+}
+
+/// Whether moves between Gmail's categories made in `account` go to Gmail: switched on, and an
+/// account that signs in with Google. Else a move waiting here never goes, and what Gmail says wins.
+fn gmail_moves_go(s: &Session, account: Id) -> bool {
+    crate::gmail::moves_offered(s).is_none() && s.mailbox.account(account).is_some_and(|a| !a.is_shared() && a.moves_gmail_categories())
+}
+
+/// Moves between Gmail's categories that Gmail took (#911): Gmail has the message there now. One
+/// moved on here meanwhile differs from it again, and goes at the next run. Gmail's ids of the
+/// messages of `account` it names.
+fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) -> HashSet<u64> {
+    let mut ids = HashSet::new();
+    for done in moved {
+        let ours = |m: &Message| m.account == account && m.gmail_id == done.id && m.gmail_id != 0;
+        let Some(m) = mb.message(done.message).filter(|m| ours(m)) else { continue };
+        ids.insert(done.id);
+        if (m.gmail_synced != Some(done.category) || m.gmail_refusals != 0)
+            && let Ok(m) = mb.message_mut(done.message)
+        {
+            (m.gmail_synced, m.gmail_refusals) = (Some(done.category), 0);
+        }
+    }
+    ids
+}
+
+/// Moves between Gmail's categories that Gmail refused on their own this run, and how many
+/// weren't sent at all (#911). A move refused [`MAX_GMAIL_REFUSALS`] times (in runs that tried it) is given up:
+/// the message stays where Gmail has it, and the owner is told. Said in `said`, in `lang`.
+fn gmail_refused(mb: &mut Mailbox, account: Id, (refused, unsent): (&[GmailMove], usize), lang: mailcraft_i18n::Lang, said: &mut Vec<String>) {
+    // Said by Gmail's message: two copies here of one message are one message there.
+    let (mut again, mut given_up) = (0u64, 0u64);
+    if !refused.is_empty() {
+        // The account's moves waiting, by Gmail's id: the copies here of one Gmail message.
+        let mut copies: HashMap<u64, Vec<(Id, mailcraft_model::GmailCategory)>> = HashMap::new();
+        for m in mb.messages.values().filter(|m| m.account == account && m.gmail_id != 0) {
+            if let Some(category) = m.gmail_move_waiting() {
+                copies.entry(m.gmail_id).or_default().push((m.id, category));
+            }
+        }
+        let mut seen = HashSet::new();
+        for done in refused {
+            // Counted once a run for each Gmail message, and only while that move still waits.
+            if !seen.insert(done.id) {
+                continue;
+            }
+            let Some(these) = copies.get(&done.id) else { continue };
+            let these: Vec<Id> = these.iter().filter(|(_, category)| *category == done.category).map(|(id, _)| *id).collect();
+            if these.is_empty() {
+                continue;
+            }
+            // One count for the message: the highest of its copies', one more, on all of them.
+            let count = these.iter().filter_map(|id| mb.message(*id)).map(|m| m.gmail_refusals).max().unwrap_or(0).saturating_add(1);
+            let give_up = count >= MAX_GMAIL_REFUSALS;
+            for id in these {
+                let Ok(m) = mb.message_mut(id) else { continue };
+                if give_up {
+                    (m.gmail_category, m.gmail_refusals) = (m.gmail_synced, 0);
+                } else {
+                    m.gmail_refusals = count;
+                }
+            }
+            if give_up {
+                given_up += 1;
+            } else {
+                again += 1;
+            }
+        }
+    }
+    let fmt = |text: &str, n: u64, m: u64| mailcraft_i18n::fmt(text, &[("n", &n.to_string()), ("m", &m.to_string())]);
+    if given_up > 0 {
+        let text = lang.tn(
+            given_up,
+            "Gmail wouldn't move {n} message; it stays where Gmail has it",
+            "Gmail wouldn't move {n} messages; they stay where Gmail has them",
+        );
+        said.push(fmt(text, given_up, 0));
+    }
+    let unsent = u64::try_from(unsent).unwrap_or(u64::MAX);
+    if unsent > 0 && again > 0 {
+        let total = unsent.saturating_add(again);
+        let text = lang.tn(
+            total,
+            "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run",
+            "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run",
+        );
+        said.push(fmt(text, total, again));
+    } else if unsent > 0 {
+        let text = lang.tn(
+            unsent,
+            "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run",
+            "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run",
+        );
+        said.push(fmt(text, unsent, 0));
+    } else if again > 0 {
+        let text = lang.tn(
+            again,
+            "Gmail refused to move {n} message between its categories; it is asked again at the next run",
+            "Gmail refused to move {n} messages between its categories; they are asked again at the next run",
+        );
+        said.push(fmt(text, again, 0));
+    }
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -1133,6 +1255,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    let gmail_moves = gmail_moves_go(s, account);
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
@@ -1155,13 +1278,16 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         move_finished(mb, account, &mut on_server, moved);
     }
     deletes_finished(mb, account, &mut on_server, &result.deleted);
+    let moved_now = gmail_moved(mb, account, &result.gmail_moved);
+    let lang = s.interface_language;
+    gmail_refused(mb, account, (&result.gmail_refused, result.gmail_unsent), lang, &mut result.errors);
     places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, &mut counts);
+        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
@@ -1794,8 +1920,18 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
     }
 }
 
-/// Take in what changed in one server mailbox.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts) {
+/// Take in what changed in one server mailbox. `gmail_moves`: moves between Gmail's categories
+/// made here go to Gmail ([`gmail_moves_go`]), so one waiting keeps its category against Gmail's;
+/// `moved_now`: Gmail's ids of the messages Gmail took a move of in this same run, whose reading
+/// of this run (Gmail's search may not have caught up) is not believed over the move.
+fn take_in(
+    mb: &mut Mailbox,
+    account: Id,
+    on_server: &mut OnServer,
+    mut delta: FolderDelta,
+    (gmail_moves, moved_now): (bool, &HashSet<u64>),
+    counts: &mut Counts,
+) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1934,20 +2070,31 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: F
         }
         counts.new += usize::from(arriving);
     }
-    // Gmail's categories of the Inbox's messages (#911), as its searches said this run.
+    // Gmail's categories of the Inbox's messages (#911), as its searches said this run: what
+    // Gmail last said, and the category here too unless the owner moved the message here and
+    // Gmail hasn't had the move yet, which stays and goes at the next run. While moves don't go
+    // (switched off, or the account no longer signs in with Google), Gmail's word wins and a move
+    // waiting here is dropped: it would never go.
     if !reset && mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox) {
         for sorted in &delta.gmail {
             // (Looked at before it is changed: a message shared with an undo step is copied to be.)
             let Some(id) = on_server.by_uid.get(&(folder, sorted.uid)).copied() else { continue };
-            let differs = |m: &Message| m.gmail_category != Some(sorted.category) || (sorted.id != 0 && m.gmail_id != sorted.id);
-            if mb.message(id).is_some_and(|m| m.folder == folder && differs(m))
+            let Some(m) = mb.message(id).filter(|m| m.folder == folder) else { continue };
+            if m.gmail_id != 0 && moved_now.contains(&m.gmail_id) {
+                continue;
+            }
+            let waiting = gmail_moves && m.gmail_move_waiting().is_some() && (sorted.id == 0 || sorted.id == m.gmail_id);
+            let category = if waiting { m.gmail_category } else { Some(sorted.category) };
+            let gmail_id = if sorted.id != 0 { sorted.id } else { m.gmail_id };
+            // No move waiting any more (Gmail agrees, or its word wins): no refusals to count.
+            let refusals = if category == Some(sorted.category) { 0 } else { m.gmail_refusals };
+            if (m.gmail_category, m.gmail_synced, m.gmail_id, m.gmail_refusals) != (category, Some(sorted.category), gmail_id, refusals)
                 && let Ok(m) = mb.message_mut(id)
             {
-                m.gmail_category = Some(sorted.category);
-                if sorted.id != 0 {
-                    m.gmail_id = sorted.id;
+                if m.gmail_category != category {
+                    counts.updated += 1;
                 }
-                counts.updated += 1;
+                (m.gmail_category, m.gmail_synced, m.gmail_id, m.gmail_refusals) = (category, Some(sorted.category), gmail_id, refusals);
             }
         }
     }

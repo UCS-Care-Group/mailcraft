@@ -97,6 +97,9 @@ pub mod forms;
 mod forms_date_tests;
 #[cfg(test)]
 mod frame_bench_tests;
+mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
 mod gmail_tabs;
 #[cfg(test)]
 mod gmail_tabs_tests;
