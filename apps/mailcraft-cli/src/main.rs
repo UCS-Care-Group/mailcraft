@@ -74,7 +74,7 @@ fn open(path: &str) -> Result<Session, String> {
     if let Some(notice) = opened.notice() {
         eprintln!("warning: {path}: {notice}");
     }
-    let mut s = Session::new(opened.mailbox);
+    let mut s = trusting(Session::new(opened.mailbox));
     s.path = Some(path.into());
     // The steps every opening takes (#793): mail put back empty is fetched again before a
     // command can move it.
@@ -87,14 +87,21 @@ fn open_or_new(path: &str) -> Result<Session, String> {
     if std::path::Path::new(path).exists() {
         return open(path);
     }
-    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
     s.path = Some(path.into());
     Ok(s)
 }
 
 fn sample() -> Session {
     let now = mailcraft_time::now();
-    Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)))
+    trusting(Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now))))
+}
+
+/// `s` with the certification authorities this computer trusts for mail (#30), as the window
+/// has them: a Digital signature is checked here as there.
+fn trusting(mut s: Session) -> Session {
+    s.set_trust_anchors(mailcraft_net::system_trust_anchors());
+    s
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -406,7 +413,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match mailcraft_engine::io::Format::from_extension(input) {
                 Some(mailcraft_engine::io::Format::Mailbox) => open(input)?,
                 _ => {
-                    let mut s = Session::new(Mailbox::with_local_account("", ""));
+                    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
                     s.run("file.import", &json!({"path": input})).map_err(|e| format!("{input}: {e}"))?;
                     s
                 }
@@ -423,7 +430,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                 (Some(f), _) => open(&f)?,
                 (None, true) => sample(),
-                (None, false) => Session::new(Mailbox::with_local_account("", "")),
+                (None, false) => trusting(Session::new(Mailbox::with_local_account("", ""))),
             };
             let print = rest.iter().any(|a| a == "--print");
             let mut i = 0;
@@ -605,7 +612,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let session = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                         (Some(f), _) => open(&f)?,
                         (None, true) => sample(),
-                        (None, false) => Session::empty(),
+                        (None, false) => trusting(Session::empty()),
                     };
                     Box::new(mailcraft_mcp::Headless::new(session, allow.clone()))
                 }
@@ -638,6 +645,15 @@ mod tests {
 
     fn strings(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// A session of the command line (and of the MCP server it runs) has the system's
+    /// authorities for mail handed in, as the window's has (#30): read, whether any were found.
+    #[test]
+    fn a_session_has_the_systems_authorities_for_mail() {
+        assert!(sample().trust_anchors_read().is_some());
+        assert!(trusting(Session::empty()).trust_anchors_read().is_some());
+        assert!(Session::empty().trust_anchors_read().is_none(), "the engine reads none itself");
     }
 
     #[test]

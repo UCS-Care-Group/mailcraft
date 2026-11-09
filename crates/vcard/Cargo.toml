@@ -12,6 +12,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-charset = { workspace = true }
+mailcraft-names = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

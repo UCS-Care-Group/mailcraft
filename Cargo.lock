@@ -793,6 +793,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
+name = "cms"
+version = "0.3.0-rc.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d089eddc8a5c984d82fcf1427367a6fa0d019d5af04b6e3197e86c8989533b8d"
+dependencies = [
+ "const-oid",
+ "der",
+ "spki",
+ "x509-cert",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2418,6 +2430,7 @@ dependencies = [
  "image",
  "keyring-core",
  "log",
+ "mailcraft-assuan",
  "mailcraft-charset",
  "mailcraft-control-key",
  "mailcraft-engine",
@@ -2452,6 +2465,14 @@ dependencies = [
  "zbus",
  "zbus-secret-service-keyring-store",
  "zeroize",
+]
+
+[[package]]
+name = "mailcraft-assuan"
+version = "0.11.1"
+dependencies = [
+ "proptest",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2513,6 +2534,7 @@ dependencies = [
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-pst",
+ "mailcraft-smime",
  "mailcraft-time",
  "mailcraft-vcard",
  "proptest",
@@ -2649,6 +2671,7 @@ dependencies = [
  "ring",
  "rustls",
  "rustls-platform-verifier",
+ "schannel",
  "serde_json",
  "thiserror 2.0.21",
 ]
@@ -2669,6 +2692,26 @@ version = "0.11.1"
 dependencies = [
  "mailcraft-charset",
  "proptest",
+]
+
+[[package]]
+name = "mailcraft-smime"
+version = "0.11.1"
+dependencies = [
+ "cms",
+ "const-oid",
+ "der",
+ "mailcraft-model",
+ "mailcraft-time",
+ "p256",
+ "p384",
+ "proptest",
+ "rcgen",
+ "ring",
+ "rsa",
+ "sha2",
+ "spki",
+ "x509-cert",
 ]
 
 [[package]]
@@ -2712,6 +2755,7 @@ version = "0.11.1"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-model",
+ "mailcraft-names",
  "mailcraft-time",
  "proptest",
 ]

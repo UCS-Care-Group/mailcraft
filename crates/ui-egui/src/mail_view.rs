@@ -1000,12 +1000,21 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     if warned {
         app.hit.add("messageWarning", row.id, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)));
     }
+    // What checking its Digital signature found (#30): its seal, after the warning.
+    let seal = crate::reading::signature_seal(app, &m);
+    if seal.is_some() {
+        let at = if warned { x - 15.0 } else { x };
+        app.hit.add("messageSignature", row.id, Rect::from_center_size(pos2(at - 6.0, line1), vec2(12.0, 12.0)));
+    }
     let mut marker = |icon: &str, color: Color32| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
         x -= 15.0;
     };
     if warned {
         marker("warning", t.icon);
+    }
+    if let Some(seal) = seal {
+        marker(seal, t.icon);
     }
     // A meeting that came by mail wears its mark; its calendar part is not one of its files.
     let (meeting, files) = crate::reading::list_marks(&m);

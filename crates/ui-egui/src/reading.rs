@@ -39,6 +39,9 @@ mod select;
 mod sharing;
 #[cfg(test)]
 mod sharing_tests;
+mod signature;
+#[cfg(test)]
+mod signature_tests;
 #[cfg(test)]
 mod tests;
 mod view;
@@ -57,6 +60,7 @@ pub(crate) use invitation::{list_marks, options as invitation_options, question 
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
 pub(crate) use select::{inspect as selection_inspect, select_all_params};
+pub(crate) use signature::row_seal as signature_seal;
 pub(crate) use view::char_at;
 pub(crate) use warnings::row_mark as warning_mark;
 
@@ -403,6 +407,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // What checking its Digital signature found (#30).
+        signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
         ui.horizontal(|ui| {
             let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
@@ -600,8 +606,11 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
+    // The signature part of a message whose signature was checked (that very part, by its bytes)
+    // is what its bar says; it is reached from the bar's Details (#30).
+    let signature = app.session.digital_signature_known(m.id).and_then(|_| app.session.digital_signature_part(m.id));
     let files: Vec<(usize, &mailcraft_model::Attachment)> =
-        m.listed_attachments().filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index)).collect();
+        m.listed_attachments().filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index) && Some(*index) != signature).collect();
     if files.is_empty() {
         return;
     }
@@ -682,7 +691,7 @@ pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
 
 /// An attachment's menu, the same from a right-click on its chip and from the chip's `▾` (#785).
 /// Each entry is greyed when its command can't run, and the command keeps its own refusals.
-fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
+pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
     crate::widgets::mi(ui, app, "Open", "mail.openAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": id}));
