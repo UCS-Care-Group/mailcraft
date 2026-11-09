@@ -709,11 +709,12 @@ pub struct SyncResult {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub gmail_moved: Vec<GmailMove>,
     /// The moves Gmail refused on their own, one message at a time (#911): asked for again next
-    /// time, up to [`crate::gmail::MAX_GMAIL_REFUSALS`] runs in a row.
+    /// time, until Gmail has refused it [`crate::gmail::MAX_GMAIL_REFUSALS`] times.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub gmail_refused: Vec<GmailMove>,
-    /// How many moves weren't sent this run (the run's requests to Gmail's API ran out, or it
-    /// stopped on a problem said in `errors`); they wait for the next.
+    /// How many of Gmail's messages had their moves not sent this run (the run's requests to
+    /// Gmail's API ran out); they wait for the next. Counted by Gmail's id: two copies here of
+    /// one message are one.
     #[serde(skip_serializing_if = "is_zero_usize")]
     pub gmail_unsent: usize,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a

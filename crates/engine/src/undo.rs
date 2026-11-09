@@ -324,6 +324,15 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             (t.gmail_synced, t.gmail_refusals) = (synced, 0);
         }
     }
+    // Gmail's refusals count against a move waiting, and nothing else.
+    for id in &touched.changed_messages {
+        if let Some(t) = out.messages.get_mut(id)
+            && t.gmail_refusals != 0
+            && t.gmail_move_waiting().is_none()
+        {
+            Arc::make_mut(t).gmail_refusals = 0;
+        }
+    }
     // Contacts the change didn't touch are as they are now (those an import put in and a later
     // step's snapshot holds are not brought back by undoing that step).
     let ids: BTreeSet<Id> = out.contacts.keys().chain(now.contacts.keys()).copied().collect();

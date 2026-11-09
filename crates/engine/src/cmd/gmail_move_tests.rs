@@ -211,6 +211,59 @@ fn a_move_gmail_keeps_refusing_is_given_up_after_three_runs() {
 }
 
 #[test]
+fn refusals_count_by_gmail_message_and_only_when_the_move_was_tried() {
+    let (mut s, account, inbox) = sorted_inbox(true);
+    let mut copy = by_uid(&s, account, 3).clone();
+    (copy.id, copy.uid, copy.message_id) = (0, 30, "<copy@sender.example>".into());
+    let copy = s.mailbox.add_message(copy).unwrap();
+    let three = id_of(&s, account, 3);
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    let no: Vec<GmailMove> = [three, copy].map(|message| GmailMove { message, id: gmail_id(3), category: GmailCategory::Forums }).into();
+    // Two copies refused: one message of Gmail's.
+    let lines = said(&mut s, refused(account, no.clone(), 0));
+    assert!(lines.iter().any(|l| l.contains("Gmail refused to move 1 message ")), "{lines:?}");
+    // A run that didn't get to try it (it read the Inbox, Gmail still says Social): no change.
+    apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Social)])], Vec::new())).unwrap();
+    assert_eq!(by_uid(&s, account, 3).gmail_refusals, 1);
+    said(&mut s, refused(account, no.clone(), 0));
+    let lines = said(&mut s, refused(account, no, 0));
+    assert!(lines.iter().any(|l| l == "Gmail wouldn't move 1 message; it stays where Gmail has it"), "{lines:?}");
+    assert!(!lines.iter().any(|l| l.contains("refused to move")), "{lines:?}");
+}
+
+#[test]
+fn refusals_go_back_to_nothing_whenever_no_move_is_waiting() {
+    let (mut s, account, inbox) = sorted_inbox(true);
+    let three = id_of(&s, account, 3);
+    let refuse = |s: &mut Session, category| {
+        let no = vec![GmailMove { message: three, id: gmail_id(3), category }];
+        said(s, refused(account, no, 0));
+    };
+    // Gmail comes to agree (moved there some other way): nothing waits, nothing counts.
+    s.run(ID, &json!({"ids": [three], "category": "forums"})).unwrap();
+    refuse(&mut s, GmailCategory::Forums);
+    assert_eq!(by_uid(&s, account, 3).gmail_refusals, 1);
+    apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Forums)])], Vec::new())).unwrap();
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_move_waiting(), m.gmail_refusals), (None, 0));
+    // Moves switched off, so Gmail's word wins: likewise.
+    s.run(ID, &json!({"ids": [three], "category": "updates"})).unwrap();
+    refuse(&mut s, GmailCategory::Updates);
+    s.gmail_category_moves = false;
+    apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Forums)])], Vec::new())).unwrap();
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_category, m.gmail_refusals), (Some(GmailCategory::Forums), 0));
+    s.gmail_category_moves = true;
+    // Undo leaving nothing waiting.
+    s.run(ID, &json!({"ids": [three], "category": "primary"})).unwrap();
+    refuse(&mut s, GmailCategory::Primary);
+    assert_eq!(by_uid(&s, account, 3).gmail_refusals, 1);
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = by_uid(&s, account, 3);
+    assert_eq!((m.gmail_category, m.gmail_move_waiting(), m.gmail_refusals), (Some(GmailCategory::Forums), None, 0));
+}
+
+#[test]
 fn moves_left_unsent_are_said_without_blaming_gmail_for_them() {
     let (mut s, account, _) = sorted_inbox(true);
     let (three, four) = (id_of(&s, account, 3), id_of(&s, account, 4));

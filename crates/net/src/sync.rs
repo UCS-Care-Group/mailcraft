@@ -694,7 +694,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
 /// had its turn, so that one stale id costs a few requests and the rest still go this run, all of
 /// it at most `MAX_GMAIL_REQUESTS`. A message refused on its own goes back as refused
 /// ([`SyncResult::gmail_refused`]): the engine asks again at the next run, and after
-/// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] runs in a row gives the move up. Moves left
+/// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] refusals gives the move up. Moves left
 /// when the requests run out go back as unsent ([`SyncResult::gmail_unsent`]) and wait for the
 /// next run. A token or a permission Gmail doesn't take, Gmail busy or out of reach stop the
 /// moves for this run, and that is said once.
@@ -722,8 +722,9 @@ fn gmail_moves(run: &mut Run, host: Host) {
             return;
         }
         if asked >= MAX_GMAIL_REQUESTS {
-            run.out.gmail_unsent = batch.len() + work.iter().map(Vec::len).sum::<usize>();
-            log::info!("gmail: {} moves between categories wait for the next run", run.out.gmail_unsent);
+            let left: std::collections::BTreeSet<u64> = batch.iter().chain(work.iter().flatten()).map(|m| m.id).collect();
+            run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(left.len());
+            log::info!("gmail: {} messages' moves between categories wait for the next run", left.len());
             return;
         }
         let Some(category) = batch.first().map(|m| m.category) else { continue };
@@ -742,9 +743,10 @@ fn gmail_moves(run: &mut Run, host: Host) {
             }
             Err(NetError::Proto(ProtoError::Rejected(_))) => run.out.gmail_refused.extend(batch.iter().copied().copied()),
             // Nothing was sent (it can't be, for a batch made here): it waits.
-            Err(NetError::Config(_)) => run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(batch.len()),
+            Err(NetError::Config(_)) => run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(ids.len()),
             Err(e) => {
-                let failed = batch.len() + work.iter().map(Vec::len).sum::<usize>();
+                // Counted by Gmail's message: two copies here are one message there.
+                let failed = batch.iter().chain(work.iter().flatten()).map(|m| m.id).collect::<std::collections::BTreeSet<u64>>().len();
                 let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };
                 log::info!("gmail: {failed} moves between categories didn't go");
                 run.out.errors.push(format!("Couldn't move {what} between Gmail's categories: {e}"));

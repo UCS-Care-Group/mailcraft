@@ -22,7 +22,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.setGmailCategory", "Move to Category", "Home › Move", set_category)
             .params(
-                r#"{"category": "primary"|"social"|"promotions"|"updates"|"forums", "ids"?: [number]} (messages of a Gmail account's Inbox, of an account that signs in with Google; named ids move alone; without ids, the selection, and in conversation view every message of its conversations in that Inbox)"#,
+                r#"{"category": "primary"|"social"|"promotions"|"updates"|"forums", "ids"?: [number]} (messages of a Gmail account's Inbox, of an account that signs in with Google; named ids move those messages and every copy here of the same Gmail message (Gmail keeps one category for a message), never other messages of their conversations; without ids, the selection, and in conversation view every message of its conversations in that Inbox)"#,
             )
             .when(moves_offered),
     ]
@@ -54,8 +54,9 @@ fn set_category(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(why) = refused.filter(|_| named || ids.is_empty()) {
         return Err(fail(why));
     }
-    // Named messages move alone, as `mail.move` moves them; a selection in conversation view
-    // takes its conversations along.
+    // Named messages move without the rest of their conversations, as `mail.move` moves them; a
+    // selection in conversation view takes its conversations along. Either way every copy here
+    // of the same Gmail message goes too: Gmail keeps one category for a message.
     let all = if named { ids } else { with_conversations(s, &ids) };
     let all = with_copies(s, all);
     let before = s.rows();

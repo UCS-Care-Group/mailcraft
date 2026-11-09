@@ -267,9 +267,10 @@ pub struct Message {
     /// `None` until Gmail has said, and for a file from before moves.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub gmail_synced: Option<crate::GmailCategory>,
-    /// How many runs in a row Gmail refused the move waiting for this message on its own (#911):
-    /// at [`crate::gmail::MAX_GMAIL_REFUSALS`] the move is given up. 0 again when Gmail takes a
-    /// move or the owner makes a new one.
+    /// How many times (runs) Gmail refused the move waiting for this message on its own (#911);
+    /// a run that didn't try the move counts neither way. At
+    /// [`crate::gmail::MAX_GMAIL_REFUSALS`] the move is given up. 0 whenever no move is waiting:
+    /// Gmail took it, Gmail's word won, the owner made a new move or undid it.
     #[serde(skip_serializing_if = "is_zero_u8", deserialize_with = "crate::sync::lenient_or_default")]
     pub gmail_refusals: u8,
     /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its

@@ -812,10 +812,11 @@ fn gmail_moved(mb: &mut Mailbox, account: Id, moved: &[GmailMove]) -> HashSet<u6
 }
 
 /// Moves between Gmail's categories that Gmail refused on their own this run, and how many
-/// weren't sent at all (#911). A move refused [`MAX_GMAIL_REFUSALS`] runs in a row is given up:
+/// weren't sent at all (#911). A move refused [`MAX_GMAIL_REFUSALS`] times (in runs that tried it) is given up:
 /// the message stays where Gmail has it, and the owner is told. Said in `said`, in `lang`.
 fn gmail_refused(mb: &mut Mailbox, account: Id, (refused, unsent): (&[GmailMove], usize), lang: mailcraft_i18n::Lang, said: &mut Vec<String>) {
-    let (mut again, mut given_up) = (0u64, 0u64);
+    // Said by Gmail's message: two copies here of one message are one message there.
+    let (mut again, mut given_up) = (HashSet::new(), HashSet::new());
     let mut seen = HashSet::new();
     for done in refused {
         // Still that move waiting (not moved on since), and counted once a run.
@@ -827,11 +828,13 @@ fn gmail_refused(mb: &mut Mailbox, account: Id, (refused, unsent): (&[GmailMove]
         m.gmail_refusals = m.gmail_refusals.saturating_add(1);
         if m.gmail_refusals >= MAX_GMAIL_REFUSALS {
             (m.gmail_category, m.gmail_refusals) = (m.gmail_synced, 0);
-            given_up += 1;
+            given_up.insert(done.id);
         } else {
-            again += 1;
+            again.insert(done.id);
         }
     }
+    let again = u64::try_from(again.difference(&given_up).count()).unwrap_or(u64::MAX);
+    let given_up = u64::try_from(given_up.len()).unwrap_or(u64::MAX);
     let fmt = |text: &str, n: u64, m: u64| mailcraft_i18n::fmt(text, &[("n", &n.to_string()), ("m", &m.to_string())]);
     if given_up > 0 {
         let text = lang.tn(
@@ -2064,13 +2067,15 @@ fn take_in(
             let waiting = gmail_moves && m.gmail_move_waiting().is_some() && (sorted.id == 0 || sorted.id == m.gmail_id);
             let category = if waiting { m.gmail_category } else { Some(sorted.category) };
             let gmail_id = if sorted.id != 0 { sorted.id } else { m.gmail_id };
-            if (m.gmail_category, m.gmail_synced, m.gmail_id) != (category, Some(sorted.category), gmail_id)
+            // No move waiting any more (Gmail agrees, or its word wins): no refusals to count.
+            let refusals = if category == Some(sorted.category) { 0 } else { m.gmail_refusals };
+            if (m.gmail_category, m.gmail_synced, m.gmail_id, m.gmail_refusals) != (category, Some(sorted.category), gmail_id, refusals)
                 && let Ok(m) = mb.message_mut(id)
             {
                 if m.gmail_category != category {
                     counts.updated += 1;
                 }
-                (m.gmail_category, m.gmail_synced, m.gmail_id) = (category, Some(sorted.category), gmail_id);
+                (m.gmail_category, m.gmail_synced, m.gmail_id, m.gmail_refusals) = (category, Some(sorted.category), gmail_id, refusals);
             }
         }
     }
