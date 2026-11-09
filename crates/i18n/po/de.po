@@ -3723,13 +3723,11 @@ msgstr "Ordner erweitern oder reduzieren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Export"
 msgstr "Exportieren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Export\n"
 "Contacts"
@@ -3739,7 +3737,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Export\n"
 "Folder"
@@ -3749,19 +3746,16 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Export Contacts"
 msgstr "Kontakte exportieren"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Export Folder"
 msgstr "Ordner exportieren"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
-#, fuzzy
 msgid "Export…"
 msgstr "Exportieren…"
 
@@ -5218,8 +5212,8 @@ msgstr "Ihr Text wird ersetzt"
 #: crates/ui-egui/src/dialogs.rs
 msgid "Its {n} rule goes too; one its server keeps stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Die zugehörige Regel wird ebenfalls gelöscht; eine vom Server beibehaltene Regel bleibt dort."
-msgstr[1] "Die zugehörigen Regeln werden ebenfalls gelöscht; vom Server beibehaltene Regeln bleiben dort."
+msgstr[0] "Die {n} zugehörige Regel wird ebenfalls gelöscht; eine vom Server beibehaltene Regel bleibt dort."
+msgstr[1] "Die {n} zugehörigen Regeln werden ebenfalls gelöscht; vom Server beibehaltene Regeln bleiben dort."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13673,7 +13667,9 @@ msgstr ""
 msgid ""
 "Work\n"
 "Week"
-msgstr "Arbeitswoche"
+msgstr ""
+"Arbeits-\n"
+"woche"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
@@ -15899,7 +15895,7 @@ msgid "week"
 msgstr "Woche"
 
 #. interface
-#: crates/ui-egui/src/reading/images.rszy
+#: crates/ui-egui/src/reading/images.rs
 msgid "what the server sent is not a picture"
 msgstr "was der Server gesendet hat, ist kein Bild"
 
