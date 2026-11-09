@@ -11,10 +11,12 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod ber;
 mod calendar;
 pub mod confusables;
 mod contact;
 pub mod dav;
+pub mod digital_signature;
 mod ews_server;
 pub mod gmail;
 mod jmap_server;
@@ -30,6 +32,7 @@ pub mod pictures;
 pub mod pop;
 pub mod protected;
 pub mod provider;
+pub mod public_keys;
 pub mod remote;
 pub mod remote_rules;
 pub mod remote_tasks;
@@ -176,6 +179,8 @@ mod original_tests;
 mod pictures_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod public_keys_tests;
 #[cfg(test)]
 mod recurrence_tests;
 #[cfg(test)]

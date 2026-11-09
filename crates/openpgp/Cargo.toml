@@ -12,7 +12,8 @@ workspace = true
 pgp = { workspace = true }
 thiserror = { workspace = true }
 mailcraft-names = { workspace = true }
-sha2 = { workspace = true }
+# rPGP's generation of RustCrypto (the workspace's `sha2` is 0.11, for S/MIME).
+sha2 = { version = "0.10", default-features = false }
 sha3 = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -25,4 +26,4 @@ proptest = { workspace = true }
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 sha1 = { workspace = true }
 ed25519-dalek = { workspace = true }
-rsa = { workspace = true }
+rsa = { version = "0.9", default-features = false }

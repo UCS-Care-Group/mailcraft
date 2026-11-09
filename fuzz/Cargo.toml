@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, OpenPGP signatures and keys, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -26,9 +26,11 @@ mailcraft-jmap = { path = "../crates/jmap" }
 mailcraft-ews = { path = "../crates/ews" }
 mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
+mailcraft-model = { path = "../crates/model" }
 mailcraft-openpgp = { path = "../crates/openpgp" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-pst = { path = "../crates/pst" }
+mailcraft-smime = { path = "../crates/smime" }
 mailcraft-vcard = { path = "../crates/vcard" }
 
 # Its own workspace, so the main one's builds, lints and cargo-deny leave it alone.
@@ -191,6 +193,13 @@ bench = false
 [[bin]]
 name = "mailbox_file"
 path = "fuzz_targets/mailbox_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "smime"
+path = "fuzz_targets/smime.rs"
 test = false
 doc = false
 bench = false
