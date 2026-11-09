@@ -103,7 +103,18 @@ fn an_armour_header_other_than_hash_or_an_unescaped_dash_line_is_unreadable() {
     let header = block.replacen("-----BEGIN PGP SIGNED MESSAGE-----\n", "-----BEGIN PGP SIGNED MESSAGE-----\nNote: and 10000 EUR to Mallory\n", 1);
     assert_ne!(header, block);
     let dash = block.replacen("Pay 10 EUR to Bob.", "-----BEGIN PGP SIGNATURE-----", 1);
-    for body in [header, dash] {
+    // A `Hash:` header with more than hash names after it.
+    let with_hash = block.replacen(
+        "-----BEGIN PGP SIGNED MESSAGE-----\n",
+        "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256, and pay Mallory 10000 EUR today\n",
+        1,
+    );
+    assert_ne!(with_hash, block);
+    // Hash names alone, as many writers give them, are fine.
+    let names = block.replacen("-----BEGIN PGP SIGNED MESSAGE-----\n", "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256, sha512 ,SHA3-256\n", 1);
+    let checked = verify(&plain(ALICE, "7bit", &names), ALICE, &keys, LATER, yes).unwrap();
+    assert!(matches!(checked.outcome, Outcome::Verified(_)), "{checked:?}");
+    for body in [header, dash, with_hash] {
         let checked = verify(&plain(ALICE, "7bit", &body), ALICE, &keys, LATER, yes).unwrap();
         assert!(matches!(checked.outcome, Outcome::CantCheck { why: CantCheck::Unreadable, .. }), "{checked:?}");
     }

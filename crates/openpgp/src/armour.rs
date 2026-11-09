@@ -147,6 +147,19 @@ impl Body {
     }
 }
 
+/// The hash names a `Hash:` armour header may give (RFC 9580 §7.1, the names of §9.5).
+const HASH_NAMES: [&[u8]; 9] = [b"MD5", b"SHA1", b"RIPEMD160", b"SHA224", b"SHA256", b"SHA384", b"SHA512", b"SHA3-256", b"SHA3-512"];
+
+/// Whether `line` is a `Hash:` header whose value is nothing but hash names, separated by
+/// commas: any other words there would be shown and aren't signed.
+fn hash_header(line: &[u8]) -> bool {
+    let Some(value) = line.strip_prefix(b"Hash:") else { return false };
+    value.split(|b| *b == b',').all(|name| {
+        let name = name.trim_ascii();
+        HASH_NAMES.iter().any(|known| name.eq_ignore_ascii_case(known))
+    })
+}
+
 /// A cleartext-signed text (RFC 9580 §7): the bytes that were signed and the decoded
 /// signature block after them.
 #[derive(Debug)]
@@ -195,7 +208,7 @@ pub(crate) fn cleartext(text: &[u8], limit: usize) -> Option<Cleartext> {
             // RFC 9580 §7.1: `Hash:` lines (or none, in newer writers), then an empty line.
             // Anything else there would be shown and isn't signed.
             At::Headers if line_text.is_empty() => at = At::Text,
-            At::Headers => well_formed &= line_text.starts_with(b"Hash:"),
+            At::Headers => well_formed &= hash_header(line_text),
             At::Text if line_text == sig_begin.as_slice() => at = At::Signature,
             At::Text => {
                 if !first_line {

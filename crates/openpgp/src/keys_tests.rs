@@ -195,3 +195,105 @@ fn reading_keys_stops_when_its_budget_or_room_runs_out() {
     assert_eq!(read.len(), 2);
     assert!(budget.starved);
 }
+
+/// A signature of `typ` that names Alice's key as its issuer but is made by Mallory's: junk
+/// anybody can add to a copy of Alice's key.
+fn forged(
+    alice: &SignedSecretKey,
+    mallory: &SignedSecretKey,
+    typ: SignatureType,
+    at: u32,
+    extra: Vec<SubpacketData>,
+) -> pgp::packet::SignatureConfig {
+    use pgp::types::KeyDetails;
+    let mut config = config(&mallory.primary_key, typ, at, extra);
+    for p in &mut config.hashed_subpackets {
+        if matches!(p.data, SubpacketData::IssuerFingerprint(_)) {
+            *p = pgp::packet::Subpacket::regular(SubpacketData::IssuerFingerprint(alice.primary_key.fingerprint())).unwrap();
+        }
+    }
+    config
+}
+
+/// Inserts `bytes` as a copy of a key, when they read as one.
+fn offer(keys: &mut KeyRing, bytes: &[u8]) {
+    for key in PublicKey::parse(bytes).unwrap_or_default() {
+        keys.insert(key);
+    }
+}
+
+#[test]
+fn a_copy_with_junk_subkey_bindings_from_the_future_never_pushes_out_the_real_one() {
+    let alice = secret(ALICE, Make { subkey: true, ..Make::default() });
+    let mallory = secret("Mallory <mallory@example.org>", Make { seed: 6, ..Make::default() });
+    let mut copy = SignedPublicKey::from(alice.clone());
+    let mut flags = pgp::packet::KeyFlags::default();
+    flags.set_sign(true);
+    for i in 0..64 {
+        // Dated 2096.
+        let junk = forged(&alice, &mallory, SignatureType::SubkeyBinding, 4_000_000_000 + i, vec![SubpacketData::KeyFlags(flags.clone())])
+            .sign_subkey_binding(&mallory.primary_key, &copy.primary_key, &Password::empty(), &copy.public_subkeys[0].key)
+            .unwrap();
+        copy.public_subkeys[0].signatures.push(junk);
+    }
+    let junk = copy.to_bytes().unwrap();
+    let message = signed_at(&alice, made(&alice) + 10);
+    // Either way round, the real key stays whole, and nothing of the junk is kept.
+    for first_real in [true, false] {
+        let mut keys = KeyRing::new();
+        if first_real {
+            keys.insert(public(&alice));
+            offer(&mut keys, &junk);
+        } else {
+            offer(&mut keys, &junk);
+            keys.insert(public(&alice));
+        }
+        assert!(matches!(outcome(&message, ALICE, &keys), Outcome::Verified(_)), "real first: {first_real}");
+        assert_eq!(keys.keys()[0].to_bytes(), public(&alice).to_bytes());
+    }
+}
+
+#[test]
+fn a_copy_that_costs_more_checks_than_a_key_may_is_refused_not_cut_short() {
+    let alice = secret(ALICE, Make { subkey: true, ..Make::default() });
+    let mallory = secret("Mallory <mallory@example.org>", Make { seed: 6, ..Make::default() });
+    let mut copy = SignedPublicKey::from(alice.clone());
+    // Junk User IDs with junk certifications before the subkey: checking them all would leave
+    // no checks for the subkey's binding.
+    for n in 0..5 {
+        let id = pgp::packet::UserId::from_str(Default::default(), format!("Alice {n} <alice@example.org>")).unwrap();
+        let sigs = (0..110)
+            .map(|i| {
+                forged(&alice, &mallory, SignatureType::CertPositive, made(&alice) + i, vec![])
+                    .sign_certification(&mallory.primary_key, &copy.primary_key, &Password::empty(), Tag::UserId, &id)
+                    .unwrap()
+            })
+            .collect();
+        copy.details.users.push(pgp::types::SignedUser::new(id, sigs));
+    }
+    let junk = copy.to_bytes().unwrap();
+    assert!(PublicKey::parse(&junk).is_err(), "a key not checked whole is no key");
+    let mut keys = KeyRing::new();
+    keys.insert(public(&alice));
+    offer(&mut keys, &junk);
+    assert!(matches!(outcome(&signed_at(&alice, made(&alice) + 10), ALICE, &keys), Outcome::Verified(_)));
+}
+
+#[test]
+fn a_key_whose_revocations_or_the_calls_budget_run_out_is_refused() {
+    let alice = secret(ALICE, Make { subkey: true, ..Make::default() });
+    let mallory = secret("Mallory <mallory@example.org>", Make { seed: 6, ..Make::default() });
+    // More revocations than are checked: one left unchecked could be the real one.
+    let mut copy = SignedPublicKey::from(alice.clone());
+    for i in 0..257 {
+        let junk = forged(&alice, &mallory, SignatureType::KeyRevocation, made(&alice) + i, vec![])
+            .sign_key(&mallory.primary_key, &Password::empty(), &copy.primary_key)
+            .unwrap();
+        copy.details.revocation_signatures.push(junk);
+    }
+    assert!(PublicKey::parse(&copy.to_bytes().unwrap()).is_err());
+    // The call's budget runs out after the User ID, before the subkey.
+    let bytes = SignedPublicKey::from(alice).to_bytes().unwrap();
+    assert!(PublicKey::parse_with(&bytes, &mut Budget::new(1)).is_err());
+    assert!(PublicKey::parse_with(&bytes, &mut Budget::new(3)).is_ok());
+}

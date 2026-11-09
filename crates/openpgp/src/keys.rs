@@ -5,12 +5,12 @@
 //! address. A key's addresses are those of the User IDs it signed itself (RFC 9580 §5.2.1,
 //! §10.1); nothing here is a web of trust (R6): whether a key is Verified is the caller's to say.
 
-use pgp::composed::{Deserializable, SignedPublicKey};
+use pgp::composed::{Deserializable, SignedKeyDetails, SignedPublicKey, SignedPublicSubKey};
 use pgp::crypto::hash::HashAlgorithm;
 use pgp::crypto::public_key::PublicKeyAlgorithm;
 use pgp::packet::{KeyFlags, RevocationCode, Signature, SignatureType, SignatureVersion, SubpacketData};
 use pgp::ser::Serialize;
-use pgp::types::{KeyDetails, KeyVersion, PublicParams, Tag};
+use pgp::types::{KeyDetails, KeyVersion, PublicParams, SignedUser, Tag};
 
 use crate::armour::{self, Kind};
 use crate::{Error, mime};
@@ -19,14 +19,13 @@ use crate::{Error, mime};
 pub(crate) const MAX_KEY_BYTES: usize = 1 << 20;
 /// How many keys one block (a file, an attachment) is read for.
 pub(crate) const MAX_KEYS_PER_BLOCK: usize = 16;
-/// How many User IDs, subkeys and signatures on each are looked at in one key: more is not a
-/// key anybody sends, and each one costs a signature check.
+/// How many User IDs and subkeys one key may have: more is not a key anybody sends.
 const MAX_USERS: usize = 64;
 const MAX_SUBKEYS: usize = 32;
-const MAX_SIGNATURES: usize = 64;
 /// How many signature checks reading one key may cost (third-party certifications are never
-/// checked, so a real key needs a handful).
-const MAX_CHECKS: usize = 256;
+/// checked, so a real key needs a handful). Room for two copies of the largest key kept, merged:
+/// two self-signatures for each User ID, and two with a back-signature each for each subkey.
+const MAX_CHECKS: usize = 512;
 /// How many packets one block is read for before it is given up on.
 const MAX_PACKETS: usize = 4_096;
 
@@ -171,15 +170,6 @@ impl Revoked {
     pub(crate) fn covers(&self, when: Option<u64>) -> bool {
         self.hard || when.is_none_or(|t| t >= self.at)
     }
-
-    /// Two revocations as one: a hard one wins, else the earlier.
-    fn with(a: Option<Revoked>, b: Revoked) -> Option<Revoked> {
-        Some(match a {
-            None => b,
-            Some(a) if a.hard || b.hard => Revoked { hard: true, at: a.at.min(b.at) },
-            Some(a) => Revoked { hard: false, at: a.at.min(b.at) },
-        })
-    }
 }
 
 /// One key of a [`PublicKey`] that may make Digital signatures: the primary key or a subkey.
@@ -227,7 +217,8 @@ pub struct PublicKey {
 /// [`crate::keys_in_message`]).
 pub(crate) const MAX_CHECKS_PER_CALL: usize = 1_024;
 /// How many revocations of one key are checked: never cut short; a key with more is refused.
-const MAX_REVOCATION_CHECKS: usize = 64;
+/// Room for two of each part of two merged copies of the largest key kept.
+const MAX_REVOCATION_CHECKS: usize = 256;
 
 /// How many signature checks some reading may cost.
 pub(crate) struct Budget {
@@ -294,8 +285,10 @@ impl PublicKey {
 
     /// The key, once its self-signatures check: its addresses from the User IDs it certified,
     /// its revocations, and the keys of it that may sign. `None` when it is no key to trust:
-    /// nothing certifies it, it is too large, its version is before 4, or `total` ran out
-    /// before all of it was checked.
+    /// nothing certifies it, it is too large, its version is before 4, or a budget ran out
+    /// before all of it was checked. What is kept of it is what checked and is used: for the
+    /// key, each User ID and each subkey, its newest self-signature and its strongest
+    /// revocation; nothing that anybody but the key's owner could have added.
     pub(crate) fn checked(key: SignedPublicKey, total: &mut Budget) -> Option<PublicKey> {
         if !matches!(key.primary_key.version(), KeyVersion::V4 | KeyVersion::V6)
             || key.details.users.len() > MAX_USERS
@@ -309,7 +302,7 @@ impl PublicKey {
         let spend = |budget: &mut Budget, total: &mut Budget| budget.spend() && total.spend();
 
         // Revocations first, on a budget of their own, so that none is ever left unchecked.
-        let mut revoked: Option<Revoked> = None;
+        let mut key_revocation: Option<&Signature> = None;
         for sig in key.details.revocation_signatures.iter().chain(&key.details.direct_signatures) {
             if sig.typ() == Some(SignatureType::KeyRevocation)
                 && usable(sig)
@@ -317,27 +310,31 @@ impl PublicKey {
                 && spend(&mut revocations, total)
                 && sig.verify_key(primary).is_ok()
             {
-                revoked = Revoked::with(revoked, Revoked::of(sig));
+                key_revocation = stronger(key_revocation, sig);
             }
         }
 
         // The newest valid self-signature on the key or one of its User IDs: its key flags and
         // expiry are the primary key's (RFC 9580 §5.2.3.10, §10.1.1).
         let mut newest: Option<&Signature> = None;
-        for sig in key.details.direct_signatures.iter().take(MAX_SIGNATURES) {
+        let mut direct: Option<&Signature> = None;
+        for sig in &key.details.direct_signatures {
             if sig.typ() == Some(SignatureType::Key)
                 && usable(sig)
                 && is_self(sig, primary)
                 && spend(&mut local, total)
                 && sig.verify_key(primary).is_ok()
             {
-                consider(sig, &mut newest);
+                consider(sig, &mut direct);
             }
         }
-        let (mut addresses, mut address_until) = (Vec::new(), Vec::new());
+        if let Some(sig) = direct {
+            consider(sig, &mut newest);
+        }
+        let (mut addresses, mut address_until, mut users) = (Vec::new(), Vec::new(), Vec::new());
         for user in &key.details.users {
             let mut certified: Option<&Signature> = None;
-            let mut user_revoked = false;
+            let mut user_revocation: Option<&Signature> = None;
             for sig in &user.signatures {
                 let Some(typ) = sig.typ() else { continue };
                 if !usable(sig) || !is_self(sig, primary) {
@@ -345,7 +342,7 @@ impl PublicKey {
                 }
                 if typ == SignatureType::CertRevocation {
                     if spend(&mut revocations, total) && sig.verify_certification(primary, Tag::UserId, &user.id).is_ok() {
-                        user_revoked = true;
+                        user_revocation = stronger(user_revocation, sig);
                     }
                     continue;
                 }
@@ -355,10 +352,13 @@ impl PublicKey {
                     consider(sig, &mut certified);
                 }
             }
+            if certified.is_some() || user_revocation.is_some() {
+                users.push(SignedUser::new(user.id.clone(), certified.into_iter().chain(user_revocation).cloned().collect()));
+            }
             let Some(cert) = certified else { continue };
             consider(cert, &mut newest);
             let address = mime::address(&String::from_utf8_lossy(user.id.id()));
-            if !user_revoked && !address.is_empty() && !addresses.contains(&address) {
+            if user_revocation.is_none() && !address.is_empty() && !addresses.contains(&address) {
                 addresses.push(address);
                 address_until.push(signature_until(cert));
             }
@@ -373,16 +373,17 @@ impl PublicKey {
             algorithm: primary.algorithm(),
             created: primary_created,
             expires: earlier(expiry(primary_created, newest), signature_until(newest)),
-            revoked,
+            revoked: key_revocation.map(Revoked::of),
             may_sign: flags(newest).is_none_or(|f| f.sign()),
             weak: weak_key(primary),
         }];
-        for (i, sub) in key.public_subkeys.iter().enumerate() {
+        let mut subkeys = Vec::new();
+        for sub in &key.public_subkeys {
             if !matches!(sub.key.version(), KeyVersion::V4 | KeyVersion::V6) {
                 continue;
             }
             let mut binding: Option<&Signature> = None;
-            let mut sub_revoked: Option<Revoked> = None;
+            let mut sub_revocation: Option<&Signature> = None;
             for sig in &sub.signatures {
                 if !usable(sig) || !is_self(sig, primary) {
                     continue;
@@ -390,7 +391,7 @@ impl PublicKey {
                 match sig.typ() {
                     Some(SignatureType::SubkeyRevocation) => {
                         if spend(&mut revocations, total) && sig.verify_subkey_binding(primary, &sub.key).is_ok() {
-                            sub_revoked = Revoked::with(sub_revoked, Revoked::of(sig));
+                            sub_revocation = stronger(sub_revocation, sig);
                         }
                     }
                     Some(SignatureType::SubkeyBinding) if spend(&mut local, total) && sig.verify_subkey_binding(primary, &sub.key).is_ok() => {
@@ -400,6 +401,8 @@ impl PublicKey {
                 }
             }
             let Some(binding) = binding else { continue };
+            let place = subkeys.len();
+            subkeys.push(SignedPublicSubKey::new(sub.key.clone(), std::iter::once(binding).chain(sub_revocation).cloned().collect()));
             if !flags(binding).is_some_and(|f| f.sign()) {
                 continue;
             }
@@ -410,23 +413,26 @@ impl PublicKey {
                 .is_some_and(|back| spend(&mut local, total) && back.verify_primary_key_binding(&sub.key, primary).is_ok());
             let sub_created = sub.key.created_at().as_secs();
             signing.push(Signing {
-                subkey: Some(i),
+                subkey: Some(place),
                 fingerprint: Fingerprint::of(&sub.key.fingerprint()),
                 key_id: KeyId::of(&sub.key.legacy_key_id()),
                 version: sub.key.version(),
                 algorithm: sub.key.algorithm(),
                 created: sub_created,
                 expires: earlier(expiry(sub_created, binding), signature_until(binding)),
-                revoked: sub_revoked,
+                revoked: sub_revocation.map(Revoked::of),
                 may_sign: backed,
                 weak: weak_key(&sub.key),
             });
         }
-        // A revocation that couldn't be checked, or a key not checked whole, is no key at all.
-        if revocations.starved || total.starved {
+        // A revocation that couldn't be checked, or a key not checked whole, is no key at all:
+        // never a key with a part of it left out.
+        if revocations.starved || local.starved || total.starved {
             return None;
         }
-        Some(PublicKey { fingerprint: Fingerprint::of(&key.fingerprint()), key, addresses, address_until, signing })
+        let details = SignedKeyDetails::new(key_revocation.into_iter().cloned().collect(), direct.into_iter().cloned().collect(), users, Vec::new());
+        let kept = SignedPublicKey::new(key.primary_key.clone(), details, subkeys);
+        Some(PublicKey { fingerprint: Fingerprint::of(&key.fingerprint()), key: kept, addresses, address_until, signing })
     }
 
     /// The primary key's fingerprint: what the owner compares, and marks Verified.
@@ -575,31 +581,32 @@ fn count_packets(bytes: &[u8]) -> usize {
     count
 }
 
-/// Whether a signature is a revocation, which a merge keeps before anything else.
-fn is_revocation(sig: &Signature) -> bool {
-    matches!(sig.typ(), Some(SignatureType::KeyRevocation | SignatureType::SubkeyRevocation | SignatureType::CertRevocation))
+/// Of two revocations of one thing, the one that counts for more: a hard one (it undoes
+/// everything), else the earlier.
+fn stronger<'a>(a: Option<&'a Signature>, b: &'a Signature) -> Option<&'a Signature> {
+    Some(match a {
+        Some(a) if Revoked::of(a).hard => a,
+        _ if Revoked::of(b).hard => b,
+        Some(a) if created(a) <= created(b) => a,
+        _ => b,
+    })
 }
 
-/// `a` and `b` as one list: each signature once, revocations first, then the newest, at most
-/// [`MAX_SIGNATURES`] other than revocations.
+/// `a`, then what of `b` isn't in it: each signature once, `a`'s first. Both are what a check
+/// kept of a key (signatures its owner made, at most two of a kind for each part), so nothing
+/// is cut, and no date anybody wrote decides what stays.
 fn union(a: &[Signature], b: &[Signature]) -> Vec<Signature> {
-    let mut all: Vec<Signature> = Vec::new();
-    for sig in a.iter().chain(b) {
+    let mut all = a.to_vec();
+    for sig in b {
         if !all.contains(sig) {
             all.push(sig.clone());
         }
     }
-    let (mut revocations, mut others): (Vec<Signature>, Vec<Signature>) = all.into_iter().partition(is_revocation);
-    others.sort_by_key(|s| std::cmp::Reverse(created(s)));
-    others.truncate(MAX_SIGNATURES);
-    revocations.truncate(MAX_REVOCATION_CHECKS);
-    revocations.extend(others);
-    revocations
+    all
 }
 
-/// Two copies of one certificate as one (RFC 9580 §10.1): every User ID, subkey and
-/// self-signature of either, so that nothing one copy carries (a revocation above all) is lost
-/// by taking the other.
+/// Two checked copies of one certificate as one (RFC 9580 §10.1): every User ID, subkey and
+/// self-signature of either, the old copy's first, so that a new copy can only add to it.
 fn merge(old: &SignedPublicKey, new: &SignedPublicKey) -> SignedPublicKey {
     let mut merged = old.clone();
     merged.details.revocation_signatures = union(&old.details.revocation_signatures, &new.details.revocation_signatures);
@@ -635,11 +642,11 @@ fn merge(old: &SignedPublicKey, new: &SignedPublicKey) -> SignedPublicKey {
 /// `key` with nothing but its revocations: what a merge must keep when all of it can't be.
 fn revocations_only(key: &SignedPublicKey) -> SignedPublicKey {
     let mut only = key.clone();
-    only.details.direct_signatures.retain(is_revocation);
+    only.details.direct_signatures.clear();
     only.details.users.clear();
     only.details.user_attributes.clear();
     for sub in &mut only.public_subkeys {
-        sub.signatures.retain(is_revocation);
+        sub.signatures.retain(|s| s.typ() == Some(SignatureType::SubkeyRevocation));
     }
     only
 }

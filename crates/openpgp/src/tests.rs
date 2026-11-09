@@ -363,19 +363,19 @@ fn context(keys: &KeyRing) -> crate::check::Context<'_> {
 
 #[test]
 fn keys_tried_for_one_signature_and_one_message_are_capped_and_the_text_hashed_once() {
-    // Twelve keys claim the address; the signature is by a thirteenth, not here.
-    let keys: KeyRing = (10..22).map(|seed| public(&secret(ALICE, Make { seed, ..Make::default() }))).collect();
+    // Twenty keys claim the address; the signature is by another, not here.
+    let keys: KeyRing = (10..30).map(|seed| public(&secret(ALICE, Make { seed, ..Make::default() }))).collect();
     let stranger = secret(ALICE, Make { seed: 40, ..Make::default() });
     let t = made(&stranger);
     let cx = context(&keys);
     let outcome = crate::check::check(&packets(&stranger, b"data", t), b"data", &cx);
     assert!(matches!(outcome, Outcome::CantCheck { why: CantCheck::NoMatchingKey, .. }), "{outcome:?}");
-    assert!(cx.verifications.get() <= crate::check::MAX_CANDIDATES, "{}", cx.verifications.get());
+    assert_eq!(cx.verifications.get(), 8, "eight keys a signature");
     // Eight such signatures together: the message's budget, and one pass over the text.
     let cx = context(&keys);
     let many: Vec<u8> = (0..8).flat_map(|i| packets(&stranger, b"data", t + i)).collect();
     let _ = crate::check::check(&many, b"data", &cx);
-    assert!(cx.verifications.get() <= crate::check::MAX_VERIFICATIONS, "{}", cx.verifications.get());
+    assert_eq!(cx.verifications.get(), 24, "twenty-four checks a message");
     assert_eq!(cx.data_passes.get(), 1);
 }
 
@@ -487,4 +487,38 @@ fn a_from_field_with_two_mailboxes_matches_no_address() {
     let keydata = base64(&pgp::ser::Serialize::to_bytes(&pgp::composed::SignedPublicKey::from(alice)).unwrap()).replace("\r\n", "");
     let message = format!("From: {two}\r\nAutocrypt: addr=alice@example.org; keydata={keydata}\r\n\r\nHi\r\n");
     assert!(keys_in_message(message.as_bytes()).autocrypt.is_none());
+}
+
+#[test]
+fn a_signature_value_of_the_wrong_shape_is_unreadable() {
+    // rPGP reads an Ed448 signature as whatever bytes are left; 10 aren't one.
+    use pgp::crypto::public_key::PublicKeyAlgorithm;
+    use pgp::packet::{Signature, SignatureConfig, SignatureType, Subpacket, SubpacketData};
+    use pgp::types::{KeyDetails, Timestamp};
+    let alice = secret(ALICE, Make::default());
+    let mut config = SignatureConfig::v4(SignatureType::Binary, PublicKeyAlgorithm::Ed448, HashAlgorithm::Sha512);
+    config.hashed_subpackets = vec![
+        Subpacket::regular(SubpacketData::SignatureCreationTime(Timestamp::from_secs(made(&alice)))).unwrap(),
+        Subpacket::regular(SubpacketData::IssuerFingerprint(alice.primary_key.fingerprint())).unwrap(),
+    ];
+    let sig = Signature::from_config(config, [0, 0], pgp::types::SignatureBytes::Native(vec![1u8; 10].into())).unwrap();
+    let outcome = verify(&with_signature(sig), ALICE, &KeyRing::new(), LATER, yes);
+    assert!(matches!(outcome, Some(Outcome::CantCheck { why: CantCheck::Unreadable, .. })), "{outcome:?}");
+}
+
+#[test]
+fn keys_claiming_the_address_cant_push_out_the_key_the_signature_hints_at() {
+    use pgp::packet::{Subpacket, SubpacketData};
+    use pgp::types::{KeyDetails, Password};
+    let alice = secret(ALICE, Make::default());
+    // Eight keys claim Alice's address, and come before hers.
+    let mut keys: KeyRing = (50..58).map(|seed| public(&secret(ALICE, Make { seed, ..Make::default() }))).collect();
+    keys.insert(public(&alice));
+    // Her signature names her only in the unhashed area, as some writers do.
+    let mut config = config(&alice.primary_key, pgp::packet::SignatureType::Binary, made(&alice), vec![]);
+    config.hashed_subpackets.retain(|p| matches!(p.data, SubpacketData::SignatureCreationTime(_)));
+    config.unhashed_subpackets = vec![Subpacket::regular(SubpacketData::IssuerFingerprint(alice.primary_key.fingerprint())).unwrap()];
+    let sig = config.sign(&alice.primary_key, &Password::empty(), SIGNED_PART.as_bytes()).unwrap();
+    let outcome = verify(&with_signature(sig), ALICE, &keys, LATER, yes);
+    assert!(matches!(outcome, Some(Outcome::Verified(_))), "{outcome:?}");
 }

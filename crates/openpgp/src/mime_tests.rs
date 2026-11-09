@@ -59,6 +59,13 @@ fn addresses_are_taken_from_angle_brackets_and_lower_cased() {
     assert_eq!(address("\"a <x>\" <c@example.org>"), "c@example.org");
     assert_eq!(address("no address"), "");
     assert_eq!(address("two words@example.org"), "");
+    // An address as the display name, as many writers send it.
+    assert_eq!(address("bob@example.org <Bob@example.org>"), "bob@example.org");
+    assert_eq!(address("\"Bob, the builder\" <bob@example.org>"), "bob@example.org");
+    // Two mailboxes: no one address.
+    assert_eq!(address("alice@example.org, Mallory <mallory@example.org>"), "");
+    assert_eq!(address("Alice <alice@example.org> <mallory@example.org>"), "");
+    assert_eq!(address("alice@example.org mallory@example.org"), "");
 }
 
 #[test]

@@ -318,11 +318,16 @@ fn one(sig: &Signature, data: &[u8], cx: &Context<'_>, bases: &mut Bases) -> Out
     // The first two bytes of the digest are in the signature: a quick test that it is over this.
     let fits = sig.signed_hash_value().is_some_and(|v| digest.get(..2) == Some(&v[..]));
 
-    // The keys to try: those the hashed area names, then the From address's, then those the
-    // unhashed area names (a hint: only a key that fits counts). At most MAX_CANDIDATES.
+    // The keys to try, at most MAX_CANDIDATES: those the hashed area names; then those the
+    // unhashed area names (a hint: only a key that fits counts), before any other key of the
+    // From address, so that keys claiming the address can't push the signer's out; then the
+    // From address's keys.
     let mut candidates: Vec<(&PublicKey, &Signing, bool)> = Vec::new();
     for (k, s) in cx.keys.signers(&fps, &ids) {
         push(&mut candidates, k, s, true);
+    }
+    for (k, s) in cx.keys.signers(&hint_fps, &hint_ids) {
+        push(&mut candidates, k, s, false);
     }
     let from_keys: Vec<&PublicKey> = cx.keys.for_address(&cx.from).collect();
     for k in &from_keys {
@@ -330,15 +335,11 @@ fn one(sig: &Signature, data: &[u8], cx: &Context<'_>, bases: &mut Bases) -> Out
             push(&mut candidates, k, s, false);
         }
     }
-    let hints_from = candidates.len();
-    for (k, s) in cx.keys.signers(&hint_fps, &hint_ids) {
-        push(&mut candidates, k, s, false);
-    }
 
     let mut blamed: Option<Signer> = None;
     let mut weak: Option<&'static str> = None;
     let mut starved = false;
-    for (n, (key, signing, named)) in candidates.into_iter().enumerate() {
+    for (key, signing, named) in candidates {
         // A version 6 signature is made by a version 6 key and only by one (RFC 9580 §5.2.3).
         if (signing.version == KeyVersion::V6) != (config.version() == SignatureVersion::V6) || signing.algorithm != config.pub_alg {
             continue;
@@ -366,8 +367,8 @@ fn one(sig: &Signature, data: &[u8], cx: &Context<'_>, bases: &mut Bases) -> Out
             continue;
         }
         if cx.verifications.get() >= MAX_VERIFICATIONS {
-            // Running out while on the unhashed area's hints changes nothing.
-            starved |= n < hints_from;
+            // Keys left untried: what came of it isn't known.
+            starved = true;
             break;
         }
         cx.verifications.set(cx.verifications.get().saturating_add(1));
