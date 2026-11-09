@@ -71,6 +71,11 @@ fn addresses_are_taken_from_angle_brackets_and_lower_cased() {
     assert_eq!(address("Mallory <mallory@evil.example> \"<alice@example.org>\""), "mallory@evil.example");
     assert_eq!(address("mallory@evil.example (alice@example.org)"), "mallory@evil.example");
     assert_eq!(address("Alice <alice@example.org"), "");
+    // Characters that don't show (or show as nothing) make no address.
+    for hidden in ["\u{200b}", "\0", "\u{202e}", "\u{7f}", "\u{feff}"] {
+        assert_eq!(address(&format!("Mallory <alice@example.org{hidden}>")), "", "{hidden:?}");
+        assert_eq!(address(&format!("ali{hidden}ce@example.org")), "", "{hidden:?}");
+    }
 }
 
 #[test]

@@ -360,6 +360,9 @@ pub(crate) fn address(value: &str) -> String {
         _ => return String::new(),
     };
     let spec = spec.trim();
-    let clean = spec.matches('@').count() == 1 && !spec.chars().any(|c| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '(' | ')'));
+    // A control or format character (a zero-width space, a direction mark) would make an
+    // address that looks like another one: none is taken.
+    let clean = spec.matches('@').count() == 1
+        && !spec.chars().any(|c| c.is_whitespace() || c.is_control() || mailcraft_names::is_format(c) || matches!(c, '<' | '>' | '"' | '(' | ')'));
     if clean { spec.to_lowercase() } else { String::new() }
 }

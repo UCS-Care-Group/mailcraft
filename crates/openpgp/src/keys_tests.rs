@@ -310,6 +310,11 @@ fn a_user_id_certified_again_after_its_revocation_is_the_keys_again() {
     key.details.users[0].signatures.push(revocation);
     let revoked = ring_of(&key);
     assert!(revoked.keys()[0].addresses().is_empty(), "revoked");
+    // Certified again in the same second as the revocation: which came last isn't known, so it
+    // stays revoked.
+    let mut tie = key.clone();
+    recertified(&alice, &mut tie, 0, t + 10, vec![]);
+    assert!(ring_of(&tie).keys()[0].addresses().is_empty(), "same second");
     recertified(&alice, &mut key, 0, t + 20, vec![]);
     assert_eq!(ring_of(&key).keys()[0].addresses(), ["alice@example.org".to_string()]);
 }

@@ -1249,6 +1249,7 @@ version = "0.11.1"
 name = "mailcraft-openpgp"
 version = "0.11.1"
 dependencies = [
+ "mailcraft-names",
  "pgp",
  "sha2",
  "sha3",
