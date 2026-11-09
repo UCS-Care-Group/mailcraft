@@ -449,6 +449,11 @@ fn critical_policy_extensions_are_known() {
     }
 }
 
+/// `source` with Windows line endings made plain ones: a checkout on Windows may have `\r\n`.
+fn lf(source: &str) -> String {
+    source.replace("\r\n", "\n")
+}
+
 /// The lines of the body of `pub fn name` in `source`, to its closing brace at the start of a
 /// line, without comment lines.
 fn body_of(source: &str, name: &str) -> Vec<String> {
@@ -481,12 +486,12 @@ fn store_checks(source: &str, opens_key: &str) -> Result<(), String> {
 /// input, before the key is opened.
 #[test]
 fn the_system_stores_check_before_each_use() {
-    assert_eq!(store_checks(include_str!("windows_store.rs"), "open_key("), Ok(()), "windows_store.rs");
-    assert_eq!(store_checks(include_str!("macos_keychain.rs"), "private_key()"), Ok(()), "macos_keychain.rs");
+    assert_eq!(store_checks(&lf(include_str!("windows_store.rs")), "open_key("), Ok(()), "windows_store.rs");
+    assert_eq!(store_checks(&lf(include_str!("macos_keychain.rs")), "private_key()"), Ok(()), "macos_keychain.rs");
 
     // What the check would have missed before: a check commented out, moved after the key is
     // used, or put in a closure that never runs.
-    let windows = include_str!("windows_store.rs");
+    let windows = lf(include_str!("windows_store.rs"));
     let check = "    check_for_signing(&held, scheme)?;\n";
     let commented = windows.replacen(check, "    // check_for_signing(&held, scheme)?;\n", 1);
     assert!(store_checks(&commented, "open_key(").is_err());
@@ -502,7 +507,7 @@ fn the_system_stores_check_before_each_use() {
     assert!(store_checks(&closure, "open_key(").is_err());
     let one_line = windows.replacen(check, "    let _later = || check_for_signing(&held, scheme);\n", 1);
     assert!(store_checks(&one_line, "open_key(").is_err());
-    let mac = include_str!("macos_keychain.rs");
+    let mac = lf(include_str!("macos_keychain.rs"));
     assert!(store_checks(&mac.replacen("    check_for_decrypting(&held)?;\n", "", 1), "private_key()").is_err());
 }
 
