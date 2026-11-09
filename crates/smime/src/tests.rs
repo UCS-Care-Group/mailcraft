@@ -637,6 +637,42 @@ fn first_signer(cms: &[u8]) -> Vec<u8> {
     mailcraft_model::ber::children(parts.last().unwrap().value).unwrap()[0].whole.to_vec()
 }
 
+/// The second try of a signature without signed attributes, over the content in its canonical
+/// form, is a verification of its own, paid from the budget (#30 review 6).
+#[test]
+fn the_canonical_try_is_paid_from_the_budget() {
+    const LF: &[u8] = b"Content-Type: text/plain\n\nThe accounts are ready.\n";
+    let root = root("Example Root");
+    let mail = authority("Mail CA", &root, |_| {});
+    let ada = signer_by("Ada", "ada@example.org", &mail);
+    // Without its signed attributes, the signature (made over them) fails as it came and in the
+    // canonical form alike.
+    let cms = sign_with(LF, &ada, &[&ada], false, |i| i.signed_attrs = None);
+    let anchors = Anchors::default();
+    let context = Context { anchors: &anchors, from: "ada@example.org", now: NOW, known: &[], coverage: Coverage::Whole };
+    let signed = Signed::Detached { content: LF, signature: &cms };
+    let one = crate::verify::check_within(signed, &context, 1).unwrap();
+    assert_eq!((one.signature.verdict, one.signature.why), (Verdict::Unchecked, Some(Why::TooMuch)), "one verification: no canonical try");
+    let two = crate::verify::check_within(signed, &context, 2).unwrap();
+    assert_eq!(two.signature.verdict, Verdict::Changed);
+}
+
+/// A signer's name and issuer are shown without format characters: no bidirectional override
+/// reorders them and no zero-width space hides in them (#30 review 6).
+#[test]
+fn a_certificates_names_lose_their_format_characters() {
+    let root = root("Example Root");
+    let mail = authority("Mail\u{202e} CA\u{200b}", &root, |_| {});
+    let ada = signer_by("Ada\u{202e}gpj.exe\u{200b}", "ada@example.org", &mail);
+    let cms = sign(CONTENT, &ada, &[&ada], false);
+    let anchors = Anchors::default();
+    let context = Context { anchors: &anchors, from: "ada@example.org", now: NOW, known: &[], coverage: Coverage::Whole };
+    let c = check(Signed::Detached { content: CONTENT, signature: &cms }, &context).unwrap();
+    let signer = c.signature.signer.unwrap();
+    assert_eq!(signer.name, "Adagpj.exe");
+    assert!(signer.issuer.contains("Mail CA") && !signer.issuer.contains(['\u{202e}', '\u{200b}']), "{:?}", signer.issuer);
+}
+
 #[test]
 fn a_message_with_too_much_to_check_is_said_so() {
     let root = root("Example Root");

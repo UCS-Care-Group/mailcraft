@@ -382,6 +382,19 @@ fn an_undo_that_puts_back_an_old_opaque_message_has_it_read_again() {
     assert!(!is_bare(&s, bare));
 }
 
+/// The messages a command changes that aren't as an older build read them are let go of before
+/// the queue is looked at: a command over many messages costs nothing there (#30 review 6).
+#[test]
+fn messages_a_command_changes_ask_nothing_of_the_queue_unless_bare() {
+    let (mut s, _) = old_opaques(1);
+    let inbox = s.mailbox.inbox().unwrap();
+    let plain = mailcraft_mime::parse(b"From: ada@example.org\r\nSubject: Plain\r\n\r\nHello.\r\n");
+    let ids: Vec<_> = (0..50).map(|_| s.mailbox.add_message(Message { folder: inbox, ..plain.clone() }).unwrap()).collect();
+    let asked = s.signatures.to_read_again.asked;
+    s.run("mail.flag", &json!({"ids": ids})).unwrap();
+    assert_eq!(s.signatures.to_read_again.asked, asked);
+}
+
 /// One an older build read without the bytes it came as has them come by Check Again through
 /// `sync.apply`, and is read again at the next command (#30 review 5).
 #[test]

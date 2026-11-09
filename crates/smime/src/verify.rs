@@ -74,6 +74,12 @@ pub struct Checked {
 /// message's enveloped data, say): not a Digital signature. Never fails otherwise: what can't be
 /// read is [`Verdict::Unchecked`].
 pub fn check(signed: Signed<'_>, context: &Context<'_>) -> Option<Checked> {
+    check_within(signed, context, MAX_VERIFICATIONS)
+}
+
+/// [`check`] with at most `verifications` signatures checked (for the tests, which spend a
+/// smaller budget).
+pub(crate) fn check_within(signed: Signed<'_>, context: &Context<'_>, verifications: usize) -> Option<Checked> {
     let blob = match signed {
         Signed::Detached { signature, .. } => signature,
         Signed::Opaque(blob) => blob,
@@ -99,7 +105,7 @@ pub fn check(signed: Signed<'_>, context: &Context<'_>) -> Option<Checked> {
     let mut pool: Vec<Cert> = data.certificates.iter().take(MAX_CERTS).filter_map(|c| Cert::from_der(c.whole)).collect();
     pool.extend(context.known.iter().take(MAX_CERTS).filter_map(|c| Cert::from_der(c)));
     let mut digests = Digests::new(content);
-    let mut budget = MAX_VERIFICATIONS;
+    let mut budget = verifications;
     let mut best: Option<Checked> = None;
     for signer in data.signers.iter().take(MAX_SIGNERS) {
         let found = one_signer(signer, &eci, &mut digests, &pool, context, &mut budget);
@@ -311,8 +317,13 @@ fn one_signer(
             Some(bytes) => algorithms::verify(cert.public_key(), &info.signature_algorithm, Some(hash), bytes, signature),
             None => {
                 let plain = algorithms::verify_hashed(cert.public_key(), &info.signature_algorithm, Some(hash), &mut |h| digests.of(h), signature);
-                // (Signed in its canonical form, perhaps.)
+                // (Signed in its canonical form, perhaps: another verification, from the budget.)
                 if plain == Err(Fault::Invalid) && digests.of_canonical(hash).is_some() {
+                    let Some(left) = budget.checked_sub(1) else {
+                        ran_out = true;
+                        break;
+                    };
+                    *budget = left;
                     algorithms::verify_hashed(
                         cert.public_key(),
                         &info.signature_algorithm,

@@ -16,7 +16,7 @@
 //! is kept for the sender's address ([`mailcraft_model::Mailbox::public_keys`], #30 R9), at the
 //! next command: what the check learns is no step of the history (and an undo leaves it).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use mailcraft_model::digital_signature::{Coverage, DigitalSignature, SignatureFormat, Verdict, Why};
@@ -49,7 +49,7 @@ pub(crate) struct SignatureChecks {
     to_keep: Vec<(String, PublicKey)>,
     /// Opaque signed messages read by a build before #30's, to be read again from the bytes
     /// they came as ([`Session::read_opaque_again`]).
-    pub(crate) to_read_again: Vec<Id>,
+    pub(crate) to_read_again: ToReadAgain,
     /// [`READ_AGAIN_BYTES`] but where a test sets another.
     pub(crate) read_again_bytes: Option<u64>,
     /// The hash of the keys kept for each address, with the revision of the keys it was worked
@@ -58,6 +58,45 @@ pub(crate) struct SignatureChecks {
     /// How many times keys were hashed, for the tests.
     #[cfg(test)]
     pub(crate) hashed: std::sync::atomic::AtomicUsize,
+}
+
+/// The messages to read again, in order, with a set beside them so that whether one is there
+/// already is answered at once (a command may change a hundred thousand messages).
+#[derive(Default)]
+pub(crate) struct ToReadAgain {
+    order: Vec<Id>,
+    there: HashSet<Id>,
+    /// How many times the queue was asked whether it holds a message, for the tests.
+    #[cfg(test)]
+    pub(crate) asked: usize,
+}
+
+impl ToReadAgain {
+    /// Note `id`, unless it is noted already or [`MAX_TO_READ_AGAIN`] are.
+    fn push(&mut self, id: Id) {
+        #[cfg(test)]
+        {
+            self.asked += 1;
+        }
+        if self.order.len() < MAX_TO_READ_AGAIN && self.there.insert(id) {
+            self.order.push(id);
+        }
+    }
+
+    fn last(&self) -> Option<Id> {
+        self.order.last().copied()
+    }
+
+    fn pop(&mut self) {
+        if let Some(id) = self.order.pop() {
+            self.there.remove(&id);
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.order.clear();
+        self.there.clear();
+    }
 }
 
 /// What a check found of one message.
@@ -271,15 +310,16 @@ impl Session {
     /// as): a mailbox was just opened. Nothing is read here; [`Session::read_opaque_again`] does.
     pub(crate) fn find_opaque_to_read_again(&mut self) {
         let found: Vec<Id> = self.mailbox.messages.values().filter(|m| read_bare(m)).map(|m| m.id).take(MAX_TO_READ_AGAIN).collect();
-        self.signatures.to_read_again = found;
+        self.signatures.to_read_again.clear();
+        found.into_iter().for_each(|id| self.signatures.to_read_again.push(id));
     }
 
     /// Note again the messages among `ids` that are as an older build read them (an undo put
     /// one back as it was, or the bytes it came as arrived for it): the next command reads them.
+    /// (Most messages a command changes aren't: they are let go of before the queue is looked at.)
     pub(crate) fn note_to_read_again(&mut self, ids: impl IntoIterator<Item = Id>) {
         for id in ids {
-            let queue = &self.signatures.to_read_again;
-            if queue.len() < MAX_TO_READ_AGAIN && !queue.contains(&id) && self.mailbox.message(id).is_some_and(read_bare) {
+            if self.mailbox.message(id).is_some_and(read_bare) {
                 self.signatures.to_read_again.push(id);
             }
         }
@@ -296,7 +336,7 @@ impl Session {
         let mut spent: u64 = 0;
         let mut changed = false;
         for _ in 0..READ_AGAIN_AT_ONCE {
-            let Some(&id) = self.signatures.to_read_again.last() else { break };
+            let Some(id) = self.signatures.to_read_again.last() else { break };
             let Some(m) = self.mailbox.message(id).filter(|m| read_bare(m)) else {
                 self.signatures.to_read_again.pop();
                 continue;

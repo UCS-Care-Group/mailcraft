@@ -276,7 +276,10 @@ impl DigitalSignature {
     }
 }
 
-/// `text` cut to [`MAX_SIGNER_TEXT`] characters, without control characters.
+/// `text` (a name or address from a certificate) as a name coming in is kept
+/// ([`mailcraft_names::incoming`]): one line, without control or format characters (no
+/// reordering by a bidirectional override, nothing hidden by a zero-width one), at most
+/// [`MAX_SIGNER_TEXT`] characters.
 pub fn signer_text(text: &str) -> String {
-    text.chars().filter(|c| !c.is_control()).take(MAX_SIGNER_TEXT).collect::<String>().trim().to_string()
+    mailcraft_names::incoming(text, MAX_SIGNER_TEXT).unwrap_or_default()
 }
