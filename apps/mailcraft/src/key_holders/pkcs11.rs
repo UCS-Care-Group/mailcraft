@@ -17,7 +17,7 @@
 //! point, read from the key or else from the public-key object with that id. A key that doesn't
 //! match is never used. A key paired through a public-key object (which may be a stale one of
 //! another key) has each signature checked against the certificate before it is given back
-//! (`verify.rs`); what it unwraps can't be checked so, and a wrong key's unwrapping fails when
+//! ([`signed_by`], with RustCrypto's verifiers); what it unwraps can't be checked so, and a wrong key's unwrapping fails when
 //! the message is decrypted with it.
 //!
 //! Logging in: a token with a protected authentication path (a PIN pad) is logged in to with no
@@ -299,7 +299,7 @@ pub fn sign_digest<M: Module>(
         SignatureScheme::Ecdsa => (Mechanism::Ecdsa, digest.to_vec()),
     };
     let signature = found.session.sign(&mechanism, found.key, &input).map_err(|e| token_error(e, &found.facts, found.logged_in))?;
-    if found.paired_by_public_object && !super::verify::signed_by(&found.certificate, scheme, algorithm, digest, &signature) {
+    if found.paired_by_public_object && !signed_by(&found.certificate, scheme, algorithm, digest, &signature) {
         return Err(KeyHolderError::NotAllowed("the token signed with a key that isn't the certificate's"));
     }
     match scheme {
@@ -484,6 +484,59 @@ fn public_half<S: TokenSession>(session: &S, key: S::Key, id: &[u8]) -> (KeyFact
         };
     }
     (facts, from_public_object)
+}
+
+/// Whether `signature` (raw RSA, or ECDSA's `r || s`) is the certificate's key's over `digest`,
+/// checked with RustCrypto's verifiers (public keys only).
+pub fn signed_by(certificate: &HeldCertificate, scheme: SignatureScheme, algorithm: DigestAlgorithm, digest: &[u8], signature: &[u8]) -> bool {
+    use rsa::signature::hazmat::PrehashVerifier;
+    match (certificate.key, scheme) {
+        (KeyKind::Rsa { .. }, SignatureScheme::RsaPkcs1v15 | SignatureScheme::RsaPss) => {
+            let Some(key) = rsa_public_key(&certificate.der) else { return false };
+            if scheme == SignatureScheme::RsaPkcs1v15 {
+                let Ok(signature) = rsa::pkcs1v15::Signature::try_from(signature) else { return false };
+                match algorithm {
+                    DigestAlgorithm::Sha256 => rsa::pkcs1v15::VerifyingKey::<sha2::Sha256>::new(key).verify_prehash(digest, &signature),
+                    DigestAlgorithm::Sha384 => rsa::pkcs1v15::VerifyingKey::<sha2::Sha384>::new(key).verify_prehash(digest, &signature),
+                    DigestAlgorithm::Sha512 => rsa::pkcs1v15::VerifyingKey::<sha2::Sha512>::new(key).verify_prehash(digest, &signature),
+                }
+                .is_ok()
+            } else {
+                // The salt as long as the hash, as tokens are asked to sign here.
+                let Ok(signature) = rsa::pss::Signature::try_from(signature) else { return false };
+                match algorithm {
+                    DigestAlgorithm::Sha256 => rsa::pss::VerifyingKey::<sha2::Sha256>::new(key).verify_prehash(digest, &signature),
+                    DigestAlgorithm::Sha384 => rsa::pss::VerifyingKey::<sha2::Sha384>::new(key).verify_prehash(digest, &signature),
+                    DigestAlgorithm::Sha512 => rsa::pss::VerifyingKey::<sha2::Sha512>::new(key).verify_prehash(digest, &signature),
+                }
+                .is_ok()
+            }
+        }
+        (KeyKind::EcP256, SignatureScheme::Ecdsa) => {
+            let (Ok(key), Ok(signature)) =
+                (p256::ecdsa::VerifyingKey::from_sec1_bytes(&certificate.public_key), p256::ecdsa::Signature::from_slice(signature))
+            else {
+                return false;
+            };
+            key.verify_prehash(digest, &signature).is_ok()
+        }
+        (KeyKind::EcP384, SignatureScheme::Ecdsa) => {
+            let (Ok(key), Ok(signature)) =
+                (p384::ecdsa::VerifyingKey::from_sec1_bytes(&certificate.public_key), p384::ecdsa::Signature::from_slice(signature))
+            else {
+                return false;
+            };
+            key.verify_prehash(digest, &signature).is_ok()
+        }
+        _ => false,
+    }
+}
+
+/// The RSA public key of the certificate `der`.
+fn rsa_public_key(der: &[u8]) -> Option<rsa::PublicKey> {
+    use rsa::pkcs1::DecodeRsaPublicKey;
+    let cert = x509_cert::Certificate::from_der(der).ok()?;
+    rsa::PublicKey::from_pkcs1_der(cert.tbs_certificate().subject_public_key_info().subject_public_key.raw_bytes()).ok()
 }
 
 fn hash_and_mgf(algorithm: DigestAlgorithm) -> (MechanismType, PkcsMgfType) {

@@ -529,7 +529,7 @@ mod pkcs11 {
     use x509_cert::spki::SubjectPublicKeyInfoOwned;
 
     use super::super::encoding::ecdsa_raw_to_der;
-    use super::super::verify::signed_by;
+    use super::super::pkcs11::signed_by;
     use super::super::{DigestAlgorithm, HeldCertificate, KeyHolderError, Pin, RsaPadding, SignatureScheme, TokenRef};
     use super::{EC, P256, SERVER_AUTH, Spec, alice_rsa, certificate, ec_key, ec_point, eku, example_token, mail_extensions, modulus, read, rsa_key};
 
