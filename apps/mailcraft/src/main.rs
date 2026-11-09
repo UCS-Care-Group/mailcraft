@@ -62,6 +62,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod key_holders;
 mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
