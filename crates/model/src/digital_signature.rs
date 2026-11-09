@@ -82,6 +82,13 @@ pub enum Why {
     NotForEmail,
     /// The certificate is for another address than the message's From address.
     AddressMismatch,
+    /// An authority on the way to a trusted one doesn't allow the certificate to be used this
+    /// way: a name outside what it may vouch for, a path too long, a use it doesn't allow, or a
+    /// critical extension not known here (RFC 5280 §4.2, §6.1).
+    Constrained,
+    /// No certification authorities for mail could be read on this computer, so no signer can be
+    /// verified here (or not yet: they are read at start).
+    NoAuthorities,
     /// An OpenPGP key that the owner hasn't marked Verified.
     KeyNotVerified,
     /// Only part of the message was signed (a wrapper such as a list's footer holds it), so
@@ -113,6 +120,8 @@ impl Why {
             Why::Expired => "expired",
             Why::NotForEmail => "notForEmail",
             Why::AddressMismatch => "addressMismatch",
+            Why::Constrained => "constrained",
+            Why::NoAuthorities => "noAuthorities",
             Why::KeyNotVerified => "keyNotVerified",
             Why::PartlySigned => "partlySigned",
             Why::Altered => "altered",
@@ -133,6 +142,8 @@ impl Why {
             Why::Expired => "the certificate is out of date",
             Why::NotForEmail => "the certificate isn't for signing mail",
             Why::AddressMismatch => "the certificate is for another address than the sender's",
+            Why::Constrained => "an authority on the way to a trusted one doesn't allow the certificate to be used this way",
+            Why::NoAuthorities => "no certification authorities for mail could be read on this computer, so no signer can be verified here",
             Why::KeyNotVerified => "the signer's key hasn't been marked verified",
             Why::PartlySigned => "only part of the message was signed; the rest could say anything",
             Why::Altered => "the message was changed after it was signed",

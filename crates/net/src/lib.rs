@@ -244,3 +244,7 @@ mod tls_test_support;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod verifier_tests;
+
+#[cfg(test)]
+#[cfg(all(unix, not(target_os = "macos")))]
+mod anchors_tests;

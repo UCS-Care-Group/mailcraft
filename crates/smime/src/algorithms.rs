@@ -26,6 +26,8 @@ pub enum Fault {
 
 /// The least RSA modulus, in bits, that is safe enough (RFC 8551 §6).
 pub const MIN_RSA_BITS: usize = 2048;
+/// The largest RSA modulus checked, in bits: a longer key takes too long to be worth it.
+pub const MAX_RSA_BITS: usize = 8192;
 
 const fn oid(s: &str) -> ObjectIdentifier {
     ObjectIdentifier::new_unwrap(s)
@@ -227,6 +229,9 @@ fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
     let bits = significant.count().saturating_mul(8).saturating_add(8usize.saturating_sub(top.leading_zeros() as usize));
     if bits < MIN_RSA_BITS {
         return Err(Fault::Weak);
+    }
+    if bits > MAX_RSA_BITS {
+        return Err(Fault::Unknown);
     }
     rsa::PublicKey::try_from(pkcs1).map_err(|_| Fault::Unknown)
 }

@@ -14,6 +14,7 @@ use crate::{MailApp, Services};
 const CA: &[u8] = include_bytes!("../../../smime/testdata/ca.rsa.der");
 const DETACHED: &[u8] = include_bytes!("../../../smime/testdata/detached.eml");
 const SHA1: &[u8] = include_bytes!("../../../smime/testdata/sha1.eml");
+const OPAQUE: &[u8] = include_bytes!("../../../smime/testdata/opaque.eml");
 
 /// 2026-11-09.
 const NOW: i64 = 1_794_182_400;
@@ -73,6 +74,41 @@ fn a_verified_signature_has_its_bar_details_and_seal() {
     assert!(says(&harness, "Sample LAMPS RSA Certification Authority"));
     assert!(says(&harness, "Revocation not checked."));
     assert!(harness.state().hit.rect("messageSignature", ids[0]).is_some(), "the row wears the seal");
+    // The signature part isn't among the attachments: Details reaches it.
+    let p7s = harness.state().session.mailbox.messages.get(&ids[0]).unwrap().attachments.iter().position(|a| a.name == "smime.p7s").unwrap();
+    assert!(harness.state().hit.rect("attachment", crate::reading::attachment_key(ids[0], p7s)).is_none());
+    assert!(harness.state().hit.rect("signatureFile", ids[0]).is_some());
+}
+
+/// The system's authorities come when the host has read them; the window never waits, and what
+/// was checked without them is checked again (#30 review 6).
+#[test]
+fn the_authorities_are_taken_when_they_come() {
+    let (mut harness, ids) = window(&[DETACHED.to_vec()], false);
+    let (tx, rx) = std::sync::mpsc::channel();
+    harness.state_mut().trust_anchors_arriving = Some(rx);
+    open(&mut harness, ids[0]);
+    assert!(says(&harness, "No certification authorities for mail could be read on this computer"));
+    tx.send(vec![CA.to_vec()]).unwrap();
+    harness.run_steps(4);
+    assert_eq!(harness.state().session.trust_anchor_count(), 1);
+    assert!(harness.state().trust_anchors_arriving.is_none());
+    assert!(says(&harness, "Digitally signed by alice@smime.example, and verified."));
+}
+
+/// An opaque signed message shows what was signed under its bar, not an empty body.
+#[test]
+fn an_opaque_signed_message_shows_its_content() {
+    let (mut harness, ids) = window(&[OPAQUE.to_vec()], true);
+    open(&mut harness, ids[0]);
+    assert!(says(&harness, "Digitally signed by alice@smime.example, and verified."));
+    assert!(harness.state_mut().session.signed_view(ids[0]).is_some_and(|v| v.body.text.contains("Hello Bob")));
+    // The smime.p7m holding it is the signature file: not in the strip, reached from Details.
+    let p7m = harness.state().session.mailbox.messages.get(&ids[0]).unwrap().attachments.iter().position(|a| a.name == "smime.p7m").unwrap();
+    assert!(harness.state().hit.rect("attachment", crate::reading::attachment_key(ids[0], p7m)).is_none());
+    harness.get_by_label("Details").click();
+    harness.run_steps(4);
+    assert!(harness.state().hit.rect("signatureFile", ids[0]).is_some());
 }
 
 #[test]
@@ -81,7 +117,7 @@ fn a_signer_not_verified_a_change_and_an_old_algorithm_are_said() {
     let (mut harness, ids) = window(&[DETACHED.to_vec(), changed, SHA1.to_vec()], false);
     open(&mut harness, ids[0]);
     assert!(says(&harness, "but the signer isn't verified."));
-    assert!(says(&harness, "wasn't issued by a certification authority this computer trusts"));
+    assert!(says(&harness, "No certification authorities for mail could be read on this computer"));
     open(&mut harness, ids[1]);
     assert!(says(&harness, "This message was changed after it was signed."));
     open(&mut harness, ids[2]);

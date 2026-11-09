@@ -20,6 +20,9 @@ use crate::chain::{self, Anchors};
 pub const MAX_CERTS: usize = 32;
 /// The most signers of one message that are checked.
 pub const MAX_SIGNERS: usize = 8;
+/// The most signatures checked for one message, its signers' and their certificates' together
+/// (#30): an RSA key of 8192 bits takes a while, and a message may carry many.
+pub const MAX_VERIFICATIONS: usize = 32;
 /// The most certificates tried for one signer: those that its identifier names (the message
 /// may carry several of one name; only the one whose key made the signature is the signer's).
 pub const MAX_CANDIDATES: usize = 4;
@@ -83,19 +86,23 @@ pub fn check(signed: Signed<'_>, context: &Context<'_>) -> Option<Checked> {
     }
     let Some(data) = signed_data(parts.content) else { return unreadable() };
     let Ok(eci) = EncapsulatedContentInfo::from_der(data.encap.whole) else { return unreadable() };
-    let content: &[u8] = match signed {
-        Signed::Detached { content, .. } => content,
-        Signed::Opaque(_) => match econtent(&data.encap) {
-            Some(c) => c,
-            None => return unreadable(),
-        },
+    // What mail signs is MIME, id-data (RFC 8551 §3.5); a detached signature carries none of it
+    // and an opaque one all of it.
+    if eci.econtent_type != DATA {
+        return unreadable();
+    }
+    let content: &[u8] = match (signed, econtent(&data.encap)) {
+        (Signed::Detached { content, .. }, None) if eci.econtent.is_none() => content,
+        (Signed::Opaque(_), Some(c)) => c,
+        _ => return unreadable(),
     };
     let mut pool: Vec<Cert> = data.certificates.iter().take(MAX_CERTS).filter_map(|c| Cert::from_der(c.whole)).collect();
     pool.extend(context.known.iter().take(MAX_CERTS).filter_map(|c| Cert::from_der(c)));
     let mut digests = Digests::new(content);
+    let mut budget = MAX_VERIFICATIONS;
     let mut best: Option<Checked> = None;
     for signer in data.signers.iter().take(MAX_SIGNERS) {
-        let found = one_signer(signer, &eci, &mut digests, &pool, context);
+        let found = one_signer(signer, &eci, &mut digests, &pool, context, &mut budget);
         best = Some(match best {
             Some(b) if b.signature.verdict <= found.signature.verdict => b,
             _ => found,
@@ -160,14 +167,16 @@ struct ContentInfoParts<'a> {
 
 /// ContentInfo: its type, and the value inside its `[0] EXPLICIT`.
 fn content_info(der: &[u8]) -> Option<ContentInfoParts<'_>> {
-    let (outer, _) = ber::read(der)?;
-    if outer.tag != 0x30 {
+    let (outer, rest) = ber::read(der)?;
+    if outer.tag != 0x30 || !rest.is_empty() {
         return None;
     }
     let fields = ber::children(outer.value)?;
-    let oid = fields.first().filter(|f| f.tag == 0x06)?;
+    let [oid, explicit] = fields.as_slice() else { return None };
+    if oid.tag != 0x06 || explicit.tag != 0xa0 {
+        return None;
+    }
     let content_type = ObjectIdentifier::from_der(oid.whole).ok()?;
-    let explicit = fields.get(1).filter(|f| f.tag == 0xa0)?;
     Some(ContentInfoParts { content_type, content: explicit.value })
 }
 
@@ -179,32 +188,62 @@ struct SignedDataParts<'a> {
     signers: Vec<Tlv<'a>>,
 }
 
+/// SignedData read strictly (RFC 5652 §5.1): its version one of those defined, its digest
+/// algorithms a SET of algorithm identifiers, encapContentInfo, the certificates and the
+/// revocation lists when they are there, in that order, and the signers last: nothing else, and
+/// nothing after.
 fn signed_data(content: &[u8]) -> Option<SignedDataParts<'_>> {
-    let (outer, _) = ber::read(content)?;
-    if outer.tag != 0x30 {
+    let (outer, rest) = ber::read(content)?;
+    if outer.tag != 0x30 || !rest.is_empty() {
         return None;
     }
     let fields = ber::children(outer.value)?;
-    // version, digestAlgorithms, encapContentInfo, [0] certificates, [1] crls, signerInfos.
-    let encap = *fields.get(2).filter(|f| f.tag == 0x30)?;
-    let mut certificates = Vec::new();
-    let mut signers = None;
-    for field in fields.iter().skip(3) {
-        match field.tag {
-            0xa0 => certificates = ber::children(field.value)?.into_iter().filter(|c| c.tag == 0x30).collect(),
-            0x31 => signers = Some(ber::children(field.value)?),
-            _ => {}
-        }
+    let mut fields = fields.into_iter();
+    let version = fields.next().filter(|f| f.tag == 0x02)?;
+    if !matches!(version.value, [1] | [3] | [4] | [5]) {
+        return None;
     }
-    Some(SignedDataParts { encap, certificates, signers: signers? })
+    let digests = fields.next().filter(|f| f.tag == 0x31)?;
+    for d in ber::children(digests.value)? {
+        spki::AlgorithmIdentifierOwned::from_der(d.whole).ok()?;
+    }
+    let encap = fields.next().filter(|f| f.tag == 0x30)?;
+    let mut next = fields.next()?;
+    let mut certificates = Vec::new();
+    if next.tag == 0xa0 {
+        // (Other kinds of certificate, [0]..[3] IMPLICIT, are left out; they are never a path.)
+        certificates = ber::children(next.value)?.into_iter().filter(|c| c.tag == 0x30).collect();
+        next = fields.next()?;
+    }
+    if next.tag == 0xa1 {
+        next = fields.next()?;
+    }
+    if next.tag != 0x31 || fields.next().is_some() {
+        return None;
+    }
+    Some(SignedDataParts { encap, certificates, signers: ber::children(next.value)? })
 }
 
-/// The OCTET STRING inside encapContentInfo's `[0] EXPLICIT eContent`, when there is one.
+/// The OCTET STRING inside encapContentInfo's `[0] EXPLICIT eContent`, when there is one (and
+/// nothing else is there).
 fn econtent<'a>(encap: &Tlv<'a>) -> Option<&'a [u8]> {
     let fields = ber::children(encap.value)?;
     let explicit = fields.get(1).filter(|f| f.tag == 0xa0)?;
-    let (octets, _) = ber::read(explicit.value)?;
-    (octets.tag == 0x04).then_some(octets.value)
+    let (octets, rest) = ber::read(explicit.value)?;
+    (octets.tag == 0x04 && rest.is_empty()).then_some(octets.value)
+}
+
+/// The content an opaque signed message holds (`application/pkcs7-mime` signed data): the MIME
+/// entity that was signed, for showing under what the check found. `None` when `cms` isn't
+/// signed data holding one.
+pub fn opaque_content(cms: &[u8]) -> Option<Vec<u8>> {
+    let der = ber::to_der(cms)?;
+    let parts = content_info(&der)?;
+    if parts.content_type != SIGNED_DATA {
+        return None;
+    }
+    let data = signed_data(parts.content)?;
+    econtent(&data.encap).map(<[u8]>::to_vec)
 }
 
 /// The value of the signed attribute `oid`, in DER (its one value), when there is one.
@@ -243,7 +282,14 @@ fn canonical(content: &[u8]) -> Option<Vec<u8>> {
     lone.then_some(out)
 }
 
-fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, digests: &mut Digests<'_>, pool: &[Cert], context: &Context<'_>) -> Checked {
+fn one_signer(
+    raw: &Tlv<'_>,
+    eci: &EncapsulatedContentInfo,
+    digests: &mut Digests<'_>,
+    pool: &[Cert],
+    context: &Context<'_>,
+    budget: &mut usize,
+) -> Checked {
     let Ok(info) = SignerInfo::from_der(raw.whole) else { return unchecked(Why::Unreadable) };
     let hash = match Hash::of(&info.digest_alg) {
         Ok(hash) => hash,
@@ -261,7 +307,6 @@ fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, digests: &mut Digest
             Some(bytes) => Some(bytes),
             None => return unchecked(Why::Unreadable),
         },
-        None if eci.econtent_type != DATA => return unchecked(Why::Unreadable),
         None => None,
     };
     // The signer is the certificate whose key made the signature, of those its identifier names:
@@ -269,6 +314,8 @@ fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, digests: &mut Digest
     let mut fault: Option<Fault> = None;
     let mut signer: Option<&Cert> = None;
     for cert in candidates {
+        let Some(left) = budget.checked_sub(1) else { break };
+        *budget = left;
         let verified = match &attributes {
             Some(bytes) => algorithms::verify(cert.public_key(), &info.signature_algorithm, Some(hash), bytes, signature),
             None => {
@@ -332,9 +379,10 @@ fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, digests: &mut Digest
             return result(Verdict::Changed, Some(Why::Altered));
         }
     }
-    let worth_keeping = cert.is_for(context.from) && cert.for_email();
-    let trust = chain::trust(cert, pool, context.anchors, context.now)
-        .and_then(|()| if cert.for_email() { Ok(()) } else { Err(Why::NotForEmail) })
+    // (An authority's certificate never signs mail, whatever else it allows.)
+    let for_email = cert.for_email() && !cert.is_authority();
+    let trust = chain::trust(cert, pool, context.anchors, context.now, budget)
+        .and_then(|()| for_email.then_some(()).ok_or(Why::NotForEmail))
         .and_then(|()| if cert.is_for(context.from) { Ok(()) } else { Err(Why::AddressMismatch) });
     let mut r = match trust {
         Ok(()) => result(Verdict::Verified, None),
@@ -342,8 +390,16 @@ fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, digests: &mut Digest
         // be relied on, but the message is as it was signed.)
         Err(why) => result(Verdict::NotVerified, Some(why)),
     };
-    if worth_keeping {
+    // Kept for the sender only when it is trusted, valid now and theirs: it is what mail to them
+    // will be encrypted with.
+    if trust.is_ok() {
         r.certificate = Some(cert.der().to_vec());
+    }
+    // The signer's address that is the sender's comes first: it is the one said.
+    if let (Some(address), Some(signer)) = (cert.address_for(context.from), r.signature.signer.as_mut()) {
+        let shown = mailcraft_model::digital_signature::signer_text(&address);
+        signer.addresses.retain(|a| !a.eq_ignore_ascii_case(&shown));
+        signer.addresses.insert(0, shown);
     }
     r
 }

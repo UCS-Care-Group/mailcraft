@@ -35,10 +35,16 @@ fn session_with(messages: &[&[u8]]) -> (Session, Vec<u64>) {
 #[test]
 fn a_signed_message_is_verified_against_the_anchors_handed_in() {
     let (mut s, ids) = session_with(&[DETACHED, OPAQUE]);
-    // No anchors yet (the browser): valid, but the signer isn't verified.
+    // No anchors yet (the browser, or not read yet): valid, but the signer isn't verified, and
+    // the reason is that none could be read, not an issuer this computer doesn't trust.
+    assert_eq!(s.trust_anchors_read(), None);
     let d = s.digital_signature(ids[0]).unwrap();
-    assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::UnknownIssuer)));
+    assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::NoAuthorities)));
+    s.set_trust_anchors(Vec::<Vec<u8>>::new());
+    assert_eq!(s.trust_anchors_read(), Some(false));
+    assert_eq!(s.digital_signature(ids[0]).unwrap().why, Some(Why::NoAuthorities));
     s.set_trust_anchors([CA]);
+    assert_eq!(s.trust_anchors_read(), Some(true));
     assert_eq!(s.trust_anchor_count(), 1);
     for id in &ids {
         let d = s.digital_signature(*id).unwrap();
@@ -134,4 +140,56 @@ fn a_partly_signed_message_or_one_from_several_people_is_never_verified() {
     assert!(s.digital_signature(ids[1]).is_none_or(|d| d.verdict != Verdict::Verified));
     let d = s.digital_signature(ids[2]).unwrap();
     assert_eq!((d.verdict, d.why), (Verdict::NotVerified, Some(Why::AddressMismatch)));
+}
+
+const ALICE: &[u8] = include_bytes!("../../smime/testdata/alice.sign.der");
+
+fn key_of(der: &[u8]) -> mailcraft_model::public_keys::PublicKey {
+    mailcraft_model::public_keys::PublicKey {
+        format: mailcraft_model::digital_signature::SignatureFormat::Smime,
+        data: std::sync::Arc::new(der.to_vec()),
+        fingerprint: format!("{:02x?}", &der[der.len() - 8..]),
+        not_after: 0,
+        seen: 0,
+    }
+}
+
+/// A certificate put in the place of another kept for the sender (the same count) is seen: the
+/// result rests on the keys, not on how many there are (#30 review 9).
+#[test]
+fn a_kept_certificate_replaced_by_another_is_seen() {
+    let (mut s, ids) = session_with(&[NO_CERTS]);
+    s.set_trust_anchors([CA]);
+    s.mailbox.public_keys = Default::default();
+    s.mailbox.public_keys.add("alice@smime.example", key_of(CA));
+    assert_eq!(s.digital_signature(ids[0]).unwrap().why, Some(Why::NoPublicKey));
+    s.mailbox.public_keys = Default::default();
+    s.mailbox.public_keys.add("alice@smime.example", key_of(ALICE));
+    assert_eq!(s.mailbox.public_keys.of("alice@smime.example").len(), 1, "the same count");
+    assert_eq!(s.digital_signature(ids[0]).unwrap().verdict, Verdict::Verified);
+}
+
+/// An undo leaves the certificates the checks kept: they were learnt, not done (#30 review 8).
+#[test]
+fn an_undo_leaves_the_kept_certificates() {
+    let (mut s, ids) = session_with(&[DETACHED]);
+    s.set_trust_anchors([CA]);
+    assert_eq!(s.digital_signature(ids[0]).unwrap().verdict, Verdict::Verified);
+    s.run("mail.flag", &json!({"id": ids[0]})).unwrap();
+    assert_eq!(s.mailbox.public_keys.of("alice@smime.example").len(), 1, "kept at that command");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.messages.get(&ids[0]).unwrap().flag, mailcraft_model::FlagStatus::None, "the flag was undone");
+    assert_eq!(s.mailbox.public_keys.of("alice@smime.example").len(), 1, "the certificate stays");
+}
+
+/// An opaque signed message is shown as the content that was signed (#30 review 14).
+#[test]
+fn an_opaque_signed_message_shows_what_was_signed() {
+    let (mut s, ids) = session_with(&[OPAQUE, DETACHED]);
+    s.set_trust_anchors([CA]);
+    assert!(s.mailbox.messages.get(&ids[0]).unwrap().body.text.trim().is_empty(), "nothing but the CMS as its parts are read");
+    let view = s.signed_view(ids[0]).unwrap();
+    assert!(view.body.text.contains("Hello Bob"), "{:?}", view.body.text);
+    assert_eq!(view.id, ids[0]);
+    assert!(s.signed_view(ids[1]).is_none(), "a detached signature's message is shown as it is");
 }

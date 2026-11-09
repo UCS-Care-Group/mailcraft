@@ -8,8 +8,9 @@ use der::{Decode, Encode};
 use mailcraft_model::digital_signature::{MAX_SIGNER_ADDRESSES, signer_text};
 use mailcraft_time::Timestamp;
 use x509_cert::Certificate;
+use x509_cert::ext::pkix::constraints::name::GeneralSubtrees;
 use x509_cert::ext::pkix::name::GeneralName;
-use x509_cert::ext::pkix::{BasicConstraints, ExtendedKeyUsage, KeyUsage, SubjectAltName, SubjectKeyIdentifier};
+use x509_cert::ext::pkix::{BasicConstraints, ExtendedKeyUsage, KeyUsage, NameConstraints, SubjectAltName, SubjectKeyIdentifier};
 
 use crate::algorithms::{self, Fault};
 use crate::ber;
@@ -20,6 +21,31 @@ pub const MAX_CERT_BYTES: usize = 64 * 1024;
 const EMAIL_PROTECTION: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.6.1.5.5.7.3.4");
 const ANY_EXTENDED_KEY_USAGE: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.37.0");
 const EMAIL_ADDRESS: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.1");
+
+/// The extensions whose meaning is known here (RFC 5280 §4.2): a certificate with any other
+/// marked critical is refused (§6.1.4 (o)). Certificate policies are taken as any policy (no
+/// policy is asked for, §6.1.1 (c)); the identifiers say nothing to check.
+const KNOWN: [ObjectIdentifier; 8] = [
+    ObjectIdentifier::new_unwrap("2.5.29.14"), // subject key identifier
+    ObjectIdentifier::new_unwrap("2.5.29.15"), // key usage
+    ObjectIdentifier::new_unwrap("2.5.29.17"), // subject alternative name
+    ObjectIdentifier::new_unwrap("2.5.29.19"), // basic constraints
+    ObjectIdentifier::new_unwrap("2.5.29.30"), // name constraints
+    ObjectIdentifier::new_unwrap("2.5.29.32"), // certificate policies
+    ObjectIdentifier::new_unwrap("2.5.29.35"), // authority key identifier
+    ObjectIdentifier::new_unwrap("2.5.29.37"), // extended key usage
+];
+
+/// The name constraints a certification authority puts on what it vouches for (RFC 5280
+/// §4.2.1.10), for the two kinds of name a mail certificate has: mail addresses and directory
+/// names. The other kinds name nothing that is checked here.
+#[derive(Clone, Debug, Default)]
+pub struct Constraints {
+    pub permitted_mail: Option<Vec<String>>,
+    pub excluded_mail: Vec<String>,
+    pub permitted_dirs: Option<Vec<Vec<Vec<u8>>>>,
+    pub excluded_dirs: Vec<Vec<Vec<u8>>>,
+}
 
 /// A certificate: its DER, the body its issuer signed, and what it says.
 #[derive(Clone, Debug)]
@@ -140,10 +166,102 @@ impl Cert {
         out
     }
 
-    /// Whether it is for `address` (compared without regard to case).
+    /// The mail addresses it names, exactly as written (its alternative names of that kind and
+    /// the `emailAddress` in its subject), at most [`MAX_SIGNER_ADDRESSES`] of each: for comparing
+    /// and for name constraints, never for showing.
+    pub fn raw_addresses(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Ok(Some((_, san))) = self.parsed.tbs_certificate().get_extension::<SubjectAltName>() {
+            out.extend(
+                san.0
+                    .iter()
+                    .filter_map(|n| match n {
+                        GeneralName::Rfc822Name(a) => Some(a.as_str().to_string()),
+                        _ => None,
+                    })
+                    .take(MAX_SIGNER_ADDRESSES),
+            );
+        }
+        out.extend(
+            self.parsed
+                .tbs_certificate()
+                .subject()
+                .iter()
+                .filter(|atv| atv.oid == EMAIL_ADDRESS)
+                .filter_map(|atv| atv.value.decode_as::<der::asn1::Ia5String>().ok())
+                .map(|a| a.as_str().to_string())
+                .take(MAX_SIGNER_ADDRESSES),
+        );
+        out
+    }
+
+    /// Whether it is for `address`: one of its addresses as written is that address, letter case
+    /// aside in plain ASCII (RFC 5280 §4.2.1.6, §7.5). An address with a space, a control or any
+    /// character past ASCII on either side never is.
     pub fn is_for(&self, address: &str) -> bool {
-        let address = address.trim();
-        !address.is_empty() && self.addresses().iter().any(|a| a.eq_ignore_ascii_case(address))
+        printable(address) && self.raw_addresses().iter().any(|a| printable(a) && a.eq_ignore_ascii_case(address))
+    }
+
+    /// The address of its it is for `address` by ([`Cert::is_for`]), as it shows it.
+    pub fn address_for(&self, address: &str) -> Option<String> {
+        printable(address).then(|| self.raw_addresses().into_iter().find(|a| printable(a) && a.eq_ignore_ascii_case(address))).flatten()
+    }
+
+    /// Whether it carries an extension marked critical that isn't known here.
+    pub fn unknown_critical(&self) -> bool {
+        self.parsed.tbs_certificate().extensions().is_some_and(|exts| exts.iter().any(|e| e.critical && !KNOWN.contains(&e.extn_id)))
+    }
+
+    /// Its path length constraint, when its basic constraints give one (unreadable: none
+    /// allowed below it).
+    pub fn path_len(&self) -> Option<u8> {
+        match self.parsed.tbs_certificate().get_extension::<BasicConstraints>() {
+            Ok(Some((_, bc))) => bc.path_len_constraint,
+            Ok(None) => None,
+            Err(_) => Some(0),
+        }
+    }
+
+    /// Whether, as a certification authority on a path, its extended key usage (when it has
+    /// one) lets it vouch for mail: email protection, or any use.
+    pub fn may_vouch_for_mail(&self) -> bool {
+        match self.parsed.tbs_certificate().get_extension::<ExtendedKeyUsage>() {
+            Ok(Some((_, eku))) => eku.0.iter().any(|o| *o == EMAIL_PROTECTION || *o == ANY_EXTENDED_KEY_USAGE),
+            Ok(None) => true,
+            Err(_) => false,
+        }
+    }
+
+    /// Whether it is a certification authority's by any sign (basic constraints say so, or its
+    /// key usage lets it sign certificates): never a mail signer's.
+    pub fn is_authority(&self) -> bool {
+        let tbs = self.parsed.tbs_certificate();
+        let ca = matches!(tbs.get_extension::<BasicConstraints>(), Ok(Some((_, bc))) if bc.ca);
+        let signs = matches!(tbs.get_extension::<KeyUsage>(), Ok(Some((_, ku))) if ku.key_cert_sign());
+        ca || signs
+    }
+
+    /// The name constraints it puts on what it vouches for; `Err` when they can't be read or use
+    /// what RFC 5280 says mustn't be (a minimum or a maximum).
+    pub fn constraints(&self) -> Result<Option<Constraints>, ()> {
+        let Some((_, nc)) = self.parsed.tbs_certificate().get_extension::<NameConstraints>().map_err(|_| ())? else { return Ok(None) };
+        let mut c = Constraints::default();
+        if let Some(permitted) = &nc.permitted_subtrees {
+            let (mail, dirs) = subtrees(permitted)?;
+            c.permitted_mail = mail;
+            c.permitted_dirs = dirs;
+        }
+        if let Some(excluded) = &nc.excluded_subtrees {
+            let (mail, dirs) = subtrees(excluded)?;
+            c.excluded_mail = mail.unwrap_or_default();
+            c.excluded_dirs = dirs.unwrap_or_default();
+        }
+        Ok(Some(c))
+    }
+
+    /// Its subject's relative names, each in DER, in order: for directory name constraints.
+    pub fn subject_rdns(&self) -> Vec<Vec<u8>> {
+        self.parsed.tbs_certificate().subject().iter_rdn().filter_map(|r| r.to_der().ok()).collect()
     }
 
     /// Whether it may be a certification authority's: basic constraints say so, and its key
@@ -187,6 +305,53 @@ impl Cert {
         let signature = self.parsed.signature().as_bytes().ok_or(Fault::Invalid)?;
         algorithms::verify(issuer.public_key(), self.parsed.signature_algorithm(), None, self.tbs(), signature)
     }
+}
+
+/// Whether `address` has only the printable ASCII an address is compared in (and something).
+fn printable(address: &str) -> bool {
+    !address.is_empty() && address.bytes().all(|b| (0x21..=0x7e).contains(&b))
+}
+
+/// The mail and directory names of `subtrees` (`None` of a kind: none of that kind given).
+type Subtrees = (Option<Vec<String>>, Option<Vec<Vec<Vec<u8>>>>);
+
+fn subtrees(subtrees: &GeneralSubtrees) -> Result<Subtrees, ()> {
+    let (mut mail, mut dirs): Subtrees = (None, None);
+    for s in subtrees.iter().take(64) {
+        if s.minimum != 0 || s.maximum.is_some() {
+            return Err(());
+        }
+        match &s.base {
+            GeneralName::Rfc822Name(a) => mail.get_or_insert_with(Vec::new).push(a.as_str().to_string()),
+            GeneralName::DirectoryName(n) => dirs.get_or_insert_with(Vec::new).push(n.iter_rdn().filter_map(|r| r.to_der().ok()).collect()),
+            _ => {}
+        }
+    }
+    if subtrees.len() > 64 {
+        return Err(());
+    }
+    Ok((mail, dirs))
+}
+
+/// Whether the mail address `address` is within the constraint `base` (RFC 5280 §4.2.1.10): a
+/// whole address, every address at one host, or (with a leading dot) every address at any host
+/// under a domain. Letter case aside.
+pub fn mail_within(address: &str, base: &str) -> bool {
+    let address = address.to_ascii_lowercase();
+    let base = base.to_ascii_lowercase();
+    if base.contains('@') {
+        return address == base;
+    }
+    let Some((_, host)) = address.rsplit_once('@') else { return false };
+    if let Some(domain) = base.strip_prefix('.') {
+        return host.len() > domain.len() && host.ends_with(domain) && host.as_bytes().get(host.len() - domain.len() - 1) == Some(&b'.');
+    }
+    host == base
+}
+
+/// Whether the name `rdns` is within the directory name `base`: it begins with all of it.
+pub fn dir_within(rdns: &[Vec<u8>], base: &[Vec<u8>]) -> bool {
+    rdns.len() >= base.len() && rdns.iter().zip(base).all(|(a, b)| a == b)
 }
 
 /// A name for people: its common name, else the whole of it as RFC 4514 writes it.

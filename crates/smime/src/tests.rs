@@ -138,13 +138,16 @@ fn a_signature_without_its_certificate_needs_one_kept_here() {
 fn an_unknown_issuer_another_address_and_an_expired_certificate_are_not_verified() {
     let c = checked_detached(DETACHED, &Anchors::default(), "alice@smime.example", NOW, &[]);
     assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::UnknownIssuer)));
-    assert!(c.certificate.is_some(), "kept all the same: the signature is the certificate's");
+    assert_eq!(c.certificate, None, "only a certificate that is trusted and valid is kept (#30 review 7)");
     let c = checked_detached(DETACHED, &anchors(), "bob@smime.example", NOW, &[]);
     assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::AddressMismatch)));
     assert_eq!(c.certificate, None, "not kept for an address it isn't for");
     // 2060: past 2052.
     let c = checked_detached(DETACHED, &anchors(), "alice@smime.example", 2_840_140_800, &[]);
     assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::Expired)));
+    assert_eq!(c.certificate, None, "nor one out of date");
+    let c = checked_detached(DETACHED, &anchors(), "alice@smime.example", NOW, &[]);
+    assert!(c.certificate.is_some(), "a trusted one, valid now, for the sender, is");
 }
 
 #[test]
@@ -261,6 +264,18 @@ fn sign(content: &[u8], signer: &Made, certs: &[&Made], p384: bool) -> Vec<u8> {
 
 /// [`sign`], with the signer's information changed by `tweak` after it is made.
 fn sign_with(content: &[u8], signer: &Made, certs: &[&Made], p384: bool, tweak: impl Fn(&mut SignerInfo)) -> Vec<u8> {
+    sign_data_with(content, signer, certs, p384, tweak, |_| {})
+}
+
+/// [`sign_with`], with the SignedData changed by `tweak_data` too.
+fn sign_data_with(
+    content: &[u8],
+    signer: &Made,
+    certs: &[&Made],
+    p384: bool,
+    tweak: impl Fn(&mut SignerInfo),
+    tweak_data: impl Fn(&mut SignedData),
+) -> Vec<u8> {
     let cert = Certificate::from_der(&signer.der).unwrap();
     let (digest_oid, sig_oid) = if p384 { (SHA384, ECDSA_SHA384) } else { (SHA256, ECDSA_SHA256) };
     let digest = if p384 { ring::digest::digest(&ring::digest::SHA384, content) } else { ring::digest::digest(&ring::digest::SHA256, content) };
@@ -291,7 +306,7 @@ fn sign_with(content: &[u8], signer: &Made, certs: &[&Made], p384: bool, tweak: 
     tweak(&mut info);
     let set: Vec<cms::cert::CertificateChoices> =
         certs.iter().map(|c| cms::cert::CertificateChoices::Certificate(Certificate::from_der(&c.der).unwrap())).collect();
-    let data = SignedData {
+    let mut data = SignedData {
         version: CmsVersion::V1,
         digest_algorithms: SetOfVec::try_from(vec![AlgorithmIdentifierOwned { oid: digest_oid, parameters: None }]).unwrap(),
         encap_content_info: EncapsulatedContentInfo { econtent_type: ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1"), econtent: None },
@@ -299,6 +314,7 @@ fn sign_with(content: &[u8], signer: &Made, certs: &[&Made], p384: bool, tweak: 
         crls: None,
         signer_infos: SignerInfos::try_from(vec![info]).unwrap(),
     };
+    tweak_data(&mut data);
     ContentInfo { content_type: ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.2"), content: Any::encode_from(&data).unwrap() }.to_der().unwrap()
 }
 
@@ -431,6 +447,267 @@ fn a_signature_over_part_of_a_message_is_not_verified_for_it() {
     // A message from several people is nobody's alone: no address matches.
     let c = checked_detached(DETACHED, &anchors, "", NOW, &[]);
     assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::AddressMismatch)));
+}
+
+// ---- #30 review: what a path must keep (RFC 5280 §4.2, §6.1) ----
+
+/// An authority's certificate for `name` issued by `by`, changed by `change` first.
+fn authority(name: &str, by: &Made, change: impl FnOnce(&mut rcgen::CertificateParams)) -> Made {
+    let mut p = ca_params(name);
+    change(&mut p);
+    issued(p, key(&rcgen::PKCS_ECDSA_P256_SHA256), by)
+}
+
+fn signer_by(name: &str, address: &str, by: &Made) -> Made {
+    issued(signer_params(name, address), key(&rcgen::PKCS_ECDSA_P256_SHA256), by)
+}
+
+/// The verdict for a message by `leaf` carrying `chain`, against `root`.
+fn path_verdict(leaf: &Made, chain: &[&Made], root: &Made, from: &str) -> (Verdict, Option<Why>) {
+    let mut certs = vec![leaf];
+    certs.extend_from_slice(chain);
+    let cms = sign(CONTENT, leaf, &certs, false);
+    verdict(&cms, CONTENT, &Anchors::new([&root.der]), from)
+}
+
+#[test]
+fn name_constraints_on_mail_addresses_are_kept() {
+    let root = root("Example Root");
+    let corp = authority("Corp CA", &root, |p| {
+        p.name_constraints = Some(rcgen::NameConstraints {
+            permitted_subtrees: vec![rcgen::GeneralSubtree::Rfc822Name("corp.example".into())],
+            excluded_subtrees: vec![rcgen::GeneralSubtree::Rfc822Name("ceo@corp.example".into())],
+        })
+    });
+    let inside = signer_by("Ada", "ada@corp.example", &corp);
+    assert_eq!(path_verdict(&inside, &[&corp], &root, "ada@corp.example"), (Verdict::Verified, None));
+    let outside = signer_by("CEO", "ceo@bank.example", &corp);
+    assert_eq!(path_verdict(&outside, &[&corp], &root, "ceo@bank.example"), (Verdict::NotVerified, Some(Why::Constrained)));
+    let excluded = signer_by("CEO", "ceo@corp.example", &corp);
+    assert_eq!(path_verdict(&excluded, &[&corp], &root, "ceo@corp.example"), (Verdict::NotVerified, Some(Why::Constrained)));
+    // A leading dot: any host under the domain, not the domain itself.
+    let sub = authority("Sub CA", &root, |p| {
+        p.name_constraints = Some(rcgen::NameConstraints {
+            permitted_subtrees: vec![rcgen::GeneralSubtree::Rfc822Name(".corp.example".into())],
+            excluded_subtrees: vec![],
+        })
+    });
+    let mail = signer_by("Ada", "ada@mail.corp.example", &sub);
+    assert_eq!(path_verdict(&mail, &[&sub], &root, "ada@mail.corp.example"), (Verdict::Verified, None));
+    let bare = signer_by("Ada", "ada@corp.example", &sub);
+    assert_eq!(path_verdict(&bare, &[&sub], &root, "ada@corp.example"), (Verdict::NotVerified, Some(Why::Constrained)));
+    assert!(crate::cert::mail_within("Ada@Corp.Example", "corp.example"));
+    assert!(!crate::cert::mail_within("ada@evilcorp.example", ".corp.example"));
+}
+
+#[test]
+fn name_constraints_on_directory_names_are_kept() {
+    let root = root("Example Root");
+    let mut corp_dn = rcgen::DistinguishedName::new();
+    corp_dn.push(rcgen::DnType::OrganizationName, "Corp");
+    let corp = authority("Corp CA", &root, |p| {
+        p.name_constraints = Some(rcgen::NameConstraints {
+            permitted_subtrees: vec![rcgen::GeneralSubtree::DirectoryName(corp_dn.clone())],
+            excluded_subtrees: vec![],
+        })
+    });
+    let mut inside = signer_params("Ada", "ada@corp.example");
+    inside.distinguished_name = rcgen::DistinguishedName::new();
+    inside.distinguished_name.push(rcgen::DnType::OrganizationName, "Corp");
+    inside.distinguished_name.push(rcgen::DnType::CommonName, "Ada");
+    let inside = issued(inside, key(&rcgen::PKCS_ECDSA_P256_SHA256), &corp);
+    assert_eq!(path_verdict(&inside, &[&corp], &root, "ada@corp.example"), (Verdict::Verified, None));
+    let outside = signer_by("Mallory", "mallory@corp.example", &corp);
+    assert_eq!(path_verdict(&outside, &[&corp], &root, "mallory@corp.example"), (Verdict::NotVerified, Some(Why::Constrained)));
+}
+
+#[test]
+fn an_unknown_critical_extension_is_refused() {
+    let root = root("Example Root");
+    let mut odd = signer_params("Ada", "ada@example.org");
+    let mut ext = rcgen::CustomExtension::from_oid_content(&[1, 3, 6, 1, 4, 1, 99999, 1], vec![0x05, 0x00]);
+    ext.set_criticality(true);
+    odd.custom_extensions = vec![ext];
+    let odd = issued(odd, key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    assert_eq!(path_verdict(&odd, &[], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::Constrained)));
+    // On an authority on the way too.
+    let ca = authority("Odd CA", &root, |p| {
+        let mut ext = rcgen::CustomExtension::from_oid_content(&[1, 3, 6, 1, 4, 1, 99999, 2], vec![0x05, 0x00]);
+        ext.set_criticality(true);
+        p.custom_extensions = vec![ext];
+    });
+    let ada = signer_by("Ada", "ada@example.org", &ca);
+    assert_eq!(path_verdict(&ada, &[&ca], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::Constrained)));
+}
+
+#[test]
+fn a_path_length_constraint_is_kept() {
+    let root = root("Example Root");
+    let ca = authority("Mail CA", &root, |p| p.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Constrained(0)));
+    let rogue = authority("Rogue CA", &ca, |_| {});
+    let leaf = signer_by("Ada", "ada@example.org", &rogue);
+    assert_eq!(path_verdict(&leaf, &[&rogue, &ca], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::Constrained)));
+    // Directly below it, a signer is fine.
+    let direct = signer_by("Ada", "ada@example.org", &ca);
+    assert_eq!(path_verdict(&direct, &[&ca], &root, "ada@example.org"), (Verdict::Verified, None));
+}
+
+#[test]
+fn an_authority_not_for_mail_cant_vouch_for_a_mail_certificate() {
+    let root = root("Example Root");
+    let web = authority("Web CA", &root, |p| p.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth]);
+    let leaf = signer_by("Ada", "ada@example.org", &web);
+    assert_eq!(path_verdict(&leaf, &[&web], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::Constrained)));
+    let mail = authority("Mail CA", &root, |p| p.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::EmailProtection]);
+    let leaf = signer_by("Ada", "ada@example.org", &mail);
+    assert_eq!(path_verdict(&leaf, &[&mail], &root, "ada@example.org"), (Verdict::Verified, None));
+}
+
+#[test]
+fn another_path_is_tried_when_the_first_doesnt_hold() {
+    let root = root("Example Root");
+    let shared = key(&rcgen::PKCS_ECDSA_P256_SHA256);
+    let again = || rcgen::KeyPair::try_from(shared.serialize_der().as_slice()).unwrap();
+    // The same authority, its key and name, in two certificates: one ran out, one is current.
+    let mut old = ca_params("Mail CA");
+    old.not_after = rcgen::date_time_ymd(2021, 1, 1);
+    let old = issued(old, again(), &root);
+    let current = issued(ca_params("Mail CA"), again(), &root);
+    let leaf = signer_by("Ada", "ada@example.org", &current);
+    assert_eq!(path_verdict(&leaf, &[&old, &current], &root, "ada@example.org"), (Verdict::Verified, None));
+    assert_eq!(path_verdict(&leaf, &[&old], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::Expired)));
+}
+
+#[test]
+fn the_search_for_a_path_keeps_to_its_budget() {
+    let root = root("Example Root");
+    let a = authority("A CA", &root, |_| {});
+    let b = authority("B CA", &a, |_| {});
+    let leaf = signer_by("Ada", "ada@example.org", &b);
+    let pool: Vec<crate::cert::Cert> = [&b, &a].iter().map(|m| crate::cert::Cert::from_der(&m.der).unwrap()).collect();
+    let leaf = crate::cert::Cert::from_der(&leaf.der).unwrap();
+    let anchors = Anchors::new([&root.der]);
+    let mut budget = 3;
+    assert_eq!(crate::chain::trust(&leaf, &pool, &anchors, NOW, &mut budget), Ok(()));
+    assert_eq!(budget, 0, "three links, three signatures");
+    let mut budget = 2;
+    assert!(crate::chain::trust(&leaf, &pool, &anchors, NOW, &mut budget).is_err(), "stops when it runs out");
+    assert_eq!(crate::MAX_VERIFICATIONS, 32);
+}
+
+#[test]
+fn an_authoritys_certificate_never_signs_mail_and_the_matching_address_is_said() {
+    let root = root("Example Root");
+    let mut ca_signer = signer_params("Ada", "ada@example.org");
+    ca_signer.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    let ca_signer = issued(ca_signer, key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    assert_eq!(path_verdict(&ca_signer, &[], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::NotForEmail)));
+    let mut two = signer_params("Ada", "other@example.org");
+    two.subject_alt_names.push(rcgen::SanType::Rfc822Name("ada@example.org".try_into().unwrap()));
+    let two = issued(two, key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    let cms = sign(CONTENT, &two, &[&two], false);
+    let anchors = Anchors::new([&root.der]);
+    let c = check(
+        Signed::Detached { content: CONTENT, signature: &cms },
+        &Context { anchors: &anchors, from: "ADA@example.org", now: NOW, known: &[], coverage: Coverage::Whole },
+    )
+    .unwrap();
+    assert_eq!(c.signature.verdict, Verdict::Verified);
+    assert_eq!(c.signature.signer.unwrap().addresses.first().map(String::as_str), Some("ada@example.org"));
+}
+
+#[test]
+fn an_address_is_compared_as_it_is_written() {
+    let root = root("Example Root");
+    let mut spaced = signer_params("Ada", "ada@example.org");
+    spaced.subject_alt_names = vec![rcgen::SanType::Rfc822Name("ada@example.org ".try_into().unwrap())];
+    let spaced = issued(spaced, key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    assert_eq!(path_verdict(&spaced, &[], &root, "ada@example.org"), (Verdict::NotVerified, Some(Why::AddressMismatch)));
+    let ada = crate::cert::Cert::from_der(&signer_by("Ada", "ada@example.org", &root).der).unwrap();
+    assert!(ada.is_for("ADA@EXAMPLE.ORG"));
+    assert!(!ada.is_for("ada@example.org\n"));
+    assert!(!ada.is_for(""));
+}
+
+// ---- #30 review: SignedData read strictly ----
+
+/// A DER element of `tag` holding `content`.
+fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
+    let mut out = vec![tag];
+    let n = content.len();
+    if n < 0x80 {
+        out.push(n as u8);
+    } else if n < 0x100 {
+        out.extend([0x81, n as u8]);
+    } else {
+        out.extend([0x82, (n >> 8) as u8, n as u8]);
+    }
+    out.extend_from_slice(content);
+    out
+}
+
+/// `cms` with `extra` put into its SignedData just before the signers.
+fn smuggled(cms: &[u8], extra: &[u8]) -> Vec<u8> {
+    let (info, _) = crate::ber::read(cms).unwrap();
+    let fields = crate::ber::children(info.value).unwrap();
+    let (sd, _) = crate::ber::read(fields[1].value).unwrap();
+    let parts = crate::ber::children(sd.value).unwrap();
+    let mut inner = Vec::new();
+    for (i, p) in parts.iter().enumerate() {
+        if i == parts.len() - 1 {
+            inner.extend_from_slice(extra);
+        }
+        inner.extend_from_slice(p.whole);
+    }
+    let sd = tlv(0x30, &inner);
+    let mut ci = fields[0].whole.to_vec();
+    ci.extend(tlv(0xa0, &sd));
+    tlv(0x30, &ci)
+}
+
+#[test]
+fn signed_data_with_anything_else_in_it_cant_be_checked() {
+    let root = root("Example Root");
+    let ada = signer_by("Ada", "ada@example.org", &root);
+    let cms = sign(CONTENT, &ada, &[&ada], false);
+    let anchors = Anchors::new([&root.der]);
+    assert_eq!(verdict(&cms, CONTENT, &anchors, "ada@example.org"), (Verdict::Verified, None));
+    // A field smuggled in, an OCTET STRING with other content, is refused, not passed over.
+    let forged = smuggled(&cms, &tlv(0x04, b"<p>Wire 10000 EUR to Mallory</p>"));
+    assert_eq!(verdict(&forged, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+    // A version that isn't one, and a detached signature that carries content too.
+    let versioned = sign_data_with(CONTENT, &ada, &[&ada], false, |_| {}, |d| d.version = CmsVersion::V2);
+    assert_eq!(verdict(&versioned, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+    let carrying = sign_data_with(
+        CONTENT,
+        &ada,
+        &[&ada],
+        false,
+        |_| {},
+        |d| d.encap_content_info.econtent = Some(Any::encode_from(&OctetString::new(b"other".to_vec()).unwrap()).unwrap()),
+    );
+    assert_eq!(verdict(&carrying, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+    // What mail signs is id-data.
+    let other_type = sign_data_with(
+        CONTENT,
+        &ada,
+        &[&ada],
+        false,
+        |_| {},
+        |d| d.encap_content_info.econtent_type = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.1.4"),
+    );
+    assert_eq!(verdict(&other_type, CONTENT, &anchors, "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+}
+
+#[test]
+fn an_opaque_signatures_content_is_given_for_showing() {
+    let cms = base64(body(OPAQUE));
+    let content = crate::opaque_content(&cms).unwrap();
+    assert!(String::from_utf8_lossy(&content).contains("Hello Bob"), "the signed MIME entity");
+    let ber = base64(body(OPAQUE_BER));
+    assert_eq!(crate::opaque_content(&ber), Some(content));
+    let (_, detached) = halves(DETACHED);
+    assert_eq!(crate::opaque_content(&detached), None);
 }
 
 #[test]

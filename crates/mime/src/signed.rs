@@ -78,6 +78,16 @@ fn of_part(headers: &Headers, body: &[u8], depth: usize) -> Option<SignedParts> 
             let parts = crate::parse::split_multipart(body, boundary, 3);
             let [content, signature] = parts.as_slice() else { return None };
             let (sig_headers, sig_body) = header::split(signature, false);
+            // The second part is the signature only when it is of the type `protocol` names (RFC
+            // 1847 §2.1): any other is a part of the message, shown as one, and nobody's signature.
+            let sig_type = sig_headers.get("content-type").map(parse_params).unwrap_or_default().value;
+            let fits = match kind {
+                SignedKind::SmimeDetached => matches!(sig_type.as_str(), "application/pkcs7-signature" | "application/x-pkcs7-signature"),
+                _ => sig_type == "application/pgp-signature",
+            };
+            if !fits {
+                return None;
+            }
             Some(SignedParts { kind, content: content.to_vec(), signature: decoded(&sig_headers, sig_body), whole: depth == 0, one_from: false })
         }
         _ if pkcs7 => {

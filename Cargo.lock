@@ -2629,8 +2629,8 @@ dependencies = [
  "rcgen",
  "ring",
  "rustls",
- "rustls-native-certs",
  "rustls-platform-verifier",
+ "schannel",
  "serde_json",
  "thiserror 2.0.21",
 ]

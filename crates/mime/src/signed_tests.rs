@@ -71,6 +71,17 @@ fn a_signed_part_in_an_alternative_is_not_the_messages() {
     assert!(signed_parts(mixed.as_bytes()).is_none());
 }
 
+/// The second part of `multipart/signed` is its signature only when it is of the type the
+/// `protocol` names: a `text/html` part carrying CMS is a part of the message, shown as one.
+#[test]
+fn a_second_part_of_another_type_is_no_signature() {
+    let html = String::from_utf8_lossy(DETACHED).replacen("Content-Type: application/pkcs7-signature", "Content-Type: text/html", 1);
+    assert!(html.contains("Content-Type: text/html"), "the fixture's signature part was renamed");
+    assert!(signed_parts(html.as_bytes()).is_none());
+    let pgp = b"Content-Type: multipart/signed; protocol=\"application/pgp-signature\"; boundary=b\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nhi\r\n--b\r\nContent-Type: text/html\r\n\r\n<p>other</p>\r\n--b--\r\n";
+    assert!(signed_parts(pgp).is_none());
+}
+
 #[test]
 fn several_senders_are_told() {
     let both = String::from_utf8_lossy(DETACHED).replacen("From: alice@smime.example", "From: alice@smime.example, mallory@example.org", 1);

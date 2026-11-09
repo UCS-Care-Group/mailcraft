@@ -49,8 +49,12 @@ fn why_said(why: Why) -> &'static str {
         Why::Expired => tl!("The certificate is out of date."),
         Why::NotForEmail => tl!("The certificate isn't for signing mail."),
         Why::AddressMismatch => tl!("The certificate is for another address than the sender's."),
+        Why::Constrained => tl!("An authority on the way to a trusted one doesn't allow the certificate to be used this way."),
+        Why::NoAuthorities => tl!("No certification authorities for mail could be read on this computer, so no signer can be verified here."),
         Why::KeyNotVerified => tl!("The signer's key hasn't been marked verified."),
-        Why::PartlySigned => tl!("Only part of this message was signed: what's outside that part could say anything."),
+        Why::PartlySigned => {
+            tl!("Only one part of this message was signed, and what's shown may not be that part: what's outside it could say anything.")
+        }
         Why::Altered => tl!("What you see isn't what was signed: treat it with care."),
         Why::WeakAlgorithm => tl!("It uses an algorithm that's no longer safe."),
         Why::UnknownAlgorithm => tl!("It uses an algorithm MailCraft doesn't know."),
@@ -120,7 +124,7 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
             });
         }
         if open {
-            details(app, ui, &d, t);
+            details(app, ui, &d, m, t);
         }
     });
     if place == Place::Pane {
@@ -148,8 +152,19 @@ fn day(app: &MailApp, ts: Timestamp) -> String {
     crate::dates::medium(DateTime::from_timestamp(ts, app.session.offset_at(ts)).date)
 }
 
-/// The lines of Details: who signed, the certificate, and that revocation wasn't checked.
-fn details(app: &MailApp, ui: &mut Ui, d: &DigitalSignature, t: &Tokens) {
+/// Whether `a` is the signature part of a Digitally signed message (`smime.p7s`).
+pub(super) fn is_signature_part(a: &mailcraft_model::Attachment) -> bool {
+    let mime = a.mime.to_ascii_lowercase();
+    // An opaque signature (pkcs7-mime) is the whole signed message: its content is shown instead.
+    mime.contains("pkcs7-signature")
+        || mime.contains("pkcs7-mime")
+        || a.name.eq_ignore_ascii_case("smime.p7s")
+        || a.name.eq_ignore_ascii_case("smime.p7m")
+}
+
+/// The lines of Details: who signed, the certificate, that revocation wasn't checked, and the
+/// signature part itself (it isn't among the attachments).
+fn details(app: &mut MailApp, ui: &mut Ui, d: &DigitalSignature, m: &Message, t: &Tokens) {
     let line = |ui: &mut Ui, label: &str, value: &str| {
         indented(ui, |ui| {
             ui.add(egui::Label::new(egui::RichText::new(label).font(semibold(11.0)).color(t.text)));
@@ -181,11 +196,34 @@ fn details(app: &MailApp, ui: &mut Ui, d: &DigitalSignature, t: &Tokens) {
     if !d.revocation_checked {
         line(ui, tl!("Revocation:"), tl!("Revocation not checked."));
     }
+    let file = m.listed_attachments().find(|(_, a)| is_signature_part(a)).map(|(i, a)| (i, mailcraft_engine::opening::file_name(&a.name)));
+    if let Some((index, name)) = file
+        && m.id != 0
+    {
+        indented(ui, |ui| {
+            ui.add(egui::Label::new(egui::RichText::new(tl!("Signature file:")).font(semibold(11.0)).color(t.text)));
+            let resp = ui.add(egui::Button::new(egui::RichText::new(&name).font(regular(11.0)).color(t.text)).small());
+            app.hit.add("signatureFile", m.id, resp.rect);
+            let resp = resp.on_hover_text(tl!("Open or save the Digital signature"));
+            egui::Popup::menu(&resp).show(|ui| super::attachment_menu(ui, app, m.id, index));
+        });
+    }
 }
 
-/// The seal on `m`'s row in the list, and what it says, when its Digital signature was checked:
-/// worked out for a row on screen whose message keeps the bytes it came as.
+/// The seal on `m`'s row in the list, when its Digital signature was checked: worked out for a
+/// row on screen whose message keeps the bytes it came as, one row a frame (a check may take a
+/// while: the list never waits for many), the rest in the frames after.
 pub(crate) fn row_seal(app: &mut MailApp, m: &Message) -> Option<&'static str> {
-    let d = if m.has_original() { app.session.digital_signature(m.id) } else { app.session.digital_signature_known(m.id) }?;
-    Some(seal(d.verdict))
+    if let Some(d) = app.session.digital_signature_known(m.id) {
+        return Some(seal(d.verdict));
+    }
+    if !m.has_original() || app.session.digital_signature_checked(m.id) {
+        return None;
+    }
+    if app.row_checks_left == 0 {
+        app.row_checks_wanted = true;
+        return None;
+    }
+    app.row_checks_left -= 1;
+    app.session.digital_signature(m.id).map(|d| seal(d.verdict))
 }

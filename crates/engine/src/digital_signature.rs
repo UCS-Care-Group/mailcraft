@@ -8,9 +8,9 @@
 //! certificate that runs out, or trust that changes, is seen at the next start. Nothing is sent
 //! anywhere for it, and revocation isn't checked (#30 R7).
 //!
-//! A signer's certificate that is valid and for the sender is kept for the sender's address
-//! ([`mailcraft_model::Mailbox::public_keys`], #30 R9), at the next command: what the check
-//! learns is no step of the history.
+//! A signer's certificate that rests on a trusted authority, is valid now and is for the sender
+//! is kept for the sender's address ([`mailcraft_model::Mailbox::public_keys`], #30 R9), at the
+//! next command: what the check learns is no step of the history (and an undo leaves it).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -34,24 +34,37 @@ pub(crate) struct SignatureChecks {
     /// Each message's result, with what it was worked out from ([`Basis`]); `None`: the message
     /// isn't Digitally signed in a format checked here.
     kept: HashMap<Id, (Basis, Option<Arc<DigitalSignature>>)>,
+    /// Each opaque signed message as it is shown: its body the content that was signed.
+    views: HashMap<Id, (Basis, Option<Arc<Message>>)>,
+    /// Whether the host has handed in its authorities yet (`None`: not yet).
+    anchors_read: Option<bool>,
     /// Signers' certificates to keep for their addresses at the next command.
     to_keep: Vec<(String, PublicKey)>,
 }
 
 /// What a result rests on: the bytes the message came as (their size and where they are kept),
-/// its From address, and the Public keys kept for that address.
+/// its From address, the Public keys kept for that address (every one of them, not how many: one
+/// put in the place of another changes it), and the day (a certificate runs out on one).
 #[derive(Clone, PartialEq, Eq)]
 struct Basis {
     original: Option<(u64, Option<[u8; 32]>)>,
     from: String,
-    known: usize,
+    known: u64,
+    day: i64,
 }
 
 fn basis(session: &Session, m: &Message) -> Basis {
+    use std::hash::{Hash, Hasher};
+    let mut keys = std::collections::hash_map::DefaultHasher::new();
+    for k in session.mailbox.public_keys.of(&m.from.email) {
+        k.fingerprint.hash(&mut keys);
+        k.data.hash(&mut keys);
+    }
     Basis {
         original: m.original.as_ref().filter(|o| o.is_there()).map(|o| (o.size(), o.kept.map(|k| k.sha256))),
         from: m.from.email.trim().to_lowercase(),
-        known: session.mailbox.public_keys.of(&m.from.email).len(),
+        known: keys.finish(),
+        day: session.now().div_euclid(86_400),
     }
 }
 
@@ -68,6 +81,7 @@ impl SignatureChecks {
     /// Another mailbox took the place of the one these were worked out for.
     pub(crate) fn forget_messages(&mut self) {
         self.kept.clear();
+        self.views.clear();
         self.to_keep.clear();
     }
 }
@@ -82,7 +96,13 @@ impl Session {
         B: AsRef<[u8]>,
     {
         self.signatures.anchors = Arc::new(mailcraft_smime::Anchors::new(ders));
+        self.signatures.anchors_read = Some(!self.signatures.anchors.is_empty());
         self.signatures.kept.clear();
+    }
+
+    /// Whether the host has handed in its authorities yet, and whether any could be read.
+    pub fn trust_anchors_read(&self) -> Option<bool> {
+        self.signatures.anchors_read
     }
 
     /// How many trust anchors the host handed in.
@@ -109,6 +129,49 @@ impl Session {
         }
         self.signatures.kept.insert(id, (basis, result.clone()));
         result
+    }
+
+    /// Message `id` as it is shown when it is an opaque signed message (`application/pkcs7-mime`
+    /// signed data, #30): its body the content that was signed, read from the bytes it came as,
+    /// under what the check found. `None` for any other message (shown as it is).
+    pub fn signed_view(&mut self, id: Id) -> Option<Arc<Message>> {
+        let m = self.mailbox.messages.get(&id)?.clone();
+        if !m.has_original() {
+            return None;
+        }
+        let basis = basis(self, &m);
+        if let Some((kept, view)) = self.signatures.views.get(&id)
+            && *kept == basis
+        {
+            return view.clone();
+        }
+        let view = self.opaque_view(&m).map(Arc::new);
+        if self.signatures.views.len() >= MAX_KEPT {
+            self.signatures.views.clear();
+        }
+        self.signatures.views.insert(id, (basis, view.clone()));
+        view
+    }
+
+    fn opaque_view(&mut self, m: &Message) -> Option<Message> {
+        // (Only a Digital signature: an Encrypted message's CMS is no signed data.)
+        self.digital_signature(m.id)?;
+        let bytes = self.content(m.id, Part::Original).ok()?;
+        let parts = mailcraft_mime::signed_parts(&bytes)?;
+        if parts.kind != mailcraft_mime::SignedKind::SmimeOpaque {
+            return None;
+        }
+        let content = mailcraft_smime::opaque_content(&parts.signature)?;
+        let inner = mailcraft_mime::parse(&content);
+        let mut view = m.clone();
+        view.body = inner.body;
+        view.hidden_text = inner.hidden_text;
+        Some(view)
+    }
+
+    /// Whether message `id` was looked at already (signed or not): the list asks no more of it.
+    pub fn digital_signature_checked(&self, id: Id) -> bool {
+        self.signatures.kept.contains_key(&id)
     }
 
     /// The result for message `id` worked out already, if it was: for the list, which never
@@ -142,7 +205,12 @@ impl Session {
         let from = if parts.one_from { m.from.email.trim() } else { "" };
         let coverage = if parts.whole { Coverage::Whole } else { Coverage::Part };
         let context = mailcraft_smime::Context { anchors: &self.signatures.anchors, from, now, known: &known, coverage };
-        let checked = mailcraft_smime::check(signed, &context)?;
+        let mut checked = mailcraft_smime::check(signed, &context)?;
+        // No authority to trust here at all (none could be read, or not yet): said as that, not as
+        // an issuer this computer doesn't trust.
+        if checked.signature.why == Some(Why::UnknownIssuer) && self.signatures.anchors.is_empty() {
+            checked.signature.why = Some(Why::NoAuthorities);
+        }
         if let (Some(der), Some(signer)) = (checked.certificate, checked.signature.signer.as_ref())
             && self.signatures.to_keep.len() < MAX_TO_KEEP
         {

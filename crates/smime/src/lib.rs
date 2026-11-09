@@ -28,7 +28,7 @@ mod verify;
 mod tests;
 
 pub use chain::{Anchors, MAX_ANCHORS};
-pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, Signed, check};
+pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, MAX_VERIFICATIONS, Signed, check, opaque_content};
 
 /// The fingerprint and addresses of a certificate in DER, as a Digital signature's details show
 /// them: `None` when it isn't one.

@@ -1042,6 +1042,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
@@ -7151,6 +7156,11 @@ msgid "No category"
 msgstr "Keine Kategorie"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "No changes are left behind: only mail in the Outbox is waiting."
@@ -7811,7 +7821,7 @@ msgstr "Nur auf diesem Computer: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-msgid "Only part of this message was signed: what's outside that part could say anything."
+msgid "Only one part of this message was signed, and what's shown may not be that part: what's outside it could say anything."
 msgstr ""
 
 #. interface
@@ -7960,6 +7970,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Open on GitHub"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Open or save the Digital signature"
 msgstr ""
 
 #. interface
@@ -10769,6 +10784,11 @@ msgstr "Anmeldung abgebrochen"
 #, fuzzy
 msgid "Signature"
 msgstr "Signatur"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signature file:"
+msgstr ""
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs

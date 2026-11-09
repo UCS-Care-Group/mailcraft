@@ -39,12 +39,12 @@ mod select;
 mod sharing;
 #[cfg(test)]
 mod sharing_tests;
-#[cfg(test)]
-mod tests;
-mod view;
 mod signature;
 #[cfg(test)]
 mod signature_tests;
+#[cfg(test)]
+mod tests;
+mod view;
 mod warnings;
 #[cfg(test)]
 mod warnings_tests;
@@ -60,8 +60,8 @@ pub(crate) use invitation::{list_marks, options as invitation_options, question 
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
 pub(crate) use select::{inspect as selection_inspect, select_all_params};
-pub(crate) use view::char_at;
 pub(crate) use signature::row_seal as signature_seal;
+pub(crate) use view::char_at;
 pub(crate) use warnings::row_mark as warning_mark;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
@@ -182,6 +182,10 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
+    // An opaque signed message shows the content that was signed, under what its check found
+    // (#30): never an empty body under the bar.
+    let view = if place == Place::Quote { None } else { app.session.signed_view(m.id) };
+    let m = view.as_ref().unwrap_or(m);
     // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
     // here, and the window takes the whole message up at its next frame.
     if place != Place::Quote && app.session.needs_load_for_display(m.id) {
@@ -606,8 +610,13 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
-    let files: Vec<(usize, &mailcraft_model::Attachment)> =
-        m.listed_attachments().filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index)).collect();
+    // The signature part of a message whose signature was checked is what its bar says; it is
+    // reached from the bar's Details (#30).
+    let checked = app.session.digital_signature_known(m.id).is_some();
+    let files: Vec<(usize, &mailcraft_model::Attachment)> = m
+        .listed_attachments()
+        .filter(|(index, a)| !invitation::stands_for(meeting.as_deref(), *index) && !(checked && signature::is_signature_part(a)))
+        .collect();
     if files.is_empty() {
         return;
     }
@@ -688,7 +697,7 @@ pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
 
 /// An attachment's menu, the same from a right-click on its chip and from the chip's `▾` (#785).
 /// Each entry is greyed when its command can't run, and the command keeps its own refusals.
-fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
+pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
     crate::widgets::mi(ui, app, "Open", "mail.openAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": id}));

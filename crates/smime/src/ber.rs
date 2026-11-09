@@ -117,75 +117,136 @@ fn der_shaped(mut bytes: &[u8], depth: usize) -> bool {
     true
 }
 
-/// Write the element at the start of `bytes` to `out` as DER; how many bytes of `bytes` it was.
-fn element(bytes: &[u8], depth: usize, out: &mut Vec<u8>) -> Option<usize> {
+/// What [`measure`] found of one element: how many bytes of the input it was, and how long its
+/// content is as DER.
+#[derive(Clone, Copy)]
+struct Size {
+    used: usize,
+    content: usize,
+}
+
+/// The sizes of the constructed elements of the input, by where each starts in it: worked out
+/// once, so that writing them is one pass with no copy of a level for each level above it.
+type Sizes = std::collections::HashMap<usize, Size>;
+
+/// The element at `at` in `input`: how many bytes it was, and its length as DER, header and all.
+fn measure(input: &[u8], at: usize, depth: usize, sizes: &mut Sizes) -> Option<(usize, usize)> {
     if depth > MAX_DEPTH {
         return None;
     }
+    let bytes = input.get(at..)?;
+    let t = tag_len(bytes)?;
+    let tag = *bytes.first()?;
+    let (len, l) = length(bytes.get(t..)?)?;
+    let start = t.checked_add(l)?;
+    if tag & 0x20 == 0 {
+        let used = start.checked_add(len?)?;
+        bytes.get(..used)?;
+        return Some((used, used_der(t, used.checked_sub(start)?)?));
+    }
+    // The children, one after another, to the end of a definite length or to the end mark.
+    let mut content = 0usize;
+    let mut pos = start;
+    let end = match len {
+        Some(len) => Some(start.checked_add(len)?),
+        None => None,
+    };
+    loop {
+        match end {
+            Some(end) if pos >= end => break,
+            None if bytes.get(pos..)?.starts_with(&[0, 0]) => {
+                pos = pos.checked_add(2)?;
+                break;
+            }
+            _ => {}
+        }
+        // (The pieces of an OCTET STRING are OCTET STRINGs, in pieces themselves or not.)
+        if tag == OCTET_STRING_PIECES && !matches!(bytes.get(pos), Some(&OCTET_STRING | &OCTET_STRING_PIECES)) {
+            return None;
+        }
+        let (n, der) = measure(input, at.checked_add(pos)?, depth.checked_add(1)?, sizes)?;
+        if n == 0 {
+            return None;
+        }
+        // An OCTET STRING in pieces is one of their contents together.
+        content = content.checked_add(if tag == OCTET_STRING_PIECES { der_content(input, at.checked_add(pos)?, sizes)? } else { der })?;
+        pos = pos.checked_add(n)?;
+    }
+    if let Some(end) = end
+        && pos != end
+    {
+        return None;
+    }
+    sizes.insert(at, Size { used: pos, content });
+    let header_tag = if tag == OCTET_STRING_PIECES { 1 } else { t };
+    Some((pos, used_der(header_tag, content)?))
+}
+
+/// The length of a DER element with a tag of `tag` bytes and `content` bytes of content.
+fn used_der(tag: usize, content: usize) -> Option<usize> {
+    let mut l = Vec::new();
+    put_length(&mut l, content);
+    tag.checked_add(l.len())?.checked_add(content)
+}
+
+/// The DER content length of the (measured) element at `at`: a primitive's own.
+fn der_content(input: &[u8], at: usize, sizes: &Sizes) -> Option<usize> {
+    if let Some(s) = sizes.get(&at) {
+        return Some(s.content);
+    }
+    let bytes = input.get(at..)?;
+    let t = tag_len(bytes)?;
+    let (len, _) = length(bytes.get(t..)?)?;
+    len
+}
+
+/// Write the (measured) element at `at` in `input` to `out` as DER; how many bytes it was.
+fn write(input: &[u8], at: usize, sizes: &Sizes, pieces: bool, out: &mut Vec<u8>) -> Option<usize> {
+    let bytes = input.get(at..)?;
     let t = tag_len(bytes)?;
     let tag_bytes = bytes.get(..t)?;
     let tag = *tag_bytes.first()?;
-    let constructed = tag & 0x20 != 0;
     let (len, l) = length(bytes.get(t..)?)?;
     let start = t.checked_add(l)?;
-    if !constructed {
-        let len = len?;
-        let end = start.checked_add(len)?;
-        out.extend_from_slice(bytes.get(..end)?);
-        return Some(end);
+    if tag & 0x20 == 0 {
+        let used = start.checked_add(len?)?;
+        let value = bytes.get(start..used)?;
+        // (A piece of an OCTET STRING in pieces gives its bytes alone.)
+        if !pieces {
+            out.extend_from_slice(tag_bytes);
+            put_length(out, value.len());
+        }
+        out.extend_from_slice(value);
+        return Some(used);
     }
-    // The children, each made DER, into a buffer of their own.
-    let mut inner = Vec::new();
-    let used = match len {
-        Some(len) => {
-            let end = start.checked_add(len)?;
-            let mut value = bytes.get(start..end)?;
-            while !value.is_empty() {
-                let n = element(value, depth.checked_add(1)?, &mut inner)?;
-                value = value.get(n..)?;
-            }
-            // Already DER: kept as it was, length bytes and all.
-            if tag != OCTET_STRING_PIECES && inner.as_slice() == bytes.get(start..end)? {
-                out.extend_from_slice(bytes.get(..end)?);
-                return Some(end);
-            }
-            end
-        }
-        None => {
-            let mut at = start;
-            loop {
-                let rest = bytes.get(at..)?;
-                if rest.starts_with(&[0, 0]) {
-                    break at.checked_add(2)?;
-                }
-                let n = element(rest, depth.checked_add(1)?, &mut inner)?;
-                if n == 0 {
-                    return None;
-                }
-                at = at.checked_add(n)?;
-            }
-        }
-    };
+    let size = *sizes.get(&at)?;
     if tag == OCTET_STRING_PIECES {
-        // Its pieces are OCTET STRINGs (in DER now, so primitive): one OCTET STRING of them all.
-        let mut joined = Vec::with_capacity(inner.len());
-        let mut pieces = inner.as_slice();
-        while !pieces.is_empty() {
-            let (piece, rest) = read(pieces)?;
-            if piece.tag != OCTET_STRING {
-                return None;
-            }
-            joined.extend_from_slice(piece.value);
-            pieces = rest;
+        if !pieces {
+            out.push(OCTET_STRING);
+            put_length(out, size.content);
         }
-        out.push(OCTET_STRING);
-        put_length(out, joined.len());
-        out.extend_from_slice(&joined);
     } else {
         out.extend_from_slice(tag_bytes);
-        put_length(out, inner.len());
-        out.extend_from_slice(&inner);
+        put_length(out, size.content);
     }
+    let inner_pieces = tag == OCTET_STRING_PIECES;
+    let mut pos = start;
+    while pos < size.used {
+        if bytes.get(pos..)?.starts_with(&[0, 0]) && len.is_none() {
+            break;
+        }
+        let n = write(input, at.checked_add(pos)?, sizes, inner_pieces, out)?;
+        pos = pos.checked_add(n)?;
+    }
+    Some(size.used)
+}
+
+/// Write the element at the start of `bytes` to `out` as DER; how many bytes of `bytes` it was.
+fn element(bytes: &[u8], depth: usize, out: &mut Vec<u8>) -> Option<usize> {
+    let mut sizes = Sizes::new();
+    let (used, der) = measure(bytes, 0, depth, &mut sizes)?;
+    out.reserve(der);
+    write(bytes, 0, &sizes, false, out)?;
     Some(used)
 }
 
