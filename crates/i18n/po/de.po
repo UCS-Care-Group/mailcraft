@@ -1476,8 +1476,8 @@ msgstr "Dasselbe als iCalendar-Datei anhängen"
 #: crates/ui-egui/src/files.rs
 msgid "Attached {n} file"
 msgid_plural "Attached {n} files"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Datei angehängt"
+msgstr[1] "{n} Dateien angehängt"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -5218,8 +5218,8 @@ msgstr "Ihr Text wird ersetzt"
 #: crates/ui-egui/src/dialogs.rs
 msgid "Its {n} rule goes too; one its server keeps stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Die zugehörige Regel wird ebenfalls gelöscht; eine vom Server beibehaltene Regel bleibt dort."
+msgstr[1] "Die zugehörigen Regeln werden ebenfalls gelöscht; vom Server beibehaltene Regeln bleiben dort."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9348,7 +9348,7 @@ msgstr "Angeben, was passiert ist (`what`)"
 #. interface
 #: crates/ui-egui/src/windows.rs
 msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
-msgstr ""
+msgstr "Geben Sie an, was geöffnet werden soll: `Nachricht` oder `Ereignis` anhand der ID, `verfassen` (eine verfasste Nachricht) anhand der ID oder `neu` (\"Termin\" oder \"Besprechung\")"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -14069,7 +14069,7 @@ msgstr "In Ihrer Organisation darf dann nur ein Administrator ein neues Programm
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
-msgstr ""
+msgstr "Der Administrator Ihrer Organisation muss einmalig genehmigen, dass MailCraft automatische Antworten ändert: Datei › Informationen"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -14080,12 +14080,12 @@ msgstr "Der Administrator Ihrer Organisation muss das Speichern von Regeln auf d
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
-msgstr ""
+msgstr "Der Administrator Ihrer Organisation muss einmalig genehmigen, dass Aufgaben mit Microsoft To Do synchron gehalten werden: Datei › Informationen"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr ""
+msgstr "Der Administrator Ihrer Organisation muss einmalig genehmigen, dass MailCraft die Kalender anderer Personen liest: Datei › Informationen"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -14096,7 +14096,7 @@ msgstr "Der Administrator Ihrer Organisation muss das Lesen freigegebener Postf�
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr ""
+msgstr "Der Administrator Ihrer Organisation muss einmalig genehmigen, dass MailCraft die Kalender freigegebener Postfächer liest: Datei › Informationen"
 
 #. interface
 #: crates/ui-egui/src
@@ -14107,12 +14107,12 @@ msgstr "Der Administrator Ihrer Organisation muss das einmal genehmigen"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Your own name."
-msgstr ""
+msgstr "Ihr eigener Name."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Your report is ready in a new message: check it, then press Send."
-msgstr ""
+msgstr "Ihr Bericht ist als neue Nachricht vorbereitet: Überprüfen Sie ihn und klicken Sie dann auf „Senden“."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -14128,17 +14128,17 @@ msgstr "Zoomen"
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
 msgid "Zoom In"
-msgstr ""
+msgstr "Vergrößern"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
 msgid "Zoom Out"
-msgstr ""
+msgstr "Verkleinern"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Zoom the Message"
-msgstr ""
+msgstr "Nachricht vergrößern"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -14197,17 +14197,17 @@ msgstr "`value` ist true oder false"
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
-msgstr ""
+msgstr "Eine PST-Datei wird gerade in dieses Postfach importiert: Warten Sie, bis der Vorgang abgeschlossen ist, und speichern Sie diese anschließend an einem anderen Ort."
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
-msgstr ""
+msgstr "Eine PST-Datei wird ausschließlich in einen Ordner auf diesem Computer importiert, niemals in ein Konto auf einem Server oder in einen Postausgang."
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
-msgstr ""
+msgstr "Server und Adresse eines JMAP-Kontos können nicht mehr geändert werden, sobald dessen E-Mails hier gespeichert sind: Entfernen Sie das Konto und fügen Sie es mit den anderen Angaben erneut hinzu."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -14260,17 +14260,17 @@ msgstr "ein Ordner braucht einen Namen"
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
 msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
-msgstr ""
+msgstr "Ein Link führt zu einer Adresse wie https://..., mailto:... oder ms-settings:, niemals jedoch zu javascript:, vbscript:, data: oder file:."
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "a list holds {n} entries at most"
-msgstr ""
+msgstr "Eine Liste kann höchstens {n} Einträge enthalten."
 
 #. what a command says
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
-msgstr ""
+msgstr "Eine Nachricht wird ausschließlich durch den eigenen Timer des Fensters im Hintergrund gespeichert."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14281,22 +14281,22 @@ msgstr "ein persönliches Microsoft-Konto (Outlook.com) hat keine freigegebenen 
 #. what a command says
 #: crates/model/src/pictures.rs
 msgid "a picture in a message is a PNG, JPEG, GIF or WebP file"
-msgstr ""
+msgstr "Ein Bild in einer Nachricht ist eine PNG-, JPEG-, GIF- oder WebP-Datei."
 
 #. what a command says
 #: crates/engine/src/cmd/picture.rs
 msgid "a picture in a message is at most {mb} MB"
-msgstr ""
+msgstr "Ein Bild in einer Nachricht ist höchstens {mb} MB groß."
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "a reply may be {most} characters long at most"
-msgstr ""
+msgstr "Eine Antwort darf höchstens {most} Zeichen lang sein."
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr ""
+msgstr "Eine Regel kann E-Mails nicht in einen Postausgang verschieben: Dadurch würden sie gesendet."
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -14361,7 +14361,7 @@ msgstr "die Regeln eines freigegebenen Postfachs sind seine eigenen: Diese Versi
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 msgid "a signature is open: add its pictures with signature.picture.add"
-msgstr ""
+msgstr "Eine Signatur ist geöffnet: Fügen Sie ihre Bilder mit signature.picture.add hinzu."
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -14396,27 +14396,27 @@ msgstr "fügen Sie mindestens einen Empfänger hinzu"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr ""
+msgstr "Server, Adresse und Benutzername eines Exchange-Server-Kontos können nicht mehr geändert werden, sobald dessen E-Mails hier gespeichert sind: Entfernen Sie das Konto und fügen Sie es mit den anderen Angaben erneut hinzu."
 
 #. what a command says
 #: crates/model/src/signature.rs
 msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
-msgstr ""
+msgstr "Eine HTML-Signatur zeigt Bilder ausschließlich über ihre Webadressen an: Entfernen Sie zuerst die Bilder aus dieser Signatur."
 
 #. what a command says
 #: crates/model/src/signature.rs
 msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
-msgstr ""
+msgstr "Eine HTML-Signatur zeigt Bilder über ihre Webadressen an: Stellen Sie diese auf Rich-Text um, um ein Bild hinzuzufügen."
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
-msgstr ""
+msgstr "Ein Konto kann nur dadurch zu einem JMAP-Konto werden oder aufhören, eines zu sein, indem Sie es entfernen und erneut hinzufügen."
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
-msgstr ""
+msgstr "Ein Konto kann nur dadurch zu einem Exchange-Server-Konto werden oder aufhören, eines zu sein, indem Sie es entfernen und erneut hinzufügen."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14440,22 +14440,22 @@ msgstr "und"
 #: crates/ui-egui/src/reading.rs
 msgid "and {n} more"
 msgid_plural "and {n} more"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "und {n} weitere"
+msgstr[1] "und {n} weitere"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "and {n} more folder"
 msgid_plural "and {n} more folders"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "und {n} weiterer Ordner"
+msgstr[1] "und {n} weitere Ordner"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "and {n} more, not merged now"
 msgid_plural "and {n} more, not merged now"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "und {n} weitere Person, jetzt nicht zusammengeführt"
+msgstr[1] "und {n} weitere Personen, jetzt nicht zusammengeführt"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -14472,7 +14472,7 @@ msgstr "Kalender"
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
-msgstr ""
+msgstr "Abgebrochen"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -14549,91 +14549,84 @@ msgstr "Postausgang"
 
 #. folder name
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgctxt "folder"
 msgid "Sent Items"
 msgstr "Gesendete Elemente"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgid "folders are nested too deeply"
 msgstr "Ordner sind zu tief verschachtelt"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "from {from} to {to}"
-msgstr ""
+msgstr "von {from} bis {to}"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
-msgstr ""
+msgstr "enthält zu viele Dateien: Der Rest wurde nicht entfernt"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "hours"
 msgstr "Stunden"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "iCloud"
 msgstr "iCloud"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "icloud.com, me.com and mac.com"
 msgstr "icloud.com, me.com und mac.com"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "importing a .pst file isn't supported in the browser yet"
-msgstr ""
+msgstr "Der Import von PST-Dateien wird im Browser noch nicht unterstützt"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "in {time}"
 msgstr "in {time}"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
 msgid "incomplete"
-msgstr "incomplete"
+msgstr "unvollständig"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is a link: not followed, and nothing in it was removed"
-msgstr ""
+msgstr "ist ein Link: Er wurde nicht verfolgt und nichts darin wurde entfernt"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is nested too deep: left alone"
-msgstr ""
+msgstr "liegt zu tief verschachtelt: bleibt unverändert"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is outside the folder being cleared: left alone"
-msgstr ""
+msgstr "liegt außerhalb des zu leerenden Ordners: bleibt unverändert"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
-msgstr ""
+msgstr "gehört zu einem Postfach, das Sie von außerhalb des MailCraft-Ordners geöffnet haben: Es gehört Ihnen und wurde nicht verändert"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "isn't a folder MailCraft keeps its data in: left alone"
-msgstr ""
+msgstr "ist kein Ordner, in dem MailCraft seine Daten speichert: bleibt unverändert"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "isn't a folder: left alone"
-msgstr ""
+msgstr "ist kein Ordner: bleibt unverändert"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -14662,7 +14655,7 @@ msgstr "es klickt oder tippt im Fenster"
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "it could not be removed"
-msgstr ""
+msgstr "Es konnte nicht entfernt werden"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -14763,56 +14756,50 @@ msgstr "es schreibt an andere Personen oder greift auf das Web zu"
 #. interface
 #: crates/ui-egui/src/opened_message.rs
 msgid "larger than {mb} MB: bring it in with File › Import"
-msgstr ""
+msgstr "größer als {mb} MB: Importiere sie über Datei › Importieren."
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "minutes"
 msgstr "Minuten"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 msgid "mismatch"
-msgstr ""
+msgstr "Stimmt nicht überein"
 
 #. name
 #: crates/model/src/calendar.rs
-#, fuzzy
 msgid "month"
 msgstr "Monat"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "more than {max} folders"
-msgstr ""
+msgstr "mehr als {max} Ordner"
 
 #. name
 #: crates/engine/src/agent.rs
-#, fuzzy
 msgid "never"
-msgstr "never"
+msgstr "niemals"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
-#, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "kein Microsoft-Konto wird über IMAP abgeglichen"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "no account here keeps its rules on its server"
 msgstr "kein Konto hier speichert seine Regeln auf seinem Server"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "no account is an Exchange server account"
-msgstr ""
+msgstr "kein Konto ist ein Exchange-Server-Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "no account is connected to a mail server"
 msgstr "kein Konto ist mit einem Mailserver verbunden"
 
@@ -14825,7 +14812,7 @@ msgstr "kein Konto ist mit einem Mailserver verbunden (Datei › Konto hinzufüg
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "no account is kept in step over JMAP"
-msgstr ""
+msgstr "kein Konto wird über JMAP synchronisiert"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
@@ -14836,7 +14823,7 @@ msgstr "kein Konto wird über Microsoft Graph abgeglichen"
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "no account with id {account}"
-msgstr ""
+msgstr "kein Konto mit der ID {account}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
@@ -14853,7 +14840,7 @@ msgstr "keine Antwort"
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "no calendar was opened by address"
-msgstr ""
+msgstr "es wurde kein Kalender über eine Adresse geöffnet"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
@@ -14888,7 +14875,7 @@ msgstr "kein Ordner mit der ID {id}"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "no free name for the folder {name}"
-msgstr ""
+msgstr "kein freier Name für den Ordner {name}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -14899,12 +14886,12 @@ msgstr "kein Posteingangsserver"
 #. what a command says
 #: crates/engine/src/cmd/edit.rs
 msgid "no look was copied: press Format Painter on the text to copy it from first"
-msgstr ""
+msgstr "es wurde kein Format kopiert: Klicken Sie zuerst auf „Format übertragen“ im Text, dessen Format Sie kopieren möchten"
 
 #. what a command says
 #: crates/engine/src/composing.rs
 msgid "no message being written has the id {id}"
-msgstr ""
+msgstr "keine gerade verfasste Nachricht hat die ID {id}"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
@@ -14975,7 +14962,7 @@ msgstr "keine Signatur namens „{name}“"
 #. what a command says
 #: crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/tasks_remote.rs
 msgid "no such account"
-msgstr ""
+msgstr "Kein solches Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -15004,7 +14991,7 @@ msgstr "kein Ordner „{folder}“"
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "nobody else is invited to this appointment"
-msgstr ""
+msgstr "niemand sonst ist zu diesem Termin eingeladen"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15015,7 +15002,7 @@ msgstr "auf dem Server noch nicht zugelassen: Datei › Informationen › Erneut
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "not known until the first Send/Receive"
-msgstr ""
+msgstr "bis zum ersten Senden/Empfangen nicht bekannt"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -15026,7 +15013,7 @@ msgstr "in der Nachricht ist nichts markiert"
 #. what a command says
 #: crates/engine/src/import_pst.rs crates/engine/src/import_tree.rs
 msgid "nothing is waiting to be imported"
-msgstr ""
+msgstr "es wartet nichts auf den Import"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -15085,7 +15072,7 @@ msgstr "am"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "only a message you sent can be sent again"
-msgstr ""
+msgstr "nur eine von Ihnen gesendete Nachricht kann erneut gesendet werden"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -15096,29 +15083,28 @@ msgstr "von „{subject}“ sind nur die Kopfzeilen hier, daher kann die Nachric
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "only your own calendars can be put in a message"
-msgstr ""
+msgstr "Nur Ihre eigenen Kalender können in eine Nachricht eingefügt werden"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
 msgid "organizer"
-msgstr "organizer"
+msgstr "Organisator"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "other people's calendars open under a Microsoft work or school account"
-msgstr ""
+msgstr "Kalender anderer Personen können mit einem Microsoft-Geschäfts- oder Schulkonto geöffnet werden"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "overdue"
-msgstr ""
+msgstr "überfällig"
 
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
 msgid "owner"
-msgstr "owner"
+msgstr "Besitzer"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15141,13 +15127,12 @@ msgstr "readOnly"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "replies can go to at most {n} addresses"
-msgstr ""
+msgstr "Antworten können an höchstens {n} Adressen gehen"
 
 #. name
 #: crates/engine/src/agent.rs
-#, fuzzy
 msgid "safe"
-msgstr "safe"
+msgstr "sicher"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
@@ -15212,7 +15197,7 @@ msgstr "Anmeldung fehlgeschlagen: Der Server nimmt über diese Verbindung kein P
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
-msgstr ""
+msgstr "someone@example.org oder @example.org"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15241,22 +15226,22 @@ msgstr "das ist keine E-Mail-Adresse"
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "that isn't on the list"
-msgstr ""
+msgstr "das steht nicht auf der Liste"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "that isn't the password of this .pst file: nothing was imported"
-msgstr ""
+msgstr "das ist nicht das Passwort dieser PST-Datei: Es wurde nichts importiert"
 
 #. interface
 #: crates/ui-egui/src
 msgid "that mailbox is open in another MailCraft window; close it there first"
-msgstr ""
+msgstr "dieses Postfach ist in einem anderen MailCraft-Fenster geöffnet. Schließen Sie es zuerst dort"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "that message is a draft: open it to send it"
-msgstr ""
+msgstr "Diese Nachricht ist ein Entwurf: Öffnen Sie sie, um sie zu senden"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -15273,54 +15258,52 @@ msgstr "diese Nachricht wird nicht zurückgehalten"
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "that was only looked at, not read in full"
-msgstr ""
+msgstr "das wurde nur angesehen, nicht vollständig gelesen"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
-msgstr ""
+msgstr "die PST-Datei konnte nicht geöffnet werden: {e}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be read: {why}"
-msgstr ""
+msgstr "die PST-Datei konnte nicht gelesen werden: {why}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file's reader stopped before it was done"
-msgstr ""
+msgstr "das Einlesen der PST-Datei wurde vorzeitig beendet"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "the Inbox of this account hasn't been read yet"
-msgstr ""
+msgstr "der Posteingang dieses Kontos wurde noch nicht gelesen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "the account is gone"
 msgstr "das Konto ist nicht mehr vorhanden"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
-msgstr ""
+msgstr "Die Anhänge sind zusammen größer als {mb} MB: Speichern Sie sie in einem Ordner"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "the automatic replies haven't been read from the server yet: read them first, so that nothing of them is written over unseen"
-msgstr ""
+msgstr "Die automatischen Antworten wurden noch nicht vom Server gelesen: Lesen Sie sie zuerst ein, damit nichts davon ungesehen überschrieben wird"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
-#, fuzzy
 msgid "the browser can't keep a copy of the mailbox beside it: switch in the desktop app"
-msgstr "der Browser kann keine Kopie des Postfachs daneben ablegen: Wechseln Sie in der Desktop-App"
+msgstr "der Browser kann keine Kopie des Postfachs neben dieses ablegen: Wechseln Sie in die Desktop-App"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "the browser can't read folders by path"
-msgstr ""
+msgstr "Der Browser kann Ordner nicht anhand ihres Pfads lesen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -15373,7 +15356,7 @@ msgstr "das Ende liegt vor dem Beginn"
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "the end of the time range must be after its start"
-msgstr ""
+msgstr "das Ende des Zeitraums muss nach dessen Anfang liegen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
@@ -15395,9 +15378,8 @@ msgstr "der Ordner, in den sie E-Mails verschiebt, ist in einem anderen Konto"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "the folder it moves mail to is on this computer"
-msgstr "der Ordner, in den sie E-Mails verschiebt, ist auf diesem Computer"
+msgstr "der Ordner, in den diese E-Mails verschiebt, ist auf diesem Computer"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -15408,12 +15390,12 @@ msgstr "der Ordner, in den sie E-Mails verschiebt, ist nicht auf dem Server"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the folder the .pst file was being imported into is gone: the import stopped"
-msgstr ""
+msgstr "Der Ordner, in den die PST-Datei importiert wurde, ist nicht mehr vorhanden: Der Import wurde abgebrochen"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
-msgstr ""
+msgstr "Der Ordner, in den die PST-Datei importiert wurde, wurde in „Gelöschte Elemente“ verschoben: Der Import wurde abgebrochen"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
@@ -15424,17 +15406,17 @@ msgstr "der Ordner dieser Nachricht ist nicht mehr auf diesem Computer"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import couldn't account for every item of {path}"
-msgstr ""
+msgstr "beim Import konnten nicht alle Elemente von {path} berücksichtigt werden"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import has no folder to put mail in"
-msgstr ""
+msgstr "Für den Import ist kein Ordner zum Ablegen der E-Mails vorhanden"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import was stopped"
-msgstr ""
+msgstr "Der Import wurde abgebrochen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15475,7 +15457,7 @@ msgstr "die Nachricht kann nicht so viel Text aufnehmen"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the message has no HTML signature"
-msgstr ""
+msgstr "die Nachricht hat keine HTML-Signatur"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/session.rs
@@ -15486,7 +15468,7 @@ msgstr "die Nachricht hat keine Anlage {index}"
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "the message has no attachments to save"
-msgstr ""
+msgstr "die Nachricht enthält keine Anhänge zum Speichern"
 
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
@@ -15509,7 +15491,7 @@ msgstr "der übergeordnete Ordner gehört zu einem anderen Konto"
 #. what a command says
 #: crates/model/src/rich/find.rs
 msgid "the places to replace are not places in the text"
-msgstr ""
+msgstr "die zu ersetzenden Stellen sind keine Positionen im Text"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -15519,18 +15501,19 @@ msgstr "das vorgeschlagene Ende liegt nicht nach dem vorgeschlagenen Beginn"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
-msgstr ""
+msgstr "das Ergebnis würde dazu führen, dass dieses Konto mehr Synchronisierungsdaten speichert, als eingelesen werden"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "the result {why}"
-msgstr ""
+msgstr "das Ergebnis: {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 msgid "the search can't look for this sender's address as a whole address"
-msgstr ""
+msgstr "die Suche kann nicht nach der vollständigen Adresse dieses Absenders suchen"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -15547,7 +15530,7 @@ msgstr "der Absender hat keine Adresse zum Abgleichen"
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "the sender has no address to put on the list"
-msgstr ""
+msgstr "der Absender hat keine Adresse, die auf die Liste gesetzt werden kann"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -15636,7 +15619,7 @@ msgstr "die Signatur ist nicht mehr vorhanden"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the signature was edited as text: its copy is what goes out"
-msgstr ""
+msgstr "die Signatur wurde als Text bearbeitet: Gesendet wird ihre Kopie"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -15701,7 +15684,7 @@ msgstr "es gibt bereits eine Signatur namens „{to}“"
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "there is no account"
-msgstr ""
+msgstr "es gibt kein Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -15735,30 +15718,28 @@ msgstr "diese Nachrichten waren für ein anderes Konto, nicht für {name}"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
 msgid "these results were for another mailbox, not for {name}"
 msgstr "diese Ergebnisse waren für ein anderes Postfach, nicht für {name}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "these settings are for another account, not for {who}"
 msgstr "diese Einstellungen sind für ein anderes Konto, nicht für {who}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this .pst file has a password: give it to import the file"
-msgstr ""
+msgstr "diese PST-Datei ist passwortgeschützt: Geben Sie das Passwort ein, um die Datei zu importieren"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
-msgstr ""
+msgstr "Diese PST-Datei ist zu groß, um sie ohne eine Postfachdatei mit ausreichend Speicherplatz daneben zu importieren: Speichern Sie zuerst das Postfach in einer Datei und starten Sie dann den Import erneut"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "this Exchange server account has no server settings"
-msgstr ""
+msgstr "für dieses Exchange-Server-Konto sind keine Servereinstellungen vorhanden"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -15769,7 +15750,7 @@ msgstr "dieses Senden/Empfangen war für ein anderes Konto, nicht für {name}"
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "this Send/Receive was for the server {name} named before"
-msgstr ""
+msgstr "dieses Senden/Empfangen war für den zuvor angegebenen Server {name}"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -15822,23 +15803,22 @@ msgstr "dieser Entwurf ist noch nicht heruntergeladen: Öffnen Sie ihn, sobald S
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this isn't a .pst file"
-msgstr ""
+msgstr "dies ist keine PST-Datei"
 
 #. name
 #: crates/model/src/sync.rs
-#, fuzzy
 msgid "this mailbox can't be reached through Microsoft Graph (MailboxNotEnabledForRESTAPI)"
 msgstr "dieses Postfach ist über Microsoft Graph nicht erreichbar (MailboxNotEnabledForRESTAPI)"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
-msgstr ""
+msgstr "dieses Postfach ist mit {mb} MB zu groß, um es als einzelne, eigenständige Datei zu speichern: speichern Sie es stattdessen in einem anderen Ordner, dabei wird sein Inhalt in einem Ordner neben der Datei abgelegt"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "this meeting has no organizer to write to"
-msgstr ""
+msgstr "für diese Besprechung gibt es keinen Organisator, an den geschrieben werden kann"
 
 #. what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs
@@ -15849,12 +15829,12 @@ msgstr "diese Nachricht hat bereits so viele Anlagen, wie sie aufnehmen kann"
 #. what a command says
 #: crates/model/src/pictures.rs
 msgid "this message has had as many pictures as it can"
-msgstr ""
+msgstr "diese Nachricht enthält bereits die maximal zulässige Anzahl an Bildern"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 msgid "this message has no sender address to look for"
-msgstr ""
+msgstr "diese Nachricht enthält keine Absenderadresse, nach der gesucht werden kann"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -15865,7 +15845,7 @@ msgstr "diese Nachricht hat keinen Betreff, nach dem gesucht werden kann"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
-msgstr ""
+msgstr "diese Nachricht wurde nicht heruntergeladen: öffnen Sie diese, sobald Sie online sind, und senden Sie diese dann erneut"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -15890,17 +15870,17 @@ msgstr[1] "Terminen"
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 msgid "too many deletions are waiting to be sent to Microsoft To Do; wait for them to go first"
-msgstr ""
+msgstr "zu viele Löschungen warten darauf, an Microsoft To Do gesendet zu werden; warten Sie, bis diese zuerst übertragen wurden"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "too many files of one name"
-msgstr ""
+msgstr "zu viele Dateien mit demselben Namen"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
-msgstr ""
+msgstr "geben Sie eine Adresse wie someone@example.org oder eine Domäne wie @example.org ein"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15911,31 +15891,27 @@ msgstr "wartet auf Ihre Berechtigung, die Regeln auf dem Server zu ändern"
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "was kept because the mailbox file beside it could not be removed: remove them together"
-msgstr ""
+msgstr "wurde beibehalten, weil die danebenliegende Postfachdatei nicht entfernt werden konnte: entfernen Sie beide zusammen"
 
 #. name
 #: crates/model/src/calendar.rs
-#, fuzzy
 msgid "week"
 msgstr "Woche"
 
 #. interface
-#: crates/ui-egui/src/reading/images.rs
-#, fuzzy
+#: crates/ui-egui/src/reading/images.rszy
 msgid "what the server sent is not a picture"
 msgstr "was der Server gesendet hat, ist kein Bild"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "which keeps its settings: change them there"
-msgstr "die seine Einstellungen verwaltet: Ändern Sie sie dort"
+msgstr "die seine Einstellungen verwaltet: ändern Sie diese dort"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "which keeps its signatures: choose them there"
-msgstr "die seine Signaturen verwaltet: Wählen Sie sie dort"
+msgstr "die seine Signaturen verwaltet: Wählen Sie diese dort"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -15957,14 +15933,13 @@ msgstr "die seine E-Mails sendet: Senden Sie diese Nachricht von einem anderen K
 
 #. name
 #: crates/model/src/calendar.rs
-#, fuzzy
 msgid "year"
 msgstr "Jahr"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "you signed in as somebody else"
-msgstr ""
+msgstr "sie haben sich als jemand anderes angemeldet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16013,7 +15988,7 @@ msgstr "{account} · Kein Zugriff"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "{added} brought in, of {found} found."
-msgstr ""
+msgstr "{added} von {found} gefundenen importiert."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16048,7 +16023,7 @@ msgstr "{address} konnte nicht geöffnet werden: {error}"
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "{address} is a shared mailbox that is open here: its calendars are listed with it."
-msgstr ""
+msgstr "{address} ist ein freigegebenes Postfach, das hier geöffnet ist: Seine Kalender werden zusammen mit ihm aufgeführt."
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -16059,7 +16034,7 @@ msgstr "{address} ist bereits eingerichtet"
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "{address} is one of your own addresses: your own mail isn't blocked"
-msgstr ""
+msgstr "{address} ist eine Ihrer eigenen Adressen: Ihre eigenen E-Mails werden nicht blockiert"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16070,17 +16045,17 @@ msgstr "{address} ist eingerichtet"
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "{address} isn't a shared mailbox open here."
-msgstr ""
+msgstr "{address} ist kein freigegebenes Postfach, das hier geöffnet ist."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{address}: {error}. It will try again at the next Send/Receive."
-msgstr ""
+msgstr "{address}: {error}. Beim nächsten Senden/Empfangen wird es erneut versucht."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{address}: {error}. See File › Info."
-msgstr ""
+msgstr "{address}: {error}. Siehe Datei › Informationen."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -16139,7 +16114,7 @@ msgstr "{done} von {total}"
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
-msgstr ""
+msgstr "{folders} werden auf diesem Computer unter einem neuen Ordner namens {name} angelegt, zusammen mit {messages}."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
@@ -16156,12 +16131,12 @@ msgstr "Eigenschaften von {folder}"
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "{folder} and its subfolders"
-msgstr ""
+msgstr "{folder} und seine Unterordner"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "{folder} couldn't be read from the server"
-msgstr ""
+msgstr "{folder} konnte nicht vom Server gelesen werden"
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -16214,17 +16189,17 @@ msgstr "{large} große Nachrichten werden beim Öffnen heruntergeladen"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "{line} · MailCraft may change them"
-msgstr ""
+msgstr "{line} · MailCraft kann sie ändern"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "{line} · couldn't be read in the last run: {folders}"
-msgstr ""
+msgstr "{line} · konnte beim letzten Durchlauf nicht gelesen werden: {folders}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "{line} · the server's certificate needs your say"
-msgstr ""
+msgstr "{line} · Sie müssen dem Zertifikat des Servers zustimmen"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -16282,12 +16257,12 @@ msgstr "{name} hat diese Einladung beantwortet."
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "{name} couldn't be read ({why})"
-msgstr ""
+msgstr "{name} konnte nicht gelesen werden ({why})"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "{name} couldn't be saved: the folder has too many files of that name"
-msgstr ""
+msgstr "{name} konnte nicht gespeichert werden: der Ordner enthält zu viele Dateien mit diesem Namen"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -16310,12 +16285,12 @@ msgstr "{name} hat diese Besprechung abgelehnt."
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "{name} has no Exchange server address that can be used"
-msgstr ""
+msgstr "{name} hat keine verwendbare Exchange-Server-Adresse"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} has no JMAP server address that can be used"
-msgstr ""
+msgstr "{name} hat keine verwendbare JMAP-Server-Adresse"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -16368,7 +16343,7 @@ msgstr "{name} ist größer als {mb} MB"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."
-msgstr ""
+msgstr "{name} ist der Name einer Person, die Sie kennen, aber diese Nachricht stammt von {real}, einer Adresse, die nicht zu dieser Person gehört."
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -16390,43 +16365,38 @@ msgstr "{name} ist kein Postfach; lesen Sie es über Datei › Importieren ein"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-#, fuzzy
 msgid "{name} isn't a shared mailbox"
 msgstr "{name} ist kein freigegebenes Postfach"
 
 #. what a command says
 #: crates/engine/src/cmd/shared.rs
-#, fuzzy
 msgid "{name} isn't a shared mailbox: remove it with account.remove"
 msgstr "{name} ist kein freigegebenes Postfach: Entfernen Sie es mit account.remove"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
 msgid "{name} isn't an Exchange server account"
-msgstr ""
+msgstr "{name} ist kein Exchange-Server-Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "{name} isn't an address a shared mailbox can be opened at"
 msgstr "{name} ist keine Adresse, unter der ein freigegebenes Postfach geöffnet werden kann"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "{name} isn't connected to a mail server"
 msgstr "{name} ist mit keinem Mailserver verbunden"
 
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} isn't kept in step over JMAP"
-msgstr ""
+msgstr "{name} wird nicht über JMAP synchronisiert"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
-#, fuzzy
 msgid "{name} isn't kept in step through Microsoft Graph"
-msgstr "{name} wird nicht über Microsoft Graph abgeglichen"
+msgstr "{name} wird nicht über Microsoft Graph synchronisiert"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16461,12 +16431,12 @@ msgstr "{name} schlägt eine andere Zeit vor: {start} – {end}."
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "{name} shared a calendar with you."
-msgstr ""
+msgstr "{name} hat einen Kalender für Sie freigegeben."
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "{name} shared a calendar with you. It is in your calendar list."
-msgstr ""
+msgstr "{name} hat einen Kalender für Sie freigegeben. Er befindet sich in Ihrer Kalenderliste."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -16477,12 +16447,12 @@ msgstr "{name} hat diese Besprechung mit Vorbehalt zugesagt."
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "{name}, pending development"
-msgstr ""
+msgstr "{name}, noch in Entwicklung"
 
 #. what a command says
 #: crates/engine/src/io.rs
 msgid "{name}: not a message file"
-msgstr ""
+msgstr "{name}: keine Nachrichtendatei"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -16526,8 +16496,8 @@ msgstr[1] "{n} Erinnerungen"
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} accepted"
 msgid_plural "{n} accepted"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} hat zugesagt"
+msgstr[1] "{n} haben zugesagt"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16572,11 +16542,10 @@ msgstr[1] "{n} Änderungen, die auf den IMAP-Server warten, erreichen ihn nicht;
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
-msgstr ""
+msgstr "{n} Änderungen am Kalender \"{name}\" werden hier zurückgehalten und nicht gesendet: Dieses Konto darf ihn möglicherweise nicht mehr ändern. Sie werden gesendet, sobald es wieder dazu berechtigt ist."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"
 msgstr[0] "{n} Kontakt"
@@ -16584,14 +16553,14 @@ msgstr[1] "{n} Kontakte"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
 msgid "{n} contact is deleted once the kept one is saved. Undo brings it back."
 msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings them back."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Kontakt wird gelöscht, sobald der beibehaltene Kontakt gespeichert ist. Mit Rückgängig machen Sie dies rückgängig."
+msgstr[1] "{n} Kontakte werden gelöscht, sobald der beibehaltene Kontakt gespeichert ist. Mit Rückgängig machen Sie dies rückgängig."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "{n} day"
 msgid_plural "{n} days"
 msgstr[0] "{n} Tag"
@@ -16601,15 +16570,15 @@ msgstr[1] "{n} Tage"
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} declined"
 msgid_plural "{n} declined"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} hat abgelehnt"
+msgstr[1] "{n} haben abgelehnt"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "{n} distribution list, kept as a contact listing its members"
 msgid_plural "{n} distribution lists, kept as contacts listing their members"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Verteilerliste, als Kontakt mit ihren Mitgliedern beibehalten"
+msgstr[1] "{n} Verteilerlisten, als Kontakte mit ihren Mitgliedern beibehalten"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -16639,33 +16608,32 @@ msgstr[1] "{n} Ereignisse in der Ansicht"
 #: crates/ui-egui/src/lib.rs
 msgid "{n} file left out"
 msgid_plural "{n} files left out"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Datei ausgelassen"
+msgstr[1] "{n} Dateien ausgelassen"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} file or folder is left out: not a mailbox file, a link, or over a limit"
 msgid_plural "{n} files or folders are left out: not mailbox files, links, or over a limit"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Datei oder Ordner wird ausgelassen: keine Postfachdatei, ein Link oder über einem Grenzwert"
+msgstr[1] "{n} Dateien oder Ordner werden ausgelassen: keine Postfachdateien, Links oder über einem Grenzwert"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} folder"
 msgid_plural "{n} folders"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Ordner"
+msgstr[1] "{n} Ordner"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "{n} group of contacts was merged."
 msgid_plural "{n} groups of contacts were merged."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Kontaktgruppe wurde zusammengeführt."
+msgstr[1] "{n} Kontaktgruppen wurden zusammengeführt."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "{n} hour"
 msgid_plural "{n} hours"
 msgstr[0] "{n} Stunde"
@@ -16683,8 +16651,8 @@ msgstr[1] "{n} Elemente"
 #: crates/ui-egui/src/import_pst.rs
 msgid "{n} item couldn't be read and is left out"
 msgid_plural "{n} items couldn't be read and are left out"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Element konnte nicht gelesen werden und wird ausgelassen"
+msgstr[1] "{n} Elemente konnten nicht gelesen werden und werden ausgelassen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16698,8 +16666,8 @@ msgstr[1] "{n} Elemente hier sind nur auf diesem Computer: nicht in Ihrem Outloo
 #: crates/ui-egui/src/import_pst.rs
 msgid "{n} item is left for a later version"
 msgid_plural "{n} items are left for a later version"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Element bleibt einer späteren Version vorbehalten"
+msgstr[1] "{n} Elemente bleiben einer späteren Version vorbehalten"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16729,8 +16697,8 @@ msgstr[1] "{n} Elemente ausgewählt"
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} mailbox file"
 msgid_plural "{n} mailbox files"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Postfachdatei"
+msgstr[1] "{n} Postfachdateien"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
@@ -16768,8 +16736,8 @@ msgstr[1] "{n} Nachrichten in dieser Unterhaltung:"
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht ist bereits vorhanden und wird ausgelassen"
+msgstr[1] "{n} Nachrichten sind bereits vorhanden und werden ausgelassen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16807,12 +16775,11 @@ msgstr[1] "{n} Nachrichten entfernt"
 #: crates/ui-egui/src/lib.rs
 msgid "{n} message that came back empty after a refused delete is being downloaded again."
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht, die nach einer verweigerten Löschung leer zurückkam, wird erneut heruntergeladen."
+msgstr[1] "{n} Nachrichten, die nach einer verweigerten Löschung leer zurückkamen, werden erneut heruntergeladen."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "{n} message will be permanently deleted."
 msgid_plural "{n} messages will be permanently deleted."
 msgstr[0] "{n} Nachricht wird endgültig gelöscht."
@@ -16822,20 +16789,20 @@ msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
 #: crates/ui-egui/src/lib.rs
 msgid "{n} message with characters that couldn't be read is being downloaded again."
 msgid_plural "{n} messages with characters that couldn't be read are being downloaded again."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht mit Zeichen, die nicht gelesen werden konnten, wird erneut heruntergeladen."
+msgstr[1] "{n} Nachrichten mit Zeichen, die nicht gelesen werden konnten, werden erneut heruntergeladen."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "{n} message you are writing has changes that aren't saved."
 msgid_plural "{n} messages you are writing have changes that aren't saved."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Nachricht, die Sie verfassen, enthält ungespeicherte Änderungen."
+msgstr[1] "{n} Nachrichten, die Sie verfassen, enthalten ungespeicherte Änderungen."
 
 #. what a command says
 #: crates/engine/src/composing.rs
 msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
-msgstr ""
+msgstr "Es werden bereits {n} Nachrichten verfasst, mehr können nicht gleichzeitig verfasst werden; senden, speichern oder schließen Sie zuerst eine davon"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs
@@ -16857,8 +16824,8 @@ msgstr[1] "{n} weitere Ordner sind nicht aufgeführt."
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} more not listed"
 msgid_plural "{n} more not listed"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} weiteres nicht aufgeführt"
+msgstr[1] "{n} weitere nicht aufgeführt"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -16872,19 +16839,18 @@ msgstr[1] "{n} weitere Fragen warten."
 #: crates/ui-egui/src/files.rs
 msgid "{n} more was left out: at most {mb} MB at a time"
 msgid_plural "{n} more were left out: at most {mb} MB at a time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} weiteres wurde ausgelassen: höchstens {mb} MB auf einmal"
+msgstr[1] "{n} weitere wurden ausgelassen: höchstens {mb} MB auf einmal"
 
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "{n} more was left out: at most {most} files at a time"
 msgid_plural "{n} more were left out: at most {most} files at a time"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} weiteres wurde ausgelassen: höchstens {most} Dateien auf einmal"
+msgstr[1] "{n} weitere wurden ausgelassen: höchstens {most} Dateien auf einmal"
 
 #. interface, what a command says
 #: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
-#, fuzzy
 msgid "{n} new message"
 msgid_plural "{n} new messages"
 msgstr[0] "{n} neue Nachricht"
@@ -16892,7 +16858,6 @@ msgstr[1] "{n} neue Nachrichten"
 
 #. what a command says
 #: crates/model/src/sync.rs
-#, fuzzy
 msgid "{n} new message, {sent} sent"
 msgid_plural "{n} new messages, {sent} sent"
 msgstr[0] "{n} neue Nachricht, {sent} gesendet"
@@ -16902,8 +16867,8 @@ msgstr[1] "{n} neue Nachrichten, {sent} gesendet"
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} not answered"
 msgid_plural "{n} not answered"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} hat nicht geantwortet"
+msgstr[1] "{n} haben nicht geantwortet"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16915,13 +16880,11 @@ msgstr[1] "{n} davon sind Besprechungen mit Eingeladenen: Wenn sie verschoben we
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
-#, fuzzy
 msgid "{n} of {total}"
 msgstr "{n} von {total}"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
-#, fuzzy
 msgid "{n} of {total} so far."
 msgstr "Bisher {n} von {total}."
 
@@ -16983,8 +16946,8 @@ msgstr[1] "{n} Probleme"
 #: crates/ui-egui/src/lib.rs
 msgid "{n} remembered sign-in could not be removed from the credential store"
 msgid_plural "{n} remembered sign-ins could not be removed from the credential store"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} gespeicherte Anmeldung konnte nicht aus dem Anmeldedatenspeicher entfernt werden"
+msgstr[1] "{n} gespeicherte Anmeldungen konnten nicht aus dem Anmeldedatenspeicher entfernt werden"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -16998,8 +16961,8 @@ msgstr[1] "{n} Erinnerungen sind fällig"
 #: crates/ui-egui/src/find_replace.rs
 msgid "{n} replacement was made."
 msgid_plural "{n} replacements were made."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Ersetzung wurde vorgenommen."
+msgstr[1] "{n} Ersetzungen wurden vorgenommen."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -17013,8 +16976,8 @@ msgstr[1] "{n} Ergebnisse in {scope}"
 #: crates/ui-egui/src/forms.rs
 msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
 msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} hier gelöschte Regel ist weiterhin auf dem Server vorhanden, bis MailCraft die Serverregeln ändern darf (Datei › Informationen › Erneut fragen)."
+msgstr[1] "{n} hier gelöschte Regeln sind weiterhin auf dem Server vorhanden, bis MailCraft die Serverregeln ändern darf (Datei › Informationen › Erneut fragen)."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -17049,22 +17012,22 @@ msgstr[1] "{n} Aufgaben"
 #: crates/ui-egui/src/task_sync.rs
 msgid "{n} task exists only on this computer"
 msgid_plural "{n} tasks exist only on this computer"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Aufgabe ist nur auf diesem Computer vorhanden"
+msgstr[1] "{n} Aufgaben sind nur auf diesem Computer vorhanden"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} tentative"
 msgid_plural "{n} tentative"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} hat unter Vorbehalt zugesagt"
+msgstr[1] "{n} haben unter Vorbehalt zugesagt"
 
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "{n} thing in it didn't fit with the rest and was put right."
 msgid_plural "{n} things in it didn't fit with the rest and were put right."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} Element darin passte nicht zum Rest und wurde korrigiert."
+msgstr[1] "{n} Elemente darin passten nicht zum Rest und wurden korrigiert."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
@@ -17086,8 +17049,8 @@ msgstr[1] "{n} ungelesen auf dem Server"
 #: crates/ui-egui/src/import_pst.rs
 msgid "{n} was here already"
 msgid_plural "{n} were here already"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} war bereits vorhanden"
+msgstr[1] "{n} waren bereits vorhanden"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -17153,7 +17116,7 @@ msgstr "Die Anmeldeseite von {provider} ist in Ihrem Browser geöffnet"
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "{read} of {total} MB"
-msgstr ""
+msgstr "{read} von {total} MB"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -17169,7 +17132,7 @@ msgstr "{rule}, ab {day}"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{said}; {left}{more}"
-msgstr ""
+msgstr "{said}; {left}{more}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -17199,56 +17162,48 @@ msgstr[1] "{sent} Nachrichten gesendet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "{service} account"
 msgstr "{service}-Konto"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
 msgid "{subject} - Message"
-msgstr ""
+msgstr "{subject} - Nachricht"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "{time} ago"
 msgstr "vor {time}"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
-#, fuzzy
 msgid "{title} (all day)"
 msgstr "{title} (ganztägig)"
 
 #. date and time
 #: crates/i18n/src/date.rs
-#, fuzzy
 msgid "{weekday} {date} {time}"
 msgstr "{weekday} {date} {time}"
 
 #. date and time
 #: crates/i18n/src/date.rs
-#, fuzzy
 msgid "{weekday} {time}"
 msgstr "{weekday} {time}"
 
 #. date and time
 #: crates/i18n/src/date.rs
-#, fuzzy
 msgid "{weekday}, {date}"
 msgstr "{weekday}, {date}"
 
 #. date and time
 #: crates/i18n/src/date.rs
-#, fuzzy
 msgid "{weekday}, {month} {day}"
 msgstr "{weekday}, {day}. {month}"
 
 #. date and time
 #: crates/i18n/src/date.rs
-#, fuzzy
 msgid "{weekday}, {month} {day}, {year}"
-msgstr "{weekday}, {day}. {month} {year}"
+msgstr "{weekday}, {day}. {month}. {year}"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -17259,7 +17214,7 @@ msgstr "{who} wurde von einer neueren Version von MailCraft hinzugefügt, {then}
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "{why} What came in before stays; import the file again for the rest."
-msgstr ""
+msgstr "{why} Was bereits importiert wurde, bleibt erhalten; importieren Sie die Datei erneut, um den Rest zu übernehmen."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
