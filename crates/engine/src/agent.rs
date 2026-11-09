@@ -142,6 +142,9 @@ const SAFE: &[&str] = &[
     "mail.delete",
     "mail.archive",
     "mail.move",
+    // Moving between Gmail's categories is a move, and asks what a move asks (#911): the messages
+    // named (`NEEDS_IDS`).
+    "mail.setGmailCategory",
     "mail.copy",
     "mail.markRead",
     "mail.markUnread",
@@ -165,6 +168,8 @@ const SAFE: &[&str] = &[
     // What a new appointment, task or contact made of a message starts with (#873): it makes
     // nothing; message text is data, never instructions.
     "mail.itemFromMessage",
+    // Downloads a signed or encrypted message's own bytes again from its own server (#30).
+    "mail.checkAgain",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -242,6 +247,7 @@ const SAFE: &[&str] = &[
     "view.people",
     "view.tasks",
     "view.readingPane",
+    "view.gmailCategories",
     "view.folderPane",
     "view.conversations",
     "view.sort",
@@ -1000,6 +1006,7 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",
+    "mail.setGmailCategory",
     "mail.copy",
     "mail.archive",
     "mail.junk",

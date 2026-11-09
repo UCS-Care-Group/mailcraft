@@ -56,9 +56,16 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
             continue;
         }
-        spent = spent.saturating_add(m.size());
-        match s.loaded_message(m.id) {
-            Ok(m) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
+        // (Nor one whose original can't be read while the copy it came from may hold it, #30:
+        // made of its parts, it would be taken for the message, and that copy let go. Only what
+        // goes counts toward what a run carries.)
+        let size = m.size();
+        match s.placeable(m) {
+            Ok(None) => log::warn!("message {} waits to go to another mailbox: the bytes it came as can't be read here, and are asked for", m.id),
+            Ok(Some(m)) => {
+                spent = spent.saturating_add(size);
+                out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now)));
+            }
             Err(e) => log::warn!("message {} waits to go to another mailbox: {e}", m.id),
         }
     }
@@ -78,14 +85,22 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
         let Some(m) = mb.message(*message).filter(|m| *a == account && m.account == account && m.uid == 0 && m.server.is_none()) else {
             continue;
         };
-        if Some(m.folder) == outbox || m.unfetched || m.incomplete || m.not_downloaded > 0 {
-            continue;
-        }
         if taken >= MAX_PLACES || (taken > 0 && spent.saturating_add(m.size()) > PLACE_BYTES) {
             break;
         }
+        // One whose original can't be read while the copy it came from may hold it waits for it
+        // from there, and says so once for each reason (#30), whatever else it waits for; one
+        // whose original nothing else can hold goes made of its parts.
+        if let Some(notice) = s.held_notice(m) {
+            said.extend(notice);
+            taken += 1;
+            continue;
+        }
+        if Some(m.folder) == outbox || m.unfetched || m.incomplete || m.not_downloaded > 0 {
+            continue;
+        }
         spent = spent.saturating_add(m.size());
-        if m.kept.as_deref().is_some_and(|k| k.failed) || !s.readable_whole(m) {
+        if m.kept.as_deref().is_some_and(|k| k.failed) || !s.parts_readable(m) {
             let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
             said.push(format!("Couldn't put \"{subject}\" on the server: it couldn't be read on this computer"));
         } else {
@@ -93,6 +108,20 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
         }
     }
     said
+}
+
+/// What is said once of the messages moved out of `account` onto this computer that wait for the
+/// bytes they came as (#30, [`Session::held_notice`]): this account's run says it, as no run of
+/// theirs does. As far as a run looks ([`MAX_PLACES`]).
+pub(crate) fn held_for_this_computer(s: &Session, account: Id) -> Vec<String> {
+    let mb = &s.mailbox;
+    let local = |m: &Message| mb.account(m.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Local);
+    let moved = mb.pending.iter().filter_map(|p| match p {
+        mailcraft_model::Pending::Move { message, .. } if p.account() == account => Some(*message),
+        _ => None,
+    });
+    let out = mb.messages.values().filter(|m| m.moving_out.as_ref().is_some_and(|o| o.account == account)).map(|m| m.id);
+    moved.chain(out).filter_map(|id| mb.message(id)).filter(|m| local(m)).take(MAX_PLACES).filter_map(|m| s.held_notice(m).flatten()).collect()
 }
 
 /// Whether `m`, moved here out of an account whose server still has the original, is safe where
@@ -103,14 +132,28 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
 /// Only when `read` are its parts read back, which is done for a change that goes into a request:
 /// a count of what waits to go, which a host asks for every few seconds, reads no file, and
 /// counts one that can't be read as it does a change the server refused.
+///
+/// And, of a Digitally signed or Encrypted message (#30), only once the bytes it came as can't be
+/// lost with the original ([`Message::may_release`]), or, when `read`, are whole on the disk here
+/// ([`Session::original_readable`], whatever account it is in): the gate every release of a copy
+/// something was moved out of goes through.
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bool {
+    let released = || {
+        if m.may_release() || !read || s.original_readable(m, saved) {
+            return true;
+        }
+        // Read and lost: asked for from the copy it came from.
+        let _ = s.held_for_original(m);
+        false
+    };
     if s.mailbox.is_graph(m.account) {
-        m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
+        m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty()) && released()
     } else if s.mailbox.puts_on_server(m.account) {
-        m.uid != 0
+        m.uid != 0 && released()
     } else {
         let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
-        whole && (saved || s.saved_whole.contains(&m.id)) && (!read || s.readable_whole(m))
+        // (Whole with the bytes it came as, or of its parts once those can't be lost.)
+        whole && (saved || s.saved_whole.contains(&m.id)) && (!read || (s.parts_readable(m) && released()))
     }
 }
 
@@ -250,7 +293,7 @@ pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
         if let Some(out) = original {
             s.mailbox.queued.push(Queued::DeleteMessage { account: out.account, id: out.id, kept: None });
         }
-        super::account::original_goes(&mut s.mailbox, id);
+        super::account::original_goes(&mut s.mailbox, id, true);
     }
 }
 

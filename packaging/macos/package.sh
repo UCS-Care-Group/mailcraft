@@ -23,7 +23,7 @@ ARCH=universal
 SKIP_BUILD=0
 BUILD_ONLY=0
 NO_RUN=0
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --arch) ARCH="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=1; shift ;;
@@ -39,7 +39,7 @@ case "$ARCH" in
   x86_64) TARGETS=(x86_64-apple-darwin) ;;
   *) echo "unknown --arch $ARCH" >&2; exit 2 ;;
 esac
-if [ "$SKIP_BUILD" = 1 ] && [ "$BUILD_ONLY" = 1 ]; then
+if [[ $SKIP_BUILD == 1 ]] && [[ $BUILD_ONLY == 1 ]]; then
   echo "--skip-build and --build-only can't be used together" >&2
   exit 2
 fi
@@ -54,9 +54,9 @@ DMG="$DIST/mailcraft-$VERSION-macos-$ARCH.dmg"
 CLI_ZIP="$DIST/mailcraft-cli-$VERSION-macos-$ARCH.zip"
 
 NOTARIZE=0
-if [ "$IDENTITY" = "-" ]; then
+if [[ $IDENTITY == "-" ]]; then
   warn "macOS: ad-hoc signing (no MACOS_SIGN_IDENTITY); artifacts are not notarized"
-elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+elif [[ -n "${APPLE_ID:-}" ]] && [[ -n "${APPLE_PASSWORD:-}" ]] && [[ -n "${APPLE_TEAM_ID:-}" ]]; then
   NOTARIZE=1
 else
   warn "macOS: APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID incomplete; signed but not notarized"
@@ -65,7 +65,7 @@ fi
 echo "==> MailCraft $VERSION for macOS ($ARCH), identity: $IDENTITY, notarize: $NOTARIZE"
 
 # ---- build -------------------------------------------------------------------------------------
-if [ "$SKIP_BUILD" = 0 ]; then
+if [[ $SKIP_BUILD == 0 ]]; then
   args=()
   for t in "${TARGETS[@]}"; do args+=(--target "$t"); done
   (cd "$ROOT" && cargo build --release --locked -p mailcraft -p mailcraft-cli "${args[@]}")
@@ -74,7 +74,7 @@ fi
 # CI compiles in a job of its own (--build-only), which has no signing secret, and hands the
 # binaries by digest to a job that signs and packages them (--skip-build --no-run) without
 # running cargo or them.
-if [ "$BUILD_ONLY" = 1 ]; then
+if [[ $BUILD_ONLY == 1 ]]; then
   echo "==> built; signing and packaging come next"
   exit 0
 fi
@@ -92,9 +92,9 @@ done
 sign() {
   # Hardened runtime + secure timestamp for a real identity; ad-hoc can't be timestamped.
   local ts=(--timestamp)
-  [ "$IDENTITY" = "-" ] && ts=(--timestamp=none)
+  [[ $IDENTITY == "-" ]] && ts=(--timestamp=none)
   local kc=()
-  [ -n "${MACOS_KEYCHAIN:-}" ] && kc=(--keychain "$MACOS_KEYCHAIN")
+  [[ -n "${MACOS_KEYCHAIN:-}" ]] && kc=(--keychain "$MACOS_KEYCHAIN")
   codesign --force --sign "$IDENTITY" ${kc[@]+"${kc[@]}"} "${ts[@]}" "$@"
 }
 
@@ -106,8 +106,8 @@ notarize() {
   echo "$out"
   id="$(printf '%s' "$out" | plutil -extract id raw -o - - 2>/dev/null || true)"
   status="$(printf '%s' "$out" | plutil -extract status raw -o - - 2>/dev/null || true)"
-  if [ "$status" != "Accepted" ]; then
-    if [ -n "$id" ]; then
+  if [[ $status != "Accepted" ]]; then
+    if [[ -n "$id" ]]; then
       xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" || true
     fi
     echo "error: notarization of $(basename "$file") failed (status: ${status:-unknown})" >&2
@@ -135,7 +135,7 @@ sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP/Contents/
 sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP"
 codesign --verify --strict --deep --verbose=2 "$APP"
 
-if [ "$NOTARIZE" = 1 ]; then
+if [[ $NOTARIZE == 1 ]]; then
   ditto -c -k --keepParent "$APP" "$WORK/MailCraft-notarize.zip"
   notarize "$WORK/MailCraft-notarize.zip"
   xcrun stapler staple "$APP"
@@ -152,7 +152,7 @@ ln -s /Applications "$STAGE/Applications"
 # Finder window layout: background, icon size and positions (packaging/macos/dmg/README.md).
 # MailCraft has no DMG artwork yet (packaging/macos/dmg/README.md): without it the DMG opens as a
 # plain Finder window.
-if [ -f "$HERE/dmg/background.tiff" ] && [ -f "$HERE/dmg/dmg-layout.DS_Store" ]; then
+if [[ -f "$HERE/dmg/background.tiff" ]] && [[ -f "$HERE/dmg/dmg-layout.DS_Store" ]]; then
   mkdir -p "$STAGE/.background"
   cp "$HERE/dmg/background.tiff" "$STAGE/.background/background.tiff"
   cp "$HERE/dmg/dmg-layout.DS_Store" "$STAGE/.DS_Store"
@@ -173,13 +173,13 @@ for attempt in 1 2 3 4 5; do
   echo "hdiutil create failed (attempt $attempt of 5); trying again" >&2
   sleep $((attempt * 5))
 done
-if [ "$made" != 1 ]; then
+if [[ $made != 1 ]]; then
   echo "error: could not build $DMG" >&2
   exit 1
 fi
 sign "$DMG"
 codesign --verify --strict --verbose=2 "$DMG"
-if [ "$NOTARIZE" = 1 ]; then
+if [[ $NOTARIZE == 1 ]]; then
   notarize "$DMG"
   xcrun stapler staple "$DMG"
   xcrun stapler validate "$DMG"
@@ -197,9 +197,9 @@ codesign --verify --strict --verbose=2 "$CLI_DIR/mailcraft-cli"
 rm -f "$CLI_ZIP"
 ditto -c -k --norsrc --noextattr --keepParent "$CLI_DIR" "$CLI_ZIP"
 # A bare Mach-O can't carry a stapled ticket; Gatekeeper looks the notarization up online.
-if [ "$NOTARIZE" = 1 ]; then notarize "$CLI_ZIP"; fi
+if [[ $NOTARIZE == 1 ]]; then notarize "$CLI_ZIP"; fi
 
-if [ "$NO_RUN" = 1 ]; then
+if [[ $NO_RUN == 1 ]]; then
   echo "==> skipping mailcraft-cli --version (--no-run): a job without the signing secrets runs it"
 else
   "$WORK/bin/mailcraft-cli" --version

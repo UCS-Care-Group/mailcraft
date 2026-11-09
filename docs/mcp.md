@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-08 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar. Each message is one line of at most
@@ -177,6 +177,10 @@ file gave, and a contact's names, postal addresses, phones and web sites. The se
 
 **What a sender hid.** `read_message` and `mail.get` answer, beside `body` (what the owner sees), a `hiddenText` field (#599) when the message has any: the words of what its sender hid (a preheader, the other copy of a desktop and mobile pair), which the owner's reading pane leaves out and search finds. It is message text like the rest: framed as untrusted, data and never instructions. A message read before #599 has none until it is read again from its source.
 
+**Gmail's categories.** A message of a Gmail account's Inbox carries `gmailCategory` (#911) in `list_messages`, `read_message`, `mail.list` and `mail.get`: `primary`, `social`, `promotions`, `updates` or `forums`, the category Gmail put it in. It is one of those five words, written by MailCraft and not by the sender, so it isn't framed; like every field of a message it is data about the message, never instructions. `gmail:social` and the others search for them, and `folder.select {"id", "gmail": "social"}` shows one of them. `view.gmailCategories {"value": "tabs"}` (or `"folders"`) has the window show the five as tabs above the Inbox's list or as folders under it. `mail.setGmailCategory {"ids": [...], "category": "social"}` moves messages of the Inbox of a Gmail account that signs in with Google to another category (the messages named and any other copy here of the same Gmail message, since Gmail keeps one category for a message, never other messages of their conversations; the window's own selection in conversation view takes the whole conversation in that Inbox), queued to Gmail at the next Send/Receive; like a move to a folder, it needs no yes from the owner and refuses to act on the window's selection, so the messages are named. It is switched off in this version (disabled, "comes once Google has reviewed MailCraft") and refused for an account that signs in with an app password.
+
+**Signed and encrypted messages.** A Digitally signed or Encrypted message (S/MIME or OpenPGP) keeps the bytes it came as (#30); they are never part of an answer to an agent. `mail.checkAgain {"id"}` (safe) has those bytes downloaded again from the message's own server for one read before they were kept, and is refused for any other message.
+
 **Sender warnings.** `read_message` and `mail.get` answer a message's sender warnings (#508) in
 `warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `lookalikeSender`, `linkMismatch`, `linksUnchecked`,
 `external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
@@ -235,6 +239,10 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-08 | patch | AU3-R1: what is framed as untrusted also covers a message's source, the searches built from a message, an online meeting's link, categories, identifiers and a contact's details |
+| 2026-11-08 | patch | AU3-R2: with `--connect`, a request is sent again only when it never reached the app; a lost answer is an error that says the app may have run it |
+| 2026-11-08 | patch | AU3-R4: a message on stdio is at most 1 MiB; a longer line is answered with an error and the next one served |
+| 2026-11-07 | patch | AU3-14: a new sender warning kind, `linksUnchecked`, for a message with more looks than are checked |
 | 2026-11-04 | patch | #473 follow-up: `safe`, `delete` and `edit.undo` name messages among what an undo or redo removes (a server copy of a Microsoft or Exchange server account goes to Deleted Items instead); an undo or redo that puts back accounts or a change that writes to people and takes messages away is asked once, the question names the messages, and a yes covers Delete too |
 | 2026-11-03 | patch | #566 follow-up: `rules.move` of a rule its server has that deletes mail (or moves it to Deleted Items, or has parts MailCraft doesn't know) is `delete`, as `rules.enable` is |
 | 2026-11-02 | minor | #566: `delete` also covers deleting a rule its server has or may have, a rule that deletes mail or moves it to Deleted Items or a folder under it going to its server or switched on there, and a server's rule with parts MailCraft doesn't know switched on |

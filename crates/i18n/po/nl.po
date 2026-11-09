@@ -57,6 +57,11 @@ msgstr "„{shown}” is geen e-mailadres"
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt vastgehouden in Postvak UIT."
 
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -1367,6 +1372,16 @@ msgid "Arrangement"
 msgstr "Rangschikking"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "As Folders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "As Tabs above the Inbox"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "As recipients see it"
@@ -2257,6 +2272,11 @@ msgstr ""
 #, fuzzy
 msgid "Check Accessibility"
 msgstr "Toegankelijkheid controleren"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Check Again"
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -3233,6 +3253,11 @@ msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar wordt 
 #, fuzzy
 msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar van MailCraft is niet met het installatieprogramma (.msi) geïnstalleerd, waardoor Windows het niet herkent."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Desktop alerts only for mail in Primary"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4401,6 +4426,11 @@ msgstr "Opmaken als HTML"
 msgid "Format as Plain Text"
 msgstr "Opmaken als tekst zonder opmaak"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Forums"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4617,11 +4647,47 @@ msgstr "De pagina van GitHub is open: voeg daar het diagnosebestand toe en dien 
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. MailCraft heeft niets verzonden."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Gmail\n"
+"Categories"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Gmail Categories"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Gmail and Google Workspace"
 msgstr "Gmail en Google Workspace"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Gmail categories"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
+msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
+msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4766,6 +4832,11 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build."
 #, fuzzy
 msgid "Google sign-in is not configured for this build. Use an app password instead."
 msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een app-wachtwoord in plaats daarvan."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4978,7 +5049,7 @@ msgid "Hold Unsent Mail"
 msgstr "Onverzonden e-mail vasthouden"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Start"
@@ -6808,7 +6879,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr "Het grootste deel van de naam van de afzender bestaat uit tekens die niet worden getoond, en het bericht kwam van {real}."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "Verplaatsen"
@@ -6900,6 +6971,11 @@ msgstr "Deze regel omhoog verplaatsen: hij wordt eerder uitgevoerd"
 #, fuzzy
 msgid "Move to Calendar"
 msgstr "Naar agenda verplaatsen"
+
+#. command label, interface
+#: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
+msgid "Move to Category"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
@@ -7020,6 +7096,11 @@ msgstr "Nodig voor accounts van Outlook.com en Microsoft 365"
 #, fuzzy
 msgid "Needs Check for new versions."
 msgstr "Controleren op nieuwe versies is nodig."
+
+#. interface
+#: crates/ui-egui/src/gmail_move.rs
+msgid "Needs Google sign-in"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -7186,6 +7267,11 @@ msgstr "Nieuwe items gaan naar de agenda die hier is gekozen"
 #, fuzzy
 msgid "New mail"
 msgstr "Nieuwe e-mail"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -8800,11 +8886,26 @@ msgstr "Vorig bericht"
 msgid "Previous Month"
 msgstr "Vorige maand"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Primary"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Private"
 msgstr "Persoonlijk"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Promotions"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
@@ -10722,6 +10823,11 @@ msgstr "Contactpersonen tonen van"
 msgid "Show Contributors"
 msgstr "Bijdragers weergeven"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Show Gmail's categories under the Inbox"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -11257,6 +11363,11 @@ msgstr "Uitstellen"
 #, fuzzy
 msgid "Snooze Reminders"
 msgstr "Herinneringen uitstellen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Social"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -14161,7 +14272,7 @@ msgid "Updated {folder} on the server"
 msgstr "{folder} op de server bijgewerkt"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Updates"
 msgstr "Updates"
@@ -15434,6 +15545,11 @@ msgstr "er kunnen hoogstens 200 berichten samen worden doorgestuurd"
 msgid "calendar"
 msgstr "agenda"
 
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "can't be done in the browser"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_tree.rs
 #, fuzzy
@@ -15445,6 +15561,11 @@ msgstr "geannuleerd"
 #, fuzzy
 msgid "close a conversation first: each of the 1,000 open has a message selected"
 msgstr "vouw eerst een gesprek samen: in elk van de 1.000 uitgevouwen gesprekken is een bericht geselecteerd"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "comes once Google has reviewed MailCraft"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -15741,6 +15862,11 @@ msgstr "het schrijft naar andere mensen of benadert het web"
 msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr "groter dan {mb} MB: haal het binnen via Bestand › Importeren"
 
+#. what a command says
+#: crates/engine/src/session.rs
+msgid "message {id} keeps no original"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -15762,6 +15888,16 @@ msgstr "maand"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "more than {max} folders"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "needs Google sign-in"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "needs a Gmail account"
 msgstr ""
 
 #. name
@@ -15896,7 +16032,7 @@ msgid "no message is being written"
 msgstr "er wordt geen bericht geschreven"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
@@ -16075,6 +16211,16 @@ msgstr "op"
 msgid "only a message you sent can be sent again"
 msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
 
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "only mail in a Gmail account's Inbox is in one of Gmail's categories"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -16166,7 +16312,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selecteer eerst een gesprek in de gespreksweergave"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
@@ -17815,6 +17961,20 @@ msgid_plural "{n} messages copied into the account: Send/Receive puts them on Mi
 msgstr[0] "{n} bericht naar het account gekopieerd: Verzenden/ontvangen zet het op de server van Microsoft, zonder de meeste kopregels (zoals Received)"
 msgstr[1] "{n} berichten naar het account gekopieerd: Verzenden/ontvangen zet ze op de server van Microsoft, zonder de meeste kopregels (zoals Received)"
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
+msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
+msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -17862,6 +18022,13 @@ msgid "{n} message removed"
 msgid_plural "{n} messages removed"
 msgstr[0] "{n} bericht verwijderd"
 msgstr[1] "{n} berichten verwijderd"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
+msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18150,7 +18317,7 @@ msgstr[0] "{n} ding erin paste niet bij de rest en is hersteld."
 msgstr[1] "{n} dingen erin pasten niet bij de rest en zijn hersteld."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/gmail_tabs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "{n} unread"
 msgid_plural "{n} unread"
