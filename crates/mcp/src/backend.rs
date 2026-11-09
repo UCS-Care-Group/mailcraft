@@ -201,9 +201,15 @@ impl Remote {
     }
 
     fn roundtrip(&mut self, line: &str) -> std::io::Result<String> {
-        /// The most a reply line may hold, as the sibling channels cap their lines: the app's
-        /// own replies are small, so a longer one is a hostile peer's.
+        /// The most a reply line may hold from a peer that has not proved it holds the key,
+        /// as the sibling channels cap their lines: the app's own replies are small, so a
+        /// longer one is a hostile peer's.
         const MAX_LINE: u64 = 1 << 20;
+        /// The most a reply from the proved app may hold: `ui.screenshot` answers the whole
+        /// window as base64, and a 4K window's PNG is past the strict cap. Still bounded, so
+        /// even the proved app does not choose how much this process buffers.
+        const MAX_REPLY: u64 = 1 << 23;
+        let cap = if self.verified { MAX_REPLY } else { MAX_LINE };
         let Some((reader, writer)) = self.conn.as_mut() else {
             return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "not connected"));
         };
@@ -213,11 +219,11 @@ impl Remote {
         // Read with the same cap the app caps its request lines with: a peer that answers with
         // an unbounded line does not choose how much this process buffers.
         let mut buf = Vec::new();
-        let n = Read::take(reader, MAX_LINE + 1).read_until(b'\n', &mut buf)?;
+        let n = Read::take(reader, cap + 1).read_until(b'\n', &mut buf)?;
         if n == 0 {
             return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "control channel closed"));
         }
-        if buf.len() > MAX_LINE as usize {
+        if buf.len() > cap as usize {
             self.conn = None;
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "reply too long"));
         }

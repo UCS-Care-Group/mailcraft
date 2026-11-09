@@ -14,8 +14,11 @@ use serde_json::{Value, json};
 const KEY: &str = "feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface";
 
 /// A listener on a loopback port. Every line it receives goes to the channel; it answers a
-/// challenge with `proof(nonce)` and everything else with ok.
-fn listener(proof: impl Fn(&str) -> Value + Send + 'static) -> (u16, Receiver<String>) {
+/// challenge with `proof(nonce)` and everything else with `other`.
+fn listener_with(
+    proof: impl Fn(&str) -> Value + Send + 'static,
+    other: impl Fn(&Value) -> Value + Send + 'static,
+) -> (u16, Receiver<String>) {
     let l = TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let port = l.local_addr().unwrap().port();
     let (tx, rx) = channel();
@@ -28,17 +31,24 @@ fn listener(proof: impl Fn(&str) -> Value + Send + 'static) -> (u16, Receiver<St
                 let reply = if req["method"] == "auth.challenge" {
                     proof(req["params"]["nonce"].as_str().unwrap_or(""))
                 } else {
-                    json!({"ok": true, "result": "done"})
+                    other(&req)
                 };
                 let mut reply = reply;
                 reply["id"] = req["id"].clone();
+                // A failed write keeps the listener: the retry reconnects, and the next
+                // connection must be answered too, so the error stays the size limit's.
                 if writeln!(out, "{reply}").is_err() {
-                    return;
+                    break;
                 }
             }
         }
     });
     (port, rx)
+}
+
+/// A listener that answers a challenge with `proof(nonce)` and everything else with ok.
+fn listener(proof: impl Fn(&str) -> Value + Send + 'static) -> (u16, Receiver<String>) {
+    listener_with(proof, |_| json!({"ok": true, "result": "done"}))
 }
 
 fn seen(rx: &Receiver<String>) -> Vec<String> {
@@ -87,8 +97,41 @@ fn an_over_cap_reply_is_refused_and_the_key_is_never_sent() {
     let (port, rx) = listener(|_| json!({"ok": true, "result": {"proof": "x".repeat(2 << 20)}}));
     let mut r = Remote::connect_with_key(&format!("127.0.0.1:{port}"), KEY).unwrap();
     let e = r.call("engine.execute", json!({"command": "mail.flag"})).unwrap_err();
-    assert!(e.contains("reply too long") || e.contains("not reachable"), "{e}");
+    // The listener stays up through the retry, so the error stays the size limit's, not a
+    // connection failure that would mask a cap regression.
+    assert!(e.contains("reply too long"), "{e}");
     let lines = seen(&rx);
     assert!(!lines.is_empty() && lines.iter().all(|l| l.contains("auth.challenge")), "{lines:?}");
     assert!(lines.iter().all(|l| !l.contains(KEY) && !l.contains("engine.execute")), "{lines:?}");
+}
+
+#[test]
+fn a_screenshot_sized_reply_from_the_proved_app_is_taken() {
+    // The proved app answers a method with a reply past the strict line cap: `ui.screenshot`
+    // answers the whole window as base64, and a 4K window's PNG is over 1 MiB of base64. The
+    // bridge still takes it, bounded: the cap for a proved app is wider, not gone.
+    let (port, _rx) = listener_with(
+        |n| json!({"ok": true, "result": {"proof": mailcraft_control_key::proof::proof(KEY, n)}}),
+        |_| json!({"ok": true, "result": {"data": "x".repeat((3 << 20) / 4 * 3)}}),
+    );
+    let mut r = Remote::connect_with_key(&format!("127.0.0.1:{port}"), KEY).unwrap();
+    let reply = r.call("ui.screenshot", json!({})).unwrap();
+    assert_eq!(reply["ok"], Value::Null, "{reply}");
+    let data = reply["data"].as_str().unwrap_or_default();
+    assert!(data.len() > (1 << 20), "a screenshot-sized reply came through whole");
+}
+
+#[test]
+fn an_authenticated_reply_over_the_reply_cap_is_refused() {
+    // Even the proved app does not choose how much the bridge buffers: a reply past the wide
+    // cap is refused, the connection is closed, and the error names the size.
+    let (port, rx) = listener_with(
+        |n| json!({"ok": true, "result": {"proof": mailcraft_control_key::proof::proof(KEY, n)}}),
+        |_| json!({"ok": true, "result": {"data": "x".repeat(1 << 24)}}),
+    );
+    let mut r = Remote::connect_with_key(&format!("127.0.0.1:{port}"), KEY).unwrap();
+    let e = r.call("ui.screenshot", json!({})).unwrap_err();
+    assert!(e.contains("reply too long"), "{e}");
+    let lines = seen(&rx);
+    assert!(lines.iter().any(|l| l.contains(KEY)), "{lines:?}");
 }
