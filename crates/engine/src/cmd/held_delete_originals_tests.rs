@@ -465,6 +465,37 @@ fn undoing_a_move_of_a_waiting_copy_out_of_microsoft_keeps_it_waiting_and_the_de
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A copy on its way into a Microsoft account deleted for good, and that undone: it is back, and
+/// waits again to be made on that server, so the delete of the message it was copied from waits
+/// for it again; Redo and Undo again alike.
+#[test]
+fn undoing_a_delete_for_good_of_a_copy_waiting_into_microsoft_keeps_the_delete_held() {
+    let dir = folder("undo-delete-copy");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, _, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let ms = microsoft(&mut s, "owner@example.org");
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [copy]})).unwrap();
+    let waits = |s: &Session| {
+        s.mailbox
+            .queued
+            .iter()
+            .filter(|q| matches!(q, mailcraft_model::Queued::PlaceMessage { account, message, .. } if *message == copy && *account == ms))
+            .count()
+    };
+    for (step, back) in [("undo", true), ("redo", false), ("undo again", true)] {
+        assert!(if back { s.undo() } else { s.redo() }, "{step}");
+        save(&mut s, &path);
+        assert_eq!(s.mailbox.message(copy).map(|m| m.account), back.then_some(ms), "{step}");
+        assert_eq!(waits(&s), usize::from(back), "{step}");
+        assert_eq!(deletes(&s, from), !back, "{step}");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Copies into two accounts: each is asked for the bytes from the server that has the message,
 /// one after the other, and its delete goes once both are there.
 #[test]

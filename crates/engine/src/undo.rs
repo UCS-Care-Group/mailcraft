@@ -781,6 +781,16 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         {
             queued.push(q.clone());
         }
+        // And a message brought back that waited to be made on the server, as a copy brought
+        // back does: deleted for good meanwhile, it waits again (#566: so does the delete of the
+        // message it was copied from).
+        if let Queued::PlaceMessage { account, message, .. } = q
+            && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
+            && !now.messages.contains_key(message)
+            && !queued.iter().any(|o| matches!(o, Queued::PlaceMessage { message: other, .. } if other == message))
+        {
+            queued.push(q.clone());
+        }
     }
     out.queued = queued;
 }
