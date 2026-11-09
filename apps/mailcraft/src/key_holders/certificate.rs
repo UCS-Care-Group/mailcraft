@@ -37,10 +37,17 @@ const ID_CE_EXT_KEY_USAGE: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.
 const ID_CE_BASIC_CONSTRAINTS: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.19");
 const ID_CE_SUBJECT_KEY_IDENTIFIER: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.14");
 const ID_CE_AUTHORITY_KEY_IDENTIFIER: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.35");
+const ID_CE_CERTIFICATE_POLICIES: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.32");
+const ID_CE_POLICY_CONSTRAINTS: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.36");
+const ID_CE_INHIBIT_ANY_POLICY: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.54");
+const ID_CE_NAME_CONSTRAINTS: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.30");
 
-/// The extensions this reader knows what to do with, critical or not. Basic constraints is read
+/// The extensions that may be critical in a certificate listed here. Basic constraints is read
 /// only as far as an end certificate needs: a key for mail is what is listed, and a CA's
-/// certificate with its key in the owner's store is the owner's business.
+/// certificate with its key in the owner's store is the owner's business. The policy and
+/// name-constraint extensions (RFC 5280 §4.2.1.4, .10, .11, .14) bind whoever checks the chain:
+/// the reader of a signed message, never the holder of the key, so a critical one doesn't stop
+/// the owner's own certificate from being listed.
 const KNOWN_CRITICAL: &[ObjectIdentifier] = &[
     ID_CE_KEY_USAGE,
     ID_CE_EXT_KEY_USAGE,
@@ -48,6 +55,10 @@ const KNOWN_CRITICAL: &[ObjectIdentifier] = &[
     ID_CE_BASIC_CONSTRAINTS,
     ID_CE_SUBJECT_KEY_IDENTIFIER,
     ID_CE_AUTHORITY_KEY_IDENTIFIER,
+    ID_CE_CERTIFICATE_POLICIES,
+    ID_CE_POLICY_CONSTRAINTS,
+    ID_CE_INHIBIT_ANY_POLICY,
+    ID_CE_NAME_CONSTRAINTS,
 ];
 
 /// The kind of key a certificate is for.

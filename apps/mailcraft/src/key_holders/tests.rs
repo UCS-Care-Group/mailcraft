@@ -430,47 +430,495 @@ fn a_pin_and_an_unwrapped_key_are_never_shown_in_errors() {
     assert_eq!(key.len(), 3);
 }
 
+/// Re-review P3 1: the policy and name-constraint extensions bind whoever checks the chain, so a
+/// critical one doesn't stop the owner's certificate from being listed.
+#[test]
+fn critical_policy_extensions_are_known() {
+    // certificatePolicies: one policy, anyPolicy.
+    let policies = Extension {
+        extn_id: oid("2.5.29.32"),
+        critical: true,
+        extn_value: OctetString::new(vec![0x30, 0x06, 0x30, 0x04, 0x06, 0x02, 0x55, 0x1d]).unwrap(),
+    };
+    let mut extensions = mail_extensions();
+    extensions.push(policies);
+    assert_eq!(usable([certificate(Spec::new("CN=Judy", rsa_key(), extensions))], IN_DATE).len(), 1);
+    for id in ["2.5.29.36", "2.5.29.54", "2.5.29.30"] {
+        let critical = Extension { extn_id: oid(id), critical: true, extn_value: OctetString::new(vec![0x30, 0x00]).unwrap() };
+        assert!(HeldCertificate::read(certificate(Spec::new("CN=Judy", rsa_key(), vec![critical])), IN_DATE).is_ok(), "{id}");
+    }
+}
+
+/// The body of `fn name` in `source`, to the closing brace at the start of a line.
+fn body_of<'a>(source: &'a str, name: &str) -> &'a str {
+    let start = source.find(&format!("pub fn {name}(")).unwrap_or_else(|| panic!("no pub fn {name}"));
+    let rest = source.get(start..).unwrap();
+    rest.get(..rest.find("\n}\n").unwrap()).unwrap()
+}
+
+/// Re-review P1 (b): the Windows and macOS stores can't run here, so their source is read: each
+/// use applies the same check as the listing, and an unwrap checks its input first.
+#[test]
+fn the_system_stores_check_before_each_use() {
+    for (file, source) in [("windows_store.rs", include_str!("windows_store.rs")), ("macos_keychain.rs", include_str!("macos_keychain.rs"))] {
+        assert!(body_of(source, "sign_digest").contains("check_for_signing(&held, scheme)?;"), "{file}: sign_digest");
+        let decrypt = body_of(source, "decrypt_key");
+        assert!(decrypt.contains("check_wrapped(wrapped)?;"), "{file}: decrypt_key checks its input");
+        assert!(decrypt.contains("check_for_decrypting(&held)?;"), "{file}: decrypt_key");
+    }
+}
+
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod pkcs11 {
+    use std::cell::{Cell, RefCell};
+    use std::ffi::OsString;
     use std::path::{Path, PathBuf};
-    use std::sync::{Arc, Mutex};
+    use std::rc::Rc;
+    use std::sync::{Arc, Mutex, mpsc};
+    use std::time::Duration;
 
     use cryptoki::context::Function;
     use cryptoki::error::{Error, RvError};
+    use cryptoki::mechanism::Mechanism;
+    use cryptoki::object::ObjectClass;
 
     use super::super::pkcs11::{
-        KeyFacts, KeyKindOnToken, PROXY_PLACES, Pkcs11Holder, TokenCertificate, check_same_token, first_that_opens, key_matches, module_from_env,
-        open_default, shared, token_error,
+        KeyFacts, KeyKindOnToken, MODULE_VARIABLE, Module, PROXY_PLACES, Pkcs11Holder, Registry, TokenCertificate, TokenFacts, TokenSession,
+        check_same_token, choose_module, decrypt_key, first_that_opens, key_matches, list, module_key, open_default, shared, sign_digest,
+        token_error,
     };
-    use super::super::{DigestAlgorithm, KeyHolderError, RsaPadding, SignatureScheme, TokenRef};
-    use super::{IN_DATE, P256, Spec, alice_rsa, certificate, ec_key, ec_point, example_token, mail_extensions, modulus, read};
+    use super::super::{DigestAlgorithm, KeyHolderError, Pin, RsaPadding, SignatureScheme, TokenRef};
+    use super::{EC, P256, SERVER_AUTH, Spec, alice_rsa, certificate, ec_key, ec_point, eku, example_token, mail_extensions, modulus, read, rsa_key};
+
+    // ---- A fake token ---------------------------------------------------------------------
+
+    #[derive(Clone, Default)]
+    struct FakeKey {
+        id: Vec<u8>,
+        public: bool,
+        facts: KeyFacts,
+        always: bool,
+    }
+
+    #[derive(Clone)]
+    struct FakeToken {
+        facts: TokenFacts,
+        certificates: Vec<(Vec<u8>, Vec<u8>)>,
+        keys: Vec<FakeKey>,
+        pin: &'static str,
+        /// The token wants a login at every use (a key it doesn't mark as such).
+        login_at_every_use: bool,
+    }
+
+    struct FakeModule {
+        tokens: Vec<FakeToken>,
+        log: Rc<RefCell<Vec<String>>>,
+    }
+
+    struct FakeSession {
+        token: FakeToken,
+        log: Rc<RefCell<Vec<String>>>,
+        logged_in: Cell<bool>,
+    }
+
+    impl Module for FakeModule {
+        type Session = FakeSession;
+        fn slots(&self) -> Result<Vec<u64>, KeyHolderError> {
+            Ok(self.tokens.iter().map(|t| t.facts.token.slot).collect())
+        }
+        fn open(&self, slot: u64) -> Result<FakeSession, KeyHolderError> {
+            let token = self.tokens.iter().find(|t| t.facts.token.slot == slot).cloned().ok_or(KeyHolderError::TokenChanged)?;
+            Ok(FakeSession { token, log: Rc::clone(&self.log), logged_in: Cell::new(false) })
+        }
+    }
+
+    impl FakeSession {
+        fn note(&self, what: String) {
+            self.log.borrow_mut().push(what);
+        }
+        fn use_key(&self, what: &str, key: usize) -> Result<(), Error> {
+            self.note(format!("{what} slot {} key {key}", self.token.facts.token.slot));
+            let logged_in = self.logged_in.get();
+            if (self.token.facts.login_required && !logged_in) || self.token.login_at_every_use {
+                return Err(Error::Pkcs11(RvError::UserNotLoggedIn, Function::Sign));
+            }
+            Ok(())
+        }
+    }
+
+    impl TokenSession for FakeSession {
+        type Key = usize;
+        fn facts(&self) -> Result<TokenFacts, KeyHolderError> {
+            Ok(self.token.facts.clone())
+        }
+        fn certificates(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+            self.token.certificates.clone()
+        }
+        fn keys(&self, class: ObjectClass, id: &[u8]) -> Vec<usize> {
+            let public = class == ObjectClass::PUBLIC_KEY;
+            self.token.keys.iter().enumerate().filter(|(_, k)| k.public == public && k.id == id).map(|(i, _)| i).collect()
+        }
+        fn key_facts(&self, key: usize) -> KeyFacts {
+            self.token.keys.get(key).map(|k| k.facts.clone()).unwrap_or_default()
+        }
+        fn always_authenticate(&self, key: usize) -> bool {
+            self.token.keys.get(key).is_some_and(|k| k.always)
+        }
+        fn login(&self, pin: Option<&Pin>) -> Result<(), Error> {
+            let slot = self.token.facts.token.slot;
+            match pin {
+                None if self.token.facts.protected_path => self.note(format!("pad login slot {slot}")),
+                None => return Err(Error::Pkcs11(RvError::ArgumentsBad, Function::Login)),
+                Some(pin) => {
+                    self.note(format!("pin {} slot {slot}", pin.expose()));
+                    if pin.expose() != self.token.pin {
+                        return Err(Error::Pkcs11(RvError::PinIncorrect, Function::Login));
+                    }
+                }
+            }
+            self.logged_in.set(true);
+            Ok(())
+        }
+        fn sign(&self, _: &Mechanism<'_>, key: usize, _: &[u8]) -> Result<Vec<u8>, Error> {
+            self.use_key("sign", key)?;
+            Ok(vec![0x5a; 256])
+        }
+        fn decrypt(&self, _: &Mechanism<'_>, key: usize, _: &[u8]) -> Result<Vec<u8>, Error> {
+            self.use_key("decrypt", key)?;
+            Ok(vec![0x07; 32])
+        }
+    }
+
+    const ID: &[u8] = &[0x01];
+
+    /// A certificate for mail, valid for decades (the fake reads it with the real clock).
+    fn long_lived(subject: &str) -> Vec<u8> {
+        let mut spec = Spec::new(subject, rsa_key(), mail_extensions());
+        spec.validity = ("200101000000Z", "491231235959Z");
+        certificate(spec)
+    }
+
+    fn rsa_private(modulus_on_token: Option<Vec<u8>>, kind: Option<KeyKindOnToken>) -> FakeKey {
+        FakeKey { id: ID.to_vec(), public: false, facts: KeyFacts { kind, modulus: modulus_on_token, ec_point: None }, always: false }
+    }
+
+    fn the_key() -> FakeKey {
+        rsa_private(Some(modulus(2048)), Some(KeyKindOnToken::Rsa))
+    }
+
+    fn other_key() -> FakeKey {
+        let mut other = modulus(2048);
+        if let Some(last) = other.last_mut() {
+            *last ^= 1;
+        }
+        rsa_private(Some(other), Some(KeyKindOnToken::Rsa))
+    }
+
+    fn token(slot: u64, serial: &str, der: &[u8], keys: Vec<FakeKey>) -> FakeToken {
+        FakeToken {
+            facts: TokenFacts {
+                token: TokenRef { slot, serial: serial.into(), label: format!("Card {slot}") },
+                protected_path: false,
+                login_required: true,
+            },
+            certificates: vec![(der.to_vec(), ID.to_vec())],
+            keys,
+            pin: "246813",
+            login_at_every_use: false,
+        }
+    }
+
+    fn module(tokens: Vec<FakeToken>) -> FakeModule {
+        FakeModule { tokens, log: Rc::default() }
+    }
+
+    fn log(module: &FakeModule) -> Vec<String> {
+        module.log.borrow().clone()
+    }
+
+    fn fingerprint(der: &[u8]) -> [u8; 32] {
+        super::super::certificate::sha256(der)
+    }
+
+    fn sign(module: &FakeModule, der: &[u8], pin: Option<(&TokenRef, &Pin)>) -> Result<Vec<u8>, KeyHolderError> {
+        sign_digest(module, &fingerprint(der), SignatureScheme::RsaPkcs1v15, DigestAlgorithm::Sha256, &[0; 32], pin)
+    }
+
+    fn pin() -> Pin {
+        Pin::new("246813".into())
+    }
+
+    // ---- The logic, end to end on the fake --------------------------------------------------
+
+    /// Re-review P1: the first call asks for the token's PIN, the second signs with it.
+    #[test]
+    fn a_pin_is_asked_for_once_and_then_signs() {
+        let der = long_lived("CN=Alice Example");
+        let fake = module(vec![token(3, "0123", &der, vec![the_key()])]);
+        let asked = sign(&fake, &der, None);
+        let Err(KeyHolderError::PinNeeded(named)) = asked else { panic!("{asked:?}") };
+        assert_eq!(named.slot, 3);
+        assert!(log(&fake).is_empty());
+        assert_eq!(sign(&fake, &der, Some((&named, &pin()))), Ok(vec![0x5a; 256]));
+        assert_eq!(log(&fake), vec!["pin 246813 slot 3".to_string(), "sign slot 3 key 0".to_string()]);
+        let wrong = Pin::new("000000".into());
+        assert_eq!(sign(&fake, &der, Some((&named, &wrong))), Err(KeyHolderError::PinIncorrect));
+    }
+
+    /// Re-review P1 (find_key): a key whose public half isn't the certificate's is skipped, at
+    /// use and at listing.
+    #[test]
+    fn a_key_that_isnt_the_certificates_is_never_used() {
+        let der = long_lived("CN=Alice Example");
+        let fake = module(vec![token(3, "0123", &der, vec![other_key(), the_key()])]);
+        let named = fake.tokens[0].facts.token.clone();
+        assert_eq!(sign(&fake, &der, Some((&named, &pin()))), Ok(vec![0x5a; 256]));
+        assert_eq!(log(&fake).last().map(String::as_str), Some("sign slot 3 key 1"));
+
+        let fake = module(vec![token(3, "0123", &der, vec![other_key()])]);
+        assert_eq!(sign(&fake, &der, Some((&named, &pin()))), Err(KeyHolderError::NotFound));
+        assert!(!log(&fake).iter().any(|l| l.starts_with("sign")));
+
+        // Listing a token that shows its keys without a login: only a certificate with its key.
+        let mut open = token(3, "0123", &der, vec![other_key()]);
+        open.facts.login_required = false;
+        assert!(list(&module(vec![open.clone()]), super::IN_DATE).unwrap().is_empty());
+        open.keys.push(the_key());
+        let listed: Vec<TokenCertificate> = list(&module(vec![open]), super::IN_DATE).unwrap();
+        assert_eq!(listed.len(), 1);
+    }
+
+    /// Re-review P1 (key_for) and P3 2: a PIN goes only to the slot it was asked for, only while
+    /// the session shows the token with that serial number, and a token without one by its
+    /// label.
+    #[test]
+    fn a_pin_goes_only_to_the_token_it_was_asked_for() {
+        let der = long_lived("CN=Alice Example");
+        // The same certificate on slots 1 and 3; the PIN was asked for slot 3.
+        let fake = module(vec![token(1, "AAAA", &der, vec![the_key()]), token(3, "0123", &der, vec![the_key()])]);
+        let slot3 = fake.tokens[1].facts.token.clone();
+        assert_eq!(sign(&fake, &der, Some((&slot3, &pin()))), Ok(vec![0x5a; 256]));
+        assert!(log(&fake).iter().all(|l| l.ends_with("slot 3") || l.contains("slot 3 ")), "{:?}", log(&fake));
+
+        // Another card in slot 3 now.
+        let fake = module(vec![token(3, "9999", &der, vec![the_key()])]);
+        assert_eq!(sign(&fake, &der, Some((&slot3, &pin()))), Err(KeyHolderError::TokenChanged));
+        assert!(log(&fake).is_empty());
+
+        // The certificate is no longer in slot 3.
+        let fake = module(vec![token(3, "0123", &long_lived("CN=Someone Else"), vec![the_key()])]);
+        assert_eq!(sign(&fake, &der, Some((&slot3, &pin()))), Err(KeyHolderError::TokenChanged));
+        assert!(log(&fake).is_empty());
+
+        // Two tokens without a serial number are not the same token.
+        let fake = module(vec![token(3, "", &der, vec![the_key()])]);
+        let blank = TokenRef { slot: 3, serial: String::new(), label: "Another Card".into() };
+        assert_eq!(sign(&fake, &der, Some((&blank, &pin()))), Err(KeyHolderError::TokenChanged));
+        assert!(log(&fake).is_empty());
+        let same = fake.tokens[0].facts.token.clone();
+        assert_eq!(sign(&fake, &der, Some((&same, &pin()))), Ok(vec![0x5a; 256]));
+    }
+
+    /// Re-review P1 (check_for_signing / check_for_decrypting / check_wrapped): the listing's
+    /// rule again at use, before any login.
+    #[test]
+    fn a_certificate_the_rule_refuses_is_refused_before_the_pin() {
+        let mut spec = Spec::new("CN=Ivan", rsa_key(), mail_extensions());
+        spec.validity = ("200101000000Z", "210101000000Z");
+        let expired = certificate(spec);
+        let fake = module(vec![token(3, "0123", &expired, vec![the_key()])]);
+        let named = fake.tokens[0].facts.token.clone();
+        assert_eq!(sign(&fake, &expired, None), Err(KeyHolderError::NotAllowed("it is expired or not valid yet")));
+        assert_eq!(sign(&fake, &expired, Some((&named, &pin()))), Err(KeyHolderError::NotAllowed("it is expired or not valid yet")));
+        assert!(log(&fake).is_empty());
+        // An expired certificate's key still unwraps old mail.
+        let unwrapped = decrypt_key(&fake, &fingerprint(&expired), RsaPadding::Pkcs1v15, &[0; 256], Some((&named, &pin())));
+        assert_eq!(unwrapped.map(|k| k.to_vec()), Ok(vec![0x07; 32]));
+
+        let mut spec = Spec::new("CN=www.example.org", rsa_key(), vec![eku(&[SERVER_AUTH])]);
+        spec.validity = ("200101000000Z", "491231235959Z");
+        let web = certificate(spec);
+        let fake = module(vec![token(3, "0123", &web, vec![the_key()])]);
+        assert_eq!(sign(&fake, &web, Some((&named, &pin()))), Err(KeyHolderError::NotAllowed("not a certificate for mail")));
+        let refused = decrypt_key(&fake, &fingerprint(&web), RsaPadding::Pkcs1v15, &[0; 256], Some((&named, &pin())));
+        assert_eq!(refused.map(|_| ()), Err(KeyHolderError::NotAllowed("not a certificate for mail")));
+        // The wrong scheme for the key.
+        let der = long_lived("CN=Alice Example");
+        let fake = module(vec![token(3, "0123", &der, vec![the_key()])]);
+        let ecdsa = sign_digest(&fake, &fingerprint(&der), SignatureScheme::Ecdsa, DigestAlgorithm::Sha256, &[0; 32], Some((&named, &pin())));
+        assert!(matches!(ecdsa, Err(KeyHolderError::Unsupported(_))));
+        // A wrapped key that can't be one is refused unread.
+        let empty = decrypt_key(&fake, &fingerprint(&der), RsaPadding::Pkcs1v15, &[], Some((&named, &pin())));
+        assert!(matches!(empty, Err(KeyHolderError::BadInput(_))));
+        assert!(log(&fake).is_empty());
+    }
+
+    /// Re-review P3 3: "not logged in" never has the window ask twice, nor a PIN pad's owner at
+    /// all.
+    #[test]
+    fn not_logged_in_asks_for_a_pin_only_when_one_could_help() {
+        let der = long_lived("CN=Alice Example");
+        // A PIN pad whose key wants a login at every use.
+        let mut pad = token(3, "0123", &der, vec![the_key()]);
+        pad.facts.protected_path = true;
+        pad.login_at_every_use = true;
+        let fake = module(vec![pad.clone()]);
+        assert!(matches!(sign(&fake, &der, None), Err(KeyHolderError::Unsupported(_))));
+        assert_eq!(log(&fake).first().map(String::as_str), Some("pad login slot 3"));
+        // A PIN pad that said it needs no login, then wants one.
+        pad.facts.login_required = false;
+        let fake = module(vec![pad]);
+        assert!(matches!(sign(&fake, &der, None), Err(KeyHolderError::Unsupported(_))));
+        assert!(!log(&fake).iter().any(|l| l.contains("login")));
+
+        // A PIN given and taken, then "not logged in": over, not asked again.
+        let mut card = token(3, "0123", &der, vec![the_key()]);
+        card.login_at_every_use = true;
+        let fake = module(vec![card.clone()]);
+        let named = card.facts.token.clone();
+        assert!(matches!(sign(&fake, &der, Some((&named, &pin()))), Err(KeyHolderError::Unsupported(_))));
+        // A token that said it needs no login and wants one: asked once, for this token.
+        card.facts.login_required = false;
+        let fake = module(vec![card]);
+        assert_eq!(sign(&fake, &der, None), Err(KeyHolderError::PinNeeded(named)));
+        // A key marked as wanting a login at every use is refused before anything is asked.
+        let mut marked = token(3, "0123", &der, vec![FakeKey { always: true, ..the_key() }]);
+        marked.facts.protected_path = true;
+        assert!(matches!(sign(&module(vec![marked]), &der, None), Err(KeyHolderError::Unsupported(_))));
+    }
+
+    /// Re-review P3 4: the public half is read from the public-key object when the private key
+    /// doesn't say it, for RSA as for EC, and a key with no type is known by what it shows.
+    #[test]
+    fn a_keys_public_half_may_come_from_its_public_object() {
+        let der = long_lived("CN=Alice Example");
+        let named = |fake: &FakeModule| fake.tokens[0].facts.token.clone();
+        let public = |facts| FakeKey { id: ID.to_vec(), public: true, facts, always: false };
+
+        // RSA: no modulus on the private key; the public key has it.
+        let modulus_object = public(KeyFacts { kind: Some(KeyKindOnToken::Rsa), modulus: Some(modulus(2048)), ec_point: None });
+        let fake = module(vec![token(3, "0123", &der, vec![rsa_private(None, Some(KeyKindOnToken::Rsa)), modulus_object.clone()])]);
+        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Ok(vec![0x5a; 256]));
+        // Nor any type.
+        let fake = module(vec![token(3, "0123", &der, vec![rsa_private(None, None), modulus_object])]);
+        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Ok(vec![0x5a; 256]));
+        // No type, its own modulus.
+        let fake = module(vec![token(3, "0123", &der, vec![rsa_private(Some(modulus(2048)), None)])]);
+        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Ok(vec![0x5a; 256]));
+        // The public object's modulus is another key's.
+        let wrong = public(KeyFacts { kind: Some(KeyKindOnToken::Rsa), modulus: other_key().facts.modulus, ec_point: None });
+        let fake = module(vec![token(3, "0123", &der, vec![rsa_private(None, None), wrong])]);
+        assert_eq!(sign(&fake, &der, Some((&named(&fake), &pin()))), Err(KeyHolderError::NotFound));
+
+        // EC: the point on the public object.
+        let mut spec = Spec::new("CN=Bob", ec_key(P256), mail_extensions());
+        spec.validity = ("200101000000Z", "491231235959Z");
+        let ec = certificate(spec);
+        let private = FakeKey { id: ID.to_vec(), public: false, facts: KeyFacts::default(), always: false };
+        let point = public(KeyFacts { kind: None, modulus: None, ec_point: Some(ec_point()) });
+        let fake = module(vec![token(3, "0123", &ec, vec![private, point])]);
+        let signed = sign_digest(&fake, &fingerprint(&ec), SignatureScheme::Ecdsa, DigestAlgorithm::Sha256, &[0; 32], Some((&named(&fake), &pin())));
+        // The fake's 256 bytes aren't a P-256 signature: the key was found and used.
+        assert!(matches!(signed, Err(KeyHolderError::BadInput(_)) | Err(KeyHolderError::System(_))), "{signed:?}");
+        assert_eq!(log(&fake).last().map(String::as_str), Some("sign slot 3 key 0"));
+        let _ = EC;
+    }
+
+    /// Re-review P1 (open_default) and P3 6: a module the owner named is the only one tried,
+    /// and one that isn't an absolute path is said, not passed over.
+    #[test]
+    fn a_named_module_is_the_only_one_tried() {
+        let tried = RefCell::new(Vec::new());
+        let open = |p: &Path| -> Result<&'static str, KeyHolderError> {
+            tried.borrow_mut().push(p.to_path_buf());
+            Err(KeyHolderError::Unavailable("won't load".into()))
+        };
+        let everything = |_: &Path| true;
+        assert_eq!(choose_module(Some(OsString::from("/example/owner.so")), everything, open), Err(KeyHolderError::Unavailable("won't load".into())));
+        assert_eq!(*tried.borrow(), vec![PathBuf::from("/example/owner.so")]);
+
+        tried.borrow_mut().clear();
+        assert_eq!(
+            choose_module(Some(OsString::from("owner.so")), everything, open),
+            Err(KeyHolderError::Unavailable(format!("{MODULE_VARIABLE} is not an absolute path")))
+        );
+        assert!(tried.borrow().is_empty());
+
+        // Nothing named (or named empty): the proxy's places, in turn, those that exist.
+        for named in [None, Some(OsString::new())] {
+            tried.borrow_mut().clear();
+            let _ = choose_module(named, |p: &Path| p.starts_with("/usr/lib64"), open);
+            assert_eq!(*tried.borrow(), vec![PathBuf::from("/usr/lib64/p11-kit-proxy.so")]);
+        }
+        tried.borrow_mut().clear();
+        let _ = choose_module(None, everything, open);
+        assert_eq!(tried.borrow().len(), PROXY_PLACES.len());
+    }
 
     #[test]
     fn a_module_must_be_named_by_an_absolute_path_that_loads() {
         assert!(matches!(Pkcs11Holder::open(Path::new("p11-kit-proxy.so")), Err(KeyHolderError::Unavailable(_))));
         assert!(matches!(Pkcs11Holder::open(Path::new("/nonexistent/example/module.so")), Err(KeyHolderError::Unavailable(_))));
-        // The test's environment names no module (a relative one would be ignored).
-        if std::env::var_os("MAILCRAFT_PKCS11_MODULE").is_none() {
-            assert_eq!(module_from_env(), None);
-        }
         let _ = open_default();
     }
 
     /// Review item 1: one holder per module for the life of the program; a failure isn't kept.
     #[test]
     fn a_module_is_kept_once_and_never_let_go_of() {
-        let registry: Mutex<Vec<(PathBuf, Arc<u32>)>> = Mutex::new(Vec::new());
-        let first = shared(&registry, Path::new("/example/a.so"), 2, || Ok(1)).unwrap();
-        let again = shared(&registry, Path::new("/example/a.so"), 2, || Ok(2)).unwrap();
+        let registry: Registry<u32> = Mutex::new(Vec::new());
+        let first = shared(&registry, Path::new("/example/a.so"), 2, |_| Ok(1)).unwrap();
+        let again = shared(&registry, Path::new("/example/a.so"), 2, |_| Ok(2)).unwrap();
         assert!(Arc::ptr_eq(&first, &again));
         assert_eq!(*again, 1);
 
-        assert!(shared(&registry, Path::new("/example/b.so"), 2, || Err(KeyHolderError::Unavailable("no".into()))).is_err());
-        assert_eq!(*shared(&registry, Path::new("/example/b.so"), 2, || Ok(3)).unwrap(), 3);
-        assert!(shared(&registry, Path::new("/example/c.so"), 2, || Ok(4)).is_err());
+        assert!(shared(&registry, Path::new("/example/b.so"), 2, |_| Err(KeyHolderError::Unavailable("no".into()))).is_err());
+        assert_eq!(*shared(&registry, Path::new("/example/b.so"), 2, |_| Ok(3)).unwrap(), 3);
+        assert!(shared(&registry, Path::new("/example/c.so"), 2, |_| Ok(4)).is_err());
         drop((first, again));
         // Still held by the registry after every caller let go.
-        assert_eq!(registry.lock().unwrap().iter().map(|(_, h)| Arc::strong_count(h)).collect::<Vec<_>>(), vec![1, 1]);
+        let counts: Vec<usize> =
+            registry.lock().unwrap().iter().map(|(_, place)| place.lock().unwrap().as_ref().map_or(0, Arc::strong_count)).collect();
+        assert_eq!(counts, vec![1, 1]);
+    }
+
+    /// Re-review P3 5: the same file by another path is the same module, and a module that
+    /// hangs while loading holds up no other.
+    #[test]
+    fn a_module_is_known_by_its_file_and_loads_alone() {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let roundabout = manifest.join("src").join("..").join("Cargo.toml");
+        assert_eq!(module_key(&roundabout), std::fs::canonicalize(manifest.join("Cargo.toml")).unwrap());
+        assert_eq!(module_key(Path::new("/nonexistent/example/module.so")), PathBuf::from("/nonexistent/example/module.so"));
+        let registry: Registry<u32> = Mutex::new(Vec::new());
+        let first = shared(&registry, &roundabout, 4, |_| Ok(1)).unwrap();
+        assert!(Arc::ptr_eq(&first, &shared(&registry, &manifest.join("Cargo.toml"), 4, |_| Ok(2)).unwrap()));
+
+        let registry: Arc<Registry<u32>> = Arc::new(Mutex::new(Vec::new()));
+        let (loading, started) = mpsc::channel();
+        let (release, held) = mpsc::channel::<()>();
+        let slow = {
+            let registry = Arc::clone(&registry);
+            std::thread::spawn(move || {
+                shared(&registry, Path::new("/example/slow.so"), 4, |_| {
+                    let _ = loading.send(());
+                    let _ = held.recv();
+                    Ok(1)
+                })
+            })
+        };
+        started.recv_timeout(Duration::from_secs(10)).unwrap();
+        let (done, finished) = mpsc::channel();
+        let quick = {
+            let registry = Arc::clone(&registry);
+            std::thread::spawn(move || {
+                let _ = done.send(shared(&registry, Path::new("/example/quick.so"), 4, |_| Ok(2)).map(|q| *q));
+            })
+        };
+        let quick_result = finished.recv_timeout(Duration::from_secs(10));
+        let _ = release.send(());
+        assert_eq!(quick_result, Ok(Ok(2)), "another module waited on the one loading");
+        assert_eq!(slow.join().unwrap().map(|s| *s), Ok(1));
+        quick.join().unwrap();
     }
 
     /// Review item 6: the 64-bit places first, each candidate tried until one opens.
@@ -504,11 +952,7 @@ mod pkcs11 {
         let facts = |kind, modulus: Option<Vec<u8>>, ec_point: Option<Vec<u8>>| KeyFacts { kind, modulus, ec_point };
         // The token's modulus may carry a leading zero.
         assert!(key_matches(&rsa, &facts(Some(KeyKindOnToken::Rsa), Some(modulus(2048)), None)));
-        let mut other = modulus(2048);
-        if let Some(last) = other.last_mut() {
-            *last ^= 1;
-        }
-        assert!(!key_matches(&rsa, &facts(Some(KeyKindOnToken::Rsa), Some(other), None)));
+        assert!(!key_matches(&rsa, &other_key().facts));
         assert!(!key_matches(&rsa, &facts(Some(KeyKindOnToken::Rsa), None, None)));
         assert!(!key_matches(&rsa, &facts(Some(KeyKindOnToken::Ec), Some(modulus(2048)), None)));
         assert!(!key_matches(&rsa, &facts(None, Some(modulus(2048)), None)));
@@ -528,12 +972,14 @@ mod pkcs11 {
         assert!(!key_matches(&ec, &KeyFacts::default()));
     }
 
-    /// Review items 7, 9 and 10: errors name the token, never loop, and a PIN goes only to the
-    /// token it was asked for.
+    /// Review items 7, 9 and 10, re-review P3 2 and 3: errors name the token, never loop, and a
+    /// PIN goes only to the token it was asked for.
     #[test]
     fn token_errors_are_named_and_never_ask_twice() {
         let token = example_token();
-        let error = |rv| token_error(Error::Pkcs11(rv, Function::Sign), &token, false);
+        let card = TokenFacts { token: token.clone(), protected_path: false, login_required: true };
+        let pad = TokenFacts { protected_path: true, ..card.clone() };
+        let error = |rv| token_error(Error::Pkcs11(rv, Function::Sign), &card, false);
         assert_eq!(error(RvError::PinIncorrect), KeyHolderError::PinIncorrect);
         assert_eq!(error(RvError::PinLocked), KeyHolderError::PinLocked);
         assert_eq!(error(RvError::PinExpired), KeyHolderError::PinExpired);
@@ -542,9 +988,13 @@ mod pkcs11 {
         assert!(matches!(error(RvError::MechanismInvalid), KeyHolderError::Unsupported(_)));
         assert!(matches!(error(RvError::DeviceError), KeyHolderError::System(_)));
 
-        // Not logged in: without a PIN, the window is asked for this token's; with one, it's over.
-        assert_eq!(error(RvError::UserNotLoggedIn), KeyHolderError::PinNeeded(token.clone()));
-        assert!(matches!(token_error(Error::Pkcs11(RvError::UserNotLoggedIn, Function::Sign), &token, true), KeyHolderError::Unsupported(_)));
+        // Not logged in: without a login in this call, the window is asked for this token's PIN;
+        // after one, or on a PIN pad, it's over.
+        let not_logged_in = |facts: &TokenFacts, logged_in| token_error(Error::Pkcs11(RvError::UserNotLoggedIn, Function::Sign), facts, logged_in);
+        assert_eq!(not_logged_in(&card, false), KeyHolderError::PinNeeded(token.clone()));
+        assert!(matches!(not_logged_in(&card, true), KeyHolderError::Unsupported(_)));
+        assert!(matches!(not_logged_in(&pad, false), KeyHolderError::Unsupported(_)));
+        assert!(matches!(not_logged_in(&pad, true), KeyHolderError::Unsupported(_)));
 
         assert_eq!(check_same_token(None, &token), Ok(()));
         assert_eq!(check_same_token(Some(&token), &token), Ok(()));
@@ -552,9 +1002,14 @@ mod pkcs11 {
         assert_eq!(check_same_token(Some(&moved), &token), Err(KeyHolderError::TokenChanged));
         let swapped = TokenRef { serial: "9999".into(), ..token.clone() };
         assert_eq!(check_same_token(Some(&swapped), &token), Err(KeyHolderError::TokenChanged));
-        // The label alone may change (it's only shown).
+        // The label alone may change (it's only shown)...
         let relabelled = TokenRef { label: "Renamed".into(), ..token.clone() };
         assert_eq!(check_same_token(Some(&relabelled), &token), Ok(()));
+        // ...except on tokens without a serial number.
+        let blank = TokenRef { serial: String::new(), ..token.clone() };
+        assert_eq!(check_same_token(Some(&blank), &blank), Ok(()));
+        let other_blank = TokenRef { label: "Renamed".into(), ..blank.clone() };
+        assert_eq!(check_same_token(Some(&other_blank), &blank), Err(KeyHolderError::TokenChanged));
     }
 
     /// Opt-in: `MAILCRAFT_PKCS11_TEST_MODULE=/usr/lib/softhsm/libsofthsm2.so cargo test -p mailcraft
@@ -578,10 +1033,8 @@ mod pkcs11 {
         let missing = holder.decrypt_key(&[0; 32], RsaPadding::Pkcs1v15, &[0; 256], None);
         assert_eq!(missing.map(|_| ()), Err(KeyHolderError::NotFound));
         // A PIN for a slot that isn't there goes nowhere.
-        let pin = super::super::Pin::new("000000".into());
         let gone = TokenRef { slot: u64::MAX, serial: "none".into(), label: "none".into() };
-        let refused = holder.sign_digest(&[0; 32], SignatureScheme::RsaPkcs1v15, DigestAlgorithm::Sha256, &[0; 32], Some((&gone, &pin)));
+        let refused = holder.sign_digest(&[0; 32], SignatureScheme::RsaPkcs1v15, DigestAlgorithm::Sha256, &[0; 32], Some((&gone, &pin())));
         assert_eq!(refused, Err(KeyHolderError::TokenChanged));
-        let _ = (IN_DATE, mail_extensions());
     }
 }

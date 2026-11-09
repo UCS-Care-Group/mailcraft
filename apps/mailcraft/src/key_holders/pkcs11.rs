@@ -13,22 +13,27 @@
 //! threads still run would crash the program outside any guard ([`Pkcs11Holder::open`]).
 //!
 //! A certificate's private key is the token's private-key object with the same `CKA_ID`
-//! (PKCS#11 v2.40 §4.6.3) whose public half is the certificate's: the RSA modulus, or the EC
-//! point (read from the key, or from the public-key object with that id). A key that doesn't
+//! (PKCS#11 v2.40 §4.6.3) whose public half is the certificate's: the RSA modulus or the EC
+//! point, read from the key or else from the public-key object with that id. A key that doesn't
 //! match is never used.
 //!
 //! Logging in: a token with a protected authentication path (a PIN pad) is logged in to with no
-//! PIN and asks on the reader. Any other token that needs a login ends the call with
-//! [`KeyHolderError::PinNeeded`], naming the token by slot, serial number and label; the window
-//! asks the owner and calls again with that [`TokenRef`] and the [`Pin`], which then goes to that
-//! slot only, and only while it still holds the token with that serial number
+//! PIN and asks on the reader; it never has the window ask for one. Any other token that needs a
+//! login ends the call with [`KeyHolderError::PinNeeded`], naming the token by slot, serial
+//! number and label; the window asks the owner and calls again with that [`TokenRef`] and the
+//! [`Pin`], which then goes to that slot only, and only while the session opened on it shows the
+//! token with that serial number (a token without one: that label) and the certificate
 //! ([`KeyHolderError::TokenChanged`] otherwise). A key marked `CKA_ALWAYS_AUTHENTICATE` (a PIV
 //! card's signing key) needs a second, context-specific login between `C_SignInit` and
 //! `C_Sign`, which `cryptoki`'s single-part `sign` and `decrypt` don't leave room for: such a key
 //! is refused as unsupported for now (`docs/gaps.md`).
+//!
+//! The logic is written against [`Module`] and [`TokenSession`], which `cryptoki` implements
+//! here and a fake token implements in the tests.
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use cryptoki::context::{CInitializeArgs, CInitializeFlags, Pkcs11};
 use cryptoki::error::{Error, RvError};
@@ -69,26 +74,37 @@ pub const PROXY_PLACES: &[&str] = &[
 
 /// The most slots looked through.
 const MAX_SLOTS: usize = 64;
-/// The most private keys with one `CKA_ID` looked at.
+/// The most key objects with one `CKA_ID` looked at.
 const MAX_KEYS_PER_ID: usize = 16;
-/// The most modules loaded in one run.
-const MAX_MODULES: usize = 8;
+/// The most module files tried in one run (each that loads is kept for good): the proxy's
+/// places and a few the owner names.
+const MAX_MODULES: usize = 16;
 /// The longest token label or serial number kept, in characters.
 const MAX_TOKEN_TEXT: usize = 64;
 
-/// The module named in the environment, when it is an absolute path.
-pub fn module_from_env() -> Option<PathBuf> {
-    let named = PathBuf::from(std::env::var_os(MODULE_VARIABLE)?);
-    named.is_absolute().then_some(named)
+/// The module the owner named in the environment, else the first of p11-kit's proxy's places
+/// that loads.
+pub fn open_default() -> Result<Arc<Pkcs11Holder>, KeyHolderError> {
+    choose_module(std::env::var_os(MODULE_VARIABLE), Path::is_file, Pkcs11Holder::open)
 }
 
-/// The module the owner named in the environment, else the first of p11-kit's proxy's places
-/// that loads. A module the owner named is the only one tried.
-pub fn open_default() -> Result<Arc<Pkcs11Holder>, KeyHolderError> {
-    if let Some(named) = module_from_env() {
-        return Pkcs11Holder::open(&named);
+/// The module `named` (the environment's; empty is as unset) and that one alone: one that
+/// fails, or isn't an absolute path, ends the search. With none named, the first of
+/// [`PROXY_PLACES`] that `exists` and `open` opens.
+pub fn choose_module<T, E, F>(named: Option<OsString>, exists: E, open: F) -> Result<T, KeyHolderError>
+where
+    E: Fn(&Path) -> bool,
+    F: FnMut(&Path) -> Result<T, KeyHolderError>,
+{
+    let mut open = open;
+    if let Some(named) = named.filter(|n| !n.is_empty()) {
+        let named = PathBuf::from(named);
+        if !named.is_absolute() {
+            return Err(KeyHolderError::Unavailable(format!("{MODULE_VARIABLE} is not an absolute path")));
+        }
+        return open(&named);
     }
-    first_that_opens(PROXY_PLACES.iter().map(PathBuf::from).filter(|p| p.is_file()), Pkcs11Holder::open)
+    first_that_opens(PROXY_PLACES.iter().map(PathBuf::from).filter(|p| exists(p)), open)
 }
 
 /// The first of `candidates` that `open` opens, else the last refusal.
@@ -107,30 +123,92 @@ where
     Err(last)
 }
 
-/// What is kept of each module loaded: never emptied, so that no module is unloaded.
-type Registry<T> = Mutex<Vec<(PathBuf, Arc<T>)>>;
+/// One module file's place in a [`Registry`]: empty until it loads, then kept.
+type Place<T> = Arc<Mutex<Option<Arc<T>>>>;
+/// What is kept of each module file tried: never emptied, so that no module is unloaded.
+pub type Registry<T> = Mutex<Vec<(PathBuf, Place<T>)>>;
 
 fn modules() -> &'static Registry<Pkcs11Holder> {
     static MODULES: OnceLock<Registry<Pkcs11Holder>> = OnceLock::new();
     MODULES.get_or_init(|| Mutex::new(Vec::new()))
 }
 
-/// The one `T` kept in `registry` for `key`, made by `make` the first time; at most `max` kept.
-/// A failure is not kept, so a later call tries again.
-pub fn shared<T, F>(registry: &Registry<T>, key: &Path, max: usize, make: F) -> Result<Arc<T>, KeyHolderError>
+/// How a module file is known in the registry: its canonical path (links and `..` resolved), or
+/// the path as given when it can't be resolved.
+pub fn module_key(module: &Path) -> PathBuf {
+    std::fs::canonicalize(module).unwrap_or_else(|_| module.to_path_buf())
+}
+
+/// The one `T` kept in `registry` for the file `module`, made by `make` (given the file's
+/// [`module_key`]) the first time; at most `max` files tried. A failure is not kept, so a later
+/// call tries again. The registry's lock is held only to find the file's place: a module that
+/// hangs while loading holds up the calls for that file alone.
+pub fn shared<T, F>(registry: &Registry<T>, module: &Path, max: usize, make: F) -> Result<Arc<T>, KeyHolderError>
 where
-    F: FnOnce() -> Result<T, KeyHolderError>,
+    F: FnOnce(&Path) -> Result<T, KeyHolderError>,
 {
-    let mut kept = registry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some((_, found)) = kept.iter().find(|(path, _)| path == key) {
+    let key = module_key(module);
+    let place: Place<T> = {
+        let mut kept = registry.lock().unwrap_or_else(PoisonError::into_inner);
+        match kept.iter().find(|(path, _)| *path == key) {
+            Some((_, place)) => Arc::clone(place),
+            None if kept.len() >= max => return Err(KeyHolderError::Unavailable("too many PKCS#11 modules".into())),
+            None => {
+                let place = Place::default();
+                kept.push((key.clone(), Arc::clone(&place)));
+                place
+            }
+        }
+    };
+    let mut held = place.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(found) = held.as_ref() {
         return Ok(Arc::clone(found));
     }
-    if kept.len() >= max {
-        return Err(KeyHolderError::Unavailable("too many PKCS#11 modules".into()));
-    }
-    let made = Arc::new(make()?);
-    kept.push((key.to_path_buf(), Arc::clone(&made)));
+    let made = Arc::new(make(&key)?);
+    *held = Some(Arc::clone(&made));
     Ok(made)
+}
+
+/// What the logic here needs of a PKCS#11 module: its slots with a token, and a read-only
+/// session on one.
+pub trait Module {
+    /// A session on one token.
+    type Session: TokenSession;
+    /// The slots with a token, at most [`MAX_SLOTS`].
+    fn slots(&self) -> Result<Vec<u64>, KeyHolderError>;
+    /// A read-only session on the token in `slot`.
+    fn open(&self, slot: u64) -> Result<Self::Session, KeyHolderError>;
+}
+
+/// A read-only session on the token in one slot.
+pub trait TokenSession {
+    /// A handle on a key object.
+    type Key: Copy;
+    /// The token in the session's slot, read while the session is open.
+    fn facts(&self) -> Result<TokenFacts, KeyHolderError>;
+    /// The X.509 certificates on the token with their `CKA_ID`, at most [`MAX_SCANNED`].
+    fn certificates(&self) -> Vec<(Vec<u8>, Vec<u8>)>;
+    /// The key objects of `class` with this `CKA_ID`, at most [`MAX_KEYS_PER_ID`].
+    fn keys(&self, class: ObjectClass, id: &[u8]) -> Vec<Self::Key>;
+    /// What the token says of a key object's public half.
+    fn key_facts(&self, key: Self::Key) -> KeyFacts;
+    /// Whether the key needs a login at every use; a token that can't say is taken at its word
+    /// that it doesn't.
+    fn always_authenticate(&self, key: Self::Key) -> bool;
+    /// `C_Login` as the user: with the owner's PIN, or none for a PIN pad.
+    fn login(&self, pin: Option<&Pin>) -> Result<(), Error>;
+    /// `C_SignInit` and `C_Sign`.
+    fn sign(&self, mechanism: &Mechanism<'_>, key: Self::Key, input: &[u8]) -> Result<Vec<u8>, Error>;
+    /// `C_DecryptInit` and `C_Decrypt`.
+    fn decrypt(&self, mechanism: &Mechanism<'_>, key: Self::Key, input: &[u8]) -> Result<Vec<u8>, Error>;
+}
+
+/// A token: how it is named, whether it has a PIN pad, whether it needs a login.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TokenFacts {
+    pub token: TokenRef,
+    pub protected_path: bool,
+    pub login_required: bool,
 }
 
 /// A certificate on a token, with what it takes to use its key.
@@ -146,212 +224,153 @@ pub struct TokenCertificate {
     pub login_required: bool,
 }
 
-/// A loaded PKCS#11 module, kept for the life of the program.
-pub struct Pkcs11Holder {
-    context: Pkcs11,
-}
-
-impl Pkcs11Holder {
-    /// The module at `module`, an absolute path the owner chose: loaded and initialised the
-    /// first time, the same one after.
-    pub fn open(module: &Path) -> Result<Arc<Self>, KeyHolderError> {
-        if !module.is_absolute() {
-            return Err(KeyHolderError::Unavailable("the PKCS#11 module is not named by an absolute path".into()));
-        }
-        shared(modules(), module, MAX_MODULES, || {
-            let context = Pkcs11::new(module).map_err(|e| KeyHolderError::Unavailable(e.to_string()))?;
-            match context.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK)) {
-                Ok(()) | Err(Error::Pkcs11(RvError::CryptokiAlreadyInitialized, _)) => Ok(Self { context }),
-                Err(e) => Err(KeyHolderError::Unavailable(e.to_string())),
-            }
-        })
-    }
-
-    /// The certificates on the tokens present that have a private key and may be used for mail,
-    /// expired ones included (marked).
-    pub fn certificates(&self) -> Result<Vec<TokenCertificate>, KeyHolderError> {
-        let now = now();
-        let mut out: Vec<TokenCertificate> = Vec::new();
-        for slot in self.slots()? {
-            let Ok(token) = self.token(slot) else { continue };
-            let Ok(session) = self.context.open_ro_session(slot) else { continue };
-            for (der, id) in certificates_on(&session) {
-                for certificate in super::usable([der], now) {
-                    // Without a login a token may hide its private keys: a certificate with an
-                    // id is listed then, and its key is looked for when it is used.
-                    if !token.login_required && find_key(&session, &id, &certificate).is_none() {
-                        continue;
-                    }
-                    if out.len() < MAX_CERTIFICATES && !out.iter().any(|c| c.certificate.fingerprint == certificate.fingerprint) {
-                        out.push(TokenCertificate {
-                            certificate,
-                            token: token.token.clone(),
-                            protected_path: token.protected_path,
-                            login_required: token.login_required,
-                        });
-                    }
+/// The certificates on `module`'s tokens that have a private key and may be used for mail,
+/// expired ones included (marked).
+pub fn list<M: Module>(module: &M, now: Option<u64>) -> Result<Vec<TokenCertificate>, KeyHolderError> {
+    let mut out: Vec<TokenCertificate> = Vec::new();
+    for slot in module.slots()? {
+        let Ok(session) = module.open(slot) else { continue };
+        let Ok(facts) = session.facts() else { continue };
+        for (der, id) in session.certificates() {
+            for certificate in super::usable([der], now) {
+                // Without a login a token may hide its private keys: a certificate with an
+                // id is listed then, and its key is looked for when it is used.
+                if !facts.login_required && find_key(&session, &id, &certificate).is_none() {
+                    continue;
+                }
+                if out.len() < MAX_CERTIFICATES && !out.iter().any(|c| c.certificate.fingerprint == certificate.fingerprint) {
+                    out.push(TokenCertificate {
+                        certificate,
+                        token: facts.token.clone(),
+                        protected_path: facts.protected_path,
+                        login_required: facts.login_required,
+                    });
                 }
             }
         }
-        Ok(out)
     }
+    Ok(out)
+}
 
-    /// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`; `pin` is
-    /// the PIN the owner gave for the token a [`KeyHolderError::PinNeeded`] named. The result is
-    /// the raw RSA signature, or DER `Ecdsa-Sig-Value` for ECDSA.
-    pub fn sign_digest(
-        &self,
-        fingerprint: &[u8; 32],
-        scheme: SignatureScheme,
-        algorithm: DigestAlgorithm,
-        digest: &[u8],
-        pin: Option<(&TokenRef, &Pin)>,
-    ) -> Result<Vec<u8>, KeyHolderError> {
-        let digest = algorithm.check(digest)?;
-        let found = self.key_for(fingerprint, pin)?;
-        check_for_signing(&found.certificate, scheme)?;
-        let (mechanism, input) = match scheme {
-            SignatureScheme::RsaPkcs1v15 => (Mechanism::RsaPkcs, digest_info(algorithm, digest)?),
-            SignatureScheme::RsaPss => {
-                let (hash_alg, mgf) = hash_and_mgf(algorithm);
-                let s_len = u64::try_from(algorithm.digest_len()).map_err(|_| KeyHolderError::BadInput("digest length"))?;
-                (Mechanism::RsaPkcsPss(PkcsPssParams { hash_alg, mgf, s_len: s_len.into() }), digest.to_vec())
-            }
-            SignatureScheme::Ecdsa => (Mechanism::Ecdsa, digest.to_vec()),
-        };
-        let signature = found.session.sign(&mechanism, found.key, &input).map_err(|e| token_error(e, &found.token, found.pin_given))?;
-        match scheme {
-            SignatureScheme::Ecdsa => ecdsa_raw_to_der(&signature, found.certificate.key),
-            _ => Ok(signature),
+/// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`; `pin` is the
+/// PIN the owner gave for the token a [`KeyHolderError::PinNeeded`] named. The result is the
+/// raw RSA signature, or DER `Ecdsa-Sig-Value` for ECDSA.
+pub fn sign_digest<M: Module>(
+    module: &M,
+    fingerprint: &[u8; 32],
+    scheme: SignatureScheme,
+    algorithm: DigestAlgorithm,
+    digest: &[u8],
+    pin: Option<(&TokenRef, &Pin)>,
+) -> Result<Vec<u8>, KeyHolderError> {
+    let digest = algorithm.check(digest)?;
+    let found = key_for(module, fingerprint, pin, |certificate| check_for_signing(certificate, scheme))?;
+    let (mechanism, input) = match scheme {
+        SignatureScheme::RsaPkcs1v15 => (Mechanism::RsaPkcs, digest_info(algorithm, digest)?),
+        SignatureScheme::RsaPss => {
+            let (hash_alg, mgf) = hash_and_mgf(algorithm);
+            let s_len = u64::try_from(algorithm.digest_len()).map_err(|_| KeyHolderError::BadInput("digest length"))?;
+            (Mechanism::RsaPkcsPss(PkcsPssParams { hash_alg, mgf, s_len: s_len.into() }), digest.to_vec())
         }
-    }
-
-    /// Unwraps an RSA-encrypted content-encryption key with the key of the certificate whose
-    /// SHA-256 is `fingerprint` (an expired certificate's too); `pin` as for signing.
-    pub fn decrypt_key(
-        &self,
-        fingerprint: &[u8; 32],
-        padding: RsaPadding,
-        wrapped: &[u8],
-        pin: Option<(&TokenRef, &Pin)>,
-    ) -> Result<UnwrappedKey, KeyHolderError> {
-        let wrapped = check_wrapped(wrapped)?;
-        let found = self.key_for(fingerprint, pin)?;
-        check_for_decrypting(&found.certificate)?;
-        let mechanism = match padding {
-            RsaPadding::Pkcs1v15 => Mechanism::RsaPkcs,
-            RsaPadding::OaepSha1 => Mechanism::RsaPkcsOaep(PkcsOaepParams::new(MechanismType::SHA1, PkcsMgfType::MGF1_SHA1, PkcsOaepSource::empty())),
-            RsaPadding::OaepSha256 => {
-                Mechanism::RsaPkcsOaep(PkcsOaepParams::new(MechanismType::SHA256, PkcsMgfType::MGF1_SHA256, PkcsOaepSource::empty()))
-            }
-        };
-        found.session.decrypt(&mechanism, found.key, wrapped).map(UnwrappedKey::new).map_err(|e| token_error(e, &found.token, found.pin_given))
-    }
-
-    fn slots(&self) -> Result<Vec<Slot>, KeyHolderError> {
-        let mut slots = self.context.get_slots_with_token().map_err(|e| KeyHolderError::Unavailable(e.to_string()))?;
-        slots.truncate(MAX_SLOTS);
-        Ok(slots)
-    }
-
-    /// The token in `slot`: how it is named, whether it has a PIN pad, whether it needs a login.
-    fn token(&self, slot: Slot) -> Result<TokenFacts, KeyHolderError> {
-        let info = self.context.get_token_info(slot).map_err(|e| KeyHolderError::System(e.to_string()))?;
-        Ok(TokenFacts {
-            token: TokenRef { slot: slot.id(), serial: token_text(info.serial_number()), label: token_text(info.label()) },
-            protected_path: info.protected_authentication_path(),
-            login_required: info.login_required(),
-        })
-    }
-
-    /// The token, session and private key for the certificate `fingerprint`, logged in. With a
-    /// PIN, only the slot it was asked for is looked at.
-    fn key_for(&self, fingerprint: &[u8; 32], pin: Option<(&TokenRef, &Pin)>) -> Result<FoundKey, KeyHolderError> {
-        let named = pin.map(|(token, _)| token);
-        for slot in self.slots()? {
-            if named.is_some_and(|n| n.slot != slot.id()) {
-                continue;
-            }
-            let Ok(facts) = self.token(slot) else { continue };
-            // A PIN goes only to the token it was asked for: the same slot, the same serial number.
-            check_same_token(named, &facts.token)?;
-            let Ok(session) = self.context.open_ro_session(slot) else { continue };
-            let Some((der, id)) = certificates_on(&session).into_iter().find(|(der, _)| sha256(der) == *fingerprint) else {
-                if named.is_some() {
-                    return Err(KeyHolderError::TokenChanged);
-                }
-                continue;
-            };
-            let certificate = HeldCertificate::read(der, now())?;
-            if facts.login_required || pin.is_some() {
-                let result = if facts.protected_path {
-                    session.login(UserType::User, None)
-                } else {
-                    let Some((_, pin)) = pin else { return Err(KeyHolderError::PinNeeded(facts.token)) };
-                    session.login(UserType::User, Some(&AuthPin::from(pin.expose().to_owned())))
-                };
-                match result {
-                    Ok(()) | Err(Error::Pkcs11(RvError::UserAlreadyLoggedIn, _)) => {}
-                    Err(e) => return Err(token_error(e, &facts.token, pin.is_some())),
-                }
-            }
-            let key = find_key(&session, &id, &certificate).ok_or(KeyHolderError::NotFound)?;
-            if always_authenticate(&session, key) {
-                return Err(KeyHolderError::Unsupported("a key that asks for its PIN at every use"));
-            }
-            return Ok(FoundKey { session, key, certificate, token: facts.token, pin_given: pin.is_some() });
-        }
-        Err(if named.is_some() { KeyHolderError::TokenChanged } else { KeyHolderError::NotFound })
+        SignatureScheme::Ecdsa => (Mechanism::Ecdsa, digest.to_vec()),
+    };
+    let signature = found.session.sign(&mechanism, found.key, &input).map_err(|e| token_error(e, &found.facts, found.logged_in))?;
+    match scheme {
+        SignatureScheme::Ecdsa => ecdsa_raw_to_der(&signature, found.certificate.key),
+        _ => Ok(signature),
     }
 }
 
-struct TokenFacts {
-    token: TokenRef,
-    protected_path: bool,
-    login_required: bool,
+/// Unwraps an RSA-encrypted content-encryption key with the key of the certificate whose
+/// SHA-256 is `fingerprint` (an expired certificate's too); `pin` as for signing.
+pub fn decrypt_key<M: Module>(
+    module: &M,
+    fingerprint: &[u8; 32],
+    padding: RsaPadding,
+    wrapped: &[u8],
+    pin: Option<(&TokenRef, &Pin)>,
+) -> Result<UnwrappedKey, KeyHolderError> {
+    let wrapped = check_wrapped(wrapped)?;
+    let found = key_for(module, fingerprint, pin, check_for_decrypting)?;
+    let mechanism = match padding {
+        RsaPadding::Pkcs1v15 => Mechanism::RsaPkcs,
+        RsaPadding::OaepSha1 => Mechanism::RsaPkcsOaep(PkcsOaepParams::new(MechanismType::SHA1, PkcsMgfType::MGF1_SHA1, PkcsOaepSource::empty())),
+        RsaPadding::OaepSha256 => {
+            Mechanism::RsaPkcsOaep(PkcsOaepParams::new(MechanismType::SHA256, PkcsMgfType::MGF1_SHA256, PkcsOaepSource::empty()))
+        }
+    };
+    found.session.decrypt(&mechanism, found.key, wrapped).map(UnwrappedKey::new).map_err(|e| token_error(e, &found.facts, found.logged_in))
 }
 
-struct FoundKey {
-    session: Session,
-    key: ObjectHandle,
+struct FoundKey<S: TokenSession> {
+    session: S,
+    key: S::Key,
     certificate: HeldCertificate,
-    token: TokenRef,
-    pin_given: bool,
+    facts: TokenFacts,
+    /// Whether the session is known to be logged in, by a login in this call.
+    logged_in: bool,
 }
 
-/// A PIN given for `named` goes only to the token that is still that one.
+/// The session, token and private key for the certificate `fingerprint`, after `check` allowed
+/// the certificate for this use, logged in. With a PIN, only the slot it was asked for is
+/// looked at, and only while it still holds that token.
+fn key_for<M: Module>(
+    module: &M,
+    fingerprint: &[u8; 32],
+    pin: Option<(&TokenRef, &Pin)>,
+    check: impl Fn(&HeldCertificate) -> Result<(), KeyHolderError>,
+) -> Result<FoundKey<M::Session>, KeyHolderError> {
+    let named = pin.map(|(token, _)| token);
+    let not_there = || if named.is_some() { KeyHolderError::TokenChanged } else { KeyHolderError::NotFound };
+    for slot in module.slots()? {
+        if named.is_some_and(|n| n.slot != slot) {
+            continue;
+        }
+        // The token is read through the open session: a token swapped after this point ends
+        // the session, and what follows fails with `TokenChanged` instead of taking the PIN.
+        let Ok(session) = module.open(slot) else { continue };
+        let Ok(facts) = session.facts() else { continue };
+        let Some((der, id)) = session.certificates().into_iter().find(|(der, _)| sha256(der) == *fingerprint) else { continue };
+        // A PIN goes only to the token it was asked for.
+        check_same_token(named, &facts.token)?;
+        let certificate = HeldCertificate::read(der, now())?;
+        check(&certificate)?;
+        let mut logged_in = false;
+        if facts.login_required || pin.is_some() {
+            let result = if facts.protected_path {
+                session.login(None)
+            } else {
+                let Some((_, pin)) = pin else { return Err(KeyHolderError::PinNeeded(facts.token)) };
+                session.login(Some(pin))
+            };
+            match result {
+                Ok(()) | Err(Error::Pkcs11(RvError::UserAlreadyLoggedIn, _)) => logged_in = true,
+                Err(e) => return Err(token_error(e, &facts, false)),
+            }
+        }
+        let key = find_key(&session, &id, &certificate).ok_or(KeyHolderError::NotFound)?;
+        if session.always_authenticate(key) {
+            return Err(KeyHolderError::Unsupported("a key that asks for its PIN at every use"));
+        }
+        return Ok(FoundKey { session, key, certificate, facts, logged_in });
+    }
+    Err(not_there())
+}
+
+/// A PIN given for `named` goes only to the token that is still that one: the same slot and
+/// serial number; two tokens without a serial number are told apart by their labels (and the
+/// caller has found the certificate on it).
 pub fn check_same_token(named: Option<&TokenRef>, found: &TokenRef) -> Result<(), KeyHolderError> {
     match named {
-        Some(n) if n.slot != found.slot || n.serial != found.serial => Err(KeyHolderError::TokenChanged),
+        Some(n) if n.slot != found.slot || n.serial != found.serial || (n.serial.is_empty() && n.label != found.label) => {
+            Err(KeyHolderError::TokenChanged)
+        }
         _ => Ok(()),
     }
 }
 
 fn token_text(text: &str) -> String {
     clean_name(text.trim()).chars().take(MAX_TOKEN_TEXT).collect()
-}
-
-/// The X.509 certificates on a token with their `CKA_ID`: at most [`MAX_SCANNED`] looked at.
-fn certificates_on(session: &Session) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let template = [Attribute::Class(ObjectClass::CERTIFICATE), Attribute::CertificateType(CertificateType::X_509)];
-    let Ok(handles) = session.find_objects(&template) else { return Vec::new() };
-    let mut out = Vec::new();
-    for handle in handles.into_iter().take(MAX_SCANNED) {
-        let Ok(attributes) = session.get_attributes(handle, &[AttributeType::Value, AttributeType::Id]) else { continue };
-        let mut der = None;
-        let mut id = None;
-        for attribute in attributes {
-            match attribute {
-                Attribute::Value(v) if v.len() <= MAX_CERTIFICATE_LEN => der = Some(v),
-                Attribute::Id(v) => id = Some(v),
-                _ => {}
-            }
-        }
-        if let (Some(der), Some(id)) = (der, id) {
-            out.push((der, id));
-        }
-    }
-    out
 }
 
 /// What a token says of a key's public half.
@@ -396,51 +415,34 @@ fn same_point(on_token: &[u8], point: &[u8]) -> bool {
 }
 
 /// The private key with this `CKA_ID` whose public half is the certificate's.
-fn find_key(session: &Session, id: &[u8], certificate: &HeldCertificate) -> Option<ObjectHandle> {
+fn find_key<S: TokenSession>(session: &S, id: &[u8], certificate: &HeldCertificate) -> Option<S::Key> {
     if id.is_empty() {
         return None;
     }
-    let template = [Attribute::Class(ObjectClass::PRIVATE_KEY), Attribute::Id(id.to_vec())];
-    let keys = session.find_objects(&template).ok()?;
-    keys.into_iter().take(MAX_KEYS_PER_ID).find(|key| key_matches(certificate, &key_facts(session, *key, id)))
+    session.keys(ObjectClass::PRIVATE_KEY, id).into_iter().take(MAX_KEYS_PER_ID).find(|key| key_matches(certificate, &public_half(session, *key, id)))
 }
 
-/// What the token says of `key`'s public half; an EC point not on the private key is taken from
-/// the public-key object with the same id, when there is exactly one.
-fn key_facts(session: &Session, key: ObjectHandle, id: &[u8]) -> KeyFacts {
-    let mut facts = KeyFacts::default();
-    let wanted = [AttributeType::KeyType, AttributeType::Modulus, AttributeType::EcPoint];
-    for attribute in session.get_attributes(key, &wanted).unwrap_or_default() {
-        match attribute {
-            Attribute::KeyType(t) if t == KeyType::RSA => facts.kind = Some(KeyKindOnToken::Rsa),
-            Attribute::KeyType(t) if t == KeyType::EC => facts.kind = Some(KeyKindOnToken::Ec),
-            Attribute::Modulus(m) => facts.modulus = Some(m),
-            Attribute::EcPoint(p) => facts.ec_point = Some(p),
-            _ => {}
-        }
+/// What the token says of `key`'s public half. What the private key doesn't say (its type, its
+/// modulus or point) is taken from the public-key object with the same id, when there is
+/// exactly one; a type still unsaid is the one its modulus or point shows.
+fn public_half<S: TokenSession>(session: &S, key: S::Key, id: &[u8]) -> KeyFacts {
+    let mut facts = session.key_facts(key);
+    if (facts.kind.is_none() || (facts.modulus.is_none() && facts.ec_point.is_none()))
+        && let [public] = session.keys(ObjectClass::PUBLIC_KEY, id).as_slice()
+    {
+        let public = session.key_facts(*public);
+        facts.kind = facts.kind.or(public.kind);
+        facts.modulus = facts.modulus.or(public.modulus);
+        facts.ec_point = facts.ec_point.or(public.ec_point);
     }
-    if facts.kind == Some(KeyKindOnToken::Ec) && facts.ec_point.is_none() {
-        let template = [Attribute::Class(ObjectClass::PUBLIC_KEY), Attribute::Id(id.to_vec())];
-        if let Ok(public) = session.find_objects(&template)
-            && let [public] = public.as_slice()
-        {
-            for attribute in session.get_attributes(*public, &[AttributeType::EcPoint]).unwrap_or_default() {
-                if let Attribute::EcPoint(p) = attribute {
-                    facts.ec_point = Some(p);
-                }
-            }
-        }
+    if facts.kind.is_none() {
+        facts.kind = match (&facts.modulus, &facts.ec_point) {
+            (Some(_), None) => Some(KeyKindOnToken::Rsa),
+            (None, Some(_)) => Some(KeyKindOnToken::Ec),
+            _ => None,
+        };
     }
     facts
-}
-
-/// Whether the key needs a login at every use. A token that can't say is taken at its word
-/// that it doesn't; a use that then needs one fails, after a PIN, as unsupported
-/// ([`token_error`]), never with another request for the PIN.
-fn always_authenticate(session: &Session, key: ObjectHandle) -> bool {
-    session
-        .get_attributes(key, &[AttributeType::AlwaysAuthenticate])
-        .is_ok_and(|attributes| attributes.iter().any(|a| matches!(a, Attribute::AlwaysAuthenticate(true))))
 }
 
 fn hash_and_mgf(algorithm: DigestAlgorithm) -> (MechanismType, PkcsMgfType) {
@@ -451,9 +453,12 @@ fn hash_and_mgf(algorithm: DigestAlgorithm) -> (MechanismType, PkcsMgfType) {
     }
 }
 
-/// A token's error for `token`, named; `pin_given` says whether the owner's PIN went with the
-/// call. Its text never carries the PIN (`cryptoki` is never given it in a form it prints).
-pub fn token_error(error: Error, token: &TokenRef, pin_given: bool) -> KeyHolderError {
+/// A token's error for the token `facts` describes; `logged_in` says whether this call logged
+/// the session in. "Not logged in" after a login is a key that wants one at every use, and on a
+/// PIN pad a login the token didn't say it needed: neither asks the window for a PIN, so a call
+/// never asks twice. Its text never carries the PIN (`cryptoki` is never given it in a form it
+/// prints).
+pub fn token_error(error: Error, facts: &TokenFacts, logged_in: bool) -> KeyHolderError {
     match error {
         Error::Pkcs11(RvError::PinIncorrect | RvError::PinInvalid | RvError::PinLenRange, _) => KeyHolderError::PinIncorrect,
         Error::Pkcs11(RvError::PinLocked, _) => KeyHolderError::PinLocked,
@@ -462,12 +467,162 @@ pub fn token_error(error: Error, token: &TokenRef, pin_given: bool) -> KeyHolder
         Error::Pkcs11(RvError::TokenNotPresent | RvError::DeviceRemoved | RvError::SessionHandleInvalid | RvError::SessionClosed, _) => {
             KeyHolderError::TokenChanged
         }
-        Error::Pkcs11(RvError::UserNotLoggedIn, _) if pin_given => KeyHolderError::Unsupported("a key that asks for its PIN at every use"),
-        Error::Pkcs11(RvError::UserNotLoggedIn, _) => KeyHolderError::PinNeeded(token.clone()),
+        Error::Pkcs11(RvError::UserNotLoggedIn, _) if logged_in => KeyHolderError::Unsupported("a key that asks for its PIN at every use"),
+        Error::Pkcs11(RvError::UserNotLoggedIn, _) if facts.protected_path => {
+            KeyHolderError::Unsupported("a PIN-pad token that wants a login it didn't say it needed")
+        }
+        Error::Pkcs11(RvError::UserNotLoggedIn, _) => KeyHolderError::PinNeeded(facts.token.clone()),
         Error::Pkcs11(
             RvError::MechanismInvalid | RvError::MechanismParamInvalid | RvError::KeyTypeInconsistent | RvError::KeyFunctionNotPermitted,
             _,
         ) => KeyHolderError::Unsupported("the token doesn't do that with this key"),
         other => KeyHolderError::System(other.to_string()),
+    }
+}
+
+/// A loaded PKCS#11 module, kept for the life of the program.
+pub struct Pkcs11Holder {
+    context: Pkcs11,
+}
+
+impl Pkcs11Holder {
+    /// The module at `module`, an absolute path the owner chose: loaded and initialised the
+    /// first time, the same one after (the same file by another path too).
+    pub fn open(module: &Path) -> Result<Arc<Self>, KeyHolderError> {
+        if !module.is_absolute() {
+            return Err(KeyHolderError::Unavailable("the PKCS#11 module is not named by an absolute path".into()));
+        }
+        shared(modules(), module, MAX_MODULES, |file| {
+            let context = Pkcs11::new(file).map_err(|e| KeyHolderError::Unavailable(e.to_string()))?;
+            match context.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK)) {
+                Ok(()) | Err(Error::Pkcs11(RvError::CryptokiAlreadyInitialized, _)) => Ok(Self { context }),
+                Err(e) => Err(KeyHolderError::Unavailable(e.to_string())),
+            }
+        })
+    }
+
+    /// [`list`] on this module's tokens.
+    pub fn certificates(&self) -> Result<Vec<TokenCertificate>, KeyHolderError> {
+        list(self, now())
+    }
+
+    /// [`sign_digest`] with this module's tokens.
+    pub fn sign_digest(
+        &self,
+        fingerprint: &[u8; 32],
+        scheme: SignatureScheme,
+        algorithm: DigestAlgorithm,
+        digest: &[u8],
+        pin: Option<(&TokenRef, &Pin)>,
+    ) -> Result<Vec<u8>, KeyHolderError> {
+        sign_digest(self, fingerprint, scheme, algorithm, digest, pin)
+    }
+
+    /// [`decrypt_key`] with this module's tokens.
+    pub fn decrypt_key(
+        &self,
+        fingerprint: &[u8; 32],
+        padding: RsaPadding,
+        wrapped: &[u8],
+        pin: Option<(&TokenRef, &Pin)>,
+    ) -> Result<UnwrappedKey, KeyHolderError> {
+        decrypt_key(self, fingerprint, padding, wrapped, pin)
+    }
+}
+
+impl Module for Pkcs11Holder {
+    type Session = Pkcs11Session;
+
+    fn slots(&self) -> Result<Vec<u64>, KeyHolderError> {
+        let slots = self.context.get_slots_with_token().map_err(|e| KeyHolderError::Unavailable(e.to_string()))?;
+        Ok(slots.iter().take(MAX_SLOTS).map(Slot::id).collect())
+    }
+
+    fn open(&self, slot: u64) -> Result<Pkcs11Session, KeyHolderError> {
+        let slot = Slot::try_from(slot).map_err(|e| KeyHolderError::System(e.to_string()))?;
+        let session = self.context.open_ro_session(slot).map_err(|e| KeyHolderError::System(e.to_string()))?;
+        Ok(Pkcs11Session { context: self.context.clone(), slot, session })
+    }
+}
+
+/// A read-only `cryptoki` session on one slot's token.
+pub struct Pkcs11Session {
+    context: Pkcs11,
+    slot: Slot,
+    session: Session,
+}
+
+impl TokenSession for Pkcs11Session {
+    type Key = ObjectHandle;
+
+    fn facts(&self) -> Result<TokenFacts, KeyHolderError> {
+        let info = self.context.get_token_info(self.slot).map_err(|e| KeyHolderError::System(e.to_string()))?;
+        Ok(TokenFacts {
+            token: TokenRef { slot: self.slot.id(), serial: token_text(info.serial_number()), label: token_text(info.label()) },
+            protected_path: info.protected_authentication_path(),
+            login_required: info.login_required(),
+        })
+    }
+
+    fn certificates(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        let template = [Attribute::Class(ObjectClass::CERTIFICATE), Attribute::CertificateType(CertificateType::X_509)];
+        let Ok(handles) = self.session.find_objects(&template) else { return Vec::new() };
+        let mut out = Vec::new();
+        for handle in handles.into_iter().take(MAX_SCANNED) {
+            let Ok(attributes) = self.session.get_attributes(handle, &[AttributeType::Value, AttributeType::Id]) else { continue };
+            let mut der = None;
+            let mut id = None;
+            for attribute in attributes {
+                match attribute {
+                    Attribute::Value(v) if v.len() <= MAX_CERTIFICATE_LEN => der = Some(v),
+                    Attribute::Id(v) => id = Some(v),
+                    _ => {}
+                }
+            }
+            if let (Some(der), Some(id)) = (der, id) {
+                out.push((der, id));
+            }
+        }
+        out
+    }
+
+    fn keys(&self, class: ObjectClass, id: &[u8]) -> Vec<ObjectHandle> {
+        let mut keys = self.session.find_objects(&[Attribute::Class(class), Attribute::Id(id.to_vec())]).unwrap_or_default();
+        keys.truncate(MAX_KEYS_PER_ID);
+        keys
+    }
+
+    fn key_facts(&self, key: ObjectHandle) -> KeyFacts {
+        let mut facts = KeyFacts::default();
+        let wanted = [AttributeType::KeyType, AttributeType::Modulus, AttributeType::EcPoint];
+        for attribute in self.session.get_attributes(key, &wanted).unwrap_or_default() {
+            match attribute {
+                Attribute::KeyType(t) if t == KeyType::RSA => facts.kind = Some(KeyKindOnToken::Rsa),
+                Attribute::KeyType(t) if t == KeyType::EC => facts.kind = Some(KeyKindOnToken::Ec),
+                Attribute::Modulus(m) => facts.modulus = Some(m),
+                Attribute::EcPoint(p) => facts.ec_point = Some(p),
+                _ => {}
+            }
+        }
+        facts
+    }
+
+    fn always_authenticate(&self, key: ObjectHandle) -> bool {
+        self.session
+            .get_attributes(key, &[AttributeType::AlwaysAuthenticate])
+            .is_ok_and(|attributes| attributes.iter().any(|a| matches!(a, Attribute::AlwaysAuthenticate(true))))
+    }
+
+    fn login(&self, pin: Option<&Pin>) -> Result<(), Error> {
+        let pin = pin.map(|p| AuthPin::from(p.expose().to_owned()));
+        self.session.login(UserType::User, pin.as_ref())
+    }
+
+    fn sign(&self, mechanism: &Mechanism<'_>, key: ObjectHandle, input: &[u8]) -> Result<Vec<u8>, Error> {
+        self.session.sign(mechanism, key, input)
+    }
+
+    fn decrypt(&self, mechanism: &Mechanism<'_>, key: ObjectHandle, input: &[u8]) -> Result<Vec<u8>, Error> {
+        self.session.decrypt(mechanism, key, input)
     }
 }
