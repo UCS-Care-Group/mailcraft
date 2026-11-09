@@ -35,14 +35,26 @@ pub struct SignedParts {
     /// The signature part's bytes, its transfer encoding undone (the CMS or the OpenPGP
     /// signature); for [`SignedKind::SmimeOpaque`], the CMS.
     pub signature: Vec<u8>,
+    /// The signed part is the whole message body (it is the message's top level): `false` when
+    /// it is only the first part of a wrapper (a list's footer added after it, say), whose other
+    /// parts nobody signed.
+    pub whole: bool,
+    /// The message's header names exactly one From mailbox (one field, one address): a
+    /// signature can be for its sender only then.
+    pub one_from: bool,
 }
 
 /// The halves of the message `bytes` when it is Digitally signed (or, for
 /// [`SignedKind::SmimeOpaque`], may be): at its top level, or the first part of a multipart
-/// wrapping it, as deep as [`MAX_DEPTH`]. `None` for any other message. Never fails.
+/// wrapping it, as deep as [`MAX_DEPTH`] ([`SignedParts::whole`] says which), never inside a
+/// `multipart/alternative` (whose other versions are shown instead as often). `None` for any other
+/// message. Never fails.
 pub fn signed_parts(bytes: &[u8]) -> Option<SignedParts> {
     let (headers, body) = header::split(bytes, true);
-    of_part(&headers, body, 0)
+    let mut parts = of_part(&headers, body, 0)?;
+    let froms: Vec<&str> = headers.0.iter().filter(|f| f.name.eq_ignore_ascii_case("from")).map(|f| f.value.as_str()).collect();
+    parts.one_from = matches!(froms.as_slice(), [one] if crate::address::parse_list(one).len() == 1);
+    Some(parts)
 }
 
 fn of_part(headers: &Headers, body: &[u8], depth: usize) -> Option<SignedParts> {
@@ -66,14 +78,22 @@ fn of_part(headers: &Headers, body: &[u8], depth: usize) -> Option<SignedParts> 
             let parts = crate::parse::split_multipart(body, boundary, 3);
             let [content, signature] = parts.as_slice() else { return None };
             let (sig_headers, sig_body) = header::split(signature, false);
-            Some(SignedParts { kind, content: content.to_vec(), signature: decoded(&sig_headers, sig_body) })
+            Some(SignedParts { kind, content: content.to_vec(), signature: decoded(&sig_headers, sig_body), whole: depth == 0, one_from: false })
         }
         _ if pkcs7 => {
             // (`smime-type` names what is inside; the CMS says it too, and is what is believed.)
             let decoded = decoded(headers, body);
-            (!decoded.is_empty()).then_some(SignedParts { kind: SignedKind::SmimeOpaque, content: Vec::new(), signature: decoded })
+            (!decoded.is_empty()).then_some(SignedParts {
+                kind: SignedKind::SmimeOpaque,
+                content: Vec::new(),
+                signature: decoded,
+                whole: depth == 0,
+                one_from: false,
+            })
         }
-        multipart if multipart.starts_with("multipart/") && depth < MAX_DEPTH => {
+        // (Never into `multipart/alternative`: a signed first version beside an unsigned one
+        // would lend the other its signature.)
+        multipart if multipart.starts_with("multipart/") && multipart != "multipart/alternative" && depth < MAX_DEPTH => {
             let boundary = content_type.get("boundary").filter(|b| !b.is_empty())?;
             let first = crate::parse::split_multipart(body, boundary, 1);
             let (part_headers, part_body) = header::split(first.first()?, false);

@@ -8,7 +8,7 @@ use cms::signed_data::{EncapsulatedContentInfo, SignerIdentifier, SignerInfo};
 use const_oid::ObjectIdentifier;
 use der::asn1::OctetString;
 use der::{Decode, Encode};
-use mailcraft_model::digital_signature::{DigitalSignature, SignatureFormat, Signer, Verdict, Why};
+use mailcraft_model::digital_signature::{Coverage, DigitalSignature, SignatureFormat, Signer, Verdict, Why};
 use mailcraft_time::Timestamp;
 
 use crate::algorithms::{self, Fault, Hash};
@@ -20,6 +20,9 @@ use crate::chain::{self, Anchors};
 pub const MAX_CERTS: usize = 32;
 /// The most signers of one message that are checked.
 pub const MAX_SIGNERS: usize = 8;
+/// The most certificates tried for one signer: those that its identifier names (the message
+/// may carry several of one name; only the one whose key made the signature is the signer's).
+pub const MAX_CANDIDATES: usize = 4;
 
 const SIGNED_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.2");
 const DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1");
@@ -39,6 +42,9 @@ pub struct Context<'a> {
     /// Certificates kept for the sender already, in DER: a message that doesn't carry its
     /// signer's certificate may be checked with one of them.
     pub known: &'a [&'a [u8]],
+    /// How much of the message the signed part is: the whole of it only when it is the
+    /// message's top level. A part is never verified for the message.
+    pub coverage: Coverage,
 }
 
 /// A Digitally signed message's two halves.
@@ -86,15 +92,61 @@ pub fn check(signed: Signed<'_>, context: &Context<'_>) -> Option<Checked> {
     };
     let mut pool: Vec<Cert> = data.certificates.iter().take(MAX_CERTS).filter_map(|c| Cert::from_der(c.whole)).collect();
     pool.extend(context.known.iter().take(MAX_CERTS).filter_map(|c| Cert::from_der(c)));
+    let mut digests = Digests::new(content);
     let mut best: Option<Checked> = None;
     for signer in data.signers.iter().take(MAX_SIGNERS) {
-        let found = one_signer(signer, &eci, content, &pool, context);
+        let found = one_signer(signer, &eci, &mut digests, &pool, context);
         best = Some(match best {
             Some(b) if b.signature.verdict <= found.signature.verdict => b,
             _ => found,
         });
     }
-    best.or_else(unreadable)
+    best.or_else(unreadable).map(|mut c| {
+        c.signature = c.signature.covering(context.coverage);
+        c
+    })
+}
+
+/// What was signed and its digests, each worked out once (#30: a long message isn't hashed
+/// again for every signer and key tried), as it came and in its canonical form.
+struct Digests<'a> {
+    content: &'a [u8],
+    /// The content with lone LFs made CRLF, when it has any: worked out at its first use.
+    canonical: Option<Option<Vec<u8>>>,
+    plain: Vec<(Hash, Vec<u8>)>,
+    crlf: Vec<(Hash, Vec<u8>)>,
+}
+
+impl<'a> Digests<'a> {
+    fn new(content: &'a [u8]) -> Self {
+        Digests { content, canonical: None, plain: Vec::new(), crlf: Vec::new() }
+    }
+
+    fn of(&mut self, hash: Hash) -> Vec<u8> {
+        if let Some((_, d)) = self.plain.iter().find(|(h, _)| *h == hash) {
+            return d.clone();
+        }
+        let d = hash.digest(self.content);
+        self.plain.push((hash, d.clone()));
+        d
+    }
+
+    /// The digest of the canonical form; `None` when the content has no lone LF (it is its own).
+    fn of_canonical(&mut self, hash: Hash) -> Option<Vec<u8>> {
+        if let Some((_, d)) = self.crlf.iter().find(|(h, _)| *h == hash) {
+            return Some(d.clone());
+        }
+        let content = self.content;
+        let canonical = self.canonical.get_or_insert_with(|| canonical(content)).as_ref()?;
+        let d = hash.digest(canonical);
+        self.crlf.push((hash, d.clone()));
+        Some(d)
+    }
+
+    /// Whether `said` is the digest of the content as it came or in its canonical form.
+    fn matches(&mut self, hash: Hash, said: &[u8]) -> bool {
+        self.of(hash) == said || self.of_canonical(hash).is_some_and(|d| d == said)
+    }
 }
 
 fn unchecked(why: Why) -> Checked {
@@ -191,13 +243,70 @@ fn canonical(content: &[u8]) -> Option<Vec<u8>> {
     lone.then_some(out)
 }
 
-fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, content: &[u8], pool: &[Cert], context: &Context<'_>) -> Checked {
+fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, digests: &mut Digests<'_>, pool: &[Cert], context: &Context<'_>) -> Checked {
     let Ok(info) = SignerInfo::from_der(raw.whole) else { return unchecked(Why::Unreadable) };
     let hash = match Hash::of(&info.digest_alg) {
         Ok(hash) => hash,
         Err(fault) => return unchecked(why_not(fault)),
     };
-    let Some(cert) = signer_cert(&info.sid, pool) else { return unchecked(Why::NoPublicKey) };
+    let candidates = signer_certs(&info.sid, pool);
+    if candidates.is_empty() {
+        return unchecked(Why::NoPublicKey);
+    }
+    let signature = info.signature.as_bytes();
+    // What the signer's key signed: the signed attributes (which hold the content's digest), or
+    // without them the content itself, as it came or in its canonical form.
+    let attributes = match &info.signed_attrs {
+        Some(_) => match signed_attributes(raw) {
+            Some(bytes) => Some(bytes),
+            None => return unchecked(Why::Unreadable),
+        },
+        None if eci.econtent_type != DATA => return unchecked(Why::Unreadable),
+        None => None,
+    };
+    // The signer is the certificate whose key made the signature, of those its identifier names:
+    // another one of the same name (any can be put in a message) makes no difference.
+    let mut fault: Option<Fault> = None;
+    let mut signer: Option<&Cert> = None;
+    for cert in candidates {
+        let verified = match &attributes {
+            Some(bytes) => algorithms::verify(cert.public_key(), &info.signature_algorithm, Some(hash), bytes, signature),
+            None => {
+                let plain = algorithms::verify_hashed(cert.public_key(), &info.signature_algorithm, Some(hash), &mut |h| digests.of(h), signature);
+                // (Signed in its canonical form, perhaps.)
+                if plain == Err(Fault::Invalid) && digests.of_canonical(hash).is_some() {
+                    algorithms::verify_hashed(
+                        cert.public_key(),
+                        &info.signature_algorithm,
+                        Some(hash),
+                        &mut |h| digests.of_canonical(h).unwrap_or_default(),
+                        signature,
+                    )
+                } else {
+                    plain
+                }
+            }
+        };
+        match verified {
+            Ok(()) => {
+                signer = Some(cert);
+                break;
+            }
+            // (Of several faults, what says most: an algorithm, then a malformed key, then no
+            // match.)
+            Err(f) => fault = Some(fault.map_or(f, |g| worse(g, f))),
+        }
+    }
+    let Some(cert) = signer else {
+        return match fault {
+            // No key it names made it: changed after signing, or never signed by any of them;
+            // nobody is named, since none of them fits.
+            Some(Fault::Invalid) | None => {
+                Checked { signature: DigitalSignature::bare(SignatureFormat::Smime, Verdict::Changed, Why::Altered), certificate: None }
+            }
+            Some(f) => unchecked(why_not(f)),
+        };
+    };
     let result = |verdict: Verdict, why: Option<Why>| Checked {
         signature: DigitalSignature {
             format: SignatureFormat::Smime,
@@ -206,46 +315,22 @@ fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, content: &[u8], pool
             signer: Some(signer_of(cert)),
             signed_at: signing_time(&info),
             revocation_checked: false,
+            // (`check` says, from where in the message the signed part sat.)
+            coverage: Coverage::Part,
         },
         certificate: None,
     };
-    let signed: Vec<u8> = if info.signed_attrs.is_some() {
+    if attributes.is_some() {
+        // The attributes are the signer's own words now: what they say of the content holds.
         let Some(said_type) = attribute(&info, CONTENT_TYPE).and_then(|d| ObjectIdentifier::from_der(&d).ok()) else {
             return unchecked(Why::Unreadable);
         };
         let Some(said_digest) = attribute(&info, MESSAGE_DIGEST).and_then(|d| OctetString::from_der(&d).ok()) else {
             return unchecked(Why::Unreadable);
         };
-        if said_type != eci.econtent_type {
+        if said_type != eci.econtent_type || !digests.matches(hash, said_digest.as_bytes()) {
             return result(Verdict::Changed, Some(Why::Altered));
         }
-        let matches = hash.digest(content) == said_digest.as_bytes() || canonical(content).is_some_and(|c| hash.digest(&c) == said_digest.as_bytes());
-        if !matches {
-            return result(Verdict::Changed, Some(Why::Altered));
-        }
-        match signed_attributes(raw) {
-            Some(bytes) => bytes,
-            None => return unchecked(Why::Unreadable),
-        }
-    } else {
-        if eci.econtent_type != DATA {
-            return unchecked(Why::Unreadable);
-        }
-        content.to_vec()
-    };
-    let signature = info.signature.as_bytes();
-    let mut verified = algorithms::verify(cert.public_key(), &info.signature_algorithm, Some(hash), &signed, signature);
-    // Without signed attributes the content itself is signed: in its canonical form, perhaps.
-    if verified == Err(Fault::Invalid)
-        && info.signed_attrs.is_none()
-        && let Some(c) = canonical(content)
-    {
-        verified = algorithms::verify(cert.public_key(), &info.signature_algorithm, Some(hash), &c, signature);
-    }
-    match verified {
-        Ok(()) => {}
-        Err(Fault::Invalid) => return result(Verdict::Changed, Some(Why::Altered)),
-        Err(fault) => return result(Verdict::Unchecked, Some(why_not(fault))),
     }
     let worth_keeping = cert.is_for(context.from) && cert.for_email();
     let trust = chain::trust(cert, pool, context.anchors, context.now)
@@ -263,25 +348,37 @@ fn one_signer(raw: &Tlv<'_>, eci: &EncapsulatedContentInfo, content: &[u8], pool
     r
 }
 
+/// Of two faults, the one that says most of why a signature can't be relied on.
+fn worse(a: Fault, b: Fault) -> Fault {
+    let rank = |f: Fault| match f {
+        Fault::Weak => 0,
+        Fault::Unknown => 1,
+        Fault::Malformed => 2,
+        Fault::Invalid => 3,
+    };
+    if rank(b) < rank(a) { b } else { a }
+}
+
 fn why_not(fault: Fault) -> Why {
     match fault {
         Fault::Weak => Why::WeakAlgorithm,
         Fault::Unknown => Why::UnknownAlgorithm,
         Fault::Invalid => Why::Altered,
+        Fault::Malformed => Why::Unreadable,
     }
 }
 
-/// The certificate in `pool` that `sid` names.
-fn signer_cert<'a>(sid: &SignerIdentifier, pool: &'a [Cert]) -> Option<&'a Cert> {
+/// The certificates in `pool` that `sid` names, at most [`MAX_CANDIDATES`].
+fn signer_certs<'a>(sid: &SignerIdentifier, pool: &'a [Cert]) -> Vec<&'a Cert> {
     match sid {
         SignerIdentifier::IssuerAndSerialNumber(isn) => {
-            let issuer = isn.issuer.to_der().ok()?;
+            let Ok(issuer) = isn.issuer.to_der() else { return Vec::new() };
             let serial = isn.serial_number.as_bytes();
-            pool.iter().find(|c| c.issuer() == issuer.as_slice() && c.serial() == serial)
+            pool.iter().filter(|c| c.issuer() == issuer.as_slice() && c.serial() == serial).take(MAX_CANDIDATES).collect()
         }
         SignerIdentifier::SubjectKeyIdentifier(ski) => {
             let id = ski.0.as_bytes();
-            pool.iter().find(|c| c.key_id().as_deref() == Some(id))
+            pool.iter().filter(|c| c.key_id().as_deref() == Some(id)).take(MAX_CANDIDATES).collect()
         }
     }
 }

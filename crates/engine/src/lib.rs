@@ -30,6 +30,9 @@ pub mod catalog;
 pub mod cmd;
 pub mod composing;
 mod conversations;
+mod digital_signature;
+#[cfg(test)]
+mod digital_signature_tests;
 pub mod counts;
 pub mod gmail;
 pub mod import_pst;

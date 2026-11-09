@@ -19,6 +19,8 @@ fn a_detached_signature_gives_the_signed_part_byte_for_byte() {
     assert!(content.ends_with("Alice\r\n"), "the CRLF before the boundary is the boundary's: {content:?}");
     // The CMS, decoded: a SEQUENCE.
     assert_eq!(parts.signature.first(), Some(&0x30));
+    assert!(parts.whole, "the message's top level");
+    assert!(parts.one_from);
 }
 
 #[test]
@@ -52,6 +54,29 @@ fn a_signed_message_inside_a_list_wrapping_is_found() {
     );
     let parts = signed_parts(wrapped.as_bytes()).unwrap_or_else(|| panic!("signed"));
     assert_eq!(parts.kind, SignedKind::SmimeDetached);
+    assert!(!parts.whole, "the footer beside it isn't signed");
+}
+
+/// A signed first version beside an unsigned other one (an HTML part saying something else) is
+/// not looked into: the other version is the one shown as often, and nobody signed it.
+#[test]
+fn a_signed_part_in_an_alternative_is_not_the_messages() {
+    let inner = String::from_utf8_lossy(DETACHED).into_owned();
+    let alternative = format!(
+        "From: alice@smime.example\r\nContent-Type: multipart/alternative; boundary=alt\r\n\r\n--alt\r\n{inner}\r\n--alt\r\nContent-Type: text/html\r\n\r\n<p>Wire 10000 EUR to Mallory</p>\r\n--alt--\r\n"
+    );
+    assert!(signed_parts(alternative.as_bytes()).is_none());
+    // Nor one inside an alternative inside a wrapper.
+    let mixed = format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{alternative}\r\n--m--\r\n");
+    assert!(signed_parts(mixed.as_bytes()).is_none());
+}
+
+#[test]
+fn several_senders_are_told() {
+    let both = String::from_utf8_lossy(DETACHED).replacen("From: alice@smime.example", "From: alice@smime.example, mallory@example.org", 1);
+    assert!(!signed_parts(both.as_bytes()).unwrap_or_else(|| panic!("signed")).one_from);
+    let twice = String::from_utf8_lossy(DETACHED).replacen("From: alice@smime.example", "From: alice@smime.example\r\nFrom: mallory@example.org", 1);
+    assert!(!signed_parts(twice.as_bytes()).unwrap_or_else(|| panic!("signed")).one_from);
 }
 
 proptest! {

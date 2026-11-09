@@ -2154,6 +2154,9 @@ fn main() -> eframe::Result {
             // the mailbox is there (`build`).
             let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
             let reading = progress.clone();
+            // The certification authorities this computer trusts, for checking Digital
+            // signatures (#30): read from the system's store while the mailbox is read.
+            let anchors = trust_anchors();
             let wake = cc.egui_ctx.clone();
             let arriving = launch::start(move || launch::first_mailbox(sample, mailbox_path, &reading), move || wake.request_repaint());
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
@@ -2163,6 +2166,7 @@ fn main() -> eframe::Result {
                 let (mailbox, path, unavailable, unchecked, damaged) =
                     (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
+                take_trust_anchors(&mut session, &anchors);
                 let kept = path.is_some();
                 session.path = path;
                 // Search answers from a word index kept beside the mailbox file, built in the
@@ -2277,4 +2281,30 @@ fn main() -> eframe::Result {
             )))
         }),
     )
+}
+
+/// The system's trusted certification authorities, read on a thread of their own (#30): the
+/// answer comes on the channel.
+fn trust_anchors() -> std::sync::mpsc::Receiver<Vec<Vec<u8>>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let read = move || {
+        let _ = tx.send(mailcraft_net::system_trust_anchors());
+    };
+    if let Err(e) = std::thread::Builder::new().name("trust anchors".into()).spawn(read) {
+        log::warn!("the system's certification authorities couldn't be read for checking Digital signatures: {e}");
+    }
+    rx
+}
+
+/// Hand the session the system's certification authorities ([`trust_anchors`]), waiting a
+/// little for them: past that, or when they couldn't be read, Digital signatures are checked
+/// without them and their signers are "not verified".
+fn take_trust_anchors(session: &mut Session, anchors: &std::sync::mpsc::Receiver<Vec<Vec<u8>>>) {
+    match anchors.recv_timeout(std::time::Duration::from_secs(3)) {
+        Ok(ders) => {
+            session.set_trust_anchors(&ders);
+            log::info!("{} certification authorities for checking Digital signatures", session.trust_anchor_count());
+        }
+        Err(_) => log::warn!("the system's certification authorities weren't read in time for checking Digital signatures"),
+    }
 }

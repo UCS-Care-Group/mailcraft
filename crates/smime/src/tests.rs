@@ -10,7 +10,7 @@ use cms::signed_data::{CertificateSet, EncapsulatedContentInfo, SignedData, Sign
 use const_oid::ObjectIdentifier;
 use der::asn1::{OctetString, SetOfVec};
 use der::{Any, Decode, Encode};
-use mailcraft_model::digital_signature::{Verdict, Why};
+use mailcraft_model::digital_signature::{Coverage, Verdict, Why};
 use proptest::prelude::*;
 use spki::AlgorithmIdentifierOwned;
 use x509_cert::Certificate;
@@ -77,12 +77,12 @@ fn anchors() -> Anchors {
 
 fn checked_detached(message: &[u8], anchors: &Anchors, from: &str, now: i64, known: &[&[u8]]) -> Checked {
     let (content, signature) = halves(message);
-    check(Signed::Detached { content: &content, signature: &signature }, &Context { anchors, from, now, known }).unwrap()
+    check(Signed::Detached { content: &content, signature: &signature }, &Context { anchors, from, now, known, coverage: Coverage::Whole }).unwrap()
 }
 
 fn checked_opaque(message: &[u8], anchors: &Anchors, from: &str) -> Checked {
     let cms = base64(body(message));
-    check(Signed::Opaque(&cms), &Context { anchors, from, now: NOW, known: &[] }).unwrap()
+    check(Signed::Opaque(&cms), &Context { anchors, from, now: NOW, known: &[], coverage: Coverage::Whole }).unwrap()
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn a_change_after_signing_is_seen() {
     content[at] = b'W';
     let c = check(
         Signed::Detached { content: &content, signature: &signature },
-        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] },
+        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[], coverage: Coverage::Whole },
     )
     .unwrap();
     assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Changed, Some(Why::Altered)));
@@ -162,7 +162,9 @@ fn a_change_after_signing_is_seen() {
     let mut cms = base64(body(OPAQUE));
     let at = cms.windows(7).position(|w| w == b"Tuesday").unwrap();
     cms[at] = b'W';
-    let c = check(Signed::Opaque(&cms), &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] }).unwrap();
+    let c =
+        check(Signed::Opaque(&cms), &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[], coverage: Coverage::Whole })
+            .unwrap();
     assert_eq!(c.signature.verdict, Verdict::Changed);
     // The signature itself.
     let (content, mut signature) = halves(DETACHED);
@@ -170,7 +172,7 @@ fn a_change_after_signing_is_seen() {
     signature[last] ^= 1;
     let c = check(
         Signed::Detached { content: &content, signature: &signature },
-        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] },
+        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[], coverage: Coverage::Whole },
     )
     .unwrap();
     assert_eq!(c.signature.verdict, Verdict::Changed);
@@ -182,7 +184,7 @@ fn content_in_lf_lines_is_checked_in_its_canonical_form() {
     let lf: Vec<u8> = String::from_utf8_lossy(&content).replace("\r\n", "\n").into_bytes();
     let c = check(
         Signed::Detached { content: &lf, signature: &signature },
-        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[] },
+        &Context { anchors: &anchors(), from: "alice@smime.example", now: NOW, known: &[], coverage: Coverage::Whole },
     )
     .unwrap();
     assert_eq!(c.signature.verdict, Verdict::Verified);
@@ -192,7 +194,7 @@ fn content_in_lf_lines_is_checked_in_its_canonical_form() {
 fn enveloped_data_is_no_digital_signature_and_junk_is_unreadable() {
     // ContentInfo { envelopedData, [0] { SEQUENCE {} } }.
     let enveloped = [0x30, 0x0f, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x03, 0xa0, 0x02, 0x30, 0x00];
-    let context = Context { anchors: &Anchors::default(), from: "a@example.org", now: NOW, known: &[] };
+    let context = Context { anchors: &Anchors::default(), from: "a@example.org", now: NOW, known: &[], coverage: Coverage::Whole };
     assert_eq!(check(Signed::Opaque(&enveloped), &context), None);
     let junk = check(Signed::Opaque(b"not a CMS"), &context).unwrap();
     assert_eq!((junk.signature.verdict, junk.signature.why), (Verdict::Unchecked, Some(Why::Unreadable)));
@@ -254,6 +256,11 @@ fn issued(params: rcgen::CertificateParams, key: rcgen::KeyPair, by: &Made) -> M
 
 /// A detached CMS SignedData over `content` by `signer`, carrying `certs`.
 fn sign(content: &[u8], signer: &Made, certs: &[&Made], p384: bool) -> Vec<u8> {
+    sign_with(content, signer, certs, p384, |_| {})
+}
+
+/// [`sign`], with the signer's information changed by `tweak` after it is made.
+fn sign_with(content: &[u8], signer: &Made, certs: &[&Made], p384: bool, tweak: impl Fn(&mut SignerInfo)) -> Vec<u8> {
     let cert = Certificate::from_der(&signer.der).unwrap();
     let (digest_oid, sig_oid) = if p384 { (SHA384, ECDSA_SHA384) } else { (SHA256, ECDSA_SHA256) };
     let digest = if p384 { ring::digest::digest(&ring::digest::SHA384, content) } else { ring::digest::digest(&ring::digest::SHA256, content) };
@@ -280,6 +287,8 @@ fn sign(content: &[u8], signer: &Made, certs: &[&Made], p384: bool) -> Vec<u8> {
         signature: OctetString::new(signature.as_ref().to_vec()).unwrap(),
         unsigned_attrs: None,
     };
+    let mut info = info;
+    tweak(&mut info);
     let set: Vec<cms::cert::CertificateChoices> =
         certs.iter().map(|c| cms::cert::CertificateChoices::Certificate(Certificate::from_der(&c.der).unwrap())).collect();
     let data = SignedData {
@@ -294,7 +303,7 @@ fn sign(content: &[u8], signer: &Made, certs: &[&Made], p384: bool) -> Vec<u8> {
 }
 
 fn verdict(cms: &[u8], content: &[u8], anchors: &Anchors, from: &str) -> (Verdict, Option<Why>) {
-    let c = check(Signed::Detached { content, signature: cms }, &Context { anchors, from, now: NOW, known: &[] }).unwrap();
+    let c = check(Signed::Detached { content, signature: cms }, &Context { anchors, from, now: NOW, known: &[], coverage: Coverage::Whole }).unwrap();
     (c.signature.verdict, c.signature.why)
 }
 
@@ -354,6 +363,76 @@ fn a_certificate_from_another_authority_of_the_same_name_is_not_trusted() {
     assert_eq!(verdict(&cms, CONTENT, &Anchors::new([&real.der]), "ada@example.org"), (Verdict::NotVerified, Some(Why::UnknownIssuer)));
 }
 
+/// A certificate of the signer's issuer and serial number put in the message (anybody can put
+/// one there) is not the signer's unless its key made the signature: it changes nothing.
+#[test]
+fn a_certificate_that_only_claims_the_signers_name_changes_nothing() {
+    let real = root("Example Root");
+    let fake = root("Example Root");
+    let serial = |mut p: rcgen::CertificateParams| {
+        p.serial_number = Some(rcgen::SerialNumber::from(vec![0x30, 0x01, 0x02]));
+        p
+    };
+    let ada = issued(serial(signer_params("Ada", "ada@example.org")), key(&rcgen::PKCS_ECDSA_P256_SHA256), &real);
+    let impostor = issued(serial(signer_params("Ada", "ada@example.org")), key(&rcgen::PKCS_ECDSA_P256_SHA256), &fake);
+    let anchors = Anchors::new([&real.der]);
+    // The impostor first: the signer is still found, and verified.
+    let cms = sign(CONTENT, &ada, &[&impostor, &ada], false);
+    assert_eq!(verdict(&cms, CONTENT, &anchors, "ada@example.org"), (Verdict::Verified, None));
+    // Changed content is put down to the signer that fits, and named.
+    let changed = b"Content-Type: text/plain\r\n\r\nThe accounts are empty.\r\n";
+    let c = check(
+        Signed::Detached { content: changed, signature: &cms },
+        &Context { anchors: &anchors, from: "ada@example.org", now: NOW, known: &[], coverage: Coverage::Whole },
+    )
+    .unwrap();
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::Changed, Some(Why::Altered)));
+    let named = c.signature.signer.unwrap();
+    assert_eq!(named.fingerprint, crate::cert::Cert::from_der(&ada.der).unwrap().fingerprint(), "the real signer, not the impostor");
+    // With only the impostor's certificate, nobody is named as having signed it.
+    let alone = sign(CONTENT, &ada, &[&impostor], false);
+    let c = check(
+        Signed::Detached { content: CONTENT, signature: &alone },
+        &Context { anchors: &anchors, from: "ada@example.org", now: NOW, known: &[], coverage: Coverage::Whole },
+    )
+    .unwrap();
+    assert_eq!(c.signature.verdict, Verdict::Changed);
+    assert!(c.signature.signer.is_none());
+    assert!(c.certificate.is_none(), "nothing of it is kept");
+}
+
+/// A signature that can't be read is "can't be checked", never "changed".
+#[test]
+fn a_malformed_signature_cant_be_checked() {
+    let root = root("Example Root");
+    let ada = issued(signer_params("Ada", "ada@example.org"), key(&rcgen::PKCS_ECDSA_P256_SHA256), &root);
+    let junk = sign_with(CONTENT, &ada, &[&ada], false, |info| info.signature = OctetString::new(vec![0xff; 12]).unwrap());
+    assert_eq!(verdict(&junk, CONTENT, &Anchors::new([&root.der]), "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+    // An RSA signature algorithm for an elliptic-curve key: of different kinds.
+    let crossed = sign_with(CONTENT, &ada, &[&ada], false, |info| {
+        info.signature_algorithm = AlgorithmIdentifierOwned { oid: ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.11"), parameters: None }
+    });
+    assert_eq!(verdict(&crossed, CONTENT, &Anchors::new([&root.der]), "ada@example.org"), (Verdict::Unchecked, Some(Why::Unreadable)));
+}
+
+/// A valid signature by a trusted signer over only part of a message (a wrapper's first part)
+/// is never verified for the message.
+#[test]
+fn a_signature_over_part_of_a_message_is_not_verified_for_it() {
+    let (content, signature) = halves(DETACHED);
+    let anchors = anchors();
+    let c = check(
+        Signed::Detached { content: &content, signature: &signature },
+        &Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[], coverage: Coverage::Part },
+    )
+    .unwrap();
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::PartlySigned)));
+    assert_eq!(c.signature.coverage, Coverage::Part);
+    // A message from several people is nobody's alone: no address matches.
+    let c = checked_detached(DETACHED, &anchors, "", NOW, &[]);
+    assert_eq!((c.signature.verdict, c.signature.why), (Verdict::NotVerified, Some(Why::AddressMismatch)));
+}
+
 #[test]
 fn the_ber_reader_keeps_der_as_it_is_and_joins_pieces() {
     assert_eq!(crate::ber::to_der(CA).as_deref(), Some(CA));
@@ -371,7 +450,7 @@ proptest! {
     #[test]
     fn any_bytes_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
         let anchors = Anchors::new([CA]);
-        let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[&bytes] };
+        let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[&bytes], coverage: Coverage::Whole };
         let _ = check(Signed::Opaque(&bytes), &context);
         let _ = check(Signed::Detached { content: b"x", signature: &bytes }, &context);
         let _ = crate::ber::to_der(&bytes);
@@ -386,7 +465,7 @@ proptest! {
         }
         cms.truncate(cut);
         let anchors = Anchors::new([CA]);
-        let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[] };
+        let context = Context { anchors: &anchors, from: "alice@smime.example", now: NOW, known: &[], coverage: Coverage::Whole };
         let _ = check(Signed::Opaque(&cms), &context);
         let (content, signature) = halves(DETACHED);
         let mut signature = signature;

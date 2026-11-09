@@ -34,8 +34,9 @@ impl SignatureFormat {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Verdict {
-    /// The Digital signature is valid, its signer is trusted, and the signer's address is the
-    /// message's From address.
+    /// The Digital signature is valid, its signer is trusted, the signer's address is the
+    /// message's one From address (verified is for that signer and that address together, never
+    /// for a key alone), and what was signed is the whole message ([`Coverage::Whole`]).
     Verified,
     /// The Digital signature is valid, but its signer isn't verified ([`Why`] says how): an
     /// unknown issuer, a certificate out of date or not for mail, an address that isn't the From
@@ -83,6 +84,9 @@ pub enum Why {
     AddressMismatch,
     /// An OpenPGP key that the owner hasn't marked Verified.
     KeyNotVerified,
+    /// Only part of the message was signed (a wrapper such as a list's footer holds it), so
+    /// what is outside that part could say anything.
+    PartlySigned,
     // Changed.
     /// What was signed isn't what arrived.
     Altered,
@@ -110,6 +114,7 @@ impl Why {
             Why::NotForEmail => "notForEmail",
             Why::AddressMismatch => "addressMismatch",
             Why::KeyNotVerified => "keyNotVerified",
+            Why::PartlySigned => "partlySigned",
             Why::Altered => "altered",
             Why::WeakAlgorithm => "weakAlgorithm",
             Why::UnknownAlgorithm => "unknownAlgorithm",
@@ -129,6 +134,7 @@ impl Why {
             Why::NotForEmail => "the certificate isn't for signing mail",
             Why::AddressMismatch => "the certificate is for another address than the sender's",
             Why::KeyNotVerified => "the signer's key hasn't been marked verified",
+            Why::PartlySigned => "only part of the message was signed; the rest could say anything",
             Why::Altered => "the message was changed after it was signed",
             Why::WeakAlgorithm => "it uses an algorithm that's no longer safe",
             Why::UnknownAlgorithm => "it uses an algorithm MailCraft doesn't know",
@@ -159,6 +165,28 @@ pub struct Signer {
     pub not_after: Timestamp,
 }
 
+/// How much of the message the Digital signature covers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Coverage {
+    /// The whole message body: the signed part is the message's top level (S/MIME's
+    /// `multipart/signed` or signed data, PGP/MIME's `multipart/signed`).
+    Whole,
+    /// Only a part of it: the signed part sits inside a wrapper whose other parts nobody signed
+    /// (or a format that can't tell). The safe default.
+    #[default]
+    Part,
+}
+
+impl Coverage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Coverage::Whole => "whole",
+            Coverage::Part => "part",
+        }
+    }
+}
+
 /// The most addresses of a signer that are kept.
 pub const MAX_SIGNER_ADDRESSES: usize = 16;
 /// The most characters of a name, an issuer or an address that are kept.
@@ -180,12 +208,27 @@ pub struct DigitalSignature {
     /// Whether the certificate was checked against its issuer's list of revoked certificates.
     /// Never yet (#30 R7): the details say "Revocation not checked".
     pub revocation_checked: bool,
+    /// How much of the message was signed; set with [`DigitalSignature::covering`].
+    #[serde(default)]
+    pub coverage: Coverage,
 }
 
 impl DigitalSignature {
     /// A result of `verdict` for `why`, with nothing known of the signer.
     pub fn bare(format: SignatureFormat, verdict: Verdict, why: Why) -> DigitalSignature {
-        DigitalSignature { format, verdict, why: Some(why), signer: None, signed_at: None, revocation_checked: false }
+        DigitalSignature { format, verdict, why: Some(why), signer: None, signed_at: None, revocation_checked: false, coverage: Coverage::Part }
+    }
+
+    /// This result for a signature that covers `coverage` of the message: a valid signature by a
+    /// trusted signer over only part of it is [`Verdict::NotVerified`] ([`Why::PartlySigned`]),
+    /// never verified for the message. Either format's checker ends with it.
+    pub fn covering(mut self, coverage: Coverage) -> DigitalSignature {
+        self.coverage = coverage;
+        if coverage == Coverage::Part && self.verdict == Verdict::Verified {
+            self.verdict = Verdict::NotVerified;
+            self.why = Some(Why::PartlySigned);
+        }
+        self
     }
 
     /// What an agent is given of it (#30 R23): the result, why, the signer and the fingerprint.
@@ -196,6 +239,7 @@ impl DigitalSignature {
             "id": message,
             "format": self.format.as_str(),
             "result": self.verdict.as_str(),
+            "coverage": self.coverage.as_str(),
             "why": self.why.map(Why::as_str),
             "whyText": self.why.map(Why::english),
             "signer": signer.and_then(|s| s.addresses.first().cloned()).unwrap_or_default(),

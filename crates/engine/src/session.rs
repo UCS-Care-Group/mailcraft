@@ -1148,6 +1148,9 @@ pub struct Session {
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
+    /// The Digital signatures checked, and the certificates they are checked against
+    /// ([`Session::digital_signature`], #30). Never saved.
+    pub(crate) signatures: crate::digital_signature::SignatureChecks,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -1296,6 +1299,7 @@ impl Session {
             list_builds: 0,
             opened: None,
             sender_checks: Default::default(),
+            signatures: Default::default(),
             content_source: None,
             loads: 0,
             unsearched: 0,
@@ -2914,6 +2918,8 @@ impl Session {
         if let Ok(told) = self.told_held.get_mut() {
             told.clear();
         }
+        // (The trust anchors stay: they are this computer's, not the mailbox's.)
+        self.signatures.forget_messages();
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();
@@ -3332,6 +3338,7 @@ impl Session {
     /// [`Session::run`] on the message being written that is current now.
     pub(crate) fn run_here(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         self.ask_for_lost_originals();
+        self.keep_found_certificates();
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).

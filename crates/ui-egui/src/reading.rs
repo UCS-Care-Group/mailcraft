@@ -42,6 +42,9 @@ mod sharing_tests;
 #[cfg(test)]
 mod tests;
 mod view;
+mod signature;
+#[cfg(test)]
+mod signature_tests;
 mod warnings;
 #[cfg(test)]
 mod warnings_tests;
@@ -58,6 +61,7 @@ pub use remote::{Access, RemotePictures};
 pub use select::Selections;
 pub(crate) use select::{inspect as selection_inspect, select_all_params};
 pub(crate) use view::char_at;
+pub(crate) use signature::row_seal as signature_seal;
 pub(crate) use warnings::row_mark as warning_mark;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
@@ -403,6 +407,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // What checking its Digital signature found (#30).
+        signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
         ui.horizontal(|ui| {
             let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };

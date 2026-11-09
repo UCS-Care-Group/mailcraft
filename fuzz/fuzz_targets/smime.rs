@@ -7,6 +7,7 @@
 //! (DER and BER).
 #![no_main]
 
+use mailcraft_model::digital_signature::Coverage;
 use mailcraft_smime::{Anchors, Context, Signed, check};
 
 const CA: &[u8] = include_bytes!("../../crates/smime/testdata/ca.rsa.der");
@@ -14,7 +15,7 @@ const CA: &[u8] = include_bytes!("../../crates/smime/testdata/ca.rsa.der");
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let anchors = Anchors::new([CA, data]);
     let known: [&[u8]; 1] = [data];
-    let context = Context { anchors: &anchors, from: "alice@smime.example", now: 1_794_182_400, known: &known };
+    let context = Context { anchors: &anchors, from: "alice@smime.example", now: 1_794_182_400, known: &known, coverage: Coverage::Whole };
     let _ = check(Signed::Opaque(data), &context);
     let _ = check(Signed::Detached { content: b"Content-Type: text/plain\r\n\r\nHello\r\n", signature: data }, &context);
 });

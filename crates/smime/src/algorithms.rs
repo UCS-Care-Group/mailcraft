@@ -19,6 +19,9 @@ pub enum Fault {
     Weak,
     /// It uses an algorithm that isn't known here.
     Unknown,
+    /// The key or the signature can't be read, or they are of different kinds: nothing can be
+    /// said of what it covers.
+    Malformed,
 }
 
 /// The least RSA modulus, in bits, that is safe enough (RFC 8551 §6).
@@ -149,14 +152,26 @@ pub fn verify(
     data: &[u8],
     signature: &[u8],
 ) -> Result<(), Fault> {
+    verify_hashed(key, algorithm, digest, &mut |hash| hash.digest(data), signature)
+}
+
+/// [`verify`], with what was signed given by its digest: `hashed` gives it by each algorithm
+/// (so that a long content is hashed once per algorithm however many keys are tried).
+pub fn verify_hashed(
+    key: &SubjectPublicKeyInfoOwned,
+    algorithm: &AlgorithmIdentifierOwned,
+    digest: Option<Hash>,
+    hashed: &mut dyn FnMut(Hash) -> Vec<u8>,
+    signature: &[u8],
+) -> Result<(), Fault> {
     let scheme = scheme(algorithm, digest)?;
     match scheme {
         Scheme::Pkcs1(hash) | Scheme::Pss(hash, _) => {
             if key.algorithm.oid != RSA && key.algorithm.oid != PSS {
-                return Err(Fault::Invalid);
+                return Err(Fault::Malformed);
             }
             let public = rsa_key(key)?;
-            let hashed = hash.digest(data);
+            let hashed = hashed(hash);
             let checked = match scheme {
                 Scheme::Pss(_, salt) => match hash {
                     Hash::Sha224 => public.verify(rsa::pss::Pss::<sha2::Sha224>::new_with_salt(salt), &hashed, signature),
@@ -178,21 +193,21 @@ pub fn verify(
         }
         Scheme::Ecdsa(hash) => {
             if key.algorithm.oid != EC_KEY {
-                return Err(Fault::Invalid);
+                return Err(Fault::Malformed);
             }
             let curve = key.algorithm.parameters.as_ref().and_then(|p| p.decode_as::<ObjectIdentifier>().ok()).ok_or(Fault::Unknown)?;
             let point = key.subject_public_key.as_bytes().ok_or(Fault::Unknown)?;
-            let hashed = hash.digest(data);
+            let hashed = hashed(hash);
             use p256::ecdsa::signature::hazmat::PrehashVerifier;
             match curve {
                 P256 => {
-                    let key = p256::ecdsa::VerifyingKey::from_sec1_bytes(point).map_err(|_| Fault::Invalid)?;
-                    let sig = p256::ecdsa::Signature::from_der(signature).map_err(|_| Fault::Invalid)?;
+                    let key = p256::ecdsa::VerifyingKey::from_sec1_bytes(point).map_err(|_| Fault::Malformed)?;
+                    let sig = p256::ecdsa::Signature::from_der(signature).map_err(|_| Fault::Malformed)?;
                     key.verify_prehash(&hashed, &sig).map_err(|_| Fault::Invalid)
                 }
                 P384 => {
-                    let key = p384::ecdsa::VerifyingKey::from_sec1_bytes(point).map_err(|_| Fault::Invalid)?;
-                    let sig = p384::ecdsa::Signature::from_der(signature).map_err(|_| Fault::Invalid)?;
+                    let key = p384::ecdsa::VerifyingKey::from_sec1_bytes(point).map_err(|_| Fault::Malformed)?;
+                    let sig = p384::ecdsa::Signature::from_der(signature).map_err(|_| Fault::Malformed)?;
                     key.verify_prehash(&hashed, &sig).map_err(|_| Fault::Invalid)
                 }
                 _ => Err(Fault::Unknown),
@@ -207,8 +222,10 @@ fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
     let bits = key.subject_public_key.as_bytes().ok_or(Fault::Unknown)?;
     let pkcs1 = rsa::pkcs1::RsaPublicKey::<der::asn1::UintRef<'_>>::from_der(bits).map_err(|_| Fault::Unknown)?;
     let modulus = pkcs1.modulus.as_bytes();
-    let significant = modulus.iter().skip_while(|b| **b == 0).count();
-    if significant.saturating_mul(8) < MIN_RSA_BITS {
+    let mut significant = modulus.iter().skip_while(|b| **b == 0);
+    let top = significant.next().copied().unwrap_or(0);
+    let bits = significant.count().saturating_mul(8).saturating_add(8usize.saturating_sub(top.leading_zeros() as usize));
+    if bits < MIN_RSA_BITS {
         return Err(Fault::Weak);
     }
     rsa::PublicKey::try_from(pkcs1).map_err(|_| Fault::Unknown)
