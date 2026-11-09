@@ -6,7 +6,7 @@
 use mailcraft_model::Message;
 use mailcraft_time::{DateTime, month_short};
 
-use crate::{WriteOptions, header, parse, write};
+use crate::{WriteOptions, header, parse_fetched, write};
 
 /// Read an mbox file.
 ///
@@ -14,7 +14,8 @@ use crate::{WriteOptions, header, parse, write};
 /// starts the file) or holds a time (`12:08:34`), as the separator lines of every mbox writer
 /// do. In the messages `>From ` lines lose one `>` (the `mboxrd` rule, which also reads `mboxo`
 /// files). Bytes before the first separator are read as a message too, so a lone `.eml` gives one
-/// message. Each message is read with [`parse()`], which never fails.
+/// message. Each message is read with [`crate::parse_fetched`], which never fails: a Digitally
+/// signed or Encrypted one keeps the bytes it came as.
 pub fn parse_mbox(bytes: &[u8]) -> Vec<Message> {
     mbox_messages(bytes).collect()
 }
@@ -82,7 +83,7 @@ fn finish(message: Option<Vec<u8>>) -> Option<Message> {
     } else if bytes.ends_with(b"\n\n") {
         bytes.truncate(bytes.len() - 1);
     }
-    if bytes.iter().all(u8::is_ascii_whitespace) { None } else { Some(parse(&bytes)) }
+    if bytes.iter().all(u8::is_ascii_whitespace) { None } else { Some(parse_fetched(&bytes)) }
 }
 
 /// Whether a line holds a clock time (`hh:mm`), as mbox separator lines do.

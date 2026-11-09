@@ -125,6 +125,28 @@ pub struct SyncRequest {
     /// account or from this computer (#451); after `ops`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<ImapPlace>,
+    /// Messages of a Gmail account's Inbox the owner moved to another of Gmail's categories here
+    /// (#911), for Gmail's API: after `ops`, before anything is read. Only for an account that
+    /// signs in with Google, and only while moves are switched on; empty otherwise.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_moves: Vec<GmailMove>,
+}
+
+/// Most moves between Gmail's categories asked of Gmail's API in one run ([`SyncRequest::gmail_moves`]):
+/// the rest wait for the next.
+pub const MAX_GMAIL_MOVES: usize = 500;
+
+/// One message moved to another of Gmail's categories here ([`SyncRequest::gmail_moves`]), or one
+/// Gmail took the move of ([`SyncResult::gmail_moved`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GmailMove {
+    /// The message here.
+    pub message: Id,
+    /// Gmail's own id of it (`X-GM-MSGID`), which its API knows it by (in hex).
+    pub id: u64,
+    /// The category it goes to.
+    pub category: crate::GmailCategory,
 }
 
 /// A message to put in one of the server's mailboxes ([`SyncRequest::places`]).
@@ -166,6 +188,7 @@ impl std::fmt::Debug for SyncRequest {
             .field("outbox", &self.outbox.len())
             .field("ops", &self.ops.len())
             .field("places", &self.places.len())
+            .field("gmail_moves", &self.gmail_moves.len())
             .finish()
     }
 }
@@ -361,6 +384,11 @@ pub struct MovingOut {
     /// hasn't shown it in another since: there may be nothing there to go back to (#451).
     #[serde(skip_serializing_if = "is_false")]
     pub left: bool,
+    /// `left` was said by a listing of that folder afresh that hasn't ended (#30): the copy may
+    /// still be there, in a page to come, and counts as one that may hold the bytes the message
+    /// came as until the listing ends without it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub listing: bool,
 }
 
 /// Whether two names are the same category's. Outlook's categories are matched by name and a
@@ -523,6 +551,31 @@ pub struct FolderDelta {
     /// large to download), so that they are not asked for at every run.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_done: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those too large to download (#30): what waits for the
+    /// bytes they came as can't have them here.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_too_large: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those the server refused (#30): asked for again by a run
+    /// after, so many times.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_refused: Vec<u32>,
+    /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
+    /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
+    /// ends the folder's reading; empty from every other server and folder.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail: Vec<GmailSorted>,
+}
+
+/// What Gmail said of one message of a Gmail account's Inbox ([`FolderDelta::gmail`], #911).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GmailSorted {
+    pub uid: u32,
+    /// The category Gmail put it in.
+    pub category: crate::GmailCategory,
+    /// Gmail's own id of it (`X-GM-MSGID`); 0 when the server gave none.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub id: u64,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).
@@ -591,6 +644,9 @@ pub struct Placed {
     pub uid: u32,
     pub uid_validity: u32,
     pub flags: RemoteFlags,
+    /// The message put there had the bytes it came as whole (#30, [`Message::original`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub original: bool,
 }
 
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).
@@ -666,6 +722,19 @@ pub struct SyncResult {
     /// Messages the server wouldn't take (see `errors`).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unplaced: Vec<Id>,
+    /// What became of [`SyncRequest::gmail_moves`]: the moves Gmail took (#911). One that isn't
+    /// here failed (see `errors`) or wasn't tried, and is asked for again next time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_moved: Vec<GmailMove>,
+    /// The moves Gmail refused on their own, one message at a time (#911): asked for again next
+    /// time, until Gmail has refused it [`crate::gmail::MAX_GMAIL_REFUSALS`] times.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_refused: Vec<GmailMove>,
+    /// How many of Gmail's messages had their moves not sent this run (the run's requests to
+    /// Gmail's API ran out); they wait for the next. Counted by Gmail's id: two copies here of
+    /// one message are one.
+    #[serde(skip_serializing_if = "is_zero_usize")]
+    pub gmail_unsent: usize,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
     /// piece of an answer: the problems since the piece before. In English: what the CLI, MCP
     /// and the log read.
@@ -722,7 +791,13 @@ impl SyncResult {
 
     /// How many changes made here the server took on.
     pub fn pushed_count(&self) -> usize {
-        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len() + self.placed.len() + self.unplaced.len()
+        self.flagged.len()
+            + self.moved.len()
+            + self.deleted.len()
+            + self.created.len()
+            + self.placed.len()
+            + self.unplaced.len()
+            + self.gmail_moved.len()
     }
 
     /// Whether there is anything in it for a mailbox to take in. A piece with only a line of
@@ -734,6 +809,8 @@ impl SyncResult {
             && self.filed.is_empty()
             && self.unfiled.is_empty()
             && self.unsure.is_empty()
+            && self.gmail_refused.is_empty()
+            && self.gmail_unsent == 0
             && self.pushed_count() == 0)
     }
 
@@ -759,6 +836,9 @@ impl SyncResult {
         self.created.extend(later.created);
         self.placed.extend(later.placed);
         self.unplaced.extend(later.unplaced);
+        self.gmail_moved.extend(later.gmail_moved);
+        self.gmail_refused.extend(later.gmail_refused);
+        self.gmail_unsent = self.gmail_unsent.saturating_add(later.gmail_unsent);
         self.errors.extend(later.errors);
         self.said.extend(later.said);
         for delta in later.folders {
@@ -773,6 +853,7 @@ impl SyncResult {
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
+                    folder.gmail.extend(delta.gmail);
                     folder.complete |= delta.complete;
                 }
                 None => self.folders.push(delta),
@@ -1226,6 +1307,10 @@ pub struct GraphFolder {
     /// which can't be deleted or moved (#756).
     #[serde(skip_serializing_if = "is_false")]
     pub well_known: bool,
+}
+
+fn is_zero_usize(n: &usize) -> bool {
+    *n == 0
 }
 
 fn is_zero_u32(n: &u32) -> bool {

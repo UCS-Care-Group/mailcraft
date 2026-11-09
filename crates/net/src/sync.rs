@@ -17,8 +17,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
-use mailcraft_model::sync::{FolderDelta, FolderState, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
-use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, OAuthProvider, Security, Server};
+use mailcraft_model::sync::{
+    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+};
+use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -39,6 +41,11 @@ const MAX_RUN_MESSAGES: usize = 100_000;
 /// The largest message that is downloaded whole. Of a larger one only the header is, and a note
 /// takes the place of its text ([`too_large`]).
 const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
+/// Most messages of a Gmail account's Inbox whose Gmail category is read in one run, the newest
+/// (#911); older ones keep what they had.
+const MAX_GMAIL_SORTED: usize = 200_000;
+/// Most messages of a Gmail account's Inbox looked through by one of Gmail's searches.
+const MAX_GMAIL_FOUND: usize = mailcraft_proto::imap::MAX_GMAIL_FOUND;
 /// Most messages of one mailbox downloaded again in one run (#650).
 const MAX_AGAIN: usize = 100;
 /// Most new messages handed over in one piece, and most bytes of them...
@@ -379,6 +386,8 @@ pub(crate) struct Host {
     pub(crate) files_sent: bool,
     /// It is Microsoft's (Microsoft 365, Outlook.com): the mailbox is on Exchange.
     pub(crate) microsoft: bool,
+    /// It is Gmail's: its Inbox has Gmail's categories, read with its own search (#911).
+    pub(crate) gmail: bool,
 }
 
 impl Host {
@@ -386,7 +395,8 @@ impl Host {
         let Some(server) = &account.incoming else { return Host::default() };
         let host = server.host.trim().trim_end_matches('.').to_ascii_lowercase();
         let microsoft = is_microsoft_host(&host);
-        Host { files_sent: microsoft || host_in(&host, &["gmail.com", "googlemail.com"]), microsoft }
+        let gmail = mailcraft_model::is_gmail_host(&host);
+        Host { files_sent: microsoft || gmail, microsoft, gmail }
     }
 }
 
@@ -662,6 +672,9 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         return Some(imap);
     }
     let arrived = push(run, &mut imap, &mailboxes)?;
+    // Moves between Gmail's categories made here (#911), through Gmail's API: before anything is
+    // read, so that what the Inbox's reading says of them agrees.
+    gmail_moves(run, host);
     // Asked only to tell, not to read: done.
     if request.push_only {
         return Some(imap);
@@ -682,13 +695,97 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         }
         let state = state_for(request, &remote, kind).filter(|state| claimed.insert(state.id));
         let arrived = arrived.get(&remote).map_or(&[][..], Vec::as_slice);
-        let folder = FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count) };
+        let gmail = host.gmail && kind == FolderKind::Inbox;
+        let folder = FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count), gmail };
         if !folder.run(&mut imap, run) {
             // The connection is gone: the other mailboxes wait for the next run.
             return None;
         }
     }
     Some(imap)
+}
+
+/// Tell Gmail's API of the moves between Gmail's categories made here ([`SyncRequest::gmail_moves`],
+/// #911), [`MAX_GMAIL_MOVES`] at most, in one `batchModify` for each category moved to: the moves
+/// of each batch it takes go back as moved (Gmail answers a batch as a whole, so a message it no
+/// longer has goes back as moved too, and the next reading of the Inbox sets it right). Only for a
+/// Gmail account that signs in with Google, whose token the API takes, and only while moves are
+/// switched on in this build; else nothing is sent, whatever the request asks.
+///
+/// A batch Gmail refuses (one id it no longer has refuses the lot) doesn't hold up the others: it
+/// is sent again as two halves, down to single messages, after every category's first batch has
+/// had its turn, so that one stale id costs a few requests and the rest still go this run, all of
+/// it at most `MAX_GMAIL_REQUESTS`. A message refused on its own goes back as refused
+/// ([`SyncResult::gmail_refused`]): the engine asks again at the next run, and after
+/// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] refusals gives the move up. Moves left
+/// when the requests run out go back as unsent ([`SyncResult::gmail_unsent`]) and wait for the
+/// next run. A token or a permission Gmail doesn't take, Gmail busy or out of reach stop the
+/// moves for this run, and that is said once.
+fn gmail_moves(run: &mut Run, host: Host) {
+    /// The most requests to Gmail's API in one run, the halves of refused batches included.
+    const MAX_GMAIL_REQUESTS: usize = 32;
+    let request = run.request;
+    let google = request.account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
+    if !crate::gmail::switched_on() || request.gmail_moves.is_empty() || !host.gmail || !google || request.access_token.is_empty() {
+        return;
+    }
+    let moves: Vec<_> = request.gmail_moves.iter().take(MAX_GMAIL_MOVES).filter(|m| m.id != 0).collect();
+    let batches: Vec<Vec<_>> = GmailCategory::ALL
+        .iter()
+        .flat_map(|category| {
+            let these: Vec<_> = moves.iter().copied().filter(|m| m.category == *category).collect();
+            these.chunks(crate::gmail::MAX_BATCH).map(<[_]>::to_vec).collect::<Vec<_>>()
+        })
+        .collect();
+    // Batches still to send, first in first out: halves queue behind every first batch.
+    let mut work: std::collections::VecDeque<Vec<_>> = batches.into();
+    let mut asked = 0usize;
+    while let Some(mut batch) = work.pop_front() {
+        if run.cancelled() {
+            return;
+        }
+        if asked >= MAX_GMAIL_REQUESTS {
+            let left: std::collections::BTreeSet<u64> = batch.iter().chain(work.iter().flatten()).map(|m| m.id).collect();
+            run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(left.len());
+            log::info!("gmail: {} messages' moves between categories wait for the next run", left.len());
+            return;
+        }
+        let Some(category) = batch.first().map(|m| m.category) else { continue };
+        // Two moves of one message (two copies here with Gmail's one id) send it once, and stay
+        // in one half when the batch is split.
+        batch.sort_by_key(|m| m.id);
+        let mut ids: Vec<u64> = batch.iter().map(|m| m.id).collect();
+        ids.dedup();
+        asked += 1;
+        match crate::gmail::batch_modify(&request.access_token, &ids, category) {
+            Ok(()) => run.out.gmail_moved.extend(batch.iter().copied().copied()),
+            Err(NetError::Proto(ProtoError::Rejected(_))) if ids.len() > 1 => {
+                let at = split_point(&batch);
+                let (first, second) = batch.split_at(at);
+                work.extend([first.to_vec(), second.to_vec()]);
+            }
+            Err(NetError::Proto(ProtoError::Rejected(_))) => run.out.gmail_refused.extend(batch.iter().copied().copied()),
+            // Nothing was sent (it can't be, for a batch made here): it waits.
+            Err(NetError::Config(_)) => run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(ids.len()),
+            Err(e) => {
+                // Counted by Gmail's message: two copies here are one message there.
+                let failed = batch.iter().chain(work.iter().flatten()).map(|m| m.id).collect::<std::collections::BTreeSet<u64>>().len();
+                let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };
+                log::info!("gmail: {failed} moves between categories didn't go");
+                run.out.errors.push(format!("Couldn't move {what} between Gmail's categories: {e}"));
+                return;
+            }
+        }
+    }
+}
+
+/// Where to split a batch sorted by Gmail's id in two: the middle, moved to the nearest place
+/// where the id changes, so that the moves of one message stay together. A batch with two ids
+/// or more always has one.
+fn split_point(batch: &[&mailcraft_model::sync::GmailMove]) -> usize {
+    let changes = |at: usize| at > 0 && at < batch.len() && batch.get(at - 1).map(|m| m.id) != batch.get(at).map(|m| m.id);
+    let mid = batch.len() / 2;
+    (0..batch.len()).flat_map(|d| [mid.saturating_add(d), mid.saturating_sub(d)]).find(|at| changes(*at)).unwrap_or(mid)
 }
 
 /// A size for a person to read: `100 MB`.
@@ -721,7 +818,7 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 /// The message a server handed over, with what the server knows about it.
 fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
-    let mut message = mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default());
+    let mut message = mailcraft_mime::parse_fetched(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
     message.read = flags.read;
     message.flag = if flags.flagged { FlagStatus::Flagged } else { FlagStatus::None };
@@ -741,6 +838,8 @@ fn message_from(fetched: Fetched) -> Message {
 fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     let mut message = message_from(header);
     message.attachments.clear();
+    // (Its header alone is no original of it, #30.)
+    message.original = None;
     message.body = Body {
         text: format!(
             "{NOT_DOWNLOADED_NOTE} it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
@@ -771,6 +870,8 @@ struct FolderSync<'a> {
     arrived: &'a [(u32, u32)],
     /// Which of the run's mailboxes this is, and of how many.
     place: (usize, usize),
+    /// It is a Gmail account's Inbox: Gmail's categories and ids of its messages are read too (#911).
+    gmail: bool,
 }
 
 impl FolderSync<'_> {
@@ -808,7 +909,7 @@ impl FolderSync<'_> {
         let uid_seen = self.state.filter(|_| !reset).map_or(0, |s| s.uid_seen);
         let uid_from = self.state.filter(|_| !reset).map_or(0, |s| s.uid_from);
 
-        let listed = match imap.uid_fetch_flags("1:*") {
+        let listed = match if self.gmail { imap.uid_fetch_flags_gmail("1:*") } else { imap.uid_fetch_flags("1:*") } {
             Ok(listed) => listed,
             // Some servers refuse `1:*` in an empty mailbox rather than answer with nothing.
             Err(ProtoError::Rejected(_)) if selected.exists == 0 => Vec::new(),
@@ -822,6 +923,9 @@ impl FolderSync<'_> {
         let highest = listed.iter().map(|m| m.uid).max();
         // Messages marked as deleted are on their way out; like other mail programs, we don't show them.
         let present: BTreeMap<u32, &Fetched> = listed.iter().filter(|m| !has(&m.flags, "\\Deleted")).map(|m| (m.uid, m)).collect();
+        let mut alive = true;
+        // Gmail's categories, before any message comes down, so that each comes with its own.
+        let sorted = if self.gmail { self.gmail_sort(imap, &listed, &present, run, &mut alive) } else { None };
 
         // What to download, in UID order: what isn't here of the newest the limit allows (of
         // all, without one), above how far the mailbox was read or below how far down. So what
@@ -851,13 +955,15 @@ impl FolderSync<'_> {
             complete: false,
             refetched: Vec::new(),
             refetch_done: Vec::new(),
+            refetch_too_large: Vec::new(),
+            refetch_refused: Vec::new(),
+            gmail: Vec::new(),
         };
-        let mut alive = true;
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
         let mut missed: Option<u32> = None;
         // Messages that were asked for and not handed over, without a word why.
         let mut silent: Vec<u32> = Vec::new();
-        let sizes = self.sizes(imap, &wanted, run, &mut alive);
+        let sizes = if alive { self.sizes(imap, &wanted, run, &mut alive) } else { BTreeMap::new() };
         let total = wanted.len();
         // The bytes of the messages waiting to be handed over.
         let mut waiting = 0usize;
@@ -884,7 +990,12 @@ impl FolderSync<'_> {
                     run.limits.messages = run.limits.messages.saturating_sub(1);
                     run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
                     waiting = waiting.saturating_add(bytes);
-                    delta.new.push(if large { too_large(fetched, size, run.limits.largest) } else { message_from(fetched) });
+                    let mut message = if large { too_large(fetched, size, run.limits.largest) } else { message_from(fetched) };
+                    if let Some(sorted) = &sorted {
+                        message.gmail_category = sorted.get(&uid).copied();
+                        message.gmail_id = present.get(&uid).and_then(|m| m.gmail_id).unwrap_or(0);
+                    }
+                    delta.new.push(message);
                 }
                 // Gone between the listing and now, as a rule (looked into below).
                 Ok(None) => silent.push(uid),
@@ -939,6 +1050,12 @@ impl FolderSync<'_> {
         };
         // Everything wanted came: the folder is read whole (an empty one at its first reading).
         delta.complete = alive && missed.is_none();
+        if let Some(sorted) = sorted {
+            delta.gmail = sorted
+                .into_iter()
+                .map(|(uid, category)| GmailSorted { uid, category, id: present.get(&uid).and_then(|m| m.gmail_id).unwrap_or(0) })
+                .collect();
+        }
         delta.new.sort_by_key(|m| m.uid);
         log::debug!("a folder: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
@@ -969,12 +1086,19 @@ impl FolderSync<'_> {
             let size = sizes.get(&uid).copied().unwrap_or(0);
             if size > run.limits.largest {
                 delta.refetch_done.push(uid);
+                delta.refetch_too_large.push(uid);
                 continue;
             }
             if usize::try_from(size).unwrap_or(usize::MAX) > run.limits.bytes {
                 continue;
             }
             match imap.uid_fetch_message(uid) {
+                // Handed over without the message (no `BODY[]`, or an empty one): nothing came,
+                // which is no word that its copy holds nothing either (#30). Settled as refused.
+                Ok(Some(fetched)) if fetched.body.as_ref().is_none_or(Vec::is_empty) => {
+                    delta.refetch_done.push(uid);
+                    delta.refetch_refused.push(uid);
+                }
                 Ok(Some(fetched)) => {
                     let bytes = fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
@@ -991,6 +1115,7 @@ impl FolderSync<'_> {
                     *alive = run.failed(said!("Couldn't download a message from \"{name}\" again", name = shown(&self.remote)), &e);
                     if !fatal && !run.cancelled() {
                         delta.refetch_done.push(uid);
+                        delta.refetch_refused.push(uid);
                     }
                 }
             }
@@ -1016,6 +1141,57 @@ impl FolderSync<'_> {
             }
         }
         there
+    }
+
+    /// Which of Gmail's categories each message of a Gmail account's Inbox is in (#911): four of
+    /// Gmail's own searches (`X-GM-RAW "category:social"` and the rest), each over sets of at most
+    /// [`MAX_GMAIL_FOUND`] of the messages the server listed, marked as deleted or not, so that no
+    /// answer can be longer than a line may be; the newest [`MAX_GMAIL_SORTED`] alone; Primary is
+    /// what none of them found of the messages not marked as deleted. Only what the sets name is taken from an answer, and a message two
+    /// answers name is in the first of them. `None` when any search didn't answer or the run was
+    /// called off: no message is then taken for Primary for want of an answer. A refusal is not
+    /// said to the owner, whose mail comes as it would without them; a lost connection is.
+    fn gmail_sort(
+        &self,
+        imap: &mut Imap<Stream<'_>>,
+        listed: &[Fetched],
+        present: &BTreeMap<u32, &Fetched>,
+        run: &mut Run,
+        alive: &mut bool,
+    ) -> Option<BTreeMap<u32, GmailCategory>> {
+        let uids: Vec<u32> = listed.iter().map(|m| m.uid).collect::<BTreeSet<u32>>().into_iter().collect();
+        let newest = uids.get(uids.len().saturating_sub(MAX_GMAIL_SORTED)..).unwrap_or_default();
+        let mut sorted: BTreeMap<u32, GmailCategory> = BTreeMap::new();
+        for chunk in newest.chunks(MAX_GMAIL_FOUND) {
+            let (Some(first), Some(last)) = (chunk.first(), chunk.last()) else { continue };
+            let set = if first == last { first.to_string() } else { format!("{first}:{last}") };
+            for category in GmailCategory::SEARCHED {
+                let Some(query) = category.query() else { continue };
+                if run.cancelled() {
+                    return None;
+                }
+                match imap.uid_search_gmail(&set, query) {
+                    Ok(found) => {
+                        for uid in found.into_iter().filter(|uid| present.contains_key(uid)) {
+                            sorted.entry(uid).or_insert(category);
+                        }
+                    }
+                    Err(e) => {
+                        let e = NetError::from(e);
+                        if e.is_fatal() {
+                            *alive = run.failed(said!("Couldn't read Gmail's categories of \"{name}\"", name = shown(&self.remote)), &e);
+                        } else {
+                            log::debug!("Gmail's categories weren't read: {e}");
+                        }
+                        return None;
+                    }
+                }
+            }
+            for uid in chunk.iter().filter(|uid| present.contains_key(uid)) {
+                sorted.entry(*uid).or_insert(GmailCategory::Primary);
+            }
+        }
+        Some(sorted)
     }
 
     /// The sizes of the messages about to be downloaded, so that one too large to take is
@@ -1131,10 +1307,10 @@ mod tests {
         };
         // Microsoft's and Google's keep what is sent through them; Microsoft's are Exchange.
         for host in ["outlook.office365.com", "imap-mail.outlook.com", " OUTLOOK.Office365.com. ", "outlook.com"] {
-            assert_eq!(named(host), Host { files_sent: true, microsoft: true }, "{host}");
+            assert_eq!(named(host), Host { files_sent: true, microsoft: true, gmail: false }, "{host}");
         }
         for host in ["imap.gmail.com", "imap.googlemail.com", " IMAP.GMAIL.COM. "] {
-            assert_eq!(named(host), Host { files_sent: true, microsoft: false }, "{host}");
+            assert_eq!(named(host), Host { files_sent: true, microsoft: false, gmail: true }, "{host}");
         }
         // Not a name that only looks like one of theirs, nor a server of one's own.
         for host in [
@@ -1288,6 +1464,7 @@ mod tests {
             flags: vec!["\\Seen".into(), "\\Flagged".into()],
             internal_date: Some(" 1-Jul-2003 09:52:37 +0000".into()),
             body: Some(header.to_vec()),
+            gmail_id: None,
         };
         let m = too_large(fetched, 60 * 1024 * 1024 + 1, MAX_MESSAGE);
         assert_eq!(

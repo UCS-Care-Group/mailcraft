@@ -174,7 +174,7 @@ fn copied_into_imap(w: &mut World, id: Id, uid: u32) -> Id {
     // None of what it said of itself goes up with it.
     assert!(!place.message.headers.iter().any(|(name, _)| is_verdict(name)), "{:?}", place.message.headers);
     let flags = RemoteFlags { draft: false, ..RemoteFlags::of(&place.message, 0) };
-    let placed = vec![Placed { message: copy, to_folder: place.to_folder, uid, uid_validity: 9, flags }];
+    let placed = vec![Placed { message: copy, to_folder: place.to_folder, uid, uid_validity: 9, flags, original: false }];
     apply_sync(&mut w.s, SyncResult { account: w.imap, placed, ..Default::default() }).unwrap();
     assert_eq!(w.s.mailbox.message(copy).map(|m| m.uid), Some(uid));
     copy

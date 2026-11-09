@@ -524,6 +524,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
+    // Gmail's categories, when they are tabs above a Gmail Inbox's list (#911).
+    crate::gmail_tabs::row(app, ui);
     let rows = app.session.rows();
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
@@ -1212,6 +1214,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
                 });
             });
         });
+        // Gmail's categories, for mail of a Gmail Inbox, where moves between them are on (#911).
+        crate::gmail_move::menu(app, ui);
         mi(ui, app, "Archive", "mail.archive", json!({}));
         ui.menu_button(tl!("Junk"), |ui| crate::ribbon::junk_menu(ui, app));
         mi(ui, app, "Delete", "mail.delete", json!({}));

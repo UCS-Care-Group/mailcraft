@@ -1,1 +1,0 @@
-- Nine more kinds of file that run or hand off to a program that runs what is in them are never opened from mail, and a file kind with a non-ASCII letter is asked about before it opens instead of being taken for a harmless one (AU3-V3, AU3-V4).

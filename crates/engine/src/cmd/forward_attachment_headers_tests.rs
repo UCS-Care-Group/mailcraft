@@ -91,17 +91,50 @@ fn sent_with_headers(s: &mut Session) -> mailcraft_model::Id {
     s.mailbox.add_message(m).unwrap()
 }
 
-#[test]
-fn only_headers_known_to_come_from_the_sender_or_the_servers_go_with_it() {
-    let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
-    let mut s = Session::at(sample::mailbox(now, 0), now, 0);
-    let id = sent_with_headers(&mut s);
+/// The `.eml` that Forward as Attachment attaches for message `id`.
+fn forwarded(s: &mut Session, id: mailcraft_model::Id) -> Vec<u8> {
     s.run("mail.forwardAsAttachment", &json!({"id": id})).unwrap();
-    let bytes = match s.compose.as_ref().unwrap().attachments.as_slice() {
+    match s.compose.as_ref().unwrap().attachments.as_slice() {
         [eml] => eml.data.to_vec(),
         other => panic!("{} attachments", other.len()),
-    };
-    let text = String::from_utf8_lossy(&bytes);
+    }
+}
+
+fn session() -> Session {
+    let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
+    Session::at(sample::mailbox(now, 0), now, 0)
+}
+
+#[test]
+fn only_headers_known_to_come_from_the_sender_or_the_servers_go_with_it() {
+    let mut s = session();
+    let id = sent_with_headers(&mut s);
+    only_those_go(&forwarded(&mut s, id));
+}
+
+/// A Digitally signed message (#30), whose original holds every one of those headers above its
+/// signed body: the same headers go, and the body goes as it came.
+#[test]
+fn a_signed_message_forwarded_takes_the_same_headers_and_its_body_as_it_came() {
+    let mut s = session();
+    let id = sent_with_headers(&mut s);
+    let above: String = KEPT.iter().chain(&DROPPED).map(|(name, value)| format!("{name}: {value}\r\n")).collect();
+    let original = format!(
+        "{above}From: Avery Quinn <avery@lumen.example>\r\nSubject: Budget\r\nMIME-Version: 1.0\r\n\
+         Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=sha-256; boundary=\"b\"\r\n\r\n\
+         --b\r\nContent-Type: text/plain\r\n\r\nThe numbers.\r\n--b\r\nContent-Type: application/pkcs7-signature\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\nZHVtbXk=\r\n--b--\r\n"
+    );
+    s.mailbox.message_mut(id).unwrap().original = mailcraft_model::Original::new(original.clone().into_bytes());
+    let bytes = forwarded(&mut s, id);
+    only_those_go(&bytes);
+    let body = |b: &[u8]| b.windows(4).position(|w| w == b"\r\n\r\n").map(|at| b[at + 4..].to_vec()).unwrap();
+    assert_eq!(body(&bytes), body(original.as_bytes()));
+}
+
+/// Of the header of `bytes`, KEPT and the message's own fields are there, and nothing else.
+fn only_those_go(bytes: &[u8]) {
+    let text = String::from_utf8_lossy(bytes);
     let header = text.split("\r\n\r\n").next().unwrap();
     // Each field once, unfolded: its name in lower case, and its value.
     let mut fields: Vec<(String, String)> = Vec::new();
