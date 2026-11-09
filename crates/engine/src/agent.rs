@@ -165,6 +165,8 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // Downloads a signed or encrypted message's own bytes again from its own server (#30).
+    "mail.checkAgain",
     "mail.new",
     "mail.reply",
     "mail.replyAll",

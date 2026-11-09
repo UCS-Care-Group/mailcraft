@@ -382,6 +382,11 @@ pub struct MovingOut {
     /// hasn't shown it in another since: there may be nothing there to go back to (#451).
     #[serde(skip_serializing_if = "is_false")]
     pub left: bool,
+    /// `left` was said by a listing of that folder afresh that hasn't ended (#30): the copy may
+    /// still be there, in a page to come, and counts as one that may hold the bytes the message
+    /// came as until the listing ends without it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub listing: bool,
 }
 
 /// Whether two names are the same category's. Outlook's categories are matched by name and a
@@ -544,6 +549,14 @@ pub struct FolderDelta {
     /// large to download), so that they are not asked for at every run.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_done: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those too large to download (#30): what waits for the
+    /// bytes they came as can't have them here.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_too_large: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those the server refused (#30): asked for again by a run
+    /// after, so many times.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_refused: Vec<u32>,
     /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
     /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
     /// ends the folder's reading; empty from every other server and folder.
@@ -629,6 +642,9 @@ pub struct Placed {
     pub uid: u32,
     pub uid_validity: u32,
     pub flags: RemoteFlags,
+    /// The message put there had the bytes it came as whole (#30, [`Message::original`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub original: bool,
 }
 
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).

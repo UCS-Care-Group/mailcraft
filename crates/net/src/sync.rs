@@ -795,7 +795,7 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 /// The message a server handed over, with what the server knows about it.
 fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
-    let mut message = mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default());
+    let mut message = mailcraft_mime::parse_fetched(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
     message.read = flags.read;
     message.flag = if flags.flagged { FlagStatus::Flagged } else { FlagStatus::None };
@@ -815,6 +815,8 @@ fn message_from(fetched: Fetched) -> Message {
 fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     let mut message = message_from(header);
     message.attachments.clear();
+    // (Its header alone is no original of it, #30.)
+    message.original = None;
     message.body = Body {
         text: format!(
             "{NOT_DOWNLOADED_NOTE} it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
@@ -930,6 +932,8 @@ impl FolderSync<'_> {
             complete: false,
             refetched: Vec::new(),
             refetch_done: Vec::new(),
+            refetch_too_large: Vec::new(),
+            refetch_refused: Vec::new(),
             gmail: Vec::new(),
         };
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
@@ -1056,12 +1060,19 @@ impl FolderSync<'_> {
             let size = sizes.get(&uid).copied().unwrap_or(0);
             if size > run.limits.largest {
                 delta.refetch_done.push(uid);
+                delta.refetch_too_large.push(uid);
                 continue;
             }
             if usize::try_from(size).unwrap_or(usize::MAX) > run.limits.bytes {
                 continue;
             }
             match imap.uid_fetch_message(uid) {
+                // Handed over without the message (no `BODY[]`, or an empty one): nothing came,
+                // which is no word that its copy holds nothing either (#30). Settled as refused.
+                Ok(Some(fetched)) if fetched.body.as_ref().is_none_or(Vec::is_empty) => {
+                    delta.refetch_done.push(uid);
+                    delta.refetch_refused.push(uid);
+                }
                 Ok(Some(fetched)) => {
                     let bytes = fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
@@ -1078,6 +1089,7 @@ impl FolderSync<'_> {
                     *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e);
                     if !fatal && !run.cancelled() {
                         delta.refetch_done.push(uid);
+                        delta.refetch_refused.push(uid);
                     }
                 }
             }

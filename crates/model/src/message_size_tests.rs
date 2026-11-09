@@ -21,6 +21,13 @@ fn a_whole_message_has_its_own_size() {
     assert_eq!(Message { server: server(30 << 20), ..whole() }.list_size(), Some(2000));
 }
 
+/// #30: the bytes a protected message came as count toward what is kept, not the size shown.
+#[test]
+fn the_original_is_not_shown_twice_in_the_size() {
+    let signed = Message { original: Original::new(vec![b'o'; 2500]), ..whole() };
+    assert_eq!((signed.size(), signed.list_size()), (4500, Some(2000)));
+}
+
 /// #273: of a Microsoft account's message only partly here, the size its server said (or, #300,
 /// that of the whole message when it was fetched); what is here when there is none.
 #[test]
