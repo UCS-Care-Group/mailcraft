@@ -314,57 +314,145 @@ fn a_copy_of_a_microsoft_message_whose_bytes_cant_be_read_here_has_them_fetched_
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// The copy, still waiting to go onto the other server, moved onto this computer: the server's
-/// copy goes only once this one is safe here, whole in the mailbox file with the bytes it came
-/// as, which are asked for from that server meanwhile.
+/// Whether moving `copy` into `folder` is refused as one still on its way to its server.
+fn refused_on_its_way(s: &mut Session, copy: Id, folder: Id) -> bool {
+    s.run("mail.move", &json!({"ids": [copy], "folder": folder})).is_err_and(|e| e.to_string().contains("still on its way"))
+}
+
+/// The copy, still on its way to the other server, isn't moved onto this computer, where nothing
+/// would hold the delete of the server's copy: it goes there once it is on its own server.
 #[test]
-fn a_waiting_copy_moved_onto_this_computer_keeps_the_delete_until_it_is_safe_here() {
+fn a_waiting_copy_of_a_signed_message_deleted_for_good_goes_onto_this_computer_once_it_is_on_its_server() {
     let dir = folder("local");
     let path = dir.join("mailbox.mailcraft");
     let (s, from, to, id) = two_imap();
     let mut s = reopened_without_original(&s, id, &path);
     let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
-    let kept = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
     let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
     s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
-    s.run("mail.move", &json!({"ids": [copy], "folder": kept})).unwrap();
-    assert!(!deletes(&s, from), "not in the mailbox file yet");
-    save(&mut s, &path);
-    assert!(!deletes(&s, from), "the bytes it came as can't be read here");
+    assert!(refused_on_its_way(&mut s, copy, here));
+    assert_eq!(s.mailbox.message(copy).unwrap().folder, theirs);
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
     s.ask_for_lost_originals();
-    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
-    assert_eq!(crate::cmd::imap_again::wanted(&s.mailbox, from, s.now()).get(&inbox).map(Vec::as_slice), Some(&[1u32][..]));
+    assert!(!deletes(&s, from));
     refetched(&mut s, from, 1, &long_signed());
-    assert!(s.mailbox.message(copy).unwrap().has_original());
-    assert!(!deletes(&s, from), "in memory alone");
     save(&mut s, &path);
+    let asked = sync_request(&s, to).unwrap();
+    apply_sync(&mut s, SyncResult { account: to, placed: vec![put(&asked, copy, 60)], ..Default::default() }).unwrap();
     assert!(deletes(&s, from));
+    s.run("mail.move", &json!({"ids": [copy], "folder": here})).unwrap();
+    assert_eq!(s.mailbox.message(copy).unwrap().account, local);
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// Out of a Microsoft account alike: the delete waits as a move out of that server does.
+/// Out of a Microsoft account alike.
 #[test]
-fn a_waiting_copy_of_a_microsoft_message_moved_onto_this_computer_keeps_the_delete_until_it_is_safe_here() {
-    use mailcraft_model::sync::{GraphFetchResult, GraphFetched};
+fn a_waiting_copy_of_a_signed_microsoft_message_deleted_for_good_isnt_moved_onto_this_computer() {
     let dir = folder("ms-local");
     let path = dir.join("mailbox.mailcraft");
     let (mut s, ms, to, id) = microsoft_and_imap(&path);
     let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
-    let kept = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
     let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
     s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
-    s.run("mail.move", &json!({"ids": [copy], "folder": kept})).unwrap();
+    assert!(refused_on_its_way(&mut s, copy, here));
     save(&mut s, &path);
-    assert!(!graph_deletes(&s, ms), "the bytes it came as can't be read here");
+    assert!(!graph_deletes(&s, ms));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Two copies: one isn't moved onto this computer while the other waits too, and the other
+/// deleted for good leaves the first to hold the server's copy.
+#[test]
+fn of_two_waiting_copies_one_isnt_moved_onto_this_computer_and_holds_the_delete_once_the_other_is_deleted() {
+    let dir = folder("two-then-delete");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let third = imap_account(&mut s, "home@mail.example", vec![]);
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let (b, c) = (s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(third, FolderKind::Inbox).unwrap());
+    let copy_b = s.run("mail.copy", &json!({"ids": [id], "folder": b})).unwrap()["copies"][0].as_u64().unwrap();
+    let copy_c = s.run("mail.copy", &json!({"ids": [id], "folder": c})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert!(refused_on_its_way(&mut s, copy_b, here));
+    s.run("mail.deletePermanently", &json!({"ids": [copy_c]})).unwrap();
+    save(&mut s, &path);
+    assert!(!deletes(&s, from), "copy B still waits");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Nor into a folder of an Exchange server account's, which no server is given either.
+#[test]
+fn a_waiting_copy_of_a_signed_message_deleted_for_good_isnt_moved_into_an_exchange_accounts_folder() {
+    let dir = folder("exchange");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let ews = json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": "https://mail.example.org/EWS/Exchange.asmx", "username": "CORP\\ada"}});
+    let exchange = s.run("account.add", &ews).unwrap()["id"].as_u64().unwrap();
+    let there = match s.mailbox.folder_of_kind(exchange, FolderKind::Inbox) {
+        Some(f) => f,
+        None => s.mailbox.add_folder(exchange, None, "Kept").unwrap(),
+    };
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert!(refused_on_its_way(&mut s, copy, there));
+    save(&mut s, &path);
+    assert!(!deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A copy into a Microsoft account alike; and Undo after the refused move undoes the delete for
+/// good, which lets nothing go.
+#[test]
+fn a_waiting_copy_into_microsoft_isnt_moved_onto_this_computer_and_undo_lets_nothing_go() {
+    let dir = folder("undo-ms");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, _, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let ms = microsoft(&mut s, "owner@example.org");
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert!(refused_on_its_way(&mut s, copy, here));
+    save(&mut s, &path);
+    assert!(!deletes(&s, from));
+    assert!(s.undo());
+    save(&mut s, &path);
+    assert!(s.mailbox.message(id).is_some(), "the delete for good undone");
+    assert!(!deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The server no longer has the message (deleted there meanwhile): its copy asks it for the bytes
+/// no more, and waits for them no more.
+#[test]
+fn a_copy_stops_asking_a_microsoft_server_that_no_longer_has_the_message() {
+    use mailcraft_model::sync::{GraphMailResult, MessagePage};
+    let dir = folder("ms-gone");
+    let path = dir.join("mailbox.mailcraft");
+    let (mut s, ms, to, id) = microsoft_and_imap(&path);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
     s.ask_for_lost_originals();
-    let fetched = vec![GraphFetched { id: "AAkA7".into(), mime: long_signed() }];
-    let result = GraphFetchResult { account: ms, email: "owner@example.org".into(), fetched, ..Default::default() };
-    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
-    assert!(s.mailbox.message(copy).unwrap().has_original());
+    assert_eq!(crate::cmd::graph_mail::graph_fetch_request(&s, ms, None, 10).unwrap().ids, ["AAkA7"]);
+    let page = MessagePage { folder: "in".into(), removed: vec!["AAkA7".into()], link: "d1".into(), caught_up: true, ..Default::default() };
+    let run = GraphMailResult { account: ms, email: "owner@example.org".into(), pages: vec![page], whole: true, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_mail(&mut s, run).unwrap();
+    assert!(crate::cmd::graph_mail::graph_fetch_request(&s, ms, None, 10).unwrap().ids.is_empty());
+    // Nothing has the bytes now: it waits for nothing, and goes made of its parts.
     save(&mut s, &path);
-    assert!(graph_deletes(&s, ms));
+    assert_eq!(sync_request(&s, to).unwrap().places.len(), 1);
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -613,6 +613,15 @@ impl Message {
         self.placed.clear();
     }
 
+    /// Whether a server may still have this message as `id`, as far as this mailbox knows: where
+    /// it lies in its account, or as the copy it is being moved out of (#451); not once a listing
+    /// said it left (one a listing afresh hasn't come to yet may be there still, #30).
+    pub fn on_server_as(&self, id: &str) -> bool {
+        let lies = self.server.as_ref().filter(|s| s.id == id).map(|s| !s.gone);
+        let out = self.moving_out.as_ref().filter(|out| out.id == id).map(|out| !out.left || out.listing);
+        lies.or(out).unwrap_or(true)
+    }
+
     /// The message without its content (its text, HTML, the words its sender hid, its files and
     /// the bytes it came as (#30), in memory or kept on disk): where and how it lies, for a copy
     /// that gives it its content back (#566).

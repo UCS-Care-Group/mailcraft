@@ -1213,6 +1213,14 @@ impl Default for Mailbox {
 pub const BETWEEN_MAILBOXES: &str =
     "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer";
 
+/// Why a copy of a protected message deleted for good, on its way to its server, stays in its
+/// mailbox until it is there (#566, [`Mailbox::held_for_copy`]).
+fn on_its_way(subject: &str) -> String {
+    format!(
+        "\"{subject}\" is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+    )
+}
+
 /// Why mail from another mailbox doesn't go into an Outbox that sends what lies in it, as a
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
@@ -2432,14 +2440,7 @@ impl Mailbox {
     /// message again and this copy goes at once.
     fn place_called_off(&mut self, id: Id, to: Id, fresh: bool) {
         if !fresh {
-            let source = self.queued.iter().find_map(|q| match q {
-                Queued::PlaceMessage { message, source, .. } if *message == id => *source,
-                _ => None,
-            });
             self.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
-            if let Some(source) = source.filter(|_| self.account(to).is_some_and(|a| a.kind == AccountKind::Local)) {
-                self.held_delete_follows(id, source);
-            }
         }
         let elsewhere = self.original_elsewhere(id, fresh);
         let Some(m) = self.message(id) else { return };
@@ -2473,39 +2474,6 @@ impl Mailbox {
         }
     }
 
-    /// `copy`, a copy of `source` that was on its way to another account's server while `source`,
-    /// deleted for good here, waited to go from its own (#566), stays on this computer instead.
-    /// When no other copy of `source` waits, that delete becomes the move out of the server a
-    /// message moved onto this computer makes ([`Pending::Move`] of an IMAP account's,
-    /// [`Message::moving_out`] of a Microsoft account's): the server's copy goes only once `copy`
-    /// is safe here, whole in the mailbox file with the bytes a protected message came as (#30),
-    /// which are asked for from that server meanwhile.
-    fn held_delete_follows(&mut self, copy: Id, source: Id) {
-        let Some(here) = self.message(copy).filter(|m| m.moving_out.is_none()).map(|m| m.folder) else { return };
-        if self.copy_waits_for(source) {
-            return;
-        }
-        let held = |kept: &Option<Box<Message>>| kept.as_ref().is_some_and(|k| k.id == source);
-        for p in &mut self.pending {
-            let Pending::Delete { account, from, uid, kept, .. } = p else { continue };
-            if held(kept) {
-                let synced = kept.as_ref().and_then(|k| k.synced);
-                *p = Pending::Move { account: *account, message: copy, from: std::mem::take(from), uid: *uid, synced, to: here };
-                return;
-            }
-        }
-        let at = self.queued.iter().position(|q| matches!(q, Queued::DeleteMessage { kept, .. } if held(kept)));
-        let Some(Queued::DeleteMessage { account, id, kept }) = at.map(|at| self.queued.remove(at)) else { return };
-        // (Where the server has it: as it lay in its account, or as it was being moved out of it.)
-        let folder = kept.as_ref().and_then(|k| {
-            let lay = k.server.as_ref().filter(|s| s.id == id).map(|s| s.folder.clone());
-            lay.or_else(|| k.moving_out.as_ref().filter(|out| out.id == id).map(|out| out.folder.clone()))
-        });
-        if let Ok(m) = self.message_mut(copy) {
-            m.moving_out = Some(crate::sync::MovingOut { account, id, folder: folder.unwrap_or_default(), ..Default::default() });
-        }
-    }
-
     /// A move between accounts where the server of one of them is told of it: out of a
     /// Microsoft account (R3 spec S19), or into a Microsoft or an IMAP account (#70, #451).
     /// Whether it was one (and is done).
@@ -2527,6 +2495,13 @@ impl Mailbox {
         let from_account = m.account;
         if from_account == to_account {
             return Ok(false);
+        }
+        // A copy of a Digitally signed or Encrypted message deleted for good, on its way to its
+        // server (#566): the server the message was copied from keeps it until the copy is there,
+        // in case the bytes it came as (#30) are lost here. Nothing would hold it once the copy
+        // was in a mailbox no server is given; it goes elsewhere once it is on its own.
+        if !fresh && !self.puts_on_server(to_account) && m.original.is_some() && !m.original_asked && self.held_for_copy(id).is_some() {
+            return Err(invalid(on_its_way(&subject_said(m))));
         }
         // Not into an Outbox that would send it, the account it came from's included; an IMAP
         // account's holds it (#607).
@@ -2790,7 +2765,9 @@ impl Mailbox {
             })
             .or_else(|| {
                 self.queued.iter().find_map(|q| match q {
-                    Queued::DeleteMessage { account, kept, .. } if held(kept) => Some((*account, false)),
+                    Queued::DeleteMessage { account, id, kept } if held(kept) && kept.as_ref().is_some_and(|k| k.on_server_as(id)) => {
+                        Some((*account, false))
+                    }
                     _ => None,
                 })
             })
