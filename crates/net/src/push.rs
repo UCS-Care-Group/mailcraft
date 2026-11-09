@@ -535,6 +535,8 @@ impl<'a> Push<'a> {
                 Err(alive) => return alive,
             };
             let given = RemoteFlags { draft: false, ..RemoteFlags::of(message, 0) };
+            // It had the bytes it came as whole (#30): what it was moved out of may go then.
+            let original = message.original.is_some();
             // A copy without a marker that can be written (the engine always gives one) can't be
             // told from other mail there: it is only ever where the server says it put it.
             let marker = Some(marker.as_str()).filter(|m| marked(m));
@@ -556,7 +558,7 @@ impl<'a> Push<'a> {
                         // Put there before: it is the message's copy, with the flags it has there
                         // (what changed here since goes up next).
                         self.arrived.entry(destination.remote.clone()).or_default().push((*uid_validity, uid));
-                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags });
+                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags, original });
                         continue;
                     }
                     Ok(None) => {}
@@ -614,7 +616,7 @@ impl<'a> Push<'a> {
                     if uid != 0 {
                         self.arrived.entry(destination.remote.clone()).or_default().push((uid_validity, uid));
                     }
-                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given });
+                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given, original });
                 }
                 Err(e) => {
                     let e = NetError::from(e);

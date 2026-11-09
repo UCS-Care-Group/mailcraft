@@ -118,3 +118,17 @@ Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=\"smime.p7
     assert!(!put.windows(der.len()).any(|w| w == der));
     assert!(!String::from_utf8_lossy(&put).to_ascii_lowercase().contains("content-transfer-encoding: binary"));
 }
+
+/// A message asked for again that comes without its bytes (no `BODY[]`, or an empty one) is
+/// settled as refused: nothing came, which says nothing of what its copy holds (#30).
+#[test]
+fn a_message_asked_for_again_that_comes_empty_is_refused() {
+    let imap = Fake::imap(imap_world());
+    let mut folders = synced_folders_of(&imap);
+    imap.world().mailbox("INBOX").messages.iter_mut().find(|m| m.uid == 1).unwrap().body.clear();
+    folders.iter_mut().find(|f| f.remote == "INBOX").unwrap().again = vec![1];
+    let result = sync(&request(account(Some(&imap), None), folders));
+    let inbox = delta(&result, "INBOX");
+    assert!(inbox.refetched.is_empty());
+    assert_eq!((inbox.refetch_done.as_slice(), inbox.refetch_refused.as_slice()), (&[1][..], &[1][..]));
+}

@@ -382,6 +382,11 @@ pub struct MovingOut {
     /// hasn't shown it in another since: there may be nothing there to go back to (#451).
     #[serde(skip_serializing_if = "is_false")]
     pub left: bool,
+    /// `left` was said by a listing of that folder afresh that hasn't ended (#30): the copy may
+    /// still be there, in a page to come, and counts as one that may hold the bytes the message
+    /// came as until the listing ends without it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub listing: bool,
 }
 
 /// Whether two names are the same category's. Outlook's categories are matched by name and a
@@ -637,6 +642,9 @@ pub struct Placed {
     pub uid: u32,
     pub uid_validity: u32,
     pub flags: RemoteFlags,
+    /// The message put there had the bytes it came as whole (#30, [`Message::original`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub original: bool,
 }
 
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).

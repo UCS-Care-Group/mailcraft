@@ -46,7 +46,7 @@ fn an_imap_message_is_asked_for_again_by_its_uid_and_keeps_its_original() {
     let account = s.mailbox.message(id).unwrap().account;
     let folder = s.mailbox.message(id).unwrap().folder;
     assert!(s.mailbox.message(id).unwrap().refetch);
-    assert_eq!(imap_again::wanted(&s.mailbox, account).get(&folder).map(Vec::as_slice), Some(&[7u32][..]));
+    assert_eq!(imap_again::wanted(&s.mailbox, account, s.now()).get(&folder).map(Vec::as_slice), Some(&[7u32][..]));
     // What the server gives again is taken in: the bytes it came as, and the mark goes.
     imap_again::take_again(&mut s.mailbox, id, mailcraft_mime::parse_fetched(SIGNED));
     let m = s.mailbox.message(id).unwrap();

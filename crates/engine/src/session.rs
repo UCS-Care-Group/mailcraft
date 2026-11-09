@@ -2210,6 +2210,11 @@ impl Session {
         text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
+    /// Whether the bytes message `m` came as (#30) are whole here: in memory, or read back.
+    pub(crate) fn original_readable(&self, m: &Message) -> bool {
+        m.original.as_ref().is_some_and(|o| !o.data.is_empty() || o.kept.is_some_and(|r| self.fetch(&r).is_ok()))
+    }
+
     /// [`Session::readable_whole`] but for the bytes a protected message came as (#30), which
     /// [`Session::held_for_original`] answers for: what a copy is made of when nothing else can
     /// hold them.
@@ -2263,10 +2268,12 @@ impl Session {
                 format!("\"{subject}\" waits to go: the bytes it came as can't be read on this computer, and are asked for from where it came")
             }
             Held::NotGiven => {
-                format!("\"{subject}\" waits to go: the server it came from didn't give the bytes it came as, and the copy there stays")
+                format!(
+                    "\"{subject}\" waits to go: the server it came from didn't give the bytes it came as, and the copy there stays; Check again asks once more"
+                )
             }
             Held::NoRoom => format!(
-                "\"{subject}\" waits to go: there is no room on this computer for the bytes it came as, and the copy where it came from stays"
+                "\"{subject}\" waits to go: there is no room on this computer for the bytes it came as, and the copy where it came from stays; Check again asks once more"
             ),
         }))
     }
@@ -2291,6 +2298,14 @@ impl Session {
             && !lost.contains(&id)
         {
             lost.push(id);
+        }
+    }
+
+    /// What was said of message `id` waiting for the bytes it came as (#30) is said again when it
+    /// waits again: Check again asked once more.
+    pub(crate) fn forget_told_held(&self, id: Id) {
+        if let Ok(mut told) = self.told_held.lock() {
+            told.retain(|(said, _)| *said != id);
         }
     }
 
@@ -3281,13 +3296,13 @@ impl Session {
     /// ([`crate::cmd::mail::check_again::lost`]), or from the copy it is being moved out of
     /// ([`crate::cmd::mail::check_again::ask_source`]). Whether it was asked for.
     fn ask_original(&mut self, id: Id) -> bool {
-        // No room here for them when they last came: asked again once the mailbox keeps less.
+        // No room here for them when they last came: asked again once there is room for them.
         let kept = self.mailbox.messages.originals_size();
         let Some(m) = self.mailbox.message(id) else { return false };
         let kind = self.mailbox.account(m.account).map(|a| a.kind);
         let source = crate::cmd::mail::check_again::source_copy(&self.mailbox, id);
         let mut copy = Message::clone(m);
-        if copy.original_no_room > 0 && kept < copy.original_no_room {
+        if copy.original_no_room > 0 && kept.saturating_add(copy.original_no_room) <= mailcraft_model::MAX_ORIGINALS {
             copy.original_no_room = 0;
         }
         let asked = if source.is_some() {

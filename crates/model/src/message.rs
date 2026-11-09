@@ -434,14 +434,35 @@ pub struct Message {
     #[serde(skip_serializing_if = "is_false")]
     pub original_asked: bool,
     /// How many times the server refused the bytes it came as when they were asked for again
-    /// (#30), or [`ORIGINAL_TRIES`] once it is given up on (refused that often, or too large to
-    /// take): not asked again then, and what waits for them goes on waiting.
+    /// (#30), or [`ORIGINAL_TRIES`] once it is given up on (refused that often over at least
+    /// [`ORIGINAL_PATIENCE`], or too large to take): not asked again then until Check again, and
+    /// what waits for them goes on waiting.
     #[serde(skip_serializing_if = "is_zero_u8")]
     pub original_tries: u8,
-    /// What the mailbox kept of originals in all when there was no room for this one's (#30), the
-    /// bytes having come: not asked for again until the mailbox keeps less. 0: none of that.
+    /// When the server first refused them ([`Message::original_tries`]); 0: it hasn't.
+    #[serde(skip_serializing_if = "is_zero_i64")]
+    pub original_refused: Timestamp,
+    /// Not asked for again before this time, after a refusal (#30); 0: whenever.
+    #[serde(skip_serializing_if = "is_zero_i64")]
+    pub original_retry: Timestamp,
+    /// The size of the bytes it came as when there was no room for them here (#30), the bytes
+    /// having come: not asked for again until there is room for that much. 0: none of that.
     #[serde(skip_serializing_if = "is_zero_u64")]
     pub original_no_room: u64,
+    /// The account whose server took a copy of it, moved there, while the bytes it came as were
+    /// whole here (#30): written into that copy, or kept on this computer beside it. What it was
+    /// moved out of may go then; 0: no such copy.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub original_placed: Id,
+}
+
+/// The least time, in seconds, over which a server's refusals of the bytes a message came as are
+/// counted before they are asked for no more ([`Message::original_tries`]): a day, so that an
+/// outage doesn't hold a move for good.
+pub const ORIGINAL_PATIENCE: Timestamp = 24 * 60 * 60;
+
+fn is_zero_i64(n: &i64) -> bool {
+    *n == 0
 }
 
 /// How many refusals of the bytes a message came as are taken before they are asked for no more

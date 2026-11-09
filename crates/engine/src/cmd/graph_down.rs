@@ -108,10 +108,11 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 s.gone = true;
             }
             // Being moved out of the account: still in that folder only if the listing has it (#451).
+            // Until the listing has ended, it may be in a page to come (#30): `listing`.
             if m.moving_out.as_ref().is_some_and(|out| out.account == account && out.folder == page.folder && !out.left)
                 && let Some(out) = std::sync::Arc::make_mut(m).moving_out.as_mut()
             {
-                out.left = true;
+                (out.left, out.listing) = (true, true);
             }
         }
     }
@@ -124,7 +125,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 && let Ok(m) = mb.message_mut(m)
                 && let Some(out) = m.moving_out.as_mut().filter(|out| out.folder == page.folder)
             {
-                out.left = true;
+                (out.left, out.listing) = (true, false);
             }
             continue;
         };
@@ -164,7 +165,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     && let Ok(m) = mb.message_mut(m)
                     && let Some(out) = m.moving_out.as_mut()
                 {
-                    (out.folder, out.left) = (page.folder.clone(), false);
+                    (out.folder, out.left, out.listing) = (page.folder.clone(), false, false);
                 }
             }
             None => {
@@ -196,6 +197,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     }
                     down.new += 1;
                 }
+            }
+        }
+    }
+    // A listing afresh that ended without a copy being moved out: it left that folder (#30).
+    if page.caught_up {
+        for m in mb.messages.values_mut() {
+            if m.moving_out.as_ref().is_some_and(|out| out.account == account && out.folder == page.folder && out.listing)
+                && let Some(out) = std::sync::Arc::make_mut(m).moving_out.as_mut()
+            {
+                out.listing = false;
             }
         }
     }
@@ -493,11 +504,12 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
     let replaced = mb.message(here).and_then(|m| m.original.as_ref()).map_or(0, mailcraft_model::Original::size);
-    // (No room for it: what the mailbox keeps then, below which it is asked for again.)
+    // (No room for it: how much room it needs, which there must be before it is asked again.)
     let mut no_room = 0;
-    if read.original.as_ref().is_some_and(|o| !mb.room_for_original(o.size().saturating_sub(replaced))) {
+    let needs = read.original.as_ref().map_or(0, |o| o.size().saturating_sub(replaced));
+    if read.original.is_some() && !mb.room_for_original(needs) {
         read.original = None;
-        no_room = mb.messages.originals_size().max(1);
+        no_room = needs.max(1);
     }
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came

@@ -1067,6 +1067,12 @@ impl FolderSync<'_> {
                 continue;
             }
             match imap.uid_fetch_message(uid) {
+                // Handed over without the message (no `BODY[]`, or an empty one): nothing came,
+                // which is no word that its copy holds nothing either (#30). Settled as refused.
+                Ok(Some(fetched)) if fetched.body.as_ref().is_none_or(Vec::is_empty) => {
+                    delta.refetch_done.push(uid);
+                    delta.refetch_refused.push(uid);
+                }
                 Ok(Some(fetched)) => {
                     let bytes = fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);

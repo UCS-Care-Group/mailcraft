@@ -16,8 +16,12 @@ use super::{fail, needs_message};
 use crate::{CmdResult, Session, p};
 
 /// Why message `m` can't be checked again, or `None` when it can: it looks Digitally signed or
-/// Encrypted, hasn't the bytes it came as, and a server still has it whole.
+/// Encrypted, hasn't the bytes it came as, and a server still has it whole; or its move waits
+/// for them from the copy it came from, which is asked no more ([`held_move`]).
 pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
+    if held_move(mb, m) {
+        return None;
+    }
     if m.has_original() {
         return Some("the message has the bytes it came as already");
     }
@@ -27,7 +31,7 @@ pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
     if m.parts_removed {
         return Some("a part was removed from the message here, so the bytes it came as aren't this message any more");
     }
-    if m.original_wanted || m.refetch {
+    if (m.original_wanted || m.refetch) && !stale(mb, m) {
         return Some("the bytes it came as are asked for already");
     }
     // (Where it is first, and what it holds last: this is asked every frame a menu shows it.)
@@ -88,11 +92,29 @@ pub(crate) fn lost(kind: Option<AccountKind>, m: &mut Message) -> bool {
     true
 }
 
+/// The gate every release of the copy a message was moved out of goes through (#30: the Graph
+/// run's moved-out changes, the IMAP run's deletion of an original, [`crate::cmd::account::original_goes`],
+/// [`crate::cmd::graph_place::safe_here`] for every destination): the bytes `m` came as can't be
+/// lost with that copy. It may go when `m` has none named, when a download from a server brought
+/// the message without them ([`Message::original_asked`]), or when the copy where it is now was
+/// put there while they were whole here ([`Message::original_placed`]); a caller that reads them
+/// whole here lets it go too. Otherwise it waits: a placement gone wrong is a copy too many,
+/// never a loss.
+pub(crate) fn may_release(m: &Message) -> bool {
+    m.original.is_none() || m.original_asked || (m.original_placed != 0 && m.original_placed == m.account)
+}
+
 /// Whether the bytes `m` came as are asked for no more (#30): refused too often, too large to
-/// take here ([`Message::original_tries`]), or no room for them here until the mailbox keeps less
+/// take here ([`Message::original_tries`]), or no room for them here until there is
 /// ([`Message::original_no_room`], which a caller with the mailbox looks at).
 pub(crate) fn given_up(m: &Message) -> bool {
     m.original_tries >= ORIGINAL_TRIES || m.original_no_room > 0
+}
+
+/// Whether `m`'s move waits for the bytes it came as from the copy it came from, which is asked
+/// for them no more (#30, [`given_up`]): Check again asks it once more.
+pub(crate) fn held_move(mb: &Mailbox, m: &Message) -> bool {
+    given_up(m) && !m.draft && !m.parts_removed && source_copy(mb, m.id).is_some()
 }
 
 /// Where the copy message `id` is being moved out of is, on a server that still has it (#451):
@@ -101,7 +123,8 @@ pub(crate) fn given_up(m: &Message) -> bool {
 /// the bytes once it is.
 pub(crate) fn source_copy(mb: &Mailbox, id: Id) -> Option<(Id, bool)> {
     let m = mb.message(id)?;
-    if let Some(out) = m.moving_out.as_ref().filter(|out| !out.left && !out.id.is_empty()) {
+    // (One a listing afresh hasn't come to yet may be there still.)
+    if let Some(out) = m.moving_out.as_ref().filter(|out| (!out.left || out.listing) && !out.id.is_empty()) {
         return Some((out.account, false));
     }
     let pending = mb.pending.iter().find(|p| matches!(p, Pending::Move { message, .. } if *message == id))?;
@@ -113,18 +136,17 @@ pub(crate) fn source_copy(mb: &Mailbox, id: Id) -> Option<(Id, bool)> {
 /// move called off), with no copy of its own on a server. Let go of, so that Check again may be
 /// asked, and so that it waits for nothing.
 pub(crate) fn settle(mb: &mut Mailbox) {
-    let stale: Vec<Id> = mb
-        .messages
-        .values()
-        .filter(|m| m.original_wanted && !asked_of_own(mb.account(m.account).map(|a| a.kind), m))
-        .map(|m| m.id)
-        .filter(|id| source_copy(mb, *id).is_none())
-        .collect();
+    let stale: Vec<Id> = mb.messages.values().filter(|m| stale(mb, m)).map(|m| m.id).collect();
     for id in stale {
         if let Ok(m) = mb.message_mut(id) {
             (m.original_wanted, m.refetch) = (false, false);
         }
     }
+}
+
+/// Whether `m` asks for the bytes it came as where nothing will answer any more ([`settle`]).
+fn stale(mb: &Mailbox, m: &Message) -> bool {
+    m.original_wanted && !asked_of_own(mb.account(m.account).map(|a| a.kind), m) && source_copy(mb, m.id).is_none()
 }
 
 /// Whether the ask for the bytes `m` came as goes to its own account's server (of `kind`), which
@@ -174,21 +196,29 @@ pub(crate) fn needs_checkable(s: &Session) -> Option<&'static str> {
 /// `mail.checkAgain`: mark the message to have the bytes it came as downloaded again.
 pub(crate) fn check_again(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    // An ask nothing will answer any more doesn't stand in the way.
-    settle(&mut s.mailbox);
-    // Asked by the owner: whatever the server said before, it is asked again.
-    if let Ok(m) = s.mailbox.message_mut(id)
-        && given_up(m)
-        && !m.has_original()
-    {
-        (m.original_tries, m.original_no_room) = (0, 0);
-    }
     // Its text in memory, for armour at the start of a line to be seen.
     let _ = s.load_where(id, |_| false);
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if let Some(why) = why_not(&s.mailbox, m) {
         return Err(fail(why));
     }
+    let held = held_move(&s.mailbox, m);
+    // An ask nothing will answer any more doesn't stand in the way (`why_not` passed it over).
+    settle(&mut s.mailbox);
+    // Asked by the owner: whatever the server said before, it is asked again, and what comes of
+    // it is said again.
+    let m = s.mailbox.message_mut(id)?;
+    if given_up(m) {
+        (m.original_tries, m.original_refused, m.original_retry, m.original_no_room) = (0, 0, 0, 0);
+    }
+    s.forget_told_held(id);
+    if held {
+        // From the copy its move waits on.
+        let source = source_copy(&s.mailbox, id);
+        ask_source(source, s.mailbox.message_mut(id)?);
+        return Ok(json!({"id": id, "downloads": true}));
+    }
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     let kind = s.mailbox.account(m.account).map(|a| a.kind);
     // Text read wrongly before (U+FFFD), here or on disk (read in above): the whole of what comes
     // is taken, text and all, as for #650, not the original alone.
