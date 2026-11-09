@@ -522,3 +522,14 @@ fn keys_claiming_the_address_cant_push_out_the_key_the_signature_hints_at() {
     let outcome = verify(&with_signature(sig), ALICE, &keys, LATER, yes);
     assert!(matches!(outcome, Some(Outcome::Verified(_))), "{outcome:?}");
 }
+
+#[test]
+fn running_out_of_checks_before_the_signers_key_is_tried_is_unreadable() {
+    // Earlier signatures of the message used up its checks: whether this one is good isn't known.
+    let alice = secret(ALICE, Make::default());
+    let keys = ring(&[&alice]);
+    let cx = context(&keys);
+    cx.verifications.set(crate::check::MAX_VERIFICATIONS);
+    let outcome = crate::check::check(&packets(&alice, b"data", made(&alice)), b"data", &cx);
+    assert!(matches!(outcome, Outcome::CantCheck { why: CantCheck::Unreadable, .. }), "{outcome:?}");
+}

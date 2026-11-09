@@ -297,3 +297,33 @@ fn a_key_whose_revocations_or_the_calls_budget_run_out_is_refused() {
     assert!(PublicKey::parse_with(&bytes, &mut Budget::new(1)).is_err());
     assert!(PublicKey::parse_with(&bytes, &mut Budget::new(3)).is_ok());
 }
+
+#[test]
+fn a_user_id_certified_again_after_its_revocation_is_the_keys_again() {
+    let alice = secret(ALICE, Make::default());
+    let t = made(&alice);
+    let mut key = SignedPublicKey::from(alice.clone());
+    let id = key.details.users[0].id.clone();
+    let revocation = config(&alice.primary_key, SignatureType::CertRevocation, t + 10, vec![])
+        .sign_certification(&alice.primary_key, &key.primary_key, &Password::empty(), Tag::UserId, &id)
+        .unwrap();
+    key.details.users[0].signatures.push(revocation);
+    let revoked = ring_of(&key);
+    assert!(revoked.keys()[0].addresses().is_empty(), "revoked");
+    recertified(&alice, &mut key, 0, t + 20, vec![]);
+    assert_eq!(ring_of(&key).keys()[0].addresses(), ["alice@example.org".to_string()]);
+}
+
+#[test]
+fn a_user_id_longer_than_any_real_one_is_left_out_unhashed() {
+    let alice = secret(ALICE, Make::default());
+    let mut key = SignedPublicKey::from(alice.clone());
+    let long = format!("{} <long@example.org>", "x".repeat(5_000));
+    let id = pgp::packet::UserId::from_str(Default::default(), &long).unwrap();
+    let cert = config(&alice.primary_key, SignatureType::CertPositive, made(&alice), vec![])
+        .sign_certification(&alice.primary_key, &key.primary_key, &Password::empty(), Tag::UserId, &id)
+        .unwrap();
+    key.details.users.push(pgp::types::SignedUser::new(id, vec![cert]));
+    let keys = ring_of(&key);
+    assert_eq!(keys.keys()[0].addresses(), ["alice@example.org".to_string()]);
+}

@@ -312,40 +312,54 @@ fn quoted_printable(text: &[u8]) -> Vec<u8> {
     out
 }
 
-/// The address in a From field (or an address given as it is): what is inside the last `<…>`,
-/// else the whole value, trimmed and in lower case. Empty when there is no `@` in it.
+/// The address of the one mailbox in a From field (or an address given as it is): what is in
+/// its `<…>` outside quoted strings and comments, else the value without its comments, in
+/// lower case. Empty when there is no one address in it.
 pub(crate) fn address(value: &str) -> String {
-    // A field with more than one mailbox (RFC 5322 §3.6.2) has no one address to match: a comma
-    // between them, more than one `<…>`, or with none, an `@` for each. Only quoted strings and
-    // comments hide these; with one `<…>`, an `@` outside it is the display name's.
-    let (mut quoted, mut escaped, mut comment, mut angle) = (false, false, 0usize, false);
-    let (mut ats, mut angles, mut commas) = (0usize, 0usize, 0usize);
+    // RFC 5322 §3.4: a mailbox is `name <addr>` or a bare addr-spec. Quoted strings and comments
+    // are read past, so that nothing in them is taken for the address; a field with more than
+    // one mailbox (§3.6.2: a comma between them, or more than one `<…>`) has no one address.
+    let (mut quoted, mut escaped, mut comment) = (false, false, 0usize);
+    let (mut angle, mut angles, mut closed) = (false, 0usize, false);
+    let (mut inside, mut outside) = (String::new(), String::new());
     for c in value.chars() {
+        let text = comment == 0;
         match c {
             _ if escaped => escaped = false,
-            '\\' if quoted || comment > 0 => escaped = true,
+            '\\' if quoted || comment > 0 => {
+                escaped = true;
+                continue;
+            }
             '"' if comment == 0 => quoted = !quoted,
             _ if quoted => {}
             '(' => comment = comment.saturating_add(1),
             ')' => comment = comment.saturating_sub(1),
             _ if comment > 0 => {}
+            '<' if angle => return String::new(),
             '<' => {
                 angle = true;
                 angles = angles.saturating_add(1);
+                continue;
             }
-            '>' => angle = false,
-            ',' if !angle => commas = commas.saturating_add(1),
-            '@' if !angle => ats = ats.saturating_add(1),
+            '>' if angle => {
+                angle = false;
+                closed = true;
+                continue;
+            }
+            ',' if !angle => return String::new(),
             _ => {}
         }
+        // What is in a comment, and the parentheses around it, is neither.
+        if text && comment == 0 && c != ')' {
+            if angle { inside.push(c) } else { outside.push(c) }
+        }
     }
-    if commas > 0 || angles > 1 || (angles == 0 && ats > 1) {
-        return String::new();
-    }
-    let inner = match (value.rfind('<'), value.rfind('>')) {
-        (Some(open), Some(close)) if open < close => value.get(open.saturating_add(1)..close).unwrap_or_default(),
-        _ => value,
+    let spec = match angles {
+        0 => outside,
+        1 if closed && !angle => inside,
+        _ => return String::new(),
     };
-    let inner = inner.trim().trim_matches(|c: char| c == '<' || c == '>').trim();
-    if inner.contains('@') && !inner.chars().any(char::is_whitespace) { inner.to_lowercase() } else { String::new() }
+    let spec = spec.trim();
+    let clean = spec.matches('@').count() == 1 && !spec.chars().any(|c| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '(' | ')'));
+    if clean { spec.to_lowercase() } else { String::new() }
 }

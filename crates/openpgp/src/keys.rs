@@ -22,6 +22,9 @@ pub(crate) const MAX_KEYS_PER_BLOCK: usize = 16;
 /// How many User IDs and subkeys one key may have: more is not a key anybody sends.
 const MAX_USERS: usize = 64;
 const MAX_SUBKEYS: usize = 32;
+/// How long a User ID may be: a name and an address are far shorter. (User attributes, such as
+/// pictures, are never checked or kept, so cost nothing.)
+const MAX_USER_ID: usize = 4 * 1024;
 /// How many signature checks reading one key may cost (third-party certifications are never
 /// checked, so a real key needs a handful). Room for two copies of the largest key kept, merged:
 /// two self-signatures for each User ID, and two with a back-signature each for each subkey.
@@ -333,6 +336,11 @@ impl PublicKey {
         }
         let (mut addresses, mut address_until, mut users) = (Vec::new(), Vec::new(), Vec::new());
         for user in &key.details.users {
+            // Every check of a User ID hashes all of it: a longer one than anybody's is left
+            // out with its signatures, unhashed.
+            if user.id.id().len() > MAX_USER_ID {
+                continue;
+            }
             let mut certified: Option<&Signature> = None;
             let mut user_revocation: Option<&Signature> = None;
             for sig in &user.signatures {
@@ -342,7 +350,7 @@ impl PublicKey {
                 }
                 if typ == SignatureType::CertRevocation {
                     if spend(&mut revocations, total) && sig.verify_certification(primary, Tag::UserId, &user.id).is_ok() {
-                        user_revocation = stronger(user_revocation, sig);
+                        consider(sig, &mut user_revocation);
                     }
                     continue;
                 }
@@ -357,8 +365,11 @@ impl PublicKey {
             }
             let Some(cert) = certified else { continue };
             consider(cert, &mut newest);
+            // RFC 9580 §5.2.3.31: the newest self-signature on a User ID is what holds, so a
+            // certification after its revocation takes it back (one at the same second doesn't).
+            let revoked = user_revocation.is_some_and(|r| created(r) >= created(cert));
             let address = mime::address(&String::from_utf8_lossy(user.id.id()));
-            if user_revocation.is_none() && !address.is_empty() && !addresses.contains(&address) {
+            if !revoked && !address.is_empty() && !addresses.contains(&address) {
                 addresses.push(address);
                 address_until.push(signature_until(cert));
             }

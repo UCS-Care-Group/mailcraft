@@ -66,6 +66,22 @@ fn addresses_are_taken_from_angle_brackets_and_lower_cased() {
     assert_eq!(address("alice@example.org, Mallory <mallory@example.org>"), "");
     assert_eq!(address("Alice <alice@example.org> <mallory@example.org>"), "");
     assert_eq!(address("alice@example.org mallory@example.org"), "");
+    // What is in a comment or a quoted string is never the address, wherever it is.
+    assert_eq!(address("Mallory <mallory@evil.example> (<alice@example.org>)"), "mallory@evil.example");
+    assert_eq!(address("Mallory <mallory@evil.example> \"<alice@example.org>\""), "mallory@evil.example");
+    assert_eq!(address("mallory@evil.example (alice@example.org)"), "mallory@evil.example");
+    assert_eq!(address("Alice <alice@example.org"), "");
+}
+
+#[test]
+fn an_autocrypt_header_is_matched_to_the_address_readers_show() {
+    use crate::fixtures::{Make, base64, secret};
+    let alice = secret("Alice <alice@example.org>", Make::default());
+    let keydata = base64(&pgp::ser::Serialize::to_bytes(&pgp::composed::SignedPublicKey::from(alice)).unwrap()).replace("\r\n", "");
+    for from in ["Mallory <mallory@evil.example> (<alice@example.org>)", "Mallory <mallory@evil.example> \"<alice@example.org>\""] {
+        let message = format!("From: {from}\r\nAutocrypt: addr=alice@example.org; keydata={keydata}\r\n\r\nHi\r\n");
+        assert!(crate::keys_in_message(message.as_bytes()).autocrypt.is_none(), "{from}");
+    }
 }
 
 #[test]
