@@ -3845,7 +3845,7 @@ msgid "Files like this can carry macros, which run as programs do. Open it only 
 msgstr "Dateien wie diese können Makros enthalten, die wie Programme ausgeführt werden. Öffnen Sie sie nur, wenn Sie den Absender kennen und die Datei erwarten."
 
 #. ribbon
-#: crates/ui-egui/src/ribbon.r
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Filter"
 msgstr "Filtern"
@@ -4843,7 +4843,7 @@ msgid "Imported from {file}"
 msgstr "Importiert aus {file}"
 
 #. interface
-#: crates/ui-egui/src/lib.rss
+#: crates/ui-egui/src/lib.rs
 msgid "Imported {what}"
 msgstr "{what} importiert"
 
@@ -7168,7 +7168,7 @@ msgid "Not an e-mail address: {names}"
 msgstr "Keine E-Mail-Adresse: {names}"
 
 #. interface
-#: crates/ui-egui/sr
+#: crates/ui-egui/src
 msgid "Not available for this account"
 msgstr "Für dieses Konto nicht verfügbar"
 
@@ -7384,7 +7384,7 @@ msgid "On the server, still as it was: your change waits for permission (File �
 msgstr "Auf dem Server, noch unverändert: Ihre Änderung wartet auf die Erlaubnis (Datei › Informationen)"
 
 #. interface
-#: crates/ui-egui/src/forms.rszzy
+#: crates/ui-egui/src/forms.rs
 msgid "On the server, which doesn't let it be changed"
 msgstr "Auf dem Server, der keine Änderung zulässt"
 
@@ -11831,6 +11831,7 @@ msgstr "Das Serverzertifikat gilt für den Namen eines anderen Servers. MailCraf
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server's certificate isn't valid yet, so MailCraft won't connect to it. Check this computer's date and time, or ask your administrator."
 msgstr "Das Serverzertifikat ist noch nicht gültig. MailCraft wird daher keine Verbindung zu diesem Server herstellen. Überprüfen Sie Datum und Uhrzeit dieses Computers oder wenden Sie sich an deinen Administrator."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
