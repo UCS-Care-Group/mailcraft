@@ -23,6 +23,7 @@ mailcraft-mime = { path = "crates/mime" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
+mailcraft-openpgp = { path = "crates/openpgp" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
@@ -86,6 +87,13 @@ quick-xml = { version = "0.42", default-features = false }
 md4 = { version = "0.11", default-features = false }
 md-5 = { version = "0.11", default-features = false }
 hmac = { version = "0.13", default-features = false }
+
+# OpenPGP (RFC 9580): checking Digital signatures and reading Public keys (#30), in
+# `mailcraft-openpgp` only. rPGP, MIT OR Apache-2.0, Rust throughout, builds for the browser
+# (`wasm` there, for the random numbers its dependencies ask for). Pinned: a new version is read
+# and its fixed vectors run before it comes in. No default features: bzip2 compression isn't
+# needed to check a signature.
+pgp = { version = "=0.21.0", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO

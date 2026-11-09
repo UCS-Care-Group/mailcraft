@@ -47,6 +47,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("pst", Class::Layer(2)),
+    // OpenPGP checking (#30): rPGP under it, no I/O, builds for the browser.
+    ("openpgp", Class::Layer(2)),
     ("proto", Class::Layer(3)),
     // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
     ("jmap", Class::Layer(3)),
