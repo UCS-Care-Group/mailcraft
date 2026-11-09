@@ -322,3 +322,20 @@ fn counts_of_a_mailbox_changed_outside_a_command_are_counted_again_after_the_nex
         assert_eq!(*s.folder_counts(), FolderCounts::of(&s.mailbox), "after `{command}`");
     }
 }
+
+/// A message an agent's selection opens is marked read off the light path: the mark moves the
+/// revision on, so that a save of the revision before it never counts the mark as saved.
+#[test]
+fn a_read_mark_off_the_light_path_moves_the_revision_on() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    s.prefs.mark_read_on_open = true;
+    let inbox = s.mailbox.inbox().unwrap();
+    let id = s.mailbox.messages_in(inbox).find(|m| !m.read && !m.draft).map(|m| m.id).unwrap();
+    s.dirty = false;
+    let before = s.rev();
+    s.agent = Some(Vec::new());
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    s.agent = None;
+    assert!(s.mailbox.message(id).unwrap().read);
+    assert!(s.dirty && s.rev() != before);
+}

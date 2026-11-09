@@ -6,19 +6,26 @@
 
 **An open-source mail, calendar, contacts and tasks program, written from scratch in Rust.**
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15708/badge)](https://www.bestpractices.dev/projects/15708)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/UCS-Care-Group/mailcraft/badge)](https://scorecard.dev/viewer/?uri=github.com/UCS-Care-Group/mailcraft)
+MailCraft has been developed here since 12 October 2026; this repository and [mailcraft.work](https://mailcraft.work) are the project's only official homes.
+
+<!-- Quality and security -->
 [![CI](https://github.com/UCS-Care-Group/mailcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/UCS-Care-Group/mailcraft/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/UCS-Care-Group/mailcraft/branch/main/graph/badge.svg)](https://codecov.io/gh/UCS-Care-Group/mailcraft)
 [![Fuzzing](https://github.com/UCS-Care-Group/mailcraft/actions/workflows/fuzz.yml/badge.svg)](https://github.com/UCS-Care-Group/mailcraft/actions/workflows/fuzz.yml)
+[![Quality gate](https://sonarcloud.io/api/project_badges/measure?project=UCS-Care-Group_mailcraft&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=UCS-Care-Group_mailcraft)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/UCS-Care-Group/mailcraft/badge)](https://scorecard.dev/viewer/?uri=github.com/UCS-Care-Group/mailcraft)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15708/badge)](https://www.bestpractices.dev/projects/15708)
+
+<!-- The project -->
 [![Latest release](https://img.shields.io/github/v/release/UCS-Care-Group/mailcraft?include_prereleases&sort=semver)](https://github.com/UCS-Care-Group/mailcraft/releases)
-[![Licence: MIT OR Apache-2.0](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#license)
-[![Rust 1.95+](https://img.shields.io/badge/rust-1.95%2B-orange?logo=rust)](https://www.rust-lang.org)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20FreeBSD%20%7C%20web-lightgrey)](https://github.com/UCS-Care-Group/mailcraft/releases)
+[![Rust 1.95+](https://img.shields.io/badge/rust-1.95%2B-orange?logo=rust)](https://www.rust-lang.org)
+[![Licence: MIT OR Apache-2.0](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#license)
+
+<!-- Taking part -->
 [![Testers wanted](https://img.shields.io/badge/testers-wanted-brightgreen)](https://github.com/UCS-Care-Group/mailcraft/issues/11)
 
 MailCraft is a clean-room reimplementation of the mail client people already know how to use: the ribbon, the folder pane, the message list with its reading pane, conversations, flags, categories, rules, a calendar with recurring meetings, people and to-dos. It is a native, GPU-rendered app (no Electron, no web view), it also runs in a browser tab through WebAssembly, and every action in it is a command that scripts and AI agents can run too.
-
-> **Status: public beta (0.10).** For Microsoft accounts (personal, or work or school) on Windows, macOS and Linux, kept in step with Outlook on the web; keep Outlook to hand while you try it. A lot of what a daily driver needs is still to come. See [ROADMAP.md](ROADMAP.md) and [docs/gaps.md](docs/gaps.md) for an honest list.
 
 MailCraft follows the architecture and conventions of [WordCraft](https://github.com/storytold/wordcraft) and the other Craft apps: the same layered crates, the same "everything is a command" engine, the same egui front end and design tokens, the same control channel, MCP server, tooling and packaging.
 
@@ -26,7 +33,7 @@ MailCraft follows the architecture and conventions of [WordCraft](https://github
 
 ## What works today
 
-- **Mail:** accounts, nested folders and favourites, a virtualised message list grouped by date (or sender, importance), sort, filters, conversations, pinning, a reading pane (right, bottom or off) whose text you can select and copy, flags with due dates, colour categories, importance, junk and archive, move and copy (or drag onto a folder), two-step delete with a question before anything is gone for good, flag and delete on the row under the pointer, a click on a row's left edge to switch read and unread, a double-click to open a message in a window of its own, drag accounts into the order you want, undo and redo for all of it.
+- **Mail:** accounts, nested folders and favourites, a virtualised message list grouped by date (or sender, importance), sort, filters, conversations, pinning, a reading pane (right, bottom or off) whose text you can select and copy, flags with due dates, colour categories, importance, junk and archive, move and copy (or drag onto a folder), two-step delete with a question before anything is gone for good, Send / Receive › Work Offline, and how far back each account keeps its mail in full on this computer (older mail keeps its headers and preview and comes down again when opened), flag and delete on the row under the pointer, a click on a row's left edge to switch read and unread, a double-click to open a message in a window of its own, drag accounts into the order you want, undo and redo for all of it.
 - **Search:** a query language in the search box: `budget from:ada has:attachment -draft after:2026-10-01 is:unread`, in one folder or every mailbox.
 - **Writing:** new mail (also from a `mailto:` link clicked anywhere, once MailCraft is your mail program), Reply, Reply All and Forward with the original quoted, attachments, drafts, signatures, recipients suggested as you type (contacts, then the people you have exchanged mail with), Check Names, importance. Rich text as you see it (bold, italic, underline, colour, fonts, lists eight levels deep, links), sent as HTML with a plain-text part, and pasted HTML kept to what MailCraft draws; replies and forwards carry the original below as it came. Signatures with a logo, one for new mail and one for replies, made from your details or written by hand. Write several messages at once, each in a window of its own (Pop Out) or in the reading pane, with Find and Replace, Text Highlight Color, Format Painter, Insert › Symbol, Contact Card and Item, and Request a Read Receipt.
 - **Rules:** conditions (from, to, subject, body, attachment, importance) and actions (move, categorise, flag, mark read, importance, delete), run on new mail or on demand.
