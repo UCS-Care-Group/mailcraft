@@ -627,7 +627,8 @@ pub struct Quote {
     /// with only the elements and attributes that give it its look), for the HTML part.
     pub html: String,
     /// The original's pictures its HTML shows (`cid:`), sent with a reply so the quote keeps
-    /// them. A forward carries every attachment anyway.
+    /// them (a forward carries every attachment anyway), and those written into it (`data:`),
+    /// each made a part of its own that the quote refers to (#602), sent with both.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub pictures: Vec<Attachment>,
 }
@@ -807,7 +808,7 @@ pub struct Prefs {
     pub twelve_hour: bool,
     pub week_start: Weekday,
     /// The owner chose the clock (`file.options`); else it is the interface language's own
-    /// ([`Prefs::follow_language`]). `None`: settings saved before this was kept.
+    /// ([`Prefs::follow_conventions`]). `None`: settings saved before this was kept.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clock_chosen: Option<bool>,
     /// The same for the first day of the week.
@@ -823,6 +824,9 @@ pub struct Prefs {
     pub default_reminder: Option<u32>,
     /// Put the original message under a reply.
     pub quote_on_reply: bool,
+    /// Typing `* `, `- `, `1. ` or `1) ` at the start of a paragraph of an HTML message starts a
+    /// list (#973; `compose.type` with `autoList`, which only the keyboard sends).
+    pub auto_lists: bool,
     /// Lines of body text under each message in the list (0–3).
     pub preview_lines: u8,
     /// The list has group headings (Today, Yesterday…; `view.groups`). Off: one continuous list.
@@ -904,6 +908,7 @@ impl Default for Prefs {
             mark_read_on_open: true,
             default_reminder: Some(15),
             quote_on_reply: true,
+            auto_lists: true,
             preview_lines: 1,
             show_groups: true,
             one_line: false,
@@ -949,14 +954,14 @@ impl Prefs {
     }
 
     /// The clock and the first day of the week that the owner never chose follow the interface
-    /// language (French: 24-hour, Monday); the ones they chose are kept. Settings saved before
-    /// this was kept count what differs from the old defaults (12-hour, Sunday) as chosen, so
-    /// they behave as they always did.
-    pub fn follow_language(&mut self, lang: mailcraft_i18n::Lang) {
+    /// language in the system's region (`own`, `Dated::conventions`: French, or English in
+    /// Britain: 24-hour, Monday); the ones they chose are kept. Settings saved before this was
+    /// kept count what differs from the old defaults (12-hour, Sunday) as chosen, so they behave
+    /// as they always did.
+    pub fn follow_conventions(&mut self, own: mailcraft_i18n::date::Conventions) {
         let old = Prefs::default();
         let clock = *self.clock_chosen.get_or_insert(self.twelve_hour != old.twelve_hour);
         let week = *self.week_start_chosen.get_or_insert(self.week_start != old.week_start);
-        let own = lang.conventions();
         if !clock {
             self.twelve_hour = own.twelve_hour;
         }
@@ -1192,6 +1197,10 @@ pub struct Session {
     /// English). What the engine writes for a person is to follow it; commands, their parameters
     /// and what agents read stay English. Never saved in the mailbox file.
     pub interface_language: mailcraft_i18n::Lang,
+    /// The region the system's dates are written for (`GB`; `mailcraft_i18n::date::region_of`
+    /// the regional format's tag), set by the host with the language: English writes the day
+    /// first outside the US (#978). `None`: the language's own way. Never saved.
+    pub date_region: Option<String>,
     /// Whether mail can be moved between Gmail's categories (#911): what
     /// [`crate::gmail::GMAIL_CATEGORY_MOVES`] says, and a test may turn it on. Off, the command
     /// is disabled, the window offers nothing, and no move is put in a request for Gmail's API.
@@ -1313,6 +1322,7 @@ impl Session {
             searched_for: None,
             index_words: false,
             interface_language: mailcraft_i18n::Lang::English,
+            date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
@@ -1429,16 +1439,21 @@ impl Session {
         DateTime::from_timestamp(ts, self.offset_at(ts))
     }
 
+    /// What dates are said in: the interface language, written the way of [`Session::date_region`].
+    pub fn dated(&self) -> mailcraft_i18n::date::Dated {
+        mailcraft_i18n::date::Dated::new(self.interface_language, self.date_region.as_deref())
+    }
+
     /// `at`'s time as the interface language says it, on the owner's clock.
     pub fn time_said(&self, at: DateTime) -> String {
-        mailcraft_i18n::date::time(&self.interface_language, at.hour, at.minute, self.prefs.twelve_hour)
+        mailcraft_i18n::date::time(&self.dated(), at.hour, at.minute, self.prefs.twelve_hour)
     }
 
     /// `at`'s date (`Sunday, October 11, 2026`) and time as the interface language says them.
     pub fn date_time_said(&self, at: DateTime) -> String {
         let d = at.date;
         let day = mailcraft_i18n::date::Day { year: d.year, month: d.month, day: d.day, weekday: d.weekday().index() };
-        format!("{} {}", mailcraft_i18n::date::long(&self.interface_language, day), self.time_said(at))
+        format!("{} {}", mailcraft_i18n::date::long(&self.dated(), day), self.time_said(at))
     }
 
     pub fn local_now(&self) -> DateTime {

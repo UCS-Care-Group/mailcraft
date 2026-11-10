@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A .pst file, read through every call: the store, the named properties, every node, the
 //! folder tree, every folder's items, every message with its recipients and attachments, and
-//! the messages attached to it. The header's CRCs are put right first, so that a change to the
-//! header reaches what is behind it; the seeds in `fuzz/seeds/pst/` (made by
-//! `cargo test -p mailcraft-pst -- --ignored write_fuzz_seeds`) give the rest its shape.
+//! the messages attached to it; and the same bytes as a distribution list's stream of members
+//! ([MS-OXOCNTC] 2.2.2.2.4), which the import reads out of a list. The header's CRCs are put
+//! right first, so that a change to the header reaches what is behind it; the seeds in
+//! `fuzz/seeds/pst/` (made by `cargo test -p mailcraft-pst -- --ignored write_fuzz_seeds`) give
+//! the rest its shape.
 #![no_main]
 
 use std::io::{Cursor, Read};
@@ -24,6 +26,7 @@ fn fix_header(b: &mut [u8]) {
 }
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
+    let _ = mailcraft_pst::list_stream(data, 1000);
     let mut data = data.to_vec();
     // ponytail: only the header's CRCs are put right; pages and blocks keep theirs, since the proptests already mutate with checksums put right. Add a repair mode if coverage stalls behind them.
     fix_header(&mut data);
