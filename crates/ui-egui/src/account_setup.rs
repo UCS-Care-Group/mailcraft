@@ -271,18 +271,11 @@ pub fn address(text: &str) -> Option<(&str, &str)> {
     ok.then_some((text, domain))
 }
 
-/// What `mailcraft-proto`'s IMAP LOGIN says when the server announces LOGINDISABLED (RFC 3501
-/// §6.2.3): no password on this connection, an app password included.
+/// What `mailcraft-proto`'s IMAP LOGIN says, in English, when the server announces LOGINDISABLED
+/// (RFC 3501 §6.2.3): no password on this connection, an app password included. (The window
+/// says it in its own language from the text the host hands over, #872; this is only to know it
+/// by.)
 const NO_PASSWORD_HERE: &str = "sign-in failed: the server doesn't take a password on this connection";
-
-/// What the host said went wrong, in the interface language where it is one of the host's own
-/// sentences; what a server said for itself is left as it said it.
-fn in_own_words(error: &str) -> String {
-    match error {
-        NO_PASSWORD_HERE => tl!("sign-in failed: the server doesn't take a password on this connection").to_string(),
-        _ => error.to_string(),
-    }
-}
 
 /// Whether `id` can be an application (client) ID: letters, digits, dots and dashes.
 fn is_identifier(id: &str, max: usize) -> bool {
@@ -452,7 +445,7 @@ pub struct AccountSetup {
     /// The domain's mail exchangers, once the host has them.
     lookup: Option<Receiver<Result<Vec<String>, String>>>,
     /// Whether the servers took the password, once the host knows.
-    check: Option<Receiver<Result<(), String>>>,
+    check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
     waiting: bool,
     /// This is a reconnect of an existing Google OAuth account, not an app-password conversion.
@@ -1573,23 +1566,23 @@ impl AccountSetup {
         let answer = match self.check.as_ref().map(Receiver::try_recv) {
             Some(Err(TryRecvError::Empty)) => return,
             Some(Ok(answer)) => answer,
-            Some(Err(TryRecvError::Disconnected)) | None => Err(tl!("Checking the account stopped unexpectedly").to_string()),
+            Some(Err(TryRecvError::Disconnected)) | None => Err(mailcraft_i18n::Text::verbatim(tl!("Checking the account stopped unexpectedly"))),
         };
         self.check = None;
         match answer {
             Ok(()) => self.add_with_password(app),
-            Err(e) => {
-                // The dialog says it once; the log keeps it for a problem report.
+            Err(said) => {
+                // The dialog says it once, in the interface's language; the log keeps the English
+                // for a problem report, and the English is what the kind of refusal is known by.
+                let e = said.to_string();
                 log::warn!("add account: the servers couldn't be checked: {e}");
                 let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
-                self.refuse(e);
+                self.refuse(said.in_lang(crate::i18n::current()));
                 // (A connection that takes no password takes no app password either: that is
                 // said as it is, Google's or not.)
-                if google && self.error.starts_with("sign-in failed") && self.error != NO_PASSWORD_HERE {
+                if google && e.starts_with("sign-in failed") && e != NO_PASSWORD_HERE {
                     self.error = tl!("Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password.").to_string();
                     self.app_passwords = true;
-                } else {
-                    self.error = in_own_words(&self.error);
                 }
             }
         }
@@ -2530,10 +2523,16 @@ mod tests {
     /// A host that tries accounts on their servers: it answers `answer`, or keeps trying. The log
     /// is the accounts it was handed, each with its secret.
     fn checks(app: &mut MailApp, answer: Option<Result<(), &str>>) -> Log<(Account, String)> {
+        let answer = answer.map(|a| a.map_err(mailcraft_i18n::Text::verbatim));
+        checks_said(app, answer)
+    }
+
+    /// [`checks`] with the answer as the host says it: a text for the window to say in its
+    /// language.
+    fn checks_said(app: &mut MailApp, answer: Option<Result<(), mailcraft_i18n::Text>>) -> Log<(Account, String)> {
         let asked: Log<(Account, String)> = Default::default();
         let log = asked.clone();
-        let answer = answer.map(|a| a.map_err(str::to_string));
-        let silent: Log<mpsc::Sender<Result<(), String>>> = Default::default();
+        let silent: Log<mpsc::Sender<Result<(), mailcraft_i18n::Text>>> = Default::default();
         app.services.test_account = Some(Box::new(move |account, secret| {
             log.lock().unwrap().push((account, secret));
             let (tx, rx) = mpsc::channel();

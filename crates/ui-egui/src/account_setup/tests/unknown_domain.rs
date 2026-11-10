@@ -9,8 +9,11 @@ use super::*;
 
 /// A mail exchanger that is nobody's this program knows.
 const HOSTED_MX: &str = "mx.hosted.example";
-/// What the IMAP code says when a server announces `LOGINDISABLED`.
-const NO_PASSWORD: &str = "sign-in failed: the server doesn't take a password on this connection";
+
+/// What the host says when a server announces `LOGINDISABLED`, as it says it (#872).
+fn no_password() -> mailcraft_i18n::Text {
+    crate::host_said_tests::no_password_here()
+}
 
 /// The password page for an address at a domain nobody knows.
 fn unknown_domain(mut a: MailApp) -> Harness<'static, MailApp> {
@@ -89,7 +92,7 @@ fn the_exchange_server_offer_opens_its_page_and_keeps_no_password() {
 #[test]
 fn a_server_that_takes_no_password_is_said_with_the_guess_still_in_view() {
     let mut a = app(false);
-    checks(&mut a, Some(Err(NO_PASSWORD)));
+    checks_said(&mut a, Some(Err(no_password())));
     let mut h = unknown_domain(a);
     type_password(&mut h);
     press(&mut h, Key::Enter);
@@ -127,7 +130,7 @@ fn a_server_that_takes_no_password_is_said_in_german_on_the_page() {
     let _language = crate::i18n::RestoreLanguage::hold();
     let mut a = app(false);
     a.execute("ui.language", json!({"language": "de"})).unwrap();
-    checks(&mut a, Some(Err(NO_PASSWORD)));
+    checks_said(&mut a, Some(Err(no_password())));
     let mut h = unknown_domain(a);
     type_password(&mut h);
     press(&mut h, Key::Enter);
@@ -138,23 +141,22 @@ fn a_server_that_takes_no_password_is_said_in_german_on_the_page() {
 }
 
 #[test]
-fn a_refusal_of_a_password_is_said_in_the_interface_language() {
+fn a_server_s_own_reason_is_said_as_it_said_it_in_german_too() {
     let _language = crate::i18n::RestoreLanguage::hold();
-    crate::i18n::set_current(crate::i18n::Lang::German);
-    let said = in_own_words(NO_PASSWORD);
-    assert!(!said.is_empty() && said != NO_PASSWORD, "{said}");
-    assert!(said.contains("Passwort"), "{said}");
-    // What a server said for itself is left as it said it.
-    for other in ["sign-in failed: Basic authentication is disabled.", "connection problem: the server took too long to answer", ""] {
-        assert_eq!(in_own_words(other), other);
-    }
+    let mut a = app(false);
+    a.execute("ui.language", json!({"language": "de"})).unwrap();
+    checks_said(&mut a, Some(Err(crate::host_said_tests::refused_with("Basic authentication is disabled."))));
+    let mut h = unknown_domain(a);
+    type_password(&mut h);
+    press(&mut h, Key::Enter);
+    assert_eq!(wizard(&h).map(|w| w.error.clone()).as_deref(), Some("Anmeldung fehlgeschlagen: Basic authentication is disabled."));
 }
 
 #[test]
 fn a_google_server_that_takes_no_password_here_isnt_said_to_want_an_app_password() {
     // An app password is a password too: what helps is a connection that takes one.
     let mut a = app(false);
-    checks(&mut a, Some(Err(NO_PASSWORD)));
+    checks_said(&mut a, Some(Err(no_password())));
     let mut h = open(a, json!({}));
     connect(&mut h, "noor@gmail.com");
     type_password(&mut h);
