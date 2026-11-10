@@ -52,9 +52,10 @@ pub(crate) struct Held {
 }
 
 /// A hash of what a mailbox's accounts connect to: each account's address, kind and servers (a JMAP
-/// account's session address too, and how its secret goes), sorted, so the order in the file does
-/// not matter. SHA-256, so that a file cannot be made to match one the owner confirmed with other
-/// servers.
+/// account's session address too, and how its secret goes, an Exchange server's address and user
+/// name, and a DAV account's CalDAV and CardDAV services), sorted, so the order in the file
+/// does not matter. SHA-256, so that a file cannot be made to match one the owner confirmed with
+/// other servers.
 pub fn fingerprint(mailbox: &Mailbox) -> String {
     let server = |s: &Option<mailcraft_model::Server>| match s {
         Some(s) => format!("{}:{}:{:?}", s.host.trim().to_ascii_lowercase(), s.port, s.security),
@@ -74,6 +75,8 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
             })
             .unwrap_or_default()
     };
+    // (A DAV account's CalDAV and CardDAV services: the password reaches those too.)
+    let dav = |a: &Account| a.dav.as_ref().map(|d| format!("\u{1}{}\u{1}{}", d.caldav.trim(), d.carddav.trim())).unwrap_or_default();
     let mut lines: Vec<String> = mailbox
         .accounts
         .iter()
@@ -84,7 +87,7 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
                 a.kind,
                 server(&a.incoming),
                 server(&a.outgoing),
-                jmap(a) + &ews(a)
+                jmap(a) + &ews(a) + &dav(a)
             )
         })
         .collect();
@@ -133,6 +136,8 @@ impl MailApp {
     /// own, until the owner has seen where each connects (AU3-03).
     pub(crate) fn judge_mailbox(&mut self) {
         self.unconfirmed = false;
+        // A DAV job of the mailbox before is not for this one, whatever ids it uses.
+        self.dav = Default::default();
         self.release_services();
         if !self.session.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
             return;
