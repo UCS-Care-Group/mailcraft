@@ -1,0 +1,28 @@
+[package]
+name = "mailcraft-smime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft S/MIME (RFC 8551): Digital signatures checked from CMS (RFC 5652) and X.509 (RFC 5280), no I/O"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-model = { workspace = true }
+mailcraft-time = { workspace = true }
+cms = { workspace = true }
+x509-cert = { workspace = true }
+der = { workspace = true }
+spki = { workspace = true }
+const-oid = { workspace = true }
+rsa = { workspace = true }
+p256 = { workspace = true }
+p384 = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+# Certificates made in the tests (example.org authorities and signers) and their keys signing.
+rcgen = { workspace = true }
+ring = { workspace = true }

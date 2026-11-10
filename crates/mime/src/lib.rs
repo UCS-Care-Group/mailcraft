@@ -22,6 +22,7 @@ mod media;
 mod parse;
 mod protected;
 pub mod rich;
+mod signed;
 mod transfer;
 mod words;
 mod write;
@@ -36,6 +37,8 @@ mod private_headers_tests;
 mod protected_tests;
 #[cfg(test)]
 mod read_receipt_tests;
+#[cfg(test)]
+mod signed_tests;
 #[cfg(test)]
 mod tests;
 
@@ -93,6 +96,7 @@ pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use protected::{Protection, crlf, has_binary, is_protected, parse_fetched, protection};
+pub use signed::{SignedKind, SignedParts, signed_parts};
 pub use words::{decode_words, encode_words};
 pub use write::{write, writes_original, written_message_id};
 
