@@ -746,3 +746,43 @@ fn at_the_cap_only_one_of_two_copies_of_a_signed_message_deleted_for_good_gets_i
     assert_eq!((has(copy_b), has(copy_c)), (true, false));
     assert!(s.mailbox.messages.originals_size() <= mailcraft_model::MAX_ORIGINALS);
 }
+
+/// The bytes the message came as whole on the disk here: its waiting copy may be moved onto this
+/// computer, which holds them, and the message then goes from its server.
+#[test]
+fn a_waiting_copy_whose_bytes_are_whole_here_may_be_moved_onto_this_computer() {
+    let dir = folder("readable-local");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened(&s, &path);
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert!(!deletes(&s, from));
+    s.run("mail.move", &json!({"ids": [copy], "folder": here})).unwrap();
+    let m = s.mailbox.message(copy).unwrap();
+    assert_eq!(m.account, local);
+    assert!(s.original_readable(m, true), "the bytes it came as are here");
+    assert!(deletes(&s, from));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Their bytes not here, the refusal is said in the window's language, as other refusals are.
+#[test]
+fn a_waiting_copy_refused_onto_this_computer_is_told_in_the_windows_language() {
+    let dir = folder("said");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, _, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let refused = s.run("mail.move", &json!({"ids": [copy], "folder": here})).unwrap_err();
+    assert!(matches!(&refused, crate::CmdError::Said(_)), "{refused:?}");
+    assert!(refused.to_string().starts_with("“Signed” is still on its way"), "{refused}");
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -757,10 +757,11 @@ fn not_junk(s: &mut Session, v: &Value) -> CmdResult {
 fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
     let ids = targets_whole(s, v)?;
+    let here = read_on_its_way(s, &ids, folder)?;
     let before = s.rows();
     let mut moved = Vec::new();
     let mut crossed = Vec::new();
-    for (id, account) in s.mailbox.move_messages(&ids, folder)? {
+    for (id, account) in s.mailbox.move_messages_reading(&ids, folder, &here)? {
         moved.push(id);
         if s.mailbox.message(id).is_some_and(|m| m.account != account) {
             crossed.push(id);
@@ -770,6 +771,30 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let into_microsoft = crossed.iter().filter(|id| waiting.contains(id)).count();
     select_after_removal(s, &before, &moved);
     Ok(json!({"moved": moved.len(), "folder": folder, "intoMicrosoft": into_microsoft}))
+}
+
+/// Of `ids` moved into `folder`, the copies of a Digitally signed or Encrypted message deleted
+/// for good, still on their way to their server, going where no server is given them
+/// ([`mailcraft_model::Mailbox::held_on_its_way`], #566): each goes only once the bytes it came as
+/// (#30) are whole on the disk here, which then holds them, and is refused until then.
+fn read_on_its_way(s: &Session, ids: &[Id], folder: Id) -> Result<HashSet<Id>, crate::CmdError> {
+    let mut here = HashSet::new();
+    let Some(to) = s.mailbox.folder(folder).map(|f| f.account) else { return Ok(here) };
+    for id in ids {
+        let Some(m) = s.mailbox.message(*id).filter(|m| m.folder != folder) else { continue };
+        if !s.mailbox.held_on_its_way(*id, to) {
+            continue;
+        }
+        if !s.original_readable(m, true) {
+            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+            return Err(failed!(
+                "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive",
+                subject
+            ));
+        }
+        here.insert(*id);
+    }
+    Ok(here)
 }
 
 fn copy_to(s: &mut Session, v: &Value) -> CmdResult {

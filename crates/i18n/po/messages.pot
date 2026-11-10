@@ -16524,6 +16524,11 @@ msgid "“{subject}” came from its server but couldn't be kept on this compute
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
 msgstr ""

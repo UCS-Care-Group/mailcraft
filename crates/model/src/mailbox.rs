@@ -2152,6 +2152,14 @@ impl Mailbox {
     /// something waited for before the first of them was moved: moving one adds nothing for
     /// another, so a big move takes time in proportion to its size rather than to its square.
     pub fn move_messages(&mut self, ids: &[Id], folder: Id) -> Result<Vec<(Id, Id)>, ModelError> {
+        self.move_messages_reading(ids, folder, &HashSet::new())
+    }
+
+    /// [`Mailbox::move_messages`], where the caller read whole on this computer the bytes the
+    /// messages `here` came as (#30): such a copy, on its way to its server while the message it
+    /// was copied from stays on its own server until it is there ([`Mailbox::held_on_its_way`],
+    /// #566), may go where no server is given it, which then holds them.
+    pub fn move_messages_reading(&mut self, ids: &[Id], folder: Id, here: &HashSet<Id>) -> Result<Vec<(Id, Id)>, ModelError> {
         let pending = self.pending.iter().filter_map(|p| match p {
             Pending::Move { message, .. } => Some(*message),
             Pending::Delete { .. } => None,
@@ -2167,7 +2175,7 @@ impl Mailbox {
             if self.folder(folder).is_some() && self.stays_on_server(*id) {
                 return Err(invalid(NOT_MOVING_YET));
             }
-            self.move_anyway(*id, folder, !waited.contains(id))?;
+            self.move_anyway(*id, folder, !waited.contains(id), here.contains(id))?;
             moved.push((*id, account));
         }
         Ok(moved)
@@ -2223,12 +2231,13 @@ impl Mailbox {
     /// that account keeps it ([`Mailbox::takes_over`]): then the original goes from its own
     /// server once the message is safe there (#451).
     fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
-        self.move_anyway(id, folder, false)
+        self.move_anyway(id, folder, false, false)
     }
 
     /// [`Mailbox::move_message_anyway`]; `fresh`: nothing waited for `id` when the command that
-    /// moves it started ([`Mailbox::move_messages`]).
-    fn move_anyway(&mut self, id: Id, folder: Id, fresh: bool) -> Result<(), ModelError> {
+    /// moves it started ([`Mailbox::move_messages`]); `here`: the bytes it came as were read whole
+    /// on this computer ([`Mailbox::move_messages_reading`]).
+    fn move_anyway(&mut self, id: Id, folder: Id, fresh: bool, here: bool) -> Result<(), ModelError> {
         let (account, remote) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
             (f.account, f.remote.clone())
@@ -2250,7 +2259,7 @@ impl Mailbox {
             self.message_mut(id)?.returned = 0;
         }
         let into_outbox = self.is_imap_outbox(folder);
-        if self.move_between_accounts(id, folder, account, &remote, fresh)? {
+        if self.move_between_accounts(id, folder, account, &remote, fresh, here)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
         }
@@ -2535,7 +2544,7 @@ impl Mailbox {
     ///   account's server wouldn't send ([`Mailbox::not_whole`]).
     /// - Back into the account it is being moved out of: it is that server message again.
     /// - Between a shared mailbox and a mailbox of another sign-in's: refused, with the reason.
-    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, fresh: bool) -> Result<bool, ModelError> {
+    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, fresh: bool, here: bool) -> Result<bool, ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
         if from_account == to_account {
@@ -2544,8 +2553,9 @@ impl Mailbox {
         // A copy of a Digitally signed or Encrypted message deleted for good, on its way to its
         // server (#566): the server the message was copied from keeps it until the copy is there,
         // in case the bytes it came as (#30) are lost here. Nothing would hold it once the copy
-        // was in a mailbox no server is given; it goes elsewhere once it is on its own.
-        if !fresh && !self.puts_on_server(to_account) && m.original.is_some() && !m.original_asked && self.held_for_copy(id).is_some() {
+        // was in a mailbox no server is given, unless they were read whole here (`here`); it goes
+        // elsewhere once it is on its own.
+        if !fresh && !here && self.held_on_its_way(id, to_account) {
             return Err(invalid(on_its_way(&subject_said(m))));
         }
         // Not into an Outbox that would send it, the account it came from's included; an IMAP
@@ -2789,6 +2799,15 @@ impl Mailbox {
             }
             _ => false,
         })
+    }
+
+    /// Whether `id`, moved into the account `to`, is a copy of a Digitally signed or Encrypted
+    /// message deleted for good, on its way to its server ([`Mailbox::held_for_copy`], #566), into
+    /// a mailbox no server is given: the server the message was copied from keeps it until the copy
+    /// is there, in case the bytes it came as (#30) are lost here, and nothing would hold it then.
+    pub fn held_on_its_way(&self, id: Id, to: Id) -> bool {
+        self.message(id).is_some_and(|m| m.account != to && !self.puts_on_server(to) && m.original.is_some() && !m.original_asked)
+            && self.held_for_copy(id).is_some()
     }
 
     /// The account whose server still has the message `copy` was copied from, which was deleted

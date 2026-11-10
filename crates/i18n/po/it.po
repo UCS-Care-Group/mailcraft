@@ -18873,6 +18873,12 @@ msgid "“{subject}” came from its server but couldn't be kept on this compute
 msgstr "«{subject}» è arrivato dal suo server, ma non è stato possibile conservarlo su questo computer, quindi non può essere inoltrato come allegato"
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+msgstr "«{subject}» è ancora in viaggio verso il server della sua casella, e il messaggio da cui è stato copiato resta sul proprio server finché non vi arriva: spostalo dopo il prossimo Invia/Ricevi"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
