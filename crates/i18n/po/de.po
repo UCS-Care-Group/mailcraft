@@ -876,7 +876,7 @@ msgstr "Synchronisierung von Aufgaben mit Microsoft To Do erlauben"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
-msgstr "Erlauben Sie MailCraft, Ihre automatischen Antworten auf der Seite zu ändern, die in Ihrem Browser geöffnet wurde …"
+msgstr "Erlauben Sie MailCraft, Ihre automatischen Antworten auf der Seite zu ändern, die in Ihrem Browser geöffnet wurde…"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -887,12 +887,12 @@ msgstr "Erlauben Sie MailCraft auf der Seite, die sich in Ihrem Browser geöffne
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
-msgstr "Erlauben Sie MailCraft, Ihre Aufgaben mit Microsoft To Do auf der Seite zu synchronisieren, die in Ihrem Browser geöffnet wurde …"
+msgstr "Erlauben Sie MailCraft, Ihre Aufgaben mit Microsoft To Do auf der Seite zu synchronisieren, die in Ihrem Browser geöffnet wurde…"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Erlauben Sie MailCraft, die Kalender anderer Personen auf der Seite zu lesen, die in Ihrem Browser geöffnet wurde …"
+msgstr "Erlauben Sie MailCraft, die Kalender anderer Personen auf der Seite zu lesen, die in Ihrem Browser geöffnet wurde…"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -903,7 +903,7 @@ msgstr "Erlauben Sie MailCraft auf der Seite, die sich in Ihrem Browser geöffne
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Erlauben Sie MailCraft, die Kalender freigegebener Postfächer auf der Seite zu lesen, die in Ihrem Browser geöffnet wurde …"
+msgstr "Erlauben Sie MailCraft, die Kalender freigegebener Postfächer auf der Seite zu lesen, die in Ihrem Browser geöffnet wurde…"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -1594,7 +1594,7 @@ msgstr "Automatische Antworten: Microsoft akzeptiert die Anmeldung nicht mehr"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Automatic replies: asking for your permission to change them…"
-msgstr "Automatische Antworten: Ihre Berechtigung zum Ändern wird angefordert …"
+msgstr "Automatische Antworten: Ihre Berechtigung zum Ändern wird angefordert…"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -1639,7 +1639,7 @@ msgstr "Automatische Antworten: eingeschaltet, bis Sie sie ausschalten"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Automatic replies: reading…"
-msgstr "Automatische Antworten: werden gelesen …"
+msgstr "Automatische Antworten: werden gelesen…"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -1876,12 +1876,12 @@ msgstr "Kalender: Zugriff erlaubt"
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Calendars: allowed, reading them…"
-msgstr "Kalender: Zugriff erlaubt, werden gelesen …"
+msgstr "Kalender: Zugriff erlaubt, werden gelesen…"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Calendars: asking for your permission…"
-msgstr "Kalender: Ihre Berechtigung wird angefordert …"
+msgstr "Kalender: Ihre Berechtigung wird angefordert…"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -4391,7 +4391,7 @@ msgstr "Aufgabe abrufen"
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Getting ready…"
-msgstr "Wird vorbereitet …"
+msgstr "Wird vorbereitet…"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -5436,7 +5436,7 @@ msgstr "Junk-E-Mail-Optionen"
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "Junk E-mail Options…"
-msgstr "Junk-E-Mail-Optionen …"
+msgstr "Junk-E-Mail-Optionen…"
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -5748,7 +5748,7 @@ msgstr "Täuschend ähnliche Adresse."
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Looking at the server's certificate…"
-msgstr "Zertifikat des Servers wird überprüft …"
+msgstr "Zertifikat des Servers wird überprüft…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -14016,7 +14016,7 @@ msgstr "Wörter"
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Words, from:, to:, category:, on:…"
-msgstr "Wörter, von:, an:, Kategorie:, am: …"
+msgstr "Wörter, von:, an:, Kategorie:, am:…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
