@@ -179,4 +179,27 @@ fn a_long_line_is_kept_cut_short() {
     let lines = a.account_problem_lines(id);
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0].chars().count(), 600);
+    // What is kept is the name cut short, not the whole line.
+    let kept = &a.sync_problems[0].3[0];
+    assert!(!kept.is_verbatim());
+    assert!(kept.to_string().chars().count() < 700, "{}", kept.to_string().len());
+}
+
+#[test]
+fn a_long_line_is_still_said_in_the_interface_s_language() {
+    let _language = RestoreLanguage::hold();
+    set_current(Lang::German);
+    let (mut a, id, pipe) = imap_run();
+    let mut result = SyncResult::default();
+    result.problem(mailcraft_i18n::said!("Couldn't open \"{name}\"", name = "x".repeat(70_000)));
+    finish(&mut a, id, &pipe, result);
+    let lines = a.account_problem_lines(id);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].chars().count(), 600);
+    // German puts the name first: „xxx… konnte nicht geöffnet werden.
+    assert!(lines[0].starts_with("„x"), "{}", lines[0].chars().take(40).collect::<String>());
+    let english = |l: &str| l.starts_with("Couldn't open");
+    assert!(!english(&lines[0]));
+    set_current(Lang::English);
+    assert!(english(&a.account_problem_lines(id)[0]));
 }

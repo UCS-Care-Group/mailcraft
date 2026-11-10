@@ -4199,18 +4199,11 @@ impl MailApp {
         }
         let name = self.session.mailbox.account(account).map(|a| a.name.clone()).unwrap_or_default();
         let at = crate::dates::clock(self.session.local_now(), self.session.prefs.twelve_hour);
-        // Not too long to keep: a line longer than is ever shown is kept as its English, cut short.
-        let problems: Vec<mailcraft_i18n::Text> = problems
-            .into_iter()
-            .map(|said| {
-                let english = said.to_string();
-                if english.chars().count() > MAX_PROBLEM {
-                    mailcraft_i18n::Text::verbatim(english.chars().take(MAX_PROBLEM).collect::<String>())
-                } else {
-                    said
-                }
-            })
-            .collect();
+        // Not too long to keep: each value said as it is (a server's reason, a folder's name) is
+        // cut to what is ever shown, and the line is still said in the interface's language
+        // ([`problem_line`] cuts the whole of it).
+        let cut = |value: String| if value.chars().count() > MAX_PROBLEM { value.chars().take(MAX_PROBLEM).collect() } else { value };
+        let problems: Vec<mailcraft_i18n::Text> = problems.into_iter().map(|said| said.map_plain(&cut)).collect();
         match self.sync_problems.iter_mut().find(|(a, ..)| *a == account) {
             Some((_, _, when, lines)) => {
                 *when = at;
