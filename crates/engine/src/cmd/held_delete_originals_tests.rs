@@ -613,6 +613,104 @@ fn a_copy_of_an_unprotected_message_deleted_for_good_goes_at_once() {
     assert_eq!(sync_request(&s, to).unwrap().places.len(), 1);
 }
 
+/// A page of the Microsoft account `ms`'s delta saying the message `id` left `folder`.
+fn removed_from(s: &mut Session, ms: Id, folder: &str, id: &str) {
+    use mailcraft_model::sync::{GraphMailResult, MessagePage};
+    let pages = vec![MessagePage { folder: folder.into(), removed: vec![id.into()], ..Default::default() }];
+    let result = GraphMailResult { account: ms, email: "owner@example.org".into(), pages, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_mail(s, result).unwrap();
+}
+
+/// [`microsoft_and_imap`], its message copied into the IMAP account and deleted for good, the
+/// copy asking the Microsoft server for the bytes it came as: the session, the two accounts and
+/// the copy.
+fn copy_asking_microsoft(path: &std::path::Path) -> (Session, Id, Id, Id) {
+    let (mut s, ms, to, id) = microsoft_and_imap(path);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
+    s.ask_for_lost_originals();
+    (s, ms, to, copy)
+}
+
+/// The message the copy came from is deleted on a phone: the delta says it left the Inbox, and
+/// the fetch for its bytes answers that the server has it no more. The copy waits no more: it
+/// goes made of its parts, nothing is left to delete, and it may be moved onto this computer.
+#[test]
+fn a_waiting_copy_goes_made_of_its_parts_once_its_microsoft_original_is_gone_from_the_server() {
+    use mailcraft_model::sync::GraphFetchResult;
+    let dir = folder("ms-gone");
+    let path = dir.join("mailbox.mailcraft");
+    let (mut s, ms, to, copy) = copy_asking_microsoft(&path);
+    removed_from(&mut s, ms, "in", "AAkA7");
+    save(&mut s, &path);
+    assert!(sync_request(&s, to).unwrap().places.is_empty(), "a page alone settles nothing");
+    assert_eq!(crate::cmd::graph_mail::graph_fetch_request(&s, ms, None, 10).unwrap().ids, ["AAkA7"]);
+
+    let result = GraphFetchResult { account: ms, email: "owner@example.org".into(), missing: vec!["AAkA7".into()], ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
+    assert!(crate::cmd::graph_down::fetch_queue(&s.mailbox, ms, 10, s.now()).is_empty(), "not asked again");
+    assert!(!graph_deletes(&s, ms), "nothing left to delete");
+    assert!(!s.mailbox.message(copy).unwrap().original_wanted);
+    save(&mut s, &path);
+    let asked = sync_request(&s, to).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert_eq!((place.message.id, place.message.original_bytes()), (copy, None));
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    assert!(!refused_on_its_way(&mut s, copy, here));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Moved on a phone instead, the message leaves the Inbox and is still on the server, under the
+/// same id: the copy waits through the page that says it left, and the fetch brings its bytes.
+#[test]
+fn a_waiting_copy_whose_microsoft_original_left_its_folder_still_gets_its_bytes() {
+    use mailcraft_model::sync::{GraphFetchResult, GraphFetched};
+    let dir = folder("ms-moved");
+    let path = dir.join("mailbox.mailcraft");
+    let (mut s, ms, to, copy) = copy_asking_microsoft(&path);
+    removed_from(&mut s, ms, "in", "AAkA7");
+    let fetched = vec![GraphFetched { id: "AAkA7".into(), mime: long_signed() }];
+    let result = GraphFetchResult { account: ms, email: "owner@example.org".into(), fetched, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
+    assert!(s.mailbox.message(copy).unwrap().has_original());
+    save(&mut s, &path);
+    let asked = sync_request(&s, to).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert_eq!(place.message.original_bytes(), Some(long_signed().as_slice()));
+    assert!(!graph_deletes(&s, ms), "not before the copy is there");
+    apply_sync(&mut s, SyncResult { account: to, placed: vec![put(&asked, copy, 60)], ..Default::default() }).unwrap();
+    assert!(graph_deletes(&s, ms));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// On an IMAP server alike: once its listing no longer has the message the copy came from,
+/// the copy goes made of its parts, and nothing is deleted there.
+#[test]
+fn a_waiting_copy_goes_made_of_its_parts_once_its_imap_original_is_gone_from_the_server() {
+    let dir = folder("imap-gone");
+    let path = dir.join("mailbox.mailcraft");
+    let (s, from, to, id) = two_imap();
+    let mut s = reopened_without_original(&s, id, &path);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let _ = crate::cmd::graph_place::unreadable_waiting(&s, to);
+    s.ask_for_lost_originals();
+    assert!(sync_request(&s, to).unwrap().places.is_empty(), "waits");
+    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, removed: vec![1], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: from, folders: vec![inbox], ..Default::default() }).unwrap();
+    assert!(!deletes(&s, from), "nothing left to delete");
+    assert!(!s.mailbox.message(copy).unwrap().original_wanted);
+    save(&mut s, &path);
+    let asked = sync_request(&s, to).unwrap();
+    let [place] = asked.places.as_slice() else { panic!("{:?}", asked.places) };
+    assert_eq!((place.message.id, place.message.original_bytes()), (copy, None));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// An emptied Deleted Items queues a delete, keeping the message, for each message in it: the
 /// background's next fetch is worked out in time in proportion to them, not to their square.
 #[test]

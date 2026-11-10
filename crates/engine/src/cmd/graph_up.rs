@@ -20,7 +20,7 @@
 //! state; one the server refused is put back to how the server has it and said once per run and
 //! kind of change (S20); one the server no longer has the message for leaves here with it (S17).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use mailcraft_model::sync::{CategoriesUp, FlagUp, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, ServerMessage, same_category};
 use mailcraft_model::{FlagStatus, Folder, FolderKind, Id, Mailbox, Message, Queued};
@@ -556,9 +556,19 @@ pub(crate) fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box
 }
 
 /// Messages the server said were gone before they could be fetched: one being moved out of the
-/// account is kept as it is (its headers and preview), marked incomplete (S19).
+/// account is kept as it is (its headers and preview), marked incomplete (S19). One deleted for
+/// good here whose delete waited for a copy of it, which asked the server for the bytes it came
+/// as (#566, #30), is gone from there (deleted on a phone, say): there is nothing left to delete
+/// or to put back, and the copy goes made of its parts, as one whose original nothing else can
+/// hold does.
 pub fn missing(mb: &mut Mailbox, account: Id, ids: &[String]) -> usize {
     let mut marked = 0;
+    if !ids.is_empty() {
+        let gone: HashSet<&str> = ids.iter().map(String::as_str).collect();
+        let before = mb.queued.len();
+        mb.queued.retain(|q| !matches!(q, Queued::DeleteMessage { account: a, id, kept: Some(_) } if *a == account && gone.contains(id.as_str())));
+        marked += before.saturating_sub(mb.queued.len());
+    }
     for id in ids {
         let Some(found) = super::graph_down::moving_out(mb, account, id) else { continue };
         if let Ok(m) = mb.message_mut(found)

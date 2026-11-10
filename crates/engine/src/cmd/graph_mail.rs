@@ -293,8 +293,12 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     let outside: Vec<Id> = taken.iter().copied().filter(|id| s.mailbox.message(*id).is_some_and(|m| !window.within(m))).collect();
     s.kept_for_now.extend(outside);
     let taken = taken.len();
-    // Gone before it could be fetched: a message being moved out of the account stays as it is.
+    // Gone before it could be fetched: a message being moved out of the account stays as it is,
+    // and a copy that waited for the bytes it came as from there waits no more (#566).
     let incomplete = graph_up::missing(&mut s.mailbox, account, &result.missing);
+    if incomplete > 0 {
+        super::mail::check_again::settle(&mut s.mailbox);
+    }
     // Refused although there: not asked for again in the background this session.
     s.graph_unfetchable.extend(result.failed.iter().take(1_000).map(|id| (account, id.clone())));
     if taken + incomplete > 0 {

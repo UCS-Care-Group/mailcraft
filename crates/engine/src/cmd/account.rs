@@ -2016,12 +2016,19 @@ fn take_in(
     }
     if !reset && !delta.removed.is_empty() {
         // Moved out of the account, its original gone from the server meanwhile (deleted on
-        // another device): there is nothing left there to delete, or to go back to (#451).
+        // another device): there is nothing left there to delete, or to go back to (#451). So
+        // for one deleted for good here whose delete waited for a copy of it (#566): the copy
+        // goes made of its parts, as one whose original nothing else can hold does.
         let removed: HashSet<u32> = delta.removed.iter().copied().collect();
         let messages = &mb.messages;
-        mb.pending.retain(|p| {
-            !matches!(p, Pending::Move { account: owner, message, from, uid, .. }
-                if *owner == account && *from == delta.remote && removed.contains(uid) && messages.get(message).is_some_and(|m| m.account != account))
+        mb.pending.retain(|p| match p {
+            Pending::Move { account: owner, message, from, uid, .. } => {
+                !(*owner == account && *from == delta.remote && removed.contains(uid) && messages.get(message).is_some_and(|m| m.account != account))
+            }
+            Pending::Delete { account: owner, from, uid, kept: Some(_), .. } => {
+                !(*owner == account && *from == delta.remote && removed.contains(uid))
+            }
+            Pending::Delete { .. } => true,
         });
     }
     let gone: Vec<Id> = if reset {
