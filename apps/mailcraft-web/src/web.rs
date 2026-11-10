@@ -345,6 +345,8 @@ fn load_face(ctx: &egui::Context, file: &'static str) {
     });
 }
 
+/// The bytes of `file`, fetched from beside `index.html`; an error names what failed (no window,
+/// the request, an HTTP status other than success, or reading the body).
 async fn fetch_face(file: &str) -> Result<Vec<u8>, String> {
     let js = |e: wasm_bindgen::JsValue| format!("{e:?}");
     let window = web_sys::window().ok_or("no window")?;

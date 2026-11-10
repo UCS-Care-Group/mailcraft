@@ -53,6 +53,8 @@ fn a_sample_or_empty_start_is_a_look_around() {
     }
 }
 
+/// Georgian is the one language whose face the browser build fetches; every other code, a
+/// region-tagged `ka-GE` and the empty code included, fetches nothing.
 #[test]
 fn only_georgian_has_a_face_to_fetch() {
     assert_eq!(face_for("ka"), Some("NotoSansGeorgian-Regular.ttf"));
