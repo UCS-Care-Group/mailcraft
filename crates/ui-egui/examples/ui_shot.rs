@@ -18,7 +18,9 @@
 //! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
 //! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
-//! in another).
+//! in another). The system has no language or regional format unless a line names one
+//! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are
+//! written the way of its region).
 //!
 //! The window has no host: nothing in it can sign in, send or receive. A script that wants to
 //! look at what Add Account says about a sign-in on Microsoft's page gives it a stand-in for
@@ -696,6 +698,11 @@ fn main() {
         lines.iter().find_map(|l| l.pointer("/host/updates").and_then(|v| v.as_str())?.strip_prefix("didntStart ").map(str::to_string))
     {
         services.update_start.didnt_start = Some((env!("CARGO_PKG_VERSION").to_string(), kept));
+    }
+    // The system's language and regional format, when a line says (`{"locale": "en-GB"}`, #978).
+    if let Some(locale) = lines.iter().find_map(|l| l.get("locale").and_then(|v| v.as_str())) {
+        services.system_locale = Some(locale.to_string());
+        services.system_time_locale = Some(locale.to_string());
     }
     let mut app = MailApp::new(session, services).with_control(rx);
     app.autosave = false;

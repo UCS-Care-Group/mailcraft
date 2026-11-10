@@ -21,6 +21,22 @@ mod text;
 
 pub use text::{Arg, Text, ToArg};
 
+/// A text with values ([`Text`]): `said!("no folder named {name}", name)`, or
+/// `said!("{name} is larger than {mb} MB", name, mb = MAX >> 20)`. The template is a literal, so
+/// `cargo xtask i18n` finds it (in the crates it reads for what the engine and the hosts say); a
+/// value that is interface text itself is [`Arg::words`], a text of its own [`Arg::said`].
+#[macro_export]
+macro_rules! said {
+    (@arg $k:ident) => { $crate::ToArg::to_arg(&$k) };
+    (@arg $k:ident = $v:expr) => { $crate::ToArg::to_arg(&$v) };
+    ($t:literal $(, $k:ident $(= $v:expr)?)* $(,)?) => {
+        $crate::Text::new($t, vec![$((stringify!($k), $crate::said!(@arg $k $(= $v)?))),*])
+    };
+}
+
+#[cfg(test)]
+mod said_tests;
+
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 

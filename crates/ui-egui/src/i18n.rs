@@ -11,6 +11,35 @@ pub use mailcraft_i18n::{AUTO, Lang, fmt};
 
 static CURRENT: AtomicU8 = AtomicU8::new(0);
 
+/// The region the window's dates are written for (`GB`), with the language ([`dated`], #978).
+static REGION: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// The region the window's dates are written for from now on (`mailcraft_i18n::date::region_of`
+/// the system's regional format).
+pub fn set_region(region: Option<&str>) {
+    let _held = hold_language();
+    store_region(region);
+}
+
+/// What the window says dates in: its language, the way of its region.
+pub fn dated() -> mailcraft_i18n::date::Dated {
+    let _held = hold_language();
+    let region = REGION.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    mailcraft_i18n::date::Dated::new(load_current(), region.as_deref())
+}
+
+fn store_region(region: Option<&str>) {
+    let mut held = REGION.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if held.as_deref() != region {
+        *held = region.map(str::to_string);
+    }
+}
+
+#[cfg(test)]
+fn load_region() -> Option<String> {
+    REGION.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+}
+
 /// The window's language from now on.
 pub fn set_current(lang: Lang) {
     let _held = hold_language();
@@ -39,6 +68,7 @@ fn load_current() -> Lang {
 #[cfg(test)]
 pub(crate) struct RestoreLanguage {
     previous: Lang,
+    region: Option<String>,
     _hold: LanguageHold,
 }
 
@@ -46,7 +76,7 @@ pub(crate) struct RestoreLanguage {
 impl RestoreLanguage {
     pub(crate) fn hold() -> Self {
         let hold = LanguageHold::acquire();
-        Self { previous: load_current(), _hold: hold }
+        Self { previous: load_current(), region: load_region(), _hold: hold }
     }
 }
 
@@ -54,6 +84,7 @@ impl RestoreLanguage {
 impl Drop for RestoreLanguage {
     fn drop(&mut self) {
         store_current(self.previous);
+        store_region(self.region.as_deref());
     }
 }
 

@@ -9,6 +9,18 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "\"{address}\" can't be used as an address"
+msgstr "\"{address}\" kan niet als adres worden gebruikt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "\"{address}\" isn't an address mail can be sent to"
+msgstr "\"{address}\" is geen adres waarnaar e-mail kan worden verzonden"
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -20,6 +32,36 @@ msgstr "„{address}” is geen e-mailadres"
 #, fuzzy
 msgid "\"{address}\" on the {what} line isn't an e-mail address"
 msgstr "„{address}” op de regel {what} is geen e-mailadres"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{date}\" is not a date and time IMAP can carry"
+msgstr "\"{date}\" is geen datum en tijd die IMAP kan overbrengen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{field}\" is not the name of a header field"
+msgstr "\"{field}\" is niet de naam van een kopregelveld"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{flag}\" can't be used as a flag"
+msgstr "\"{flag}\" kan niet als vlag worden gebruikt"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{line}\" is not an IMAP response"
+msgstr "\"{line}\" is geen IMAP-antwoord"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "\"{line}\" is not an SMTP reply"
+msgstr "\"{line}\" is geen SMTP-antwoord"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -44,6 +86,18 @@ msgstr "„{name}” maakt deel uit van een reeks. Bedoelt u alleen het exemplaa
 #, fuzzy
 msgid "\"{name}\" will be permanently deleted."
 msgstr "„{name}” wordt definitief verwijderd."
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{set}\" doesn't name the messages to change"
+msgstr "\"{set}\" geeft niet de te wijzigen berichten aan"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{set}\" is not a set of messages"
+msgstr "\"{set}\" is geen reeks berichten"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -87,8 +141,8 @@ msgstr "(geen naam)"
 msgid "(no recipients)"
 msgstr "(geen ontvangers)"
 
-#. interface, what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#. interface, what a command says, why a mail server couldn't be used
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(geen onderwerp)"
@@ -2942,11 +2996,125 @@ msgstr "Kopiëren naar map"
 msgid "Could not open Google sign-in"
 msgstr "Kan de aanmelding met Google niet openen"
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring \"{name}\" up to date"
+msgstr "\"{name}\" kon niet worden bijgewerkt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring \"{name}\" up to date: the folder is not on the server"
+msgstr "\"{name}\" kon niet worden bijgewerkt: de map staat niet op de server"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring the server up to date"
+msgstr "De server kon niet worden bijgewerkt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't change flags in \"{name}\""
+msgstr "Vlaggen in \"{name}\" konden niet worden gewijzigd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't check for new mail"
+msgstr "Er kon niet op nieuwe e-mail worden gecontroleerd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't delete messages from \"{name}\""
+msgstr "Berichten in \"{name}\" konden niet worden verwijderd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't download a message from \"{name}\""
+msgstr "Een bericht uit \"{name}\" kon niet worden gedownload"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't download a message from \"{name}\" again"
+msgstr "Een bericht uit \"{name}\" kon niet opnieuw worden gedownload"
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Couldn't find out whether a new version is out: {why}."
 msgstr "Kan niet worden vastgesteld of er een nieuwe versie beschikbaar is: {why}."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't keep a copy of \"{subject}\" on the server: {error}"
+msgstr "Er kon geen kopie van \"{subject}\" op de server worden bewaard: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't look for \"{subject}\" in \"{folder}\" on the server"
+msgstr "Er kon niet naar \"{subject}\" worden gezocht in \"{folder}\" op de server"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make a folder inside \"{name}\": the server keeps no folders inside others"
+msgstr "Er kon geen map in \"{name}\" worden gemaakt: de server houdt geen mappen in andere mappen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make a folder on the server: it has no usable name"
+msgstr "Er kon geen map op de server worden gemaakt: die heeft geen bruikbare naam"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make the folder \"{name}\" on the server"
+msgstr "De map \"{name}\" kon niet op de server worden gemaakt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make the folder \"{name}\" on the server: it has another folder of that name"
+msgstr "De map \"{name}\" kon niet op de server worden gemaakt: die heeft al een andere map met die naam"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't move messages from \"{name}\" to \"{to}\""
+msgstr "Berichten konden niet van \"{name}\" naar \"{to}\" worden verplaatst"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't move messages to \"{name}\": the folder is no longer on the server"
+msgstr "Berichten konden niet naar \"{name}\" worden verplaatst: de map staat niet meer op de server"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\""
+msgstr "\"{name}\" kon niet worden geopend"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\" to bring it up to date"
+msgstr "\"{name}\" kon niet worden geopend om bij te werken"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\" to permanently delete messages"
+msgstr "\"{name}\" kon niet worden geopend om berichten definitief te verwijderen"
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -2954,11 +3122,40 @@ msgstr "Kan niet worden vastgesteld of er een nieuwe versie beschikbaar is: {why
 msgid "Couldn't open {name}: {error}"
 msgstr "Kon {name} niet openen: {error}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't put \"{subject}\" in \"{folder}\" on the server"
+msgstr "\"{subject}\" kon niet in \"{folder}\" op de server worden gezet"
+
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Couldn't reach Microsoft to open the calendar of {address}. Try again in a moment."
 msgstr "Microsoft kon niet worden bereikt om de agenda van {address} te openen. Probeer het zo meteen opnieuw."
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read \"{name}\""
+msgstr "\"{name}\" kon niet worden gelezen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read \"{name}\": the server listed none of its {count} messages"
+msgstr "\"{name}\" kon niet worden gelezen: de server gaf geen van de {count} berichten"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't read Gmail's categories of \"{name}\""
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read the list of folders"
+msgstr "De lijst met mappen kon niet worden gelezen"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -2972,11 +3169,29 @@ msgstr "Kan het concept '{subject}' niet opslaan op de server: de server meldt {
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Kan het postvak niet opslaan: {error}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": {error}"
+msgstr "\"{subject}\" kon niet worden verzonden: {error}"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "Couldn't send '{subject}': {why}. It is held in the Outbox."
 msgstr "Kan '{subject}' niet verzenden: {why}. Het wordt vastgehouden in Postvak UIT."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send mail"
+msgstr "E-mail kon niet worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send mail: the account has no outgoing server"
+msgstr "E-mail kon niet worden verzonden: het account heeft geen server voor uitgaande e-mail"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4940,6 +5155,12 @@ msgstr "ID van de Google-bureaubladtoepassing"
 msgid "Google Desktop application ID"
 msgstr "Id van de Google-bureaubladtoepassing"
 
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers"
+msgstr "OAuth-toegangstokens van Google mogen alleen naar de IMAP- en SMTP-servers van Gmail worden verzonden"
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google blocked access to MailCraft"
@@ -6855,6 +7076,12 @@ msgstr "Berichten (.eml, .mbox), agenda's (.ics) en contactpersonen (.vcf)"
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "Berichten worden getoond zonder dat er iets in wordt uitgevoerd, en de afbeeldingen die een bericht op het web bewaart, worden alleen gedownload wanneer u erom vraagt. Wachtwoorden blijven alleen in het geheugen zolang de app open is."
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages deleted from \"{name}\" are still in \"{trash}\""
+msgstr "Uit \"{name}\" verwijderde berichten staan nog in \"{trash}\""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6884,6 +7111,12 @@ msgstr "Berichten in de map zelf"
 #, fuzzy
 msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
 msgstr "Berichten behouden de kleuren die hun afzenders hebben gekozen, op een witte pagina, terwijl de rest van het venster donker blijft."
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
+msgstr "Van \"{name}\" naar \"{to}\" verplaatste berichten staan ook nog in \"{name}\""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -8778,6 +9011,12 @@ msgstr "Achterstallig: moest klaar zijn op {when}"
 #, fuzzy
 msgid "Overlay"
 msgstr "Overlappen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "PLAIN needs a user name and password without NUL characters"
+msgstr "PLAIN heeft een gebruikersnaam en wachtwoord zonder NUL-tekens nodig"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -12993,6 +13232,18 @@ msgstr "De server antwoordde, maar niet zoals een Exchange-server dat doet. Cont
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr "De server heeft de gebruikersnaam en het wachtwoord niet geaccepteerd. Controleer ze, of typ uw gebruikersnaam bij Serverinstellingen (DOMAIN\\user of naam@example.org)."
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over 1 message of \"{name}\""
+msgstr "De server heeft 1 bericht uit \"{name}\" niet gegeven"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over {count} messages of \"{name}\""
+msgstr "De server heeft {count} berichten uit \"{name}\" niet gegeven"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -13010,6 +13261,12 @@ msgstr "De server heeft de berichten niet verzonden. Probeer het over een paar m
 #, fuzzy
 msgid "The server doesn't let this rule be changed"
 msgstr "De server staat niet toe dat deze regel wordt gewijzigd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server has {count} folders; only the first {max} were read"
+msgstr "De server heeft {count} mappen; alleen de eerste {max} zijn gelezen"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15592,6 +15849,12 @@ msgstr "een .pst-bestand wordt alleen in een map op deze computer geïmporteerd,
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr "de server en het adres van een JMAP-account kunnen niet meer worden gewijzigd zodra de e-mail ervan hier is: verwijder het en voeg het andere toe"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
+msgstr "een aanmelding bij Microsoft wordt alleen gebruikt met de eigen mailservers van Microsoft: dit account noemt een andere server"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -15657,6 +15920,12 @@ msgstr "een lijst bevat hoogstens {n} vermeldingen"
 #, fuzzy
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr "een bericht wordt op de achtergrond alleen door de eigen timer van het venster opgeslagen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "a message that isn't on the server has no flags there"
+msgstr "een bericht dat niet op de server staat, heeft daar geen vlaggen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -15892,17 +16161,47 @@ msgstr "vouw eerst een gesprek samen: in elk van de 1.000 uitgevouwen gesprekken
 msgid "comes once Google has reviewed MailCraft"
 msgstr "komt zodra Google MailCraft heeft beoordeeld"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "connection problem: {reason}"
+msgstr "verbindingsprobleem: {reason}"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "contact"
 msgstr "contact"
 
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "couldn't make a secure connection to {host}: {reason}"
+msgstr "er kon geen beveiligde verbinding met {host} worden gemaakt: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "couldn't reach {host}: {reason}"
+msgstr "{host} kon niet worden bereikt: {reason}"
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
 msgid "day"
 msgstr "dag"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a password to sign in"
+msgstr "voer een wachtwoord in om u aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a user name to sign in"
+msgstr "voer een gebruikersnaam in om u aan te melden"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -16182,6 +16481,12 @@ msgstr "het duurde te lang"
 msgid "it writes to other people or reaches out to the web"
 msgstr "het schrijft naar andere mensen of benadert het web"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "its name isn't one a certificate can be checked against"
+msgstr "de naam is er geen waartegen een certificaat kan worden gecontroleerd"
+
 #. interface
 #: crates/ui-egui/src/opened_message.rs
 #, fuzzy
@@ -16294,6 +16599,12 @@ msgstr "geen account met id {account}"
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "no address was found for the name"
+msgstr "er is geen adres voor de naam gevonden"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -16462,6 +16773,12 @@ msgstr "geen map {folder}"
 #, fuzzy
 msgid "nobody else is invited to this appointment"
 msgstr "er is niemand anders uitgenodigd voor deze afspraak"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "not a set of messages"
+msgstr "geen reeks berichten"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -16679,11 +16996,23 @@ msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgeho
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
 #, fuzzy
-msgid "sign-in failed: the server doesn't take a password on this connection"
-msgstr "aanmelden mislukt: de server accepteert geen wachtwoord op deze verbinding"
+msgid "sign in to the account first"
+msgstr "meld u eerst aan bij het account"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "sign in to {who} first"
+msgstr "meld u eerst aan bij {who}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "sign-in failed: {reason}"
+msgstr "aanmelden mislukt: {reason}"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -16781,11 +17110,47 @@ msgstr "de lezer van het .pst-bestand stopte voordat die klaar was"
 msgid "the Inbox of this account hasn't been read yet"
 msgstr "het Postvak IN van dit account is nog niet gelezen"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the account has no incoming server"
+msgstr "het account heeft geen server voor inkomende e-mail"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "the account has no mail servers to check"
+msgstr "het account heeft geen mailservers om te controleren"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "the account has no outgoing server"
+msgstr "het account heeft geen server voor uitgaande e-mail"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "the account has no usable e-mail address to send from"
+msgstr "het account heeft geen bruikbaar e-mailadres om vanaf te verzenden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "the account has no user name or e-mail address to sign in with"
+msgstr "het account heeft geen gebruikersnaam of e-mailadres om mee aan te melden"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "het account is verdwenen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the account's server has no usable name"
+msgstr "de server van het account heeft geen bruikbare naam"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -16822,6 +17187,18 @@ msgstr "de agenda is verdwenen"
 #, fuzzy
 msgid "the check stopped unexpectedly"
 msgstr "de controle is onverwacht gestopt"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the command was refused"
+msgstr "de opdracht is geweigerd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the connection couldn't be set up"
+msgstr "de verbinding kon niet worden opgezet"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
@@ -16985,6 +17362,18 @@ msgstr "het bericht heeft geen bijlage {index}"
 msgid "the message has no attachments to save"
 msgstr "het bericht heeft geen bijlagen om op te slaan"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the message has no recipients"
+msgstr "het bericht heeft geen geadresseerden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the message has too many recipients"
+msgstr "het bericht heeft te veel geadresseerden"
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -16996,6 +17385,18 @@ msgstr "het bericht is platte tekst; zet het eerst om naar HTML"
 #, fuzzy
 msgid "the messages to forward are larger than {mb} MB together"
 msgstr "de berichten om door te sturen zijn samen groter dan {mb} MB"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the name couldn't be looked up"
+msgstr "de naam kon niet worden opgezocht"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the network couldn't get there"
+msgstr "het netwerk kon er niet komen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -17063,11 +17464,47 @@ msgstr "de afzender heeft geen bruikbaar e-mailadres"
 msgid "the series doesn't happen on {date}"
 msgstr "de reeks vindt niet plaats op {date}"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server accepted a password that was not sent"
+msgstr "de server accepteerde een wachtwoord dat niet was verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server answered a command that wasn't sent"
+msgstr "de server antwoordde op een opdracht die niet was verzonden"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server answered {status}"
 msgstr "de server antwoordde {status}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server asked for more than a sign-in has"
+msgstr "de server vroeg om meer dan een aanmelding heeft"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server asked for more than a user name and access token"
+msgstr "de server vroeg om meer dan een gebruikersnaam en toegangstoken"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server asked for more than a user name and password"
+msgstr "de server vroeg om meer dan een gebruikersnaam en wachtwoord"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server asked for more than the command had"
+msgstr "de server vroeg om meer dan de opdracht had"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -17075,11 +17512,41 @@ msgstr "de server antwoordde {status}"
 msgid "the server can't flag mail"
 msgstr "de server kan e-mail niet markeren"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
+msgstr "de server kan geen losse berichten verwijderen (hij biedt geen UIDPLUS)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs crates/proto/src/line.rs
+#, fuzzy
+msgid "the server closed the connection"
+msgstr "de server heeft de verbinding gesloten"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server continued a cancelled password authentication"
+msgstr "de server ging door met een geannuleerde wachtwoordverificatie"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "de server kon niet worden bereikt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server didn't answer"
+msgstr "de server antwoordde niet"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server didn't greet like an IMAP server"
+msgstr "de server groette niet zoals een IMAP-server"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17099,11 +17566,83 @@ msgstr "de server staat niet toe dat de regel ernaast wordt verplaatst"
 msgid "the server doesn't let this rule be changed"
 msgstr "de server staat niet toe dat deze regel wordt gewijzigd"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "the server doesn't offer STARTTLS"
+msgstr "de server biedt geen STARTTLS"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server doesn't take a password on this connection"
+msgstr "de server accepteert geen wachtwoord via deze verbinding"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server ended the command early"
+msgstr "de server beëindigde de opdracht te vroeg"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server ended the session: {reason}"
+msgstr "de server beëindigde de sessie: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server greeted with a refusal: {reason}"
+msgstr "de server groette met een weigering: {reason}"
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of verwijderd"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server offers no way to sign in with a password"
+msgstr "de server biedt geen manier om met een wachtwoord aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server offers no way to sign in with an access token"
+msgstr "de server biedt geen manier om met een toegangstoken aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server refused the connection"
+msgstr "de server weigerde de verbinding"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server reported more messages than the mailbox holds"
+msgstr "de server meldde meer berichten dan het postvak bevat"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server requested more than one PLAIN response"
+msgstr "de server vroeg om meer dan één PLAIN-antwoord"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the server said: {reason}"
+msgstr "de server zei: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent a line longer than {kb} KB"
+msgstr "de server stuurde een regel van meer dan {kb} kB"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -17111,17 +17650,88 @@ msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of
 msgid "the server sent a web page instead of a picture"
 msgstr "de server stuurde een webpagina in plaats van een afbeelding"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server sent data before the secure connection started"
+msgstr "de server stuurde gegevens voordat de beveiligde verbinding begon"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
 msgid "the server sent nothing"
 msgstr "de server stuurde niets"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent too many responses to one command"
+msgstr "de server stuurde te veel antwoorden op één opdracht"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent too much in answer to one command"
+msgstr "de server stuurde te veel als antwoord op één opdracht"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent {claimed} bytes in one piece, more than the {mb} MB MailCraft accepts"
+msgstr "de server stuurde {claimed} bytes in één stuk, meer dan de {mb} MB die MailCraft accepteert"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent {n} bytes in one piece, more than MailCraft accepts"
+msgstr "de server stuurde {n} bytes in één stuk, meer dan MailCraft accepteert"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server took too long"
+msgstr "de server deed er te lang over"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server took too long to answer"
+msgstr "de server deed er te lang over om te antwoorden"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "de server wilde „{subject}” niet heel verzenden, dus het kan niet als bijlage worden doorgestuurd"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "the server's answer was longer than {kb} KB"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server's reply has too many lines"
+msgstr "het antwoord van de server heeft te veel regels"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server's response has too many parts"
+msgstr "het antwoord van de server heeft te veel delen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/parse.rs
+#, fuzzy
+msgid "the server's response is nested too deeply"
+msgstr "het antwoord van de server is te diep genest"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server's response is too long"
+msgstr "het antwoord van de server is te lang"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
@@ -17147,6 +17757,18 @@ msgstr "de handtekening is bewerkt als tekst: die kopie is wat wordt verzonden"
 msgid "the task is gone"
 msgstr "de taak is verdwenen"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the text can't be looked for on the server"
+msgstr "naar de tekst kan niet op de server worden gezocht"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the text has a character that can't be sent"
+msgstr "de tekst bevat een teken dat niet kan worden verzonden"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -17158,6 +17780,30 @@ msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, d
 #, fuzzy
 msgid "the top level"
 msgstr "het bovenste niveau"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the user name or access token has a character that can't be sent"
+msgstr "de gebruikersnaam of het toegangstoken bevat een teken dat niet kan worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the user name or access token is too long to be sent"
+msgstr "de gebruikersnaam of het toegangstoken is te lang om te worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the user name or password has a character that can't be sent"
+msgstr "de gebruikersnaam of het wachtwoord bevat een teken dat niet kan worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the user name or password is too long"
+msgstr "de gebruikersnaam of het wachtwoord is te lang"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -17200,6 +17846,12 @@ msgstr "er zijn te veel handtekeningen"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "er is al een handtekening met de naam „{to}”"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "there is no access token to sign in with"
+msgstr "er is geen toegangstoken om mee aan te melden"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -17425,11 +18077,23 @@ msgstr "er wachten te veel verwijderingen om naar Microsoft To Do te worden verz
 msgid "too many files of one name"
 msgstr "te veel bestanden met dezelfde naam"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "too many flags for one command"
+msgstr "te veel vlaggen voor één opdracht"
+
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
 msgstr "typ een adres, zoals naam@example.org, of een domein, zoals @example.org"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "unexpected server response: {reason}"
+msgstr "onverwacht antwoord van de server: {reason}"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17796,6 +18460,12 @@ msgstr "{host} (niet versleuteld)"
 #, fuzzy
 msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
 msgstr "{host} zit in het eigen domein van uw adres, maar het is niet de Autodiscover-server die uw domein noemt. Het kan een webpagina zijn in plaats van de mailserver van uw organisatie."
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} is ingesteld zonder versleuteling, waardoor het wachtwoord voor iedereen op het netwerk zichtbaar zou zijn; kies TLS of STARTTLS"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -19146,6 +19816,10 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "you signed in as somebody else"
 #~ msgstr "u hebt zich aangemeld als iemand anders"
+
+#, fuzzy
+#~ msgid "sign-in failed: the server doesn't take a password on this connection"
+#~ msgstr "aanmelden mislukt: de server accepteert geen wachtwoord op deze verbinding"
 
 #, fuzzy
 #~ msgid "Google sign-in is not configured for this build"
