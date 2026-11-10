@@ -17,12 +17,12 @@ use crate::{Catalogue, Lang, fmt};
 
 /// The months, January first.
 const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-/// The months, short (`Oct 3`).
 /// The same names where a month stands alone (`October 2026`): a language whose names change with
 /// their place in a date (Russian says `11 октября` and `Октябрь 2026`) gives them in this context
 /// (`msgctxt "month alone"`); the others need none.
 const MONTHS_ALONE: [&str; 12] =
     ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/// The months, short (`Oct 3`).
 const MONTHS_SHORT: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /// The days of the week, Monday first.
 const WEEKDAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
