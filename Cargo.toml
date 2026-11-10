@@ -23,6 +23,7 @@ mailcraft-mime = { path = "crates/mime" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
+mailcraft-openpgp = { path = "crates/openpgp" }
 mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-assuan = { path = "crates/assuan" }
@@ -107,6 +108,19 @@ rsa = { version = "0.10", default-features = false, features = ["encoding", "pkc
 p256 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc"] }
 p384 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc"] }
 sha2 = { version = "0.11", default-features = false, features = ["oid"] }
+# OpenPGP (RFC 9580): checking Digital signatures and reading Public keys (#30), in
+# `mailcraft-openpgp` only. rPGP, MIT OR Apache-2.0, Rust throughout, builds for the browser
+# (`wasm` there, for the random numbers its dependencies ask for). Pinned: a new version is read
+# and its fixed vectors run before it comes in. No default features: bzip2 compression isn't
+# needed to check a signature.
+pgp = { version = "=0.21.0", default-features = false }
+# The hashes rPGP itself uses (RustCrypto, MIT OR Apache-2.0, in the tree through it), named so
+# that `mailcraft-openpgp` hashes what was signed once for all the keys it tries (`sha2` 0.10 and,
+# for a test, `rsa` 0.9 are declared in that crate: rPGP's generation, older than S/MIME's below). The test
+# vector built without rPGP signs with Ed25519 and SHA-1 fingerprints (tests only).
+sha3 = { version = "0.10", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+ed25519-dalek = { version = "2", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO
