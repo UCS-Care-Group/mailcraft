@@ -298,7 +298,7 @@ fn html_inline_pictures_ole_links_and_smime_are_kept_or_named() {
             (0x3707, w::unicode("logo.png")),
             (0x370E, w::unicode("image/png")),
             (0x3712, w::unicode("<logo-1>")),
-            (0x3701, w::binary(&[0x89, b'P', b'N', b'G'])),
+            (0x3701, w::binary(b"\x89PNG\r\n\x1a\n")),
         ]),
         AttachSpec::Props(vec![(0x3705, w::int32(4)), (0x3707, w::unicode("plan.docx")), (0x370D, w::unicode("\\\\server\\share\\plan.docx"))]),
         AttachSpec::Ole(vec![1, 2, 3, 4, 5]),

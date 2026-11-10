@@ -83,9 +83,12 @@ impl MailApp {
         // (Through the command: a run begins afresh, whatever one that never ended had read.)
         let request = self.session.run("sync.jmapRequest", &json!({"account": account, "background": quiet})).map_err(|e| e.to_string())?;
         let request: JmapMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
-        let Some(run) = &self.services.jmap else { return Err(tl!("This build can't connect to mail servers").to_string()) };
+        if self.services.jmap.is_none() {
+            return Err(tl!("This build can't connect to mail servers").to_string());
+        }
         self.services.sync_cancel.store(false, Ordering::Relaxed);
-        let pieces = run(JmapJob { request, secret, cancel: self.services.sync_cancel.clone() });
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let pieces = self.hand_jmap(account, JmapJob { request, secret, cancel: self.services.sync_cancel.clone() })?;
         self.sync_refused = false;
         self.sync_run = Some((account, None, false, quiet));
         self.sync_rx = Some(MailRun::Jmap { account, opening: self.session.openings(), pieces });
@@ -135,13 +138,18 @@ impl MailApp {
                     let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
                     self.note_sync_problems(account, &errors.unwrap_or_default(), false);
                 }
-                Err(e) => self.status(e.to_string()),
+                Err(e) => {
+                    self.status(e.to_string());
+                    self.send_doubt = true;
+                }
             }
             if !last {
                 continue;
             }
             // The run is over.
             self.sync_rx = None;
+            // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
+            self.run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.sync_queue.push_front((whose, quiet));

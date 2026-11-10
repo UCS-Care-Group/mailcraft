@@ -56,6 +56,11 @@ msgstr "„{shown}“ ist keine E-Mail-Adresse"
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr "„{subject}“ wurde möglicherweise gesendet: Sehen Sie in „Gesendete Elemente“ nach. Die Nachricht bleibt im Postausgang."
 
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -63,7 +68,12 @@ msgid "(No title)"
 msgstr "(Kein Titel)"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/reading/signature.rs
+msgid "(as the signer says)"
+msgstr ""
+
+#. interface, what a command says
+#: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(kein Name)"
@@ -1032,6 +1042,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
@@ -1314,6 +1329,16 @@ msgstr "Aufgaben anordnen nach"
 #, fuzzy
 msgid "Arrangement"
 msgstr "Anordnung"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "As Folders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "As Tabs above the Inbox"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -2068,6 +2093,11 @@ msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "Namen, Anmeldung und offline verfügbare E-Mails dieses Kontos ändern"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Changed after it was signed"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
@@ -2133,6 +2163,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Check Accessibility"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
+msgid "Check Again"
 msgstr ""
 
 #. command label, interface
@@ -3082,12 +3117,17 @@ msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed wi
 msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Desktop alerts only for mail in Primary"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Detail"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Details"
 msgstr "Details"
@@ -3101,6 +3141,41 @@ msgstr "Diagnose kopiert. Es wurde nichts gesendet."
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Diagram"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Digital Signature"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digital signature can't be checked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed and verified"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed by {signer}, and verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed by {signer}, but the signer isn't verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed, but the signer isn't verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed, signer not verified"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -3297,6 +3372,11 @@ msgstr "Bilder herunterladen"
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Bilder in E-Mails automatisch herunterladen"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Download the bytes this message came as again, to check its Digital signature"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3954,6 +4034,11 @@ msgid "Finding your account settings…"
 msgstr "Ihre Kontoeinstellungen werden gesucht…"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Fingerprint (SHA-256):"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Finish or close the message you're writing first."
 msgstr ""
@@ -4191,6 +4276,11 @@ msgstr "Als HTML formatieren"
 msgid "Format as Plain Text"
 msgstr "Als Nur-Text formatieren"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Forums"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4390,11 +4480,47 @@ msgstr ""
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Gmail\n"
+"Categories"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Gmail Categories"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Gmail and Google Workspace"
 msgstr "Gmail und Google Workspace"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Gmail categories"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
+msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
+msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4529,6 +4655,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in needs Google's IMAP server"
 msgstr ""
 
@@ -4638,6 +4769,11 @@ msgid "Hide Calendar Listed Twice"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Hide Details"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Hide MailCraft"
 msgstr "MailCraft ausblenden"
@@ -4721,7 +4857,7 @@ msgid "Hold Unsent Mail"
 msgstr "Nicht gesendete E-Mails zurückhalten"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Start"
@@ -5148,6 +5284,11 @@ msgid "Issued by"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Issued by:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Issued to"
 msgstr ""
@@ -5221,6 +5362,16 @@ msgstr "Sie läuft auf diesem Computer, solange MailCraft geöffnet ist."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Sie läuft dort, ob MailCraft geöffnet ist oder nicht, und erscheint in Outlook im Web und auf Ihrem Telefon."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "It uses an algorithm MailCraft doesn't know."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "It uses an algorithm that's no longer safe."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6459,7 +6610,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr ""
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "Verschieben"
@@ -6550,6 +6701,11 @@ msgstr "Diese Regel nach oben verschieben: Sie läuft früher"
 #, fuzzy
 msgid "Move to Calendar"
 msgstr "In Kalender verschieben"
+
+#. command label, interface
+#: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
+msgid "Move to Category"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
@@ -6669,6 +6825,11 @@ msgstr "Erforderlich für Outlook.com- und Microsoft 365-Konten"
 #, fuzzy
 msgid "Needs Check for new versions."
 msgstr "Erfordert „Nach neuen Versionen suchen“."
+
+#. interface
+#: crates/ui-egui/src/gmail_move.rs
+msgid "Needs Google sign-in"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -6834,6 +6995,11 @@ msgid "New mail"
 msgstr "Neue E-Mails"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "New message"
@@ -6988,6 +7154,11 @@ msgstr "Noch keine Kategorien"
 #, fuzzy
 msgid "No category"
 msgstr "Keine Kategorie"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -7284,6 +7455,11 @@ msgid "Not connected: the rest of this message is on the server"
 msgstr "Nicht verbunden: Der Rest dieser Nachricht liegt auf dem Server"
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Not every layout checked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Not in Outlook's list: no colour there"
@@ -7394,8 +7570,18 @@ msgid "Nothing to do here."
 msgstr "Hier gibt es nichts zu tun."
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs
+msgid "Nothing was done: what the agent asked about changed after you were asked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sending.rs
+msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
 msgstr ""
 
 #. date and time
@@ -7634,6 +7820,11 @@ msgid "Only on this computer: {why}"
 msgstr "Nur auf diesem Computer: {why}"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Only send during this time range:"
 msgstr ""
@@ -7779,6 +7970,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Open on GitHub"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Open or save the Digital signature"
 msgstr ""
 
 #. interface
@@ -8076,6 +8272,11 @@ msgid "Part of the mailbox file is damaged and was left out, so some recent chan
 msgstr "Ein Teil der Postfachdatei ist beschädigt und wurde ausgelassen, daher fehlen möglicherweise einige neuere Änderungen. Die Datei im ursprünglichen Zustand wird beim nächsten Speichern des Postfachs daneben aufbewahrt."
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Part of this message is Digitally signed by {signer}, and verified; the rest isn't signed."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Part of your mailbox is damaged"
 msgstr ""
@@ -8355,11 +8556,26 @@ msgstr "Vorherige Nachricht"
 msgid "Previous Month"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Primary"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Private"
 msgstr "Privat"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Promotions"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
@@ -9073,6 +9289,16 @@ msgstr ""
 msgid "Review certificate…"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Revocation not checked."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Revocation:"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9346,8 +9572,8 @@ msgstr "Postfach speichern"
 msgid "Save Mailbox As"
 msgstr "Postfach speichern unter"
 
-#. command label
-#: crates/engine/src/cmd/file.rs
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Save Message As"
 msgstr "Nachricht speichern unter"
@@ -10178,6 +10404,11 @@ msgstr "Kontakte anzeigen von"
 msgid "Show Contributors"
 msgstr "Mitwirkende anzeigen"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Show Gmail's categories under the Inbox"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -10554,6 +10785,11 @@ msgstr "Anmeldung abgebrochen"
 msgid "Signature"
 msgstr "Signatur"
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signature file:"
+msgstr ""
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
@@ -10571,6 +10807,16 @@ msgstr "Signaturen werden auf diesem Computer gespeichert. Sie können nicht mit
 #, fuzzy
 msgid "Signatures…"
 msgstr "Signaturen…"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signed at:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signed by:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10688,6 +10934,11 @@ msgstr "Erneut erinnern"
 #, fuzzy
 msgid "Snooze Reminders"
 msgstr "Erinnerungen zurückstellen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Social"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -11282,6 +11533,11 @@ msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The Digital signature can't be read."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The Entire Series"
@@ -11490,14 +11746,39 @@ msgstr ""
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Die Kategorien konnten nicht übernommen werden: {error}"
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate is for another address than the sender's."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate is out of date."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate isn't for signing mail."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "The certificate of the server of {name} needs your say"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate signed itself, and this computer doesn't trust it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The certificate the server at {host} shows is not the one you trusted for this account, and this computer doesn't trust it. Trust it only if your administrator has changed it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr ""
 
 #. what a command says
@@ -11581,6 +11862,13 @@ msgstr ""
 #, fuzzy
 msgid "The folder \"{folder}\" and everything in it will be deleted."
 msgstr "Der Ordner „{folder}“ und sein gesamter Inhalt werden gelöscht."
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
+msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11681,6 +11969,11 @@ msgstr "Die Besprechung, für die diese Vorschläge gelten, ist nicht in Ihrem K
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
+msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people_merge.rs
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr ""
 
@@ -11701,6 +11994,11 @@ msgstr "Die Nachricht ist in der Zwischenablage: Fügen Sie sie in eine E-Mail o
 #, fuzzy
 msgid "The message isn't there any more"
 msgstr "Die Nachricht ist nicht mehr vorhanden"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
@@ -11824,6 +12122,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The search for your Exchange server was sent on to {host}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected message, as .eml"
 msgstr ""
 
 #. interface
@@ -12015,6 +12318,16 @@ msgid "The signature is then sent as the simpler text shown here, not as it was 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's certificate isn't in the message."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key hasn't been marked verified."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/view_source.rs
 msgid "The source is long: only its first megabyte is shown."
 msgstr ""
@@ -12147,6 +12460,11 @@ msgstr "In der Zwischenablage ist kein Bild."
 #, fuzzy
 msgid "There is no such account"
 msgstr "Dieses Konto gibt es nicht"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "There's more in this Digital signature than MailCraft checks for one message."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -12321,13 +12639,13 @@ msgid "This build can't ask a server when other people are busy: only your own c
 msgstr "Dieser Build kann keinen Server fragen, wann andere gebucht sind: Nur Ihr eigener Kalender wird angezeigt."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This build can't connect to Microsoft"
 msgstr "Dieser Build kann keine Verbindung zu Microsoft herstellen"
 
 #. interface
-#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Dieser Build kann keine Verbindung zu Mailservern herstellen"
@@ -12423,6 +12741,11 @@ msgstr "Dieser Kalender ist noch nicht mit Ihrem Konto verbunden. Änderungen an
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
 msgstr ""
 
 #. interface
@@ -12546,6 +12869,11 @@ msgstr "Diese Einladung gibt nicht an, wann die Besprechung ist."
 #, fuzzy
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr "Diese Einladung gibt nicht an, um welche Besprechung es geht, daher kann sie nicht beantwortet werden."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -12781,7 +13109,17 @@ msgstr "Diese Nachricht ist noch nicht auf diesem Computer. Sie wird heruntergel
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
 msgid "This message may not be what it seems."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This message was changed after it was signed."
 msgstr ""
 
 #. interface
@@ -12801,6 +13139,11 @@ msgstr "Diese Nachricht wurde mit niedriger Wichtigkeit gesendet."
 #, fuzzy
 msgid "This message will be permanently deleted."
 msgstr "Diese Nachricht wird endgültig gelöscht."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This message's Digital signature can't be checked."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -13229,6 +13572,16 @@ msgstr "Wird heute {age}"
 msgid "Two Weeks Ago"
 msgstr "Vor zwei Wochen"
 
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
@@ -13376,7 +13729,7 @@ msgid "Updated {folder} on the server"
 msgstr "{folder} auf dem Server aktualisiert"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Updates"
 msgstr "Updates"
@@ -13469,6 +13822,11 @@ msgstr "Meist die ganze Adresse"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Valid"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Valid:"
 msgstr ""
 
 #. name
@@ -13647,6 +14005,11 @@ msgid "What you expected (optional)"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "What you see isn't what was signed: treat it with care."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr ""
@@ -13708,6 +14071,11 @@ msgstr ""
 #, fuzzy
 msgid "Who is invited is for its organizer to say."
 msgstr "Wer eingeladen ist, entscheidet ihr Organisator."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Who signed this message, and the certificate"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14565,6 +14933,11 @@ msgstr "höchstens 200 Nachrichten können zusammen weitergeleitet werden"
 msgid "calendar"
 msgstr "Kalender"
 
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "can't be done in the browser"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
@@ -14575,6 +14948,11 @@ msgstr ""
 #, fuzzy
 msgid "close a conversation first: each of the 1,000 open has a message selected"
 msgstr "schließen Sie zuerst eine Unterhaltung: in jeder der 1.000 geöffneten ist eine Nachricht ausgewählt"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "comes once Google has reviewed MailCraft"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -14861,6 +15239,11 @@ msgstr "es schreibt an andere Personen oder greift auf das Web zu"
 msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/session.rs
+msgid "message {id} keeps no original"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -14881,6 +15264,16 @@ msgstr "Monat"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "more than {max} folders"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "needs Google sign-in"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "needs a Gmail account"
 msgstr ""
 
 #. name
@@ -15009,7 +15402,7 @@ msgid "no message is being written"
 msgstr "es wird keine Nachricht geschrieben"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "keine Nachricht mit der ID {id}"
@@ -15183,6 +15576,16 @@ msgstr "am"
 msgid "only a message you sent can be sent again"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "only mail in a Gmail account's Inbox is in one of Gmail's categories"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -15270,7 +15673,7 @@ msgid "select a conversation in conversation view first"
 msgstr "wählen Sie zuerst eine Unterhaltung in der Unterhaltungsansicht aus"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "wählen Sie zuerst eine Nachricht aus"
@@ -16266,6 +16669,11 @@ msgid "{folder}: {done} of {total}"
 msgstr "{folder}: {done} von {total}"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "{from} to {until}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "{from} – {to}, {year}"
@@ -16276,6 +16684,11 @@ msgstr "{from} – {to} {year}"
 #, fuzzy
 msgid "{host} (not encrypted)"
 msgstr "{host} (nicht verschlüsselt)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -16852,6 +17265,20 @@ msgid_plural "{n} messages copied into the account: Send/Receive puts them on Mi
 msgstr[0] "{n} Nachricht in das Konto kopiert: Senden/Empfangen legt sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server"
 msgstr[1] "{n} Nachrichten in das Konto kopiert: Senden/Empfangen legt sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server"
 
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
+msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
+msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -16898,6 +17325,13 @@ msgid "{n} message removed"
 msgid_plural "{n} messages removed"
 msgstr[0] "{n} Nachricht entfernt"
 msgstr[1] "{n} Nachrichten entfernt"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
+msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -17163,7 +17597,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/gmail_tabs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "{n} unread"
 msgid_plural "{n} unread"
