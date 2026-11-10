@@ -59,8 +59,9 @@ msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt va
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
-msgstr ""
+msgstr "'{subject}' blijft waar die is verplaatst: die is digitaal ondertekend of versleurd, en de kopie in het postvak waarvandaan die kwam, is verwijderd, terwijl de kopie waaruit die eerst werd verplaatst de bytes behoudt zoals die aankw. Verplaats die terug om die daar weer te zetten."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -70,8 +71,9 @@ msgstr "(Geen titel)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "(as the signer says)"
-msgstr ""
+msgstr "(zoals de ondertekenaar zegt)"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
@@ -1075,8 +1077,9 @@ msgstr "Een afspraak die als persoonlijk is gemarkeerd, toont alleen dat u bezet
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
-msgstr ""
+msgstr "Een certificeringsautoriteit op de weg naar een vertrouwde staat het gebruik van dit certificaat niet toe."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -2204,8 +2207,9 @@ msgstr "De naam, de aanmelding en de offline te bewaren e-mail van dit account w
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Changed after it was signed"
-msgstr ""
+msgstr "Gewijzigd na het ondertekenen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -2285,8 +2289,9 @@ msgstr "Toegankelijkheid controleren"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Check Again"
-msgstr ""
+msgstr "Opnieuw controleren"
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -3296,38 +3301,45 @@ msgstr "Diagram"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Digital Signature"
-msgstr ""
+msgstr "Digitale ondertekening"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digital signature can't be checked"
-msgstr ""
+msgstr "Digitale ondertekening kan niet worden gecontroleerd"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed and verified"
-msgstr ""
+msgstr "Digitaal ondertekend en geverifieerd"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed by {signer}, and verified."
-msgstr ""
+msgstr "Digitaal ondertekend door {signer} en geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed by {signer}, but the signer isn't verified."
-msgstr ""
+msgstr "Digitaal ondertekend door {signer}, maar de ondertekenaar is niet geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed, but the signer isn't verified."
-msgstr ""
+msgstr "Digitaal ondertekend, maar de ondertekenaar is niet geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed, signer not verified"
-msgstr ""
+msgstr "Digitaal ondertekend, ondertekenaar niet geverifieerd"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -3535,8 +3547,9 @@ msgstr "Afbeeldingen in e-mail automatisch downloaden"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
-msgstr ""
+msgstr "Download de bytes zoals dit bericht binnenkwam opnieuw, om de digitale ondertekening te controleren"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4229,8 +4242,9 @@ msgstr "Bezig uw accountinstellingen te zoeken…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Fingerprint (SHA-256):"
-msgstr ""
+msgstr "Vingerafdruk (SHA-256):"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -4676,8 +4690,9 @@ msgstr "Voorbereiden…"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+#, fuzzy
 msgid "GitHub is public and needs a GitHub account."
-msgstr ""
+msgstr "GitHub is openbaar en heeft een GitHub-account nodig."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -4727,22 +4742,25 @@ msgstr "Gmail-categorieën"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
-msgstr ""
+msgstr "Gmail heeft de id van dit bericht nog niet gezegd: doe eerst Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
 msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Gmail weigerde {n} bericht tussen de categorieën te verplaatsen; die wordt opnieuw gevraagd bij het volgende Verzenden/ontvangen"
+msgstr[1] "Gmail weigerde {n} berichten tussen de categorieën te verplaatsen; ze worden opnieuw gevraagd bij het volgende Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
 msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Gmail wilde {n} bericht niet verplaatsen; die blijft waar Gmail die"
+msgstr[1] "Gmail wilde {n} berichten niet verplaatsen; ze blijven waar Gmail ze heeft"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5013,8 +5031,9 @@ msgstr "Twee keer vermelde agenda verbergen"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Hide Details"
-msgstr ""
+msgstr "Details verbergen"
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -5570,8 +5589,9 @@ msgstr "Uitgegeven door"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Issued by:"
-msgstr ""
+msgstr "Uitgegeven door:"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5653,13 +5673,15 @@ msgstr "Hij wordt daar uitgevoerd, of MailCraft nu open is of niet, en verschijn
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "It uses an algorithm MailCraft doesn't know."
-msgstr ""
+msgstr "Het gebruikt een algoritme dat MailCraft niet kent."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "It uses an algorithm that's no longer safe."
-msgstr ""
+msgstr "Het gebruikt een algoritme dat niet meer veilig is."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7051,8 +7073,9 @@ msgstr "Naar agenda verplaatsen"
 
 #. command label, interface
 #: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
+#, fuzzy
 msgid "Move to Category"
-msgstr ""
+msgstr "Verplaatsen naar categorie"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
@@ -7176,8 +7199,9 @@ msgstr "Controleren op nieuwe versies is nodig."
 
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
+#, fuzzy
 msgid "Needs Google sign-in"
-msgstr ""
+msgstr "Heeft aanmelding bij Google nodig"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -7513,8 +7537,9 @@ msgstr "Geen categorie"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
-msgstr ""
+msgstr "Er werden geen certificeringsautoriteiten voor e-mail op deze computer gelezen, dus geen enkele ondertekenaar kan hier worden geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -8196,8 +8221,9 @@ msgstr "Alleen op deze computer: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
-msgstr ""
+msgstr "Alleen één deel van dit bericht was ondertekend, en wat hier wordt getoond, omvat meer dan dat deel: wat erbuiten staat, kan van alles zeggen."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -8361,8 +8387,9 @@ msgstr "Openen op GitHub"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Open or save the Digital signature"
-msgstr ""
+msgstr "De digitale ondertekening openen of opslaan"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8678,8 +8705,9 @@ msgstr "Een deel van het postvakbestand is beschadigd en is weggelaten, waardoor
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Part of this message is Digitally signed by {signer}, and verified; the rest isn't signed."
-msgstr ""
+msgstr "Een deel van dit bericht is digitaal ondertekend door {signer} en geverifieerd; de rest is niet ondertekend."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -9764,13 +9792,15 @@ msgstr "Certificaat controleren…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Revocation not checked."
-msgstr ""
+msgstr "Intrekking niet gecontroleerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Revocation:"
-msgstr ""
+msgstr "Intrekking:"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
@@ -11334,8 +11364,9 @@ msgstr "Handtekening"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Signature file:"
-msgstr ""
+msgstr "Ondertekingsbestand:"
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
@@ -11357,13 +11388,15 @@ msgstr "Handtekeningen…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Signed at:"
-msgstr ""
+msgstr "Ondertekend op:"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Signed by:"
-msgstr ""
+msgstr "Ondertekend door:"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -12128,8 +12161,9 @@ msgstr "Het .pst-bestand heeft {what} om te importeren; er werd niets geïmporte
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The Digital signature can't be read."
-msgstr ""
+msgstr "De digitale ondertekening kan niet worden gelezen."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12361,18 +12395,21 @@ msgstr "De categorieën konden niet worden opgehaald: {error}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate is for another address than the sender's."
-msgstr ""
+msgstr "Het certificaat is voor een ander adres dan dat van de afzender."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate is out of date."
-msgstr ""
+msgstr "Het certificaat is verlopen."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate isn't for signing mail."
-msgstr ""
+msgstr "Het certificaat is niet bedoeld om e-mail te ondertekenen."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -12382,8 +12419,9 @@ msgstr "Het certificaat van de server van {name} heeft uw akkoord nodig"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate signed itself, and this computer doesn't trust it."
-msgstr ""
+msgstr "Het certificaat ondertekende zichzelf, en deze computer vertrouwt het niet."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12393,8 +12431,9 @@ msgstr "Het certificaat dat de server op {host} toont, is niet het certificaat d
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
-msgstr ""
+msgstr "Het certificaat werd niet uitgegeven door een certificeringsautoriteit die deze computer vertrouwt."
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -12598,8 +12637,9 @@ msgstr "De vergadering waarvoor deze voorstellen zijn, staat niet in uw agenda."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
 msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
-msgstr ""
+msgstr "De samengevoegde contactpersoon zou meer certificaten en sleutels hebben dan een contactpersoon bevat (maximaal {max}, de behouden contactpersoon heeft {had}), dus de contactpersonen worden niet samengevoegd."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -12627,8 +12667,9 @@ msgstr "Het bericht is er niet meer"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
-msgstr ""
+msgstr "Het bericht werd gedownload voordat MailCraft de bytes behield. Opnieuw controleren haalt ze opnieuw binnen."
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
@@ -12986,13 +13027,15 @@ msgstr "De handtekening wordt dan verzonden als de eenvoudigere tekst die hier w
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The signer's certificate isn't in the message."
-msgstr ""
+msgstr "Het certificaat van de ondertekenaar staat niet in het bericht."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The signer's key hasn't been marked verified."
-msgstr ""
+msgstr "De sleutel van de ondertekenaar is niet als geverifieerd gemarkeerd."
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
@@ -13140,8 +13183,9 @@ msgstr "Er is niet zo'n account"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "There's more in this Digital signature than MailCraft checks for one message."
-msgstr ""
+msgstr "Deze digitale ondertekening bevat meer dan MailCraft in één bericht controleert."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -13217,8 +13261,9 @@ msgstr "Ze worden ook van de e-mailserver verwijderd."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+#, fuzzy
 msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
-msgstr ""
+msgstr "Ze worden in een bestand naar keuze opgeslagen, dat u bij het GitHub-issue voegt. Ze komen nooit in de koppeling."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -13443,8 +13488,9 @@ msgstr "Deze computer vertrouwt het certificaat niet dat de server op {host} too
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
-msgstr ""
+msgstr "De certificeringsautoriteiten van deze computer zijn nog niet gelezen: de ondertekening wordt gecontroleerd zodra ze zijn gelezen."
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -13826,8 +13872,9 @@ msgstr "Dit bericht is mogelijk niet wat het lijkt."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "This message was changed after it was signed."
-msgstr ""
+msgstr "Dit bericht werd na het ondertekenen gewijzigd."
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -13849,8 +13896,9 @@ msgstr "Dit bericht wordt definitief verwijderd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "This message's Digital signature can't be checked."
-msgstr ""
+msgstr "De digitale ondertekening van dit bericht kan niet worden gecontroleerd."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -14579,8 +14627,9 @@ msgstr "Geldig"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Valid:"
-msgstr ""
+msgstr "Geldig:"
 
 #. name
 #: crates/model/src/rich.rs
@@ -14764,8 +14813,9 @@ msgstr "Wat u verwachtte (optioneel)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
-msgstr ""
+msgstr "Wat u ziet, is niet wat werd ondertekend: ga er voorzichtig mee om."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -14839,8 +14889,9 @@ msgstr "Wie er wordt uitgenodigd, is aan de organisator."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Who signed this message, and the certificate"
-msgstr ""
+msgstr "Wie dit bericht ondertekende, en het certificaat"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15762,8 +15813,9 @@ msgstr "agenda"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "can't be done in the browser"
-msgstr ""
+msgstr "kan niet in de browser worden gedaan"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -15779,8 +15831,9 @@ msgstr "vouw eerst een gesprek samen: in elk van de 1.000 uitgevouwen gesprekken
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "comes once Google has reviewed MailCraft"
-msgstr ""
+msgstr "komt zodra Google MailCraft heeft beoordeeld"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -16080,8 +16133,9 @@ msgstr "groter dan {mb} MB: haal het binnen via Bestand › Importeren"
 
 #. what a command says
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "message {id} keeps no original"
-msgstr ""
+msgstr "bericht {id} behoudt geen origineel"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -16109,13 +16163,15 @@ msgstr "meer dan {max} mappen"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "needs Google sign-in"
-msgstr ""
+msgstr "heeft aanmelding bij Google nodig"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "needs a Gmail account"
-msgstr ""
+msgstr "heeft een Gmail-account nodig"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -16431,8 +16487,9 @@ msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "only mail in a Gmail account's Inbox is in one of Gmail's categories"
-msgstr ""
+msgstr "alleen e-mail in het Postvak IN van een Gmail-account zit in een van Gmail's categorieën"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -17580,8 +17637,9 @@ msgstr "{folder}: {done} van {total}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "{from} to {until}"
-msgstr ""
+msgstr "{from} tot {until}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18205,17 +18263,19 @@ msgstr[1] "{n} berichten naar het account gekopieerd: Verzenden/ontvangen zet ze
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht kon niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen: Gmail weigerde {m} ervan; de rest wacht op het volgende Verzenden/ontvangen"
+msgstr[1] "{n} berichten konden niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen: Gmail weigerde {m} ervan; de rest wacht op het volgende Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht kon niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen; die wacht op het volgende Verzenden/ontvangen"
+msgstr[1] "{n} berichten konden niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen; die wachten op het volgende Verzenden/ontvangen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -18267,10 +18327,11 @@ msgstr[1] "{n} berichten verwijderd"
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht blijft waar die is verplaatst: die is digitaal ondertekend of versleurd, en de kopie in het postvak waarvandaan die kwam, is verwijderd, terwijl de kopie waaruit die eerst werd verplaatst de bytes behoudt zoals die aankw. Verplaats die terug om die daar weer te zetten."
+msgstr[1] "{n} berichten blijven waar die zijn verplaatst: die zijn digitaal ondertekend of versleurd, en de kopieën in het postvak waarvandaan die kwamen, zijn verwijderd, terwijl de kopieën waaruit die eerst werden verplaatst de bytes behouden zoals die aankwamen. Verplaats die terug om die daar weer te zetten."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
