@@ -859,3 +859,31 @@ fn a_message_deleted_for_good_with_its_waiting_copy_goes_from_its_server() {
         assert!(sync_request(&s, to).unwrap().places.is_empty());
     }
 }
+
+/// A page of a delta that says tens of thousands of messages deleted for good here left their
+/// folder (deleted on a phone too, say) is taken quickly: what each waiting delete keeps is
+/// marked in one pass over the queue.
+#[test]
+fn a_page_leaving_out_many_deletes_for_good_is_taken_quickly() {
+    use mailcraft_model::sync::{GraphMailResult, MessagePage};
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    let mut removed = Vec::new();
+    for i in 0..40_000u64 {
+        let server = Some(ServerMessage { id: format!("D{i}"), folder: "in".into(), ..Default::default() });
+        let kept = Box::new(Message { id: 1_000_000 + i, server, ..Default::default() });
+        s.mailbox.queued.push(mailcraft_model::Queued::DeleteMessage { account: ms, id: format!("D{i}"), kept: Some(kept) });
+        removed.push(format!("D{i}"));
+    }
+    let pages = vec![MessagePage { folder: "in".into(), removed, ..Default::default() }];
+    let result = GraphMailResult { account: ms, email: "owner@example.org".into(), pages, ..Default::default() };
+    let started = std::time::Instant::now();
+    crate::cmd::graph_mail::apply_graph_mail(&mut s, result).unwrap();
+    let took = started.elapsed();
+    assert!(took.as_millis() < 1_000, "{took:?}");
+    let gone = |q: &mailcraft_model::Queued| match q {
+        mailcraft_model::Queued::DeleteMessage { kept: Some(kept), .. } => kept.server.as_ref().is_some_and(|s| s.gone),
+        _ => false,
+    };
+    assert!(s.mailbox.queued.iter().all(gone));
+}
