@@ -26,6 +26,8 @@ struct Server {
     list_status: Option<u16>,
     /// Categories it has and doesn't list yet (made there just now).
     unlisted: Vec<Value>,
+    /// Categories it lists and has no more (deleted there just now, by another device).
+    listed_gone: Vec<Value>,
     /// Every request, as `METHOD target`.
     asked: Vec<String>,
     next: u32,
@@ -56,7 +58,10 @@ fn serve(state: &Arc<Mutex<Server>>) -> FakeHttp {
         match (method, pieces.get(5)) {
             ("GET", None) => match server.list_status {
                 Some(status) => raw(&format!("{status} Other")),
-                None => json_answer("200 OK", &json!({"value": server.categories}).to_string()),
+                None => {
+                    let listed: Vec<&Value> = server.categories.iter().chain(&server.listed_gone).collect();
+                    json_answer("200 OK", &json!({"value": listed}).to_string())
+                }
             },
             _ if server.write_status.is_some() => raw(&format!("{} Other", server.write_status.unwrap_or(0))),
             ("POST", None) => {
@@ -173,6 +178,21 @@ fn one_made_there_meanwhile_is_taken_for_made() {
     assert_eq!(done.outcomes[0].result, CategoryResult::Done, "{:?}", done.outcomes);
     assert!(done.outcomes[0].found, "the server's own");
     assert_eq!(writes(&s), ["POST /v1.0/me/outlook/masterCategories"]);
+}
+
+#[test]
+fn a_name_in_other_letters_is_made_there_when_the_old_one_was_gone_already() {
+    // Listed, then deleted there by another device before this one's deletion came.
+    let s = state(Vec::new());
+    s.lock().unwrap().listed_gone.push(json!({"id": "C", "displayName": "client", "color": "preset4"}));
+    let server = serve(&s);
+    let changes = vec![change(CategoryChangeKind::Delete, "client", 4), change(CategoryChangeKind::Create, "Client", 4)];
+    let done = push_categories_at(&server.url(""), TOKEN, &upload(changes));
+    assert!(done.outcomes.iter().all(|o| o.result == CategoryResult::Done), "{:?}", done.outcomes);
+    assert!(!done.outcomes[1].found, "made by this one, not taken for the old letters: {:?}", done.outcomes);
+    assert_eq!(writes(&s), ["DELETE /v1.0/me/outlook/masterCategories/C", "POST /v1.0/me/outlook/masterCategories"]);
+    let there = s.lock().unwrap().categories.clone();
+    assert_eq!(there.iter().map(|c| c["displayName"].as_str().unwrap_or("")).collect::<Vec<_>>(), ["Client"]);
 }
 
 #[test]

@@ -3249,19 +3249,12 @@ impl Session {
         if to.accounts != now.accounts {
             return Some(Class::Accounts);
         }
-        // A send-bearing change to an event that the mailbox hasn't got: the step brings it back.
-        let same = |a: &mailcraft_model::remote::EventChange, b: &mailcraft_model::remote::EventChange| {
-            b.send && a.account == b.account && a.kind == b.kind && a.event == b.event && a.token == b.token
-        };
-        if to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n))) {
+        if self.undo_sends_items(redo) {
             return Some(Class::Send);
         }
-        // A to-do in a list shared with other people that the step changes, brings back or removes.
-        if crate::agent::changes_shared_tasks(now, to) {
-            return Some(Class::Send);
-        }
-        // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
-        if crate::agent::places_tasks(now, to) {
+        // A category kept on this computer alone that the step has go to Outlook (#661), as Add
+        // to Outlook asks.
+        if !self.undo_sends_categories(redo).is_empty() {
             return Some(Class::Send);
         }
         if self.undo_deletes(redo) {
@@ -3271,6 +3264,49 @@ impl Session {
             return Some(Class::Settings);
         }
         None
+    }
+
+    /// Whether undoing (`redo`: redoing) puts back a change that other people see or that goes to
+    /// an account's To Do: a meeting's, a to-do's in a list shared with other people, a to-do put
+    /// in an account's To Do, or the owner's answer about local to-dos.
+    pub fn undo_sends_items(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (to, now) = (&step.mailbox, &self.mailbox);
+        // A send-bearing change to an event that the mailbox hasn't got: the step brings it back.
+        let same = |a: &mailcraft_model::remote::EventChange, b: &mailcraft_model::remote::EventChange| {
+            b.send && a.account == b.account && a.kind == b.kind && a.event == b.event && a.token == b.token
+        };
+        to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n)))
+            // A to-do in a list shared with other people that the step changes, brings back or
+            // removes.
+            || crate::agent::changes_shared_tasks(now, to)
+            // A to-do the step puts in an account's To Do, or the owner's answer about local
+            // to-dos.
+            || crate::agent::places_tasks(now, to)
+    }
+
+    /// The categories of a list kept in step with Outlook, kept on this computer alone now, that
+    /// undoing (`redo`: redoing) would have go to Outlook (#661): the step took them off what is
+    /// kept here, as Add to Outlook does, and the next job makes them there. Worked out as the
+    /// undo would, on a copy, as for [`Session::undo_deletes_categories`]; each name once.
+    pub fn undo_sends_categories(&self, redo: bool) -> Vec<String> {
+        if self.mailbox.local_categories.is_empty() {
+            return Vec::new();
+        }
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
+        let same = mailcraft_model::sync::same_category;
+        let mut names: Vec<String> = Vec::new();
+        for (owner, local) in &self.mailbox.local_categories {
+            let (true, Some(list)) = (back.synced_categories.contains_key(owner), back.account_categories.get(owner)) else { continue };
+            for name in local {
+                let goes = list.iter().any(|c| same(&c.name, name)) && !back.category_is_local(*owner, name);
+                if goes && !names.iter().any(|n| same(n, name)) {
+                    names.push(name.clone());
+                }
+            }
+        }
+        names
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,

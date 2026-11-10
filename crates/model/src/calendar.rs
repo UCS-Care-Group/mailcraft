@@ -215,6 +215,16 @@ impl Calendar {
     pub fn shown_color(&self) -> Rgb {
         self.own_color.unwrap_or(self.color)
     }
+
+    /// Whether this calendar, one that the account whose own address is `address` has from its
+    /// server, is somebody else's, shared with the account: its owner is a person other than that
+    /// address. Never the account's own calendars (its server names the account as their owner
+    /// too), and never one whose owner the server didn't say.
+    pub fn is_shared_with(&self, address: &str) -> bool {
+        let own = address.trim();
+        let Some(owner) = self.owner.as_ref() else { return false };
+        !self.origin.id.is_empty() && !own.is_empty() && !owner.address.is_empty() && !owner.address.eq_ignore_ascii_case(own)
+    }
 }
 
 /// How an event shows in free/busy.

@@ -1169,8 +1169,9 @@ pub struct Mailbox {
     /// The renames of each Microsoft account's list of categories that its server hasn't the new
     /// name of yet (#661): the old name, as the server has it, by [`category_key`] of the new one.
     /// When the server won't make the new name, its old one is kept there; any other deletion
-    /// that waited goes. Not in the file: such a rename is a few seconds old.
-    #[serde(skip)]
+    /// that waited goes. In the file, so that a rename MailCraft closed on keeps its old name
+    /// there all the same.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_renames")]
     pub category_renames: BTreeMap<Id, BTreeMap<String, String>>,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
@@ -1431,6 +1432,7 @@ impl Mailbox {
         self.synced_categories.retain(|account, _| !going.contains(account));
         self.local_categories.retain(|account, _| !going.contains(account));
         self.category_writes.retain(|account| !going.contains(account));
+        self.category_renames.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -3359,15 +3361,17 @@ impl Mailbox {
 
     /// Apply `f` to the category list of every item that has one (items without stay shared) and
     /// uses the same list of categories as `account`'s items, and is that list's owner's own: never
-    /// an item of a shared mailbox, nor an event of a calendar that is somebody else's (a
-    /// colleague's, a shared mailbox's). Their servers have lists of their own, which a change
+    /// an event of a calendar that is somebody else's (a colleague's), nor, on an account's own
+    /// list, an item of a shared mailbox. Their servers have lists of their own, which a change
     /// here doesn't reach, so rewriting them there would leave them with a name their list lacks
-    /// (#661).
+    /// (#661). The account's own calendars are its own, though its server names it their owner.
     fn each_category_list(&mut self, account: Id, f: impl Fn(&mut Vec<String>)) {
         let list = self.category_list_owner(account);
         let lists: HashMap<Id, Id> = self.accounts.iter().filter_map(|a| Some((a.id, self.category_list_owner(a.id)?))).collect();
-        let shared: HashSet<Id> = self.accounts.iter().filter(|a| a.is_shared()).map(|a| a.id).collect();
-        let calendars: HashMap<Id, (Id, bool)> = self.calendars.iter().map(|c| (c.id, (c.origin.account, c.owner.is_some()))).collect();
+        // (On the list the rest share, kept on no server, a shared mailbox's items follow it as
+        // everybody's do.)
+        let shared: HashSet<Id> = self.accounts.iter().filter(|a| a.is_shared() && list.is_some()).map(|a| a.id).collect();
+        let calendars: HashMap<Id, (Id, bool)> = self.calendars.iter().map(|c| (c.id, (c.origin.account, self.is_others_calendar(c)))).collect();
         let uses = |account: Id| !shared.contains(&account) && lists.get(&account).copied() == list;
         let uses_calendar = |calendar: Id| match calendars.get(&calendar) {
             Some((account, others)) => !others && uses(*account),
@@ -3385,6 +3389,13 @@ impl Mailbox {
         for t in self.tasks.values_mut().filter(|t| !t.categories.is_empty() && uses(t.origin.account)) {
             f(&mut Arc::make_mut(t).categories);
         }
+    }
+
+    /// Whether `calendar` is somebody else's that its account's server lists, shared with the
+    /// account or opened by address ([`Calendar::is_shared_with`]): not one of the account's own,
+    /// whose owner its server says is the account (#661).
+    fn is_others_calendar(&self, calendar: &Calendar) -> bool {
+        self.account(calendar.origin.account).is_some_and(|a| calendar.is_shared_with(&a.email))
     }
 
     /// What `owner`'s server is to be told of its list of categories (#661): the difference
@@ -3464,7 +3475,7 @@ impl Mailbox {
                     && keeps_tasks(t.origin.account)
             })
         };
-        let own_calendar = |e: &Event| self.calendar(e.calendar).is_some_and(|c| c.owner.is_none());
+        let own_calendar = |e: &Event| self.calendar(e.calendar).is_some_and(|c| !self.is_others_calendar(c));
         let events = || {
             self.event_changes.iter().any(|c| {
                 uses(c.account)
@@ -3790,6 +3801,7 @@ impl Mailbox {
         self.synced_categories.retain(|account, _| own.contains(account));
         self.local_categories.retain(|account, _| own.contains(account));
         self.category_writes.retain(|account| own.contains(account));
+        self.category_renames.retain(|account, _| own.contains(account));
         let unsettled: Vec<Id> = self.server_categories.keys().copied().filter(|id| !self.synced_categories.contains_key(id)).collect();
         for owner in unsettled {
             let names = self.server_categories.get(&owner).cloned().unwrap_or_default();
@@ -4080,6 +4092,9 @@ impl Mailbox {
                     }
                     if self.category_writes.remove(&old) {
                         self.category_writes.insert(a.id);
+                    }
+                    if let Some(renames) = self.category_renames.remove(&old) {
+                        self.category_renames.insert(a.id, renames);
                     }
                 }
                 seen.insert(a.id);

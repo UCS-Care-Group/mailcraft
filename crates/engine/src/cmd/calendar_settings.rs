@@ -155,9 +155,7 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
 /// account: its owner is a person other than the account's own address. Never the account's main
 /// calendar, and never one whose owner the server didn't say.
 pub(crate) fn is_shared_with(account: &Account, calendar: &Calendar) -> bool {
-    let own = account.email.trim();
-    let Some(owner) = calendar.owner.as_ref() else { return false };
-    !calendar.origin.id.is_empty() && !own.is_empty() && !owner.address.is_empty() && !owner.address.eq_ignore_ascii_case(own)
+    calendar.is_shared_with(&account.email)
 }
 
 /// The calendars that are shown, in the order of the list.

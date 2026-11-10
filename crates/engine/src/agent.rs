@@ -1465,6 +1465,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let names: Vec<String> = names.iter().map(|n| quoted(n)).collect();
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => Some("the accounts"),
+                // The categories it sends to Outlook are named below (#661).
+                Some(Class::Send) if !s.undo_sends_items(redo) => None,
                 Some(Class::Send) => {
                     Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
@@ -1494,6 +1496,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 [] => {}
                 [one] => does.push(format!("deletes the category {one} in Outlook")),
                 many => does.push(format!("deletes the categories {} in Outlook", some(many, 3))),
+            }
+            let sent: Vec<String> = s.undo_sends_categories(redo).iter().map(|n| quoted(n)).collect();
+            match sent.as_slice() {
+                [] => {}
+                [one] => does.push(format!("sends the category {one}, kept on this computer only, to Outlook")),
+                many => does.push(format!("sends the categories {}, kept on this computer only, to Outlook", some(many, 3))),
             }
             if does.is_empty() {
                 does.push("puts the rules, signatures or Safe and Blocked Senders back as they were".to_string());

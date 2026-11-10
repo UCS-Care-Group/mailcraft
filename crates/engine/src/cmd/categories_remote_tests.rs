@@ -423,6 +423,19 @@ fn read_as(s: &mut Session, account: Id, email: &str, categories: Vec<Category>)
 }
 
 #[test]
+fn a_rename_mailcraft_closes_on_keeps_the_old_name_in_outlook_when_the_server_wont_make_the_new_one() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    // Saved and opened again before the job ran.
+    let opened = crate::io::read_mailbox(&serde_json::to_vec(&s.mailbox).unwrap()).unwrap();
+    let mut s = Session::at(opened, NOW, 0);
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "New", GREEN)]);
+    let said = answer(&mut s, a, CategoryChangeKind::Create, "New", GREEN, CategoryResult::Refused);
+    assert!(said["messages"].to_string().contains("\"Old\\\" wasn't deleted in Outlook"), "{said}");
+    assert!(changes(&mut s, a).is_empty(), "nothing deleted there: {:?}", changes(&mut s, a));
+}
+
+#[test]
 fn a_rename_deletes_the_old_name_only_once_the_server_has_the_new_one() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
     s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
@@ -1715,6 +1728,26 @@ fn a_rename_deletes_the_old_name_in_outlook_only_once_the_todo_there_has_the_new
     assert!(s.mailbox.task(t).unwrap().local_only);
 }
 
+/// Graph names the owner of every calendar, the account's own too (#661).
+fn owned_by(s: &mut Session, event: Id, address: &str) {
+    let calendar = s.mailbox.event(event).unwrap().calendar;
+    s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().owner =
+        Some(mailcraft_model::CalendarOwner { address: address.into(), name: "A".into() });
+}
+
+#[test]
+fn the_owners_own_calendar_named_as_theirs_by_graph_follows_a_rename_and_the_old_name_waits_for_it() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old"]);
+    owned_by(&mut s, e, "a@EXAMPLE.org");
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["New"], "the owner's own event takes the new name");
+    let told: Vec<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
+    assert_eq!(told, [e], "and its server is told");
+    // "Old" is deleted in Outlook only once the event there has "New".
+    waits_then_deletes(&mut s, a, |s| event_answer(s, a));
+}
+
 #[test]
 fn a_rename_or_a_removal_is_told_to_the_calendar_and_the_old_name_waits_for_it() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
@@ -1794,7 +1827,9 @@ fn a_rename_or_a_removal_leaves_a_shared_mailboxs_items_and_other_peoples_calend
         let calendar = s.mailbox.event(colleague).unwrap().calendar;
         s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().owner =
             Some(mailcraft_model::CalendarOwner { address: "ben@example.org".into(), name: "Ben".into() });
+        // The owner's own calendar, whose owner Graph says is the account itself.
         let mine = server_event(&mut s, a, &["Old"]);
+        owned_by(&mut s, mine, "A@example.org");
         if remove {
             s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
         } else {
@@ -1815,7 +1850,45 @@ fn a_rename_or_a_removal_leaves_a_shared_mailboxs_items_and_other_peoples_calend
     }
 }
 
+#[test]
+fn on_the_list_the_rest_share_a_rename_reaches_a_shared_mailboxs_items_as_everybodys() {
+    // A Microsoft account whose server's list wasn't read: it and its shared mailbox use the list
+    // kept on no server, as on main before #661.
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    s.mailbox.categories = vec![tag("Old", GREEN)];
+    let a = s.run("account.add", &json!({"email": "a@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": a, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.category_list_owner(shared), None, "the list the rest share");
+    let folder = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.add_message(Message { folder, categories: vec!["Old".into()], ..Default::default() }).unwrap();
+    s.run("category.rename", &json!({"from": "Old", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.message(theirs).unwrap().categories, ["New"]);
+}
+
 // ---- what an agent may do to Outlook's list without the owner (#661) ----
+
+#[test]
+fn an_agents_redo_of_add_to_outlook_asks_before_the_category_goes_there() {
+    let (mut s, a) = rig_with_local();
+    s.run("category.addToOutlook", &json!({"account": a, "name": "Old local"})).unwrap();
+    // Undone before the job ran: kept on this computer only again, and an undo asks nothing more
+    // of sending.
+    assert_ne!(s.undo_reverts(false), Some(Class::Send));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.category_is_local(a, "Old local"));
+    assert_eq!(s.undo_sends_categories(true), ["Old local"]);
+    match check(&s, "edit.redo", &json!({}), &[]) {
+        Verdict::Ask(Class::Send, text) => {
+            assert!(text.contains("sends the category \u{201c}Old local\u{201d}, kept on this computer only, to Outlook"), "{text}");
+            assert!(!text.contains("meeting"), "says only what the redo does: {text}");
+        }
+        other => panic!("an agent's redo sends a local category to Outlook unasked: {other:?}"),
+    }
+    // Redone, it goes with the next job, as Add to Outlook has it.
+    s.run("edit.redo", &json!({})).unwrap();
+    assert!(!s.mailbox.category_is_local(a, "Old local"));
+    assert!(changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Create && c.name == "Old local"));
+}
 
 #[test]
 fn an_agent_asks_before_it_sends_a_category_to_outlook_or_renames_one_there() {

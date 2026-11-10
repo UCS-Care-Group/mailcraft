@@ -344,3 +344,50 @@ fn a_first_read_doesnt_build_a_list_repair_would_cut() {
     mb.start_account_categories(a, &[]);
     assert!(mb.categories_of(a).len() <= MAX_CATEGORIES);
 }
+
+#[test]
+fn the_renames_a_list_waits_on_are_in_the_file_each_counting_and_junk_costs_only_itself() {
+    let (mut mb, a, _) = two_accounts();
+    mb.category_renames.insert(a, [("new".to_string(), "Old".to_string())].into());
+    let back: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    assert_eq!(back.category_renames, mb.category_renames);
+    // An empty mailbox writes none.
+    assert!(!serde_json::to_string(&Mailbox::default()).unwrap().contains("categoryRenames"));
+
+    // Each one counts as it is read.
+    let room = 200;
+    mb.category_renames.insert(a, (0..room).map(|i| (format!("c{i}"), format!("o{i}"))).collect());
+    let bytes = serde_json::to_vec(&mb).unwrap();
+    assert!(crate::from_json(&bytes, room).is_err());
+    assert!(crate::from_json(&bytes, 2 * room + 1).is_ok());
+
+    // What isn't one is left out, and the file opens; at most a list's worth an account is kept.
+    let mut value = serde_json::to_value(&mb).unwrap();
+    let file = value.as_object_mut().unwrap();
+    let id = a.to_string();
+    let long = "x".repeat(10_000);
+    file.insert("categoryRenames".into(), serde_json::json!({&id: {"new": "Old", "seven": 7, &long: "Old"}, "12": "x", "nonsense": {"a": "b"}}));
+    let back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(back.category_renames.into_iter().collect::<Vec<_>>(), [(a, [("new".to_string(), "Old".to_string())].into())]);
+    let file = value.as_object_mut().unwrap();
+    let many: serde_json::Map<String, serde_json::Value> = (0..MAX_CATEGORIES + 5).map(|i| (format!("c{i}"), serde_json::json!("o"))).collect();
+    file.insert("categoryRenames".into(), serde_json::json!({&id: many}));
+    let back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(back.category_renames.get(&a).map(|r| r.len()), Some(MAX_CATEGORIES));
+    value.as_object_mut().unwrap().insert("categoryRenames".into(), serde_json::json!([1, 2]));
+    assert!(serde_json::from_value::<Mailbox>(value).unwrap().category_renames.is_empty());
+}
+
+#[test]
+fn the_renames_a_list_waits_on_go_with_its_account_and_a_stray_one_with_the_file_tidied() {
+    let (mut mb, a, b) = two_accounts();
+    for account in [a, b] {
+        mb.start_account_categories(account, &["Old".to_string()]);
+        mb.category_renames.insert(account, [("new".to_string(), "Old".to_string())].into());
+    }
+    mb.remove_account(b).unwrap();
+    assert!(mb.category_renames.keys().eq([&a]));
+    mb.category_renames.insert(9_999_999, [("new".to_string(), "Old".to_string())].into());
+    mb.repair();
+    assert!(mb.category_renames.keys().eq([&a]));
+}

@@ -202,8 +202,14 @@ pub(super) fn push_categories_at(base: &str, token: &str, upload: &CategoriesUpl
                 false
             }
             // Deleted there already, or meanwhile (a change of colour too: the next read takes
-            // it away here).
-            404 | 410 if change.kind != CategoryChangeKind::Create => false,
+            // it away here). It is on the server's list no more, so that a name made after it in
+            // this run is made there, not taken for found (#661).
+            404 | 410 if change.kind != CategoryChangeKind::Create => {
+                if let Some(i) = found {
+                    there.remove(i);
+                }
+                false
+            }
             // Made there meanwhile: the next read brings its colour, and it is the server's own.
             409 if found.is_none() => {
                 done.found = change.kind == CategoryChangeKind::Create;
