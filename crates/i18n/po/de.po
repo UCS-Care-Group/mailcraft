@@ -4188,6 +4188,11 @@ msgid "Font Size"
 msgstr "Schriftgrad"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
 msgstr ""
@@ -15218,6 +15223,11 @@ msgstr "never"
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "kein Microsoft-Konto wird über IMAP abgeglichen"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -15247,7 +15257,7 @@ msgid "no account is kept in step over JMAP"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "kein Konto wird über Microsoft Graph abgeglichen"
@@ -16886,6 +16896,11 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} ist kein über IMAP abgeglichenes Microsoft-Konto"
 
 #. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} isn't a Microsoft or Exchange server account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -16926,7 +16941,7 @@ msgid "{name} isn't kept in step over JMAP"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step through Microsoft Graph"
 msgstr "{name} wird nicht über Microsoft Graph abgeglichen"

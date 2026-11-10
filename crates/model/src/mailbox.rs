@@ -301,6 +301,13 @@ impl AccountKind {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
+    /// Whether the account keeps its mail in full only within its mail to keep offline (#143),
+    /// and older mail as headers and a preview: a Microsoft account and an Exchange server account
+    /// (#966), which both bring every message's headers and fetch the whole messages afterwards.
+    pub fn has_offline_window(self) -> bool {
+        matches!(self, AccountKind::Microsoft | AccountKind::Exchange)
+    }
+
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
     /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
     /// sending comes after its reading, and until then no mail is put in its Outbox, where it
