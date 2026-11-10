@@ -59,7 +59,6 @@ msgstr "«{subject}», возможно, уже отправлено: прове
 
 #. what a command says
 #: crates/engine/src/undo.rs
-#, fuzzy
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr "«{subject}» остаётся там, куда его переместили: оно подписано цифровой подписью или зашифровано, его копия в ящике, откуда оно пришло, удалена, а копия, из которой его переместили, хранит исходные байты. Верните его обратно, чтобы вернуть и копию."
 
@@ -71,7 +70,6 @@ msgstr "(Без названия)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "(as the signer says)"
 msgstr "(по словам подписавшего)"
 
@@ -1077,7 +1075,6 @@ msgstr "Встреча, помеченная как личная, показыв
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
 msgstr "Центр сертификации на пути к доверенному не разрешает использовать сертификат таким образом."
 
@@ -1085,7 +1082,7 @@ msgstr "Центр сертификации на пути к доверенно�
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
-msgstr "Повторяющийся элемент нельзя так перенести в другой календарь. Удерживайте Ctrl, чтобы скопировать туда это вхождение, или используйте «Переместить в календарь» в его меню для всей серии."
+msgstr "Повторяющийся элемент нельзя так перенести в другой календарь. Удерживайте Ctrl, чтобы скопировать туда этот экземпляр, или используйте «Переместить в календарь» в его меню для всей серии."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -2209,7 +2206,6 @@ msgstr "Изменить имя, вход и объём почты для авт
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Changed after it was signed"
 msgstr "Изменено после подписания"
 
@@ -2291,7 +2287,6 @@ msgstr "Проверка читаемости"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Check Again"
 msgstr "Проверить снова"
 
@@ -3173,7 +3168,7 @@ msgstr "Удалить текст"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Delete This Occurrence"
-msgstr "Удалить это вхождение"
+msgstr "Удалить этот экземпляр"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3255,7 +3250,6 @@ msgstr "Уведомления на рабочем столе для MailCraft �
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
-#, fuzzy
 msgid "Desktop alerts can't be shown"
 msgstr "Уведомления на рабочем столе не могут быть показаны"
 
@@ -3291,43 +3285,36 @@ msgstr "Диаграмма"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Digital Signature"
 msgstr "Цифровая подпись"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Digital signature can't be checked"
 msgstr "Цифровую подпись нельзя проверить"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Digitally signed and verified"
 msgstr "Подписано цифровой подписью, проверено"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Digitally signed by {signer}, and verified."
 msgstr "Подписано цифровой подписью: {signer}, проверено."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Digitally signed by {signer}, but the signer isn't verified."
 msgstr "Подписано цифровой подписью: {signer}, но подписавший не проверен."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Digitally signed, but the signer isn't verified."
 msgstr "Подписано цифровой подписью, но подписавший не проверен."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Digitally signed, signer not verified"
 msgstr "Подписано цифровой подписью, подписавший не проверен"
 
@@ -3537,7 +3524,6 @@ msgstr "Автоматически загружать изображения в 
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "Загрузить заново исходные байты сообщения, чтобы проверить его цифровую подпись"
 
@@ -4234,7 +4220,6 @@ msgstr "Поиск настроек вашей учётной записи…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Fingerprint (SHA-256):"
 msgstr "Отпечаток (SHA-256):"
 
@@ -4516,7 +4501,7 @@ msgstr "Переслать контакт"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Forward This Occurrence…"
-msgstr "Переслать это вхождение…"
+msgstr "Переслать этот экземпляр…"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
@@ -4686,7 +4671,6 @@ msgstr "Подготовка…"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
-#, fuzzy
 msgid "GitHub is public and needs a GitHub account."
 msgstr "GitHub общедоступен и требует учётной записи GitHub."
 
@@ -4738,13 +4722,11 @@ msgstr "Категории Gmail"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
-#, fuzzy
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
 msgstr "Gmail ещё не сообщил свой идентификатор этого сообщения: сначала выполните отправку и получение"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
 msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
 msgstr[0] "Gmail отказал в перемещении сообщений между категориями: {n}; при следующем запуске запрос повторится"
@@ -4753,7 +4735,6 @@ msgstr[2] "Gmail отказал в перемещении сообщений м�
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
 msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
 msgstr[0] "Gmail не стал перемещать сообщения: {n}; они остаются там, где их держит Gmail"
@@ -5026,7 +5007,6 @@ msgstr "Скрыть календарь, указанный дважды"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Hide Details"
 msgstr "Скрыть сведения"
 
@@ -5584,7 +5564,6 @@ msgstr "Кем выдан"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Issued by:"
 msgstr "Кем выдан:"
 
@@ -5668,13 +5647,11 @@ msgstr "Оно выполняется на сервере независимо �
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "It uses an algorithm MailCraft doesn't know."
 msgstr "Использует алгоритм, который MailCraft не знает."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "It uses an algorithm that's no longer safe."
 msgstr "Использует алгоритм, который больше не считается надёжным."
 
@@ -7071,7 +7048,6 @@ msgstr "Переместить в календарь"
 
 #. command label, interface
 #: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
-#, fuzzy
 msgid "Move to Category"
 msgstr "Переместить в категорию"
 
@@ -7197,7 +7173,6 @@ msgstr "Требуется «Проверять наличие новых вер
 
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
-#, fuzzy
 msgid "Needs Google sign-in"
 msgstr "Требуется вход через Google"
 
@@ -7535,7 +7510,6 @@ msgstr "Без категории"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
 msgstr "На этом компьютере не удалось прочитать центры сертификации для почты, поэтому здесь нельзя проверить ни одного подписавшего."
 
@@ -7547,7 +7521,6 @@ msgstr "Несохранённых изменений нет: ожидает т�
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "No colour"
 msgstr "Без цвета"
 
@@ -8149,7 +8122,7 @@ msgstr "Когда всё заработает, хранилище учётны�
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "One occurrence of a series can't be in another calendar than the rest of the series."
-msgstr "Одно вхождение серии не может находиться в другом календаре, чем остальная серия."
+msgstr "Один экземпляр серии не может находиться в другом календаре, чем остальная серия."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8225,7 +8198,6 @@ msgstr "Только на этом компьютере: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
 msgstr "Подписана только одна часть этого сообщения, а показанное здесь содержит больше, чем эта часть: то, что вне её, может говорить что угодно."
 
@@ -8391,7 +8363,6 @@ msgstr "Открыть на GitHub"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Open or save the Digital signature"
 msgstr "Открыть или сохранить цифровую подпись"
 
@@ -8709,7 +8680,6 @@ msgstr "Часть файла почтового ящика повреждена
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Part of this message is Digitally signed by {signer}, and verified; the rest isn't signed."
 msgstr "Часть этого сообщения подписана цифровой подписью: {signer}, проверена; остальное не подписано."
 
@@ -9797,13 +9767,11 @@ msgstr "Просмотреть сертификат…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Revocation not checked."
 msgstr "Отзыв не проверялся."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Revocation:"
 msgstr "Отзыв:"
 
@@ -11182,7 +11150,6 @@ msgstr "Показано как текст: ничто в нём не выпол
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr "Показывается рядом с названием учётной записи и на её письмах там, где письма нескольких учётных записей показаны вместе."
 
@@ -11378,7 +11345,6 @@ msgstr "Подпись"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Signature file:"
 msgstr "Файл подписи:"
 
@@ -11402,13 +11368,11 @@ msgstr "Подписи…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Signed at:"
 msgstr "Подписано:"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Signed by:"
 msgstr "Кем подписано:"
 
@@ -12176,7 +12140,6 @@ msgstr "В файле .pst нужно импортировать: {what}; нич
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The Digital signature can't be read."
 msgstr "Цифровую подпись нельзя прочитать."
 
@@ -12410,19 +12373,16 @@ msgstr "Не удалось принять категории: {error}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The certificate is for another address than the sender's."
 msgstr "Сертификат выдан на другой адрес, чем адрес отправителя."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The certificate is out of date."
 msgstr "Срок действия сертификата истёк."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The certificate isn't for signing mail."
 msgstr "Сертификат не предназначен для подписи почты."
 
@@ -12434,7 +12394,6 @@ msgstr "Сертификат сервера {name} требует вашего �
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The certificate signed itself, and this computer doesn't trust it."
 msgstr "Сертификат подписан сам собой, и этот компьютер ему не доверяет."
 
@@ -12446,7 +12405,6 @@ msgstr "Сертификат, который показывает сервер {
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "Сертификат выдан не тем центром сертификации, которому доверяет этот компьютер."
 
@@ -12653,7 +12611,6 @@ msgstr "Собрания, к которым относятся эти предл
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
-#, fuzzy
 msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
 msgstr "В объединённом контакте было бы больше сертификатов и ключей, чем может содержать контакт (не более {max}, у оставляемого контакта их {had}), поэтому контакты не объединены."
 
@@ -12683,7 +12640,6 @@ msgstr "Сообщения больше нет"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
 msgstr "Сообщение было загружено до того, как MailCraft стал хранить исходные байты. «Проверить снова» загружает их."
 
@@ -13043,13 +12999,11 @@ msgstr "Тогда подпись отправляется в более про�
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The signer's certificate isn't in the message."
 msgstr "Сертификата подписавшего нет в сообщении."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "The signer's key hasn't been marked verified."
 msgstr "Ключ подписавшего не отмечен как проверенный."
 
@@ -13199,7 +13153,6 @@ msgstr "Такой учётной записи нет"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "There's more in this Digital signature than MailCraft checks for one message."
 msgstr "В этой цифровой подписи больше, чем MailCraft проверяет для одного сообщения."
 
@@ -13277,7 +13230,6 @@ msgstr "Они удаляются и с почтового сервера."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
-#, fuzzy
 msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
 msgstr "Они сохраняются в файл по вашему выбору, который вы прикрепляете к обращению на GitHub. В ссылку они никогда не попадают."
 
@@ -13505,7 +13457,6 @@ msgstr "Этот компьютер не доверяет сертификату
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
 msgstr "Центры сертификации этого компьютера ещё не прочитаны: подпись будет проверена снова, когда это произойдёт."
 
@@ -13657,13 +13608,13 @@ msgstr "Это сборка для разработки: она проверяе
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "This is about one occurrence of a series."
-msgstr "Это касается одного вхождения серии."
+msgstr "Это касается одного экземпляра серии."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "This is about the occurrence on {day} only."
-msgstr "Это касается только вхождения {day}."
+msgstr "Это касается только экземпляра {day}."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -13895,7 +13846,6 @@ msgstr "Это сообщение может быть не тем, чем каж
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "This message was changed after it was signed."
 msgstr "Это сообщение было изменено после подписания."
 
@@ -13919,7 +13869,6 @@ msgstr "Это сообщение будет удалено без возмож�
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "This message's Digital signature can't be checked."
 msgstr "Цифровую подпись этого сообщения нельзя проверить."
 
@@ -14651,7 +14600,6 @@ msgstr "Действителен"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Valid:"
 msgstr "Действителен:"
 
@@ -14837,7 +14785,6 @@ msgstr "Что вы ожидали (необязательно)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
 msgstr "Вы видите не то, что было подписано: относитесь с осторожностью."
 
@@ -14913,7 +14860,6 @@ msgstr "Кого приглашать, решает организатор."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Who signed this message, and the certificate"
 msgstr "Кто подписал это сообщение и сертификат"
 
@@ -15798,7 +15744,6 @@ msgstr "календарь"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
-#, fuzzy
 msgid "can't be done in the browser"
 msgstr "невозможно в браузере"
 
@@ -15816,7 +15761,6 @@ msgstr "сначала закройте беседу: в каждой из 1000 
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
-#, fuzzy
 msgid "comes once Google has reviewed MailCraft"
 msgstr "появится после проверки MailCraft в Google"
 
@@ -16118,7 +16062,6 @@ msgstr "больше {mb} МБ: загрузите через Файл › Им�
 
 #. what a command says
 #: crates/engine/src/session.rs
-#, fuzzy
 msgid "message {id} keeps no original"
 msgstr "у сообщения {id} нет оригинала"
 
@@ -16232,13 +16175,11 @@ msgstr "более {max} папок"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
-#, fuzzy
 msgid "needs Google sign-in"
 msgstr "требуется вход через Google"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
-#, fuzzy
 msgid "needs a Gmail account"
 msgstr "требуется учётная запись Gmail"
 
@@ -16556,7 +16497,6 @@ msgstr "отправить повторно можно только отправ
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
-#, fuzzy
 msgid "only mail in a Gmail account's Inbox is in one of Gmail's categories"
 msgstr "только письма во входящих учётной записи Gmail относятся к одной из категорий Gmail"
 
@@ -17447,7 +17387,6 @@ msgstr "неделя"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
-#, fuzzy
 msgctxt "what didn't happen, then why"
 msgid "{heading}: {reason}"
 msgstr "{heading}: {reason}"
@@ -17490,63 +17429,54 @@ msgstr "которая отправляет её почту: отправьте 
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft needs your permission first (File › Info › Ask again)."
 msgstr "сначала MailCraft нужно ваше разрешение («Файл › Сведения › Спросить снова»)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft wasn't allowed to change them."
 msgstr "MailCraft не разрешили изменять их."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "Microsoft no longer takes your sign-in."
 msgstr "Microsoft больше не принимает ваш вход."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "sign in again to let MailCraft read them (File › Info)."
 msgstr "войдите снова, чтобы MailCraft мог их прочитать («Файл › Сведения»)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "you are working offline."
 msgstr "вы работаете автономно."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "your organisation doesn't let MailCraft change them."
 msgstr "ваша организация не разрешает MailCraft изменять их."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
-#, fuzzy
 msgctxt "why desktop alerts can't be shown"
 msgid "no notification service answers on this desktop."
 msgstr "на этом рабочем столе не отвечает ни одна служба уведомлений."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
-#, fuzzy
 msgctxt "why desktop alerts can't be shown"
 msgid "this copy doesn't run from the MailCraft app."
 msgstr "эта копия запущена не из приложения MailCraft."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
-#, fuzzy
 msgctxt "why desktop alerts can't be shown"
 msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "эта копия MailCraft установлена не установщиком (.msi), поэтому Windows о ней не знает."
@@ -17778,7 +17708,6 @@ msgstr "{folder}: {done} из {total}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "{from} to {until}"
 msgstr "{from} — {until}"
 
@@ -18435,7 +18364,6 @@ msgstr[2] "{n} сообщений скопировано в учётную за�
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
 msgstr[0] "Не удалось переместить между категориями Gmail сообщений за этот запуск: {n} (Gmail отказал для {m}); остальные ждут следующего запуска"
@@ -18444,7 +18372,6 @@ msgstr[2] "Не удалось переместить между категор�
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
 msgstr[0] "Не удалось переместить между категориями Gmail сообщений за этот запуск: {n}; они ждут следующего запуска"
@@ -18507,7 +18434,6 @@ msgstr[2] "{n} сообщений удалено"
 
 #. what a command says
 #: crates/engine/src/undo.rs
-#, fuzzy
 msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
 msgstr[0] "Сообщения остались там, куда их переместили: {n}. Они подписаны цифровой подписью или зашифрованы, их копии в ящике, откуда они пришли, удалены, а копии, из которых их переместили, хранят исходные байты. Верните их обратно, чтобы вернуть и копии."
