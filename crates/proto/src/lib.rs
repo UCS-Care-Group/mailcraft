@@ -11,6 +11,10 @@
 //! them back.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+use std::fmt;
+
+use mailcraft_i18n::{Arg, Text, said};
+
 pub mod imap;
 mod line;
 pub mod smtp;
@@ -25,31 +29,58 @@ pub const MAX_LITERAL: usize = 64 * 1024 * 1024;
 /// Longest user name and access token, together, that one sign-in may carry.
 const MAX_XOAUTH2: usize = 32 * 1024;
 
-#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+/// What went wrong. Each holds the reason as a [`Text`]: MailCraft's own words are a template
+/// the window says in its language ([`said!`]), and what a server or the system said is kept as
+/// it said it ([`Text::verbatim`]). The English ([`Display`](fmt::Display)) is what the CLI, MCP
+/// and the log read, and it is the same either way (#872).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProtoError {
-    #[error("connection problem: {0}")]
-    Io(String),
-    #[error("unexpected server response: {0}")]
-    Protocol(String),
+    Io(Text),
+    Protocol(Text),
     /// The server refused the command (IMAP NO/BAD, SMTP 4xx/5xx); the text is the server's.
-    #[error("the server said: {0}")]
-    Rejected(String),
-    #[error("sign-in failed: {0}")]
-    Auth(String),
+    Rejected(Text),
+    Auth(Text),
 }
+
+impl ProtoError {
+    /// The error as the owner is told it: what kind of trouble, and why.
+    pub fn said(&self) -> Text {
+        match self {
+            ProtoError::Io(why) => said!("connection problem: {reason}", reason = Arg::said(why.clone())),
+            ProtoError::Protocol(why) => said!("unexpected server response: {reason}", reason = Arg::said(why.clone())),
+            ProtoError::Rejected(why) => said!("the server said: {reason}", reason = Arg::said(why.clone())),
+            ProtoError::Auth(why) => said!("sign-in failed: {reason}", reason = Arg::said(why.clone())),
+        }
+    }
+
+    /// Why, without the kind of trouble before it.
+    pub fn reason(&self) -> &Text {
+        match self {
+            ProtoError::Io(why) | ProtoError::Protocol(why) | ProtoError::Rejected(why) | ProtoError::Auth(why) => why,
+        }
+    }
+}
+
+impl fmt::Display for ProtoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.said(), f)
+    }
+}
+
+impl std::error::Error for ProtoError {}
 
 /// What SASL XOAUTH2 sends, in base64: `user=<user>^Aauth=Bearer <token>^A^A`, where `^A` is the
 /// byte 0x01. A name or a token that would break out of that, or of the line it goes on, is refused.
 pub(crate) fn xoauth2(user: &str, token: &str) -> Result<String, ProtoError> {
     if token.is_empty() {
-        return Err(ProtoError::Auth("there is no access token to sign in with".into()));
+        return Err(ProtoError::Auth(said!("there is no access token to sign in with")));
     }
     let unsendable = |text: &str| text.bytes().any(|b| matches!(b, 0 | 1 | b'\r' | b'\n'));
     if unsendable(user) || unsendable(token) {
-        return Err(ProtoError::Auth("the user name or access token has a character that can't be sent".into()));
+        return Err(ProtoError::Auth(said!("the user name or access token has a character that can't be sent")));
     }
     if user.len().saturating_add(token.len()) > MAX_XOAUTH2 {
-        return Err(ProtoError::Auth("the user name or access token is too long to be sent".into()));
+        return Err(ProtoError::Auth(said!("the user name or access token is too long to be sent")));
     }
     Ok(mailcraft_charset::base64::STANDARD.encode(format!("user={user}\x01auth=Bearer {token}\x01\x01")))
 }
@@ -191,7 +222,7 @@ mod tests {
         assert!(matches!(xoauth2("ada", ""), Err(ProtoError::Auth(_))));
         assert!(xoauth2("ada", &"t".repeat(MAX_XOAUTH2 - 3)).is_ok());
         let err = xoauth2("ada", &"t".repeat(MAX_XOAUTH2)).unwrap_err();
-        assert!(matches!(&err, ProtoError::Auth(why) if why.len() < 100), "{err:?}");
+        assert!(matches!(&err, ProtoError::Auth(why) if why.to_string().len() < 100), "{err:?}");
     }
 
     #[test]

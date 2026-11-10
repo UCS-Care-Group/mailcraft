@@ -9,7 +9,8 @@
 //! [`text_blocks`] and [`from_text`] do the same for plain-text bodies. [`preview`] and
 //! [`text_preview`] give the first words of a message on one line, for a message list.
 //! [`quotable`] writes a message's HTML out again for the original under a reply or forward: its
-//! look, without anything that runs, embeds or tracks.
+//! look, without anything that runs, embeds or tracks; [`quotable_with_pictures`] with the
+//! pictures written into it, each to go as a part of its own.
 //!
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
@@ -52,7 +53,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
     sheet::media_lists(html)
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
-pub use quote::quotable;
+pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
 pub use style::MAX_FAMILIES;
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
@@ -70,9 +71,9 @@ pub const MAX_SHEET_BYTES: usize = sheet::MAX_SHEET;
 pub const MAX_SHEET_RULES: usize = sheet::MAX_RULES;
 
 /// Longest input [`parse`], [`to_text`], [`text_blocks`], [`from_text`], [`preview`],
-/// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored. [`parse`] and
-/// [`to_text`] don't count the pictures written into the message (`data:`) against it, and read
-/// as much more as the most those may take.
+/// [`text_preview`], [`quotable`] and [`quotable_with_pictures`] read, in bytes; the rest is
+/// ignored. [`parse`], [`to_text`] and [`quotable_with_pictures`] don't count the pictures written
+/// into the message (`data:`) against it, and read as much more as the most those may take.
 pub const MAX_INPUT: usize = 2 * 1024 * 1024;
 
 /// The most of a document [`parse`] looks at, in bytes: [`MAX_INPUT`], and what the pictures

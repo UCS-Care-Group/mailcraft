@@ -1772,7 +1772,8 @@ fn services(
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
-            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.to_string()))
+            // The window says why in its own language (#872).
+            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.said()))
         })),
         // The copy of the mailbox kept before an account switches to Microsoft Graph: a large
         // mailbox takes a while to write, and the window shows a spinner meanwhile (#118).
@@ -1877,6 +1878,8 @@ fn services(
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
         // The system's language, for an interface language left on Automatic.
         system_locale: system_locale::system_locale(),
+        // And its regional format, whose region English dates are written for (#978).
+        system_time_locale: system_locale::system_time_locale(),
         ..Default::default()
     }
 }
