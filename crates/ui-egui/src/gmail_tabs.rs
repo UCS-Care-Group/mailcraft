@@ -7,7 +7,8 @@
 //! A tab does what its row in the folder pane does (`folder.select` with `gmail`). No tab is
 //! chosen while the list shows the whole Inbox, as the Inbox opens; a click on the chosen tab
 //! goes back to the whole Inbox. Tab reaches a tab, the arrow keys go from one to the next, and
-//! Enter or Space chooses it.
+//! Enter or Space chooses it. Messages let go over a tab move to its category, where moves between
+//! Gmail's categories are on ([`crate::gmail_move`]).
 
 use egui::{Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_model::GmailCategory;
@@ -121,5 +122,7 @@ pub(crate) fn row(app: &mut MailApp, ui: &mut Ui) {
             let params = if on { json!({"id": inbox}) } else { json!({"id": inbox, "gmail": category.code()}) };
             let _ = app.run("folder.select", params);
         }
+        // Messages dragged out of the list and let go over it move to it (#911).
+        crate::gmail_move::drop_target(app, ui, &resp, tab, category);
     }
 }

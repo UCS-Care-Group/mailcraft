@@ -17,7 +17,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
-use mailcraft_model::sync::{FolderDelta, FolderState, GmailSorted, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
+use mailcraft_model::sync::{
+    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+};
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
@@ -647,6 +649,9 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         return Some(imap);
     }
     let arrived = push(run, &mut imap, &mailboxes)?;
+    // Moves between Gmail's categories made here (#911), through Gmail's API: before anything is
+    // read, so that what the Inbox's reading says of them agrees.
+    gmail_moves(run, host);
     // Asked only to tell, not to read: done.
     if request.push_only {
         return Some(imap);
@@ -675,6 +680,89 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         }
     }
     Some(imap)
+}
+
+/// Tell Gmail's API of the moves between Gmail's categories made here ([`SyncRequest::gmail_moves`],
+/// #911), [`MAX_GMAIL_MOVES`] at most, in one `batchModify` for each category moved to: the moves
+/// of each batch it takes go back as moved (Gmail answers a batch as a whole, so a message it no
+/// longer has goes back as moved too, and the next reading of the Inbox sets it right). Only for a
+/// Gmail account that signs in with Google, whose token the API takes, and only while moves are
+/// switched on in this build; else nothing is sent, whatever the request asks.
+///
+/// A batch Gmail refuses (one id it no longer has refuses the lot) doesn't hold up the others: it
+/// is sent again as two halves, down to single messages, after every category's first batch has
+/// had its turn, so that one stale id costs a few requests and the rest still go this run, all of
+/// it at most `MAX_GMAIL_REQUESTS`. A message refused on its own goes back as refused
+/// ([`SyncResult::gmail_refused`]): the engine asks again at the next run, and after
+/// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] refusals gives the move up. Moves left
+/// when the requests run out go back as unsent ([`SyncResult::gmail_unsent`]) and wait for the
+/// next run. A token or a permission Gmail doesn't take, Gmail busy or out of reach stop the
+/// moves for this run, and that is said once.
+fn gmail_moves(run: &mut Run, host: Host) {
+    /// The most requests to Gmail's API in one run, the halves of refused batches included.
+    const MAX_GMAIL_REQUESTS: usize = 32;
+    let request = run.request;
+    let google = request.account.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google);
+    if !crate::gmail::switched_on() || request.gmail_moves.is_empty() || !host.gmail || !google || request.access_token.is_empty() {
+        return;
+    }
+    let moves: Vec<_> = request.gmail_moves.iter().take(MAX_GMAIL_MOVES).filter(|m| m.id != 0).collect();
+    let batches: Vec<Vec<_>> = GmailCategory::ALL
+        .iter()
+        .flat_map(|category| {
+            let these: Vec<_> = moves.iter().copied().filter(|m| m.category == *category).collect();
+            these.chunks(crate::gmail::MAX_BATCH).map(<[_]>::to_vec).collect::<Vec<_>>()
+        })
+        .collect();
+    // Batches still to send, first in first out: halves queue behind every first batch.
+    let mut work: std::collections::VecDeque<Vec<_>> = batches.into();
+    let mut asked = 0usize;
+    while let Some(mut batch) = work.pop_front() {
+        if run.cancelled() {
+            return;
+        }
+        if asked >= MAX_GMAIL_REQUESTS {
+            let left: std::collections::BTreeSet<u64> = batch.iter().chain(work.iter().flatten()).map(|m| m.id).collect();
+            run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(left.len());
+            log::info!("gmail: {} messages' moves between categories wait for the next run", left.len());
+            return;
+        }
+        let Some(category) = batch.first().map(|m| m.category) else { continue };
+        // Two moves of one message (two copies here with Gmail's one id) send it once, and stay
+        // in one half when the batch is split.
+        batch.sort_by_key(|m| m.id);
+        let mut ids: Vec<u64> = batch.iter().map(|m| m.id).collect();
+        ids.dedup();
+        asked += 1;
+        match crate::gmail::batch_modify(&request.access_token, &ids, category) {
+            Ok(()) => run.out.gmail_moved.extend(batch.iter().copied().copied()),
+            Err(NetError::Proto(ProtoError::Rejected(_))) if ids.len() > 1 => {
+                let at = split_point(&batch);
+                let (first, second) = batch.split_at(at);
+                work.extend([first.to_vec(), second.to_vec()]);
+            }
+            Err(NetError::Proto(ProtoError::Rejected(_))) => run.out.gmail_refused.extend(batch.iter().copied().copied()),
+            // Nothing was sent (it can't be, for a batch made here): it waits.
+            Err(NetError::Config(_)) => run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(ids.len()),
+            Err(e) => {
+                // Counted by Gmail's message: two copies here are one message there.
+                let failed = batch.iter().chain(work.iter().flatten()).map(|m| m.id).collect::<std::collections::BTreeSet<u64>>().len();
+                let what = if failed > 1 { format!("{failed} messages") } else { "a message".to_string() };
+                log::info!("gmail: {failed} moves between categories didn't go");
+                run.out.errors.push(format!("Couldn't move {what} between Gmail's categories: {e}"));
+                return;
+            }
+        }
+    }
+}
+
+/// Where to split a batch sorted by Gmail's id in two: the middle, moved to the nearest place
+/// where the id changes, so that the moves of one message stay together. A batch with two ids
+/// or more always has one.
+fn split_point(batch: &[&mailcraft_model::sync::GmailMove]) -> usize {
+    let changes = |at: usize| at > 0 && at < batch.len() && batch.get(at - 1).map(|m| m.id) != batch.get(at).map(|m| m.id);
+    let mid = batch.len() / 2;
+    (0..batch.len()).flat_map(|d| [mid.saturating_add(d), mid.saturating_sub(d)]).find(|at| changes(*at)).unwrap_or(mid)
 }
 
 /// A size for a person to read: `100 MB`.
@@ -707,7 +795,7 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 /// The message a server handed over, with what the server knows about it.
 fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
-    let mut message = mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default());
+    let mut message = mailcraft_mime::parse_fetched(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
     message.read = flags.read;
     message.flag = if flags.flagged { FlagStatus::Flagged } else { FlagStatus::None };
@@ -727,6 +815,8 @@ fn message_from(fetched: Fetched) -> Message {
 fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     let mut message = message_from(header);
     message.attachments.clear();
+    // (Its header alone is no original of it, #30.)
+    message.original = None;
     message.body = Body {
         text: format!(
             "{NOT_DOWNLOADED_NOTE} it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
@@ -842,6 +932,8 @@ impl FolderSync<'_> {
             complete: false,
             refetched: Vec::new(),
             refetch_done: Vec::new(),
+            refetch_too_large: Vec::new(),
+            refetch_refused: Vec::new(),
             gmail: Vec::new(),
         };
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
@@ -968,12 +1060,19 @@ impl FolderSync<'_> {
             let size = sizes.get(&uid).copied().unwrap_or(0);
             if size > run.limits.largest {
                 delta.refetch_done.push(uid);
+                delta.refetch_too_large.push(uid);
                 continue;
             }
             if usize::try_from(size).unwrap_or(usize::MAX) > run.limits.bytes {
                 continue;
             }
             match imap.uid_fetch_message(uid) {
+                // Handed over without the message (no `BODY[]`, or an empty one): nothing came,
+                // which is no word that its copy holds nothing either (#30). Settled as refused.
+                Ok(Some(fetched)) if fetched.body.as_ref().is_none_or(Vec::is_empty) => {
+                    delta.refetch_done.push(uid);
+                    delta.refetch_refused.push(uid);
+                }
                 Ok(Some(fetched)) => {
                     let bytes = fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
@@ -990,6 +1089,7 @@ impl FolderSync<'_> {
                     *alive = run.failed(&format!("Couldn't download a message from \"{}\" again", shown(&self.remote)), &e);
                     if !fatal && !run.cancelled() {
                         delta.refetch_done.push(uid);
+                        delta.refetch_refused.push(uid);
                     }
                 }
             }

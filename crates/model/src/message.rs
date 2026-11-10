@@ -114,6 +114,69 @@ impl Attachment {
     }
 }
 
+/// The most bytes of a Digitally signed or Encrypted message's original that are kept
+/// ([`Message::original`], #30): a larger one is read as any other message, without them.
+pub const MAX_ORIGINAL: usize = 64 << 20;
+
+/// The most bytes of originals a mailbox keeps in all (#30): past it, a message that comes in is
+/// kept without its original, as one read before they were kept, and Check again
+/// (`mail.checkAgain`) can fetch it once there is room.
+pub const MAX_ORIGINALS: u64 = 1 << 30;
+
+/// The bytes a Digitally signed or Encrypted message came as (#30): its MIME as its server or
+/// file gave it, in CRLF lines, which a Digital signature is checked against and whose body a
+/// copy of it elsewhere (another account's server, a saved `.eml`) carries, so that the
+/// signature still checks there. Kept as an attachment is: in memory (`data`) or in the content folder beside
+/// the mailbox file (`kept`), hashed and checked against its length when read back.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Original {
+    /// The bytes, when they are in memory. Empty while they are kept outside (`kept`).
+    #[serde(with = "crate::b64")]
+    pub data: Arc<Vec<u8>>,
+    /// Where the bytes are when `data` doesn't hold them ([`Attachment::kept`]). Not written.
+    #[serde(skip)]
+    pub kept: Option<ContentRef>,
+}
+
+impl std::fmt::Debug for Original {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Original({} bytes{})", self.size(), if self.is_loaded() { "" } else { ", kept" })
+    }
+}
+
+impl Original {
+    /// `bytes` as a message's original; `None` when there are none, or more than [`MAX_ORIGINAL`].
+    pub fn new(bytes: Vec<u8>) -> Option<Original> {
+        (!bytes.is_empty() && bytes.len() <= MAX_ORIGINAL).then(|| Original { data: Arc::new(bytes), kept: None })
+    }
+
+    /// How many bytes it is, in memory or where it is kept.
+    pub fn size(&self) -> u64 {
+        match self.kept {
+            Some(k) if self.data.is_empty() => k.len,
+            _ => self.data.len() as u64,
+        }
+    }
+
+    /// Whether its bytes are in memory, or there is nothing kept outside to bring in.
+    pub fn is_loaded(&self) -> bool {
+        self.kept.is_none() || !self.data.is_empty()
+    }
+
+    /// Whether there is anything of it: bytes in memory or kept outside.
+    pub fn is_there(&self) -> bool {
+        !self.data.is_empty() || self.kept.is_some()
+    }
+}
+
+/// [`Message::original`] as a file or a synchronisation result holds it: past [`MAX_ORIGINAL`]
+/// it is read as none.
+fn capped_original<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Original>, D::Error> {
+    let original = Option::<Original>::deserialize(d)?;
+    Ok(original.filter(|o| o.data.len() <= MAX_ORIGINAL))
+}
+
 /// Most characters of its text a message to be fetched again keeps as its preview
 /// ([`Message::to_fetch_again`]): as many as Microsoft Graph gives as one.
 pub const PREVIEW_CHARS: usize = 255;
@@ -256,11 +319,23 @@ pub struct Message {
     /// from before has none, and one that holds something other than a size there reads as 0.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub not_downloaded: u64,
-    /// For a message of a Gmail account's Inbox: which of Gmail's five categories Gmail put it in
-    /// (#911), as its server last said, like a read mark. `None` for mail anywhere else, of any
-    /// other account, and of a file from before there were any (or one that holds something else).
+    /// For a message of a Gmail account's Inbox: which of Gmail's five categories it is in (#911),
+    /// like a read mark: as its server last said, or as the owner moved it here and Gmail hasn't
+    /// heard yet ([`Message::gmail_synced`]). `None` for mail anywhere else, of any other account,
+    /// and of a file from before there were any (or one that holds something else).
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub gmail_category: Option<crate::GmailCategory>,
+    /// The Gmail category Gmail last said the message is in (#911): where it differs from
+    /// `gmail_category`, the owner moved it here and the move goes to Gmail at the next run.
+    /// `None` until Gmail has said, and for a file from before moves.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub gmail_synced: Option<crate::GmailCategory>,
+    /// How many times (runs) Gmail refused the move waiting for this message on its own (#911);
+    /// a run that didn't try the move counts neither way. At
+    /// [`crate::gmail::MAX_GMAIL_REFUSALS`] the move is given up. 0 whenever no move is waiting:
+    /// Gmail took it, Gmail's word won, the owner made a new move or undid it.
+    #[serde(skip_serializing_if = "is_zero_u8", deserialize_with = "crate::sync::lenient_or_default")]
+    pub gmail_refusals: u8,
     /// For a message of a Gmail account's Inbox: Gmail's own id of it (`X-GM-MSGID`), as its
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
@@ -336,6 +411,66 @@ pub struct Message {
     /// always was). Not written: see [`Attachment::kept`].
     #[serde(skip)]
     pub kept: Option<Box<KeptBody>>,
+    /// For a Digitally signed or Encrypted message (#30): the bytes it came as ([`Original`]).
+    /// `None` for every other message, for one read before they were kept (Check again downloads
+    /// them, `mail.checkAgain`), and once something the bytes hold was taken out of it here (an
+    /// attachment removed). Wherever the message is written whole (another account's server, a
+    /// saved `.eml`, a forward as an attachment) its body is these bytes' body, under their own
+    /// content fields, and its header is written from the message, with the filters every
+    /// message's header goes through.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "capped_original")]
+    pub original: Option<Original>,
+    /// A part of it was taken out here (Remove Attachment): the bytes it came as no longer are
+    /// this message, and Check again never brings them back (#30).
+    #[serde(skip_serializing_if = "is_false")]
+    pub parts_removed: bool,
+    /// Check again asked for the bytes it came as (#30): what its server gives next brings those
+    /// and nothing else; its text, files, headers and marks stay as they are here.
+    #[serde(skip_serializing_if = "is_false")]
+    pub original_wanted: bool,
+    /// The bytes it came as were asked for again (#30), and what came didn't bring them: the
+    /// server's copy isn't protected either (one put there from its parts). Not asked again, and
+    /// a copy made of its parts may stand for it where it goes.
+    #[serde(skip_serializing_if = "is_false")]
+    pub original_asked: bool,
+    /// How many times the server refused the bytes it came as when they were asked for again
+    /// (#30), or [`ORIGINAL_TRIES`] once it is given up on (refused that often over at least
+    /// [`ORIGINAL_PATIENCE`], or too large to take): not asked again then until Check again, and
+    /// what waits for them goes on waiting.
+    #[serde(skip_serializing_if = "is_zero_u8")]
+    pub original_tries: u8,
+    /// When the server first refused them ([`Message::original_tries`]); 0: it hasn't.
+    #[serde(skip_serializing_if = "is_zero_i64")]
+    pub original_refused: Timestamp,
+    /// Not asked for again before this time, after a refusal (#30); 0: whenever.
+    #[serde(skip_serializing_if = "is_zero_i64")]
+    pub original_retry: Timestamp,
+    /// The size of the bytes it came as when there was no room for them here (#30), the bytes
+    /// having come: not asked for again until there is room for that much. 0: none of that.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub original_no_room: u64,
+    /// The IMAP account whose server took a copy of it, moved there, written from the bytes it
+    /// came as (#30): what it was moved out of may go then. 0: no such copy. (A copy Graph makes
+    /// is made of its parts, and never holds them.)
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub original_placed: Id,
+}
+
+/// The least time, in seconds, over which a server's refusals of the bytes a message came as are
+/// counted before they are asked for no more ([`Message::original_tries`]): a day, so that an
+/// outage doesn't hold a move for good.
+pub const ORIGINAL_PATIENCE: Timestamp = 24 * 60 * 60;
+
+fn is_zero_i64(n: &i64) -> bool {
+    *n == 0
+}
+
+/// How many refusals of the bytes a message came as are taken before they are asked for no more
+/// ([`Message::original_tries`]).
+pub const ORIGINAL_TRIES: u8 = 5;
+
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
 }
 
 /// The message a reply or forward not sent yet answers or forwards ([`Message::answers`]).
@@ -426,10 +561,11 @@ impl Message {
         self.placed.clear();
     }
 
-    /// It is in none of Gmail's categories, and Gmail's id of it is forgotten: what the server
-    /// says of the folder it is in now says them again, if anything (#911).
+    /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting
+    /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
+    /// if anything (#911).
     pub fn left_gmail_inbox(&mut self) {
-        (self.gmail_category, self.gmail_id) = (None, 0);
+        (self.gmail_category, self.gmail_synced, self.gmail_refusals, self.gmail_id) = (None, None, 0, 0);
     }
 
     /// Every recipient: To, Cc, Bcc.
@@ -495,10 +631,12 @@ impl Message {
         if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
             return None;
         }
-        Some(self.size())
+        // The bytes it came as are a second copy of what its parts hold (#30).
+        Some(self.size().saturating_sub(self.original.as_ref().map_or(0, Original::size)))
     }
 
-    /// Size in bytes, roughly: text, HTML and attachments, in memory or where they are kept.
+    /// Size in bytes, roughly: text, HTML, attachments and the bytes a Digitally signed or
+    /// Encrypted message came as (#30), in memory or where they are kept.
     pub fn size(&self) -> u64 {
         let kept = self.kept.as_deref();
         let text = if self.body.text.is_empty() { kept.and_then(|k| k.text).map_or(0, |r| r.len) } else { self.body.text.len() as u64 };
@@ -507,7 +645,11 @@ impl Message {
             None => kept.and_then(|k| k.html).map_or(0, |r| r.len),
         };
         let hidden = if self.hidden_text.is_empty() { kept.and_then(|k| k.hidden).map_or(0, |r| r.len) } else { self.hidden_text.len() as u64 };
-        self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html).saturating_add(hidden), u64::saturating_add)
+        let original = self.original.as_ref().map_or(0, Original::size);
+        self.attachments
+            .iter()
+            .map(|a| a.size() as u64)
+            .fold(text.saturating_add(html).saturating_add(hidden).saturating_add(original), u64::saturating_add)
     }
 
     /// To be fetched again, whole, from the server that has it (#793): its headers, marks and
@@ -526,6 +668,7 @@ impl Message {
         self.hidden_text = String::new();
         self.attachments.clear();
         self.kept = None;
+        (self.original, self.original_wanted) = (None, false);
         self.attachments_on_server = had_files;
         self.unfetched = true;
     }
@@ -553,7 +696,37 @@ impl Message {
 
     /// Whether everything of the message is in memory: its body and every attachment.
     pub fn is_loaded(&self) -> bool {
-        !self.body_is_kept() && self.attachments.iter().all(Attachment::is_loaded)
+        !self.body_is_kept() && self.attachments.iter().all(Attachment::is_loaded) && self.original.as_ref().is_none_or(Original::is_loaded)
+    }
+
+    /// Whether the copy it was moved out of may go, as far as the mailbox alone can tell (#30):
+    /// the bytes it came as can't be lost with it. It has none named, a download from a server
+    /// brought it without them ([`Message::original_asked`]), or the copy where it is now, on
+    /// an IMAP server of the account it is in, was written from them
+    /// ([`Message::original_placed`]). Otherwise only bytes read whole here at the release let
+    /// it go (the engine's gate); a placement gone wrong is a copy too many, never a loss.
+    pub fn may_release(&self) -> bool {
+        self.original.is_none() || self.original_asked || (self.original_placed != 0 && self.original_placed == self.account)
+    }
+
+    /// Whether the bytes it came as are here ([`Message::original`]): in memory or kept outside.
+    pub fn has_original(&self) -> bool {
+        self.original.as_ref().is_some_and(Original::is_there)
+    }
+
+    /// The bytes it came as, when they are in memory ([`Message::original`]).
+    pub fn original_bytes(&self) -> Option<&[u8]> {
+        self.original.as_ref().map(|o| o.data.as_slice()).filter(|d| !d.is_empty())
+    }
+
+    /// Whether it looks Digitally signed or Encrypted by what was read of it (#30), for a message
+    /// without the bytes it came as: a part that carries a signature or encrypted content
+    /// (`smime.p7s`, `smime.p7m`, `signature.asc`, PGP/MIME's control part), or OpenPGP armour
+    /// at the start of a line in the first 64 KB of its text in memory
+    /// ([`crate::protected::has_armour_within`]): cheap enough to ask as a menu is drawn.
+    pub fn looks_protected(&self) -> bool {
+        self.attachments.iter().any(|a| crate::protected::is_protection_part(&a.mime, &a.name))
+            || crate::protected::has_armour_within(self.body.text.as_bytes(), 64 * 1024)
     }
 
     pub fn has_category(&self, name: &str) -> bool {

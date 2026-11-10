@@ -320,6 +320,13 @@ impl Build {
                 a.kept = Some(self.queue(bytes)?);
             }
         }
+        // The bytes a Digitally signed or Encrypted message came as (#30), as an attachment.
+        if let Some(o) = m.original.as_mut().filter(|o| o.data.len() > INLINE_MAX) {
+            let data = std::mem::take(&mut o.data);
+            gone = gone.saturating_add((data.len() as u64).div_ceil(3).saturating_mul(4));
+            let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
+            o.kept = Some(self.queue(bytes)?);
+        }
         kept.text_hash = mailcraft_model::text_hash(&m.body.text);
         m.kept = (!kept.is_empty()).then(|| Box::new(kept));
         Ok((m, gone))

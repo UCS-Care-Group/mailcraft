@@ -606,7 +606,7 @@ fn kept_here(s: &mut Session, folder: Id, subject: &str) -> Id {
 fn put(asked: &SyncRequest, message: Id, uid: u32, uid_validity: u32) -> Placed {
     let place = asked.places.iter().find(|p| p.message.id == message).unwrap();
     let flags = RemoteFlags { draft: false, ..RemoteFlags::of(&place.message, 0) };
-    Placed { message, to_folder: place.to_folder, uid, uid_validity, flags }
+    Placed { message, to_folder: place.to_folder, uid, uid_validity, flags, original: place.message.original.is_some() }
 }
 
 #[test]

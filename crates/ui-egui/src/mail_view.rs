@@ -44,6 +44,8 @@ const TAB_MIN: f32 = 22.0;
 const ROW_INSET: f32 = 2.0;
 /// How wide the read/unread switch at a row's left edge is.
 const READ_STRIP: f32 = 12.0;
+/// How wide the stripe of an account's colour is at a row's left edge (#893).
+const ACCOUNT_STRIPE: f32 = 3.0;
 /// Where a row's text starts, from the list's left edge.
 const TEXT_LEFT: f32 = 30.0;
 /// How far in the messages listed under their open conversation start (#503).
@@ -732,6 +734,21 @@ fn shows_folder(s: &mailcraft_engine::Session) -> bool {
     s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
 
+/// Whether the list may hold mail of more than one account: a search of every mailbox, with more
+/// than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
+/// owner knows whose mail it is, and the rows stay as they were.
+fn mixes_accounts(s: &mailcraft_engine::Session) -> bool {
+    s.view.scope == mailcraft_engine::Scope::Everywhere
+        && s.mailbox.accounts.len() > 1
+        && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+}
+
+/// The colour of the stripe on `m`'s row (#893): its account's, in a list of more than one
+/// account's mail ([`mixes_accounts`]); `None` elsewhere, and for an account without one.
+fn account_stripe(s: &mailcraft_engine::Session, m: &Message) -> Option<mailcraft_model::Rgb> {
+    mixes_accounts(s).then(|| s.mailbox.account(m.account).and_then(|a| a.color)).flatten()
+}
+
 /// The previews of the rows the list drew last, so that drawing them again reads no message a
 /// second time. Each is kept while its message is the one it was made from.
 #[derive(Clone, Default)]
@@ -924,6 +941,17 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     if !selected {
         p.line_segment([pos2(body.min.x + 12.0, rect.max.y - 0.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5)], Stroke::new(1.0, t.border_faint));
     }
+    // Where mail of several accounts is listed together, a stripe of its account's colour down
+    // the row's left edge (#893), left of the selection's card so that it shows on a selected row too.
+    if let Some(color) = account_stripe(&app.session, &m) {
+        let stripe = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 3.0), pos2(rect.min.x + 1.0 + ACCOUNT_STRIPE, rect.max.y - 3.0));
+        p.rect_filled(stripe, 1.5, crate::theme::c32(color));
+        // (In High Contrast an edge in the text's colour, so that a mid-tone stays in sight.)
+        if t.high_contrast {
+            p.rect_stroke(stripe, 1.5, Stroke::new(1.0, t.text), egui::StrokeKind::Inside);
+        }
+        app.hit.add("messageAccountColor", row.id, stripe);
+    }
     // What is in the row is laid out from its top as in a row of the full height, moved up with
     // its lines (the background and the line under it are the row's own, above).
     let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
@@ -1000,12 +1028,21 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     if warned {
         app.hit.add("messageWarning", row.id, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)));
     }
+    // What checking its Digital signature found (#30): its seal, after the warning.
+    let seal = crate::reading::signature_seal(app, &m);
+    if seal.is_some() {
+        let at = if warned { x - 15.0 } else { x };
+        app.hit.add("messageSignature", row.id, Rect::from_center_size(pos2(at - 6.0, line1), vec2(12.0, 12.0)));
+    }
     let mut marker = |icon: &str, color: Color32| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
         x -= 15.0;
     };
     if warned {
         marker("warning", t.icon);
+    }
+    if let Some(seal) = seal {
+        marker(seal, t.icon);
     }
     // A meeting that came by mail wears its mark; its calendar part is not one of its files.
     let (meeting, files) = crate::reading::list_marks(&m);
@@ -1214,6 +1251,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
                 });
             });
         });
+        // Gmail's categories, for mail of a Gmail Inbox, where moves between them are on (#911).
+        crate::gmail_move::menu(app, ui);
         mi(ui, app, "Archive", "mail.archive", json!({}));
         ui.menu_button(tl!("Junk"), |ui| crate::ribbon::junk_menu(ui, app));
         mi(ui, app, "Delete", "mail.delete", json!({}));
@@ -1227,6 +1266,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
     });
 }
 
+#[cfg(test)]
+mod account_stripe_tests;
 #[cfg(test)]
 mod density_tests;
 #[cfg(test)]

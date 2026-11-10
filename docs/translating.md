@@ -62,6 +62,12 @@ has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being
   (`{month} {year}`, a calendar's heading). Most languages give both the same word and need
   translate the plain one only; a language whose names change with their place (Russian: `11
   октября`, `Октябрь 2026`) gives each its own. An empty one is the plain name.
+- A message that says what didn't happen and why is two entries and a pattern: the heading
+  ("Your automatic replies weren't changed"), each reason by itself (`msgctxt "why automatic
+  replies weren't changed"`, `msgid "you are working offline."`), and `msgid "{heading}:
+  {reason}"` (`msgctxt "what didn't happen, then why"`), which joins them. Put the language's own
+  punctuation and spacing in the pattern (French `{heading} : {reason}`, with a narrow no-break
+  space), and write each reason so it reads after it, as it would after the heading.
 
 Translations are contributed like code, by pull request, under the [Contributor Licence
 Agreement](../CLA.md).
