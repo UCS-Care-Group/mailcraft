@@ -164,6 +164,48 @@ fn an_exchange_server_accounts_new_mail_has_the_rules_that_read_its_text_once_it
     });
 }
 
+/// New mail older than the account's mail to keep offline (moved back into the Inbox from an
+/// archive on another device, say): the background doesn't fetch it, so a rule that reads the
+/// text acts on it once the owner opens it, while it is open (#966 gave Exchange server accounts
+/// the window a Microsoft account has).
+#[test]
+fn an_exchange_rule_reading_text_waits_on_new_mail_older_than_mail_to_keep_offline_until_it_is_opened() {
+    // 2026-10-15.
+    const NOW: i64 = 1_792_000_000;
+    const DAY: i64 = 86_400;
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+    let rule =
+        json!({"name": "Invoices", "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "markRead"}]});
+    s.run("rules.add", &rule).unwrap();
+    let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+    let inbox = vec![GraphFolder { id: "F1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let deltas = EwsFolderDeltas { changed: inbox, afresh: true, ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+    let first = EwsMessagePage { folder: "F1".into(), afresh: true, last: true, state: "S-1".into(), ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![first], ..piece() }).unwrap();
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+    let at = |id: &str, received: i64| GraphMessage { sent: received - 60, received, ..listed(id, "F1", "Plan") };
+    let delta = EwsMessagePage {
+        folder: "F1".into(),
+        messages: vec![at("NEW", NOW - DAY), at("OLD", NOW - 400 * DAY)],
+        last: true,
+        from: "S-1".into(),
+        state: "S-2".into(),
+        ..Default::default()
+    };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+    assert!(here(&s, account, "NEW").rules_waiting.is_some() && here(&s, account, "OLD").rules_waiting.is_some());
+    assert_eq!(ews_mail::ews_fetch_request(&s, account, None, 100).unwrap().ids, ["NEW"], "the old one isn't fetched in the background");
+    let old = here(&s, account, "OLD").id;
+    assert_eq!(ews_mail::ews_fetch_request(&s, account, Some(old), 1).unwrap().ids, ["OLD"], "opened, it is");
+    let fetched = vec![whole("OLD", "Plan", "", "The invoice.")];
+    ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let m = here(&s, account, "OLD");
+    assert!(m.read && m.rules_waiting.is_none());
+}
+
 #[test]
 fn a_fetch_names_the_messages_a_waiting_rule_shows_a_desktop_alert_for() {
     let mut s = Session::empty();
