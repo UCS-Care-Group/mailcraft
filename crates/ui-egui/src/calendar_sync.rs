@@ -177,6 +177,8 @@ impl MailApp {
         self.calendar.by_hand.insert(account);
         // (What waited for the permission to send from a shared mailbox is tried again.)
         self.calendar.send_waits.remove(&account);
+        // A DAV account's calendars and address books are read after the mail (#276).
+        self.dav_sync_soon(account);
     }
 
     /// The accounts whose calendar is kept in step now: those whose calendar a Microsoft server

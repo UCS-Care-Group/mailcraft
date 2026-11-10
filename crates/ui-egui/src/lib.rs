@@ -73,6 +73,7 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+pub mod dav_sync;
 #[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
@@ -344,6 +345,15 @@ pub struct Services {
     /// so account setup can tell whose servers an address at a company's own domain uses. Only
     /// the domain is given, never the mailbox name.
     pub lookup_mx: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: ask a domain's mail exchangers, in turn, whether one publishes CalDAV and
+    /// CardDAV services (it answers its RFC 6764 well-known addresses). Nothing of the owner's is
+    /// sent: only the exchanger names are given. The service roots are answered when one is.
+    pub probe_dav: Option<Box<dyn Fn(Vec<String>) -> Receiver<Result<Option<mailcraft_model::DavServer>, String>>>>,
+    /// Desktop: read an account's calendars and address books over CalDAV and CardDAV on a
+    /// background thread ([`dav_sync`]): the calendars it may read (shared ones too), their
+    /// events in the stretch asked for, and every card of every address book it may read. The
+    /// password is the account's, in memory for this session only.
+    pub dav: Option<Box<dyn Fn(dav_sync::DavJob) -> Receiver<dav_sync::DavResult>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
@@ -1629,6 +1639,8 @@ pub struct MailApp {
     graph_consent_needed: std::collections::HashSet<Id>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
+    /// Calendars and address books of DAV accounts, over CalDAV and CardDAV ([`dav_sync`]).
+    dav: dav_sync::DavSync,
     /// Keeping the Favorites of the folder pane the ones Outlook shows ([`favorites_sync`]).
     favorites: favorites_sync::FavoritesSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
@@ -1933,6 +1945,7 @@ impl MailApp {
             graph_checked: Default::default(),
             graph_consent_needed: Default::default(),
             calendar: Default::default(),
+            dav: Default::default(),
             favorites: Default::default(),
             favorites_next: false,
             shared_next: None,
@@ -2371,6 +2384,16 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
+        // An event made or changed in a DAV account's calendar: written to its server now,
+        // not only at the next Send/Receive.
+        if r.is_ok() && id.starts_with("calendar.") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_dav()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::event_upload(&self.session, account).is_ok_and(|upload| !upload.ops.is_empty()) {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
@@ -2434,7 +2457,11 @@ impl MailApp {
                 != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
                 || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
-            self.forget_account_secrets(&before);
+            // Adding DAV to an account keeps the same mail password; move it to the new bound
+            // name instead of forgetting it. Any other endpoint change still forgets.
+            if !self.migrate_dav_secret(&before, &after) {
+                self.forget_account_secrets(&before);
+            }
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
@@ -2888,6 +2915,16 @@ impl MailApp {
                 Some(pin) => format!("{kind}:{address}|ews={url}|user={user}|pin={pin}"),
                 None => format!("{kind}:{address}|ews={url}|user={user}"),
             }
+        } else if let Some(dav) = &a.dav {
+            // (A DAV account's password reaches the CalDAV and CardDAV services too: another
+            // service root, on the same server or not, is another server.)
+            format!(
+                "{kind}:{address}|imap={}|smtp={}|caldav={}|carddav={}",
+                server(&a.incoming),
+                server(&a.outgoing),
+                dav.caldav.trim(),
+                dav.carddav.trim()
+            )
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
@@ -3009,6 +3046,43 @@ impl MailApp {
         if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&key) {
             self.ui.remembered_keys.push(key);
         }
+    }
+
+    /// When DAV is added to an existing account, its password was kept under the old name
+    /// without the DAV endpoints. Move it to the new name instead of dropping it; the mail
+    /// servers, account kind and address must be unchanged.
+    fn migrate_dav_secret(&mut self, before: &mailcraft_model::Account, after: &mailcraft_model::Account) -> bool {
+        if before.dav.is_some()
+            || after.dav.is_none()
+            || before.kind != after.kind
+            || !before.email.eq_ignore_ascii_case(&after.email)
+            || before.incoming != after.incoming
+            || before.outgoing != after.outgoing
+        {
+            return false;
+        }
+        let Some(store) = &self.services.secrets else { return false };
+        let mut moved = false;
+        for kind in ["password", "refresh"] {
+            let old = Self::secret_key(kind, before);
+            let new = Self::secret_key(kind, after);
+            if old == new {
+                continue;
+            }
+            let Some(secret) = store.get(&old) else { continue };
+            if store.set(&new, &secret).is_err() {
+                continue;
+            }
+            store.delete(&old);
+            self.secret_cache.remove(&old);
+            self.secret_cache.insert(new.clone(), secret);
+            if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&new) {
+                self.ui.remembered_keys.push(new);
+            }
+            self.ui.remembered_keys.retain(|key| key != &old);
+            moved = true;
+        }
+        moved
     }
 
     /// Delete every entry MailCraft put in the credential store: those noted in `remembered_keys`
@@ -4730,6 +4804,7 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
+        self.poll_dav();
         self.poll_tasks();
         self.poll_rules();
         self.poll_auto_replies();
@@ -4753,6 +4828,8 @@ impl MailApp {
             self.inbox_check_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // Calendars and address books of DAV accounts ([`dav_sync`]).
+            self.dav_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).

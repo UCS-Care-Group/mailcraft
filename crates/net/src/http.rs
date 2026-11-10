@@ -161,6 +161,8 @@ pub(crate) struct Reply {
     pub(crate) retry_after: Option<String>,
     /// Its `Location` header (where a redirect leads), as the server wrote it.
     pub(crate) location: Option<String>,
+    /// Its `ETag` header, when it has one.
+    pub(crate) etag: Option<String>,
     /// Its `WWW-Authenticate` headers (how it offers to be signed in to), as the server wrote them.
     pub(crate) challenges: Vec<String>,
     /// Its `X-EWS-Policy-Reason` header (why an organisation shuts Exchange Web Services).
@@ -639,6 +641,7 @@ struct Head {
     chunked: bool,
     retry_after: Option<String>,
     location: Option<String>,
+    etag: Option<String>,
     challenges: Vec<String>,
     policy_reason: Option<String>,
     content_range: Option<String>,
@@ -696,6 +699,7 @@ pub(crate) fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patienc
         body,
         retry_after: head.retry_after,
         location: head.location,
+        etag: head.etag,
         challenges: head.challenges,
         policy_reason: head.policy_reason,
     };
@@ -740,6 +744,9 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             head.retry_after = Some(tidy(value));
         } else if name.eq_ignore_ascii_case("location") {
             head.location = Some(value.to_string());
+        } else if name.eq_ignore_ascii_case("etag") {
+            // An ETag is opaque, including its quotes; it is kept exactly as written.
+            head.etag = Some(value.to_string());
         } else if name.eq_ignore_ascii_case("www-authenticate") {
             if head.challenges.len() < MAX_CHALLENGES {
                 head.challenges.push(value.trim().chars().filter(|c| !c.is_control()).take(MAX_CHALLENGE).collect());
