@@ -51,18 +51,41 @@ pub struct DavServer {
     pub caldav: String,
     /// The CardDAV service root (`https://mail.example.org/carddav/`).
     pub carddav: String,
+    /// The name the CalDAV and CardDAV services know the owner by; empty means the account's
+    /// login name, as mail and calendars usually share one. Calendars may live at another
+    /// provider than the mail does, with a name of their own.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub username: String,
 }
 
 /// The addresses stay out of debug output, which may reach a log.
 impl std::fmt::Debug for DavServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DavServer").field("caldav", &!self.caldav.is_empty()).field("carddav", &!self.carddav.is_empty()).finish()
+        f.debug_struct("DavServer")
+            .field("caldav", &!self.caldav.is_empty())
+            .field("carddav", &!self.carddav.is_empty())
+            .field("username", &!self.username.is_empty())
+            .finish()
     }
 }
 
 impl DavServer {
     /// Longest address either service may have, in characters.
     pub const MAX_URL: usize = 2048;
+    /// Longest user name, in characters.
+    pub const MAX_USERNAME: usize = 254;
+
+    /// Whether `name` may be the name the services know the owner by: not too long and no
+    /// control character. An address, a `DOMAIN\user` name and a bare login are all fine.
+    pub fn check_username(name: &str) -> Result<(), &'static str> {
+        if name.chars().take(Self::MAX_USERNAME + 1).count() > Self::MAX_USERNAME {
+            return Err("is longer than 254 characters");
+        }
+        if name.chars().any(char::is_control) {
+            return Err("has a control character in it");
+        }
+        Ok(())
+    }
 
     /// Whether `address` may be a DAV service root: `Ok`, or why not, in words that follow the
     /// setting's name (`is empty`, `isn't an https:// address`…).
@@ -116,7 +139,7 @@ impl DavServer {
 
     /// Why these settings can't be used, when they can't ([`DavServer::check_url`]).
     pub fn problem(&self) -> Option<&'static str> {
-        Self::check_url(&self.caldav).err().or_else(|| Self::check_url(&self.carddav).err())
+        Self::check_url(&self.caldav).err().or_else(|| Self::check_url(&self.carddav).err()).or_else(|| Self::check_username(&self.username).err())
     }
 
     /// The server a service is on (`mail.example.org`), when its address may be used.
@@ -138,7 +161,7 @@ impl DavServer {
             return None;
         }
         let base = if host.contains(':') && !host.starts_with('[') { format!("https://[{host}]") } else { format!("https://{host}") };
-        Some(DavServer { caldav: format!("{base}/caldav/"), carddav: format!("{base}/carddav/") })
+        Some(DavServer { caldav: format!("{base}/caldav/"), carddav: format!("{base}/carddav/"), ..Default::default() })
     }
 }
 

@@ -106,7 +106,7 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
-    pub use crate::dav::{DavSync, Endpoints, probe as probe_dav, sync as sync_dav, upload_events as upload_dav_events};
+    pub use crate::dav::{DavSync, Endpoints, check as check_dav, probe as probe_dav, sync as sync_dav, upload_events as upload_dav_events};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
     pub use crate::pinned::pin_check_under_way;

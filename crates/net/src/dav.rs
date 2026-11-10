@@ -88,6 +88,29 @@ pub fn probe(host: &str) -> Result<Option<Endpoints>, NetError> {
     Ok(Some(Endpoints { caldav, carddav }))
 }
 
+/// Try a CalDAV and a CardDAV service with a name and a secret, before an account is added:
+/// one `PROPFIND` at each root, signed in with HTTP Basic. Nothing else is read and nothing is
+/// changed. The password never reaches an error.
+///
+/// This blocks; a host calls it on a background thread.
+pub fn check(caldav: &str, carddav: &str, username: &str, password: &str) -> Result<(), NetError> {
+    for (address, body, service) in [(caldav, DISCOVERY_CALDAV, "CalDAV"), (carddav, DISCOVERY_CARDDAV, "CardDAV")] {
+        if let Some(why) = DavServer::check_url(address).err() {
+            return Err(NetError::Config(format!("the {service} address {why}").into()));
+        }
+        let auth = basic(username, password);
+        let reply = send(address.trim(), "PROPFIND", Some("0"), Some(body), &auth, XML, 64 * 1024).map_err(|e| e.without(password))?;
+        match reply.status {
+            200 | 207 => {}
+            401 | 403 => {
+                return Err(NetError::Forbidden(format!("the {service} server didn't take that user name and password")));
+            }
+            status => return Err(NetError::Forbidden(format!("the {service} server answered {status} to a request for its collections"))),
+        }
+    }
+    Ok(())
+}
+
 /// Ask a service's RFC 6764 well-known address. A server answers it with its service root
 /// (usually by redirecting there) and asks for a sign-in at it, or lets a stranger read the
 /// collections; a server that has no such address, asks nothing of a stranger, or leaves the
@@ -128,10 +151,10 @@ fn is_dav_root(answer: &http::Reply) -> bool {
 ///
 /// This blocks; a host calls it on a background thread.
 pub fn sync(caldav: &str, carddav: &str, username: &str, password: &str, from: Timestamp, to: Timestamp) -> Result<DavSync, NetError> {
-    let servers = DavServer { caldav: caldav.trim().to_string(), carddav: carddav.trim().to_string() };
+    let servers = DavServer { caldav: caldav.trim().to_string(), carddav: carddav.trim().to_string(), ..Default::default() };
     if let Some(why) = servers.problem() {
         let word = if DavServer::check_url(&servers.caldav).is_err() { "caldav" } else { "carddav" };
-        return Err(NetError::Config(format!("the {word} address {why}")));
+        return Err(NetError::Config(format!("the {word} address {why}").into()));
     }
     let auth = basic(username, password);
     let mut out = DavSync::default();

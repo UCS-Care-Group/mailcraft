@@ -1716,8 +1716,8 @@ fn services(
     let alert_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
-    let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, probe_ctx, dav_ctx, test_ctx) =
-        (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
+    let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, probe_ctx, dav_ctx, test_ctx, dav_test_ctx) =
+        (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
     Services {
@@ -1784,7 +1784,9 @@ fn services(
                 let mut last = None;
                 for host in hosts.into_iter().take(20) {
                     match mailcraft_net::probe_dav(&host) {
-                        Ok(Some(found)) => return Ok(Some(mailcraft_model::DavServer { caldav: found.caldav, carddav: found.carddav })),
+                        Ok(Some(found)) => {
+                            return Ok(Some(mailcraft_model::DavServer { caldav: found.caldav, carddav: found.carddav, ..Default::default() }));
+                        }
                         Ok(None) => {}
                         Err(e) => last = Some(e.to_string()),
                     }
@@ -1795,6 +1797,12 @@ fn services(
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).
             background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.said()))
+        })),
+        // A CalDAV and CardDAV sign-in tried at both service roots, before the account is added.
+        test_dav: Some(Box::new(move |dav, username, secret| {
+            background(&dav_test_ctx, "caldav and carddav check", move || {
+                mailcraft_net::check_dav(&dav.caldav, &dav.carddav, &username, &secret).map_err(|e| e.said())
+            })
         })),
         // An account's calendars and address books, over CalDAV and CardDAV.
         dav: Some(Box::new(move |job: mailcraft_ui_egui::dav_sync::DavJob| {

@@ -105,7 +105,9 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
 }
 
 #[test]
-fn adding_dav_moves_the_remembered_password_to_the_new_name() {
+fn adding_dav_keeps_the_remembered_mail_password_where_it_is() {
+    // Calendars and address books may be at another provider: naming them must neither
+    // invalidate the mail password nor hand it to them.
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);
     let id = add(&mut a);
@@ -120,19 +122,41 @@ fn adding_dav_moves_the_remembered_password_to_the_new_name() {
         json!({
             "id": id,
             "dav": {
-                "caldav": "https://mail.example.org/caldav/",
-                "carddav": "https://mail.example.org/carddav/"
+                "caldav": "https://cloud.example.org/remote.php/dav/",
+                "carddav": "https://cloud.example.org/remote.php/dav/"
             }
         }),
     )
     .unwrap();
 
     let after = a.session.mailbox.account(id).unwrap().clone();
-    let new = MailApp::secret_key("password", &after);
-    assert_ne!(old, new);
-    assert_eq!(store.get(&new).as_deref(), Some("pw"));
-    assert!(store.get(&old).is_none(), "the old name goes when the secret is moved");
+    assert_eq!(MailApp::secret_key("password", &after), old);
+    assert_eq!(store.get(&old).as_deref(), Some("pw"));
     assert_eq!(a.remembered("password", id).as_deref(), Some("pw"));
+}
+
+#[test]
+fn a_calendar_password_is_bound_to_its_own_addresses_and_name() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = add(&mut a);
+    a.execute(
+        "account.edit",
+        json!({"id": id, "dav": {"caldav": "https://cloud.example.org/caldav/", "carddav": "https://cloud.example.org/carddav/"}}),
+    )
+    .unwrap();
+    let account = a.session.mailbox.account(id).unwrap().clone();
+    a.adopt_dav_password(id, "calendar pw".into());
+    let key = MailApp::secret_key("davpassword", &account);
+    assert_eq!(store.get(&key).as_deref(), Some("calendar pw"));
+
+    // Another service root, or another name for it, is another sign-in: the old one is
+    // forgotten rather than handed to the new name.
+    a.execute("account.edit", json!({"id": id, "dav": {"username": "ada"}})).unwrap();
+    let changed = a.session.mailbox.account(id).unwrap().clone();
+    assert_ne!(MailApp::secret_key("davpassword", &changed), key);
+    assert!(store.get(&key).is_none(), "the old sign-in goes with the old name");
+    assert!(!a.dav_passwords.contains_key(&id), "the old sign-in is not handed to the new name");
 }
 
 #[test]

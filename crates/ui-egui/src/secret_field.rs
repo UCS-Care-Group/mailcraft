@@ -56,6 +56,22 @@ pub(crate) fn field(
     margin: Margin,
     style: impl FnOnce(TextEdit<'_>) -> TextEdit<'_>,
 ) -> Response {
+    field_named(ui, text, shown, watch, margin, eye_name(true), eye_name(false), style)
+}
+
+/// As [`field`], with the eye's accessible name given: `hide` while the password is shown and
+/// `show` while it is hidden. A page with two password fields (the account's and one for its
+/// calendars and address books) names each, so that neither is mistaken for the other's.
+pub(crate) fn field_named(
+    ui: &mut Ui,
+    text: &mut String,
+    shown: &mut bool,
+    watch: Watch,
+    margin: Margin,
+    hide: &'static str,
+    show: &'static str,
+    style: impl FnOnce(TextEdit<'_>) -> TextEdit<'_>,
+) -> Response {
     let visible = *shown && !watch.captured;
     let mut layout = |ui: &Ui, buf: &dyn TextBuffer, _wrap: f32| drawn(ui, buf.as_str());
     let room = Margin { right: margin.right.saturating_add(EYE as i8), ..margin };
@@ -65,12 +81,12 @@ pub(crate) fn field(
         edit = edit.layouter(&mut layout);
     }
     let resp = crate::text_menu::secret(ui.add(edit));
-    eye(ui, &resp, shown, watch);
+    eye(ui, &resp, shown, watch, hide, show);
     resp
 }
 
 /// The eye over the right end of the field `resp`.
-fn eye(ui: &mut Ui, resp: &Response, shown: &mut bool, watch: Watch) {
+fn eye(ui: &mut Ui, resp: &Response, shown: &mut bool, watch: Watch, hide: &'static str, show: &'static str) {
     let field = resp.rect;
     let r = Rect::from_min_max(pos2((field.right() - EYE).max(field.left()), field.top()), field.max).shrink2(vec2(1.0, 3.0));
     let button = ui.interact(r, resp.id.with("eye"), Sense::click());
@@ -81,7 +97,7 @@ fn eye(ui: &mut Ui, resp: &Response, shown: &mut bool, watch: Watch) {
             resp.request_focus();
         }
     }
-    let name = eye_name(*shown);
+    let name = if *shown { hide } else { show };
     button.widget_info(|| WidgetInfo::labeled(Role::Button, true, name));
     let t = Tokens::get(ui.ctx());
     if button.hovered() {

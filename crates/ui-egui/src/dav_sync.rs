@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Keeping an account's calendars and address books current over CalDAV and CardDAV.
 //!
-//! The account keeps mail on IMAP and SMTP, which the ordinary Send/Receive brings, and
-//! everything else on CalDAV and CardDAV. This is the small job that reads those: every calendar
+//! The account may keep mail on IMAP and SMTP, which the ordinary Send/Receive brings, and may
+//! have its calendars and address books alone on CalDAV and CardDAV. This is the small job that
+//! reads those: every calendar
 //! the account may read (its own and the ones shared with it), the events in the stretch on
 //! screen, and every card of every address book it may read (its personal book, books shared
 //! with it and the organization directory). Each card says which book it came from, so a shared
@@ -17,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 
 use mailcraft_engine::cmd::remote;
 use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, EventsUpload, EventsUploaded};
-use mailcraft_model::{Account, Id};
+use mailcraft_model::{Account, DavServer, Id};
 use mailcraft_time::Timestamp;
 use std::sync::mpsc::Receiver;
 
@@ -26,12 +27,24 @@ use crate::MailApp;
 /// How long between two reads of an account's calendars and address books (milliseconds).
 const EVERY_MS: f64 = 300_000.0;
 
+/// Whether both DAV services are on the account's own mail server. Only then is the account's
+/// mail password used for them too; calendars at another provider have a sign-in of their own.
+fn shares_mail_host(account: &Account) -> bool {
+    let Some(mail) = account.incoming.as_ref() else { return false };
+    let mail = mail.host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let Some(dav) = account.dav.as_ref() else { return false };
+    let on_mail = |address: &str| DavServer::host(address).is_some_and(|host| host.trim_end_matches('.').eq_ignore_ascii_case(&mail));
+    !mail.is_empty() && on_mail(&dav.caldav) && on_mail(&dav.carddav)
+}
+
 /// What the host is asked to read, for one DAV account.
 pub struct DavJob {
     pub account: Account,
-    /// The name the DAV service knows the owner by (the account's login name).
+    /// The name the DAV service knows the owner by: the one given for the calendars and address
+    /// books, else the account's login name.
     pub username: String,
-    /// The account's password, in memory for this session only. Never logged or saved here.
+    /// The password for the DAV service (its own, or the account's when they share a sign-in),
+    /// in memory for this session only. Never logged or saved here.
     pub password: String,
     /// The stretch of the calendar to bring (Unix seconds, UTC).
     pub from: Timestamp,
@@ -101,7 +114,9 @@ impl MailApp {
 
     /// [`dav_tick`](Self::dav_tick) at `now` (milliseconds). Whether a job was started.
     pub(crate) fn dav_tick_at(&mut self, now: f64) -> bool {
-        if !self.auto_sync || self.services.dav.is_none() || self.dav.rx.is_some() || self.offline() {
+        // A mailbox from a file names its own servers: nothing is fetched until the owner has
+        // seen where each account connects.
+        if !self.auto_sync || self.unconfirmed || self.services.dav.is_none() || self.dav.rx.is_some() || self.offline() {
             return false;
         }
         self.dav.requested.retain(|id| self.session.mailbox.account(*id).is_some_and(Account::is_dav));
@@ -114,9 +129,21 @@ impl MailApp {
             if !due && !elsewhere && self.dav.checked.get(&account).is_some_and(|at| now - at < EVERY_MS) {
                 continue;
             }
-            let Some(password) = self.passwords.get(&account).cloned().or_else(|| self.remembered("password", account)) else {
-                // The password is asked for by a Send/Receive; until then there is nothing to
-                // read the calendars with.
+            let username = found.dav_login().to_string();
+            let mail_password = || self.passwords.get(&account).cloned().or_else(|| self.remembered("password", account));
+            let password = self
+                .dav_passwords
+                .get(&account)
+                .cloned()
+                .or_else(|| self.remembered("davpassword", account))
+                // Calendars and mail at one provider usually share a sign-in: the account's
+                // password is the calendars' too when they know the owner by the same name and
+                // are on the mail server itself. Another host is given nothing of the mail's
+                // sign-in (a mailbox from a file may name any host it likes).
+                .or_else(|| if username == found.login() && shares_mail_host(&found) { mail_password() } else { None });
+            let Some(password) = password else {
+                // The password is asked for by a Send/Receive (or, for an account with no mail,
+                // by its settings); until then there is nothing to read the calendars with.
                 continue;
             };
             let (from, to) = window;
@@ -132,7 +159,7 @@ impl MailApp {
                     upload
                 })
                 .filter(|upload| !upload.ops.is_empty());
-            let job = DavJob { username: found.login().to_string(), password, from, to, account: found, changes, main_calendar };
+            let job = DavJob { username, password, from, to, account: found, changes, main_calendar };
             let Some(dav) = &self.services.dav else { return false };
             self.dav.checked.insert(account, now);
             self.dav.shown.insert(account, window);

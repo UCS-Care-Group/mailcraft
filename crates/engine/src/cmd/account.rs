@@ -44,7 +44,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "dav"?: {"caldav": string (the https:// address of the server's CalDAV service root, `…/caldav/`), "carddav": string (the https:// address of its CardDAV service root, `…/carddav/`)} (an account whose calendars and address books are kept in step over CalDAV and CardDAV while its mail stays on IMAP and SMTP; the password is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"dav"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers; dav: calendars and address books alone, kept over CalDAV and CardDAV, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "dav"?: {"caldav": string (the https:// address of the server's CalDAV service root, `…/caldav/`), "carddav": string (the https:// address of its CardDAV service root, `…/carddav/`), "username"?: string (the name the calendars and address books know the owner by; default the account's login)} | null (an account whose calendars and address books are kept in step over CalDAV and CardDAV, at the same provider as its mail or another one; the password is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -248,17 +248,19 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(Value::Bool(only)) => a.alert_primary_only = *only,
         Some(_) => return Err(bad("`alertPrimaryOnly` is true or false")),
     }
-    // A Microsoft account kept in step through Graph (R3), or an account kept in step over JMAP
-    // (M6): asked for by name; one that is that already stays it. (One kept in step by IMAP becomes
-    // one through Graph by switching: `account.graphSwitch`.) Otherwise the servers say: IMAP, or
-    // local.
+    // A Microsoft account kept in step through Graph (R3), an account kept in step over JMAP
+    // (M6), an Exchange server account (#252), an account whose calendars and address books alone
+    // are kept over CalDAV and CardDAV, or a mailbox kept by IMAP: asked for by name; one that is
+    // that already stays it. (One kept in step by IMAP becomes one through Graph by switching:
+    // `account.graphSwitch`.) Otherwise the servers say: IMAP, or local.
     let kind = match p::str(v, "kind").map(|k| k.trim().to_ascii_lowercase()) {
         None => a.kind,
         Some(k) if k == "microsoft" || k == "graph" => AccountKind::Microsoft,
         Some(k) if k == "jmap" => AccountKind::Jmap,
         Some(k) if k == "exchange" => AccountKind::Exchange,
+        Some(k) if k == "dav" => AccountKind::Dav,
         Some(k) if k == "imap" || k == "local" => AccountKind::Imap,
-        Some(_) => return Err(bad("`kind` is imap, local, microsoft, jmap or exchange")),
+        Some(_) => return Err(bad("`kind` is imap, local, dav, microsoft, jmap or exchange")),
     };
     match kind {
         AccountKind::Microsoft => {
@@ -283,8 +285,23 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             a.kind = AccountKind::Exchange;
             (a.incoming, a.outgoing, a.oauth, a.jmap, a.dav) = (None, None, None, None, None);
         }
+        AccountKind::Dav => {
+            // CalDAV and CardDAV and nothing else: no mail servers and no sign-in with a
+            // provider, but where the services are and who signs in.
+            a.kind = AccountKind::Dav;
+            if a.dav.is_none() {
+                return Err(bad("a CalDAV and CardDAV account needs `dav` with its `caldav` and `carddav` addresses"));
+            }
+            (a.oauth, a.jmap, a.ews, a.incoming, a.outgoing) = (None, None, None, None, None);
+        }
         _ => {
-            a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
+            a.kind = if a.incoming.is_some() || a.outgoing.is_some() {
+                AccountKind::Imap
+            } else if a.dav.is_some() {
+                AccountKind::Dav
+            } else {
+                AccountKind::Local
+            };
             if a.kind == AccountKind::Local {
                 a.dav = None;
             }
@@ -365,10 +382,11 @@ fn ews_server(v: &Value, before: Option<&EwsServer>) -> Result<EwsServer, CmdErr
     Ok(server)
 }
 
-/// An account's CalDAV and CardDAV roots from `dav` in a command's params, over `before`
-/// (what it has, when it has them): `caldav` and `carddav`, each an `https://` service root.
-/// What is given, or what a new server has, must be what the model takes
-/// ([`DavServer::check_url`]); nothing is sent to it.
+/// An account's CalDAV and CardDAV services from `dav` in a command's params, over `before`
+/// (what it has, when it has them): `caldav` and `carddav`, each an `https://` service root, and
+/// `username`, the name the services know the owner by (empty: the account's login). What is
+/// given, or what a new server has, must be what the model takes ([`DavServer::check_url`] and
+/// [`DavServer::check_username`]); nothing is sent to it.
 fn dav_server(v: &Value, before: Option<&DavServer>) -> Result<Option<DavServer>, CmdError> {
     let mut server = before.cloned().unwrap_or_default();
     let mut given = false;
@@ -376,7 +394,7 @@ fn dav_server(v: &Value, before: Option<&DavServer>) -> Result<Option<DavServer>
         None => return Ok(before.cloned()),
         Some(Value::Null) => return Ok(None),
         Some(settings @ Value::Object(_)) => {
-            for (key, field) in [("caldav", &mut server.caldav), ("carddav", &mut server.carddav)] {
+            for (key, field) in [("caldav", &mut server.caldav), ("carddav", &mut server.carddav), ("username", &mut server.username)] {
                 match settings.get(key) {
                     None => {}
                     Some(Value::String(text)) => (*field, given) = (text.trim().to_string(), true),
@@ -384,12 +402,18 @@ fn dav_server(v: &Value, before: Option<&DavServer>) -> Result<Option<DavServer>
                 }
             }
         }
-        Some(_) => return Err(bad("`dav` is {\"caldav\": string, \"carddav\": string}")),
+        Some(_) => return Err(bad("`dav` is {\"caldav\": string, \"carddav\": string, \"username\"?: string}")),
     }
     if (given || before.is_none())
         && let Some(why) = server.problem()
     {
-        let word = if DavServer::check_url(&server.caldav).is_err() { "caldav" } else { "carddav" };
+        let word = if DavServer::check_url(&server.caldav).is_err() {
+            "caldav"
+        } else if DavServer::check_url(&server.carddav).is_err() {
+            "carddav"
+        } else {
+            "username"
+        };
         return Err(bad(format!("`dav.{word}` {why}")));
     }
     Ok(Some(server))
@@ -411,8 +435,17 @@ fn check_address(a: &Account, before: Option<&Account>) -> Result<(), CmdError> 
                     ..b.clone()
                 }
     });
-    if !none_kept && !a.address().is_valid() {
-        return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
+    if !none_kept {
+        // A CalDAV and CardDAV account has no mailbox to name: it may be called by any name
+        // that isn't empty, such as the one its calendars and address books know it by.
+        if a.kind == AccountKind::Dav {
+            let name = a.email.trim();
+            if name.is_empty() || name.chars().any(char::is_control) {
+                return Err(bad("a CalDAV and CardDAV account needs a name: an e-mail address, or any other name that isn't empty"));
+            }
+        } else if !a.address().is_valid() {
+            return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
+        }
     }
     Ok(())
 }
@@ -756,7 +789,8 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "dav": a.dav.as_ref().map(|dav| json!({"caldav": dav.caldav, "carddav": dav.carddav, "username": dav.username})), "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
