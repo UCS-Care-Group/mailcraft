@@ -708,16 +708,18 @@ pub(crate) fn wants_from_source(m: &Message) -> bool {
 /// bytes it came as (#30, [`crate::cmd::mail::check_again::ask_source`]): by the server's id, and
 /// the copy, fetched for them alone as one being moved out is ([`wants_from_source`]).
 pub(crate) fn copies_asking(mb: &Mailbox, account: Id) -> impl Iterator<Item = (&str, Id)> + '_ {
-    mb.queued.iter().filter_map(move |q| match q {
-        Queued::DeleteMessage { account: a, id, kept: Some(kept) } if *a == account => {
-            let copy = mb.queued.iter().find_map(|q| match q {
-                Queued::PlaceMessage { account, message, source: Some(s), .. } if *s == kept.id => {
-                    mb.message(*message).filter(|m| m.account == *account && m.original_wanted && !m.unfetched).map(|m| m.id)
-                }
-                _ => None,
-            })?;
-            Some((id.as_str(), copy))
+    // The first such copy of each message, found in one pass: every delete of a Microsoft
+    // account's keeps the message, and an emptied Deleted Items queues thousands of them.
+    let mut asking: HashMap<Id, Id> = HashMap::new();
+    for q in &mb.queued {
+        if let Queued::PlaceMessage { account, message, source: Some(s), .. } = q
+            && let Some(m) = mb.message(*message).filter(|m| m.account == *account && m.original_wanted && !m.unfetched)
+        {
+            asking.entry(*s).or_insert(m.id);
         }
+    }
+    mb.queued.iter().filter_map(move |q| match q {
+        Queued::DeleteMessage { account: a, id, kept: Some(kept) } if *a == account => Some((id.as_str(), *asking.get(&kept.id)?)),
         _ => None,
     })
 }

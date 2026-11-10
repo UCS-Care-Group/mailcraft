@@ -612,3 +612,19 @@ fn a_copy_of_an_unprotected_message_deleted_for_good_goes_at_once() {
     s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
     assert_eq!(sync_request(&s, to).unwrap().places.len(), 1);
 }
+
+/// An emptied Deleted Items queues a delete, keeping the message, for each message in it: the
+/// background's next fetch is worked out in time in proportion to them, not to their square.
+#[test]
+fn many_deletes_for_good_keep_the_background_fetch_quick() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    for i in 0..50_000u64 {
+        let kept = Box::new(Message { id: 1_000_000 + i, ..Default::default() });
+        s.mailbox.queued.push(mailcraft_model::Queued::DeleteMessage { account: ms, id: format!("D{i}"), kept: Some(kept) });
+    }
+    let started = std::time::Instant::now();
+    assert!(crate::cmd::graph_down::fetch_queue(&s.mailbox, ms, 10, s.now()).is_empty());
+    let took = started.elapsed();
+    assert!(took.as_millis() < 200, "{took:?}");
+}
