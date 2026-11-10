@@ -154,8 +154,8 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
 
 /// Whether `calendar`, one that `account`'s server lists, is somebody else's, shared with the
 /// account: its owner is a person other than the account, by the address it was added with or by
-/// the one its server names as its main calendar's owner (#661). Never the account's main
-/// calendar, and never one whose owner the server didn't say.
+/// the one its server names as its main calendar's owner (#661), or one opened by address. Never
+/// the account's main calendar, and never one of its list whose owner the server didn't say.
 pub(crate) fn is_shared_with(mailbox: &Mailbox, account: &Account, calendar: &Calendar) -> bool {
     calendar.is_shared_with(&[&account.email, mailbox.main_calendar_owner(account.id).unwrap_or_default()])
 }

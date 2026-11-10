@@ -221,8 +221,13 @@ impl Calendar {
     /// addresses: the one it was added with, and the one its server names as the owner of its main
     /// calendar ([`crate::Mailbox::main_calendar_owner`]), which an alias or a sign-in name given
     /// as the address is not (#661). Never the account's own calendars (its server names the
-    /// account as their owner too), and never one whose owner the server didn't say.
+    /// account as their owner too), and never one whose owner the server didn't say. One opened
+    /// by address (#70) always is, whatever address was opened: the account's own calendars are
+    /// in its list already, so a copy of them would be counted twice.
     pub fn is_shared_with(&self, own: &[&str]) -> bool {
+        if self.origin.id.starts_with(crate::remote::OPENED_PREFIX) {
+            return true;
+        }
         let Some(owner) = self.owner.as_ref().map(|o| o.address.as_str()).filter(|a| !a.is_empty()) else { return false };
         let mut own = own.iter().map(|a| a.trim()).filter(|a| !a.is_empty()).peekable();
         !self.origin.id.is_empty() && own.peek().is_some() && !own.any(|a| owner.eq_ignore_ascii_case(a))
