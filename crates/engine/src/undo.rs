@@ -231,6 +231,9 @@ impl Said {
 pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, lang: mailcraft_i18n::Lang) -> (Mailbox, Vec<String>) {
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
+    // The certificates Digital signatures brought are what was learnt, not what the owner did
+    // (#30): an undo leaves them.
+    out.public_keys = now.public_keys.clone();
     returned(&mut out, now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);

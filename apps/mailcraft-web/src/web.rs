@@ -61,6 +61,9 @@ pub fn start() {
                         let mut services = services(build_inbox, ctx.clone());
                         crate::jmap::install(&mut services, &ctx, hook.clone());
                         let mut session = Session::new(arrival.mailbox);
+                        // The browser trusts no certification authority for mail (#30): handed in as
+                        // none, so that its signers say so, not that they are still being read.
+                        session.set_trust_anchors(Vec::<Vec<u8>>::new());
                         // The steps every opening takes (#793).
                         mailcraft_engine::cmd::file::after_opening(&mut session);
                         let mut app = MailApp::new(session, services);

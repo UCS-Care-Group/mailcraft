@@ -316,6 +316,50 @@ fn why_alerts_cant_be_shown_is_said() {
     }
 }
 
+/// "Desktop alerts can't be shown" is translated once and each reason by itself (#912), and the
+/// sentence they make is the one shown before, in English and in a translation; French keeps its
+/// narrow no-break space before the colon.
+#[test]
+fn why_alerts_cant_be_shown_is_one_heading_and_a_reason() {
+    use crate::i18n::{Lang, RestoreLanguage, set_current};
+    let _language = RestoreLanguage::hold();
+    let said = [
+        (
+            Lang::English,
+            [
+                "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it.",
+                "Desktop alerts can't be shown: this copy doesn't run from the MailCraft app.",
+                "Desktop alerts can't be shown: no notification service answers on this desktop.",
+            ],
+        ),
+        (
+            Lang::German,
+            [
+                "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht.",
+                "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie läuft nicht aus der MailCraft-App.",
+                "Desktopbenachrichtigungen können nicht angezeigt werden: Auf diesem Desktop antwortet kein Benachrichtigungsdienst.",
+            ],
+        ),
+        (
+            Lang::French,
+            [
+                "Impossible d'afficher les alertes sur le bureau\u{202f}: cette copie de MailCraft n'a pas été installée avec son programme d'installation (.msi), Windows ne la connaît donc pas.",
+                "Impossible d'afficher les alertes sur le bureau\u{202f}: cette copie ne s'exécute pas depuis l'application MailCraft.",
+                "Impossible d'afficher les alertes sur le bureau\u{202f}: aucun service de notification ne répond sur ce bureau.",
+            ],
+        ),
+    ];
+    for (lang, texts) in said {
+        set_current(lang);
+        let troubles = [AlertTrouble::NotInstalled, AlertTrouble::OutsideApp, AlertTrouble::NoService];
+        for (trouble, text) in troubles.into_iter().zip(texts) {
+            assert_eq!(trouble.notice(), text, "{lang:?} {trouble:?}");
+        }
+    }
+    set_current(Lang::English);
+    assert_eq!(AlertTrouble::TurnedOff.notice(), "Desktop alerts are turned off for MailCraft in System Settings.");
+}
+
 #[test]
 fn reminders_falling_due_show_an_alert_each_once_and_again_after_a_snooze() {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
