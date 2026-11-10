@@ -52,6 +52,9 @@ const STRIP_W: f32 = 30.0;
 /// folders' ids and the accounts' (an account's heading folds under the account's own id).
 /// Accounts and folders are numbered from 1 in one sequence, so none of the three collide.
 const FAVORITES: Id = 0;
+/// The dot of an account's colour after its name in its heading (#893), and the room it takes there.
+const ACCOUNT_DOT_RADIUS: f32 = 4.5;
+const ACCOUNT_DOT_ROOM: f32 = 16.0;
 
 /// The module bar. It runs from under the title bar down to the status bar, beside the tabs and
 /// the ribbon as well as the panes, so the window lays it out before the ribbon.
@@ -277,7 +280,20 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     let open = !app.ui.collapsed_folders.contains(&id);
     let y = r.min.y + text_y;
     chevron(ui.painter(), pos2(r.min.x + CHEVRON_X, y + 2.0), HEADING_CHEVRON, open, if resp.hovered() { t.accent_text } else { t.text });
-    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, y), (r.width() - NAME_LEFT - 8.0).max(0.0), name, regular(HEADING_SIZE), t.text);
+    // An account's colour (#893): a dot after its name, which leaves room for it.
+    let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES);
+    let room = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
+    let w =
+        paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, y), (r.width() - NAME_LEFT - 8.0 - room).max(0.0), name, regular(HEADING_SIZE), t.text);
+    if let Some(color) = color {
+        let center = pos2(r.min.x + NAME_LEFT + w + ACCOUNT_DOT_ROOM / 2.0 + 1.0, y + 1.0);
+        ui.painter().circle_filled(center, ACCOUNT_DOT_RADIUS, crate::theme::c32(color));
+        // (In High Contrast a ring in the text's colour, so that a mid-tone stays in sight.)
+        if t.high_contrast {
+            ui.painter().circle_stroke(center, ACCOUNT_DOT_RADIUS, Stroke::new(1.0, t.text));
+        }
+        app.hit.add("accountColor", id, Rect::from_center_size(center, vec2(2.0 * ACCOUNT_DOT_RADIUS, 2.0 * ACCOUNT_DOT_RADIUS)));
+    }
     if resp.clicked() {
         let _ = app.execute("ui.toggleFolder", json!({"id": id}));
     }

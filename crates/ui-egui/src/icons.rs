@@ -680,6 +680,35 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.rounded(&[(6.0, 16.5), (6.0, 11.5), (14.0, 11.5), (14.0, 16.5)], false, 1.0, c);
             }
         }
+        // A Digital signature (#30): a seal, a ring on two ribbon tails, with what its check
+        // found inside: a tick (verified), a question (signer not verified), a cross (changed
+        // after signing) or a bar (can't be checked).
+        "sealVerified" | "sealNotVerified" | "sealChanged" | "sealUnchecked" => {
+            let (ring, mark) = match name {
+                "sealVerified" => (c, green),
+                "sealNotVerified" => (c, yellow),
+                "sealChanged" => (red, red),
+                _ => (quiet, quiet),
+            };
+            pen.circle(10.0, 8.0, 5.75, ring);
+            pen.line_c(&[(6.5, 12.5), (5.0, 18.0), (7.5, 16.5), (9.0, 18.0), (9.5, 14.0)], ring);
+            pen.line_c(&[(13.5, 12.5), (15.0, 18.0), (12.5, 16.5), (11.0, 18.0), (10.5, 14.0)], ring);
+            match name {
+                "sealVerified" => pen.check(10.0, 8.25, 0.75, mark),
+                "sealNotVerified" => {
+                    if tiny {
+                        pen.fcircle(10.0, 8.0, 1.5, mark);
+                    } else {
+                        pen.question(10.0, 7.75, 0.6, mark);
+                    }
+                }
+                "sealChanged" => {
+                    pen.line_c(&[(7.75, 5.75), (12.25, 10.25)], mark);
+                    pen.line_c(&[(12.25, 5.75), (7.75, 10.25)], mark);
+                }
+                _ => pen.line_c(&[(7.5, 8.0), (12.5, 8.0)], mark),
+            }
+        }
         // A sender warning: a triangle with an exclamation mark in it.
         "warning" => {
             pen.rounded(&[(10.0, 2.5), (18.0, 16.5), (2.0, 16.5)], true, 1.0, red);
@@ -1348,6 +1377,10 @@ pub const NAMES: &[&str] = &[
     "bell",
     "private",
     "lock",
+    "sealVerified",
+    "sealNotVerified",
+    "sealChanged",
+    "sealUnchecked",
     "recurrence",
     "repeat",
     "scheduling",

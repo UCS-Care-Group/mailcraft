@@ -67,6 +67,11 @@ msgstr ""
 msgid "(No title)"
 msgstr "(Kein Titel)"
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "(as the signer says)"
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -350,11 +355,6 @@ msgstr ""
 #, fuzzy
 msgid "A meeting that repeats and skips some days can't be put on the server's calendar from here: everyone invited would get a cancellation for each skipped day. Keep it in a calendar on this computer, or make it again without the skipped days."
 msgstr "Eine Besprechungsserie mit ausgelassenen Tagen kann von hier aus nicht in den Kalender des Servers übernommen werden: Alle Eingeladenen würden für jeden ausgelassenen Tag eine Absage erhalten. Behalten Sie sie in einem Kalender auf diesem Computer, oder legen Sie sie ohne die ausgelassenen Tage neu an."
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -718,11 +718,6 @@ msgid "Add an account first"
 msgstr "Fügen Sie zuerst ein Konto hinzu"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Add an account that sends mail first (File › Add Account)."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add another account"
@@ -1034,6 +1029,11 @@ msgstr "Eine Anwendungs-ID besteht aus Buchstaben, Ziffern, Punkten und Bindestr
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
 msgstr ""
 
 #. interface
@@ -1572,6 +1572,11 @@ msgid "Automatic Replies for {address}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic bulleted and numbered lists"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Automatic replies are being sent for {address}"
 msgstr ""
@@ -2065,7 +2070,7 @@ msgid "Change email address"
 msgstr "E-Mail-Adresse ändern"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
 msgstr "Farbe ändern"
@@ -2081,6 +2086,11 @@ msgstr "Namen, Server und Anmeldung dieses Kontos ändern"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "Namen, Anmeldung und offline verfügbare E-Mails dieses Kontos ändern"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Changed after it was signed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -2150,8 +2160,8 @@ msgstr ""
 msgid "Check Accessibility"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
 msgid "Check Again"
 msgstr ""
 
@@ -2460,7 +2470,7 @@ msgid "Collapse the Ribbon"
 msgstr "Menüband reduzieren"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Colour"
 msgstr "Farbe"
@@ -3077,29 +3087,17 @@ msgstr "Desktopbenachrichtigungen"
 msgid "Desktop alerts"
 msgstr "Desktopbenachrichtigungen"
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Desktop alerts are turned off for MailCraft in System Settings."
 msgstr "Desktopbenachrichtigungen sind für MailCraft in den Systemeinstellungen ausgeschaltet."
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
-msgid "Desktop alerts can't be shown: no notification service answers on this desktop."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Auf diesem Desktop antwortet kein Benachrichtigungsdienst."
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-#, fuzzy
-msgid "Desktop alerts can't be shown: this copy doesn't run from the MailCraft app."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie läuft nicht aus der MailCraft-App."
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-#, fuzzy
-msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
+msgid "Desktop alerts can't be shown"
+msgstr "Desktopbenachrichtigungen können nicht angezeigt werden"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3112,7 +3110,7 @@ msgid "Detail"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Details"
 msgstr "Details"
@@ -3126,6 +3124,41 @@ msgstr "Diagnose kopiert. Es wurde nichts gesendet."
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Diagram"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Digital Signature"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digital signature can't be checked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed and verified"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed by {signer}, and verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed by {signer}, but the signer isn't verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed, but the signer isn't verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Digitally signed, signer not verified"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -3299,11 +3332,23 @@ msgstr "Nachrichten vollständig herunterladen"
 msgid "Download Pictures"
 msgstr "Bilder herunterladen"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download Pictures in All Mail"
+msgstr "Bilder in allen E-Mails herunterladen"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Bilder in E-Mails automatisch herunterladen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download in all mail"
+msgstr "In allen E-Mails herunterladen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3320,8 +3365,25 @@ msgstr "Bilder herunterladen"
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
+msgid "Download pictures in all mail"
+msgstr "Bilder in allen E-Mails herunterladen"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
+msgstr "Bilder in jeder Nachricht ohne Nachfrage herunterladen, außer in Junk-E-Mail. Es wird vorher gefragt; Datei › Optionen schaltet es wieder aus."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Bilder in E-Mails automatisch herunterladen"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Download the bytes this message came as again, to check its Digital signature"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3979,8 +4041,8 @@ msgid "Finding your account settings…"
 msgstr "Ihre Kontoeinstellungen werden gesucht…"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Finish or close the message you're writing first."
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Fingerprint (SHA-256):"
 msgstr ""
 
 #. interface
@@ -4153,6 +4215,11 @@ msgstr "Schriftfarbe"
 #, fuzzy
 msgid "Font Size"
 msgstr "Schriftgrad"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4402,7 +4469,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
-msgid "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
+msgid "GitHub is public and needs a GitHub account."
 msgstr ""
 
 #. interface
@@ -4580,11 +4647,6 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is not configured for this build"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is not configured for this build."
 msgstr ""
 
@@ -4706,6 +4768,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "Hide Calendar Listed Twice"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Hide Details"
 msgstr ""
 
 #. interface
@@ -5219,6 +5286,11 @@ msgid "Issued by"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Issued by:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Issued to"
 msgstr ""
@@ -5292,6 +5364,16 @@ msgstr "Sie läuft auf diesem Computer, solange MailCraft geöffnet ist."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Sie läuft dort, ob MailCraft geöffnet ist oder nicht, und erscheint in Outlook im Web und auf Ihrem Telefon."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "It uses an algorithm MailCraft doesn't know."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "It uses an algorithm that's no longer safe."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5852,6 +5934,12 @@ msgstr "E-Mails aus einem anderen Postfach können nicht in einen Postausgang: B
 #, fuzzy
 msgid "Mail from the shared mailbox waits: {error}"
 msgstr "E-Mails aus dem freigegebenen Postfach warten: {error}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr "E-Mails in Junk-E-Mail fragen weiterhin zuerst. Datei › Optionen schaltet dies wieder aus."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -7082,10 +7170,21 @@ msgid "No category"
 msgstr "Keine Kategorie"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "No changes are left behind: only mail in the Outbox is waiting."
 msgstr "Keine Änderungen bleiben zurück: Nur E-Mails im Postausgang warten."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No colour"
+msgstr "Keine Farbe"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7358,7 +7457,7 @@ msgid "Not available for this account"
 msgstr "Für dieses Konto nicht verfügbar"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Not available: {reason}"
 msgstr "Nicht verfügbar: {reason}"
@@ -7571,11 +7670,6 @@ msgid "On"
 msgstr "Am"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the"
@@ -7741,6 +7835,11 @@ msgid "Only on this computer: {why}"
 msgstr "Nur auf diesem Computer: {why}"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Only send during this time range:"
 msgstr ""
@@ -7886,6 +7985,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Open on GitHub"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Open or save the Digital signature"
 msgstr ""
 
 #. interface
@@ -8183,6 +8287,11 @@ msgid "Part of the mailbox file is damaged and was left out, so some recent chan
 msgstr "Ein Teil der Postfachdatei ist beschädigt und wurde ausgelassen, daher fehlen möglicherweise einige neuere Änderungen. Die Datei im ursprünglichen Zustand wird beim nächsten Speichern des Postfachs daneben aufbewahrt."
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Part of this message is Digitally signed by {signer}, and verified; the rest isn't signed."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Part of your mailbox is damaged"
 msgstr ""
@@ -8339,6 +8448,12 @@ msgstr "Bilder nicht angezeigt."
 #: crates/ui-egui/src/reading.rs
 msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr "Bilder aus dem Web werden in jeder Nachricht heruntergeladen, die Sie öffnen. Der Server jedes Absenders erfährt dann, wann Sie die Nachricht geöffnet haben und von welcher Internetadresse."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -9195,6 +9310,16 @@ msgstr ""
 msgid "Review certificate…"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Revocation not checked."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Revocation:"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9923,11 +10048,6 @@ msgid "Send automatic replies"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Send by Email"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Send from a Shared Mailbox"
@@ -10504,6 +10624,12 @@ msgid "Shown as text: nothing in it runs, opens or is downloaded."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
+msgstr "Wird neben dem Namen des Kontos angezeigt und an seinen E-Mails, wo E-Mails mehrerer Konten zusammen aufgeführt sind."
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Shows the signature as it was designed again, as long as its text is unchanged"
 msgstr ""
@@ -10681,6 +10807,11 @@ msgstr "Anmeldung abgebrochen"
 msgid "Signature"
 msgstr "Signatur"
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signature file:"
+msgstr ""
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
@@ -10698,6 +10829,16 @@ msgstr "Signaturen werden auf diesem Computer gespeichert. Sie können nicht mit
 #, fuzzy
 msgid "Signatures…"
 msgstr "Signaturen…"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signed at:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Signed by:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11414,6 +11555,11 @@ msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The Digital signature can't be read."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The Entire Series"
@@ -11622,14 +11768,39 @@ msgstr ""
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Die Kategorien konnten nicht übernommen werden: {error}"
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate is for another address than the sender's."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate is out of date."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate isn't for signing mail."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "The certificate of the server of {name} needs your say"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate signed itself, and this computer doesn't trust it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The certificate the server at {host} shows is not the one you trusted for this account, and this computer doesn't trust it. Trust it only if your administrator has changed it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr ""
 
 #. what a command says
@@ -11820,6 +11991,11 @@ msgstr "Die Besprechung, für die diese Vorschläge gelten, ist nicht in Ihrem K
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
+msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people_merge.rs
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr ""
 
@@ -11840,6 +12016,11 @@ msgstr "Die Nachricht ist in der Zwischenablage: Fügen Sie sie in eine E-Mail o
 #, fuzzy
 msgid "The message isn't there any more"
 msgstr "Die Nachricht ist nicht mehr vorhanden"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
@@ -12159,6 +12340,16 @@ msgid "The signature is then sent as the simpler text shown here, not as it was 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's certificate isn't in the message."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key hasn't been marked verified."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/view_source.rs
 msgid "The source is long: only its first megabyte is shown."
 msgstr ""
@@ -12293,6 +12484,11 @@ msgid "There is no such account"
 msgstr "Dieses Konto gibt es nicht"
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "There's more in this Digital signature than MailCraft checks for one message."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "There's no mailbox at {address}, or its calendar can't be reached through Microsoft."
 msgstr ""
@@ -12357,6 +12553,11 @@ msgstr "Sie werden auch vom Mailserver entfernt, und das kann nicht rückgängig
 #, fuzzy
 msgid "They are removed from the mail server too."
 msgstr "Sie werden auch vom Mailserver entfernt."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -12570,6 +12771,11 @@ msgid "This computer doesn't trust the certificate the server at {host} shows. I
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/zones.rs
 #, fuzzy
 msgid "This computer's time"
@@ -12592,11 +12798,6 @@ msgstr "Dieser Kontakt wird endgültig gelöscht."
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "Diese Kopie von MailCraft aktualisiert sich nicht selbst."
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "This copy of MailCraft has no address to send reports to."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12939,6 +13140,11 @@ msgid "This message may not be what it seems."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This message was changed after it was signed."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message was sent with High importance."
@@ -12955,6 +13161,11 @@ msgstr "Diese Nachricht wurde mit niedriger Wichtigkeit gesendet."
 #, fuzzy
 msgid "This message will be permanently deleted."
 msgstr "Diese Nachricht wird endgültig gelöscht."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "This message's Digital signature can't be checked."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -13424,6 +13635,11 @@ msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Out
 msgstr "Geben Sie Ihre E-Mail-Adresse ein, und MailCraft findet den Rest: Microsoft 365, Outlook.com, Google und andere Anbieter, oder ein Postfach nur auf diesem Gerät"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Under a folder on this computer:"
 msgstr ""
@@ -13635,6 +13851,11 @@ msgstr "Meist die ganze Adresse"
 msgid "Valid"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Valid:"
+msgstr ""
+
 #. name
 #: crates/model/src/rich.rs
 #, fuzzy
@@ -13811,6 +14032,11 @@ msgid "What you expected (optional)"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "What you see isn't what was signed: treat it with care."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr ""
@@ -13872,6 +14098,11 @@ msgstr ""
 #, fuzzy
 msgid "Who is invited is for its organizer to say."
 msgstr "Wer eingeladen ist, entscheidet ihr Organisator."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Who signed this message, and the certificate"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14164,41 +14395,6 @@ msgid "Your automatic replies weren't changed"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: you are working offline."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: {error}"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Your calendar: {day}"
@@ -14367,11 +14563,6 @@ msgstr "Der Administrator Ihrer Organisation muss das einmal genehmigen"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Your own name."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Your report is ready in a new message: check it, then press Send."
 msgstr ""
 
 #. interface
@@ -15084,6 +15275,11 @@ msgstr "never"
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "kein Microsoft-Konto wird über IMAP abgeglichen"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -15113,7 +15309,7 @@ msgid "no account is kept in step over JMAP"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "kein Konto wird über Microsoft Graph abgeglichen"
@@ -16215,6 +16411,13 @@ msgid "week"
 msgstr "Woche"
 
 #. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgctxt "what didn't happen, then why"
+msgid "{heading}: {reason}"
+msgstr "{heading}: {reason}"
+
+#. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
 msgid "what the server sent is not a picture"
@@ -16249,6 +16452,63 @@ msgstr "die seine E-Mails sendet: Beantworten Sie die Einladung dort, oder hier,
 #, fuzzy
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "die seine E-Mails sendet: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf, um sie aus dieser Version zu senden"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft needs your permission first (File › Info › Ask again)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft wasn't allowed to change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "Microsoft no longer takes your sign-in."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "sign in again to let MailCraft read them (File › Info)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "you are working offline."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "your organisation doesn't let MailCraft change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "no notification service answers on this desktop."
+msgstr "Auf diesem Desktop antwortet kein Benachrichtigungsdienst."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy doesn't run from the MailCraft app."
+msgstr "Diese Kopie läuft nicht aus der MailCraft-App."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
+msgstr "Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
 
 #. name
 #: crates/model/src/calendar.rs
@@ -16463,6 +16723,11 @@ msgstr ""
 #, fuzzy
 msgid "{folder}: {done} of {total}"
 msgstr "{folder}: {done} von {total}"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "{from} to {until}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16683,6 +16948,11 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} ist kein über IMAP abgeglichenes Microsoft-Konto"
 
 #. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} isn't a Microsoft or Exchange server account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -16723,7 +16993,7 @@ msgid "{name} isn't kept in step over JMAP"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step through Microsoft Graph"
 msgstr "{name} wird nicht über Microsoft Graph abgeglichen"

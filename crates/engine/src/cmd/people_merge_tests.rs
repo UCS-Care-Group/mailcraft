@@ -334,3 +334,28 @@ fn a_merge_past_what_an_edit_keeps_is_refused_and_one_within_survives_an_edit() 
     s.run("people.edit", &json!({"id": a, "emails": emails, "phones": [], "categories": merged.categories, "notes": merged.notes})).unwrap();
     assert_eq!(s.mailbox.contact(a).unwrap(), &merged);
 }
+
+#[test]
+fn a_merge_keeps_every_contacts_keys_once() {
+    use mailcraft_model::{ContactKey, KeyKind};
+    let key = |n: u8| ContactKey { kind: KeyKind::X509, data: vec![0x30, n], ..Default::default() };
+    let mut s = Session::empty();
+    let keep = add(&mut s, Contact { keys: vec![key(1), key(2)], ..person("Ada", "Lovelace", "ada@example.org", "") });
+    let other = add(&mut s, Contact { keys: vec![key(2), key(3)], ..person("Ada", "Lovelace", "ada@example.org", "") });
+    // A crowd of keys past what one contact keeps is refused by name, and nothing changes.
+    let crowd = add(&mut s, Contact { keys: (10..40).map(key).collect(), ..person("Ada", "Lovelace", "ada@example.org", "") });
+    let before = s.mailbox.contacts.clone();
+    let why = err(&mut s, "people.merge", json!({"keep": keep, "others": [other, crowd]}));
+    assert!(why.contains("more certificates and keys than a contact holds (at most 32, the kept contact has 2)"), "{why}");
+    assert_eq!(s.mailbox.contacts, before);
+    // Exactly as many as a contact keeps is merged: 1, 2, 3 and 29 of the crowd's.
+    s.mailbox.contact_mut(crowd).unwrap().keys.truncate(29);
+    s.run("people.merge", &json!({"keep": keep, "others": [other, crowd]})).unwrap();
+    let c = s.mailbox.contact(keep).unwrap();
+    assert_eq!(c.keys.len(), Contact::MAX_KEYS);
+    assert_eq!(c.keys[..4], [key(1), key(2), key(3), key(10)]);
+    // An edit keeps them.
+    let kept = c.keys.clone();
+    s.run("people.edit", &json!({"id": keep, "title": "Countess"})).unwrap();
+    assert_eq!(s.mailbox.contact(keep).unwrap().keys, kept);
+}

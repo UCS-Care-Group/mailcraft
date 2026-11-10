@@ -597,6 +597,63 @@ pub fn string8(s: &str) -> Value {
     Value { ty: STRING8, bytes: s.chars().map(|c| c as u8).collect() }
 }
 
+/// A one-off entry id ([MS-OXCDATA] 2.2.5.1): a display name, an address type and an address,
+/// in UTF-16 or in single bytes.
+pub fn one_off(name: &str, kind: &str, address: &str, unicode: bool) -> Vec<u8> {
+    let mut e = vec![0u8; 4];
+    e.extend([0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD, 0x01, 0x0F, 0x54, 0x02]);
+    e.extend([0, 0]);
+    e.extend(if unicode { 0x8000u16 } else { 0 }.to_le_bytes());
+    for t in [name, kind, address] {
+        if unicode {
+            e.extend(t.encode_utf16().flat_map(u16::to_le_bytes));
+            e.extend([0, 0]);
+        } else {
+            e.extend(t.bytes());
+            e.push(0);
+        }
+    }
+    e
+}
+
+/// A WrappedEntryId ([MS-OXOCNTC] 2.2.2.2.4.1.1): `kind` (0x00 a one-off, 0xC3 a contact's
+/// first email address, 0xB4 a list…) and the entry id it wraps.
+pub fn wrapped_entry_id(kind: u8, embedded: &[u8]) -> Vec<u8> {
+    let mut e = vec![0u8; 4];
+    e.extend([0xC0, 0x91, 0xAD, 0xD3, 0x51, 0x9D, 0xCF, 0x11, 0xA4, 0xA9, 0x00, 0xAA, 0x00, 0x47, 0xFA, 0xA4]);
+    e.push(kind);
+    e.extend_from_slice(embedded);
+    e
+}
+
+/// The bytes of a distribution list's stream ([MS-OXOCNTC] 2.2.2.2.4): the header, each member's
+/// entry id and one-off entry id (empty for none), and the two terminators.
+pub fn list_stream_bytes(members: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend(1u16.to_le_bytes());
+    b.extend([0, 0]);
+    b.extend(160_000u32.to_le_bytes());
+    b.extend(0u32.to_le_bytes());
+    b.extend((members.len() as u32).to_le_bytes());
+    b.extend((members.iter().map(|m| m.0.len()).sum::<usize>() as u32).to_le_bytes());
+    b.extend((members.iter().map(|m| m.1.len()).sum::<usize>() as u32).to_le_bytes());
+    b.extend(0u32.to_le_bytes());
+    for (id, one_off) in members {
+        b.extend((id.len() as u32).to_le_bytes());
+        b.extend_from_slice(id);
+        b.extend((one_off.len() as u32).to_le_bytes());
+        b.extend_from_slice(one_off);
+        b.extend(0u32.to_le_bytes());
+    }
+    b.extend([0; 8]);
+    b
+}
+
+/// A distribution list's stream as a binary property value.
+pub fn list_stream(members: &[(Vec<u8>, Vec<u8>)]) -> Value {
+    binary(&list_stream_bytes(members))
+}
+
 /// Where a value too large for the heap goes: a subnode, with a fresh local id.
 pub struct Spill {
     pub subnodes: Vec<SubNode>,
