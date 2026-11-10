@@ -4167,12 +4167,6 @@ impl MailApp {
     /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
-        self.note_said_problems(account, errors.iter().map(|e| mailcraft_i18n::Text::verbatim(e.clone())).collect(), finished);
-    }
-
-    /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
-    /// interface's language (#872).
-    fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
@@ -4182,7 +4176,22 @@ impl MailApp {
         // The lines name subjects, addresses and folders: they are for the owner to read in the
         // problems report, and the log says only how many there were.
         log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
-        self.keep_said_problems(account, errors);
+        self.keep_sync_problems(account, errors);
+    }
+
+    /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
+    /// interface's language (#872). It goes through that, which logs and keeps them in English,
+    /// and then puts the texts in place of the lines it kept.
+    fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
+        let english: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        self.note_sync_problems(account, &english, finished);
+        let Some((.., lines)) = self.sync_problems.iter_mut().find(|(a, ..)| *a == account) else { return };
+        // (The newest lines are the last; of a very long run only the last ones were kept.)
+        let kept = errors.len().min(lines.len());
+        let from = lines.len() - kept;
+        for (slot, said) in lines[from..].iter_mut().zip(errors.into_iter().skip(english.len() - kept)) {
+            *slot = bounded_problem(said);
+        }
     }
 
     /// Keep lines for the Send/Receive problems report without putting them in the log: what
@@ -4199,11 +4208,7 @@ impl MailApp {
         }
         let name = self.session.mailbox.account(account).map(|a| a.name.clone()).unwrap_or_default();
         let at = crate::dates::clock(self.session.local_now(), self.session.prefs.twelve_hour);
-        // Not too long to keep: each value said as it is (a server's reason, a folder's name) is
-        // cut to what is ever shown, and the line is still said in the interface's language
-        // ([`problem_line`] cuts the whole of it).
-        let cut = |value: String| if value.chars().count() > MAX_PROBLEM { value.chars().take(MAX_PROBLEM).collect() } else { value };
-        let problems: Vec<mailcraft_i18n::Text> = problems.into_iter().map(|said| said.map_plain(&cut)).collect();
+        let problems: Vec<mailcraft_i18n::Text> = problems.into_iter().map(bounded_problem).collect();
         match self.sync_problems.iter_mut().find(|(a, ..)| *a == account) {
             Some((_, _, when, lines)) => {
                 *when = at;
@@ -5297,6 +5302,13 @@ fn owner_input(ctx: &egui::Context) -> bool {
 /// MailCraft's own words, and not too long.
 fn problem_line(said: &mailcraft_i18n::Text) -> String {
     said.in_lang(i18n::current()).chars().take(MAX_PROBLEM).collect()
+}
+
+/// A problem not too long to keep: each value said as it is (a server's reason, a folder's name)
+/// is cut to what is ever shown, and the line is still said in the interface's language
+/// ([`problem_line`] cuts the whole of it).
+fn bounded_problem(said: mailcraft_i18n::Text) -> mailcraft_i18n::Text {
+    said.map_plain(&|value: String| if value.chars().count() > MAX_PROBLEM { value.chars().take(MAX_PROBLEM).collect() } else { value })
 }
 
 /// The most characters of a Send/Receive problem that are kept and shown.
