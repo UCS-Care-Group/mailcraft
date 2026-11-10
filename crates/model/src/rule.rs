@@ -142,23 +142,6 @@ fn own_text(m: &Message) -> &str {
     if m.not_downloaded > 0 { "" } else { &m.body.text }
 }
 
-/// How big a size condition takes `m` to be: as the message list says ([`Message::list_size`]),
-/// but an opaque signed message that was opened (#30) as an ordinary one with the same text and
-/// files, whether or not the bytes it came as are kept: those are here beside its signed data as
-/// well as inside it. Signed data with nothing beside it (an Encrypted message, one not opened)
-/// is all there is of the message, and counts.
-fn rule_size(m: &Message) -> Option<u64> {
-    let listed = m.list_size()?;
-    let said = m.not_downloaded > 0 || ((m.unfetched || m.incomplete) && m.server.as_ref().is_some_and(|s| s.size > 0));
-    let signed_data = |a: &crate::Attachment| {
-        let mime = a.mime.trim().to_ascii_lowercase();
-        matches!(mime.split(';').next().map(str::trim), Some("application/pkcs7-mime" | "application/x-pkcs7-mime"))
-    };
-    let Some(opened) = m.attachments.iter().find(|a| signed_data(a)) else { return Some(listed) };
-    let beside = m.body_is_kept() || !m.body.text.trim().is_empty() || m.body.html.is_some() || m.attachments.iter().any(|a| !signed_data(a));
-    Some(if said || !beside { listed } else { listed.saturating_sub(opened.size() as u64) })
-}
-
 /// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
 /// letters' case: each text is put in lower case once, for all the words, and only when the texts
 /// before it don't have one.
@@ -202,7 +185,7 @@ impl Condition {
                 any_in(w, &lines.iter().map(String::as_str).collect::<Vec<_>>())
             }
             Condition::Sensitivity(s) => m.sensitivity() == *s,
-            Condition::SizeBetween { min, max } => m.size_known() && rule_size(m).is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
+            Condition::SizeBetween { min, max } => m.size_known() && m.list_size().is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
             Condition::MeetingRequest => m.is_meeting_request(),
             Condition::AutomaticReply => m.is_automatic_reply(),
             Condition::Category(names) => names.iter().any(|c| m.has_category(c)),
