@@ -423,6 +423,16 @@ fn read_as(s: &mut Session, account: Id, email: &str, categories: Vec<Category>)
 }
 
 #[test]
+fn a_rename_of_a_name_outlook_hasnt_got_yet_leaves_nothing_waiting_in_the_file() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Fresh", "color": "#2E8B57"})).unwrap();
+    s.run("category.rename", &json!({"account": a, "from": "Fresh", "to": "Fresher"})).unwrap();
+    assert!(s.mailbox.category_renames.is_empty(), "{:?}", s.mailbox.category_renames);
+    assert!(!serde_json::to_string(&s.mailbox).unwrap().contains("categoryRenames"));
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Fresher", GREEN)]);
+}
+
+#[test]
 fn a_rename_mailcraft_closes_on_keeps_the_old_name_in_outlook_when_the_server_wont_make_the_new_one() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
     s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
@@ -1664,8 +1674,9 @@ fn task_answer(s: &mut Session, account: Id, result: TaskResult) {
 
 /// An event of `account`'s calendar that its server has, with `categories`.
 fn server_event(s: &mut Session, account: Id, categories: &[&str]) -> Id {
-    let origin = Origin { account, id: "e-1".into(), ..Default::default() };
     let calendar = s.mailbox.alloc_id();
+    // (Each its own id there, so that a change of one is never folded into another's.)
+    let origin = Origin { account, id: format!("e-{calendar}"), ..Default::default() };
     s.mailbox.calendars.push(Calendar { id: calendar, name: "Calendar".into(), visible: true, origin: origin.clone(), ..Default::default() });
     let categories = categories.iter().map(|c| c.to_string()).collect();
     s.mailbox.add_event(Event { calendar, title: "Meeting".into(), categories, origin, ..Default::default() }).unwrap()

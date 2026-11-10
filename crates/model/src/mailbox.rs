@@ -3304,9 +3304,16 @@ impl Mailbox {
         {
             let known =
                 self.synced_categories.get(&owner).and_then(|synced| synced.iter().find(|c| same_category(&c.name, from))).map(|c| c.name.clone());
-            let renames = self.category_renames.entry(owner).or_default();
-            if let Some(old) = renames.remove(&category_key(from)).or(known) {
-                renames.insert(category_key(&to), old);
+            let earlier = self.category_renames.get_mut(&owner).and_then(|renames| renames.remove(&category_key(from)));
+            match earlier.or(known) {
+                Some(old) => {
+                    self.category_renames.entry(owner).or_default().insert(category_key(&to), old);
+                }
+                // (Nothing of it on the server: nothing waits, and nothing is kept in the file.)
+                None if self.category_renames.get(&owner).is_some_and(BTreeMap::is_empty) => {
+                    self.category_renames.remove(&owner);
+                }
+                None => {}
             }
         }
         if let Some(cat) = self.categories_of_mut(account).iter_mut().find(|c| same_category(&c.name, from)) {
