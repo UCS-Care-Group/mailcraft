@@ -1552,6 +1552,11 @@ msgid "Automatic Replies for {address}"
 msgstr "Automatische Antworten für {address}"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic bulleted and numbered lists"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Automatic replies are being sent for {address}"
 msgstr "Für {address} werden automatische Antworten versendet."
@@ -3288,11 +3293,23 @@ msgstr "Nachrichten vollständig herunterladen"
 msgid "Download Pictures"
 msgstr "Bilder herunterladen"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download Pictures in All Mail"
+msgstr "Bilder in allen E-Mails herunterladen"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Bilder in E-Mails automatisch herunterladen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download in all mail"
+msgstr "In allen E-Mails herunterladen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3305,6 +3322,18 @@ msgstr "Nachrichten vollständig herunterladen:"
 #, fuzzy
 msgid "Download pictures"
 msgstr "Bilder herunterladen"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in all mail"
+msgstr "Bilder in allen E-Mails herunterladen"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
+msgstr "Bilder in jeder Nachricht ohne Nachfrage herunterladen, außer in Junk-E-Mail. Es wird vorher gefragt; Datei › Optionen schaltet es wieder aus."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -4112,6 +4141,11 @@ msgstr "Schriftfarbe"
 #, fuzzy
 msgid "Font Size"
 msgstr "Schriftgrad"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5811,6 +5845,12 @@ msgstr "E-Mails aus einem anderen Postfach können nicht in einen Postausgang: B
 #, fuzzy
 msgid "Mail from the shared mailbox waits: {error}"
 msgstr "E-Mails aus dem freigegebenen Postfach warten: {error}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr "E-Mails in Junk-E-Mail fragen weiterhin zuerst. Datei › Optionen schaltet dies wieder aus."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -8247,6 +8287,12 @@ msgstr "Bilder nicht angezeigt."
 #: crates/ui-egui/src/reading.rs
 msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
 msgstr "Bilder aus dem Internet werden für Nachrichten, die sich nicht in Ihrem Postfach befinden, nicht heruntergeladen. Verschieben Sie die Nachricht zuerst in einen Ordner."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr "Bilder aus dem Web werden in jeder Nachricht heruntergeladen, die Sie öffnen. Der Server jedes Absenders erfährt dann, wann Sie die Nachricht geöffnet haben und von welcher Internetadresse."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13459,6 +13505,11 @@ msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Out
 msgstr "Geben Sie Ihre E-Mail-Adresse ein, und MailCraft findet den Rest: Microsoft 365, Outlook.com, Google und andere Anbieter, oder ein Postfach nur auf diesem Gerät"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Under a folder on this computer:"
 msgstr "In einem Ordner auf diesem Computer:"
@@ -15090,6 +15141,11 @@ msgstr "niemals"
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "kein Microsoft-Konto wird über IMAP synchronisiert"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "no account here keeps its rules on its server"
@@ -15117,7 +15173,7 @@ msgid "no account is kept in step over JMAP"
 msgstr "kein Konto wird über JMAP synchronisiert"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "kein Konto wird über Microsoft Graph synchronisiert"
@@ -16744,6 +16800,11 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} ist kein über IMAP synchronisiertes Microsoft-Konto"
 
 #. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} isn't a Microsoft or Exchange server account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -16780,7 +16841,7 @@ msgid "{name} isn't kept in step over JMAP"
 msgstr "{name} wird nicht über JMAP synchronisiert"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 msgid "{name} isn't kept in step through Microsoft Graph"
 msgstr "{name} wird nicht über Microsoft Graph synchronisiert"
 

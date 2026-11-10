@@ -1646,6 +1646,11 @@ msgid "Automatic Replies for {address}"
 msgstr "Automatische antwoorden voor {address}"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic bulleted and numbered lists"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Automatic replies are being sent for {address}"
@@ -3509,11 +3514,23 @@ msgstr "Berichten volledig downloaden"
 msgid "Download Pictures"
 msgstr "Afbeeldingen downloaden"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download Pictures in All Mail"
+msgstr "Afbeeldingen in alle e-mail downloaden"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download in all mail"
+msgstr "In alle e-mail downloaden"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3526,6 +3543,18 @@ msgstr "Berichten volledig downloaden:"
 #, fuzzy
 msgid "Download pictures"
 msgstr "Afbeeldingen downloaden"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in all mail"
+msgstr "Afbeeldingen in alle e-mail downloaden"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
+msgstr "Afbeeldingen in elk bericht zonder te vragen downloaden, behalve in Ongewenste e-mail. Er wordt eerst gevraagd; Bestand › Opties zet het weer uit."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -4411,6 +4440,11 @@ msgstr "Tekstkleur"
 #, fuzzy
 msgid "Font Size"
 msgstr "Lettergrootte"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6242,6 +6276,12 @@ msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: b
 #, fuzzy
 msgid "Mail from the shared mailbox waits: {error}"
 msgstr "E-mail uit het gedeelde postvak wacht: {error}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr "E-mail in Ongewenste e-mail vraagt nog steeds eerst. Bestand › Opties zet dit weer uit."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -8864,6 +8904,12 @@ msgstr "Afbeeldingen niet getoond."
 #, fuzzy
 msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
 msgstr "Afbeeldingen op het web worden niet gedownload voor een bericht dat niet in uw postvak staat: verplaats het eerst naar een map."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr "Afbeeldingen op het web worden gedownload in elk bericht dat u opent. De server van elke afzender weet dan wanneer u het bericht hebt geopend en vanaf welk internetadres."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14400,6 +14446,11 @@ msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Out
 msgstr "Typ uw e-mailadres en MailCraft zoekt de rest: Microsoft 365, Outlook.com, Google en andere providers, of een postvak alleen op dit apparaat"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Under a folder on this computer:"
@@ -16137,6 +16188,11 @@ msgstr "nooit"
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "geen Microsoft-account wordt via IMAP bijgehouden"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -16168,7 +16224,7 @@ msgid "no account is kept in step over JMAP"
 msgstr "geen account wordt via JMAP bijgehouden"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "geen account wordt via Microsoft Graph bijgehouden"
@@ -17892,6 +17948,11 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} is geen Microsoft-account dat via IMAP wordt bijgehouden"
 
 #. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} isn't a Microsoft or Exchange server account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -17934,7 +17995,7 @@ msgid "{name} isn't kept in step over JMAP"
 msgstr "{name} wordt niet via JMAP bijgehouden"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step through Microsoft Graph"
 msgstr "{name} wordt niet via Microsoft Graph bijgehouden"

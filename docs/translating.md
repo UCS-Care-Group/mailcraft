@@ -31,7 +31,9 @@ has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being
 
 1. Add the language to `Lang` in `crates/i18n/src/lib.rs`: its code, its name in its own words, and
    whether it is a preview; and its date conventions (24-hour or AM/PM, first day of the week, the
-   order of a numeric date) in `crates/i18n/src/date.rs`.
+   order of a numeric date) in `crates/i18n/src/date.rs`. English's catalogue is the US's; outside
+   the US, Canada and the Philippines (by the system's regional format) English writes the day
+   first, and its clock and first day of the week are the region's (`Lang::conventions_in`).
 2. Copy `messages.pot` to `<code>.po`, set `Language:` and `Plural-Forms:` in its header, and
    translate.
 3. Run `cargo xtask i18n` until it reports every text translated, then `cargo xtask ci`.
