@@ -3174,12 +3174,8 @@ dependencies = [
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-time",
-<<<<<<< HEAD
- "md-5 0.11.0",
-=======
  "mailcraft-vcard",
- "md-5",
->>>>>>> 8eb18f42 (Keep an Exchange server account's calendars, address books and to-do lists in step after its mail: read them (with a calendar view for the days on screen), send changes up, and read a person's calendar or address book opened by address. The window opens a shared address book from People and uses the existing Open Shared Calendar for Exchange accounts.)
+ "md-5 0.11.0",
  "md4",
  "proptest",
  "quick-xml 0.42.0",
@@ -3285,11 +3281,14 @@ dependencies = [
  "flate2",
  "log",
  "mailcraft-charset",
+ "mailcraft-dav",
  "mailcraft-i18n",
+ "mailcraft-ical",
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-proto",
  "mailcraft-time",
+ "mailcraft-vcard",
  "proptest",
  "quick-xml 0.42.0",
  "rcgen",

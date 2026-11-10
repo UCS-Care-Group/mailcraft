@@ -133,7 +133,7 @@ pub fn sync(caldav: &str, carddav: &str, username: &str, password: &str, from: T
     let servers = DavServer { caldav: caldav.trim().to_string(), carddav: carddav.trim().to_string() };
     if let Some(why) = servers.problem() {
         let word = if DavServer::check_url(&servers.caldav).is_err() { "caldav" } else { "carddav" };
-        return Err(NetError::Config(format!("the {word} address {why}")));
+        return Err(NetError::Config(format!("the {word} address {why}").into()));
     }
     let auth = basic(username, password);
     let mut out = DavSync::default();

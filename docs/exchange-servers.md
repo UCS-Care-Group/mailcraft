@@ -101,8 +101,9 @@ the Windows installer, and the window used by hand.
 
 ## Not yet tried
 
-Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos
-and modern sign-in (not built), a shared mailbox, and Autodiscover from an address.
+Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server
+itself (calendars, address books and to-dos have been tried only on Grommunio), NTLM against a real
+server, Kerberos and modern sign-in (not built), a shared mailbox, and Autodiscover from an address.
 
 ## Revision history
 
