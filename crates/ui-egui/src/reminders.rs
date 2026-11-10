@@ -4,8 +4,15 @@
 //! Dismiss and Snooze, as the incumbent has. What is due is the engine's answer
 //! (`view::due_reminders`); what was dismissed is kept with the window's settings, what was put
 //! off only for this run.
+//!
+//! The window is drawn in a pass of its own (a deferred viewport), not inside the main window's:
+//! a compositor gives a minimized window no frames (KDE Plasma and others on Wayland), and the
+//! main window's pass, and so a window drawn inside it, waited for the owner to restore it (#771).
+//! It shows what [`Shared`] holds and leaves there what was clicked; [`carry_out`] does that from
+//! the main window's logic, which runs while it is minimized too.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use egui::{Align2, RichText, Sense, vec2};
 use mailcraft_engine::cmd::view::{Reminder, due_reminders};
@@ -31,6 +38,53 @@ pub struct State {
     announced: HashSet<String>,
     /// The owner asked for the window (View › Reminders Window): shown even with nothing due.
     pub(crate) asked_for: bool,
+    /// What the window shows and what was done in it, shared with its own pass.
+    shared: Arc<Mutex<Shared>>,
+    /// The main window's passes that laid it out, counted.
+    passes: u64,
+    /// The window was shown in the main window's last pass.
+    on_screen: bool,
+    /// The window is no longer wanted but still on screen, since the main window's pass
+    /// numbered so: no pass of it has come since to take it away.
+    ending: Option<u64>,
+    /// It was minimized for that, and is made afresh when it is wanted again.
+    minimized: bool,
+}
+
+/// What the window shows, set from the main window; and what was done in it, for the main
+/// window to carry out.
+#[derive(Default)]
+pub(crate) struct Shared {
+    rows: Vec<Row>,
+    twelve_hour: bool,
+    /// The window's title, and the one it was last given.
+    title: String,
+    titled: String,
+    actions: Vec<Action>,
+    /// Where the reminders and their Join buttons were laid out (for [`MailApp::hit`]).
+    hits: Vec<(&'static str, u64, egui::Rect)>,
+}
+
+/// A reminder as the window shows it, with the link to join its meeting by.
+#[derive(Clone, PartialEq)]
+struct Row {
+    reminder: Reminder,
+    join: Option<String>,
+}
+
+/// What was done in the window.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Action {
+    Dismiss(u64, String),
+    DismissAll,
+    Snooze(u64),
+    Open(u64, mailcraft_time::DateTime),
+    Join(u64),
+    Close,
+}
+
+fn lock(shared: &Mutex<Shared>) -> std::sync::MutexGuard<'_, Shared> {
+    shared.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// What a reminder is known by: its event and the occurrence it is for.
@@ -141,146 +195,245 @@ pub(crate) fn embedded_layer() -> egui::LayerId {
 /// can be put wherever the owner likes (where the system has no separate windows, as in a
 /// browser, a movable window inside the main one).
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
-    if app.reminders.showing.is_empty() && !app.reminders.asked_for {
+    app.reminders.passes = app.reminders.passes.wrapping_add(1);
+    app.reminders.ending = None;
+    let wanted = !app.reminders.showing.is_empty() || app.reminders.asked_for;
+    // A window minimized because the main window had no passes ([`carry_out`]) is let go in
+    // this pass and made afresh in the next, so that it comes back in front.
+    if std::mem::take(&mut app.reminders.minimized) {
+        app.reminders.on_screen = false;
+        if wanted {
+            ctx.request_repaint();
+        }
         return;
     }
-    let t = Tokens::get(ctx);
-    let twelve = app.session.prefs.twelve_hour;
-    let rows = app.reminders.showing.clone();
-    let (mut dismissed, mut snoozed, mut opened) = (None, None, None);
-    let mut joined: Option<u64> = None;
-    let (mut dismiss_all, mut closed) = (false, false);
-    let title = tln!(rows.len(), "{n} Reminder", "{n} Reminders");
-    let height = (rows.len().clamp(1, 6) as f32) * 46.0 + 96.0;
+    app.reminders.on_screen = wanted;
+    if !wanted {
+        return;
+    }
+    publish(app, ctx);
+    let shared = Arc::clone(&app.reminders.shared);
+    let (title, rows) = {
+        let mut s = lock(&shared);
+        s.titled = s.title.clone();
+        (s.title.clone(), s.rows.len())
+    };
+    let height = (rows.clamp(1, 6) as f32) * 46.0 + 96.0;
     let builder = crate::windows::like_main(
         ctx,
         egui::ViewportBuilder::default().with_title(title).with_inner_size([420.0, height]).with_min_inner_size([340.0, 150.0]),
     );
-    ctx.show_viewport_immediate(viewport(), builder, |ui, class| {
-        let own_window = class != egui::ViewportClass::EmbeddedWindow;
-        if own_window {
-            closed = ui.ctx().input(|i| i.viewport().close_requested());
-            ui.painter().rect_filled(ui.max_rect(), 0.0, t.menu);
+    let inside = Arc::clone(&shared);
+    ctx.show_viewport_deferred(viewport(), builder, move |ui, class| paint(ui, class, &inside));
+    let hits = lock(&shared).hits.clone();
+    for (kind, id, rect) in hits {
+        app.hit.add(kind, id, rect);
+    }
+    // Inside the main window (in a browser) the window's pass was just now.
+    apply(app, ctx);
+}
+
+/// From the main window's logic, which runs while it is minimized too: what was done in the
+/// window is carried out, and what it shows brought up to date.
+pub fn carry_out(app: &mut MailApp, ctx: &egui::Context) {
+    apply(app, ctx);
+    let wanted = !app.reminders.showing.is_empty() || app.reminders.asked_for;
+    if wanted || !app.reminders.on_screen {
+        app.reminders.ending = None;
+        return;
+    }
+    // No longer wanted: the main window's next pass takes it away. A minimized main window has
+    // no passes where the compositor gives it no frames (Wayland), and only its logic runs;
+    // when the logic comes round again with no pass between, the window is minimized instead,
+    // the one thing such a system lets a program do to put it out of sight.
+    match app.reminders.ending {
+        None => {
+            app.reminders.ending = Some(app.reminders.passes);
+            ctx.request_repaint();
         }
-        egui::Frame::NONE.inner_margin(egui::Margin::same(if own_window { 10 } else { 2 })).show(ui, |ui| {
-            if !own_window {
-                ui.set_width(380.0);
+        Some(pass) if pass == app.reminders.passes && !app.reminders.minimized => {
+            ctx.send_viewport_cmd_to(viewport(), egui::ViewportCommand::Minimized(true));
+            app.reminders.minimized = true;
+        }
+        Some(_) => {}
+    }
+}
+
+/// Carry out what was done in the window, and give it what it is to show.
+fn apply(app: &mut MailApp, ctx: &egui::Context) {
+    let actions = std::mem::take(&mut lock(&app.reminders.shared).actions);
+    for action in actions {
+        match action {
+            Action::Dismiss(event, occurrence) => {
+                let _ = app.execute("ui.dismissReminder", json!({"event": event, "occurrence": occurrence}));
             }
-            if rows.is_empty() {
-                ui.add_space(10.0);
-                ui.label(RichText::new(tl!("No reminders are due.")).font(regular(12.5)).color(t.text_dim));
-                ui.add_space(10.0);
-                if ui.button(tl!("Close")).clicked() {
-                    closed = true;
+            Action::DismissAll => {
+                let _ = app.execute("ui.dismissReminder", json!({"all": true}));
+            }
+            Action::Snooze(minutes) => {
+                let _ = app.execute("ui.snoozeReminders", json!({"minutes": minutes}));
+            }
+            Action::Open(event, start) => open(app, event, start),
+            Action::Join(event) => {
+                if let Err(e) = app.execute("ui.joinMeeting", json!({"event": event})) {
+                    app.status(e);
                 }
-                return;
             }
-            let list = if own_window { (ui.available_height() - 44.0).max(60.0) } else { 300.0 };
-            egui::ScrollArea::vertical().max_height(list).auto_shrink([false, !own_window]).show(ui, |ui| {
-                for r in &rows {
-                    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
-                    if resp.hovered() {
-                        ui.painter().rect_filled(rect, 4.0, t.hover);
+            // Closing the window puts what is showing off for a while; it comes back, as a
+            // reminder should.
+            Action::Close => {
+                if app.reminders.showing.is_empty() {
+                    app.reminders.asked_for = false;
+                } else {
+                    let _ = app.execute("ui.snoozeReminders", json!({"minutes": 5}));
+                }
+            }
+        }
+    }
+    publish(app, ctx);
+}
+
+/// What the window shows, from what is due; its pass is asked for when that changed.
+fn publish(app: &MailApp, ctx: &egui::Context) {
+    let rows: Vec<Row> = app
+        .reminders
+        .showing
+        .iter()
+        .map(|r| Row {
+            reminder: r.clone(),
+            // An online meeting that has a link to join by gets a Join button beside Dismiss.
+            join: app.session.mailbox.event(r.event).and_then(|e| e.join_link()).and_then(mailcraft_model::OnlineMeeting::clean_link),
+        })
+        .collect();
+    let twelve_hour = app.session.prefs.twelve_hour;
+    let title = tln!(rows.len(), "{n} Reminder", "{n} Reminders");
+    let mut s = lock(&app.reminders.shared);
+    if s.rows != rows || s.twelve_hour != twelve_hour || s.title != title {
+        (s.rows, s.twelve_hour, s.title) = (rows, twelve_hour, title);
+        drop(s);
+        ctx.request_repaint_of(viewport());
+    }
+}
+
+/// The window's own pass: what [`Shared`] holds, and what is clicked left there for the main
+/// window, which is woken for it.
+fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) {
+    let ctx = ui.ctx().clone();
+    let t = Tokens::get(&ctx);
+    let mut s = lock(shared);
+    let (rows, twelve) = (s.rows.clone(), s.twelve_hour);
+    let mut done = Vec::new();
+    let mut hits = Vec::new();
+    let own_window = class != egui::ViewportClass::EmbeddedWindow;
+    if own_window {
+        if ctx.input(|i| i.viewport().close_requested()) {
+            done.push(Action::Close);
+        }
+        // The title is set in the main window's pass, which a minimized one may not have.
+        if s.titled != s.title {
+            s.titled = s.title.clone();
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(s.title.clone()));
+        }
+        ui.painter().rect_filled(ui.max_rect(), 0.0, t.menu);
+    }
+    egui::Frame::NONE.inner_margin(egui::Margin::same(if own_window { 10 } else { 2 })).show(ui, |ui| {
+        if !own_window {
+            ui.set_width(380.0);
+        }
+        if rows.is_empty() {
+            ui.add_space(10.0);
+            ui.label(RichText::new(tl!("No reminders are due.")).font(regular(12.5)).color(t.text_dim));
+            ui.add_space(10.0);
+            if ui.button(tl!("Close")).clicked() {
+                done.push(Action::Close);
+            }
+            return;
+        }
+        let list = if own_window { (ui.available_height() - 44.0).max(60.0) } else { 300.0 };
+        egui::ScrollArea::vertical().max_height(list).auto_shrink([false, !own_window]).show(ui, |ui| {
+            for Row { reminder: r, join } in &rows {
+                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
+                if resp.hovered() {
+                    ui.painter().rect_filled(rect, 4.0, t.hover);
+                }
+                icons::paint(
+                    ui.painter(),
+                    egui::Rect::from_center_size(egui::pos2(rect.min.x + 16.0, rect.center().y), vec2(16.0, 16.0)),
+                    "bell",
+                    t.icon,
+                    t.accent,
+                );
+                let name = if r.title.trim().is_empty() { tl!("(no title)") } else { r.title.as_str() };
+                let aside = if join.is_some() { 56.0 } else { 0.0 };
+                // Dismiss is as wide as its word needs in the interface language (64 at least).
+                let font = egui::TextStyle::Button.resolve(ui.style());
+                let wide = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Dismiss").to_string(), font, t.text).size().x + 16.0).max(64.0);
+                crate::theme::paint_clipped(
+                    ui.painter(),
+                    egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0),
+                    rect.width() - wide - 66.0 - aside,
+                    name,
+                    semibold(12.5),
+                    t.text,
+                );
+                let time = if r.all_day { crate::dates::medium(r.start.date) } else { crate::dates::medium_time(r.start, twelve) };
+                let detail = if r.location.trim().is_empty() { time } else { format!("{time} · {}", r.location) };
+                crate::theme::paint_clipped(
+                    ui.painter(),
+                    egui::pos2(rect.min.x + 34.0, rect.min.y + 32.0),
+                    rect.width() - wide - 66.0 - aside,
+                    &detail,
+                    regular(11.5),
+                    t.text_dim,
+                );
+                let color = if r.minutes <= 0 { t.red } else { t.text_dim };
+                let said = egui::pos2(rect.max.x - wide - 14.0 - aside, rect.min.y + 15.0);
+                ui.painter().text(said, Align2::RIGHT_CENTER, when(r.minutes), regular(11.5), color);
+                let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - wide - 6.0, rect.center().y - 12.0), vec2(wide, 24.0));
+                // The link is shown where it leads, and followed only on the click.
+                let mut pressed = false;
+                if let Some(link) = join {
+                    let place = egui::Rect::from_min_size(egui::pos2(button.min.x - aside, button.min.y), vec2(aside - 6.0, 24.0));
+                    let joins = ui.put(place, egui::Button::new(tl!("Join"))).on_hover_text(link.as_str());
+                    hits.push(("reminderJoin", r.event, joins.rect));
+                    if joins.clicked() {
+                        done.push(Action::Join(r.event));
+                        pressed = true;
                     }
-                    icons::paint(
-                        ui.painter(),
-                        egui::Rect::from_center_size(egui::pos2(rect.min.x + 16.0, rect.center().y), vec2(16.0, 16.0)),
-                        "bell",
-                        t.icon,
-                        t.accent,
-                    );
-                    let name = if r.title.trim().is_empty() { tl!("(no title)") } else { r.title.as_str() };
-                    // An online meeting that has a link to join by gets a Join button beside Dismiss.
-                    let join = app.session.mailbox.event(r.event).and_then(|e| e.join_link()).and_then(mailcraft_model::OnlineMeeting::clean_link);
-                    let aside = if join.is_some() { 56.0 } else { 0.0 };
-                    // Dismiss is as wide as its word needs in the interface language (64 at least).
-                    let font = egui::TextStyle::Button.resolve(ui.style());
-                    let wide = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Dismiss").to_string(), font, t.text).size().x + 16.0).max(64.0);
-                    crate::theme::paint_clipped(
-                        ui.painter(),
-                        egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0),
-                        rect.width() - wide - 66.0 - aside,
-                        name,
-                        semibold(12.5),
-                        t.text,
-                    );
-                    let time = if r.all_day { crate::dates::medium(r.start.date) } else { crate::dates::medium_time(r.start, twelve) };
-                    let detail = if r.location.trim().is_empty() { time } else { format!("{time} · {}", r.location) };
-                    crate::theme::paint_clipped(
-                        ui.painter(),
-                        egui::pos2(rect.min.x + 34.0, rect.min.y + 32.0),
-                        rect.width() - wide - 66.0 - aside,
-                        &detail,
-                        regular(11.5),
-                        t.text_dim,
-                    );
-                    let color = if r.minutes <= 0 { t.red } else { t.text_dim };
-                    let said = egui::pos2(rect.max.x - wide - 14.0 - aside, rect.min.y + 15.0);
-                    ui.painter().text(said, Align2::RIGHT_CENTER, when(r.minutes), regular(11.5), color);
-                    let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - wide - 6.0, rect.center().y - 12.0), vec2(wide, 24.0));
-                    // The link is shown where it leads, and followed only on the click.
-                    let mut pressed = false;
-                    if let Some(link) = &join {
-                        let place = egui::Rect::from_min_size(egui::pos2(button.min.x - aside, button.min.y), vec2(aside - 6.0, 24.0));
-                        let joins = ui.put(place, egui::Button::new(tl!("Join"))).on_hover_text(link.as_str());
-                        app.hit.add("reminderJoin", r.event, joins.rect);
-                        if joins.clicked() {
-                            joined = Some(r.event);
-                            pressed = true;
-                        }
-                    }
-                    if ui.put(button, egui::Button::new(tl!("Dismiss"))).clicked() {
-                        dismissed = Some((r.event, r.start.iso()));
-                    } else if resp.double_clicked() && !pressed {
-                        opened = Some((r.event, r.start));
-                    }
-                    app.hit.add("reminder", r.event, rect);
+                }
+                if ui.put(button, egui::Button::new(tl!("Dismiss"))).clicked() {
+                    done.push(Action::Dismiss(r.event, r.start.iso()));
+                } else if resp.double_clicked() && !pressed {
+                    done.push(Action::Open(r.event, r.start));
+                }
+                hits.push(("reminder", r.event, rect));
+            }
+        });
+        ui.separator();
+        ui.horizontal(|ui| {
+            let mut minutes = ui.data(|d| d.get_temp::<u64>(egui::Id::unique("reminder_snooze"))).unwrap_or(5);
+            if ui.button(tl!("Snooze")).on_hover_text(tl!("Remind me again later")).clicked() {
+                done.push(Action::Snooze(minutes));
+            }
+            egui::ComboBox::from_id_salt("reminder_snooze_for").selected_text(snooze_label(minutes)).show_ui(ui, |ui| {
+                for m in [5u64, 10, 15, 30, 60, 120, 1440] {
+                    ui.selectable_value(&mut minutes, m, snooze_label(m));
                 }
             });
-            ui.separator();
-            ui.horizontal(|ui| {
-                let mut minutes = ui.data(|d| d.get_temp::<u64>(egui::Id::unique("reminder_snooze"))).unwrap_or(5);
-                if ui.button(tl!("Snooze")).on_hover_text(tl!("Remind me again later")).clicked() {
-                    snoozed = Some(minutes);
+            ui.data_mut(|d| d.insert_temp(egui::Id::unique("reminder_snooze"), minutes));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(tl!("Dismiss All")).clicked() {
+                    done.push(Action::DismissAll);
                 }
-                egui::ComboBox::from_id_salt("reminder_snooze_for").selected_text(snooze_label(minutes)).show_ui(ui, |ui| {
-                    for m in [5u64, 10, 15, 30, 60, 120, 1440] {
-                        ui.selectable_value(&mut minutes, m, snooze_label(m));
-                    }
-                });
-                ui.data_mut(|d| d.insert_temp(egui::Id::unique("reminder_snooze"), minutes));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(tl!("Dismiss All")).clicked() {
-                        dismiss_all = true;
-                    }
-                });
             });
         });
     });
-    if let Some((event, occurrence)) = dismissed {
-        let _ = app.execute("ui.dismissReminder", json!({"event": event, "occurrence": occurrence}));
-    }
-    if dismiss_all {
-        let _ = app.execute("ui.dismissReminder", json!({"all": true}));
-    }
-    if let Some(minutes) = snoozed {
-        let _ = app.execute("ui.snoozeReminders", json!({"minutes": minutes}));
-    }
-    if let Some((event, start)) = opened {
-        open(app, event, start);
-    }
-    if let Some(event) = joined
-        && let Err(e) = app.execute("ui.joinMeeting", json!({"event": event}))
-    {
-        app.status(e);
-    }
-    // Closing the window puts what is showing off for a while; it comes back, as a reminder should.
-    if closed {
-        if app.reminders.showing.is_empty() {
-            app.reminders.asked_for = false;
-        } else {
-            let _ = app.execute("ui.snoozeReminders", json!({"minutes": 5}));
-        }
+    s.hits = hits;
+    if !done.is_empty() {
+        s.actions.extend(done);
+        drop(s);
+        // In a window of its own, the main window's logic carries it out.
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
     }
 }
 
@@ -310,6 +463,10 @@ fn snooze_label(minutes: u64) -> String {
         _ => tl!("1 day").to_string(),
     }
 }
+
+#[cfg(test)]
+#[path = "reminders_tests.rs"]
+mod reminders_tests;
 
 #[cfg(test)]
 mod tests {
