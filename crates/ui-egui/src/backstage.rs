@@ -329,7 +329,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
-        if a.kind == AccountKind::Microsoft && !a.is_shared() {
+        if a.kind.has_offline_window() && !a.is_shared() {
             download_in_full(app, ui, a);
             // How far back mail is kept in full (#143), beside it.
             ui.horizontal(|ui| {
@@ -651,7 +651,9 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                         set(app, json!({"syncLimit": n}));
                     }
                 }
-            });
+            })
+            .response
+            .on_hover_text(tl!("For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."));
     });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);
