@@ -818,6 +818,33 @@ impl SyncResult {
     /// the same as taking in the one and then the other. What a mailbox's pieces say about it
     /// comes together under its name, its new messages in the order they came.
     pub fn absorb(&mut self, later: SyncResult) {
+        // Every field is taken in below: a field added later fails to compile here until it is.
+        let SyncResult {
+            account: _,
+            email: _,
+            folders: _,
+            listed: _,
+            sent: _,
+            filed: _,
+            unfiled: _,
+            unsure: _,
+            flagged: _,
+            moved: _,
+            deleted: _,
+            created: _,
+            placed: _,
+            unplaced: _,
+            gmail_moved: _,
+            gmail_refused: _,
+            gmail_unsent: _,
+            errors: _,
+            said: _,
+            partial: _,
+            progress: _,
+            step: _,
+            stopped: _,
+            timings: _,
+        } = &later;
         (self.account, self.email) = (later.account, later.email);
         (self.partial, self.progress, self.step, self.stopped) = (later.partial, later.progress, later.step, later.stopped);
         self.timings.absorb(&later.timings);
@@ -844,17 +871,41 @@ impl SyncResult {
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
                 Some(folder) => {
-                    folder.id = folder.id.or(delta.id);
+                    // Every field named, so that one added later can't be left out of this
+                    // (#991: what was read again came with the last piece, and was lost).
+                    let FolderDelta {
+                        id,
+                        // The same mailbox, as the earlier piece named it.
+                        remote: _,
+                        kind: _,
+                        uid_validity: _,
+                        uid_seen,
+                        uid_from,
+                        new,
+                        flags,
+                        removed,
+                        complete,
+                        refetched,
+                        refetch_done,
+                        refetch_too_large,
+                        refetch_refused,
+                        gmail,
+                    } = delta;
+                    folder.id = folder.id.or(id);
                     // The mailbox is read as far as the piece that got furthest says.
-                    folder.uid_seen = folder.uid_seen.max(delta.uid_seen);
-                    if delta.uid_from != 0 {
-                        folder.uid_from = delta.uid_from;
+                    folder.uid_seen = folder.uid_seen.max(uid_seen);
+                    if uid_from != 0 {
+                        folder.uid_from = uid_from;
                     }
-                    folder.new.extend(delta.new);
-                    folder.flags.extend(delta.flags);
-                    folder.removed.extend(delta.removed);
-                    folder.gmail.extend(delta.gmail);
-                    folder.complete |= delta.complete;
+                    folder.new.extend(new);
+                    folder.flags.extend(flags);
+                    folder.removed.extend(removed);
+                    folder.refetched.extend(refetched);
+                    folder.refetch_done.extend(refetch_done);
+                    folder.refetch_too_large.extend(refetch_too_large);
+                    folder.refetch_refused.extend(refetch_refused);
+                    folder.gmail.extend(gmail);
+                    folder.complete |= complete;
                 }
                 None => self.folders.push(delta),
             }
