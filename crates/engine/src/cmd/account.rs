@@ -34,7 +34,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho"|"resend", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -146,9 +146,10 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     };
     // The owner says whose the account is: that settles it.
     let named = match p::str(v, "service") {
-        Some(name) => {
-            Some(provider::by_name(name).ok_or_else(|| bad("`service` is microsoft365, outlook.com, google, yahoo, icloud, fastmail, aol or zoho"))?)
-        }
+        Some(name) => Some(
+            provider::by_name(name)
+                .ok_or_else(|| bad("`service` is microsoft365, outlook.com, google, yahoo, icloud, fastmail, aol, zoho or resend"))?,
+        ),
         None => None,
     };
     let own = provider::by_domain(&domain);
@@ -176,7 +177,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         "service": preset.service,
         "auth": if preset.oauth.is_some() { "oauth2" } else { "password" },
         "provider": preset.oauth.map(OAuthProvider::code),
-        "username": email,
+        "username": if preset.username.is_empty() { email.as_str() } else { preset.username },
         "incoming": server(&preset.incoming),
         "outgoing": server(&preset.outgoing),
         "note": preset.note,

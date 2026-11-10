@@ -772,6 +772,10 @@ fn accounts_that_sign_in_on_the_providers_page() {
     assert_eq!((named["via"].as_str(), named["outgoing"]["host"].as_str()), (Some("asked"), Some("smtp-mail.outlook.com")));
     assert_eq!(run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "google"}))["service"], "Gmail");
     assert!(s.run("account.preset", &json!({"email": "avery@lumen.example", "service": "nobody"})).is_err());
+    // Resend signs in as `resend`, not as the address.
+    let resend = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "resend"}));
+    assert_eq!((resend["username"].as_str(), resend["incoming"]["host"].as_str()), (Some("resend"), Some("api.resend.com")));
+    assert_eq!(run(&mut s, "account.preset", json!({"email": "avery@lumen.example"}))["username"], "avery@lumen.example");
     // The provider's own domain needs nobody's exchangers.
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@outlook.com", "mx": ["aspmx.l.google.com"]}))["service"], "Outlook.com");
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@gmail.com"}))["incoming"]["host"], "imap.gmail.com");

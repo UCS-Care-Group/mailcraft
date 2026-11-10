@@ -10367,6 +10367,11 @@ msgstr "Leesbevestiging aanvragen"
 msgid "Required"
 msgstr "Vereist"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Resend"
+msgstr "Resend"
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16431,6 +16436,11 @@ msgstr "De beheerder van uw organisatie moet het lezen van agenda's van gedeelde
 #, fuzzy
 msgid "Your organisation's administrator has to approve this once"
 msgstr "De beheerder van uw organisatie moet dit één keer goedkeuren"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your own domain's mail, with an API key"
+msgstr "De mail van uw eigen domein, met een API-sleutel"
 
 #. interface
 #: crates/ui-egui/src/security.rs

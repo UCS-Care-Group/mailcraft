@@ -166,6 +166,11 @@ pub(crate) fn sync_as(request: &SyncRequest, limits: Limits, host: Host, cancel:
         counted: 0,
     };
     let sent = send_outbox(&mut run);
+    if resend::is_resend(&request.account) {
+        resend::exchange(&mut run);
+        run.finish();
+        return;
+    }
     let imap = exchange(&mut run, &sent, host);
     if let Some(imap) = &imap {
         run.note(imap);
@@ -342,7 +347,8 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
     // A copy of each is kept on the server: by the server itself, whatever becomes of the
     // connection to its incoming side, or put there once they have all gone. The mailbox is told
     // with the message, so that it knows the copy for what it is even if it hears no more.
-    let filed_there = request.account.incoming.is_some();
+    // (Resend keeps nothing of what it sends: the copy here is the one there is.)
+    let filed_there = request.account.incoming.is_some() && !resend::is_resend(&request.account);
     for (at, message) in request.outbox.iter().enumerate() {
         if run.cancelled() {
             break;
@@ -1335,6 +1341,8 @@ pub(crate) fn internal_date(text: &str) -> Option<Timestamp> {
 #[cfg(test)]
 #[path = "sync_size_tests.rs"]
 mod size_tests;
+
+pub(crate) mod resend;
 
 #[cfg(test)]
 #[path = "sync_many_folders_tests.rs"]

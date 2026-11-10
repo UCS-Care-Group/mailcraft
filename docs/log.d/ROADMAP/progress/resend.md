@@ -1,0 +1,1 @@
+| 2026-11-10 | Resend accounts: received mail read from Resend's API (`/emails/receiving`, the message's bytes from its signed address), sent through `smtp.resend.com`; an Add Account tile and `account.preset service=resend` |

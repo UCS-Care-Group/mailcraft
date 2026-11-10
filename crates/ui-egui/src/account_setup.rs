@@ -99,6 +99,8 @@ pub enum Kind {
     Google,
     Yahoo,
     ICloud,
+    /// Resend: mail of the owner's own domain, read from Resend's API and sent through its SMTP.
+    Resend,
     /// Any other mail server.
     Other,
     /// A mailbox on this device, with no server.
@@ -109,7 +111,7 @@ pub enum Kind {
 
 impl Kind {
     /// The kinds that have servers, in the order of their tiles.
-    const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
+    const HOSTED: [Kind; 7] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Resend, Kind::Other];
 
     /// The tiles of the Choose page: the kinds with servers, and the Exchange server (an explicit
     /// choice: nothing detects it).
@@ -127,6 +129,7 @@ impl Kind {
             Kind::Google => Some("google"),
             Kind::Yahoo => Some("yahoo"),
             Kind::ICloud => Some("icloud"),
+            Kind::Resend => Some("resend"),
             Kind::Other | Kind::Local | Kind::Exchange => None,
         }
     }
@@ -138,6 +141,7 @@ impl Kind {
             Kind::Google => "Google",
             Kind::Yahoo => "Yahoo",
             Kind::ICloud => "iCloud",
+            Kind::Resend => "Resend",
             Kind::Other => "Other (IMAP)",
             Kind::Local => "This device only",
             Kind::Exchange => "Exchange server (your organisation's own)",
@@ -151,6 +155,7 @@ impl Kind {
             Kind::Google => "Gmail and Google Workspace",
             Kind::Yahoo => "Yahoo Mail",
             Kind::ICloud => "icloud.com, me.com and mac.com",
+            Kind::Resend => "Your own domain's mail, with an API key",
             Kind::Other => "Any other mail server",
             Kind::Local => "A mailbox kept here, with no mail server",
             Kind::Exchange => "A mail server your organisation runs itself",
@@ -162,7 +167,7 @@ impl Kind {
         match self {
             Kind::Microsoft365 => "work",
             Kind::OutlookCom | Kind::Google | Kind::Yahoo | Kind::ICloud => "mail",
-            Kind::Other | Kind::Exchange => "server",
+            Kind::Resend | Kind::Other | Kind::Exchange => "server",
             Kind::Local => "device",
         }
     }
@@ -3244,6 +3249,7 @@ mod tests {
             (Kind::Google, "Gmail", "imap.gmail.com", "smtp.gmail.com"),
             (Kind::Yahoo, "Yahoo", "imap.mail.yahoo.com", "smtp.mail.yahoo.com"),
             (Kind::ICloud, "iCloud", "imap.mail.me.com", "smtp.mail.me.com"),
+            (Kind::Resend, "Resend", "api.resend.com", "smtp.resend.com"),
             (Kind::Other, "", "imap.example.org", "smtp.example.org"),
         ] {
             let mut a = app(true);

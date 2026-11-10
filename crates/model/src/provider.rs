@@ -18,6 +18,8 @@ pub struct Preset {
     pub oauth: Option<OAuthProvider>,
     pub incoming: Server,
     pub outgoing: Server,
+    /// The name to sign in with when it isn't the address (Resend's `resend`); empty otherwise.
+    pub username: &'static str,
     /// Something the owner should know before connecting; may be empty.
     pub note: &'static str,
 }
@@ -30,7 +32,7 @@ fn server(host: &str, port: u16, security: Security) -> Server {
 }
 
 fn with_password(service: &'static str, imap: &str, smtp: (&str, u16, Security), note: &'static str) -> Preset {
-    Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), note }
+    Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), username: "", note }
 }
 
 /// Outlook.com (`consumer`) or Microsoft 365 work and school mail.
@@ -42,6 +44,7 @@ pub fn microsoft(consumer: bool) -> Preset {
         oauth: Some(OAuthProvider::Microsoft),
         incoming: server("outlook.office365.com", 993, Security::Tls),
         outgoing: server(smtp, 587, Security::StartTls),
+        username: "",
         note: MICROSOFT,
     }
 }
@@ -56,7 +59,30 @@ pub fn google(consumer: bool) -> Preset {
         oauth: Some(OAuthProvider::Google),
         incoming: server("imap.gmail.com", 993, Security::Tls),
         outgoing: server("smtp.gmail.com", 465, Security::Tls),
+        username: "",
         note: "Google sign-in opens the provider's page; MailCraft does not ask for your Google password.",
+    }
+}
+
+/// Where Resend's API is: what an account at Resend names as its incoming server. Its mail is read
+/// from there over HTTPS (Resend has no IMAP), and sent through Resend's SMTP server.
+pub const RESEND_API_HOST: &str = "api.resend.com";
+
+/// Whether an incoming server `host` is Resend's API ([`resend`]).
+pub fn is_resend_host(host: &str) -> bool {
+    host.trim().trim_end_matches('.').eq_ignore_ascii_case(RESEND_API_HOST)
+}
+
+/// Resend, a service that sends and receives the mail of the owner's own domain: mail is read
+/// from its API ([`RESEND_API_HOST`]) and sent through its SMTP server, both with an API key.
+pub fn resend() -> Preset {
+    Preset {
+        service: "Resend",
+        oauth: None,
+        incoming: server(RESEND_API_HOST, 443, Security::Tls),
+        outgoing: server("smtp.resend.com", 465, Security::Tls),
+        username: "resend",
+        note: "Resend takes an API key with full access (made at resend.com/api-keys) as the password; a key that only sends can't read the mail Resend received.",
     }
 }
 
@@ -259,6 +285,7 @@ pub fn by_name(name: &str) -> Option<Preset> {
         "fastmail" => by_domain("fastmail.com"),
         "aol" => by_domain("aol.com"),
         "zoho" => by_domain("zoho.com"),
+        "resend" => Some(resend()),
         _ => None,
     }
 }
@@ -271,6 +298,7 @@ pub fn guess(domain: &str) -> Preset {
         oauth: None,
         incoming: server(&format!("imap.{domain}"), 993, Security::Tls),
         outgoing: server(&format!("smtp.{domain}"), 587, Security::StartTls),
+        username: "",
         note: "",
     }
 }
@@ -323,6 +351,9 @@ mod tests {
         assert_eq!(by_name("Outlook.com").unwrap().service, "Outlook.com");
         assert_eq!(by_name("google").unwrap().incoming.host, "imap.gmail.com");
         assert_eq!(by_name("iCloud").unwrap().service, "iCloud");
+        let resend = by_name("Resend").unwrap();
+        assert_eq!((resend.username, resend.incoming.port, resend.outgoing.host.as_str()), ("resend", 443, "smtp.resend.com"));
+        assert!(is_resend_host(&resend.incoming.host) && is_resend_host("API.Resend.com.") && !is_resend_host("api.resend.com.example"));
         assert_eq!(by_name("nobody"), None);
         assert_eq!(by_name(""), None);
     }

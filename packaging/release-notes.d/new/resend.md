@@ -1,0 +1,1 @@
+- Resend accounts: Add Account › Resend reads the mail Resend received for your own domain from Resend's API and sends through Resend's SMTP server, both with one API key (with full access) as the password. Read, flagged, moved and deleted stay on this computer, as Resend keeps none of them.

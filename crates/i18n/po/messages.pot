@@ -8650,6 +8650,11 @@ msgstr ""
 msgid "Required"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Resend"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Resend Message"
@@ -13722,6 +13727,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src
 msgid "Your organisation's administrator has to approve this once"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your own domain's mail, with an API key"
 msgstr ""
 
 #. interface
