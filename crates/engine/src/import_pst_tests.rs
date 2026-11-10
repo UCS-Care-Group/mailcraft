@@ -130,7 +130,16 @@ fn folder_list(folders: Vec<FolderSpec>) -> FileSpec {
 }
 
 fn job(dry_run: bool) -> Job {
-    Job { password: None, dry_run, file: "old-mail.pst".into(), name: "old-mail".into(), known: HashSet::new(), room: 31 }
+    Job {
+        password: None,
+        dry_run,
+        file: "old-mail.pst".into(),
+        name: "old-mail".into(),
+        known: HashSet::new(),
+        room: 31,
+        known_contacts: HashSet::new(),
+        keep_at: None,
+    }
 }
 
 /// Run the command over `bytes` handed over as data.
@@ -178,17 +187,19 @@ fn the_mail_of_every_folder_comes_in_and_every_item_is_accounted_for() {
     let answer = import(&mut s, &bytes, json!({})).unwrap();
     adds_up(&answer);
     assert_eq!(answer["found"], 8, "{answer}");
-    assert_eq!(answer["added"], 6, "{answer}");
-    assert_eq!(answer["later"], 2, "{answer}");
+    assert_eq!(answer["added"], 7, "{answer}");
+    assert_eq!((answer["messages"].clone(), answer["contacts"].clone(), answer["lists"].clone()), (json!(6), json!(1), json!(0)));
+    assert_eq!(answer["later"], 1, "{answer}");
     assert_eq!(answer["leftOut"], 0, "{answer}");
     assert_eq!(answer["preview"], true);
     assert_eq!(row(&answer, "Inbox")["added"], 2);
     assert_eq!(row(&answer, "Inbox/Projects")["added"], 1);
     assert_eq!(row(&answer, "Calendar")["later"], 1);
-    assert_eq!(row(&answer, "Contacts")["later"], 1);
-    assert_eq!(row(&answer, "Contacts")["added"], 1);
+    assert_eq!(row(&answer, "Contacts")["later"], 0);
+    assert_eq!(row(&answer, "Contacts")["added"], 2);
     let kinds: Vec<&str> = answer["laterKinds"].as_array().unwrap().iter().map(|k| k["kind"].as_str().unwrap()).collect();
-    assert!(kinds.contains(&"appointment") && kinds.contains(&"contact"), "{kinds:?}");
+    assert_eq!(kinds, ["appointment"]);
+    assert_eq!(s.mailbox.contacts.len(), 1);
     // The file's own folders are named, not brought.
     let not: Vec<&str> = answer["notBrought"].as_array().unwrap().iter().map(|e| e["what"].as_str().unwrap()).collect();
     assert!(not.contains(&"Search Root"), "{not:?}");
@@ -287,7 +298,7 @@ fn html_inline_pictures_ole_links_and_smime_are_kept_or_named() {
             (0x3707, w::unicode("logo.png")),
             (0x370E, w::unicode("image/png")),
             (0x3712, w::unicode("<logo-1>")),
-            (0x3701, w::binary(&[0x89, b'P', b'N', b'G'])),
+            (0x3701, w::binary(b"\x89PNG\r\n\x1a\n")),
         ]),
         AttachSpec::Props(vec![(0x3705, w::int32(4)), (0x3707, w::unicode("plan.docx")), (0x370D, w::unicode("\\\\server\\share\\plan.docx"))]),
         AttachSpec::Ole(vec![1, 2, 3, 4, 5]),
@@ -371,7 +382,7 @@ fn a_file_with_a_password_imports_nothing_without_it() {
     assert_eq!(s.mailbox.messages.len(), before);
     assert!(folder_id(&s, &["old-mail"]).is_none());
     let answer = import(&mut s, &bytes, json!({"password": "garden-shed"})).unwrap();
-    assert_eq!(answer["added"], 6);
+    assert_eq!(answer["added"], 7);
     assert!(!answer.to_string().contains("garden-shed"));
 }
 
@@ -384,7 +395,7 @@ fn importing_again_skips_what_is_already_here() {
     let folders = s.mailbox.folders.len();
     let again = import(&mut s, &bytes, json!({})).unwrap();
     adds_up(&again);
-    assert_eq!((again["added"].as_u64(), again["already"].as_u64()), (Some(0), Some(6)), "{again}");
+    assert_eq!((again["added"].as_u64(), again["already"].as_u64()), (Some(0), Some(7)), "{again}");
     assert_eq!(s.mailbox.messages.len(), count);
     assert_eq!(s.mailbox.folders.len(), folders, "the same folders are used again");
 }
@@ -395,7 +406,7 @@ fn a_dry_run_counts_and_changes_nothing() {
     let before = (s.mailbox.messages.len(), s.mailbox.folders.len());
     let answer = import(&mut s, &w::build(&mailbox_file()), json!({"dryRun": true})).unwrap();
     adds_up(&answer);
-    assert_eq!((answer["dryRun"].as_bool(), answer["added"].as_u64(), answer["later"].as_u64()), (Some(true), Some(6), Some(2)), "{answer}");
+    assert_eq!((answer["dryRun"].as_bool(), answer["added"].as_u64(), answer["later"].as_u64()), (Some(true), Some(7), Some(1)), "{answer}");
     assert_eq!((s.mailbox.messages.len(), s.mailbox.folders.len()), before);
     assert!(answer["report"].is_null());
 }
@@ -500,7 +511,7 @@ fn the_report_is_written_beside_the_mailbox() {
     let text = std::fs::read_to_string(path).unwrap();
     std::fs::remove_dir_all(&dir).ok();
     assert!(path.contains("old-mail import report"), "{path}");
-    assert!(text.contains("Found 8 items: 6 brought in, 0 already here, 0 left out, 2 not yet brought in."), "{text}");
+    assert!(text.contains("Found 8 items: 7 brought in, 0 already here, 0 left out, 1 not yet brought in."), "{text}");
     assert!(text.contains("Inbox/Projects: 1 / 1 / 0 / 0 / 0"), "{text}");
     assert!(text.contains("Search Root"), "{text}");
 }
@@ -541,7 +552,7 @@ fn a_staged_batch_and_the_report_come_in_through_the_command() {
     }
     s.staged_pst = Some(crate::import_pst::Staged::Done(Box::new(outcome)));
     let answer = s.run("file.importPst", &json!({"staged": true, "name": "old-mail"})).unwrap();
-    assert_eq!(answer["added"], 6);
+    assert_eq!(answer["added"], 7);
     assert_eq!(s.mailbox.messages.len(), 6);
     assert!(s.run("file.importPst", &json!({"staged": true})).is_err());
 }
@@ -781,9 +792,12 @@ fn the_report_never_writes_over_a_file() {
     params["dryRun"] = json!(false);
     let target = dir.join("target.txt");
     std::fs::write(&target, "the owner's").unwrap();
-    let name = std::path::Path::new(&first).file_name().unwrap().to_string_lossy().replace(".txt", " (2).txt");
+    // Only Unix makes the link: a symbolic link needs extra rights on Windows.
     #[cfg(unix)]
-    std::os::unix::fs::symlink(&target, dir.join(&name)).unwrap();
+    {
+        let name = std::path::Path::new(&first).file_name().unwrap().to_string_lossy().replace(".txt", " (2).txt");
+        std::os::unix::fs::symlink(&target, dir.join(&name)).unwrap();
+    }
     let second = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
     let third = s.run("file.importPst", &params).unwrap()["report"].as_str().unwrap().to_string();
     assert_ne!(first, second);
@@ -878,4 +892,895 @@ fn a_dry_run_reads_what_it_counts() {
     let dry = import(&mut s, &bytes, json!({"dryRun": true})).unwrap();
     let real = import(&mut s, &bytes, json!({})).unwrap();
     assert_eq!((dry["added"].clone(), dry["leftOut"].clone()), (real["added"].clone(), real["leftOut"].clone()));
+}
+
+// ---- contacts and distribution lists ----
+
+/// The named contact properties the writer is given, in the order of their ids (0x8000 on).
+const ADDRESS_LIDS: [u32; 23] = [
+    0x8005, 0x8082, 0x8083, 0x8084, 0x8092, 0x8093, 0x8094, 0x80A2, 0x80A3, 0x80A4, 0x802B, 0x8045, 0x8046, 0x8047, 0x8048, 0x8049, 0x80DE, 0x80DF,
+    0x8053, 0x8054, 0x8055, 0x8062, 0x8064,
+];
+
+/// The id the writer gives a named contact property.
+fn lid(l: u32) -> u16 {
+    0x8000 + ADDRESS_LIDS.iter().position(|x| *x == l).unwrap() as u16
+}
+
+fn contacts_file(folders: Vec<FolderSpec>) -> FileSpec {
+    let mut f = spec(unicode_layout(), folders);
+    f.named = ADDRESS_LIDS.iter().map(|l| (crate::import_pst::contact::PSETID_ADDRESS, *l)).collect();
+    f
+}
+
+/// The id of Keywords in a contacts file.
+const CONTACT_KEYWORDS: u16 = 0x8000 + ADDRESS_LIDS.len() as u16;
+
+fn multi_binary(items: &[Vec<u8>]) -> Value {
+    let mut table = (items.len() as u32).to_le_bytes().to_vec();
+    let mut data = Vec::new();
+    let base = 4 + 4 * items.len();
+    for i in items {
+        table.extend_from_slice(&((base + data.len()) as u32).to_le_bytes());
+        data.extend_from_slice(i);
+    }
+    table.extend(data);
+    Value { ty: 0x1102, bytes: table }
+}
+
+fn contact_item(name: &str, extra: Vec<(u16, Value)>) -> MessageSpec {
+    MessageSpec { class: "IPM.Contact".into(), subject: name.into(), body: String::new(), delivered: DELIVERED, extra, ..Default::default() }
+}
+
+/// A one-off entry id: a display name, an address type and an address.
+fn one_off(name: &str, kind: &str, address: &str, unicode: bool) -> Vec<u8> {
+    let mut e = vec![0u8; 4];
+    e.extend([0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD, 0x01, 0x0F, 0x54, 0x02]);
+    e.extend([0, 0]);
+    e.extend(if unicode { 0x8000u16 } else { 0 }.to_le_bytes());
+    for t in [name, kind, address] {
+        if unicode {
+            e.extend(t.encode_utf16().flat_map(u16::to_le_bytes));
+            e.extend([0, 0]);
+        } else {
+            e.extend(t.bytes());
+            e.push(0);
+        }
+    }
+    e
+}
+
+/// A FILETIME for midnight of a day.
+fn filetime_of(year: i32, month: u8, day: u8) -> u64 {
+    let ts = DateTime::new(Date::new(year, month, day).unwrap(), 0, 0, 0).unwrap().to_timestamp(0);
+    ((ts + 11_644_473_600) * 10_000_000) as u64
+}
+
+fn ada() -> MessageSpec {
+    contact_item(
+        "Ada Fernsby",
+        vec![
+            (0x3001, w::unicode("Ada Fernsby")),
+            (0x3A06, w::unicode("Ada")),
+            (0x3A44, w::unicode("Maud")),
+            (0x3A11, w::unicode("Fernsby")),
+            (0x3A4F, w::unicode("Addie")),
+            (0x3A16, w::unicode("Fernsby Gardens Ltd")),
+            (0x3A17, w::unicode("Head gardener")),
+            (0x3A18, w::unicode("Roses")),
+            (lid(0x8082), w::unicode("SMTP")),
+            (lid(0x8083), w::unicode("ada@example.org")),
+            (lid(0x8092), w::unicode("SMTP")),
+            (lid(0x8093), w::unicode("ada.home@example.org")),
+            (lid(0x80A2), w::unicode("SMTP")),
+            (lid(0x80A3), w::unicode("ADA@example.org")),
+            (0x3A08, w::unicode("+44 20 7946 0001")),
+            (0x3A09, w::unicode("+44 20 7946 0002")),
+            (0x3A1C, w::unicode("+44 7700 900003")),
+            (0x3A24, w::unicode("+44 20 7946 0004")),
+            (0x3A1B, multi_unicode(&["+44 20 7946 0005", "+44 20 7946 0006"])),
+            (lid(0x8045), w::unicode("1 Garden Row\r\nGate B")),
+            (lid(0x8046), w::unicode("Kew")),
+            (lid(0x8047), w::unicode("Surrey")),
+            (lid(0x8048), w::unicode("TW9 3AB")),
+            (lid(0x8049), w::unicode("United Kingdom")),
+            (0x3A5D, w::unicode("2 Hill Close")),
+            (0x3A59, w::unicode("Richmond")),
+            (0x3A5B, w::unicode("TW10 1AA")),
+            (0x3A63, w::unicode("3 Mill Lane")),
+            (0x3A5F, w::unicode("Ham")),
+            (lid(0x802B), w::unicode("https://fernsby.example.org")),
+            (0x3A50, w::unicode("https://ada.example.org")),
+            (lid(0x80DE), w::time(filetime_of(1960, 3, 5))),
+            (0x1000, w::unicode("Prefers morning calls.\r\nAllergic to lilies.")),
+            (CONTACT_KEYWORDS, multi_unicode(&["Garden", "Friends"])),
+            // What the model has no place for.
+            (0x3A19, w::unicode("Greenhouse 4")),
+            (lid(0x8062), w::unicode("ada@chat.example.org")),
+        ],
+    )
+}
+
+fn people_file(contacts: Vec<MessageSpec>) -> Vec<u8> {
+    w::build(&contacts_file(vec![folder("Contacts", "IPF.Contact", contacts, vec![])]))
+}
+
+fn texts(answer: &Json, key: &str, field: &str) -> Vec<String> {
+    answer[key].as_array().unwrap().iter().map(|n| n[field].as_str().unwrap().to_string()).collect()
+}
+
+#[test]
+fn a_contact_keeps_every_field_the_model_has() {
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![ada()]), json!({})).unwrap();
+    adds_up(&answer);
+    assert_eq!(
+        (answer["found"].clone(), answer["added"].clone(), answer["contacts"].clone(), answer["messages"].clone()),
+        (json!(1), json!(1), json!(1), json!(0))
+    );
+    assert_eq!(row(&answer, "Contacts")["added"], 1);
+    assert_eq!(answer["later"], 0);
+    let c = s.mailbox.contacts.values().next().unwrap().as_ref().clone();
+    assert_eq!((c.display_name.as_str(), c.first.as_str(), c.middle.as_str(), c.last.as_str()), ("Ada Fernsby", "Ada", "Maud", "Fernsby"));
+    assert_eq!(
+        (c.nickname.as_str(), c.company.as_str(), c.title.as_str(), c.department.as_str()),
+        ("Addie", "Fernsby Gardens Ltd", "Head gardener", "Roses")
+    );
+    // The third address is the first again, in capitals: once.
+    let emails: Vec<&str> = c.emails.iter().map(|e| e.value.as_str()).collect();
+    assert_eq!(emails, ["ada@example.org", "ada.home@example.org"]);
+    let phones: Vec<(&str, &str)> = c.phones.iter().map(|p| (p.label.as_str(), p.value.as_str())).collect();
+    assert_eq!(
+        phones,
+        [
+            ("work", "+44 20 7946 0001"),
+            ("work", "+44 20 7946 0005"),
+            ("work", "+44 20 7946 0006"),
+            ("home", "+44 20 7946 0002"),
+            ("mobile", "+44 7700 900003"),
+            ("work fax", "+44 20 7946 0004"),
+        ]
+    );
+    assert_eq!(c.addresses.len(), 3);
+    let work = &c.addresses[0];
+    assert_eq!(
+        (work.label.as_str(), work.street.as_str(), work.city.as_str(), work.region.as_str(), work.postal_code.as_str(), work.country.as_str()),
+        ("work", "1 Garden Row, Gate B", "Kew", "Surrey", "TW9 3AB", "United Kingdom")
+    );
+    assert_eq!((c.addresses[1].label.as_str(), c.addresses[1].street.as_str(), c.addresses[1].city.as_str()), ("home", "2 Hill Close", "Richmond"));
+    assert_eq!((c.addresses[2].label.as_str(), c.addresses[2].street.as_str()), ("other", "3 Mill Lane"));
+    assert_eq!(c.websites, ["https://fernsby.example.org", "https://ada.example.org"]);
+    // (Before 1970 too.)
+    assert_eq!(c.birthday, Date::new(1960, 3, 5));
+    assert_eq!(c.notes, "Prefers morning calls.\nAllergic to lilies.");
+    // The categories it had, and the mark that it was imported, and from what.
+    assert_eq!(c.categories, ["Garden", "Friends"]);
+    assert_eq!(c.imported_from, "old-mail.pst");
+    assert!(c.origin.is_local() && c.uid.is_empty());
+    assert!(!c.imported.is_empty());
+    // What there is no place for is named; the contact is in all the same.
+    let why = texts(&answer, "notes", "why").join("|");
+    assert!(why.contains("office") && why.contains("instant messaging address"), "{why}");
+    // The private key is in nothing that is shown or exported.
+    let shown = s.run("people.get", &json!({"id": c.id})).unwrap().to_string();
+    assert!(!shown.contains(&c.imported));
+    assert!(!mailcraft_vcard::write(&[&c]).contains(&c.imported));
+}
+
+#[test]
+fn imported_contacts_are_marked_found_and_keep_the_mark() {
+    let mut s = session();
+    let own = s.mailbox.add_contact(mailcraft_model::Contact { first: "Hal".into(), ..Default::default() });
+    import(&mut s, &people_file(vec![ada(), contact_item("Eli", vec![(0x3001, w::unicode("Eli Marsh"))])]), json!({})).unwrap();
+    let ids: Vec<u64> = s.mailbox.contacts.values().filter(|c| !c.imported_from.is_empty()).map(|c| c.id).collect();
+    assert_eq!(ids.len(), 2);
+    // Shown by the commands, found by a search, never set by params.
+    let got = s.run("people.get", &json!({"id": ids[0]})).unwrap();
+    assert_eq!(got["importedFrom"], "old-mail.pst");
+    assert_eq!(s.run("people.get", &json!({"id": own})).unwrap()["importedFrom"], "");
+    let found = s.run("people.search", &json!({"query": "is:imported"})).unwrap();
+    assert_eq!(found["found"], 2);
+    assert!(s.mailbox.contact(own).is_some_and(|c| !c.matches("is:imported")));
+    s.run("people.edit", &json!({"id": own, "importedFrom": "forged.pst", "imported": "x:1"})).unwrap();
+    s.run("people.new", &json!({"first": "Zed", "importedFrom": "forged.pst"})).unwrap();
+    assert!(s.mailbox.contacts.values().filter(|c| c.imported_from == "forged.pst").count() == 0);
+    // An edit and a merge keep it; a merge with an own contact too.
+    s.run("people.edit", &json!({"id": ids[1], "title": "Checked"})).unwrap();
+    assert_eq!(s.mailbox.contact(ids[1]).unwrap().imported_from, "old-mail.pst");
+    s.run("people.merge", &json!({"keep": own, "others": [ids[0]]})).unwrap();
+    assert_eq!(s.mailbox.contact(own).unwrap().imported_from, "old-mail.pst");
+    // Not written to a vCard.
+    assert!(!mailcraft_vcard::write(&[s.mailbox.contact(own).unwrap()]).contains("old-mail"));
+    // No place for contacts to choose: they all go to the one list.
+    let answer = import(&mut session(), &people_file(vec![ada()]), json!({"places": {"contacts": "elsewhere"}})).unwrap();
+    assert_eq!(answer["contacts"], 1);
+}
+
+#[test]
+fn an_exchange_address_with_no_internet_address_is_named_and_left_out() {
+    let c = contact_item(
+        "Bram Okonjo",
+        vec![
+            (0x3001, w::unicode("Bram Okonjo")),
+            (lid(0x8082), w::unicode("EX")),
+            (lid(0x8083), w::unicode("/O=EXAMPLE/OU=FIRST/CN=RECIPIENTS/CN=BRAM")),
+            (lid(0x8092), w::unicode("EX")),
+            (lid(0x8093), w::unicode("/O=EXAMPLE/CN=BRAM2")),
+            (lid(0x8094), w::unicode("bram@example.org")),
+        ],
+    );
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![c]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.emails.iter().map(|e| e.value.as_str()).collect::<Vec<_>>(), ["bram@example.org"]);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("Exchange")), "{why:?}");
+}
+
+#[test]
+fn a_distribution_list_becomes_a_contact_listing_its_members() {
+    let members = vec![
+        one_off("Cleo Varga", "SMTP", "cleo@example.org", true),
+        one_off("Dee Halloran", "SMTP", "dee@example.org", false),
+        one_off("Cleo again", "SMTP", "CLEO@example.org", true),
+        one_off("Somebody", "EX", "/O=EXAMPLE/CN=SOME", true),
+        vec![1, 2, 3],
+    ];
+    let list = MessageSpec {
+        class: "IPM.DistList".into(),
+        subject: "Garden committee".into(),
+        extra: vec![
+            (0x3001, w::unicode("Garden committee")),
+            (lid(0x8053), w::unicode("Garden committee")),
+            (lid(0x8054), multi_binary(&members)),
+            (lid(0x8055), multi_binary(&members)),
+        ],
+        ..Default::default()
+    };
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![list, ada()]), json!({})).unwrap();
+    adds_up(&answer);
+    assert_eq!(
+        (answer["added"].clone(), answer["contacts"].clone(), answer["lists"].clone(), answer["later"].clone()),
+        (json!(2), json!(1), json!(1), json!(0))
+    );
+    let c = s.mailbox.contacts.values().find(|c| c.display_name == "Garden committee").unwrap();
+    assert_eq!(c.notes, "Members:\nCleo Varga <cleo@example.org>\nDee Halloran <dee@example.org>");
+    assert!(c.emails.is_empty());
+    let notes: Vec<(String, String)> = texts(&answer, "notes", "what").into_iter().zip(texts(&answer, "notes", "why")).collect();
+    assert!(
+        notes.iter().any(|(what, why)| what.contains("Garden committee") && why.contains("kept as a contact listing its members (2)")),
+        "{notes:?}"
+    );
+    assert!(notes.iter().any(|(_, why)| why.contains("2 member(s) of the list name no internet address")), "{notes:?}");
+}
+
+#[test]
+fn importing_contacts_again_adds_nothing() {
+    let bytes = people_file(vec![ada(), contact_item("Eli Marsh", vec![(0x3001, w::unicode("Eli Marsh"))])]);
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 2);
+    // The owner changed one; it is still known by where it came from.
+    let id = *s.mailbox.contacts.keys().next().unwrap();
+    s.mailbox.contact_mut(id).unwrap().first = "Changed".into();
+    let again = import(&mut s, &bytes, json!({})).unwrap();
+    adds_up(&again);
+    assert_eq!((again["added"].clone(), again["already"].clone(), again["contacts"].clone()), (json!(0), json!(2), json!(0)));
+    assert_eq!(s.mailbox.contacts.len(), 2);
+    // Saved and opened again, the key is still there.
+    let saved = serde_json::to_string(&*s.mailbox.contacts[&id]).unwrap();
+    let back: mailcraft_model::Contact = serde_json::from_str(&saved).unwrap();
+    assert_eq!(back.imported, s.mailbox.contacts[&id].imported);
+}
+
+#[test]
+fn a_dry_run_counts_contacts_and_adds_none() {
+    let bytes = people_file(vec![ada(), contact_item("Eli Marsh", vec![])]);
+    let mut s = session();
+    let dry = import(&mut s, &bytes, json!({"dryRun": true})).unwrap();
+    assert!(s.mailbox.contacts.is_empty());
+    assert_eq!((dry["added"].clone(), dry["contacts"].clone()), (json!(2), json!(2)));
+    let real = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((real["added"].clone(), real["contacts"].clone()), (json!(2), json!(2)));
+}
+
+#[test]
+fn subclasses_and_contacts_among_mail_come_in_and_the_rest_is_still_counted() {
+    let mut sub = contact_item("Fay Quinn", vec![(0x3001, w::unicode("Fay Quinn"))]);
+    sub.class = "IPM.Contact.Customer".into();
+    let mut task = note("Water the ferns");
+    task.class = "IPM.Task".into();
+    let bytes = w::build(&contacts_file(vec![
+        folder("Inbox", "IPF.Note", vec![note("Hello"), contact_item("Gus Lane", vec![(0x3001, w::unicode("Gus Lane"))])], vec![]),
+        folder("Contacts", "IPF.Contact", vec![sub, task], vec![]),
+    ]));
+    let mut s = session();
+    let answer = import(&mut s, &bytes, json!({})).unwrap();
+    adds_up(&answer);
+    assert_eq!(
+        (answer["found"].clone(), answer["added"].clone(), answer["contacts"].clone(), answer["later"].clone()),
+        (json!(4), json!(3), json!(2), json!(1))
+    );
+    assert_eq!(answer["leftOut"], 0);
+    assert_eq!(s.mailbox.contacts.len(), 2);
+    assert_eq!(answer["laterKinds"][0]["kind"], "task");
+}
+
+#[test]
+fn hostile_contacts_are_cut_and_capped() {
+    let many: Vec<String> = (0..500).map(|i| format!("+44 20 7946 {i:04}")).collect();
+    let many: Vec<&str> = many.iter().map(String::as_str).collect();
+    let categories: Vec<String> = (0..300).map(|i| format!("c{i}")).collect();
+    let categories: Vec<&str> = categories.iter().map(String::as_str).collect();
+    let members: Vec<Vec<u8>> = (0..1200).map(|i| one_off(&format!("Member {i}"), "SMTP", &format!("m{i}@example.org"), true)).collect();
+    let list = MessageSpec {
+        class: "IPM.DistList".into(),
+        extra: vec![(0x3001, w::unicode("Everyone")), (lid(0x8054), multi_binary(&members)), (lid(0x8055), multi_binary(&members))],
+        ..Default::default()
+    };
+    let big = contact_item(
+        "Hugo",
+        vec![
+            (0x3001, w::unicode(&format!("Hugo\u{7}\n{}", "é".repeat(10_000)))),
+            (0x3A1B, multi_unicode(&many)),
+            (0x1000, w::unicode(&"n".repeat(2 << 20))),
+            (CONTACT_KEYWORDS, multi_unicode(&categories)),
+            (lid(0x802B), w::unicode(&"w".repeat(50_000))),
+            (lid(0x80DE), w::time(u64::MAX)),
+        ],
+    );
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![big, list]), json!({})).unwrap();
+    adds_up(&answer);
+    let h = s.mailbox.contacts.values().find(|c| c.display_name.starts_with("Hugo")).unwrap();
+    assert!(h.display_name.chars().count() <= 4096 && !h.display_name.contains(['\u{7}', '\n']));
+    assert_eq!(h.phones.len(), 100);
+    assert!(h.notes.len() <= 1 << 20);
+    assert!(h.categories.len() <= 101);
+    assert!(h.websites[0].chars().count() <= 4096);
+    assert_eq!(h.birthday, None);
+    let all = s.mailbox.contacts.values().find(|c| c.display_name == "Everyone").unwrap();
+    assert_eq!(all.notes.lines().count(), 1 + crate::import_pst::contact::MAX_MEMBERS);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("past the limit")), "{why:?}");
+}
+
+#[test]
+fn undoing_an_import_keeps_the_contacts_the_owner_made_meanwhile() {
+    let names = ["Ida", "Jon", "Kim", "Lou", "Mae", "Ned", "Ora"];
+    let bytes = people_file(names.iter().map(|n| contact_item(n, vec![(0x3001, w::unicode(n))])).collect());
+    let mut s = session();
+    let before = s.mailbox.add_contact(mailcraft_model::Contact { first: "Hal".into(), last: "Ortiz".into(), ..Default::default() });
+    let (batches, outcome) = staged(&bytes);
+    assert!(batches.len() >= 2, "{}", batches.len());
+    let params = json!({"staged": true, "name": "old-mail"});
+    let mut later = None;
+    for (i, b) in batches.into_iter().enumerate() {
+        hand_over(&mut s, crate::import_pst::Staged::Batch(b), &params).unwrap();
+        if i == 0 {
+            later = Some(s.mailbox.add_contact(mailcraft_model::Contact { first: "Pia".into(), ..Default::default() }));
+        }
+    }
+    hand_over(&mut s, crate::import_pst::Staged::Done(Box::new(outcome)), &params).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 9);
+    assert_eq!(s.undo_label(), Some("Import a .pst File"));
+    s.run("edit.undo", &json!({})).unwrap();
+    let left: Vec<mailcraft_model::Id> = s.mailbox.contacts.keys().copied().collect();
+    assert_eq!(left.len(), 2, "{left:?}");
+    assert!(s.mailbox.contact(before).is_some() && s.mailbox.contact(later.unwrap()).is_some());
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 9);
+
+    // One command: one step, and undo takes the contacts out.
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 7);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.contacts.is_empty());
+}
+
+#[test]
+fn cancelling_keeps_the_contacts_in_and_another_run_brings_the_rest() {
+    let names = ["Ida", "Jon", "Kim", "Lou", "Mae", "Ned", "Ora"];
+    let bytes = people_file(names.iter().map(|n| contact_item(n, vec![(0x3001, w::unicode(n))])).collect());
+    let mut s = session();
+    let progress = Progress::default();
+    let place = Place::New("old-mail".into());
+    let mut seen = 0;
+    let outcome = read(Cursor::new(&bytes), &job(false), Limits::default(), &progress, &mut |b: Batch| {
+        seen += b.contacts.len();
+        apply(&mut s, &place, b)?;
+        progress.cancel();
+        Ok(())
+    })
+    .unwrap();
+    assert!(outcome.report.cancelled);
+    finish(&mut s, &place, outcome, false).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), seen);
+    assert!(seen > 0 && seen < 7, "{seen}");
+    let again = import(&mut s, &bytes, json!({})).unwrap();
+    adds_up(&again);
+    assert_eq!(again["already"], seen);
+    assert_eq!(s.mailbox.contacts.len(), 7);
+}
+
+#[test]
+fn junk_in_the_contact_properties_never_panics() {
+    // Numbers where strings go, binary where times go, a string where a list goes.
+    let junk = contact_item(
+        "Junk",
+        vec![
+            (0x3001, w::int32(5)),
+            (0x3A06, w::binary(&[0xFF, 0xFE, 0x00])),
+            (0x3A42, w::unicode("not a time")),
+            (lid(0x80DE), w::int32(-1)),
+            (lid(0x8083), w::binary(b"\x00\x01")),
+            (lid(0x8054), w::unicode("not a list")),
+            (0x1000, w::boolean(true)),
+            (0x3A1B, w::int32(1)),
+        ],
+    );
+    let mut list = junk.clone();
+    list.class = "IPM.DistList".into();
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![junk, list]), json!({})).unwrap();
+    adds_up(&answer);
+    assert_eq!(answer["added"], 2);
+}
+
+// ---- review fixes ----
+
+fn list_item(name: &str, members: &[Vec<u8>]) -> MessageSpec {
+    MessageSpec {
+        class: "IPM.DistList".into(),
+        subject: name.into(),
+        extra: vec![(0x3001, w::unicode(name)), (lid(0x8054), multi_binary(members)), (lid(0x8055), multi_binary(members))],
+        ..Default::default()
+    }
+}
+
+/// Undoing a later step must not bring back contacts an import put in and a later step's
+/// snapshot still holds.
+#[test]
+fn undoing_a_later_step_does_not_bring_back_the_imported_contacts() {
+    let names = ["Ida", "Jon", "Kim", "Lou", "Mae", "Ned", "Ora"];
+    let bytes = people_file(names.iter().map(|n| contact_item(n, vec![(0x3001, w::unicode(n))])).collect());
+    let mut s = session();
+    let (batches, outcome) = staged(&bytes);
+    assert!(batches.len() >= 2);
+    let params = json!({"staged": true, "name": "old-mail"});
+    for (i, b) in batches.into_iter().enumerate() {
+        hand_over(&mut s, crate::import_pst::Staged::Batch(b), &params).unwrap();
+        if i == 0 {
+            // The owner's own step, while the import runs: its snapshot holds the first batch.
+            s.run("people.new", &json!({"first": "Pia"})).unwrap();
+        }
+    }
+    hand_over(&mut s, crate::import_pst::Staged::Done(Box::new(outcome)), &params).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 8);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 1);
+    s.run("edit.undo", &json!({})).unwrap();
+    let imported = s.mailbox.contacts.values().filter(|c| !c.imported.is_empty()).count();
+    assert_eq!(imported, 0, "the import is undone, and stays so");
+    assert!(s.mailbox.contacts.is_empty());
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 1);
+}
+
+#[test]
+fn a_lists_notes_fit_a_vcard_line_and_the_cut_is_named() {
+    let commas = ",".repeat(800);
+    let members: Vec<Vec<u8>> = (0..1000).map(|i| one_off(&format!("{commas}{i}"), "SMTP", &format!("m{i}@example.org"), true)).collect();
+    let mut list = list_item("Big", &members);
+    list.extra.push((0x1000, w::unicode(&"\nx".repeat(450_000))));
+    let plain = contact_item("Plain", vec![(0x3001, w::unicode("Plain")), (0x1000, w::unicode(&"\nx".repeat(1 << 19)))]);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![list, plain]), json!({})).unwrap();
+    adds_up(&answer);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("notes") && w.contains("cut")), "{why:?}");
+    assert!(why.iter().any(|w| w.contains("past the limit")), "{why:?}");
+    for c in s.mailbox.contacts.values() {
+        assert!(crate::cmd::people_merge::notes_line(&c.notes) <= crate::cmd::people_merge::MAX_NOTES, "{}", c.display_name);
+        // Exported and read back, nothing is lost.
+        let back = mailcraft_vcard::parse_bytes(mailcraft_vcard::write(&[c.as_ref()]).as_bytes());
+        assert_eq!(back[0].notes, c.notes, "{}", c.display_name);
+    }
+}
+
+#[test]
+fn a_list_kept_in_a_stream_is_named_not_silently_empty() {
+    let list = MessageSpec {
+        class: "IPM.DistList".into(),
+        extra: vec![(0x3001, w::unicode("Streamed")), (lid(0x8064), w::binary(&[1, 2, 3, 4]))],
+        ..Default::default()
+    };
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![list]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert!(c.notes.contains("kept in a form this version doesn't read"), "{}", c.notes);
+    assert!(texts(&answer, "notes", "why").iter().any(|w| w.contains("stream")));
+}
+
+#[test]
+fn deleted_contacts_are_left_out_in_one_line_and_every_other_folders_come_in() {
+    let c = |n: &str| contact_item(n, vec![(0x3001, w::unicode(n))]);
+    let classless = FolderSpec { name: "Loose".into(), class: None, messages: vec![c("Loose one")], children: vec![] };
+    let bytes = w::build(&contacts_file(vec![
+        folder("Contacts", "IPF.Contact", vec![c("Kept")], vec![]),
+        folder(
+            "Deleted Items",
+            "IPF.Note",
+            vec![c("Binned"), c("Binned 2"), c("Binned 3")],
+            vec![folder("Old", "IPF.Contact", vec![c("Binned too")], vec![])],
+        ),
+        folder("Recipient Cache", "hidden:IPF.Contact", vec![c("Cached")], vec![]),
+        folder("Suggested", "IPF.Contact.RecipientCache", vec![c("Suggested one")], vec![]),
+        folder("Inbox", "IPF.Note", vec![c("Among mail")], vec![]),
+        classless,
+    ]));
+    let mut s = session();
+    let answer = import(&mut s, &bytes, json!({})).unwrap();
+    adds_up(&answer);
+    let mut names: Vec<String> = s.mailbox.contacts.values().map(|c| c.display_name.clone()).collect();
+    names.sort();
+    assert_eq!(names, ["Among mail", "Cached", "Kept", "Loose one", "Suggested one"]);
+    assert!(s.mailbox.contacts.values().all(|c| c.imported_from == "old-mail.pst"));
+    assert_eq!((answer["found"].clone(), answer["added"].clone(), answer["leftOut"].clone()), (json!(9), json!(5), json!(4)));
+    // One line for each folder in Deleted Items, not one for each contact.
+    let left = texts(&answer, "leftOutItems", "what");
+    assert_eq!(left.len(), 2, "{left:?}");
+    assert!(left.iter().any(|w| w.ends_with("lists (3)")) && left.iter().any(|w| w.ends_with("lists (1)")), "{left:?}");
+    assert!(texts(&answer, "leftOutItems", "why").iter().all(|w| w == "in Deleted Items, left out"));
+    // The report names the automatic and the hidden folders the contacts came from.
+    let folders = texts(&answer, "notes", "folder");
+    assert!(folders.iter().any(|f| f == "Recipient Cache") && folders.iter().any(|f| f == "Suggested"), "{folders:?}");
+    // Mail in Deleted Items is still mail.
+    let mut mail = folder("Deleted Items", "IPF.Note", vec![note("Old news")], vec![]);
+    mail.messages.push(c("Binned"));
+    let bytes = w::build(&contacts_file(vec![mail]));
+    let mut s = session();
+    let answer = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((answer["messages"].clone(), answer["contacts"].clone()), (json!(1), json!(0)));
+}
+
+#[test]
+fn a_file_of_contacts_alone_makes_no_mail_folder() {
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![ada()]), json!({})).unwrap();
+    assert!(folder_id(&s, &["old-mail"]).is_none());
+    assert!(answer["folder"].is_null() && answer["name"] == "");
+    assert_eq!(s.view.module, crate::Module::People);
+    assert!(s.mailbox.folders.iter().all(|f| f.name != "old-mail"));
+    // The same through batches.
+    let mut s = session();
+    let (batches, outcome) = staged(&people_file(vec![ada()]));
+    let params = json!({"staged": true, "name": "old-mail"});
+    for b in batches {
+        hand_over(&mut s, crate::import_pst::Staged::Batch(b), &params).unwrap();
+    }
+    hand_over(&mut s, crate::import_pst::Staged::Done(Box::new(outcome)), &params).unwrap();
+    assert!(folder_id(&s, &["old-mail"]).is_none());
+    assert_eq!(s.mailbox.contacts.len(), 1);
+    // With mail, the folder is made.
+    let bytes =
+        w::build(&contacts_file(vec![folder("Inbox", "IPF.Note", vec![note("Hi")], vec![]), folder("Contacts", "IPF.Contact", vec![ada()], vec![])]));
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    assert!(folder_id(&s, &["old-mail", "Inbox"]).is_some());
+}
+
+#[test]
+fn a_merged_away_contact_is_not_brought_back_by_importing_again() {
+    let bytes =
+        people_file(vec![contact_item("Eli", vec![(0x3001, w::unicode("Eli Marsh"))]), contact_item("Eli", vec![(0x3001, w::unicode("Eli Marsh"))])]);
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    let ids: Vec<u64> = s.mailbox.contacts.keys().copied().collect();
+    s.run("people.merge", &json!({"keep": ids[0], "others": [ids[1]]})).unwrap();
+    assert_eq!(s.mailbox.contacts.len(), 1);
+    let again = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((again["added"].clone(), again["already"].clone()), (json!(0), json!(2)));
+    assert_eq!(s.mailbox.contacts.len(), 1);
+}
+
+#[test]
+fn contacts_get_names_and_addresses_must_have_two_sides() {
+    let nameless = contact_item("", vec![(0x3A08, w::unicode("+44 20 7946 0100"))]);
+    let empty = contact_item("", vec![]);
+    let odd = contact_item(
+        "Odd",
+        vec![
+            (0x3001, w::unicode("Odd")),
+            (lid(0x8082), w::unicode("SMTP")),
+            (lid(0x8083), w::unicode("x@")),
+            (CONTACT_KEYWORDS, multi_unicode(&["Garden", "GARDEN", "garden"])),
+        ],
+    );
+    let list =
+        list_item("Odd list", &[one_off("X", "SMTP", "x@", true), one_off("Y", "SMTP", "@y", true), one_off("Z", "SMTP", "z@example.org", true)]);
+    let mut s = session();
+    import(&mut s, &people_file(vec![nameless, empty, odd, list]), json!({"places": {"contacts": "here"}})).unwrap();
+    assert!(s.mailbox.contacts.values().all(|c| !c.name().is_empty()));
+    let by = |n: &str| s.mailbox.contacts.values().find(|c| c.name() == n).unwrap();
+    assert_eq!(by("+44 20 7946 0100").display_name, "+44 20 7946 0100");
+    assert!(s.mailbox.contacts.values().any(|c| c.display_name == "(no name)"));
+    let odd = by("Odd");
+    assert!(odd.emails.is_empty());
+    assert_eq!(odd.categories, ["Garden"]);
+    assert_eq!(by("Odd list").notes, "Members:\nZ <z@example.org>");
+    // The nameless ones can be edited.
+    for id in s.mailbox.contacts.keys().copied().collect::<Vec<_>>() {
+        s.run("people.edit", &json!({"id": id, "title": "Checked"})).unwrap();
+    }
+}
+
+#[test]
+fn a_dry_run_reads_each_contact_so_its_notes_show() {
+    let mut s = session();
+    let dry = import(&mut s, &people_file(vec![ada()]), json!({"dryRun": true})).unwrap();
+    assert!(s.mailbox.contacts.is_empty());
+    assert!(texts(&dry, "notes", "why").iter().any(|w| w.contains("office")), "{dry}");
+}
+
+#[test]
+fn a_contacts_only_file_makes_no_mail_folder_however_often_or_empty_it_is() {
+    // Outlook's own shape: Contacts, an empty Inbox and an empty Deleted Items.
+    let bytes = w::build(&contacts_file(vec![
+        folder("Contacts", "IPF.Contact", vec![ada()], vec![]),
+        folder("Inbox", "IPF.Note", vec![], vec![]),
+        folder("Deleted Items", "IPF.Note", vec![], vec![]),
+    ]));
+    let mut s = session();
+    let answer = import(&mut s, &bytes, json!({})).unwrap();
+    assert!(folder_id(&s, &["old-mail"]).is_none());
+    assert!(s.mailbox.folders.iter().all(|f| f.name != "old-mail"));
+    assert!(answer["folder"].is_null() && answer["name"] == "");
+    // Again: the contacts are already here, and still no folder, still People.
+    s.view.module = crate::Module::Mail;
+    let again = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!((again["added"].clone(), again["already"].clone()), (json!(0), json!(1)));
+    assert!(folder_id(&s, &["old-mail"]).is_none());
+    assert!(again["folder"].is_null());
+    assert_eq!(s.view.module, crate::Module::People);
+    // With one message, the empty folders come too.
+    let bytes = w::build(&contacts_file(vec![
+        folder("Contacts", "IPF.Contact", vec![ada()], vec![]),
+        folder("Inbox", "IPF.Note", vec![note("Hi")], vec![]),
+        folder("Empty", "IPF.Note", vec![], vec![]),
+    ]));
+    let mut s = session();
+    import(&mut s, &bytes, json!({})).unwrap();
+    assert!(folder_id(&s, &["old-mail", "Empty"]).is_some());
+}
+
+#[test]
+fn a_list_with_no_members_keeps_all_the_room_for_its_notes() {
+    let body = "n".repeat(700_000);
+    let empty = MessageSpec {
+        class: "IPM.DistList".into(),
+        extra: vec![(0x3001, w::unicode("Empty list")), (0x1000, w::unicode(&body))],
+        ..Default::default()
+    };
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![empty]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert_eq!(c.notes.len(), 700_000);
+    assert!(!texts(&answer, "notes", "why").iter().any(|w| w.contains("are cut")));
+}
+
+#[test]
+fn a_list_with_some_members_in_the_stream_says_so() {
+    let list = MessageSpec {
+        class: "IPM.DistList".into(),
+        extra: vec![
+            (0x3001, w::unicode("Partial")),
+            (lid(0x8054), multi_binary(&[one_off("A", "SMTP", "a@example.org", true)])),
+            (lid(0x8055), multi_binary(&[one_off("A", "SMTP", "a@example.org", true)])),
+            (lid(0x8064), w::binary(&[1, 2, 3, 4])),
+        ],
+        ..Default::default()
+    };
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![list]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert!(c.notes.contains("a@example.org") && c.notes.contains("Some members are kept in a form"), "{}", c.notes);
+    assert!(texts(&answer, "notes", "why").iter().any(|w| w.starts_with("some members")));
+}
+
+#[test]
+fn undo_does_not_warn_about_contacts_it_would_leave_alone() {
+    let names = ["Ida", "Jon", "Kim", "Lou", "Mae", "Ned", "Ora"];
+    let bytes = people_file(names.iter().map(|n| contact_item(n, vec![(0x3001, w::unicode(n))])).collect());
+    let mut s = session();
+    let (batches, _outcome) = staged(&bytes);
+    let params = json!({"staged": true, "name": "old-mail"});
+    let mut made = None;
+    for (i, b) in batches.into_iter().enumerate() {
+        hand_over(&mut s, crate::import_pst::Staged::Batch(b), &params).unwrap();
+        if i == 0 {
+            s.run("people.new", &json!({"first": "Pia"})).unwrap();
+            made = s.mailbox.contacts.values().find(|c| c.first == "Pia").map(|c| c.id);
+        }
+    }
+    // The last step is the owner's New Contact: it takes Pia away and nothing else.
+    let later = s.mailbox.contacts.values().filter(|c| !c.imported.is_empty()).map(|c| c.id).max().unwrap();
+    assert!(s.undo_removes(false, made.unwrap()));
+    assert!(!s.undo_removes(false, later));
+}
+
+#[test]
+fn the_file_a_contact_came_from_is_not_free_text_but_is_imported_finds_it() {
+    let mut s = session();
+    let own = s.mailbox.add_contact(mailcraft_model::Contact {
+        first: "Martin".into(),
+        emails: vec![mailcraft_model::Labeled::new("work", "martin@example.org")],
+        ..Default::default()
+    });
+    let bytes = people_file(vec![contact_item(
+        "Sam Smith",
+        vec![(0x3001, w::unicode("Sam Smith")), (lid(0x8082), w::unicode("SMTP")), (lid(0x8083), w::unicode("sam@example.org"))],
+    )]);
+    let mut params = json!({"name": "martin@example.org.pst", "data": base64_encode(&bytes)});
+    params["places"] = json!({});
+    s.run("file.importPst", &params).unwrap();
+    let imported = s.mailbox.contacts.values().find(|c| !c.imported_from.is_empty()).unwrap().id;
+    assert_eq!(s.mailbox.contact(imported).unwrap().imported_from, "martin@example.org.pst");
+    // Searching for the owner's name finds the owner's contact alone.
+    let found: Vec<u64> = s.mailbox.contacts.values().filter(|c| c.matches("martin")).map(|c| c.id).collect();
+    assert_eq!(found, [own]);
+    // Check Names still resolves "Martin" to the owner's contact.
+    s.run("mail.new", &json!({"to": "Martin", "subject": "Hello"})).unwrap();
+    assert_eq!(s.run("compose.checkNames", &json!({})).unwrap()["unresolved"], json!([]));
+    assert_eq!(s.compose.as_ref().unwrap().to, "Martin <martin@example.org>");
+    // `is:imported` finds the imported ones, alone or with other words.
+    let hits = |q: &str| s.mailbox.contacts.values().filter(|c| c.matches(q)).count();
+    assert_eq!((hits("is:imported"), hits("IS:IMPORTED smith"), hits("is:imported nobody"), hits("is:importedx")), (1, 1, 0, 0));
+    // The term many times over is read in a loop: no stack is used up.
+    let long = "is:imported ".repeat(200_000);
+    assert_eq!(hits(&long), 1);
+}
+
+#[test]
+fn a_dry_run_of_mail_and_contacts_answers_as_the_real_one() {
+    let bytes =
+        w::build(&contacts_file(vec![folder("Inbox", "IPF.Note", vec![note("Hi")], vec![]), folder("Contacts", "IPF.Contact", vec![ada()], vec![])]));
+    let mut s = session();
+    let dry = import(&mut s, &bytes, json!({"dryRun": true})).unwrap();
+    let real = import(&mut s, &bytes, json!({})).unwrap();
+    assert_eq!(dry["name"], real["name"]);
+    assert_eq!(real["name"], "old-mail");
+}
+
+#[test]
+fn cancelling_while_in_the_contacts_folder_still_makes_the_mail_folders() {
+    let names = ["Ida", "Jon", "Kim", "Lou", "Mae", "Ned", "Ora"];
+    let bytes = w::build(&contacts_file(vec![
+        folder("Contacts", "IPF.Contact", names.iter().map(|n| contact_item(n, vec![(0x3001, w::unicode(n))])).collect(), vec![]),
+        folder("Inbox", "IPF.Note", vec![note("Hi")], vec![]),
+    ]));
+    let mut s = session();
+    let progress = Progress::default();
+    let place = Place::New("old-mail".into());
+    let outcome = read(Cursor::new(&bytes), &job(false), Limits::default(), &progress, &mut |b: Batch| {
+        apply(&mut s, &place, b)?;
+        progress.cancel();
+        Ok(())
+    })
+    .unwrap();
+    assert!(outcome.report.cancelled);
+    let answer = finish(&mut s, &place, outcome, false).unwrap();
+    assert_eq!(answer["name"], "old-mail");
+    assert!(folder_id(&s, &["old-mail"]).is_some());
+}
+
+/// [MS-OXRTFCP] 3.1.1: compressed RTF for `{\rtf1\ansi\ansicpg1252\pard hello world}`.
+const COMPRESSED_HELLO: [u8; 49] = [
+    0x2d, 0x00, 0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x4c, 0x5a, 0x46, 0x75, 0xf1, 0xc5, 0xc7, 0xa7, 0x03, 0x00, 0x0a, 0x00, 0x72, 0x63, 0x70, 0x67,
+    0x31, 0x32, 0x35, 0x42, 0x32, 0x0a, 0xf3, 0x20, 0x68, 0x65, 0x6c, 0x09, 0x00, 0x20, 0x62, 0x77, 0x05, 0xb0, 0x6c, 0x64, 0x7d, 0x0a, 0x80, 0x0f,
+    0xa0,
+];
+
+/// Rich text kept uncompressed (`MELA`).
+fn uncompressed_rtf(rtf: &str) -> Vec<u8> {
+    let mut v = ((rtf.len() + 12) as u32).to_le_bytes().to_vec();
+    v.extend((rtf.len() as u32).to_le_bytes());
+    v.extend(b"MELA");
+    v.extend([0u8; 4]);
+    v.extend(rtf.bytes());
+    v
+}
+
+#[test]
+fn notes_kept_only_as_rich_text_come_across() {
+    // Outlook writes a contact's notes as PidTagRtfCompressed alone: no PidTagBody.
+    let rtf = |name: &str, bytes: Vec<u8>| contact_item(name, vec![(0x3001, w::unicode(name)), (0x1009, w::binary(&bytes))]);
+    let contacts = vec![
+        rtf("Compressed Cora", COMPRESSED_HELLO.to_vec()),
+        rtf("Plain Pia", uncompressed_rtf("{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}\\pard Call after 5\\par Caf\\'e9 \\u8364?\\par}")),
+        rtf("Broken Bea", COMPRESSED_HELLO[..30].to_vec()),
+        // Plain text wins when there is some.
+        contact_item("Both Bo", vec![(0x3001, w::unicode("Both Bo")), (0x1000, w::unicode("The text")), (0x1009, w::binary(&COMPRESSED_HELLO))]),
+    ];
+    let mut s = session();
+    let answer = import(&mut s, &people_file(contacts), json!({})).unwrap();
+    adds_up(&answer);
+    let notes = |name: &str| s.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().notes.clone();
+    assert_eq!(notes("Compressed Cora"), "hello world");
+    assert_eq!(notes("Plain Pia"), "Call after 5\nCaf\u{e9} \u{20ac}");
+    assert_eq!(notes("Broken Bea"), "");
+    assert_eq!(notes("Both Bo"), "The text");
+    // The one that couldn't be read is named, with why.
+    let why = texts(&answer, "notes", "why");
+    assert_eq!(why.iter().filter(|w| w.contains("notes (rich text) could not be read")).count(), 1, "{why:?}");
+    let what = texts(&answer, "notes", "what");
+    assert!(what.iter().any(|w| w.contains("Broken Bea")), "{what:?}");
+}
+
+/// Compressed rich text ([MS-OXRTFCP]) of `head` and then `repeats` copies of its last `period`
+/// bytes (17 at a time), made of dictionary references alone: a small input that unpacks to a big one.
+fn repeating_rtf(head: &[u8], period: usize, repeats: usize) -> Vec<u8> {
+    let mut body = Vec::new();
+    let mut write = 207usize;
+    // Some(byte) is a literal, None a reference; the end mark follows the last.
+    let mut tokens: Vec<Option<u8>> = head.iter().map(|b| Some(*b)).collect();
+    tokens.extend(std::iter::repeat_n(None, repeats));
+    let total = tokens.len() + 1;
+    for chunk in (0..total).collect::<Vec<_>>().chunks(8) {
+        let at = body.len();
+        body.push(0);
+        for (bit, i) in chunk.iter().enumerate() {
+            match tokens.get(*i) {
+                Some(Some(b)) => {
+                    body.push(*b);
+                    write = (write + 1) % 4096;
+                }
+                Some(None) => {
+                    body[at] |= 1 << bit;
+                    let offset = (write + 4096 - period) % 4096;
+                    body.extend((((offset << 4) | (15)) as u16).to_be_bytes());
+                    write = (write + 17) % 4096;
+                }
+                // The end mark: a reference to the write position.
+                None => {
+                    body[at] |= 1 << bit;
+                    body.extend(((write << 4) as u16).to_be_bytes());
+                }
+            }
+        }
+    }
+    let mut v = ((body.len() + 12) as u32).to_le_bytes().to_vec();
+    v.extend(0u32.to_le_bytes());
+    v.extend(b"LZFu");
+    v.extend(mailcraft_pst::crc32(&body).to_le_bytes());
+    v.extend(body);
+    v
+}
+
+#[test]
+fn a_whitespace_only_text_does_not_hide_the_rich_text_notes() {
+    let both = contact_item(
+        "Blank Bo",
+        vec![(0x3001, w::unicode("Blank Bo")), (0x1000, w::unicode("\r\n")), (0x1009, w::binary(&uncompressed_rtf("{\\rtf1 The real notes}")))],
+    );
+    let mut s = session();
+    import(&mut s, &people_file(vec![both]), json!({})).unwrap();
+    assert_eq!(s.mailbox.contacts.values().next().unwrap().notes, "The real notes");
+}
+
+#[test]
+fn rich_text_notes_cut_at_the_cap_are_named_even_if_blank_lines_fold_them_short() {
+    // "x" and five paragraph ends: 6 bytes of text that fold to 3 and cost 5.
+    let head = b"{\\rtf1 x\\par\\par\\par\\par\\par ";
+    let rtf = repeating_rtf(head, 22, 230_000);
+    assert!(rtf.len() < 1 << 20);
+    let big = contact_item("Big Bo", vec![(0x3001, w::unicode("Big Bo")), (0x1009, w::binary(&rtf))]);
+    let mut s = session();
+    let answer = import(&mut s, &people_file(vec![big]), json!({})).unwrap();
+    let c = s.mailbox.contacts.values().next().unwrap();
+    assert!(c.notes.starts_with("x\n\nx\n\n") && c.notes.len() > 1000, "{} {:?}", c.notes.len(), texts(&answer, "notes", "why"));
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("notes") && w.contains("cut")), "{why:?}");
 }

@@ -55,6 +55,12 @@ has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being
 - Some English words mean two things. Such an entry has a `msgctxt` that says which: `msgctxt
   "folder"` with `msgid "Archive"` is the folder, the same `msgid` without a context is the
   command. Translate each as its meaning needs.
+- A message that says what didn't happen and why is two entries and a pattern: the heading
+  ("Your automatic replies weren't changed"), each reason by itself (`msgctxt "why automatic
+  replies weren't changed"`, `msgid "you are working offline."`), and `msgid "{heading}:
+  {reason}"` (`msgctxt "what didn't happen, then why"`), which joins them. Put the language's own
+  punctuation and spacing in the pattern (French `{heading} : {reason}`, with a narrow no-break
+  space), and write each reason so it reads after it, as it would after the heading.
 
 Translations are contributed like code, by pull request, under the [Contributor Licence
 Agreement](../CLA.md).

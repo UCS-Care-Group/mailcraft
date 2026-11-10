@@ -11,9 +11,10 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use mailcraft_html::{Block, BlockKind};
+use mailcraft_model::messages::Chunk;
 use mailcraft_model::sender_warnings::{self, Facts, FactsBuilder, Warning};
 use mailcraft_model::{Account, Contact, FolderKind, Id, Message};
 
@@ -25,9 +26,8 @@ use crate::Session;
 const MAX_KEPT: usize = 4_000;
 
 /// The addresses the owner knows: the contacts', and whoever mail in Sent Items or the Outbox
-/// (on its way there) went to. Gathered once for a mailbox; after that a change of it reads only
-/// the messages that are new, and the mail is gathered again only when a message counted here
-/// is gone.
+/// (on its way there) went to. Gathered once for a mailbox; after that a change of it (an undo
+/// too) reads only the chunks of its messages that changed.
 #[derive(Default)]
 struct Known {
     /// The mailbox ([`Session::openings`]), the version of it an undo or redo put in place
@@ -38,13 +38,15 @@ struct Known {
     contacts: BTreeMap<Id, Arc<Contact>>,
     of_contacts: HashSet<String>,
     contact_names: Vec<(String, String)>,
-    /// Whoever the messages in `sent` went to (by address alone: the name the owner wrote is not
-    /// the correspondent's own). Every message below `next` was looked at, and the mailbox held
-    /// `messages` messages then.
-    written_to: HashSet<String>,
-    sent: HashSet<Id>,
-    next: Id,
-    messages: usize,
+    /// Whoever mail in Sent Items or the Outbox went to (by address alone: the name the owner
+    /// wrote is not the correspondent's own), with how many of those messages went to each.
+    written_to: HashMap<String, u32>,
+    /// Per chunk of the map of messages ([`mailcraft_model::Messages::chunks`]): the chunk as it
+    /// was read, held weakly (one changed since is another allocation), and the addresses its
+    /// messages in `outgoing` went to. A change reads only the chunks it changed.
+    chunks: BTreeMap<Id, (Weak<Chunk>, Vec<String>)>,
+    /// The folders whose mail went out (Sent Items, the Outbox) when the chunks were read.
+    outgoing: HashSet<Id>,
     /// Counts the changes to what is known (or to the owner's accounts): what was worked out
     /// against it is worked out again.
     generation: u64,
@@ -54,11 +56,10 @@ struct Known {
 
 impl Known {
     fn contains(&self, address: &str) -> bool {
-        self.of_contacts.contains(address) || self.written_to.contains(address)
+        self.of_contacts.contains(address) || self.written_to.contains_key(address)
     }
 
     /// Brought up to date with the mailbox of `session`.
-    // shortcut: mail moved out of Sent Items counts until a message is deleted for good or the mailbox is opened again, and mail moved into it from anywhere but the Outbox from then on; look at Sent Items at every change if that matters.
     fn update(&mut self, session: &Session) {
         let at = (session.openings(), session.restored(), session.rev());
         if self.at == Some(at) {
@@ -91,38 +92,65 @@ impl Known {
         }
         let outgoing: HashSet<Id> =
             mailbox.folders.iter().filter(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Outbox)).map(|f| f.id).collect();
-        let (all, expected) = (mailbox.messages.len(), self.messages.saturating_add(mailbox.messages.range(self.next..).count()));
-        // Fewer than that: some were deleted for good, which matters only when they were counted
-        // here. More: some came back below `next` (an undo).
-        let gone =
-            all > expected || (all < expected && self.sent.iter().any(|id| mailbox.messages.get(id).is_none_or(|m| !outgoing.contains(&m.folder))));
-        let from = if fresh || gone {
+        // Other folders the mail went out from: every chunk read again.
+        if outgoing != self.outgoing {
+            self.outgoing = outgoing;
+            self.chunks.clear();
             if !self.written_to.is_empty() {
+                self.written_to.clear();
                 self.changed();
             }
-            self.written_to.clear();
-            self.sent.clear();
-            0
-        } else {
-            self.next
-        };
-        let mut grew = false;
-        for (id, m) in mailbox.messages.range(from..).filter(|(_, m)| outgoing.contains(&m.folder)) {
-            self.sent.insert(*id);
-            for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
-                grew |= self.written_to.insert(a.email.trim().to_lowercase());
+        }
+        let chunks = mailbox.messages.chunks();
+        let mut moved = false;
+        let gone: Vec<Id> = self.chunks.keys().filter(|k| !chunks.contains_key(k)).copied().collect();
+        for k in gone {
+            if let Some((_, addresses)) = self.chunks.remove(&k) {
+                moved |= forget(&mut self.written_to, addresses);
             }
         }
-        if grew {
+        for (k, chunk) in chunks {
+            if self.chunks.get(k).is_some_and(|(seen, _)| std::ptr::eq(seen.as_ptr(), Arc::as_ptr(chunk))) {
+                continue;
+            }
+            let addresses: Vec<String> = chunk
+                .values()
+                .filter(|m| self.outgoing.contains(&m.folder))
+                .flat_map(|m| m.to.iter().chain(&m.cc).chain(&m.bcc))
+                .map(|a| a.email.trim().to_lowercase())
+                .collect();
+            for address in &addresses {
+                let n = self.written_to.entry(address.clone()).or_default();
+                moved |= *n == 0;
+                *n = n.saturating_add(1);
+            }
+            if let Some((_, was)) = self.chunks.insert(*k, (Arc::downgrade(chunk), addresses)) {
+                moved |= forget(&mut self.written_to, was);
+            }
+        }
+        if moved {
             self.changed();
         }
-        self.next = mailbox.messages.last_key_value().map_or(from, |(id, _)| id.saturating_add(1));
-        self.messages = all;
     }
 
     fn changed(&mut self) {
         self.generation = self.generation.wrapping_add(1);
     }
+}
+
+/// `addresses` no longer counted among those mail went to: whether one of them is now no one's.
+fn forget(written_to: &mut HashMap<String, u32>, addresses: Vec<String>) -> bool {
+    let mut gone = false;
+    for address in addresses {
+        if let Some(n) = written_to.get_mut(&address) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                written_to.remove(&address);
+                gone = true;
+            }
+        }
+    }
+    gone
 }
 
 /// How much of the topmost `Authentication-Results` header a fingerprint reads: the rules read
@@ -193,7 +221,7 @@ impl SenderChecks {
         for (address, name) in &known.contact_names {
             b.known(address, name);
         }
-        for address in &known.written_to {
+        for address in known.written_to.keys() {
             b.known(address, "");
         }
         let facts = Arc::new(b.build());
@@ -208,6 +236,29 @@ pub fn links(blocks: &[Block]) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     gather(blocks, &mut out, 0);
     out
+}
+
+/// The links of `html` in every look its style sheets give it (AU3-14): a pane of each width and
+/// theme its `@media` rules tell apart ([`mailcraft_html::media_envs`]), each link once, at most
+/// [`sender_warnings::MAX_LINKS`]. A deceptive link that only a narrow pane or a dark window shows
+/// is judged as one the default look shows. With them comes whether every look was looked at:
+/// not when the message has more than are tried.
+pub fn links_in_every_look(html: &str) -> (Vec<(String, String)>, bool) {
+    let lists = mailcraft_html::media_lists(html);
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+    let (envs, every) = mailcraft_html::media_envs(&lists);
+    for env in envs {
+        for link in links(&mailcraft_html::parse_in(html, &env).blocks) {
+            if out.len() >= sender_warnings::MAX_LINKS {
+                return (out, every);
+            }
+            if seen.insert(link.clone()) {
+                out.push(link);
+            }
+        }
+    }
+    (out, every)
 }
 
 fn gather(blocks: &[Block], out: &mut Vec<(String, String)>, depth: usize) {
@@ -227,14 +278,14 @@ fn gather(blocks: &[Block], out: &mut Vec<(String, String)>, depth: usize) {
         let mut current: Option<(String, String)> = None;
         for span in &block.spans {
             match (&span.link, &mut current) {
-                (Some(url), Some((text, href))) if href == url => {
+                (Some(url), Some((text, href))) if href.as_str() == &**url => {
                     if text.len() < 4_096 {
                         text.push_str(&span.text);
                     }
                 }
                 (Some(url), _) => {
                     out.extend(current.take());
-                    current = Some((span.text.clone(), url.clone()));
+                    current = Some((span.text.clone(), url.to_string()));
                 }
                 (None, _) => out.extend(current.take()),
             }
@@ -285,9 +336,19 @@ impl Session {
         }
         let facts = checks.facts();
         let kind = self.mailbox.folder(m.folder).map(|f| f.kind);
-        let body = links.then(|| m.body.html.as_deref().map(|html| self::links(&mailcraft_html::parse(html)))).flatten();
-        let pairs = body.as_ref().map(|pairs| pairs.iter().map(|(text, href)| (text.as_str(), href.as_str())));
-        let warnings = Arc::new(sender_warnings::check(m, account, kind, &facts, pairs));
+        let body = links.then(|| m.body.html.as_deref().map(links_in_every_look)).flatten();
+        let pairs = body.as_ref().map(|(pairs, _)| pairs.iter().map(|(text, href)| (text.as_str(), href.as_str())));
+        let mut warnings = sender_warnings::check(m, account, kind, &facts, pairs);
+        // A look not checked may hold a link that goes somewhere else (AU3-14): said, before the
+        // External tag, where the links are judged at all.
+        if body.as_ref().is_some_and(|(_, every)| !every)
+            && !matches!(kind, Some(FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox))
+            && !facts.is_own(&m.from.email)
+        {
+            let at = warnings.iter().position(|w| matches!(w, Warning::External { .. })).unwrap_or(warnings.len());
+            warnings.insert(at, Warning::LinksUnchecked);
+        }
+        let warnings = Arc::new(warnings);
         if checks.kept.len() >= MAX_KEPT {
             checks.kept.clear();
         }

@@ -20,7 +20,9 @@
 //!
 //! Hostile files: an item is read through a gate that stops at [`MAX_ITEM`] bytes (a longer
 //! string never grows past it), nesting is bounded by the parser, the number of items is
-//! capped, and nothing read is believed beyond what the mailbox model accepts.
+//! capped, what parsing builds (every list element at any depth) is charged while it is built to
+//! the budget every form of mailbox file is read within (`open_budget`), and nothing read is
+//! believed beyond what the mailbox model accepts.
 
 use std::cell::Cell;
 use std::collections::BTreeSet;
@@ -122,6 +124,8 @@ struct Build {
     cap: u64,
     /// Why reading stopped, when it was not the JSON.
     failure: Option<String>,
+    /// What parsing builds is charged to.
+    budget: Arc<Budget>,
 }
 
 /// Content waiting to be written to the content folder: written (and flushed to the disk) a batch
@@ -316,6 +320,13 @@ impl Build {
                 a.kept = Some(self.queue(bytes)?);
             }
         }
+        // The bytes a Digitally signed or Encrypted message came as (#30), as an attachment.
+        if let Some(o) = m.original.as_mut().filter(|o| o.data.len() > INLINE_MAX) {
+            let data = std::mem::take(&mut o.data);
+            gone = gone.saturating_add((data.len() as u64).div_ceil(3).saturating_mul(4));
+            let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
+            o.kept = Some(self.queue(bytes)?);
+        }
         kept.text_hash = mailcraft_model::text_hash(&m.body.text);
         m.kept = (!kept.is_empty()).then(|| Box::new(kept));
         Ok((m, gone))
@@ -362,7 +373,7 @@ impl<'de> Visitor<'de> for Collection<'_> {
             let start = build.gate.taken.get();
             match kind {
                 Kind::Messages => {
-                    let m: Message = map.next_value()?;
+                    let m: Message = map.next_value_seed(load_limit::Counted::default())?;
                     match build.move_out(m) {
                         Ok((m, gone)) => {
                             build.keep::<A::Error>(build.taken_since(start).saturating_sub(gone))?;
@@ -372,15 +383,15 @@ impl<'de> Visitor<'de> for Collection<'_> {
                     };
                 }
                 Kind::Contacts => {
-                    build.contacts.insert(id, Arc::new(map.next_value()?));
+                    build.contacts.insert(id, Arc::new(map.next_value_seed(load_limit::Counted::<Contact>::default())?));
                     build.keep::<A::Error>(build.taken_since(start))?;
                 }
                 Kind::Events => {
-                    build.events.insert(id, Arc::new(map.next_value()?));
+                    build.events.insert(id, Arc::new(map.next_value_seed(load_limit::Counted::<Event>::default())?));
                     build.keep::<A::Error>(build.taken_since(start))?;
                 }
                 Kind::Tasks => {
-                    build.tasks.insert(id, Arc::new(map.next_value()?));
+                    build.tasks.insert(id, Arc::new(map.next_value_seed(load_limit::Counted::<Task>::default())?));
                     build.keep::<A::Error>(build.taken_since(start))?;
                 }
             }
@@ -432,7 +443,7 @@ impl<'de> Visitor<'de> for Top<'_> {
                 }
                 _ => {
                     let start = build.gate.taken.get();
-                    let value: Value = map.next_value()?;
+                    let value: Value = map.next_value_seed(load_limit::Counted::default())?;
                     // (A value held as JSON values comes to more than its text.)
                     build.keep::<A::Error>(build.taken_since(start).saturating_mul(2))?;
                     build.rest.insert(key, value);
@@ -470,6 +481,7 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         kept: 0,
         cap: kept_cap(len),
         failure: None,
+        budget: open_budget(),
     };
     // (A byte order mark is skipped by hand: the parser takes none.)
     let mut head = [0u8; 3];
@@ -487,7 +499,8 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
     let parsed = {
         let mut reader = std::io::Read::chain(std::io::Cursor::new(first), &mut feed);
         let mut de = serde_json::Deserializer::from_reader(&mut reader);
-        Top(&mut build).deserialize(&mut de).and_then(|()| de.end())
+        let budget = build.budget.clone();
+        load_limit::within(&budget, || Top(&mut build).deserialize(&mut de).and_then(|()| de.end()))
     };
     if progress.cancelled() {
         return Err(CANCELLED.into());
@@ -503,19 +516,27 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         if let Some(why) = build.failure.take() {
             return Err(format!("{show}: {why}"));
         }
+        if let Some(why) = build.budget.spent() {
+            return Err(format!("{show}: {why}"));
+        }
         if e.is_io() && e.to_string().contains(TOO_LONG) {
             return Err(format!("{show}: this isn't a mailbox MailCraft opens ({TOO_LONG}: over {} MB)", MAX_ITEM >> 20));
         }
         return Err(format!("{show}: this isn't a MailCraft mailbox ({e})"));
     }
+    // (A charge refused inside a value read leniently is a refusal too: nothing is left out.)
+    if let Some(why) = build.budget.spent() {
+        return Err(format!("{show}: {why}"));
+    }
     // The last of the content, on the disk before anything names it.
     build.flush().map_err(|e| format!("{show}: {e}"))?;
     let Build { rest, messages, contacts, events, tasks, moved, version, .. } = build;
     let rest = serde_json::to_vec(&Value::Object(rest)).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
-    let mut mailbox: Mailbox =
-        mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
+    // (Its own budget: what the rest was read into as it was read is let go of.)
+    let budget = open_budget();
+    let mut mailbox: Mailbox = load_limit::read_json(&rest, &budget).map_err(|e| refused(&show, "this isn't a MailCraft mailbox", &e, &budget))?;
     drop(rest);
-    (mailbox.messages, mailbox.contacts, mailbox.events, mailbox.tasks) = (messages, contacts, events, tasks);
+    (mailbox.messages, mailbox.contacts, mailbox.events, mailbox.tasks) = (messages.into(), contacts, events, tasks);
     mailbox.version = 1;
     // The newest Inbox mail has its text read once the window shows, as for a mailbox opened for
     // a window: with no body in memory, a list would show no previews.

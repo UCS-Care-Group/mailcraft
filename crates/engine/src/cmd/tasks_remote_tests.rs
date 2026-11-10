@@ -104,6 +104,32 @@ fn a_field_changed_here_stays_and_the_rest_is_the_servers() {
 }
 
 #[test]
+fn a_day_read_a_day_early_is_put_right_by_the_next_download_and_nothing_goes_up() {
+    // Before #809 a to-do due on 10 November east of UTC came down as due on the 9th; the next
+    // download, read right, brings the 10th, and nothing of it is told back to the server.
+    let (mut s, a) = session();
+    let mut early = remote("t1", "Call Bo");
+    (early.start, early.due) = (Date::new(2026, 11, 9), Date::new(2026, 11, 9));
+    merge_tasks(&mut s.mailbox, &download(a, vec![early])).unwrap();
+    let mut right = remote("t1", "Call Bo");
+    (right.start, right.due) = (Date::new(2026, 11, 10), Date::new(2026, 11, 10));
+    assert_eq!(merge_tasks(&mut s.mailbox, &download(a, vec![right])).unwrap().updated, 1);
+    let t = titled(&s, "Call Bo");
+    assert_eq!((t.start, t.due), (Date::new(2026, 11, 10), Date::new(2026, 11, 10)));
+    assert_eq!(t.patch(), None);
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+    // A due date changed here meanwhile stays, and is the one thing told.
+    run(&mut s, "tasks.edit", json!({"id": t.id, "due": "2026-11-12"}));
+    let mut again = remote("t1", "Call Bo");
+    (again.start, again.due) = (Date::new(2026, 11, 10), Date::new(2026, 11, 10));
+    merge_tasks(&mut s.mailbox, &download(a, vec![again])).unwrap();
+    let t = titled(&s, "Call Bo");
+    assert_eq!((t.start, t.due), (Date::new(2026, 11, 10), Date::new(2026, 11, 12)));
+    let patch = t.patch().unwrap();
+    assert_eq!((patch.due, patch.start), (Some(Date::new(2026, 11, 12)), None));
+}
+
+#[test]
 fn a_task_changed_here_is_made_again_when_the_server_deleted_it() {
     let (mut s, a) = session();
     merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo"), remote("t2", "Other")])).unwrap();
@@ -317,8 +343,12 @@ fn only_a_microsoft_account_can_be_chosen_and_removing_it_asks_again() {
 
 #[test]
 fn an_agent_cannot_answer_for_the_owner() {
-    use crate::agent::{Access, Class, access};
-    assert_eq!(access("tasks.sendLocal"), Some(Access::Owner(Class::Send)));
+    // Not even with everything allowed in advance (`mcp --allow send`, H4): the answer is the
+    // owner's own, in the window.
+    use crate::agent::{Access, Class, Verdict, access, check};
+    assert_eq!(access("tasks.sendLocal"), Some(Access::Never));
+    let (s, a) = session();
+    assert!(matches!(check(&s, "tasks.sendLocal", &json!({"account": a}), &Class::ALL), Verdict::Refuse(_)));
 }
 
 #[test]

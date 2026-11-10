@@ -157,6 +157,50 @@ pub(crate) enum Again {
     Ask,
 }
 
+/// Why a change the owner asked for didn't reach the server: said as "Your automatic replies
+/// weren't changed" and then the reason, each translated once ([`crate::i18n::with_reason`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Unchanged {
+    /// The window works offline.
+    Offline,
+    /// The sign-in doesn't cover changing them, and the owner is being asked.
+    NeedsPermission,
+    /// The organisation keeps them.
+    Denied,
+    /// The question went away unanswered, or the owner said no.
+    NotAllowed,
+    /// The sign-in doesn't read the mailbox's settings.
+    SignInToRead,
+    /// The sign-in itself is no longer taken.
+    SignInOver,
+    /// What went wrong otherwise, in the words it came in.
+    Failed(String),
+    /// Nothing more is known than that they weren't.
+    Unknown,
+}
+
+impl Unchanged {
+    /// What the owner is told.
+    pub(crate) fn said(&self) -> String {
+        let heading = tl!("Your automatic replies weren't changed");
+        let reason = match self {
+            Unchanged::Offline => tlc!("why automatic replies weren't changed", "you are working offline."),
+            Unchanged::NeedsPermission => {
+                tlc!("why automatic replies weren't changed", "MailCraft needs your permission first (File › Info › Ask again).")
+            }
+            Unchanged::Denied => tlc!("why automatic replies weren't changed", "your organisation doesn't let MailCraft change them."),
+            Unchanged::NotAllowed => tlc!("why automatic replies weren't changed", "MailCraft wasn't allowed to change them."),
+            Unchanged::SignInToRead => {
+                tlc!("why automatic replies weren't changed", "sign in again to let MailCraft read them (File › Info).")
+            }
+            Unchanged::SignInOver => tlc!("why automatic replies weren't changed", "Microsoft no longer takes your sign-in."),
+            Unchanged::Failed(why) => why.as_str(),
+            Unchanged::Unknown => return heading.to_string(),
+        };
+        crate::i18n::with_reason(heading, reason)
+    }
+}
+
 impl AutoRepliesSync {
     /// Whether a job is in flight.
     pub fn busy(&self) -> bool {
@@ -189,7 +233,7 @@ impl MailApp {
     /// The refresh token a job for `account` is given.
     fn auto_replies_refresh(&self, account: &Account) -> String {
         let kept = self.tokens.get(&account.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        kept.or_else(|| self.remembered("refresh", &account.email)).unwrap_or_default()
+        kept.or_else(|| self.remembered("refresh", account.id)).unwrap_or_default()
     }
 
     /// Whether `account`'s replies wait for a new sign-in: the one that was refused is still the
@@ -214,7 +258,7 @@ impl MailApp {
             let dropped = self.auto_replies.waiting.take().is_some() | !self.auto_replies.held.is_empty();
             self.auto_replies.held.clear();
             if dropped {
-                self.status(tl!("Your automatic replies weren't changed: you are working offline."));
+                self.status(Unchanged::Offline.said());
             }
             return false;
         }
@@ -376,8 +420,7 @@ impl MailApp {
             && !tokens.refresh.is_empty()
             && !self.signed_in_as_other(account, tokens)
         {
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
-            self.remember("refresh", &address, &tokens.refresh);
+            self.remember("refresh", account, &tokens.refresh);
             if let Some(mail) = self.tokens.get_mut(&account) {
                 mail.refresh = tokens.refresh.clone();
             }
@@ -440,19 +483,20 @@ impl MailApp {
                 }
                 _ => tl!("Automatic replies are off").to_string(),
             }
-        } else if result.write_consent_needed {
-            tl!("Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again).").to_string()
-        } else if result.write_denied {
-            tl!("Your automatic replies weren't changed: your organisation doesn't let MailCraft change them.").to_string()
         } else {
-            match &trouble {
-                Some(Trouble::SignInToRead) => {
-                    tl!("Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info).").to_string()
+            let unchanged = if result.write_consent_needed {
+                Unchanged::NeedsPermission
+            } else if result.write_denied {
+                Unchanged::Denied
+            } else {
+                match &trouble {
+                    Some(Trouble::SignInToRead) => Unchanged::SignInToRead,
+                    Some(Trouble::SignInOver(_)) => Unchanged::SignInOver,
+                    Some(Trouble::Failed(why)) => Unchanged::Failed(why.clone()),
+                    None => Unchanged::Unknown,
                 }
-                Some(Trouble::SignInOver(_)) => tl!("Your automatic replies weren't changed: Microsoft no longer takes your sign-in.").to_string(),
-                Some(Trouble::Failed(why)) => crate::i18n::fmt(tl!("Your automatic replies weren't changed: {error}"), &[("error", why)]),
-                None => tl!("Your automatic replies weren't changed").to_string(),
-            }
+            };
+            unchanged.said()
         };
         self.status(said);
     }
@@ -534,7 +578,7 @@ impl MailApp {
         for account in asking {
             self.auto_replies.perm.insert(account, Permission::Declined);
             if self.auto_replies.held.remove(&account).is_some() {
-                self.status(tl!("Your automatic replies weren't changed: MailCraft wasn't allowed to change them."));
+                self.status(Unchanged::NotAllowed.said());
             }
         }
     }
@@ -565,13 +609,12 @@ impl MailApp {
         use crate::approval::NO_BROWSER;
         use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         let refused = match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(account, &tokens) => Some((Permission::Needed, None)),
             Ok(tokens) => {
                 if !tokens.refresh.is_empty() {
-                    self.remember("refresh", &address, &tokens.refresh);
+                    self.remember("refresh", account, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&account) {
                         kept.refresh = tokens.refresh.clone();
                     }
@@ -605,7 +648,7 @@ impl MailApp {
         self.auto_replies.perm.insert(account, perm);
         if self.auto_replies.held.remove(&account).is_some() || said.is_some() {
             let why = said.unwrap_or_else(|| tl!("you signed in as somebody else").to_string());
-            self.status(crate::i18n::fmt(tl!("Your automatic replies weren't changed: {error}"), &[("error", &why)]));
+            self.status(Unchanged::Failed(why).said());
         }
     }
 

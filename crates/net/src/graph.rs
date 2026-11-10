@@ -218,6 +218,23 @@ pub fn send(token: &str, message: &Message, options: &SendOptions) -> Result<(),
     send_at(&graph_base(), token, message, options)
 }
 
+/// Whether an error from [`send`] leaves it unknown whether the message went (AU3-26): the
+/// request may have reached Microsoft (a timeout, a connection that broke, an answer that doesn't
+/// say). One that was refused before anything went (not a message that can go, no connection),
+/// a sign-in or a permission that wasn't taken, and "busy, try later" (429, 503) are known not to
+/// have gone.
+pub fn send_unsure(e: &NetError) -> bool {
+    !matches!(
+        e,
+        NetError::Config(_)
+            | NetError::Connect { .. }
+            | NetError::Forbidden(_)
+            | NetError::ConsentNeeded(_)
+            | NetError::Busy { .. }
+            | NetError::Proto(ProtoError::Auth(_))
+    ) && !e.is_refused_sign_in()
+}
+
 /// The events of the account's main calendar that fall between `from` and `to` (Unix seconds),
 /// for the owner of `token` (an access token for Graph).
 ///
@@ -808,6 +825,8 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
             };
             NetError::Forbidden(format!("{what}{}", code()))
         }
+        // A gateway that gave up waiting doesn't say whether a message went.
+        504 if doing == Doing::Sending => NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status 504{}", code()))),
         429 | 503 | 504 => {
             let retry_after = wait_of(reply.retry_after.as_deref(), now);
             let text = match retry_after {
@@ -2229,6 +2248,8 @@ mod rules_tests;
 mod shared_calendar_tests;
 #[cfg(test)]
 mod shared_calendar_write_tests;
+#[cfg(test)]
+mod task_dates_tests;
 #[cfg(test)]
 mod tasks_tests;
 

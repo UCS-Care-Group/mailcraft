@@ -1525,3 +1525,15 @@ fn a_block_inside_a_block_link_keeps_the_link() {
     // A `<div>` after the link ends the `<p>` as it did.
     assert_eq!(dump(&format!("<p>a {link}Pay</a><div>b</div>c</p>")), ["p|a", button, "p|b", "p|c"]);
 }
+
+#[test]
+fn a_span_that_lost_its_link_to_the_allowance_is_not_a_bare_link() {
+    // One long address under a link cut into thousands of spans: the spans past what the document
+    // may repeat lose the link, and with it the word that the link has no line.
+    let html = format!("<a href='https://example.org/{}' style='text-decoration:none'>{}</a>", "a".repeat(1000), "<b>x</b>y".repeat(2000));
+    let blocks = parse(&html);
+    let spans: Vec<&Span> = blocks.iter().flat_map(|b| b.spans.iter()).collect();
+    assert!(spans.first().is_some_and(|s| s.link.is_some() && s.bare));
+    assert!(spans.iter().any(|s| s.link.is_none()));
+    assert!(spans.iter().all(|s| s.link.is_some() || !s.bare));
+}

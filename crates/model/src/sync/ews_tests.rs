@@ -24,7 +24,7 @@ fn request() -> EwsMailRequest {
         hierarchy: "H-STATE".into(),
         scope: EwsScope::Light { also: vec!["F-ONE".into()] },
         states: vec![EwsFolderState { folder: "F-ONE".into(), state: "S-ONE".into() }],
-        changes: vec![FolderChange::Delete { id: "F-GONE".into() }],
+        changes: vec![FolderChange::Delete { id: "F-GONE".into(), shown: Default::default() }],
         inbox_pass: true,
         full: true,
         background: true,
@@ -47,7 +47,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
         account: 3,
         email: ME.into(),
         url: URL.into(),
-        folders: Some(EwsFolderDeltas { changed: vec![inbox], deleted: vec!["F0".into()], afresh: true }),
+        folders: Some(EwsFolderDeltas { changed: vec![inbox], deleted: vec!["F0".into()], afresh: true, well_known: vec!["F1".into()] }),
         hierarchy: "H1".into(),
         pages: vec![EwsMessagePage { folder: "F1".into(), state: "S1".into(), ..Default::default() }],
         errors: vec!["one".into()],
@@ -71,6 +71,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     assert!(all.whole && !all.partial);
     let folders = all.folders.unwrap();
     assert_eq!((folders.changed.len(), folders.deleted, folders.afresh), (1, vec!["F0".to_string(), "F9".to_string()], true));
+    assert_eq!(folders.well_known, ["F1"], "the server's own folders are kept from the piece that named them (#779)");
 }
 
 fn page() -> EwsMessagePage {
@@ -140,6 +141,8 @@ fn a_result_beyond_the_caps_is_refused() {
         ("a page of no folder", Box::new(|r| r.pages[0].folder = String::new())),
         ("too many folders", Box::new(|r| r.folders.as_mut().unwrap().deleted = vec!["F".into(); MAX_LISTED_FOLDERS + 1])),
         ("a long folder id", Box::new(|r| r.folders.as_mut().unwrap().changed[0].id = long_id.clone())),
+        ("too many of the server's own folders", Box::new(|r| r.folders.as_mut().unwrap().well_known = vec!["F".into(); MAX_LISTED_FOLDERS + 1])),
+        ("a long id of the server's own folder", Box::new(|r| r.folders.as_mut().unwrap().well_known = vec![long_id.clone()])),
         ("a long folder name", Box::new(|r| r.folders.as_mut().unwrap().changed[0].name = "x".repeat(5000))),
         ("too many problems", Box::new(|r| r.errors = vec!["e".into(); MAX_EWS_ERRORS + 1])),
         ("a long problem", Box::new(|r| r.errors[0] = "e".repeat(MAX_EWS_ERROR + 1))),

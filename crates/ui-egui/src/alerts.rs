@@ -11,8 +11,9 @@
 //!   already read).
 //! - Up to [`AT_ONCE`] at a time get an alert each; more get one that counts them.
 //! - What an alert says is the message's own text, and so hostile: the sender's name and the
-//!   subject only (never the body), as plain text, without control or format characters
-//!   (bidirectional overrides, zero-width marks), cut to [`NAME_CHARS`] and [`SUBJECT_CHARS`].
+//!   subject only (never the body), as plain text, as a name is shown (#454): without control
+//!   characters or characters that show nothing (bidirectional overrides, zero-width marks,
+//!   tags), cut to [`NAME_CHARS`] and [`SUBJECT_CHARS`].
 //! - The window asks the host to show them ([`AlertHost`], [`crate::Services::alert`]); there is
 //!   none in the browser, the command line or the tests, and then nothing is shown. MailCraft
 //!   plays no sound of its own: sound and Do Not Disturb are the system's.
@@ -94,16 +95,19 @@ pub enum AlertTrouble {
 }
 
 impl AlertTrouble {
-    /// What the owner is told, under the switches.
-    pub fn notice(self) -> &'static str {
-        match self {
-            AlertTrouble::NotInstalled => {
-                tl!("Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it.")
-            }
-            AlertTrouble::OutsideApp => tl!("Desktop alerts can't be shown: this copy doesn't run from the MailCraft app."),
-            AlertTrouble::TurnedOff => tl!("Desktop alerts are turned off for MailCraft in System Settings."),
-            AlertTrouble::NoService => tl!("Desktop alerts can't be shown: no notification service answers on this desktop."),
-        }
+    /// What the owner is told, under the switches: "Desktop alerts can't be shown" and then why,
+    /// each translated once ([`crate::i18n::with_reason`]).
+    pub fn notice(self) -> String {
+        let reason = match self {
+            AlertTrouble::NotInstalled => tlc!(
+                "why desktop alerts can't be shown",
+                "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
+            ),
+            AlertTrouble::OutsideApp => tlc!("why desktop alerts can't be shown", "this copy doesn't run from the MailCraft app."),
+            AlertTrouble::TurnedOff => return tl!("Desktop alerts are turned off for MailCraft in System Settings.").to_string(),
+            AlertTrouble::NoService => tlc!("why desktop alerts can't be shown", "no notification service answers on this desktop."),
+        };
+        crate::i18n::with_reason(tl!("Desktop alerts can't be shown"), reason)
     }
 
     pub fn code(self) -> &'static str {
@@ -143,40 +147,11 @@ pub struct State {
     run: Option<(InboxMark, Option<std::path::PathBuf>)>,
 }
 
-/// Text from a message (or an appointment) made fit for an alert: one line of plain text, without
-/// control characters (a line break or a tab becomes a space) or Unicode format characters
-/// (bidirectional overrides and isolates, zero-width marks), spaces run together, at most `most`
-/// characters with an ellipsis where it was cut.
-pub fn clean(text: &str, most: usize) -> String {
-    // One more than fits says that it didn't; nothing beyond that is looked at.
-    let mut chars: Vec<char> = Vec::new();
-    let mut space = false;
-    for c in text.chars() {
-        if mailcraft_engine::html::is_format(c) {
-            continue;
-        }
-        if c.is_control() || c.is_whitespace() {
-            space = !chars.is_empty();
-            continue;
-        }
-        if std::mem::take(&mut space) {
-            chars.push(' ');
-        }
-        chars.push(c);
-        if chars.len() > most {
-            break;
-        }
-    }
-    if chars.len() <= most {
-        return chars.into_iter().collect();
-    }
-    let mut kept: String = chars.into_iter().take(most.saturating_sub(1)).collect();
-    kept.truncate(kept.trim_end().len());
-    if most > 0 {
-        kept.push('…');
-    }
-    kept
-}
+/// Text from a message (or an appointment) made fit for an alert, as a name is shown (#454): one
+/// line of plain text, without control characters (a line break or a tab becomes a space) or
+/// characters that show nothing (bidirectional overrides and isolates, zero-width marks, tags),
+/// spaces run together, at most `max` characters with an ellipsis where it was cut.
+pub use mailcraft_names::shown as clean;
 
 /// An alert to be shown, before it has its number.
 #[derive(Clone, Debug, PartialEq, Eq)]

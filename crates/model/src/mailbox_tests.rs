@@ -121,8 +121,8 @@ fn snapshots_share_messages_until_one_changes() {
     let b = mb.add_message(mail(inbox, "Two", 2)).unwrap();
     let snapshot = mb.clone();
     mb.message_mut(a).unwrap().read = true;
-    assert!(!Arc::ptr_eq(&mb.messages[&a], &snapshot.messages[&a]));
-    assert!(Arc::ptr_eq(&mb.messages[&b], &snapshot.messages[&b]));
+    assert!(!Arc::ptr_eq(mb.messages.get(&a).unwrap(), snapshot.messages.get(&a).unwrap()));
+    assert!(Arc::ptr_eq(mb.messages.get(&b).unwrap(), snapshot.messages.get(&b).unwrap()));
     assert!(!snapshot.message(a).unwrap().read);
 }
 
@@ -1135,4 +1135,44 @@ fn a_switch_to_ask_before_deleting_a_conversation_this_version_cant_read_still_o
     }
     let said: Account = serde_json::from_str(r#"{"id": 3, "email": "noor@example.org", "skipConversationQuestion": true}"#).unwrap();
     assert!(said.skip_conversation_question);
+}
+
+/// Exchange's stamp that mail came from inside the organisation is its server's word, or a
+/// sender's own where no Exchange removed it: it doesn't go with the mail onto another account's
+/// server, where it would vouch for it (#781).
+#[test]
+fn exchange_stamps_stay_behind_when_mail_goes_to_another_server() {
+    let (mut mb, _, a) = synced_mailbox();
+    mb.accounts[0].kind = AccountKind::Imap;
+    let stamp = || (auth_results::AUTH_AS.to_string(), "Internal".to_string());
+    mb.message_mut(a).unwrap().headers = vec![stamp(), ("X-Other".into(), "1".into())];
+    let other = mb.add_account(Account { email: "work@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
+    let copy = mb.copy_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(copy).unwrap().headers, [("X-Other".to_string(), "1".to_string())]);
+    assert_eq!(mb.message(a).unwrap().headers.first(), Some(&stamp()));
+    mb.move_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(a).map(|m| (m.account, m.headers.len())), Some((other, 1)));
+}
+
+/// Before #781 a message moved into a Microsoft 365 account kept every header, a sender's forged
+/// `AuthAs: Internal` among them, and the mailbox file kept it too. Loaded again, that stamp vouches
+/// for nothing; one read by this version is believed, and still is after a save.
+#[test]
+fn exchange_stamps_saved_before_781_vouch_for_nothing() {
+    let (mut mb, _, a) = synced_mailbox();
+    (mb.accounts[0].kind, mb.accounts[0].email) = (AccountKind::Microsoft, "owner@lumen.example".into());
+    let m = mb.message_mut(a).unwrap();
+    m.from = Address::new("Forger", "boss@lumen.example");
+    m.headers = vec![(auth_results::AUTH_AS.to_string(), "Internal".to_string())];
+    let saved = |mb: &Mailbox| serde_json::to_vec(mb).unwrap();
+    let vouched = |mb: &Mailbox| mb.message(a).is_some_and(|m| auth_results::vouched(mb.account(m.account), m));
+    // As a build from before wrote it: nothing says how the stamp was read.
+    let before = saved(&mb);
+    assert!(!String::from_utf8_lossy(&before).contains("freshStamps"));
+    assert!(!vouched(&from_json(&before, usize::MAX).unwrap()));
+    mb.message_mut(a).unwrap().fresh_stamps = true;
+    assert!(vouched(&mb));
+    assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
 }

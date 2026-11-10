@@ -38,11 +38,12 @@ mod text;
 mod tokenizer;
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
-pub use media::{Env, verdicts as media_verdicts};
+pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
 /// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
 /// order they are met (inside `@media` too, to its depth): what its look can change with. A
@@ -52,6 +53,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
+pub use style::MAX_FAMILIES;
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
@@ -72,6 +74,10 @@ pub const MAX_SHEET_RULES: usize = sheet::MAX_RULES;
 /// [`to_text`] don't count the pictures written into the message (`data:`) against it, and read
 /// as much more as the most those may take.
 pub const MAX_INPUT: usize = 2 * 1024 * 1024;
+
+/// The most of a document [`parse`] looks at, in bytes: [`MAX_INPUT`], and what the pictures
+/// written into it may take besides. Whatever reads the same HTML before it can stop there too.
+pub const MAX_INPUT_WITH_PICTURES: usize = MAX_INPUT.saturating_add(data::MAX_DATA_TEXT);
 
 /// Most blocks one document gives, counting those inside table cells; what follows is dropped.
 pub const MAX_BLOCKS: usize = 20_000;
@@ -245,7 +251,9 @@ pub struct Span {
     pub underline: bool,
     pub strike: bool,
     pub code: bool,
-    pub link: Option<String>,
+    /// Where the text leads. Shared by every span of one link, so a link cut into many spans by
+    /// the styles inside it is held once.
+    pub link: Option<Arc<str>>,
     /// A link drawn without its line: the link itself says so (`text-decoration: none` in its
     /// style or a rule of the message's style sheet). A link is underlined otherwise, as in a
     /// browser; `underline` is a line the message asks for whether or not it is a link.
@@ -261,8 +269,11 @@ pub struct Span {
     /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`]; `None` for the reader's own size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
-    /// The first font family asked for, lower case (`calibri`), for pasting into the composer,
-    /// which keeps the few it knows. The reading pane draws in its own font.
+    /// The font families asked for, lower case and joined by commas in their order
+    /// (`georgia,times new roman,serif`; at most eight): the reading pane draws the text in the
+    /// first that is installed on this computer (a generic family, `serif`, `sans-serif` or
+    /// `monospace`, in a font of its kind), else in its own font; nothing is ever fetched. A paste
+    /// into the composer keeps the first, when it is one of the few the composer knows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<String>,
 }
@@ -274,7 +285,7 @@ impl Span {
     }
 
     /// Text that opens `url`.
-    pub fn linked(text: impl Into<String>, url: impl Into<String>) -> Span {
+    pub fn linked(text: impl Into<String>, url: impl Into<Arc<str>>) -> Span {
         Span { text: text.into(), link: Some(url.into()), ..Span::default() }
     }
 
@@ -327,8 +338,8 @@ pub enum BlockKind {
         /// The size the message asks for, in CSS pixels.
         width: Option<u16>,
         height: Option<u16>,
-        /// Where the picture leads when it is inside a link.
-        link: Option<String>,
+        /// Where the picture leads when it is inside a link (shared with the link's text).
+        link: Option<Arc<str>>,
         /// A picture written into the message: its bytes, a PNG, JPEG, GIF or WebP by what they
         /// are, within [`MAX_DATA_PICTURE_BYTES`] and the caps for a message.
         #[serde(skip)]
@@ -529,10 +540,11 @@ pub fn images(blocks: &[Block]) -> Vec<&Block> {
 /// `file:`, `vbscript:`, relative URLs, and anything holding a control character (a tab or line
 /// break inside a URL is an old trick to hide the scheme) or a character that changes how text
 /// looks without being seen (a right-to-left override or isolate, a zero-width mark, a byte-order
-/// mark: what is shown of the address would not be where it goes).
+/// mark: what is shown of the address would not be where it goes), and any address longer than
+/// [`mailcraft_link::MAX_LINK`] bytes, whatever its scheme.
 pub fn is_safe_url(url: &str) -> bool {
     let url = url.trim_matches(' ');
-    if url.chars().any(|c| c.is_control() || is_format(c)) {
+    if url.len() > mailcraft_link::MAX_LINK || url.chars().any(|c| c.is_control() || is_format(c)) {
         return false;
     }
     let Some((scheme, rest)) = url.split_once(':') else { return false };

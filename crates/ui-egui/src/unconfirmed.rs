@@ -62,8 +62,18 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
     };
     // (Only for an account that has one: what every other account's line was stays as it was.)
     let jmap = |a: &Account| a.jmap.as_ref().map(|j| format!("\u{1}{}\u{1}{}", j.session.trim(), j.bearer)).unwrap_or_default();
-    // (An Exchange server account's address and the user name its password goes with, likewise.)
-    let ews = |a: &Account| a.ews.as_ref().map(|e| format!("\u{1}{}\u{1}{}", e.url.trim(), e.username.trim())).unwrap_or_default();
+    // (An Exchange server account's address and the user name its password goes with, likewise;
+    // and the certificate it trusts besides the system's, for one that has one, AU3-02.)
+    let ews = |a: &Account| {
+        a.ews
+            .as_ref()
+            .map(|e| {
+                let pin = e.trusted.trim().to_ascii_lowercase();
+                let pin = if pin.is_empty() { String::new() } else { format!("\u{1}pin={pin}") };
+                format!("\u{1}{}\u{1}{}{pin}", e.url.trim(), e.username.trim())
+            })
+            .unwrap_or_default()
+    };
     let mut lines: Vec<String> = mailbox
         .accounts
         .iter()
@@ -119,15 +129,18 @@ impl MailApp {
 
     /// A mailbox has just taken the place of the one before: it is unconfirmed when it names
     /// servers and is not the owner's own, nor a file whose servers were confirmed as they are.
+    /// One where two accounts have the same address is unconfirmed even when it is the owner's
+    /// own, until the owner has seen where each connects (AU3-03).
     pub(crate) fn judge_mailbox(&mut self) {
         self.unconfirmed = false;
         self.release_services();
         if !self.session.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
             return;
         }
+        let shared_address = self.has_shared_address();
         if let Some(path) = &self.session.path {
             let path = kept_path(&path.to_string_lossy());
-            if self.own_mailbox.as_deref() == Some(path.as_str()) {
+            if self.own_mailbox.as_deref() == Some(path.as_str()) && !shared_address {
                 return;
             }
             let print = fingerprint(&self.session.mailbox);
@@ -197,12 +210,31 @@ impl MailApp {
     /// What the owner is asked before the servers are confirmed.
     pub(crate) fn confirm_servers_question(&self) -> Question {
         let list = self.account_servers().join("\n");
-        let text = format!(
-            "{}\n\n{list}\n\n{}",
-            tl!("This mailbox was opened from a file. Its accounts connect to:"),
-            tl!("Only confirm if you know these servers.")
-        );
+        let twice = if self.has_shared_address() {
+            format!("\n\n{}", tl!("Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."))
+        } else {
+            String::new()
+        };
+        let opening = self.held_back_because();
+        let text = format!("{opening}\n\n{list}{twice}\n\n{}", tl!("Only confirm if you know these servers."));
         Question::new(tl!("Confirm Servers"), text, tl!("Confirm servers"), Value::Null)
+    }
+
+    /// Whether the open mailbox is the owner's own (held back only because two accounts have one
+    /// address), not one opened from a file.
+    fn opened_own_mailbox(&self) -> bool {
+        // (The one the window started with, or the file that is.)
+        self.session.openings() == 0
+            || self.session.path.as_ref().is_some_and(|path| self.own_mailbox.as_deref() == Some(kept_path(&path.to_string_lossy()).as_str()))
+    }
+
+    /// Why the mailbox waits for Confirm Servers, leading into the list of its servers.
+    pub(crate) fn held_back_because(&self) -> &'static str {
+        if self.opened_own_mailbox() {
+            tl!("Two or more accounts in this mailbox have the same address. Its accounts connect to:")
+        } else {
+            tl!("This mailbox was opened from a file. Its accounts connect to:")
+        }
     }
 
     /// A manual Send/Receive in an unconfirmed mailbox: ask to confirm the servers instead.
@@ -223,7 +255,7 @@ pub(crate) fn bar(app: &mut MailApp, ui: &mut Ui) {
     }
     let servers: String = app.account_servers().join("; ");
     let servers = if servers.chars().count() > 110 { format!("{}…", servers.chars().take(110).collect::<String>()) } else { servers };
-    let said = format!("{} {servers}", tl!("This mailbox was opened from a file. Its accounts connect to:"));
+    let said = format!("{} {servers}", app.held_back_because());
     crate::updates::bar(app, ui, "unconfirmed_servers", &said, &[("confirmServers", tl!("Confirm servers"), true)], |app, _| {
         let _ = app.run("ui.confirmServers", json!({}));
     });

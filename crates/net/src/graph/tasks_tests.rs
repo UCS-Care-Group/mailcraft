@@ -7,10 +7,10 @@ use std::sync::{Arc, Mutex};
 
 use mailcraft_model::remote_tasks::{TaskOp, TaskOpKind, TaskResult, TasksUpload};
 use mailcraft_model::{Importance, TaskPatch};
-use mailcraft_time::Date;
+use mailcraft_time::{Date, Zone};
 use serde_json::{Value, json};
 
-use super::tasks::{push_tasks_at, task_body, tasks_at};
+use super::tasks::{push_tasks_at, task_body, tasks_at, valid_id};
 use crate::NetError;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -136,7 +136,7 @@ fn lists_and_tasks_are_read_with_their_fields() {
     ];
     state.lock().unwrap().lists[1].2 = vec![json!({"id": "C", "title": "In the other list"})];
     let server = serve(&state);
-    let got = tasks_at(&server.url(""), TOKEN).unwrap();
+    let got = tasks_at(&server.url(""), TOKEN, Zone::UTC).unwrap();
     assert!(got.complete);
     // The flagged-mail list is not read, and not named.
     assert_eq!(got.lists.iter().map(|l| (l.id.as_str(), l.complete)).collect::<Vec<_>>(), [("L1", true), ("L2", true)]);
@@ -167,7 +167,7 @@ fn hostile_entries_are_skipped_or_cut_to_size() {
         json!(null),
     ];
     let server = serve(&state);
-    let got = tasks_at(&server.url(""), TOKEN).unwrap();
+    let got = tasks_at(&server.url(""), TOKEN, Zone::UTC).unwrap();
     assert_eq!(got.tasks.len(), 1);
     assert_eq!(got.tasks[0].title.chars().count(), 500);
     assert!(!got.tasks[0].title.contains('\u{0}'));
@@ -181,16 +181,16 @@ fn a_sign_in_without_the_permission_is_forbidden_for_a_read() {
     let state = todo();
     state.lock().unwrap().all_status = Some(403);
     let server = serve(&state);
-    assert!(matches!(tasks_at(&server.url(""), TOKEN), Err(NetError::Forbidden(_))));
+    assert!(matches!(tasks_at(&server.url(""), TOKEN, Zone::UTC), Err(NetError::Forbidden(_))));
     state.lock().unwrap().all_status = Some(401);
-    assert!(tasks_at(&server.url(""), TOKEN).unwrap_err().is_refused_sign_in());
+    assert!(tasks_at(&server.url(""), TOKEN, Zone::UTC).unwrap_err().is_refused_sign_in());
 }
 
 #[test]
 fn a_task_made_here_goes_to_the_default_list_and_is_named_by_the_server() {
     let state = todo();
     let server = serve(&state);
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("Write the report")]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("Write the report")]), Zone::UTC);
     assert_eq!(done.outcomes.len(), 1);
     let o = &done.outcomes[0];
     assert_eq!((o.result, o.task, o.id.as_str(), o.list.as_str(), o.change_key.as_str()), (TaskResult::Done, 7, "T1", "L1", "W/\"e1\""));
@@ -204,7 +204,7 @@ fn the_default_list_is_found_by_graphs_own_name_wherever_it_comes() {
     state.lock().unwrap().lists.insert(0, flagged);
     state.lock().unwrap().lists.insert(0, ("L0".into(), "none".into(), Vec::new()));
     let server = serve(&state);
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("Write the report")]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("Write the report")]), Zone::UTC);
     assert_eq!(done.outcomes[0].list, "L1");
     assert_eq!(state.lock().unwrap().lists[2].2[0]["title"], "Write the report");
 }
@@ -218,7 +218,7 @@ fn a_change_sends_only_the_fields_that_changed() {
     let patch =
         TaskPatch { title: Some("New".into()), due: Some(Date::new(2026, 11, 2)), completed: Some(Some(1_790_000_000)), ..Default::default() };
     let op = TaskOp { kind: TaskOpKind::Update, task: 3, id: "A".into(), list: "L2".into(), patch };
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op]), Zone::UTC);
     assert_eq!(done.outcomes[0].result, TaskResult::Done);
     let task = state.lock().unwrap().lists[1].2[0].clone();
     assert_eq!((task["title"].as_str(), task["status"].as_str(), task["importance"].as_str()), (Some("New"), Some("completed"), Some("low")));
@@ -228,12 +228,12 @@ fn a_change_sends_only_the_fields_that_changed() {
 
 #[test]
 fn clearing_a_field_sends_null_and_reminders_say_whether_they_are_on() {
-    let body = task_body(&TaskPatch { due: Some(None), reminder: Some(None), completed: Some(None), ..Default::default() });
+    let body = task_body(&TaskPatch { due: Some(None), reminder: Some(None), completed: Some(None), ..Default::default() }, Zone::UTC);
     assert_eq!(body, json!({"dueDateTime": null, "isReminderOn": false, "status": "notStarted"}));
-    let body = task_body(&TaskPatch { reminder: Some(Some(1_793_352_600)), ..Default::default() });
+    let body = task_body(&TaskPatch { reminder: Some(Some(1_793_352_600)), ..Default::default() }, Zone::UTC);
     assert_eq!(body["isReminderOn"], true);
     assert_eq!(body["reminderDateTime"]["dateTime"], "2026-10-30T09:30:00.0000000");
-    assert_eq!(task_body(&TaskPatch::default()), json!({}));
+    assert_eq!(task_body(&TaskPatch::default(), Zone::UTC), json!({}));
 }
 
 #[test]
@@ -242,7 +242,7 @@ fn a_deletion_is_done_when_the_task_is_there_and_when_it_is_gone() {
     state.lock().unwrap().lists[0].2 = vec![json!({"id": "A", "title": "x"})];
     let server = serve(&state);
     let del = |id: &str| TaskOp { kind: TaskOpKind::Delete, id: id.into(), list: "L1".into(), ..Default::default() };
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![del("A"), del("A")]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![del("A"), del("A")]), Zone::UTC);
     assert_eq!(done.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [TaskResult::Done, TaskResult::Gone]);
     assert!(state.lock().unwrap().lists[0].2.is_empty());
 }
@@ -253,16 +253,16 @@ fn a_no_stops_the_rest_and_says_why() {
     let server = serve(&state);
     for (status, result) in [(403, TaskResult::Denied), (503, TaskResult::Failed), (500, TaskResult::Failed)] {
         state.lock().unwrap().write_status = Some(status);
-        let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("a"), create("b")]));
+        let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("a"), create("b")]), Zone::UTC);
         assert_eq!(done.outcomes.len(), 1, "{status}");
         assert_eq!(done.outcomes[0].result, result, "{status}");
     }
     // Refused for good does not stop the others.
     state.lock().unwrap().write_status = Some(400);
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("a"), create("b")]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("a"), create("b")]), Zone::UTC);
     assert_eq!(done.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [TaskResult::Refused, TaskResult::Refused]);
     state.lock().unwrap().write_status = Some(401);
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("a")]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("a")]), Zone::UTC);
     assert!(done.token_refused && done.outcomes.is_empty());
 }
 
@@ -272,7 +272,7 @@ fn ids_that_cannot_be_ids_are_not_sent_anywhere() {
     let server = serve(&state);
     let op = TaskOp { kind: TaskOpKind::Delete, id: "../../me/messages".into(), list: "L1".into(), ..Default::default() };
     let empty = TaskOp { kind: TaskOpKind::Update, id: "A".into(), list: "L1".into(), ..Default::default() };
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op, empty]));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![op, empty]), Zone::UTC);
     // (The first has a slash, which is encoded into one piece of the address and finds nothing.)
     assert!(done.outcomes.iter().all(|o| matches!(o.result, TaskResult::Refused | TaskResult::Gone)));
     assert_eq!(done.outcomes[1].result, TaskResult::Refused);
@@ -282,7 +282,7 @@ fn ids_that_cannot_be_ids_are_not_sent_anywhere() {
 fn at_most_a_hundred_changes_go_in_one_upload() {
     let state = todo();
     let server = serve(&state);
-    let done = push_tasks_at(&server.url(""), TOKEN, &upload((0..150).map(|n| create(&format!("t{n}"))).collect()));
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload((0..150).map(|n| create(&format!("t{n}"))).collect()), Zone::UTC);
     assert_eq!(done.outcomes.len(), 100);
 }
 
@@ -290,6 +290,16 @@ fn at_most_a_hundred_changes_go_in_one_upload() {
 fn a_due_date_written_in_a_zone_stays_on_its_day() {
     let entry =
         serde_json::json!({"id": "t1", "title": "x", "dueDateTime": {"dateTime": "2026-07-14T00:00:00.0000000", "timeZone": "Europe/London"}});
-    let task = super::tasks::task_of(&entry, "L1").unwrap();
+    let task = super::tasks::task_of(&entry, "L1", Zone::UTC).unwrap();
     assert_eq!(task.due, mailcraft_time::Date::new(2026, 7, 14));
+}
+
+#[test]
+fn an_id_that_reads_as_a_step_in_the_address_is_none() {
+    for id in [".", "..", "", " a", "a\nb"] {
+        assert!(!valid_id(id), "{id:?}");
+    }
+    for id in ["AAMkAGI2T", "a.b", "...", "AQMkADAwATM0MDAAMS0zZmY1LWYxNjAtMDACLTAwCgAuAAAD"] {
+        assert!(valid_id(id), "{id:?}");
+    }
 }

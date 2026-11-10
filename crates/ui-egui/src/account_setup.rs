@@ -26,7 +26,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
-use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
+use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;
@@ -394,6 +394,20 @@ struct Editing {
     baseline: Map<String, Value>,
 }
 
+/// The two switches of a Gmail account's settings (#911), each as it was and as its box has it now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GmailSwitches {
+    show: (bool, bool),
+    primary_only: (bool, bool),
+}
+
+impl GmailSwitches {
+    /// Whether either was changed.
+    fn changed(self) -> bool {
+        self.show.0 != self.show.1 || self.primary_only.0 != self.primary_only.1
+    }
+}
+
 /// The Add Account wizard, and Account Settings for an account that exists.
 pub struct AccountSetup {
     page: Page,
@@ -401,6 +415,9 @@ pub struct AccountSetup {
     app_passwords: bool,
     /// A new Google account starts with OAuth; its password field appears only on request.
     google_app_password_selected: bool,
+    /// Google sign-in is open only to the project's testers ([`Services::google_testers_only`]):
+    /// a new Gmail account starts on an app password.
+    google_testers_only: bool,
     email: String,
     /// The owner's name, as recipients see it.
     name: String,
@@ -468,6 +485,12 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of an account: its colour as it was and as the swatch has it now (#893).
+    color: Option<(Option<Rgb>, Option<Rgb>)>,
+    /// For the settings of a Gmail account: whether Gmail's categories are shown under its Inbox,
+    /// and whether desktop alerts are for Primary alone (#911), each as it was and as its box has
+    /// it now.
+    gmail: Option<GmailSwitches>,
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
@@ -544,6 +567,7 @@ impl AccountSetup {
             picked: false,
             app_passwords: false,
             google_app_password_selected: false,
+            google_testers_only: false,
             service: String::new(),
             note: String::new(),
             oauth: None,
@@ -574,6 +598,8 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            color: None,
+            gmail: None,
             graph: false,
             newer: false,
             ctx: None,
@@ -610,6 +636,8 @@ impl AccountSetup {
     fn new(app: &MailApp, p: &Value) -> AccountSetup {
         let text = |k: &str| line(p.get(k).and_then(Value::as_str).unwrap_or_default(), LINE);
         let mut w = AccountSetup::blank(Page::Address);
+        w.google_testers_only = app.services.google_testers_only;
+        w.google_app_password_selected = w.google_testers_only;
         w.email = text("email");
         w.name = text("displayName");
         if w.name.is_empty() {
@@ -639,8 +667,15 @@ impl AccountSetup {
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
         }
+        if a.is_gmail() {
+            let (show, primary) = (!a.hide_gmail_categories, a.alert_primary_only);
+            w.gmail = Some(GmailSwitches { show: (show, show), primary_only: (primary, primary) });
+        }
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
+        if !w.newer {
+            w.color = Some((a.color, a.color));
+        }
         if a.kind == AccountKind::Exchange {
             w.ews = Some(a.ews.clone().unwrap_or_default());
         }
@@ -833,7 +868,7 @@ impl AccountSetup {
 
     /// Take over what `account.preset` answered.
     fn take(&mut self, preset: Preset) {
-        self.google_app_password_selected = false;
+        self.google_app_password_selected = self.google_testers_only;
         self.service = preset.service;
         self.note = preset.note;
         self.oauth = preset.oauth.map(|provider| OAuth { provider, ..Default::default() });
@@ -1150,11 +1185,11 @@ impl AccountSetup {
         } else if !google_conversion_ready(existing) {
             self.error = tl!("First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods.")
                 .to_string();
-        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+        } else if !self.unchanged() {
             // A switch must not silently save unrelated edits or drop a newly typed password.
             self.error = tl!("Save or discard changes to this account before switching to Google sign-in.").to_string();
         } else if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured for this build").to_string();
+            self.error = tl!("Google sign-in is not configured for this build.").to_string();
         } else {
             self.reconnecting_google = false;
             self.oauth = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
@@ -1174,8 +1209,8 @@ impl AccountSetup {
             return;
         };
         if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured for this build").to_string();
-        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+            self.error = tl!("Google sign-in is not configured for this build.").to_string();
+        } else if !self.unchanged() {
             self.error = tl!("Save or discard changes to this account before reconnecting with Google.").to_string();
         } else {
             self.oauth = Some(oauth);
@@ -1391,6 +1426,15 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
+    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
+    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
+    /// until this holds.
+    fn unchanged(&self) -> bool {
+        self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
+            && self.password.0.is_empty()
+            && self.color.is_none_or(|(was, color)| was == color)
+    }
+
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
     fn save(&mut self, app: &mut MailApp) -> bool {
         if let Some(problem) = self.settings_problem(false) {
@@ -1410,6 +1454,21 @@ impl AccountSetup {
                 return false;
             }
             self.ask_conversation = Some((ask, ask));
+        }
+        if let Some((_, color)) = self.color.filter(|(was, color)| was != color) {
+            if let Err(e) = app.execute("account.edit", json!({"id": id, "color": color.map(Rgb::hex)})) {
+                self.error = e;
+                return false;
+            }
+            self.color = Some((color, color));
+        }
+        if let Some(gmail) = self.gmail.filter(|g| g.changed()) {
+            let params = json!({"id": id, "showGmailCategories": gmail.show.1, "alertPrimaryOnly": gmail.primary_only.1});
+            if let Err(e) = app.execute("account.edit", params) {
+                self.error = e;
+                return false;
+            }
+            self.gmail = Some(GmailSwitches { show: (gmail.show.1, gmail.show.1), primary_only: (gmail.primary_only.1, gmail.primary_only.1) });
         }
         // A window of mail kept offline: a shorter one asks first, in a question of its own (#143).
         if let Some(keep) = self.keep_offline.filter(|(was, keep)| was != keep).map(|(_, keep)| keep) {
@@ -1773,7 +1832,11 @@ impl AccountSetup {
             }
             if oauth_first {
                 note(ui, tl!("Sign in securely with Google in your browser. Your Google password is never entered in MailCraft."), t.text);
-                note(ui, tl!("Recommended"), t.accent);
+                if self.google_testers_only {
+                    note(ui, google_testers_note(), t.orange);
+                } else {
+                    note(ui, tl!("Recommended"), t.accent);
+                }
                 ui.add_space(4.0);
                 if button(ui, tl!("Use an app password instead"), false, true).clicked() {
                     change_method = Some(Action::GooglePassword);
@@ -1782,8 +1845,13 @@ impl AccountSetup {
                 if google {
                     if !configured {
                         note(ui, tl!("Google sign-in is not configured for this build. Use an app password instead."), t.orange);
-                    } else if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
-                        change_method = Some(Action::GooglePreferSignIn);
+                    } else {
+                        if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
+                            change_method = Some(Action::GooglePreferSignIn);
+                        }
+                        if self.google_testers_only {
+                            note(ui, google_testers_note(), t.text_dim);
+                        }
                     }
                     note(ui, tl!("Use a Google app password, not your everyday Google account password."), t.text_dim);
                 }
@@ -1941,7 +2009,7 @@ impl AccountSetup {
         let can_reconnect =
             self.edit.is_some() && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) && app.services.sign_in.is_some();
         let compatible = saved_google.is_some_and(google_conversion_ready);
-        let unchanged = self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline) && self.password.0.is_empty();
+        let unchanged = self.unchanged();
         let configured = app.google_registration_ready();
         let how = match &self.oauth {
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
@@ -2032,6 +2100,20 @@ impl AccountSetup {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
+            if let Some((_, color)) = self.color.as_mut() {
+                caption(ui, tl!("Colour"), &t);
+                if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
+                    *color = picked;
+                }
+                note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
+            }
+            if let Some(gmail) = self.gmail.as_mut() {
+                caption(ui, tl!("Gmail categories"), &t);
+                ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
+                    .on_hover_text(tl!("Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."));
+                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary"))
+                    .on_hover_text(tl!("New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."));
             }
         });
         problem(ui, &self.error);
@@ -2248,6 +2330,10 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 /// What went wrong, in red above the buttons, where it stays in view however long the page is.
 /// Where a Google account's app passwords are made.
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
+
+fn google_testers_note() -> &'static str {
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+}
 
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).
 fn is_google(host: &str) -> bool {

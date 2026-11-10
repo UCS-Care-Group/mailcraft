@@ -125,7 +125,7 @@ fn an_imap_password_is_kept_once_the_server_lets_the_run_in_whatever_comes_after
     let mut b = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     b.services.secrets = Some(Arc::new(store.clone()));
     crate::secret_read_tests::settle(&mut b);
-    assert_eq!(b.remembered("password", "avery@mail.example").as_deref(), Some(TYPED));
+    assert_eq!(b.remembered("password", b.account_at("avery@mail.example").map_or(0, |x| x.id)).as_deref(), Some(TYPED));
 }
 
 #[test]

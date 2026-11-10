@@ -463,7 +463,8 @@ fn save_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     match p.get("path").and_then(Value::as_str) {
         #[cfg(not(target_arch = "wasm32"))]
         Some(path) => {
-            std::fs::write(path, bytes.as_slice()).map_err(|e| format!("{path}: {e}"))?;
+            // A sender's bytes: marked as a browser marks a download (AU3-V6).
+            mailcraft_engine::mark::write_from_mail(std::path::Path::new(path), bytes.as_slice()).map_err(|e| format!("{path}: {e}"))?;
             Ok(json!({"path": path, "bytes": bytes.len()}))
         }
         _ => Ok(json!({"name": name, "bytes": bytes.len(), "data": mailcraft_engine::cmd::base64_encode(bytes)})),
@@ -654,6 +655,38 @@ pub(crate) fn event_window_people(app: &MailApp, p: &Value) -> Vec<String> {
     let form = app.windows.open.iter().rev().filter(|w| wanted.is_none_or(|id| w.id == id)).find_map(|w| w.what.form().and_then(Form::event));
     let Some(meeting) = form.map(|f| f.meeting()) else { return Vec::new() };
     meeting.required.iter().chain(meeting.optional.iter()).map(|a| a.email.clone()).collect()
+}
+
+/// The windows as an agent's question saw them (AU3-20): which are open and in what order, what
+/// each is about, who an appointment's would write to, which message being written the reading
+/// pane and the keyboard have, and the dialog. A yes reaches no window that another took the
+/// place of, nor people the window didn't show.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Seen {
+    windows: Vec<(u64, Option<(bool, Id)>, Option<u64>, Vec<String>)>,
+    pane: Option<u64>,
+    focus: Option<u64>,
+    dialog: Option<&'static str>,
+}
+
+/// What the windows show now, as [`Seen`] keeps it.
+pub(crate) fn seen(app: &MailApp) -> Seen {
+    let people = |w: &Open| {
+        let meeting = w.what.form().and_then(Form::event).map(|f| f.meeting());
+        meeting.map(|m| m.required.iter().chain(m.optional.iter()).map(|a| a.email.clone()).collect()).unwrap_or_default()
+    };
+    Seen {
+        windows: app.windows.open.iter().map(|w| (w.id, w.what.subject(), w.what.compose(), people(w))).collect(),
+        pane: app.windows.pane,
+        focus: app.windows.focus,
+        dialog: app.dialog.as_ref().map(|d| d.name()),
+    }
+}
+
+/// Whether the window `id` has been told to save or send, as `ui.eventWindow`'s `do` tells it.
+#[cfg(test)]
+pub(crate) fn told(app: &MailApp, id: u64) -> bool {
+    app.windows.open.iter().any(|w| w.id == id && w.ask.is_some())
 }
 
 fn event_window(app: &mut MailApp, p: &Value) -> Result<Value, String> {
@@ -1221,9 +1254,13 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
                 .resizable(false)
                 .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
                 .show(ui, |ui| close = actions(app, ui, &m, own_keys));
+            // What the message draws (its attachments' chips and `▾`, #785) is recorded as in this
+            // window, apart from the same message in the reading pane.
+            let scope = app.hit.scope(id);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });
+            app.hit.scope(scope);
             if close { Verdict::Close } else { Verdict::Stay }
         }
         What::File { message, bytes } => {
@@ -1233,9 +1270,11 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
                 .resizable(false)
                 .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
                 .show(ui, |ui| asked = crate::opened_message::bar(app, ui));
+            let scope = app.hit.scope(id);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_file_message(app, ui, &m, Place::Window(id));
             });
+            app.hit.scope(scope);
             if asked.save {
                 crate::files::save_opened(app, id, &m, bytes);
             }
@@ -1279,7 +1318,8 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
     row.push(("flag", if flagged { "Clear Flag" } else { "Flag" }, "mail.toggleFlag", Action::Flag, "windowFlag"));
-    let (icon, label, command) = if m.read { ("markUnread", "Mark Unread", "mail.markUnread") } else { ("markRead", "Mark Read", "mail.markRead") };
+    let (icon, label, command) =
+        if m.read { ("markUnread", "Mark as unread", "mail.markUnread") } else { ("markRead", "Mark as read", "mail.markRead") };
     row.push((icon, label, command, Action::Read, "windowUnread"));
     let mut asked = None;
     // The keys the main window has for these, when this window has the keyboard to itself.

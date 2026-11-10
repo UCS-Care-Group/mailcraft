@@ -71,6 +71,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::{Duration, Instant, SystemTime};
 
+use mailcraft_model::load_limit::{self, Budget};
 use mailcraft_model::{Contact, ContentRef, Event, Id, KeptBody, Mailbox, Message, Task};
 use serde::{Deserialize, Serialize};
 
@@ -211,6 +212,11 @@ impl Digest {
         Digest(out)
     }
 
+    /// The 32 bytes of it.
+    pub fn bytes(&self) -> [u8; 32] {
+        self.0
+    }
+
     /// 64 lowercase hex digits.
     pub fn hex(&self) -> String {
         let digit = |n: u8| char::from_digit(u32::from(n), 16).unwrap_or('0');
@@ -283,15 +289,17 @@ struct Parts {
     /// The words the sender hid ([`Message::hidden_text`]), when over [`INLINE_MAX`] (#599).
     hidden: Option<Part>,
     attachments: Vec<Option<Part>>,
+    /// The bytes a Digitally signed or Encrypted message came as ([`Message::original`], #30).
+    original: Option<Part>,
 }
 
 impl Parts {
     fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none)
+        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none) && self.original.is_none()
     }
 
     fn all(&self) -> impl Iterator<Item = &Part> {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten())
+        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original)
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -309,6 +317,9 @@ impl Parts {
         }
         if !self.attachments.is_empty() {
             fields.push(format!("\"attachments\":[{}]", self.attachments.iter().map(one).collect::<Vec<_>>().join(",")));
+        }
+        if self.original.is_some() {
+            fields.push(format!("\"original\":{}", one(&self.original)));
         }
         format!("{{{}}}", fields.join(","))
     }
@@ -331,6 +342,9 @@ impl Parts {
                 out.push((r, a.data.as_slice()));
             }
         }
+        if let (Some(r), Some(bytes)) = (held(&self.original), m.original_bytes()) {
+            out.push((r, bytes));
+        }
         out
     }
 }
@@ -352,6 +366,7 @@ struct WireParts {
     hidden: Option<(String, u64)>,
     #[serde(deserialize_with = "capped")]
     attachments: Vec<Option<(String, u64)>>,
+    original: Option<(String, u64)>,
 }
 
 /// At most [`MAX_PARTS`] entries of a list; the rest is skipped without being kept.
@@ -384,13 +399,26 @@ fn parse_ref(wire: &(String, u64)) -> Option<Ref> {
 impl WireParts {
     /// Every name given, parsed or not.
     fn hashes(&self) -> impl Iterator<Item = Digest> + '_ {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash)
+        self.text
+            .iter()
+            .chain(&self.html)
+            .chain(&self.hidden)
+            .chain(self.attachments.iter().flatten())
+            .chain(&self.original)
+            .filter_map(parse_ref)
+            .map(|r| r.hash)
     }
 
     /// The parts as named, all taken to be in memory (what couldn't be read is marked after).
     fn parts(&self) -> Parts {
         let one = |p: &Option<(String, u64)>| p.as_ref().and_then(parse_ref).map(|r| Part { r, held: true });
-        Parts { text: one(&self.text), html: one(&self.html), hidden: one(&self.hidden), attachments: self.attachments.iter().map(one).collect() }
+        Parts {
+            text: one(&self.text),
+            html: one(&self.html),
+            hidden: one(&self.hidden),
+            attachments: self.attachments.iter().map(one).collect(),
+            original: one(&self.original),
+        }
     }
 }
 
@@ -726,7 +754,7 @@ impl Loaded {
     /// Everything but the messages, as the model writes it.
     fn rest(mailbox: &Mailbox) -> Option<Digest> {
         let mut shell = mailbox.clone();
-        shell.messages = BTreeMap::new();
+        shell.messages = Default::default();
         serde_json::to_vec(&shell).ok().map(|bytes| Digest::of(&bytes))
     }
 
@@ -786,7 +814,7 @@ struct State {
     ahead: Option<(Box<Opened>, Stamp)>,
     /// The content folder, and the content in it the opening left on disk without looking for
     /// it, with how many parts name each, for [`check_parts`].
-    unchecked: Option<(PathBuf, Vec<(Ref, u32)>)>,
+    unchecked: Option<(PathBuf, Vec<(Ref, u32)>, Vec<Ref>)>,
     /// The bodies the budget holds that an opening for a window left on disk, newest first, for
     /// [`bodies_later`].
     later: Option<Vec<crate::session::BodyLater>>,
@@ -829,6 +857,7 @@ impl Pins {
                 out.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(|r| Digest(r.sha256)));
             }
             out.extend(m.attachments.iter().filter_map(|a| a.kept).map(|r| Digest(r.sha256)));
+            out.extend(m.original.as_ref().and_then(|o| o.kept).map(|r| Digest(r.sha256)));
         }
         out
     }
@@ -850,6 +879,10 @@ struct Shared {
     /// with the state of the session that let go of it: removed once a state at least that new
     /// is saved, unless something else still names it ([`forget_when_saved`]).
     forgetting: Mutex<Vec<(u64, Digest)>>,
+    /// Content written ahead of the messages that name it (`stash`, a .pst import), with the
+    /// sequence number of the last time it was asked for: left alone by every sweep until a
+    /// mailbox file saved from a state after that names it.
+    ahead: Mutex<HashMap<Digest, u64>>,
 }
 
 /// Most content names waiting to be forgotten ([`forget_when_saved`]); past this the sweep
@@ -858,7 +891,7 @@ const MAX_FORGETTING: usize = 4_000_000;
 
 /// Whether message `m` names content it keeps on disk rather than in memory.
 fn names_kept(m: &Message) -> bool {
-    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some())
+    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some()) || m.original.as_ref().is_some_and(|o| o.kept.is_some())
 }
 
 /// Keep the content that `messages` keep on disk (named on them, not in memory) from being swept
@@ -1172,18 +1205,152 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
     Err(last.unwrap_or_else(|| std::io::Error::other("the content folder keeps going away")))
 }
 
+/// Write `bytes`, whose SHA-256 is `hash`, into the content folder of the mailbox file at `path`
+/// ahead of a save, and give the name to keep them by (#815: a .pst import puts each attachment
+/// here as its batch is read, rather than holding it in memory until the save). Content already
+/// there is not written again, and its time is renewed. The file is protected from every sweep
+/// until a saved mailbox file names it ([`protect`], done here), or the program ends.
+pub fn stash(path: &Path, hash: &Digest, bytes: &[u8]) -> Result<ContentRef, String> {
+    let r = Ref { hash: *hash, len: bytes.len() as u64 };
+    let dir = blob_dir(&resolve(path));
+    // A content folder that is a link is never written through.
+    if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(format!("{}: the content folder is a link", dir.display()));
+    }
+    // The folder beside the mailbox file, and no more: nothing is written where there is no place.
+    if let Err(e) = make_dir(&dir)
+        && !dir.is_dir()
+    {
+        return Err(format!("{}: {e}", dir.display()));
+    }
+    // (Even for content that is there: its time is renewed, and its presence is looked at.)
+    protect(path, hash);
+    put(&dir, &r, bytes).map_err(|e| format!("{}: {e}", dir.display()))?;
+    Ok(r.to_model())
+}
+
+/// Keep the content `hash` of the mailbox file at `path` from every sweep until a mailbox file
+/// that names it is saved there, or the program ends: it was written ahead of a message that
+/// names it, and the message may be replaced, changed or let go of before the save, which no
+/// handle to the message could outlast.
+pub fn protect(path: &Path, hash: &Digest) {
+    lock(&shared(path).ahead).insert(*hash, next_seq());
+}
+
+/// [`protect`], for the content a message names by its [`ContentRef`].
+pub fn protect_ref(path: &Path, r: &ContentRef) {
+    protect(path, &Digest(r.sha256));
+}
+
+/// Copy (or link, where the disk allows) the content files that `mailbox` keeps outside memory
+/// from beside the mailbox file `from` to beside `to`, so that a save to `to` names them without
+/// reading any of them into memory (Save As of a large mailbox). Each file is looked at once.
+pub fn copy_content(from: &Path, to: &Path, mailbox: &Mailbox) -> Result<usize, String> {
+    let (src, dst) = (blob_dir(&resolve(from)), blob_dir(&resolve(to)));
+    if src == dst {
+        return Ok(0);
+    }
+    let mut wanted: HashSet<Ref> = HashSet::new();
+    for m in mailbox.messages.values() {
+        if let Some(k) = m.kept.as_deref() {
+            wanted.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(Ref::from_model));
+        }
+        wanted.extend(m.attachments.iter().filter(|a| a.data.is_empty()).filter_map(|a| a.kept.as_ref()).map(Ref::from_model));
+        wanted.extend(m.original.as_ref().filter(|o| o.data.is_empty()).and_then(|o| o.kept.as_ref()).map(Ref::from_model));
+    }
+    if wanted.is_empty() {
+        return Ok(0);
+    }
+    if let Err(e) = make_dir(&dst)
+        && !dst.is_dir()
+    {
+        return Err(format!("{}: {e}", dst.display()));
+    }
+    let mut copied = 0usize;
+    for r in wanted {
+        let (Some((_, from_file)), Some((sub, to_file))) = (blob_path(&src, &r.hash), blob_path(&dst, &r.hash)) else { continue };
+        let there = |f: &Path| fs::symlink_metadata(f).is_ok_and(|m| m.file_type().is_file() && m.len() == r.len);
+        // Only a plain file of the right length is content of ours; a link is never followed.
+        if !there(&from_file) {
+            continue;
+        }
+        if there(&to_file) {
+            continue;
+        }
+        own_dir(&sub).map_err(|e| format!("{}: {e}", sub.display()))?;
+        if fs::hard_link(&from_file, &to_file).is_err() {
+            let mut out = AtomicFile::create(&to_file).map_err(|e| format!("{}: {e}", to_file.display()))?;
+            let mut input = fs::File::open(&from_file).map_err(|e| format!("{}: {e}", from_file.display()))?;
+            std::io::copy(&mut input, &mut out).map_err(|e| format!("{}: {e}", to_file.display()))?;
+            out.commit().map_err(|e| format!("{}: {e}", to_file.display()))?;
+        }
+        copied += 1;
+    }
+    Ok(copied)
+}
+
+/// Take away what a run wrote ahead of a mailbox file that was never saved: the content folder
+/// of `path`, when there is no mailbox file there (a failed or called-off import into a new
+/// file). Only folders of two hex digits with files of our names in them go; anything else
+/// stays, and so does everything when the mailbox file exists.
+pub fn remove_unwritten(path: &Path) -> usize {
+    let file = resolve(path);
+    if fs::symlink_metadata(&file).is_ok() {
+        return 0;
+    }
+    let dir = blob_dir(&file);
+    // A link is somebody else's folder: it is never followed or removed.
+    if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return 0;
+    }
+    let mut removed = 0usize;
+    for sub in fs::read_dir(&dir).into_iter().flatten().flatten().take(MAX_ENTRIES) {
+        let name = sub.file_name();
+        let Some(folder) = name.to_str().filter(|n| n.len() == 2 && is_hex(n)) else { continue };
+        if !sub.file_type().is_ok_and(|t| t.is_dir()) {
+            continue;
+        }
+        for entry in fs::read_dir(sub.path()).into_iter().flatten().flatten().take(MAX_ENTRIES) {
+            let name = entry.file_name();
+            let ours = name.to_str().is_some_and(|n| {
+                Digest::parse(n).is_some_and(|_| n.starts_with(folder))
+                    || n.get(..64).is_some_and(|stem| Digest::parse(stem).is_some() && is_temp_of(n, stem))
+            });
+            if ours && entry.file_type().is_ok_and(|t| t.is_file()) && fs::remove_file(entry.path()).is_ok() {
+                removed += 1;
+            }
+        }
+        let _ = fs::remove_dir(sub.path());
+    }
+    let _ = fs::remove_dir(&dir);
+    lock(&shared(path).ahead).clear();
+    removed
+}
+
+#[cfg(test)]
+pub(crate) fn end_session_for_test(path: &Path) {
+    lock(&shared(path).ahead).clear();
+}
+
 /// Which of the 256 folders of two digits are folders of their own (not links to somewhere
-/// else), each looked at once however many files are read from it.
-struct Folders([OnceLock<bool>; 256]);
+/// else), each looked at once however many files are read from it; and whether the content
+/// folder is whole ([`Folders::whole`]), looked at once too.
+struct Folders([OnceLock<bool>; 256], OnceLock<bool>);
 
 impl Folders {
     fn new() -> Folders {
-        Folders(std::array::from_fn(|_| OnceLock::new()))
+        Folders(std::array::from_fn(|_| OnceLock::new()), OnceLock::new())
     }
 
     fn real(&self, hash: &Digest, sub: &Path) -> bool {
         let first = hash.0.first().copied().unwrap_or(0);
         self.0.get(usize::from(first)).is_some_and(|seen| *seen.get_or_init(|| fs::symlink_metadata(sub).is_ok_and(|m| m.file_type().is_dir())))
+    }
+
+    /// Whether the content folder `dir` is there and whole, by a content file in it that reads
+    /// ([`one_reads`], `sub` looked in first): looked at once.
+    fn whole(&self, dir: &Path, sub: &Path) -> bool {
+        *self.1.get_or_init(|| one_reads(dir, sub))
     }
 }
 
@@ -1572,7 +1739,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     }
     // A file that would not fit in memory whole (or is more than is read whole) is read as a
     // stream, its content going to the content folder as it is read (#649).
-    if (len > MAX_MAILBOX_JSON || json_needs_too_much_memory(len, available_memory()))
+    if (len > MAX_MAILBOX_JSON || json_needs_too_much_memory(len, available_memory()) || forced_stream())
         && let Some(opened) = stream::open(st, &file, len, progress).map_err(|e| e.to_string())?
     {
         return Ok((opened, true));
@@ -1605,13 +1772,15 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_MAILBOX_JSON) {
         return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
     }
-    let mut mailbox: Mailbox =
-        mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
+    // (What parsing builds is charged while it is built, every list element at any depth: a file
+    // that would cost more memory than it may is refused before it does, `load_limit`.)
+    let budget = open_budget();
+    let mut mailbox: Mailbox = load_limit::read_json(&bytes, &budget).map_err(|e| refused(&show, "this isn't a MailCraft mailbox", &e, &budget))?;
     let version = mailbox.version;
     let (split, filled) = match version {
         0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
-            let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
+            let head: Head = load_limit::read_json(&bytes, &budget).map_err(|e| refused(&show, "this mailbox file is damaged", &e, &budget))?;
             (true, fill(st, &blob_dir(&file), &mut mailbox, head, None, Launch::default()))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
@@ -1652,19 +1821,24 @@ enum Parsed {
     Task(Arc<Task>),
 }
 
-fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
-    let damaged = |e: serde_json::Error| format!("this mailbox file is damaged (item {} of {:?}: {e})", key.1, key.0);
+/// One item of the file read, what parsing it builds charged to `budget` (the one the whole file
+/// is read within). (Not counted as an item: a file in this form has always held as many as
+/// `MAX_RECORDS`, and every item is charged what it costs in memory.)
+fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Parsed, Fp), String> {
+    let damaged = |e: serde_json::Error| {
+        if let Some(why) = budget.spent() { why.to_string() } else { format!("this mailbox file is damaged (item {} of {:?}: {e})", key.1, key.0) }
+    };
     let fp = item.fp;
     let parsed = match key.0 {
         Coll::Message => {
-            let m: Message = serde_json::from_slice(item.json()).map_err(damaged)?;
+            let m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
             let refs = item.refs();
-            let wire = if refs.is_empty() { None } else { Some(serde_json::from_slice::<WireParts>(refs).map_err(damaged)?) };
+            let wire = if refs.is_empty() { None } else { Some(load_limit::read_json::<WireParts>(refs, budget).map_err(damaged)?) };
             Parsed::Message(Arc::new(m), wire)
         }
-        Coll::Contact => Parsed::Contact(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
-        Coll::Event => Parsed::Event(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
-        Coll::Task => Parsed::Task(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
+        Coll::Contact => Parsed::Contact(Arc::new(load_limit::read_json(item.json(), budget).map_err(damaged)?)),
+        Coll::Event => Parsed::Event(Arc::new(load_limit::read_json(item.json(), budget).map_err(damaged)?)),
+        Coll::Task => Parsed::Task(Arc::new(load_limit::read_json(item.json(), budget).map_err(damaged)?)),
     };
     Ok((parsed, fp))
 }
@@ -1674,22 +1848,30 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
+    // The records and what parsing them builds are read within one budget, as a file read whole
+    // is: a file that is more than it is refused before it is read.
+    let budget = open_budget();
+    if len > max_json_bytes() {
+        return Err(load_limit::TOO_MUCH.into());
+    }
     let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     // What its bytes are is worked out on a thread of its own from the bytes read here (no more
     // than `len` of them), for the first save to wait for: nothing wants it before.
     let mut reader = std::io::BufReader::with_capacity(HASH_PIECE, Hashing::new(Counted { inner: f.take(len), progress }, file));
-    let replayed = index::replay(&mut reader, len)?;
+    let replayed = index::replay_within(&mut reader, len, index::MAX_RECORDS, Some(&budget))?;
     // A sum only of the file read to its end by the replay itself: bytes read ahead into the
     // buffer and never taken (a save cut short) leave none, as a file not read through always has.
     let taken_whole = reader.buffer().is_empty();
     let sum = reader.into_inner().sum(len);
     let sum = if taken_whole { sum } else { Sum::None };
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
-    let mut mailbox: Mailbox = mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
+    let mut mailbox: Mailbox = load_limit::read_json(&rest, &budget)
+        .map_err(|e| if let Some(why) = budget.spent() { why.to_string() } else { format!("this mailbox file is damaged ({e})") })?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
+    budget.give_back((rest.len() as u64).saturating_add(index::RECORD_COST));
     drop(rest);
     // Items are their own records: whatever the rest says of them is no part of the mailbox.
-    mailbox.messages = BTreeMap::new();
+    mailbox.messages = Default::default();
     mailbox.contacts = BTreeMap::new();
     mailbox.events = BTreeMap::new();
     mailbox.tasks = BTreeMap::new();
@@ -1705,7 +1887,9 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     while !items.is_empty() {
         let mut slice = items.split_off(items.len().saturating_sub(OPEN_SLICE));
         slice.reverse();
-        let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item))));
+        let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item, &budget))));
+        // (The records' bytes are let go of, and what they cost given back.)
+        budget.give_back(slice.iter().map(|(_, item)| item.cost()).fold(0u64, u64::saturating_add));
         drop(slice);
         for one in parsed {
             let Some(Some((key, size, result))) = one else { return Err("the mailbox file couldn't be read".into()) };
@@ -1769,8 +1953,8 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     let mut disk = Disk::new(rest_fp);
     (disk.len, disk.tail) = (replayed.good_len, replayed.tail);
     let trusted = fixed.is_empty();
-    fn of<T>(map: &BTreeMap<Id, Arc<T>>, id: Id, trusted: bool) -> Weak<T> {
-        map.get(&id).filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
+    fn of<T>(item: Option<&Arc<T>>, trusted: bool) -> Weak<T> {
+        item.filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
     }
     for (key, fp, size) in records {
         disk.live = disk.live.saturating_add(size);
@@ -1778,16 +1962,16 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
         match key.0 {
             Coll::Message => {
                 let parts = parts.remove(&id).unwrap_or_default();
-                disk.messages.insert(id, Msg { entry: Entry { of: of(&mailbox.messages, id, trusted), fp, size }, parts });
+                disk.messages.insert(id, Msg { entry: Entry { of: of(mailbox.messages.get(&id), trusted), fp, size }, parts });
             }
             Coll::Contact => {
-                disk.contacts.insert(id, Entry { of: of(&mailbox.contacts, id, trusted), fp, size });
+                disk.contacts.insert(id, Entry { of: of(mailbox.contacts.get(&id), trusted), fp, size });
             }
             Coll::Event => {
-                disk.events.insert(id, Entry { of: of(&mailbox.events, id, trusted), fp, size });
+                disk.events.insert(id, Entry { of: of(mailbox.events.get(&id), trusted), fp, size });
             }
             Coll::Task => {
-                disk.tasks.insert(id, Entry { of: of(&mailbox.tasks, id, trusted), fp, size });
+                disk.tasks.insert(id, Entry { of: of(mailbox.tasks.get(&id), trusted), fp, size });
             }
         }
     }
@@ -1832,7 +2016,10 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
     }
 }
 
-/// How the machine's memory stands, in bytes, where it can be read (Linux: `/proc/meminfo`).
+/// How the machine's memory stands, in bytes, where it can be read: Linux from `/proc/meminfo`,
+/// macOS and FreeBSD from the system's own `sysctl` (asked once), Windows through `sysinfo` (asked
+/// once; the system's own call needs `unsafe`, which this crate forbids). A reading of 0 is no
+/// reading ([`memory_reading`]).
 fn physical_memory() -> Option<u64> {
     #[cfg(target_os = "linux")]
     let total = {
@@ -1841,9 +2028,50 @@ fn physical_memory() -> Option<u64> {
         let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
         kb.checked_mul(1024)
     };
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    let total = {
+        static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
+        *TOTAL.get_or_init(sysctl_memory)
+    };
+    #[cfg(windows)]
+    let total = {
+        static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
+        *TOTAL.get_or_init(windows_memory)
+    };
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", windows)))]
     let total = None;
-    total
+    total.and_then(memory_reading)
+}
+
+/// A reading of the machine's memory, or none when it says 0 (a call that failed).
+pub(crate) fn memory_reading(total: u64) -> Option<u64> {
+    (total > 0).then_some(total)
+}
+
+/// The machine's physical memory as Windows says it (`GlobalMemoryStatusEx`, through `sysinfo`),
+/// 0 when the call fails.
+#[cfg(windows)]
+fn windows_memory() -> Option<u64> {
+    let mut system = sysinfo::System::new().ok()?;
+    system.refresh_memory_specifics(sysinfo::MemoryRefreshKind::nothing().with_ram());
+    Some(system.total_memory())
+}
+
+/// The machine's memory as `sysctl` says it (`hw.memsize` on macOS, `hw.physmem` on FreeBSD), run
+/// by its full path with nothing but the name.
+#[cfg(any(target_os = "macos", target_os = "freebsd"))]
+fn sysctl_memory() -> Option<u64> {
+    let (program, name) = if cfg!(target_os = "macos") { ("/usr/sbin/sysctl", "hw.memsize") } else { ("/sbin/sysctl", "hw.physmem") };
+    let out = std::process::Command::new(program)
+        .args(["-n", name])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    std::str::from_utf8(out.stdout.get(..64).unwrap_or(&out.stdout)).ok()?.trim().parse().ok().filter(|n| *n > 0)
 }
 
 #[cfg(test)]
@@ -1877,7 +2105,9 @@ pub fn body_budget() -> u64 {
 
 /// Whether reading and parsing a JSON file of `len` bytes would want more than `available` bytes
 /// of memory (three times the file: the bytes, and the strings made of them). Where the memory
-/// can't be read (everywhere but Linux) a fixed cap stands in, [`UNMEASURED_JSON_MAX`].
+/// can't be read (everywhere but Linux) a fixed cap stands in, [`UNMEASURED_JSON_MAX`]. Only a
+/// first guess, which decides whether a file is read whole or as a stream: what parsing builds is
+/// bounded while it is built, by [`open_budget`].
 fn json_needs_too_much_memory(len: u64, available: Option<u64>) -> bool {
     match available {
         Some(a) => len.saturating_mul(3) > a,
@@ -1928,6 +2158,62 @@ pub(crate) fn max_json_items() -> usize {
     usize::try_from(body_budget().saturating_mul(4) / mailcraft_model::MIN_ITEM_BYTES).unwrap_or(usize::MAX).max(MIN_JSON_ITEMS)
 }
 
+/// Bytes of parsed values (every list element, map entry and compound value of the mailbox, at any
+/// depth, at what it takes in memory: `load_limit`) a mailbox file is read with, in every form:
+/// half the machine's memory, [`UNMEASURED_ELEMENTS`] where that can't be read, and never less
+/// than [`MIN_ELEMENTS`] or more than [`MAX_ELEMENTS`]. What the text of a file holds (strings, the
+/// bytes of attachments) is bounded by the file's size and is not counted here.
+pub(crate) fn max_json_bytes() -> u64 {
+    #[cfg(any(test, feature = "test-support"))]
+    if let Some(limits) = crate::test_support::limits() {
+        return limits.element_bytes;
+    }
+    if cfg!(test) {
+        return TEST_ELEMENTS;
+    }
+    elements_for(physical_memory())
+}
+
+/// [`max_json_bytes`] for a machine with `memory` bytes (`None`: unknown).
+pub(crate) fn elements_for(memory: Option<u64>) -> u64 {
+    memory.map_or(UNMEASURED_ELEMENTS, |m| m / 2).clamp(MIN_ELEMENTS, MAX_ELEMENTS)
+}
+
+/// [`max_json_bytes`] under test, small as the other limits are there: 256 MB.
+const TEST_ELEMENTS: u64 = 256 << 20;
+
+/// The least [`max_json_bytes`] is: 1 GiB.
+const MIN_ELEMENTS: u64 = 1 << 30;
+
+/// [`max_json_bytes`] where the machine's memory can't be read (a failed reading, and systems
+/// other than Linux, macOS, FreeBSD and Windows): 8 GiB, which a mailbox of a million messages fits in several times
+/// over (`store_budget_tests.rs`).
+const UNMEASURED_ELEMENTS: u64 = 8 << 30;
+
+/// The most [`max_json_bytes`] is: 32 GiB.
+const MAX_ELEMENTS: u64 = 32 << 30;
+
+/// The budget a mailbox file is read within: [`max_json_items`] items and [`max_json_bytes`] of
+/// parsed values. One for the whole of a file, whatever its form and however many threads read it.
+pub(crate) fn open_budget() -> Arc<Budget> {
+    Budget::new(max_json_items(), max_json_bytes())
+}
+
+/// The error for a mailbox file that couldn't be read: that it would cost more memory than it may,
+/// when that is why, or else `what` and the parser's word.
+fn refused(show: &impl std::fmt::Display, what: &str, e: &serde_json::Error, budget: &Budget) -> String {
+    if let Some(why) = budget.spent() { format!("{show}: {why}") } else { format!("{show}: {what} ({e})") }
+}
+
+/// Whether a file is to be read as a stream whatever its size (a test's choice).
+fn forced_stream() -> bool {
+    #[cfg(any(test, feature = "test-support"))]
+    if let Some(limits) = crate::test_support::limits() {
+        return limits.stream;
+    }
+    false
+}
+
 /// What [`fill`] did with the content the mailbox file names.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Filled {
@@ -1958,19 +2244,69 @@ fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref
     on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect()
 }
 
+/// Whether the content `r` is surely not under `dir`: the folder it would be in is a real one,
+/// and a content file in the folder reads ([`Folders::whole`]), so the content folder is there
+/// and whole (not an empty mount point, a share that dropped, a cloud drive that put its files
+/// away); and the file isn't (the system says there is no such file, and no cloud drive keeps a
+/// stand-in for it) or isn't the length it must be. A look that fails any other way (a file
+/// another program holds, one that can't be looked at) is no answer, and says not.
+fn absent_in(dir: &Path, r: &Ref, folders: &Folders) -> bool {
+    blob_path(dir, &r.hash).is_some_and(|(sub, file)| {
+        folders.real(&r.hash, &sub)
+            && match fs::symlink_metadata(&file) {
+                Err(e) => e.kind() == std::io::ErrorKind::NotFound && !evicted(&sub, &r.hash) && folders.whole(dir, &sub),
+                Ok(m) => !(m.file_type().is_file() && m.len() == r.len) && folders.whole(dir, &sub),
+            }
+    })
+}
+
+/// Whether a cloud drive keeps a stand-in for the content `hash` in `sub` (iCloud's
+/// `.<name>.icloud`): the file is away, not gone.
+fn evicted(sub: &Path, hash: &Digest) -> bool {
+    fs::symlink_metadata(sub.join(format!(".{}.icloud", hash.hex()))).is_ok()
+}
+
+/// How many entries of the content folder's subfolders are looked at for a content file that
+/// reads ([`Folders::whole`]).
+const WHOLE_LOOKS: usize = 1_024;
+
+/// Whether a content file under `dir` reads (its first byte), `first` (a subfolder) looked in
+/// before the others, within [`WHOLE_LOOKS`] entries.
+fn one_reads(dir: &Path, first: &Path) -> bool {
+    let others = fs::read_dir(dir).into_iter().flatten().flatten().filter(|e| e.file_name().to_str().is_some_and(|n| n.len() == 2 && is_hex(n)));
+    let subs = std::iter::once(first.to_path_buf()).chain(others.map(|e| e.path()));
+    subs.flat_map(|sub| fs::read_dir(sub).into_iter().flatten().flatten()).take(WHOLE_LOOKS).any(|e| {
+        // (A name of 64 hex digits alone: never a cloud drive's `.<name>.icloud` stand-in.)
+        e.file_name().to_str().is_some_and(|n| !n.starts_with('.') && Digest::parse(n).is_some())
+            && open_plain(&e.path()).is_some_and(|(mut f, len)| len > 0 && std::io::Read::read(&mut f, &mut [0u8; 1]).is_ok_and(|n| n == 1))
+    })
+}
+
+/// Which of `refs` are surely gone from under `dir` ([`absent_in`]), looked for as
+/// [`missing_of`] looks, within [`STAT_TIME`]: what isn't looked at in time is taken to be there.
+fn absent_of(dir: &Path, refs: &[Ref], folders: &Folders) -> Vec<Ref> {
+    let deadline = Instant::now().checked_add(STAT_TIME);
+    let looked = fan_out(refs.len(), |i| refs.get(i).map(|r| deadline.is_none_or(|d| Instant::now() < d).then(|| absent_in(dir, r, folders))));
+    refs.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(true))))).map(|(r, _)| *r).collect()
+}
+
 /// Look for the content files the mailbox file at `path` names and its opening left on disk
 /// unlooked for ([`open_for_window`]): how many bodies and attachments are missing or damaged,
 /// for the window to say as the opening would have ([`Opened::notice`]). Once only: 0 after
 /// that, and for a file opened otherwise. Saves aren't held up meanwhile.
 pub fn check_parts(path: &Path) -> crate::session::Missing {
     let shared = shared(path);
-    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
-    let missing = missing_of(&dir, &on_disk, &Folders::new());
+    let Some((dir, on_disk, originals)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
+    let folders = Folders::new();
+    let missing = missing_of(&dir, &on_disk, &folders);
     let count = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
     if count > 0 {
         log::warn!("{}: {count} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
     }
-    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r.to_model()).collect() }
+    // (The originals found gone are named too, and counted nowhere: without one a message is
+    // whole, #30. `Session::mark_unavailable` asks the server for each again.)
+    let gone = absent_of(&dir, &originals, &folders);
+    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r).chain(gone).map(|r| r.to_model()).collect() }
 }
 
 /// The bodies the memory budget holds that the opening of the file at `path` for a window left on
@@ -2100,11 +2436,14 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             let hidden_wire = wire.hidden.clone().filter(|(_, len)| *len <= mailcraft_model::MAX_HIDDEN_TEXT as u64);
             let hidden = want(&hidden_wire, true, now, &mut st.live);
             let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
-            plan.push((id, text, html, hidden, attachments));
+            // (A message's original, #30, is never brought in at opening: it is read when it is
+            // written whole.)
+            let original = want(&wire.original, false, true, &mut st.live);
+            plan.push((id, text, html, hidden, attachments, original));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
-                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()) {
+                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()).chain(&wire.original) {
                     want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
@@ -2123,7 +2462,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
         let later = plan
             .iter()
-            .filter_map(|(id, text, html, hidden, _)| {
+            .filter_map(|(id, text, html, hidden, _, _)| {
                 let (text, html, hidden) = (pick(text), pick(html), pick(hidden));
                 (text.is_some() || html.is_some() || hidden.is_some()).then_some(crate::session::BodyLater { id: *id, text, html, hidden })
             })
@@ -2134,7 +2473,8 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut seen: HashMap<Ref, usize> = HashMap::new();
     // (What the sender hid is not looked for: if it is gone there is no hidden text, which is not
     // a loss the owner is told of.)
-    for (_, text, html, _, attachments) in &plan {
+    // (Nor is a message's original: without it the message is as one read before it was kept.)
+    for (_, text, html, _, attachments, _) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
             if let (Some(r), None) = (want.r, want.slot) {
                 let at = *seen.entry(r).or_insert_with(|| {
@@ -2148,11 +2488,17 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         }
     }
     drop(seen);
-    let missing: HashSet<Ref> = if launch.checks_later {
-        st.unchecked = Some((dir.to_path_buf(), on_disk));
-        HashSet::new()
+    // The originals left on disk (#30), looked for as the rest is, but only to ask a server for
+    // one that is surely gone.
+    let mut originals: Vec<Ref> = plan.iter().filter_map(|p| p.5.as_ref().and_then(|w| w.r)).collect();
+    originals.sort_unstable_by_key(|r| r.hash.0);
+    originals.dedup();
+    let (missing, gone_originals): (HashSet<Ref>, HashSet<Ref>) = if launch.checks_later {
+        st.unchecked = Some((dir.to_path_buf(), on_disk, originals));
+        (HashSet::new(), HashSet::new())
     } else {
-        missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect()
+        let missing = missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect();
+        (missing, absent_of(dir, &originals, &folders).into_iter().collect())
     };
     let mut filled = Filled::default();
     // Three ways a part can stand after this: in memory (`Some(true)`), on disk (`Some(false)`),
@@ -2183,7 +2529,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let bytes = Arc::try_unwrap(bytes).unwrap_or_else(|used_elsewhere| used_elsewhere.to_vec());
         Some(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
     };
-    for (id, text, html, hidden, attachments) in plan {
+    for (id, text, html, hidden, attachments, original) in plan {
         let Some(m) = mailbox.messages.get_mut(&id).map(Arc::make_mut) else { continue };
         let mut held = parts.as_deref_mut().and_then(|p| p.remove(&id));
         let mut kept = KeptBody::default();
@@ -2254,6 +2600,22 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             stand(want, &mut filled);
             if let Some(p) = held.as_mut().and_then(|p| p.attachments.get_mut(i)).and_then(Option::as_mut) {
                 p.held = false;
+            }
+        }
+        if let Some(want) = &original {
+            // (Not counted among what is unavailable: without it the message is as one read
+            // before it was kept, #30. A name that isn't one: no original.)
+            m.original =
+                stand(want, &mut Filled::default()).zip(want.kept()).map(|(_, r)| mailcraft_model::Original { data: Arc::default(), kept: Some(r) });
+            if let Some(p) = held.as_mut().and_then(|p| p.original.as_mut()) {
+                p.held = false;
+            }
+            // Its file surely gone (a build from before #30 swept it, say): the message is
+            // written from its parts, and asks its server for the bytes again, keeping them
+            // named until a download brings them ([`crate::cmd::mail::check_again::lost`]).
+            if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| gone_originals.contains(&Ref::from_model(&r))) {
+                let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
+                crate::cmd::mail::check_again::lost(kind, m);
             }
         }
         if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {
@@ -2342,6 +2704,12 @@ impl ContentSource for Content {
     fn fetch(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
         fetch(mailbox, r)
     }
+
+    fn fetch_fresh(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
+        let r = Ref::from_model(r);
+        let dir = blob_dir(&resolve(mailbox));
+        get(&dir, &r, &Folders::new()).map(Arc::new).ok_or_else(|| format!("the file that keeps it is missing from {} or damaged", dir.display()))
+    }
 }
 
 /// Bring every kept part of every message of `mailbox` into memory from the content folder
@@ -2389,6 +2757,22 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
                 n += 1;
             }
             a.kept = None;
+        }
+        // An original that can't be read leaves the copy without one (#30): the message is whole
+        // without it, and is written from its parts.
+        if let Some(o) = m.original.as_mut()
+            && let Some(r) = o.kept.filter(|_| o.data.is_empty())
+        {
+            match take(&r) {
+                Ok(bytes) => {
+                    (o.data, o.kept) = (bytes, None);
+                    n += 1;
+                }
+                Err(e) => {
+                    log::warn!("{e}: the bytes it came as are left out");
+                    m.original = None;
+                }
+            }
         }
         mailbox.messages.insert(id, Arc::new(m));
     }
@@ -2453,6 +2837,19 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
             a.kept = Some(p.r.to_model());
             any = true;
         }
+    }
+    if let (Some(p), Some(o)) = (parts.original, lean.original.as_mut())
+        && !o.data.is_empty()
+        && o.data.len() as u64 == p.r.len
+        && st
+            .hashes
+            .get(&(Arc::as_ptr(&o.data) as usize))
+            .filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(&o.data)))
+            .map_or_else(|| Digest::of(&o.data), |(_, hash)| *hash)
+            == p.r.hash
+    {
+        (o.data, o.kept) = (Arc::default(), Some(p.r.to_model()));
+        any = true;
     }
     if !any {
         return None;
@@ -2523,6 +2920,14 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
     }
     let saved = write_index(&mut st, &resolve(path), mailbox, &shared.progress).map_err(|e| format!("{}: {e}", path.display()))?;
     st.newest = seq;
+    // What the file names now needs no other protection.
+    let mut ahead = lock(&shared.ahead);
+    if !ahead.is_empty() {
+        // Only what was asked for before this state was taken: a batch written or taken in since
+        // keeps its protection until a later save names it.
+        ahead.retain(|d, at| !(*at < seq && st.live.contains_key(d)));
+    }
+    drop(ahead);
     Ok(saved)
 }
 
@@ -2583,23 +2988,31 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
             outside(m.hidden_text.as_bytes())
         },
         attachments: Vec::new(),
+        original: None,
+    };
+    // A file's bytes are hashed once while the same bytes are in memory: a save after a read mark
+    // doesn't hash every attachment and original again.
+    let mut held = |data: &Arc<Vec<u8>>| {
+        (data.len() > INLINE_MAX).then(|| {
+            let key = Arc::as_ptr(data) as usize;
+            let known = hashes.get(&key).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(data))).map(|(_, hash)| *hash);
+            let hash = known.unwrap_or_else(|| {
+                let hash = Digest::of(data);
+                hashes.insert(key, (Arc::downgrade(data), hash));
+                hash
+            });
+            Part { r: Ref { hash, len: data.len() as u64 }, held: true }
+        })
     };
     for a in m.attachments.iter().take(MAX_PARTS) {
         let was = a.kept.as_ref().filter(|_| a.data.is_empty()).map(on_disk);
-        let part = was.or_else(|| {
-            (a.data.len() > INLINE_MAX).then(|| {
-                let key = Arc::as_ptr(&a.data) as usize;
-                let known = hashes.get(&key).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(&a.data))).map(|(_, hash)| *hash);
-                let hash = known.unwrap_or_else(|| {
-                    let hash = Digest::of(&a.data);
-                    hashes.insert(key, (Arc::downgrade(&a.data), hash));
-                    hash
-                });
-                Part { r: Ref { hash, len: a.data.len() as u64 }, held: true }
-            })
-        });
-        parts.attachments.push(part);
+        parts.attachments.push(was.or_else(|| held(&a.data)));
     }
+    // The bytes it came as (#30): what stayed on disk keeps its name, as an attachment does.
+    parts.original = m.original.as_ref().and_then(|o| match o.kept.as_ref().filter(|_| o.data.is_empty()) {
+        Some(r) => Some(on_disk(r)),
+        None => held(&o.data),
+    });
     if parts.attachments.iter().all(Option::is_none) {
         parts.attachments.clear();
     }
@@ -2618,6 +3031,11 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
         if part.is_some() {
             a.data = nothing.clone();
         }
+    }
+    if let (Some(o), Some(_)) = (lean.original.as_mut(), parts.original) {
+        o.data = nothing.clone();
+    } else if !m.has_original() {
+        lean.original = None;
     }
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
@@ -2804,8 +3222,8 @@ fn io_error(e: std::io::Error) -> String {
 
 /// Walk `now` and `was` side by side, both in the order of their ids: `each` is given every item
 /// of `now` with what `was` has under its id. Returns the ids only `was` has, in order.
-fn walk<'a, 'b, A, B>(
-    now: &'a BTreeMap<Id, A>,
+fn walk<'a, 'b, A: 'a, B>(
+    now: impl IntoIterator<Item = (&'a Id, &'a A)>,
     was: &'b BTreeMap<Id, B>,
     mut each: impl FnMut(&'a Id, &'a A, Option<&'b B>) -> Result<(), String>,
 ) -> Result<Vec<Id>, String> {
@@ -3291,15 +3709,20 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
         if len > MAX_INDEX {
             return Err("too large".into());
         }
-        let replayed = index::replay(std::io::BufReader::with_capacity(1 << 20, fs::File::open(path).map_err(|e| e.to_string())?), len)?;
+        let budget = open_budget();
+        if len > max_json_bytes() {
+            return Err(load_limit::TOO_MUCH.into());
+        }
+        let file = fs::File::open(path).map_err(|e| e.to_string())?;
+        let replayed = index::replay_within(std::io::BufReader::with_capacity(1 << 20, file), len, index::MAX_RECORDS, Some(&budget))?;
         if matches!(replayed.tail, Tail::Bytes(_)) {
             return Ok(None);
         }
         // Only a file that opens is believed about what it names.
-        mailcraft_model::from_json(&replayed.rest.as_ref().ok_or("no mailbox record")?.0, max_json_items()).map_err(|e| e.to_string())?;
+        load_limit::read_json::<Mailbox>(&replayed.rest.as_ref().ok_or("no mailbox record")?.0, &budget).map_err(|e| e.to_string())?;
         let items: Vec<(&Key, &index::Item)> = replayed.items.iter().collect();
         let mut named = HashSet::new();
-        for parsed in fan_out(items.len(), |i| items.get(i).map(|(key, item)| parse_item(key, item))) {
+        for parsed in fan_out(items.len(), |i| items.get(i).map(|(key, item)| parse_item(key, item, &budget))) {
             if let (Parsed::Message(_, Some(wire)), _) = parsed.flatten().ok_or("the mailbox file couldn't be read")?? {
                 named.extend(wire.hashes());
             }
@@ -3313,7 +3736,7 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
     if len > MAX_MAILBOX_JSON {
         return Err("too large".into());
     }
-    let head: Head = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let head: Head = load_limit::read_json(&fs::read(path).map_err(|e| e.to_string())?, &open_budget()).map_err(|e| e.to_string())?;
     if head.version != SPLIT_VERSION {
         return Ok(None);
     }
@@ -3455,6 +3878,7 @@ pub fn forget_due(path: &Path, rev: u64) -> Swept {
     let own = |m: &Message| !m.server.as_ref().is_some_and(|s| !s.id.is_empty()) || m.moving_out.is_some();
     named.extend(st.pins.kept_where(own));
     named.extend(lock(&shared.held).kept_where(own));
+    named.extend(lock(&shared.ahead).keys().copied());
     let dir = blob_dir(&file);
     for hash in due.difference(&named) {
         let Some((_, stale)) = blob_path(&dir, hash) else { continue };
@@ -3508,6 +3932,7 @@ pub fn sweep(path: &Path, grace: Duration) -> Result<Swept, String> {
     // What a message still in memory keeps on disk stays, though the file no longer names it.
     named.extend(st.pins.kept());
     named.extend(lock(&shared.held).kept());
+    named.extend(lock(&shared.ahead).keys().copied());
     let now = SystemTime::now();
     // A time in the future is no age at all.
     let old = |meta: &fs::Metadata| meta.modified().ok().and_then(|t| now.duration_since(t).ok()).is_some_and(|age| age >= grace);

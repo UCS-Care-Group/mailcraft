@@ -567,10 +567,11 @@ const FALLBACK_FONTS_MAX: usize = 8;
 /// How deep into each fonts folder, and through how many of its entries, the fallback faces are
 /// looked for: the folders are the system's, but a link may lead anywhere. Each folder has its
 /// own count, so that a crowded folder of the owner's doesn't keep the system's from being read.
+/// (The same walk finds the fonts a message may be drawn in, `font_index.rs`.)
 #[cfg(not(target_arch = "wasm32"))]
-const FONT_DIR_DEPTH: usize = 4;
+pub(crate) const FONT_DIR_DEPTH: usize = 4;
 #[cfg(not(target_arch = "wasm32"))]
-const FONT_DIR_ENTRIES: usize = 20_000;
+pub(crate) const FONT_DIR_ENTRIES: usize = 20_000;
 
 /// The system faces that draw the scripts the bundled fonts lack (#217, #452), by the names of
 /// their files: one group for each script, its faces best first, and the first that is there and
@@ -628,6 +629,16 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["DejaVuSans.ttf", "FreeSans.ttf"],
 ];
 
+/// The system's colour emoji face, by the name of its file, best first (#832): drawn in its own
+/// colours, in front of egui's black-and-white emoji. Apple Color Emoji is left out: at well over
+/// a hundred megabytes it is more than a fallback face may be, so macOS keeps the black and white.
+#[cfg(windows)]
+pub const EMOJI_FACES: &[&str] = &["seguiemj.ttf"];
+#[cfg(target_os = "macos")]
+pub const EMOJI_FACES: &[&str] = &[];
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+pub const EMOJI_FACES: &[&str] = &["NotoColorEmoji.ttf", "Noto-COLRv1.ttf", "TwemojiMozilla.ttf"];
+
 /// The system's own interface font, read from the system's fonts folder when the program starts:
 /// on Windows, Segoe UI (regular, semibold and bold). It is never bundled, copied or downloaded.
 /// A face that is missing, unreadable, too big or not a font is left out, and without the regular
@@ -643,6 +654,8 @@ pub struct SystemFont {
     semibold: Option<Arc<FontData>>,
     bold: Option<Arc<FontData>>,
     fallbacks: Vec<Arc<FontData>>,
+    /// The system's colour emoji face ([`EMOJI_FACES`]), when there is one.
+    emoji: Option<Arc<FontData>>,
     /// The installed face of each font a message can be written in (#582), by font and whether
     /// it is the bold face; read at start, a few hundred kilobytes each.
     document: Vec<(Font, bool, Arc<FontData>)>,
@@ -704,14 +717,19 @@ impl SystemFont {
             .filter_map(std::env::var_os)
             .map(|root| std::path::PathBuf::from(root).join("Fonts"))
             .find(|dir| dir.is_dir())
-            .map(|dir| Self::from_dir(&dir).with_fallbacks_from(std::slice::from_ref(&dir), FALLBACK_FACES).with_document_faces(&[dir]))
+            .map(|dir| {
+                Self::from_dir(&dir)
+                    .with_fallbacks_from(std::slice::from_ref(&dir), FALLBACK_FACES)
+                    .with_emoji_from(std::slice::from_ref(&dir), EMOJI_FACES)
+                    .with_document_faces(&[dir])
+            })
             .unwrap_or_default()
     }
 
     #[cfg(all(not(windows), not(target_arch = "wasm32")))]
     fn read() -> Self {
         let dirs = font_dirs();
-        SystemFont::none().with_fallbacks_from(&dirs, FALLBACK_FACES).with_document_faces(&dirs)
+        SystemFont::none().with_fallbacks_from(&dirs, FALLBACK_FACES).with_emoji_from(&dirs, EMOJI_FACES).with_document_faces(&dirs)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -751,6 +769,24 @@ impl SystemFont {
             }
         }
         self
+    }
+
+    /// This font with the first of the colour emoji faces `names` that is found in `dirs` or the
+    /// folders inside them (#832).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_emoji_from(mut self, dirs: &[std::path::PathBuf], names: &[&str]) -> Self {
+        let found = find_font_files(dirs, &[names]);
+        self.emoji = names
+            .iter()
+            .filter_map(|name| found.get(&name.to_lowercase()))
+            .find_map(|path| read_font(path, FALLBACK_FONT_CAP))
+            .map(|bytes| Arc::new(FontData::from_owned(bytes)));
+        self
+    }
+
+    /// Whether a colour emoji face was found and read.
+    pub fn has_emoji(&self) -> bool {
+        self.emoji.is_some()
     }
 
     /// This font with the installed faces of the fonts a message can be written in, found in
@@ -796,6 +832,7 @@ impl SystemFont {
                 semibold: face("seguisb.ttf"),
                 bold: face("segoeuib.ttf"),
                 fallbacks: Vec::new(),
+                emoji: None,
                 document: Vec::new(),
             },
             None => SystemFont::none(),
@@ -810,7 +847,7 @@ impl SystemFont {
 
 /// Where this system keeps its fonts: the owner's own folders first, then the system's.
 #[cfg(all(not(windows), not(target_arch = "wasm32")))]
-fn font_dirs() -> Vec<std::path::PathBuf> {
+pub(crate) fn font_dirs() -> Vec<std::path::PathBuf> {
     use std::path::PathBuf;
     let home = std::env::var_os("HOME").filter(|h| !h.is_empty()).map(PathBuf::from);
     let mut dirs: Vec<PathBuf> = Vec::new();
@@ -891,6 +928,12 @@ fn find_font_files_in(
 /// A font file's bytes, when it is there, no bigger than `cap` bytes and laid out as a font.
 #[cfg(not(target_arch = "wasm32"))]
 fn read_font(path: &std::path::Path, cap: u64) -> Option<Vec<u8>> {
+    read_face(path, cap, 0)
+}
+
+/// [`read_font`] for the face `index` of the file ([`is_face`]).
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn read_face(path: &std::path::Path, cap: u64, index: u32) -> Option<Vec<u8>> {
     use std::io::Read as _;
     let file = std::fs::File::open(path).ok()?;
     let len = file.metadata().ok()?.len();
@@ -900,34 +943,83 @@ fn read_font(path: &std::path::Path, cap: u64) -> Option<Vec<u8>> {
     let mut bytes = Vec::with_capacity(usize::try_from(len).ok()?);
     // The cap again: the file may have grown since it was measured.
     file.take(cap.saturating_add(1)).read_to_end(&mut bytes).ok()?;
-    (bytes.len() as u64 <= cap && is_font(&bytes)).then_some(bytes)
+    if bytes.len() as u64 > cap || !is_face(&bytes, index) {
+        return None;
+    }
+    hide_bitmap_strikes(&mut bytes, index);
+    Some(bytes)
 }
 
-/// Whether `bytes` are laid out as one TrueType or OpenType face with the tables text needs, all of
-/// them inside the file, or as a collection of faces (`ttcf`) whose first face is; and that the
-/// font reader egui uses opens its first face. egui panics on font data it cannot open, so
-/// nothing read from a disk goes to it unchecked.
+/// The tables of a face's embedded black-and-white bitmaps (`EBDT`, its index `EBLC` and its
+/// scaling `EBSC`): Calibri, Cambria and SimSun have them for small sizes beside their outlines.
 #[cfg(not(target_arch = "wasm32"))]
+const BITMAP_TABLES: [&[u8; 4]; 3] = [b"EBDT", b"EBLC", b"EBSC"];
+
+/// Hide the embedded black-and-white bitmaps of the face `index` (#889): egui draws a glyph that
+/// has one as a colour glyph, in its own colour (white) instead of the text's, so on a light page
+/// it can't be seen. The face's outlines draw every glyph instead. The tables are renamed in the
+/// face's directory (to lower case, which no reader knows), which is then sorted again, as readers
+/// look tables up by name in order; nothing else of the file changes. Colour glyphs (`CBDT`,
+/// `sbix`, `COLR`) are left alone: those are emoji.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn hide_bitmap_strikes(bytes: &mut [u8], index: u32) {
+    let Some(start) = face_start(bytes, index) else { return };
+    let Some(tables) = start.checked_add(4).and_then(|at| bytes.get(at..at.checked_add(2)?)).and_then(|b| <[u8; 2]>::try_from(b).ok()) else {
+        return;
+    };
+    let directory = start.saturating_add(12);
+    let end = usize::from(u16::from_be_bytes(tables)).checked_mul(16).and_then(|len| directory.checked_add(len));
+    let Some(records) = end.and_then(|end| bytes.get_mut(directory..end)) else { return };
+    let (records, _) = records.as_chunks_mut::<16>();
+    let mut hidden = false;
+    for record in records.iter_mut() {
+        let Some(tag) = record.first_chunk_mut::<4>() else { continue };
+        if BITMAP_TABLES.contains(&&*tag) {
+            tag.make_ascii_lowercase();
+            hidden = true;
+        }
+    }
+    if hidden {
+        records.sort_by_key(|[a, b, c, d, ..]| [*a, *b, *c, *d]);
+    }
+}
+
+/// Where the directory of the face `index` begins: 0 for a font of one face; in a collection
+/// (its tag, a version, how many faces it has and where each begins, every one of those places
+/// inside the file) the place its header gives for the face asked for.
+#[cfg(not(target_arch = "wasm32"))]
+fn face_start(bytes: &[u8], index: u32) -> Option<usize> {
+    let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
+    if u32_at(0) != Some(0x7474_6366) {
+        return (index == 0).then_some(0);
+    }
+    let faces = u32_at(8).and_then(|n| usize::try_from(n).ok()).filter(|n| *n >= 1)?;
+    let header_end = faces.checked_mul(4).and_then(|places| places.checked_add(12))?;
+    if header_end > bytes.len() {
+        return None;
+    }
+    let place = usize::try_from(index).ok().filter(|i| *i < faces).and_then(|i| i.checked_mul(4)).and_then(|at| at.checked_add(12))?;
+    u32_at(place).and_then(|at| usize::try_from(at).ok())
+}
+
+/// Whether `bytes` are laid out as one TrueType or OpenType face with the tables text needs, its
+/// outlines or colour bitmaps among them, all of them inside the file, or as a collection of
+/// faces (`ttcf`) whose first face is; and that the font reader egui uses opens its first face.
+/// egui panics on font data it cannot open, so nothing read from a disk goes to it unchecked.
+#[cfg(all(test, not(target_arch = "wasm32")))]
 fn is_font(bytes: &[u8]) -> bool {
+    is_face(bytes, 0)
+}
+
+/// [`is_font`] for the face `index` of a collection (a face of its own is face 0): the one egui is
+/// to draw with (`FontData::index`).
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn is_face(bytes: &[u8], index: u32) -> bool {
     let u16_at = |at: usize| bytes.get(at..at.checked_add(2)?).and_then(|b| <[u8; 2]>::try_from(b).ok()).map(u16::from_be_bytes);
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
-    // A collection: its tag, a version, how many faces it has and where each begins, every one of
-    // those places inside the file. The first face is the one used.
-    let start = if u32_at(0) == Some(0x7474_6366) {
-        let Some(faces) = u32_at(8).and_then(|n| usize::try_from(n).ok()).filter(|n| *n >= 1) else { return false };
-        let header_end = faces.checked_mul(4).and_then(|places| places.checked_add(12));
-        if header_end.is_none_or(|end| end > bytes.len()) {
-            return false;
-        }
-        match u32_at(12).and_then(|at| usize::try_from(at).ok()) {
-            Some(first) => first,
-            None => return false,
-        }
-    } else {
-        0
-    };
-    // What egui does with the bytes (`FontData::index` 0); it refuses what is cut off or misnamed.
-    if skrifa::FontRef::from_index(bytes, 0).is_err() {
+    let Some(start) = face_start(bytes, index) else { return false };
+    // What egui does with the bytes (`FontData::index`); it refuses what is cut off or misnamed.
+    if skrifa::FontRef::from_index(bytes, index).is_err() {
         return false;
     }
     // TrueType outlines, `OTTO` (CFF outlines) or Apple's `true`: what the font reader takes.
@@ -937,6 +1029,11 @@ fn is_font(bytes: &[u8]) -> bool {
     let Some(tables) = start.checked_add(4).and_then(u16_at) else { return false };
     const NEEDED: [&[u8; 4]; 5] = [b"cmap", b"head", b"hhea", b"hmtx", b"maxp"];
     let mut found = [false; NEEDED.len()];
+    // Something to draw with: outlines (TrueType or CFF), or colour bitmaps (`CBDT`, `sbix`: the
+    // emoji faces of Linux and macOS have no outlines). A face of black-and-white bitmaps alone
+    // draws nothing once they are hidden ([`hide_bitmap_strikes`]), so its text is drawn in
+    // another font instead.
+    let mut drawable = false;
     for i in 0..usize::from(tables) {
         // The directory: twelve bytes, then sixteen for each table (tag, checksum, offset, length).
         // In a collection too, a table's offset is from the start of the file.
@@ -951,8 +1048,9 @@ fn is_font(bytes: &[u8]) -> bool {
         for (seen, needed) in found.iter_mut().zip(NEEDED) {
             *seen |= tag == needed.as_slice();
         }
+        drawable |= matches!(tag, b"glyf" | b"CFF " | b"CFF2" | b"CBDT" | b"sbix");
     }
-    found.iter().all(|seen| *seen)
+    drawable && found.iter().all(|seen| *seen)
 }
 
 /// Install the interface fonts: the system's own where there is one ([`SystemFont`]), then the
@@ -992,8 +1090,15 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     let system_regular = system_face("SystemRegular", &system.regular);
     let system_semibold = system_face("SystemSemibold", &system.semibold);
     let system_bold = system_face("SystemBold", &system.bold);
-    // Symbols and emoji fall back to egui's defaults (kept after our faces).
+    // Symbols and emoji fall back to egui's defaults (kept after our faces): its emoji faces come
+    // with the `monochrome_emoji_fonts` feature this crate turns on (#832). The system's colour
+    // emoji face goes in front of them, so that an emoji is in colour where the system has one.
     let mut fallback: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
+    if let Some(emoji) = &system.emoji {
+        fonts.font_data.insert("SystemEmoji".into(), emoji.clone());
+        let at = fallback.iter().position(|name| name.contains("Emoji")).unwrap_or(0);
+        fallback.insert(at, "SystemEmoji".into());
+    }
     fallback.push("SourceSans".into());
     // Last, JetBrains Mono, for what only it has: U+FFFD among them, the mark of a character that
     // couldn't be read, which would otherwise be an empty box (#180).
@@ -1018,6 +1123,10 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     fonts.families.insert(FontFamily::Name("bold".into()), chain(&[bold, semibold, Some("InterSemiBold"), regular, Some("Inter")]));
     if let Some(m) = fonts.families.get_mut(&FontFamily::Monospace) {
         m.insert(0, "Mono".into());
+        if system.emoji.is_some() {
+            let at = m.iter().position(|name| name.contains("Emoji")).unwrap_or(m.len());
+            m.insert(at, "SystemEmoji".into());
+        }
     }
     // A message's fonts (#582): the installed face under a family of its own, then the window's
     // own fonts for the glyphs it lacks. With no bold face, bold text stays in the window's own
@@ -1237,20 +1346,7 @@ pub fn c32(c: mailcraft_model::Rgb) -> Color32 {
 }
 
 /// The colours a category can take: our own twelve, mid-tones that read in both themes.
-pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = [
-    mailcraft_model::Rgb(0xD1, 0x3B, 0x3B),
-    mailcraft_model::Rgb(0xE0, 0x7B, 0x1F),
-    mailcraft_model::Rgb(0xD9, 0xA4, 0x0C),
-    mailcraft_model::Rgb(0x2E, 0x8B, 0x57),
-    mailcraft_model::Rgb(0x1A, 0x9B, 0xA6),
-    mailcraft_model::Rgb(0x2F, 0x6F, 0xD0),
-    mailcraft_model::Rgb(0x7E, 0x57, 0xC2),
-    mailcraft_model::Rgb(0xC2, 0x4E, 0x9A),
-    mailcraft_model::Rgb(0x8A, 0x5A, 0x44),
-    mailcraft_model::Rgb(0x6B, 0x7A, 0x1F),
-    mailcraft_model::Rgb(0x4F, 0x6D, 0x8F),
-    mailcraft_model::Rgb(0x7A, 0x7A, 0x7A),
-];
+pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = mailcraft_model::PALETTE;
 
 /// A stable colour for a person's avatar, from their address.
 pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
@@ -1275,6 +1371,13 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
 #[path = "theme_contrast_tests.rs"]
 mod theme_contrast_tests;
 
+#[cfg(test)]
+#[path = "theme_bitmap_tests.rs"]
+mod theme_bitmap_tests;
+
+#[cfg(test)]
+#[path = "theme_emoji_tests.rs"]
+mod theme_emoji_tests;
 #[cfg(test)]
 #[path = "theme_font_tests.rs"]
 mod theme_font_tests;

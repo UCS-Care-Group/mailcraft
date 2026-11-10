@@ -39,6 +39,7 @@ use mailcraft_model::{FolderKind, Id, Importance};
 
 use crate::changes::{CreateFolder, DeleteFolder, DeleteItem, DeleteMode, GetItemNow, ItemUpdate, MoveFolder, MoveItem, RenameFolder, UpdateItem};
 use crate::compose::{AddAttachments, CreateDraft, DraftContent, FindDraft, RemoveAttachments, SendMessage};
+use crate::delete_check::Found;
 use crate::error::ResponseCode;
 use crate::http::HttpExchange;
 use crate::run::{Asked, Run, base};
@@ -96,6 +97,17 @@ impl<E: HttpExchange> Run<'_, E> {
         // The folders made in this run, by the id they have here.
         let mut made: HashMap<Id, String> = HashMap::new();
         for change in request.changes.iter().take(MAX_FOLDER_CHANGES) {
+            // One of the server's own folders (#779) is never renamed, moved or deleted: it is
+            // refused here without asking, and put back as any refusal is.
+            if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id, .. } = change
+                && self.own.contains(id)
+            {
+                log::info!("ews up: a change of one of the server's own folders is refused without asking");
+                self.reread_folders |= matches!(change, FolderChange::Delete { .. });
+                let why = "it is one of the server's own folders, which may not be renamed, moved or deleted".to_owned();
+                piece.changes.push(FolderChangeDone { change: change.clone(), outcome: ChangeOutcome::Refused { why } });
+                continue;
+            }
             if let Some(outcome) = self.folder_change(change, &mut made).await? {
                 piece.changes.push(FolderChangeDone { change: change.clone(), outcome });
             }
@@ -158,7 +170,23 @@ impl<E: HttpExchange> Run<'_, E> {
                 let op = MoveFolder::new(id, parent);
                 self.ask_once(&op.element(), &|reply| op.answer(reply)).await.map(|id| folder(&id, "", parent))
             }
-            FolderChange::Delete { id } => {
+            FolderChange::Delete { id, shown } => {
+                // Only what the owner was shown goes with it (AU3-H7): the server is asked what it
+                // holds there first, and anything more keeps the folder (and the folder list is read
+                // afresh, so that it comes back here).
+                match self.unshown(id, shown).await? {
+                    Found::Gone => return Ok(Some(ChangeOutcome::Gone)),
+                    Found::Unshown(0) => {}
+                    Found::Unshown(items) => {
+                        self.reread_folders = true;
+                        return Ok(Some(ChangeOutcome::NotShown { items }));
+                    }
+                    Found::Unknown => {
+                        self.reread_folders = true;
+                        let why = "what the server holds in it couldn't be checked first, so nothing was deleted".to_owned();
+                        return Ok(Some(ChangeOutcome::Refused { why }));
+                    }
+                }
                 let op = DeleteFolder::new(id, DeleteMode::SoftDelete);
                 self.ask(&op.element(), &|reply| op.answer(reply)).await.map(|()| GraphFolder::default())
             }
@@ -173,8 +201,16 @@ impl<E: HttpExchange> Run<'_, E> {
                 Ok(Some(ChangeOutcome::Done { folder: there }))
             }
             Err(Asked::Code(ResponseCode::FolderNotFound)) => Ok(Some(ChangeOutcome::Gone)),
-            Err(Asked::Code(code)) => Ok(Some(ChangeOutcome::Refused { why: why(&code) })),
-            Err(Asked::Bad | Asked::Unreadable) => Ok(Some(ChangeOutcome::Refused { why: "the server's answer couldn't be used".to_owned() })),
+            Err(Asked::Code(code)) => {
+                // (A folder deleted here that the server keeps: a delta of the folder list wouldn't
+                // bring it back, so the list is read afresh.)
+                self.reread_folders |= matches!(change, FolderChange::Delete { .. });
+                Ok(Some(ChangeOutcome::Refused { why: why(&code) }))
+            }
+            Err(Asked::Bad | Asked::Unreadable) => {
+                self.reread_folders |= matches!(change, FolderChange::Delete { .. });
+                Ok(Some(ChangeOutcome::Refused { why: "the server's answer couldn't be used".to_owned() }))
+            }
             Err(Asked::Lost) => Ok(None),
             Err(stop @ Asked::Stop(_)) => Err(stop),
         }

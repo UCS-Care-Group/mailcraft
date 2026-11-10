@@ -17,6 +17,7 @@ mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod workflows;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -29,9 +30,11 @@ commands:
   spdx [--fix]    check that every Rust file starts with its SPDX copyright and licence lines
   test-files      tests live in files of their own: no new inline `#[cfg(test)] mod … { }` (CONTRIBUTING.md)
   layers          enforce the crate dependency layering (docs/architecture.md)
+  workflows       no job of .github/workflows that holds signing material builds or runs what was built;
+                  no `permissions: read-all`; curl only with `--proto =https` (docs/releasing.md)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check,
+  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, workflows, layers, wasm, deny, i18n --check,
                   release-notes and docs-log (the fragments join)
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
@@ -62,6 +65,7 @@ fn main() -> ExitCode {
         Some("spdx") => spdx::run(&root(), rest.contains(&"--fix")),
         Some("test-files") => test_files::run(&root()),
         Some("layers") => cmd_layers(),
+        Some("workflows") => workflows::run(&root()),
         Some("wasm") => cmd_wasm(),
         Some("deny") => cmd_deny(),
         Some("ci") => cmd_ci(),
@@ -151,8 +155,8 @@ fn cmd_layers() -> Result<(), String> {
     }
 }
 
-/// Workspace packages that must build for wasm32: all L0–L5 crates plus
-/// the egui shell.
+/// Workspace packages that must build for wasm32: all L0–L5 crates, the egui shell and the
+/// browser app.
 fn wasm_set() -> Result<Vec<String>, String> {
     let crates = layers::from_metadata(&metadata()?)?;
     Ok(crates
@@ -163,6 +167,8 @@ fn wasm_set() -> Result<Vec<String>, String> {
             _ => false,
         })
         .map(|c| c.name)
+        // The browser app itself: its own code is wasm-only, and the release builds it.
+        .chain(std::iter::once("mailcraft-web".to_string()))
         .collect())
 }
 
@@ -241,6 +247,7 @@ fn cmd_ci() -> Result<(), String> {
         ("assets", Box::new(|| assets::run(&root()))),
         ("spdx", Box::new(|| spdx::run(&root(), false))),
         ("test-files", Box::new(|| test_files::run(&root()))),
+        ("workflows", Box::new(|| workflows::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
         ("deny", Box::new(cmd_deny)),

@@ -44,8 +44,17 @@ pub(crate) struct Touched {
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
+    /// The contacts it added, changed or took away.
+    changed_contacts: BTreeSet<Id>,
     pending_added: HashSet<String>,
     pending_removed: HashSet<String>,
+}
+
+impl Touched {
+    /// Whether the change added, changed or took away the contact `id`.
+    pub(crate) fn changed_contact(&self, id: Id) -> bool {
+        self.changed_contacts.contains(&id)
+    }
 }
 
 /// The accounts of `mb` kept in step through Graph.
@@ -77,38 +86,51 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
     let mut g = graph_accounts(before);
     g.extend(graph_accounts(after));
     let mut t = Touched::default();
-    // One walk of both maps, in order of id (a lookup for each of a few hundred thousand
-    // messages took longer than the command it followed).
-    let mut was = before.messages.iter().peekable();
-    let mut is = after.messages.iter().peekable();
+    // Only the messages the two differ in: the chunks of the map the two share aren't looked
+    // into (a walk of every message took longer than the command it followed).
+    for (id, b, a) in after.messages.changes(&before.messages) {
+        match (b, a) {
+            (Some(b), Some(a)) if a != b => {
+                t.changed_messages.insert(id);
+                if relevant(b, &g) || relevant(a, &g) {
+                    t.messages.insert(id, Some(a.clone()));
+                }
+            }
+            // Gone since: `before` has it and `after` has none of its id.
+            (Some(b), None) => gone(&mut t, id, b, &g),
+            // Come since.
+            (None, Some(a)) => {
+                t.changed_messages.insert(id);
+                if relevant(a, &g) {
+                    t.messages.insert(id, Some(a.clone()));
+                }
+            }
+            _ => {}
+        }
+    }
+    // (One walk of both maps, as for the messages.)
+    let mut was = before.contacts.iter().peekable();
+    let mut is = after.contacts.iter().peekable();
     loop {
         match (was.peek(), is.peek()) {
             (None, None) => break,
             (Some((id, b)), Some((n, a))) if id == n => {
                 if !(Arc::ptr_eq(a, b) || a == b) {
-                    t.changed_messages.insert(**id);
-                    if relevant(b, &g) || relevant(a, &g) {
-                        t.messages.insert(**id, Some((*a).clone()));
-                    }
+                    t.changed_contacts.insert(**id);
                 }
                 was.next();
                 is.next();
             }
-            // Gone since: `before` has it and `after` has none of its id.
-            (Some((id, b)), Some((n, _))) if id < n => {
-                gone(&mut t, **id, b, &g);
+            (Some((id, _)), Some((n, _))) if id < n => {
+                t.changed_contacts.insert(**id);
                 was.next();
             }
-            (Some((id, b)), None) => {
-                gone(&mut t, **id, b, &g);
+            (Some((id, _)), None) => {
+                t.changed_contacts.insert(**id);
                 was.next();
             }
-            // Come since.
-            (_, Some((id, a))) => {
-                t.changed_messages.insert(**id);
-                if relevant(a, &g) {
-                    t.messages.insert(**id, Some((*a).clone()));
-                }
+            (_, Some((id, _))) => {
+                t.changed_contacts.insert(**id);
                 is.next();
             }
         }
@@ -145,6 +167,9 @@ struct Said {
     folders: Vec<String>,
     sent: Vec<String>,
     moved_out: Vec<String>,
+    /// Moved on from a mailbox whose copy was let go while the copy it was first moved out of
+    /// waits for the bytes it came as (#30).
+    held: Vec<String>,
     /// What the server is to be told besides (#70): a copy made in another mailbox of the
     /// owner's that goes again, a move back into the mailbox a message came from.
     queued: Vec<Queued>,
@@ -157,7 +182,7 @@ fn shown(text: &str) -> String {
 }
 
 impl Said {
-    fn lines(&self) -> Vec<String> {
+    fn lines(&self, lang: mailcraft_i18n::Lang) -> Vec<String> {
         let mut lines = Vec::new();
         match self.deleted.as_slice() {
             [] => {}
@@ -180,6 +205,22 @@ impl Said {
             many => lines
                 .push(format!("{} messages were moved out of their account and the server's copies removed: that can't be undone here.", many.len())),
         }
+        match self.held.as_slice() {
+            [] => {}
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."),
+                &[("subject", &shown(one))],
+            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again.",
+                    "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
+        }
         lines
     }
 }
@@ -187,9 +228,12 @@ impl Said {
 /// `target`, the mailbox an undo (or redo) goes back to, with the Microsoft accounts' mail kept in
 /// step with `now`; `touched` is what the change being undone did. Answers the mailbox and what
 /// couldn't be undone, in words.
-pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -> (Mailbox, Vec<String>) {
+pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, lang: mailcraft_i18n::Lang) -> (Mailbox, Vec<String>) {
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
+    // The certificates Digital signatures brought are what was learnt, not what the owner did
+    // (#30): an undo leaves them.
+    out.public_keys = now.public_keys.clone();
     returned(&mut out, now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
@@ -217,7 +261,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
-    (out, said.lines())
+    (out, said.lines(lang))
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name
@@ -272,7 +316,8 @@ fn returned(out: &mut Mailbox, now: &Mailbox) {
 fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
     // Accounts that the undo takes away again (one the change added): nothing of theirs stays.
     let gone: BTreeSet<Id> = now.accounts.iter().map(|a| a.id).filter(|id| !out.accounts.iter().any(|a| a.id == *id)).collect();
-    let ids: BTreeSet<Id> = out.messages.keys().chain(now.messages.keys()).copied().collect();
+    // Only the messages the two differ in: one that is the same in both is as now already.
+    let ids: Vec<Id> = now.messages.changes(&out.messages).into_iter().map(|(id, _, _)| id).collect();
     for id in ids {
         let (t, c) = (out.messages.get(&id), now.messages.get(&id));
         if t.is_some_and(|m| relevant(m, g)) || c.is_some_and(|m| relevant(m, g)) || touched.changed_messages.contains(&id) {
@@ -284,6 +329,42 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
             None => {
                 out.messages.remove(&id);
+            }
+        }
+    }
+    // What Gmail last said of a message's category is Gmail's, not the change's (#911): a message
+    // the change moved between Gmail's categories goes back to the one it was in, against what
+    // Gmail says now, so that a move Gmail has had already is moved back there at the next run.
+    for id in &touched.changed_messages {
+        let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
+        if relevant(t, g) || relevant(c, g) || t.gmail_synced == c.gmail_synced || (t.folder, t.gmail_id) != (c.folder, c.gmail_id) {
+            continue;
+        }
+        let synced = c.gmail_synced;
+        if let Some(t) = out.messages.get_mut(id) {
+            let t = Arc::make_mut(t);
+            (t.gmail_synced, t.gmail_refusals) = (synced, 0);
+        }
+    }
+    // Gmail's refusals count against a move waiting, and nothing else.
+    for id in &touched.changed_messages {
+        if let Some(t) = out.messages.get_mut(id)
+            && t.gmail_refusals != 0
+            && t.gmail_move_waiting().is_none()
+        {
+            Arc::make_mut(t).gmail_refusals = 0;
+        }
+    }
+    // Contacts the change didn't touch are as they are now (those an import put in and a later
+    // step's snapshot holds are not brought back by undoing that step).
+    let ids: BTreeSet<Id> = out.contacts.keys().chain(now.contacts.keys()).copied().collect();
+    for id in ids.into_iter().filter(|id| !touched.changed_contacts.contains(id)) {
+        match now.contacts.get(&id) {
+            Some(c) => {
+                out.contacts.insert(id, c.clone());
+            }
+            None => {
+                out.contacts.remove(&id);
             }
         }
     }
@@ -315,7 +396,9 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
     }
     out.folders = kept;
     out.folders.retain(|f| !gone.contains(&f.account));
-    out.messages.retain(|_, m| !gone.contains(&m.account));
+    if !gone.is_empty() {
+        out.messages.retain(|_, m| !gone.contains(&m.account));
+    }
     // A folder the change made that something still lies in stays.
     for f in made.into_iter().filter(|f| !gone.contains(&f.account)) {
         if out.messages.values().any(|m| m.folder == f.id) || out.folders.iter().any(|o| o.parent == Some(f.id)) {
@@ -403,9 +486,10 @@ fn in_outbox(m: &Message, now: &Mailbox, g: &BTreeSet<Id>) -> bool {
 
 /// The messages of the Microsoft accounts.
 fn messages(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>, said: &mut Said) {
+    // Those the change touched, and those the two differ in: one the same in both and not the
+    // change's is as now already.
     let mut ids: BTreeSet<Id> = touched.messages.keys().copied().collect();
-    ids.extend(out.messages.iter().filter(|(_, m)| relevant(m, g)).map(|(id, _)| *id));
-    ids.extend(now.messages.iter().filter(|(_, m)| relevant(m, g)).map(|(id, _)| *id));
+    ids.extend(now.messages.changes(&out.messages).into_iter().map(|(id, _, _)| id));
     // The messages the change put in an Outbox: the drafts they were are sent, not undone.
     let sent: Vec<&Message> = touched.messages.values().flatten().map(AsRef::as_ref).filter(|m| in_outbox(m, now, g)).collect();
     for id in ids {
@@ -486,6 +570,7 @@ fn merge(
                 && !now.subtree(deleted).contains(&c.folder)
             {
                 m.folder = deleted;
+                m.left_gmail_inbox();
             }
             Some(Arc::new(m))
         }
@@ -501,13 +586,27 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
     if t.account != c.account {
         let placed = c.server.as_ref().filter(|s| !s.gone && !s.id.is_empty() && g.contains(&c.account));
         if g.contains(&t.account) && c.moving_out.as_ref().is_none_or(|out| out.account != t.account) {
+            // The copy it was first moved out of, in a third mailbox, is kept while it may hold the
+            // bytes a protected message came as (#30, `Mailbox::place_called_off`): it stays the
+            // one this message is moved out of, and the copy made here goes instead.
+            let first = c.moving_out.as_ref().is_some_and(|out| out.account != t.account && out.account != c.account && (!out.left || out.listing))
+                || now
+                    .pending
+                    .iter()
+                    .any(|p| matches!(p, Pending::Move { message, .. } if *message == c.id) && p.account() != t.account && p.account() != c.account);
             // Moved into another mailbox of the owner's, and the original removed (#70): moved
             // back as it went, a copy made there from the whole message, and this one gone once it is.
             let Some(placed) = placed.filter(|_| now.between_mailboxes(c.account, t.account)) else {
-                said.moved_out.push(t.subject.clone());
+                if first {
+                    said.held.push(t.subject.clone())
+                } else {
+                    said.moved_out.push(t.subject.clone())
+                }
                 return Some(c.clone());
             };
             let source = mailcraft_model::sync::fingerprint(placed.id.as_bytes());
+            // The stamps of the server it leaves stay behind (#781).
+            mailcraft_model::auth_results::forget_stamps(&mut m);
             said.queued.push(Queued::PlaceMessage {
                 account: t.account,
                 message: c.id,
@@ -515,7 +614,11 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 copy: false,
                 from: None,
             });
-            m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
+            if first {
+                said.queued.push(Queued::DeleteMessage { account: c.account, id: placed.id.clone(), kept: None });
+            } else {
+                m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
+            }
             (m.server, m.uid, m.synced) = (None, 0, None);
         } else if g.contains(&t.account) {
             // Moved out of a Microsoft account: back while the server's copy is still there.
@@ -613,7 +716,15 @@ fn tidy(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
             f.parent = now.folder(f.id).and_then(|c| c.parent).filter(|p| folders.contains(p));
         }
     }
-    let homeless: Vec<Id> = out.messages.values().filter(|m| relevant(m, g) && !folders.contains(&m.folder)).map(|m| m.id).collect();
+    let lies_nowhere = |m: &Message| relevant(m, g) && !folders.contains(&m.folder);
+    // A message as it is now lies in a folder there is now: while every folder there is now is
+    // here too, only the others can lie in none (one walk of a few hundred thousand messages
+    // fewer at each undo).
+    let homeless: Vec<Id> = if now.folders.iter().all(|f| folders.contains(&f.id)) {
+        out.messages.changes(&now.messages).into_iter().filter_map(|(_, _, m)| m).filter(|m| lies_nowhere(m)).map(|m| m.id).collect()
+    } else {
+        out.messages.values().filter(|m| lies_nowhere(m)).map(|m| m.id).collect()
+    };
     for id in homeless {
         let Some(m) = out.messages.get(&id) else { continue };
         let home = now

@@ -752,14 +752,10 @@ pub(crate) mod kit {
         ui.label(egui::RichText::new(shown(message, 400)).color(t.red));
     }
 
-    /// Text from elsewhere cut to `max` characters on one line, for a label.
-    pub fn shown(text: &str, max: usize) -> String {
-        let mut out: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).take(max).collect();
-        if text.chars().nth(max).is_some() {
-            out.push('…');
-        }
-        out
-    }
+    /// Text from elsewhere for a label, as a name is shown (#454): one line, without control
+    /// characters or characters that show nothing, spaces run together, at most `max` characters,
+    /// the last an ellipsis where it was cut.
+    pub use mailcraft_names::shown;
 
     /// Which of the buttons at the bottom was clicked.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1181,11 +1177,11 @@ pub(crate) mod kit {
 
         #[test]
         fn hostile_text_is_cut_for_labels() {
-            assert_eq!(shown("a\tb\nc\u{7}", 10), "a b c ");
-            assert_eq!(shown("abcdef", 3), "abc…");
-            // Cut by characters, never inside one.
+            assert_eq!(shown("a\tb\nc\u{7}", 10), "a b c");
+            assert_eq!(shown("abcdef", 3), "ab…");
+            // Cut by characters, never inside one; what shows nothing is gone.
             let long = "é\u{202e}\u{0}".repeat(10_000);
-            assert_eq!(shown(&long, 400).chars().count(), 401);
+            assert_eq!(shown(&long, 400), format!("{}…", "é".repeat(399)));
             assert_eq!(shown("", 5), "");
         }
     }
@@ -5413,14 +5409,14 @@ mod account {
 
 /// The Categories dialog: recolour, rename, delete, add.
 mod categories {
-    use egui::{Sense, Stroke, StrokeKind, Ui, vec2};
+    use egui::{Ui, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::{AccountKind, Category, Id, Mailbox, Rgb};
     use serde_json::{Value, json};
 
     use super::kit::{ROW_H, body, close_button, error, field_id, shown};
     use crate::MailApp;
-    use crate::theme::{Tokens, c32};
+    use crate::theme::Tokens;
     use crate::widgets::icon_button;
 
     /// The colours a category can take: the theme's twelve.
@@ -5433,39 +5429,7 @@ mod categories {
 
     /// A colour swatch that opens the palette. Returns the colour picked there, if one was.
     fn swatch(ui: &mut Ui, color: Rgb) -> Option<Rgb> {
-        let t = Tokens::get(ui.ctx());
-        let (r, resp) = ui.allocate_exact_size(vec2(ROW_H, ROW_H), Sense::click());
-        ui.painter().rect(
-            r.shrink(2.0),
-            5.0,
-            c32(color),
-            Stroke::new(1.0, if resp.hovered() { t.text_dim } else { t.border_strong }),
-            StrokeKind::Inside,
-        );
-        let resp = resp.on_hover_text(tl!("Change the colour"));
-        let mut picked = None;
-        egui::Popup::menu(&resp).show(|ui| {
-            ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
-            for line in PALETTE.chunks(6) {
-                ui.horizontal(|ui| {
-                    for choice in line {
-                        let (cell, cell_resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
-                        let current = *choice == color;
-                        ui.painter().rect(
-                            cell,
-                            4.0,
-                            c32(*choice),
-                            Stroke::new(if current { 2.0 } else { 1.0 }, if current || cell_resp.hovered() { t.text } else { t.border_strong }),
-                            StrokeKind::Inside,
-                        );
-                        if cell_resp.clicked() {
-                            picked = Some(*choice);
-                        }
-                    }
-                });
-            }
-        });
-        picked
+        crate::widgets::color_swatch(ui, ROW_H, Some(color), None).flatten()
     }
 
     /// The lists the Categories dialog can show (#633): each account's own, then the one the rest
