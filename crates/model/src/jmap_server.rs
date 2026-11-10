@@ -68,7 +68,7 @@ impl JmapServer {
 }
 
 /// The server's name in `address` when `address` may be used, else why not.
-fn accepted(address: &str) -> Result<&str, &'static str> {
+pub(crate) fn accepted(address: &str) -> Result<&str, &'static str> {
     if address.is_empty() {
         return Err("is empty");
     }

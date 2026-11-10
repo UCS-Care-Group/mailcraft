@@ -22,8 +22,10 @@
 //! - **The file** is a header and a log of records, each with its length and a checksum, written
 //!   as the index changes (appended; [`Index::flush`]): the words not yet in it, the messages
 //!   read (each a list of word numbers and the parts they are in), and the messages taken out.
-//!   When what was taken out outweighs what is left, or an account is removed, the file is
-//!   written again whole without it ([`Index::compact`]), to a temporary file renamed over. A
+//!   When what was taken out outweighs what is left, an account is removed, or mail is found
+//!   gone that went while the file was closed (removed where no index is kept, as by
+//!   `mailcraft-cli`), the file is written again whole without it ([`Index::compact`]), to a
+//!   temporary file renamed over. A
 //!   record cut short at the end (the program stopped while writing) is left out, and so is
 //!   everything after it; any other damage makes the whole file go.
 //! - **Private as the mail:** the file is for its owner only (as the mailbox file is), and
@@ -157,6 +159,15 @@ pub fn fingerprint(m: &Message) -> u64 {
     for a in &m.attachments {
         h = h.text(&a.name, 8);
     }
+    // What the sender hid is read by the index too (not for a message that hid nothing: its
+    // fingerprint is what it was).
+    // (By the file it is kept in, as the text is, so that it reads the same in memory or on disk.)
+    let kept_hidden = m.kept.as_deref().filter(|k| m.hidden_text.is_empty() || k.failed).and_then(|k| k.hidden);
+    if let Some(r) = kept_hidden {
+        h = h.text("hidden", 9).bytes(&r.sha256);
+    } else if !m.hidden_text.is_empty() {
+        h = h.text("hidden", 9).bytes(&sha256(m.hidden_text.as_bytes()));
+    }
     let text = match m.kept.as_deref() {
         // Kept on disk (or its reading failed, and its text says so): the file it is kept in.
         Some(k) if k.text.is_some() && (m.body.text.is_empty() || k.failed) => k.text.map(|r| r.sha256),
@@ -198,8 +209,14 @@ impl Doc {
 
     /// [`Doc::of`], with `m`'s [`fingerprint`] worked out already.
     pub fn with_fingerprint(m: &Message, body: &str, fp: u64) -> Doc {
+        Doc::with_hidden(m, body, &m.hidden_text, fp)
+    }
+
+    /// [`Doc::with_fingerprint`], with `hidden` the words the sender hid, read from disk when
+    /// they are kept there.
+    pub fn with_hidden(m: &Message, body: &str, hidden: &str, fp: u64) -> Doc {
         let mut seen: HashMap<String, u8> = HashMap::new();
-        words::texts(m, body, |field, text| {
+        words::texts_with(m, body, hidden, |field, text| {
             words::each(text, |w| {
                 let full = seen.len() >= MAX_DOC_WORDS;
                 match seen.get_mut(w) {
@@ -864,6 +881,9 @@ pub struct Words {
     /// The accounts of the mailbox when it was last brought in step: one gone since takes its
     /// words off the disk at once.
     accounts: Vec<Id>,
+    /// Brought in step since its file was read: mail gone before that (removed where no index
+    /// is kept, as by `mailcraft-cli`) takes its words off the disk at the first step (#325).
+    stepped: bool,
     /// Messages the last [`Words::in_step`] left out of the index (for the background to read).
     left: usize,
 }
@@ -906,6 +926,14 @@ fn text_of(m: &Message, reader: &crate::store::Reader) -> String {
     }
 }
 
+/// The words the sender hid in `m`, from memory or from the content folder.
+fn hidden_of(m: &Message, reader: &crate::store::Reader) -> String {
+    match m.kept.as_deref().and_then(|k| k.hidden).filter(|_| m.hidden_text.is_empty()) {
+        Some(r) => reader.read(&r).map(|b| crate::store::text_of_bytes(&b)).unwrap_or_default(),
+        None => m.hidden_text.clone(),
+    }
+}
+
 impl Words {
     /// The word index of the mailbox file at `mailbox`, read from beside it in the background,
     /// and then `messages` it hasn't got as they are read into it, newest first. A file that
@@ -920,7 +948,7 @@ impl Words {
             finished: AtomicU64::new(0),
         });
         // Not complete until it has been brought in step with the mailbox as it is once read.
-        let mut words = Words { mailbox: mailbox.to_path_buf(), shared, thread: None, accounts: Vec::new(), left: 1 };
+        let mut words = Words { mailbox: mailbox.to_path_buf(), shared, thread: None, accounts: Vec::new(), stepped: false, left: 1 };
         words.build(messages, true);
         words
     }
@@ -1018,7 +1046,10 @@ impl Words {
                 out.left = self.left;
                 return out;
             };
+            let first = !self.stepped;
+            self.stepped = true;
             let mut held = 0;
+            let mut went = false;
             let mut left: Vec<(&Arc<Message>, u64)> = Vec::new();
             for m in mb.messages.values() {
                 if index.seen(m) {
@@ -1035,6 +1066,7 @@ impl Words {
             }
             if index.len() > held {
                 let gone: Vec<Id> = index.ids().filter(|id| !mb.messages.contains_key(id)).collect();
+                went = !gone.is_empty();
                 out.removed += gone.len();
                 for id in gone {
                     index.remove(id);
@@ -1053,6 +1085,12 @@ impl Words {
                 }
             } else {
                 for (m, fp) in left {
+                    // What the sender hid, kept on disk, is read by the background beside the text.
+                    if m.kept.as_deref().is_some_and(|k| k.hidden.is_some()) && m.hidden_text.is_empty() {
+                        later.push(m.clone());
+                        out.left += 1;
+                        continue;
+                    }
                     let text = match body_in_memory(m) {
                         Some(text) => std::borrow::Cow::Borrowed(text),
                         None => std::borrow::Cow::Owned(read(m).unwrap_or_default()),
@@ -1061,7 +1099,9 @@ impl Words {
                     out.read += 1;
                 }
             }
-            if gone_account || index.wants_compacting() {
+            // Mail gone while the file was closed: its words leave the disk now, as an account
+            // removed here does, not only once enough has been taken out.
+            if gone_account || (first && went) || index.wants_compacting() {
                 index.compact();
             } else {
                 index.flush();
@@ -1142,7 +1182,7 @@ fn build(shared: &Shared, mailbox: &Path, mut messages: Vec<Arc<Message>>, open:
             if shared.cancel.load(Ordering::Relaxed) {
                 break;
             }
-            docs.push((Doc::with_fingerprint(&m, &text_of(&m, &reader), fp), m));
+            docs.push((Doc::with_hidden(&m, &text_of(&m, &reader), &hidden_of(&m, &reader), fp), m));
         }
         {
             let mut guard = lock(&shared.index);

@@ -118,6 +118,30 @@ const MAX_OCCURRENCES: usize = 2_000;
 
 thread_local! {
     static ROUTE: RefCell<Option<String>> = const { RefCell::new(None) };
+    static LOOPBACK_TOKENS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a test on this thread let a Microsoft sign-in go to a fake mail server on this
+/// computer ([`allow_loopback_tokens`]).
+pub(crate) fn loopback_tokens_allowed() -> bool {
+    LOOPBACK_TOKENS.with(std::cell::Cell::get)
+}
+
+/// A Microsoft account's token may go to a fake IMAP or SMTP server on this computer, from this
+/// thread, for as long as this lives. (Only a test asks: no other build has the stand-in.)
+pub struct LoopbackTokens(bool);
+
+/// Let this thread's Microsoft sign-ins go to a fake mail server on loopback until the guard is
+/// dropped.
+pub fn allow_loopback_tokens() -> LoopbackTokens {
+    LoopbackTokens(LOOPBACK_TOKENS.with(|allowed| allowed.replace(true)))
+}
+
+impl Drop for LoopbackTokens {
+    fn drop(&mut self) {
+        let before = self.0;
+        LOOPBACK_TOKENS.with(|allowed| allowed.set(before));
+    }
 }
 
 /// Where this thread's calls to Graph go instead, when a test has said so ([`route`]).
@@ -287,6 +311,42 @@ const SPECIAL_FOLDERS: [(&str, &str); 7] = [
     ("Outbox", "outbox"),
 ];
 
+/// The other folders every mailbox has under its top, by their names and well-known names:
+/// not shown.
+const HIDDEN_FOLDERS: [(&str, &str); 9] = [
+    ("Clutter", "clutter"),
+    ("Conflicts", "conflicts"),
+    ("Conversation History", "conversationhistory"),
+    ("Local Failures", "localfailures"),
+    ("Recoverable Items", "recoverableitemsdeletions"),
+    ("Scheduled", "scheduled"),
+    ("Search Folders", "searchfolders"),
+    ("Server Failures", "serverfailures"),
+    ("Sync Issues", "syncissues"),
+];
+
+/// Every well-known name Graph has for a folder of mail. A mailbox without the folder answers
+/// 404 for one; a name that is none of these is not an id either, and is answered 400.
+const MAIL_FOLDER_ALIASES: [&str; 17] = [
+    "archive",
+    "clutter",
+    "conflicts",
+    "conversationhistory",
+    "deleteditems",
+    "drafts",
+    "inbox",
+    "junkemail",
+    "localfailures",
+    "msgfolderroot",
+    "outbox",
+    "recoverableitemsdeletions",
+    "scheduled",
+    "searchfolders",
+    "sentitems",
+    "serverfailures",
+    "syncissues",
+];
+
 /// Whether the mailbox has the cached configuration of Outlook on the web, and may be asked.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Configuration {
@@ -394,6 +454,9 @@ pub struct State {
     pub broken_lists: Vec<String>,
     /// A server that won't take a `$batch` at all (400): a client asks one request at a time.
     pub refuse_batches: bool,
+    /// Every request of a batch for a message's `conversationId` alone is answered with this
+    /// status (403 for a mailbox that may not be read so, 429 for a busy one; #795).
+    pub conversations_answer: Option<u16>,
     /// The prefixes the document writes its two namespaces with (`a` and `b` unless said).
     pub prefixes: (String, String),
     /// The messages of every folder, and the rounds of their delta ([`messages`]).
@@ -897,6 +960,19 @@ impl State {
         id
     }
 
+    /// The folders of its own that an Exchange mailbox has besides the special ones, under the
+    /// top and not shown (`isHidden`), so that all of Graph's well-known names answer with a
+    /// folder, as they do there.
+    fn add_hidden_folders(&mut self) {
+        for (name, well_known) in HIDDEN_FOLDERS {
+            let id = self.add_folder(name, None);
+            if let Some(folder) = self.folders.iter_mut().find(|folder| folder.id == id) {
+                folder.well_known = well_known.into();
+                folder.hidden = true;
+            }
+        }
+    }
+
     /// Another mailbox at `address`, with the top and the special folders every mailbox has and
     /// no mail (#70); `full_access` says whether the owner of the token may open it.
     pub fn add_other(&mut self, address: &str, full_access: bool) {
@@ -916,6 +992,7 @@ impl State {
                 folder.well_known = well_known.into();
             }
         }
+        self.add_hidden_folders();
         let folders = std::mem::replace(&mut self.folders, owners);
         self.others.push(OtherMailbox {
             address: address.to_string(),
@@ -1147,6 +1224,10 @@ impl State {
     fn mail_folder(&self, named: &str) -> Result<&MailFolder, Refusal> {
         if let Some(folder) = self.folders.iter().find(|folder| !folder.well_known.is_empty() && folder.well_known == named) {
             return Ok(folder);
+        }
+        // A well-known name the mailbox has no folder for.
+        if MAIL_FOLDER_ALIASES.contains(&named) {
+            return Err(not_found());
         }
         // What can't be an id at all is told apart from one that names nothing. (An id is
         // written in an address in Graph's own alphabet: with `-` and `_`, never `/` or `+`.)
@@ -1710,7 +1791,7 @@ impl State {
             other => return Err(invalid(format!("The recurrence range type '{other}' is not supported."))),
         }
         if let Some(zone) = range.get("recurrenceTimeZone")
-            && !zone.as_str().is_some_and(|zone| zone_offset(zone, 0).is_some())
+            && zone.as_str().is_none_or(|zone| zone_offset(zone, 0).is_none())
         {
             return Err(refuse(400, "TimeZoneNotSupportedException", "The recurrenceTimeZone is not supported."));
         }
@@ -2419,7 +2500,12 @@ impl State {
             let body = request.get("body").map(Value::to_string).unwrap_or_default();
             let target = format!("/v1.0/{}", url.trim_start_matches('/'));
             let mut one = parse_target(method, &target, headers, body);
-            let (status, body) = match self.answer(&one) {
+            let conversation = one.query.iter().any(|(k, v)| k == "$select" && v == "conversationId");
+            let answered = match self.conversations_answer.filter(|_| conversation) {
+                Some(status) => Err(refuse(status, "ErrorAccessDenied", "Not now.")),
+                None => self.answer(&one),
+            };
+            let (status, body) = match answered {
                 Ok((status, body)) => (status, body),
                 Err(refusal) => (refusal.0, Some(error_body(&refusal))),
             };
@@ -2524,6 +2610,7 @@ impl StandIn {
                 folder.well_known = well_known.into();
             }
         }
+        state.add_hidden_folders();
         let state = Arc::new(Mutex::new(state));
         let shared = state.clone();
         std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {

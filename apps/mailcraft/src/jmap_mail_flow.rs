@@ -172,7 +172,7 @@ fn a_host_that_holds_the_credential_is_never_asked_for_one() {
     let inbox = server.with(|d| d.mailbox("Inbox", None, Some("inbox")));
     deliver(&server, &inbox, "Kickoff", 1);
     let (mut app, account) = window(&server);
-    app.services.jmap_host_credentials = true;
+    app.services.jmap_host_credentials = Some(Box::new(|_: &mailcraft_model::Account| true));
     assert_eq!(send_receive(&mut app, json!({}))["started"], true);
     assert!(app.dialog.is_none());
     let (kickoff, _, unfetched) = here(&app, account, "Kickoff").unwrap();

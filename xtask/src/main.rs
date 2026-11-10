@@ -5,16 +5,19 @@
 //! Pure Rust (std + serde_json). `cargo` and `git` are invoked through `std::process::Command`.
 
 mod assets;
+mod docs_log;
 mod i18n;
 mod ico;
 mod icon;
 mod layers;
 mod parity;
 mod release_key;
+mod release_notes;
 mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod workflows;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -27,9 +30,12 @@ commands:
   spdx [--fix]    check that every Rust file starts with its SPDX copyright and licence lines
   test-files      tests live in files of their own: no new inline `#[cfg(test)] mod … { }` (CONTRIBUTING.md)
   layers          enforce the crate dependency layering (docs/architecture.md)
+  workflows       no job of .github/workflows that holds signing material builds or runs what was built;
+                  no `permissions: read-all`; curl only with `--proto =https` (docs/releasing.md)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check
+  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, workflows, layers, wasm, deny, i18n --check,
+                  release-notes and docs-log (the fragments join)
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
@@ -37,8 +43,14 @@ commands:
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
-  icon            draw the app icon (original artwork, in code) into assets/app-icon
+  icon            render the app icon (assets/app-icon/source/mailcraft.svg) in every size into assets/app-icon
   version [...]   show or set the workspace version
+  release-notes [--write]
+                  print the release notes with the fragments in packaging/release-notes.d/ joined in;
+                  --write (before tagging) joins them into packaging/release-notes.md and removes them
+  docs-log [--check | --write]
+                  print each document with the table-row fragments in docs/log.d/ joined in; --check
+                  only checks they join; --write (in the release's pull request) joins them and removes them
   release-key new <dir>
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
@@ -53,6 +65,7 @@ fn main() -> ExitCode {
         Some("spdx") => spdx::run(&root(), rest.contains(&"--fix")),
         Some("test-files") => test_files::run(&root()),
         Some("layers") => cmd_layers(),
+        Some("workflows") => workflows::run(&root()),
         Some("wasm") => cmd_wasm(),
         Some("deny") => cmd_deny(),
         Some("ci") => cmd_ci(),
@@ -62,6 +75,8 @@ fn main() -> ExitCode {
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
+        Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
+        Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -140,8 +155,8 @@ fn cmd_layers() -> Result<(), String> {
     }
 }
 
-/// Workspace packages that must build for wasm32: all L0–L5 crates plus
-/// the egui shell.
+/// Workspace packages that must build for wasm32: all L0–L5 crates, the egui shell and the
+/// browser app.
 fn wasm_set() -> Result<Vec<String>, String> {
     let crates = layers::from_metadata(&metadata()?)?;
     Ok(crates
@@ -152,6 +167,8 @@ fn wasm_set() -> Result<Vec<String>, String> {
             _ => false,
         })
         .map(|c| c.name)
+        // The browser app itself: its own code is wasm-only, and the release builds it.
+        .chain(std::iter::once("mailcraft-web".to_string()))
         .collect())
 }
 
@@ -189,6 +206,24 @@ fn cmd_deny() -> Result<(), String> {
     run(c, "cargo deny --locked check")
 }
 
+/// The workspace's tests. With cargo-nextest installed (CI installs it) the test binaries run side
+/// by side rather than one after another, and the doc-tests, which nextest doesn't run, follow;
+/// without it, `cargo test` runs the lot.
+fn cmd_test() -> Result<(), String> {
+    let nextest = cargo().args(["nextest", "--version"]).output().map(|o| o.status.success()).unwrap_or(false);
+    if !nextest {
+        let mut c = cargo();
+        c.args(["test", "--locked", "--workspace"]);
+        return run(c, "cargo test --locked --workspace");
+    }
+    let mut c = cargo();
+    c.args(["nextest", "run", "--locked", "--workspace", "--no-fail-fast"]);
+    run(c, "cargo nextest run --locked --workspace --no-fail-fast")?;
+    let mut c = cargo();
+    c.args(["test", "--locked", "--workspace", "--doc"]);
+    run(c, "cargo test --locked --workspace --doc")
+}
+
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
     let steps: Vec<Step> = vec![
@@ -208,21 +243,17 @@ fn cmd_ci() -> Result<(), String> {
                 run(c, "cargo clippy --locked --workspace --all-targets -- -D warnings")
             }),
         ),
-        (
-            "test",
-            Box::new(|| {
-                let mut c = cargo();
-                c.args(["test", "--locked", "--workspace"]);
-                run(c, "cargo test --locked --workspace")
-            }),
-        ),
+        ("test", Box::new(cmd_test)),
         ("assets", Box::new(|| assets::run(&root()))),
         ("spdx", Box::new(|| spdx::run(&root(), false))),
         ("test-files", Box::new(|| test_files::run(&root()))),
+        ("workflows", Box::new(|| workflows::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
         ("deny", Box::new(cmd_deny)),
         ("i18n", Box::new(|| i18n::run(&root(), true))),
+        ("release-notes", Box::new(|| release_notes::check(&root()))),
+        ("docs-log", Box::new(|| docs_log::check(&root()))),
     ];
     // `XTASK_CI_SKIP=clippy,wasm`: steps another runner covers (CI runs them on Linux only).
     let skip = std::env::var("XTASK_CI_SKIP").unwrap_or_default();

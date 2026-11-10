@@ -9,21 +9,42 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod address;
+pub mod auth_results;
+pub mod auto_replies;
+pub mod ber;
 mod calendar;
+pub mod confusables;
 mod contact;
+pub mod dav;
+pub mod digital_signature;
+mod ews_server;
+pub mod gmail;
 mod jmap_server;
-mod load_limit;
+mod junk;
+pub mod load_limit;
 mod mailbox;
 mod message;
+pub mod messages;
+#[cfg(test)]
+mod messages_tests;
 mod offline;
+pub mod pictures;
+pub mod pop;
+pub mod protected;
 pub mod provider;
+pub mod public_keys;
 pub mod remote;
+pub mod remote_rules;
+pub mod remote_tasks;
 pub mod rich;
 mod rule;
 pub mod search;
+pub mod sender_warnings;
+pub mod shown;
 pub mod signature;
 pub mod sync;
 mod task;
+pub mod thread_index;
 pub mod update;
 pub mod words;
 pub mod zoned;
@@ -35,25 +56,32 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, Labeled, PostalAddress};
+pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
+pub use gmail::{GmailCategory, is_gmail_host};
 pub use jmap_server::JmapServer;
+pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
-    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind,
-    GraphSwitch, IMPORTED, INTO_GRAPH, MAX_RULES, MAX_SHARED, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued,
-    STAYS_LOCAL, Security, Server, ServerFavorites, ServerFolder,
+    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
+    FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX,
+    MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, PALETTE, Pending, Queued, Security, Server, ServerFavorites,
+    ServerFolder, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, NOT_DOWNLOADED, normalize_subject, size_label, size_label_in,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, MAX_ORIGINAL, MAX_ORIGINALS, Message, NOT_DOWNLOADED,
+    NOT_DOWNLOADED_NOTE, ORIGINAL_PATIENCE, ORIGINAL_TRIES, Original, PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in,
     text_hash,
 };
+pub use messages::Messages;
 pub use offline::{KeepOffline, OfflineWindow};
-pub use remote::Origin;
+pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
-pub use rule::{Action, Condition, Rule};
+pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
 pub use signature::Signature;
-pub use task::Task;
+pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
+pub use thread_index::{ThreadIndex, ThreadKey};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;
@@ -97,6 +125,11 @@ pub fn clean_name(s: &str) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+/// For leaving an id out of what is written when there is none.
+pub(crate) fn is_zero_id(id: &Id) -> bool {
+    *id == 0
+}
+
 /// Case-insensitive "contains", for search and rules.
 pub fn contains_ci(haystack: &str, needle: &str) -> bool {
     needle.is_empty() || haystack.to_lowercase().contains(&needle.to_lowercase())
@@ -119,17 +152,59 @@ pub(crate) mod b64 {
 }
 
 #[cfg(test)]
+mod account_categories_tests;
+#[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
+mod account_order_tests;
+#[cfg(test)]
+mod auth_results_tests;
+#[cfg(test)]
+mod auto_replies_tests;
+#[cfg(test)]
 mod calendar_rights_tests;
+#[cfg(test)]
+mod contact_key_tests;
+#[cfg(test)]
+mod gmail_tests;
+#[cfg(test)]
+mod hidden_text_tests;
+#[cfg(test)]
+mod junk_tests;
+#[cfg(test)]
+mod load_limit_tests;
 #[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]
+mod original_tests;
+#[cfg(test)]
+mod pictures_tests;
+#[cfg(test)]
+mod pop_tests;
+#[cfg(test)]
+mod public_keys_tests;
+#[cfg(test)]
 mod recurrence_tests;
+#[cfg(test)]
+mod rule_tests;
+#[cfg(test)]
+mod search_advanced_tests;
+#[cfg(test)]
+mod search_dates_tests;
+#[cfg(test)]
+mod search_people_tests;
 #[cfg(test)]
 mod search_quotes_tests;
 #[cfg(test)]
 mod search_suggest_tests;
 #[cfg(test)]
 mod search_tests;
+#[cfg(test)]
+mod sender_warnings_tests;
+#[cfg(test)]
+mod shown_tests;
+#[cfg(test)]
+mod well_known_folder_tests;
 
 #[cfg(test)]
 mod tests {

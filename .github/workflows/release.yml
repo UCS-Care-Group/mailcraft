@@ -7,11 +7,18 @@ name: Release
 # so ArtCraft Launcher and anything else that reads those releases finds MailCraft's files by
 # the same names. A maintainer reviews the draft and publishes it by hand. See docs/releasing.md.
 #
-# A tag builds and signs only when its commit is on main and CI passed there (the `version` job
-# checks that first; every other job needs it).
+# A tag builds and signs only when its commit is on main and CI passed there, or the commit merges
+# an up-to-date pull request whose CI passed on the same tree (the `version` job checks that
+# first; every other job needs it).
 #
 # The signing and publishing jobs run in the protected `release` environment, which holds the
-# signing secrets and is limited to version tags; only a pushed tag reaches them.
+# signing secrets and is limited to version tags; only a pushed tag reaches them. They are not the
+# jobs that build: package.yml compiles in jobs that hold no secret and hands the binaries on by
+# digest, and no job with a signing secret, an Azure sign-in, a keychain or the `release`
+# environment runs cargo, rustup or a built program (`cargo xtask workflows` checks it). The
+# release files are checked against the digests their jobs gave before the checksums are made, and
+# the checksums are signed with the runner's OpenSSL (packaging/sign-sums.sh), not a program built
+# here.
 #
 # Run by hand (workflow_dispatch) it builds everything unsigned and keeps the files as workflow
 # artifacts: a dry run, on any branch, that is given no secrets and publishes nothing.
@@ -67,13 +74,29 @@ jobs:
             echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main: a release is tagged on a commit that was reviewed and merged"
             exit 1
           fi
-          ok=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=ci-ok&filter=latest&per_page=100" \
-            --jq '[.check_runs[] | select(.conclusion == "success")] | length')
-          if [ "${ok:-0}" -lt 1 ]; then
-            echo "::error::no passing ci-ok check on $GITHUB_SHA: wait for CI on main to pass, or tag a commit that ran it (documentation-only commits do not run it)"
-            exit 1
+          passed() {
+            ok=$(gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?check_name=ci-ok&filter=latest&per_page=100" \
+              --jq '[.check_runs[] | select(.conclusion == "success" and .app.slug == "github-actions")] | length')
+            [ "${ok:-0}" -ge 1 ]
+          }
+          if passed "$GITHUB_SHA"; then
+            echo "$GITHUB_SHA is on main and its ci-ok passed"
+            exit 0
           fi
-          echo "$GITHUB_SHA is on main and its ci-ok passed"
+          # The merge commit of a pull request that was up to date with main holds exactly the
+          # tree its pull request's CI tested: main's tip was already in the branch, so the merge
+          # added nothing. Its ci-ok stands for the merge commit's, and a release need not wait for
+          # CI to run again on main.
+          read -r _ base head extra <<<"$(git rev-list --parents -n 1 "$GITHUB_SHA")"
+          if [ -n "${head:-}" ] && [ -z "${extra:-}" ] \
+            && git merge-base --is-ancestor "$base" "$head" \
+            && [ "$(git rev-parse "$GITHUB_SHA^{tree}")" = "$(git rev-parse "$head^{tree}")" ] \
+            && passed "$head"; then
+            echo "$GITHUB_SHA is on main and merges $head, whose ci-ok passed on the same tree"
+            exit 0
+          fi
+          echo "::error::no passing ci-ok check on $GITHUB_SHA, nor on a pull request it merged with the same tree: wait for CI on main to pass, or tag a commit that ran it (documentation-only commits do not run it)"
+          exit 1
       - id: v
         name: The tag is the version in Cargo.toml
         run: |
@@ -93,6 +116,10 @@ jobs:
     # zizmor's self-repository audit wants GitHub's new `$/` form; kept as `./` until a release has
     # been cut with it, since this path runs on a tag alone.
     uses: ./.github/workflows/package.yml # zizmor: ignore[self-repository]
+    # package.yml's Windows job asks for id-token, which a caller must grant; unsigned, it is unused.
+    permissions:
+      contents: read
+      id-token: write
     with:
       freebsd: ${{ inputs.freebsd == true }}
       sign: false
@@ -113,6 +140,24 @@ jobs:
           pattern: release-*
           path: artifacts
           merge-multiple: true
+      - name: The files are the ones their jobs made
+        env:
+          WINDOWS_X64: ${{ needs.dry-run.outputs.windows_x64 }}
+          WINDOWS_X86: ${{ needs.dry-run.outputs.windows_x86 }}
+          WINDOWS_ARM64: ${{ needs.dry-run.outputs.windows_arm64 }}
+          MACOS: ${{ needs.dry-run.outputs.macos }}
+          LINUX_X86_64: ${{ needs.dry-run.outputs.linux_x86_64 }}
+          LINUX_AARCH64: ${{ needs.dry-run.outputs.linux_aarch64 }}
+          FLATPAK_X86_64: ${{ needs.dry-run.outputs.flatpak_x86_64 }}
+          FLATPAK_AARCH64: ${{ needs.dry-run.outputs.flatpak_aarch64 }}
+          FREEBSD_X86_64: ${{ needs.dry-run.outputs.freebsd_x86_64 }}
+          WEB: ${{ needs.dry-run.outputs.web }}
+        run: |
+          bash packaging/ci/handoff.sh check artifacts \
+            "release-windows-x64=$WINDOWS_X64" "release-windows-x86=$WINDOWS_X86" "release-windows-arm64=$WINDOWS_ARM64" \
+            "release-macos=$MACOS" "release-linux-x86_64=$LINUX_X86_64" "release-linux-aarch64=$LINUX_AARCH64" \
+            "release-flatpak-x86_64=$FLATPAK_X86_64" "release-flatpak-aarch64=$FLATPAK_AARCH64" \
+            "release-freebsd-x86_64?=$FREEBSD_X86_64" "release-web=$WEB"
       - name: Checksums
         working-directory: artifacts
         run: |
@@ -120,6 +165,30 @@ jobs:
           sha256sum -- * | tee SHA256SUMS.txt
       - name: Sign the checksums (no key here)
         run: packaging/sign-sums.sh artifacts
+      # The signing path itself, with a throwaway key in the release key's own format (made by
+      # `cargo xtask release-key new`): the runner's OpenSSL, as a tag's run uses it, must make
+      # the very signature `cargo xtask release-key sign` makes. This job holds no secret, so it
+      # may build; the job that holds the real key never does.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+      - name: OpenSSL signs as xtask does, with a throwaway key
+        run: |
+          keys="$RUNNER_TEMP/throwaway-keys"
+          scratch="$RUNNER_TEMP/throwaway-sums"
+          mkdir -p "$scratch/openssl" "$scratch/xtask"
+          cargo run --locked --quiet --package xtask -- release-key new "$keys"
+          cp artifacts/SHA256SUMS.txt "$scratch/openssl/"
+          cp artifacts/SHA256SUMS.txt "$scratch/xtask/"
+          key="$(cat "$keys/mailcraft-release-key-in-use.pkcs8.b64")"
+          MAILCRAFT_RELEASE_KEY="$key" packaging/sign-sums.sh "$scratch/openssl"
+          MAILCRAFT_RELEASE_KEY="$key" cargo run --locked --quiet --package xtask -- release-key sign "$scratch/xtask/SHA256SUMS.txt"
+          if ! cmp "$scratch/openssl/SHA256SUMS.txt.sig" "$scratch/xtask/SHA256SUMS.txt.sig"; then
+            echo "::error::OpenSSL's signature isn't the one cargo xtask release-key sign makes"
+            exit 1
+          fi
+          echo "OpenSSL and xtask make the same signature"
+          rm -rf "$keys" "$scratch"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dry-run-sums
@@ -132,11 +201,15 @@ jobs:
     needs: [version]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/package.yml # zizmor: ignore[self-repository]
+    permissions:
+      contents: read
+      id-token: write # package.yml's Windows job signs in to Azure with OIDC
     with:
       freebsd: true
       sign: true
-    # Only the signing secrets package.yml declares, by name. They live in the `release`
-    # environment; the jobs that sign name that environment, and only there do they have values.
+    # Only the secrets package.yml declares, by name. The signing ones live in the `release`
+    # environment; package.yml's jobs that sign name that environment, and only there do they have
+    # values. Those jobs build nothing: they sign what a build job without secrets handed on.
     secrets:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -148,10 +221,11 @@ jobs:
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
       AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
       AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
+      MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
+      MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
 
   publish:
     name: Make the draft release
@@ -175,26 +249,37 @@ jobs:
           pattern: release-*
           path: artifacts
           merge-multiple: true
+      - name: The files are the ones their jobs made
+        env:
+          WINDOWS_X64: ${{ needs.package.outputs.windows_x64 }}
+          WINDOWS_X86: ${{ needs.package.outputs.windows_x86 }}
+          WINDOWS_ARM64: ${{ needs.package.outputs.windows_arm64 }}
+          MACOS: ${{ needs.package.outputs.macos }}
+          LINUX_X86_64: ${{ needs.package.outputs.linux_x86_64 }}
+          LINUX_AARCH64: ${{ needs.package.outputs.linux_aarch64 }}
+          FLATPAK_X86_64: ${{ needs.package.outputs.flatpak_x86_64 }}
+          FLATPAK_AARCH64: ${{ needs.package.outputs.flatpak_aarch64 }}
+          FREEBSD_X86_64: ${{ needs.package.outputs.freebsd_x86_64 }}
+          WEB: ${{ needs.package.outputs.web }}
+        run: |
+          bash packaging/ci/handoff.sh check artifacts \
+            "release-windows-x64=$WINDOWS_X64" "release-windows-x86=$WINDOWS_X86" "release-windows-arm64=$WINDOWS_ARM64" \
+            "release-macos=$MACOS" "release-linux-x86_64=$LINUX_X86_64" "release-linux-aarch64=$LINUX_AARCH64" \
+            "release-flatpak-x86_64=$FLATPAK_X86_64" "release-flatpak-aarch64=$FLATPAK_AARCH64" \
+            "release-freebsd-x86_64?=$FREEBSD_X86_64" "release-web=$WEB"
       - name: Checksums
         working-directory: artifacts
         run: |
           rm -f SHA256SUMS.txt SHA256SUMS.txt.sig
           sha256sum -- * | tee SHA256SUMS.txt
       # MailCraft's own release signature over the checksums (SHA256SUMS.txt.sig): what a copy of
-      # MailCraft checks before it installs an update. Built from this checkout's xtask with the
-      # locked crates, compiled in a step before the key is set; no tool is downloaded. Without the
-      # key the release is unsigned and says so.
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: 1.98.1
-      # Compiled here, before the key is anywhere in the environment: a build script or macro of a
-      # dependency of xtask never runs with it. The signing step only runs the finished binary.
-      - name: Build the signing tool (no key here)
-        run: cargo build --locked --release --package xtask
+      # MailCraft checks before it installs an update. Made by the runner's OpenSSL 3, checked
+      # against its package's file list first; nothing is compiled or downloaded in this job, and
+      # no program built from this repository runs with the key. Without the key the release is
+      # unsigned and says so.
       - name: Sign the checksums
         env:
           MAILCRAFT_RELEASE_KEY: ${{ secrets.MAILCRAFT_RELEASE_KEY }}
-          MAILCRAFT_XTASK: ${{ github.workspace }}/target/release/xtask
         run: packaging/sign-sums.sh artifacts
       - name: Attest build provenance
         id: attest

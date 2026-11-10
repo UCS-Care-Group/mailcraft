@@ -6,6 +6,8 @@
 //! which are the mailbox's own (as a host brought them from the account's server) unless the
 //! owner would rather have the local options.
 
+use std::collections::HashSet;
+
 use mailcraft_model::{Account, Calendar, Id, Rgb};
 use mailcraft_time::Weekday;
 use serde::{Deserialize, Serialize};
@@ -56,13 +58,13 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.color", "Calendar Colour", "Home › Manage Calendars", color)
             .params(r##"{"id": number, "color": "#RRGGBB" | null} — the colour that calendar is shown in here, whatever its server says; null takes the choice back"##),
         CommandSpec::new("view.overlay", "Overlay", "View › Arrangement", overlay)
-            .pure()
+            .reads()
             .params(r#"{"calendar"?: number, "value"?: bool} — with a calendar: lay it over the calendars that are overlaid already (over the first one shown when none is), or with "value": false put it back beside them (default: the other way than it is); without: every calendar that is shown lies over the others (default), or none does"#),
         CommandSpec::new("view.sideBySide", "Side-by-Side", "View › Arrangement", side_by_side)
-            .pure()
+            .reads()
             .params("{} — every calendar that is shown stands beside the others, each in a block of its own"),
         CommandSpec::new("view.frontCalendar", "Bring Calendar to Front", "View › Arrangement", front)
-            .pure()
+            .reads()
             .params(r#"{"calendar": number} — of the calendars that lie over one another, the one whose items are in front; it is also the one being worked in, when it can be changed"#),
         CommandSpec::new("view.workHours", "Working Hours", "File › Options", work_hours_command)
             .pure()
@@ -96,7 +98,10 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
     let mailbox = &s.mailbox;
     let keeper = |c: &Calendar| remote::keeper(mailbox, &c.origin).map(|account| account.id);
     let listed: Vec<&Calendar> = mailbox.calendars.iter().take(MAX_LISTED).collect();
-    let accounts: Vec<&Account> = mailbox.accounts.iter().take(50).filter(|a| listed.iter().any(|c| keeper(c) == Some(a.id))).collect();
+    // The first 50 accounts that keep a calendar listed, in the order the owner put the accounts
+    // in (#702): one that keeps none doesn't take another's place.
+    let keepers: HashSet<Id> = listed.iter().filter_map(|c| keeper(c)).collect();
+    let accounts: Vec<&Account> = mailbox.accounts_in_order().into_iter().filter(|a| keepers.contains(&a.id)).take(50).collect();
     let mut groups: Vec<CalendarGroup> = Vec::new();
     for account in &accounts {
         let group_of = |c: &Calendar| {
@@ -447,6 +452,19 @@ fn work_hours_command(s: &mut Session, v: &Value) -> CmdResult {
         Some(_) => s.prefs.own_work_hours = p::bool(v, "own").ok_or_else(|| bad("`own` is true or false"))?,
     }
     Ok(work_hours_json(s))
+}
+
+/// Let go of the working hours kept for an account the mailbox no longer has: they were its
+/// mailbox's, and go with it (#325).
+pub(crate) fn forget_gone_hours(s: &mut Session) {
+    let gone = s
+        .prefs
+        .mailbox_hours
+        .as_ref()
+        .is_some_and(|hours| !s.mailbox.accounts.iter().any(|a| a.email.trim().eq_ignore_ascii_case(hours.email.trim())));
+    if gone {
+        s.prefs.mailbox_hours = None;
+    }
 }
 
 /// Take in the working hours of an account's mailbox (`None`: it has none, and what was kept

@@ -3,11 +3,11 @@
 //! The message list: which messages show for the folder, filter and search in view, in what
 //! order, under which group headings.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use mailcraft_model::search::Query;
-use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
-use mailcraft_time::{DateGroup, Timestamp};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message, ThreadIndex, ThreadKey};
+use mailcraft_time::{Date, DateGroup, Timestamp};
 use serde::Serialize;
 
 use crate::{Filter, Scope, Session, SortBy};
@@ -17,8 +17,15 @@ use crate::{Filter, Scope, Session, SortBy};
 pub struct Row {
     /// The message the row shows (the newest of its conversation).
     pub id: Id,
-    /// Every message the row stands for, newest first (just `id` outside conversation view).
+    /// Every message the row stands for, newest first (just `id` outside conversation view, and
+    /// for a message listed under its open conversation): those of its conversation the list
+    /// shows, which Delete and Move take with it (#485, #503).
     pub members: Vec<Id>,
+    /// In conversation view, the messages of its conversation in the account's other folders (a
+    /// reply in Sent Items), newest first (#503): counted with `members` and listed under the row
+    /// when it is open, but not what the row stands for, as in Outlook.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub others: Vec<Id>,
     pub unread: usize,
     /// The group heading above this row, when it starts a group (`Today`, `Last Week`).
     pub group: Option<String>,
@@ -26,8 +33,45 @@ pub struct Row {
     /// translated) and not a date, importance or one of the program's own (`Pinned`, no category).
     pub category: bool,
     /// Which of the message's rows this is: arranged by categories, a message filed under two
-    /// categories is listed under each, as Outlook lists it, and the second row is copy 1.
+    /// categories is listed under each, as Outlook lists it, and the second row is copy 1. Under
+    /// an open conversation, the newest message's own row is copy 1 too: copy 0 is the
+    /// conversation's row.
     pub copy: u16,
+    /// For a message listed under its open conversation (#503): the message the conversation's
+    /// row shows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub under: Option<Id>,
+    /// For a conversation's row: it is open, and its messages are listed under it.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub open: bool,
+}
+
+impl Row {
+    /// The row of one message, `copy` of its rows.
+    fn of(m: &Message, copy: u16) -> Row {
+        Row {
+            id: m.id,
+            members: vec![m.id],
+            others: Vec::new(),
+            unread: usize::from(!m.read),
+            group: None,
+            category: false,
+            copy,
+            under: None,
+            open: false,
+        }
+    }
+
+    /// How many messages the row's conversation has: what its count says, and what is listed
+    /// under it when it is open (#503).
+    pub fn size(&self) -> usize {
+        self.members.len().saturating_add(self.others.len())
+    }
+
+    /// Whether it is the row of a conversation of more than one message, which opens.
+    pub fn conversation(&self) -> bool {
+        self.under.is_none() && self.size() > 1
+    }
 }
 
 /// When a message counts as having arrived: its received time, or its date when it has none.
@@ -47,6 +91,30 @@ pub fn when(m: &Message) -> Timestamp {
 pub fn preview(m: &Message, max_chars: usize) -> String {
     let said = m.body.html.as_deref().map(|html| mailcraft_html::preview(html, max_chars)).unwrap_or_default();
     if said.is_empty() { mailcraft_html::text_preview(&m.body.text, max_chars) } else { said }
+}
+
+/// A row's heading, compared with the last row's as it is: the words of a date's are written
+/// only for the rows a heading starts at (two date groups never have the same words).
+#[derive(PartialEq)]
+enum Heading {
+    Date(DateGroup),
+    Words(String),
+}
+
+impl Heading {
+    fn label(&self) -> String {
+        match self {
+            Heading::Date(d) => d.label().to_string(),
+            Heading::Words(w) => w.clone(),
+        }
+    }
+}
+
+fn heading(s: &Session, m: &Message, today: Date) -> Option<Heading> {
+    match s.view.sort {
+        SortBy::Date if !m.pinned => Some(Heading::Date(DateGroup::of(s.local(when(m)).date, today, s.prefs.week_start))),
+        _ => group_label(s, m).map(Heading::Words),
+    }
 }
 
 fn group_label(s: &Session, m: &Message) -> Option<String> {
@@ -79,12 +147,18 @@ pub fn fold(name: &str) -> String {
     name.to_lowercase()
 }
 
-/// One spelling for each category name however it was written, by its [`fold`]: the mailbox's
-/// list of categories first, then the first spelling met among `items`' categories. One map per
-/// list build, so no name is searched for item by item.
-pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = &'a [String]>) -> HashMap<String, &'a str> {
-    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
-    for categories in items {
+/// One spelling for each category name however it was written, by its [`fold`]: the lists of the
+/// accounts of `items`, each given by its account, first, then the mailbox's other lists, then the
+/// first spelling met among the items' categories. One map per list build, so no name is searched
+/// for item by item.
+pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = (Id, &'a [String])>) -> HashMap<String, &'a str> {
+    let items: Vec<(Id, &[String])> = items.into_iter().collect();
+    let accounts: BTreeSet<Id> = items.iter().map(|(account, _)| *account).collect();
+    let mut spelling: HashMap<String, &str> = HashMap::new();
+    for k in accounts.iter().flat_map(|account| s.mailbox.categories_of(*account)).chain(s.mailbox.all_categories()) {
+        spelling.entry(fold(&k.name)).or_insert(k.name.as_str());
+    }
+    for (_, categories) in items {
         for c in categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
             spelling.entry(fold(c)).or_insert(c);
         }
@@ -105,19 +179,57 @@ pub fn rows(s: &Session) -> Vec<Row> {
     rows_with(s, &HashMap::new(), &HashMap::new())
 }
 
-/// Which messages the list looks at: those of the folder in view, or, for a search of every
-/// mailbox, every message but those in Deleted Items, Junk E-mail and their subfolders.
-pub(crate) fn in_view(s: &Session) -> impl Fn(&Message) -> bool + '_ {
+/// Which messages the list looks at: those of the folder in view; for a search of its
+/// subfolders, those of the folder and every folder under it; for a search of the mailbox in
+/// view, those of every folder of its account; for a search of every mailbox, every message. A
+/// search of the mailbox or of every mailbox leaves out Deleted Items, Junk E-mail and their
+/// subfolders (#493).
+pub fn in_view(s: &Session) -> impl Fn(&Message) -> bool + '_ {
+    let (everywhere, folders) = view_folders(s);
+    move |m: &Message| folders.contains(&m.folder) != everywhere
+}
+
+/// The folders the list looks in ([`in_view`]), or, for a search of every mailbox (`true`),
+/// the folders it leaves out.
+fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
     let mb = &s.mailbox;
-    let everywhere = !Query::parse(&s.view.search).is_empty() && s.view.scope == Scope::Everywhere;
-    // Deleted and junk mail stays out of a search of everything.
-    let hidden: std::collections::HashSet<Id> = if everywhere {
-        mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Deleted | FolderKind::Junk)).flat_map(|f| mb.subtree(f.id)).collect()
-    } else {
-        Default::default()
-    };
     let folder = s.view.folder;
-    move |m: &Message| if everywhere { !hidden.contains(&m.folder) } else { m.folder == folder }
+    let scope = if Query::parse(&s.view.search).is_empty() { Scope::Folder } else { s.view.scope };
+    // Deleted and junk mail stays out of a search of a whole mailbox (`account`) or of all.
+    let hidden = |account: Option<Id>| -> HashSet<Id> {
+        mb.folders
+            .iter()
+            .filter(|f| account.is_none_or(|a| f.account == a) && matches!(f.kind, FolderKind::Deleted | FolderKind::Junk))
+            .flat_map(|f| mb.subtree(f.id))
+            .collect()
+    };
+    // The folders looked in, or (for every mailbox) the folders left out.
+    let (everywhere, folders): (bool, HashSet<Id>) = match scope {
+        Scope::Folder => (false, HashSet::from([folder])),
+        Scope::Subfolders => (false, mb.subtree(folder).into_iter().collect()),
+        Scope::Mailbox => {
+            let account = mb.folder(folder).map(|f| f.account);
+            let hidden = hidden(account);
+            let of_account = mb.folders.iter().filter(|f| account == Some(f.account) && !hidden.contains(&f.id));
+            (false, of_account.map(|f| f.id).collect())
+        }
+        Scope::Everywhere => (true, hidden(None)),
+    };
+    (everywhere, folders)
+}
+
+/// The messages the list looks at ([`in_view`]): those of the folders looked in, from the
+/// folders' own lists when the session has them counted ([`Session::fresh_counts`]: a few
+/// hundred thousand messages in other folders are then not walked for a list of one), else
+/// every message that is in view.
+fn looked_at<'a>(s: &'a Session, everywhere: bool, folders: &HashSet<Id>) -> Vec<&'a Message> {
+    let mb = &s.mailbox;
+    match s.fresh_counts() {
+        Some(counts) if !everywhere => {
+            folders.iter().flat_map(|f| mb.messages.get_sorted(counts.ids(*f))).map(|m| m.as_ref()).filter(|m| folders.contains(&m.folder)).collect()
+        }
+        _ => mb.messages.values().map(|m| m.as_ref()).filter(|m| folders.contains(&m.folder) != everywhere).collect(),
+    }
 }
 
 /// [`rows`], for a search answered in part already: `decided` says whether each message the word
@@ -125,93 +237,273 @@ pub(crate) fn in_view(s: &Session) -> impl Fn(&Message) -> bool + '_ {
 /// was brought in and let go of again while the search ran did (`Session::load_bodies_for_search`),
 /// which a body named only can no longer say.
 pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> Vec<Row> {
-    let mb = &s.mailbox;
-    let query = Query::parse(&s.view.search);
+    listing(s, decided, searched).0
+}
+
+/// The addresses of the owner's accounts, for To Me.
+fn me(s: &Session) -> Vec<&str> {
+    s.mailbox.accounts.iter().map(|a| a.email.as_str()).filter(|e| !e.is_empty()).collect()
+}
+
+/// Whether `m` matches the filter in view (All, Unread, Flagged…); `me` as from [`me`].
+fn filtered(s: &Session, m: &Message, me: &[&str]) -> bool {
+    match s.view.filter {
+        Filter::All => true,
+        Filter::Unread => !m.read,
+        Filter::Flagged => m.flag == FlagStatus::Flagged,
+        Filter::Attachments => m.has_attachments(),
+        Filter::ToMe => m.to.iter().any(|a| me.iter().any(|e| a.email.eq_ignore_ascii_case(e))),
+    }
+}
+
+/// Of `ids`, those the list in view lists now, without building it (#428): in the folder in view,
+/// and matching the filter or kept. For a list with no search: what a search finds, only the
+/// list can say.
+pub(crate) fn lists(s: &Session, ids: &[Id]) -> std::collections::HashSet<Id> {
     let in_view = in_view(s);
-    let me: Vec<&str> = mb.accounts.iter().map(|a| a.email.as_str()).filter(|e| !e.is_empty()).collect();
-    let mut shown: Vec<&Message> = mb
-        .messages
-        .values()
-        .map(|m| m.as_ref())
-        .filter(|m| in_view(m))
-        .filter(|m| match s.view.filter {
-            Filter::All => true,
-            Filter::Unread => !m.read,
-            Filter::Flagged => m.flag == FlagStatus::Flagged,
-            Filter::Attachments => m.has_attachments(),
-            Filter::ToMe => m.to.iter().any(|a| me.iter().any(|e| a.email.eq_ignore_ascii_case(e))),
-        })
+    let me = me(s);
+    let kept = s.kept();
+    // (The folder's messages are looked through only for conversations of a Gmail category.)
+    let gmail = crate::gmail::Shown::of(s, s.mailbox.messages.values().map(|m| m.as_ref()));
+    let shows = |m: &Message| {
+        in_view(m) && ((gmail.as_ref().is_none_or(|g| g.keeps(m)) && filtered(s, m, &me)) || kept.as_ref().is_some_and(|kept| kept.contains(&m.id)))
+    };
+    ids.iter().copied().filter(|id| s.mailbox.message(*id).is_some_and(shows)).collect()
+}
+
+/// [`rows_with`], the messages the rows list only because they are selected (#428: they were
+/// in this list when they were selected and no longer match the filter or the search), and how
+/// many messages the list looks at are not fetched whole (a search of them reads their headers
+/// and preview alone, R3.2; counted here, in the one pass over the mail, not at every frame).
+pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> (Vec<Row>, Vec<Id>, usize) {
+    let mb = &s.mailbox;
+    let query = s.search_query();
+    let (everywhere, folders) = view_folders(s);
+    let me = me(s);
+    let kept = s.kept();
+    let mut kept_only = Vec::new();
+    let mut unfetched = 0usize;
+    let looked = looked_at(s, everywhere, &folders);
+    // A Gmail category of the Inbox shows the Inbox's mail Gmail put in it (#911).
+    let gmail = crate::gmail::Shown::of(s, looked.iter().copied());
+    let mut shown: Vec<&Message> = looked
+        .into_iter()
         .filter(|m| {
-            query.is_empty()
-                || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
-                    Some(hit) => *hit,
-                    None => query.matches(m, s.offset_at(m.date)),
-                }
+            unfetched = unfetched.saturating_add(usize::from(m.unfetched));
+            let hit = gmail.as_ref().is_none_or(|g| g.keeps(m))
+                && filtered(s, m, &me)
+                && (query.is_empty()
+                    || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
+                        Some(hit) => *hit,
+                        None => query.matches_in(m, |at| s.offset_at(at)),
+                    });
+            // A selected message stays while it is selected, though it was read or its flag was
+            // cleared; `in_view` above still applies, so one deleted, or moved out of the folder in
+            // view, is gone.
+            if !hit && kept.as_ref().is_some_and(|kept| kept.contains(&m.id)) {
+                kept_only.push(m.id);
+                return true;
+            }
+            hit
         })
         .collect();
 
     let desc = s.view.sort_descending;
-    shown.sort_by(|a, b| {
-        let key = match s.view.sort {
-            SortBy::Date => when(a).cmp(&when(b)),
+    if matches!(s.view.sort, SortBy::Date | SortBy::Importance | SortBy::Categories) {
+        sort_by_dates(&mut shown, s.view.sort, desc);
+    } else {
+        sort_by_words(&mut shown, s.view.sort, desc);
+    }
+
+    if s.view.sort == SortBy::Categories {
+        return (by_category(s, &shown, desc), kept_only, unfetched);
+    }
+
+    let mut out: Vec<Row> = Vec::new();
+    if s.view.conversations && s.view.sort == SortBy::Date {
+        // One row per conversation, where its newest (or, ascending, oldest) message sorts: the
+        // messages of one thread with one topic (#795).
+        let threads = s.threads();
+        let mut index: HashMap<(Id, ThreadKey), usize> = HashMap::new();
+        for m in &shown {
+            match index.entry((m.account, threads.key(m.id))) {
+                std::collections::hash_map::Entry::Occupied(at) => {
+                    if let Some(row) = out.get_mut(*at.get()) {
+                        row.members.push(m.id);
+                        row.unread += usize::from(!m.read);
+                    }
+                }
+                std::collections::hash_map::Entry::Vacant(at) => {
+                    at.insert(out.len());
+                    out.push(Row::of(m, 0));
+                }
+            }
+        }
+        // Without a search, the rest of each conversation, in the account's other folders: a
+        // reply in Sent Items is part of it (#503). (A search lists what it finds where it looks.)
+        if query.is_empty() {
+            elsewhere(s, &me, kept.as_deref(), (&threads, &index), &mut out, &mut kept_only);
+        }
+        let newest = |id: &Id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id)));
+        for row in &mut out {
+            // Newest first inside a conversation, and the row shows the newest.
+            // (Each one's key worked out once: a lookup at every comparison took a third of the
+            // time a list of 100,000 messages took to build.)
+            if row.members.len() > 1 {
+                row.members.sort_by_cached_key(newest);
+            }
+            if row.others.len() > 1 {
+                row.others.sort_by_cached_key(newest);
+            }
+            if let Some(first) = row.members.first() {
+                row.id = *first;
+            }
+        }
+        if !s.view.open.is_empty() {
+            out = opened(s, &threads, out);
+        }
+    } else {
+        out.extend(shown.iter().map(|m| Row::of(m, 0)));
+    }
+
+    // Show in Groups off: the sorted rows, no headings. (A message under its open conversation is
+    // under its conversation's heading.) A row of each message `shown` has, in its order, is
+    // that message's, without looking it up.
+    if s.prefs.show_groups {
+        let direct = out.len() == shown.len() && out.iter().zip(&shown).all(|(r, m)| r.id == m.id);
+        let mut last: Option<Heading> = None;
+        let today = s.today();
+        for (i, row) in out.iter_mut().enumerate().filter(|(_, r)| r.under.is_none()) {
+            let m = if direct { shown.get(i).copied() } else { mb.message(row.id) };
+            let heading = m.and_then(|m| heading(s, m, today));
+            if heading != last {
+                row.group = heading.as_ref().map(Heading::label);
+                last = heading;
+            }
+        }
+    }
+    (out, kept_only, unfetched)
+}
+
+/// `shown` in the order of a sort by name or size (From, Subject, Size): pinned first, ids
+/// breaking ties. A sender's or a subject's name is folded once for each message, not at each
+/// comparison.
+fn sort_by_words(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
+    let name = |m: &Message| match sort {
+        SortBy::From => m.from.display().to_lowercase(),
+        SortBy::Subject => m.topic().to_lowercase(),
+        _ => String::new(),
+    };
+    let mut keyed: Vec<(String, &Message)> = shown.iter().map(|m| (name(m), *m)).collect();
+    keyed.sort_by(|(an, a), (bn, b)| {
+        let key = match sort {
             // Within one sender or subject, newest first when the names run A to Z.
-            SortBy::From => a.from.display().to_lowercase().cmp(&b.from.display().to_lowercase()).then(when(b).cmp(&when(a))),
-            SortBy::Subject => a.topic().to_lowercase().cmp(&b.topic().to_lowercase()).then(when(b).cmp(&when(a))),
+            SortBy::From | SortBy::Subject => an.cmp(bn).then(when(b).cmp(&when(a))),
             // As the row says it (#273): the server's size for what isn't here; one not known
             // counts as the smallest.
             SortBy::Size => a.list_size().cmp(&b.list_size()),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
             // Newest first; `by_category` then lists each under its categories.
             SortBy::Categories => when(b).cmp(&when(a)),
+            SortBy::Date => when(a).cmp(&when(b)),
         };
         // Pinned messages stay on top whichever way the list is sorted; ids break ties so the
         // order never depends on the map's iteration.
         // The categories, not the dates, are what turning the list over turns over.
-        let key = if desc && s.view.sort != SortBy::Categories { key.reverse() } else { key };
+        let key = if desc && sort != SortBy::Categories { key.reverse() } else { key };
         b.pinned.cmp(&a.pinned).then(key).then(b.id.cmp(&a.id))
     });
+    shown.clear();
+    shown.extend(keyed.into_iter().map(|k| k.1));
+}
 
-    if s.view.sort == SortBy::Categories {
-        return by_category(s, &shown, desc);
-    }
+/// `shown` in the order of a sort by date, importance or categories, as [`sort_by_words`]
+/// would put it: from what the order needs of each message, taken once and side by side,
+/// rather than read from both messages at each of the two million comparisons a list of
+/// 100,000 makes.
+fn sort_by_dates(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
+    let mut keyed: Vec<(bool, Timestamp, Importance, Id, &Message)> = shown.iter().map(|m| (m.pinned, when(m), m.importance, m.id, *m)).collect();
+    keyed.sort_unstable_by(|a, b| {
+        let key = match sort {
+            SortBy::Importance => a.2.cmp(&b.2).then(a.1.cmp(&b.1)),
+            SortBy::Categories => b.1.cmp(&a.1),
+            _ => a.1.cmp(&b.1),
+        };
+        let key = if desc && sort != SortBy::Categories { key.reverse() } else { key };
+        b.0.cmp(&a.0).then(key).then(b.3.cmp(&a.3))
+    });
+    shown.clear();
+    shown.extend(keyed.into_iter().map(|k| k.4));
+}
 
-    let mut out: Vec<Row> = Vec::new();
-    if s.view.conversations && s.view.sort == SortBy::Date {
-        // One row per conversation, where its newest (or, ascending, oldest) message sorts.
-        let mut index: HashMap<(Id, String), usize> = HashMap::new();
-        for m in &shown {
-            match index.get(&(m.account, m.thread_key())) {
-                Some(i) => {
-                    if let Some(row) = out.get_mut(*i) {
-                        row.members.push(m.id);
-                        row.unread += usize::from(!m.read);
-                    }
-                }
-                None => {
-                    index.insert((m.account, m.thread_key()), out.len());
-                    out.push(Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: 0 });
-                }
+/// The messages of the conversations of `rows` in the account's other folders (#503), as the
+/// reading pane's conversation takes them ([`Mailbox::conversation_skips`]: none in Deleted Items
+/// or Junk E-mail or under them, unless the list is of that folder), that the filter in view lists or that stay
+/// in it while selected (`kept`, #428, and then in `kept_only` too): each in its row's `others`.
+/// For a list without a search, all of whose rows are of the folder in view; `index` is where
+/// each conversation's row is, by its account and its key.
+///
+/// [`Mailbox::conversation_skips`]: mailcraft_model::Mailbox::conversation_skips
+fn elsewhere(
+    s: &Session,
+    me: &[&str],
+    kept: Option<&HashSet<Id>>,
+    (threads, index): (&ThreadIndex, &HashMap<(Id, ThreadKey), usize>),
+    rows: &mut [Row],
+    kept_only: &mut Vec<Id>,
+) {
+    let mb = &s.mailbox;
+    let folder = s.view.folder;
+    let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
+    let skips = mb.conversation_skips(account, folder);
+    // The account's other folders, from their own lists when the session has them counted
+    // ([`Session::fresh_counts`]), else from a walk over every message.
+    let others: Vec<&Message> = match s.fresh_counts() {
+        Some(counts) => mb
+            .folders
+            .iter()
+            .filter(|f| f.account == account && f.id != folder && !skips.contains(&f.id))
+            .flat_map(|f| counts.ids(f.id))
+            .filter_map(|id| mb.message(*id))
+            .collect(),
+        None => mb.messages.values().map(|m| m.as_ref()).collect(),
+    };
+    for m in others {
+        if m.account != account || m.folder == folder || skips.contains(&m.folder) {
+            continue;
+        }
+        let hit = filtered(s, m, me);
+        if !hit && !kept.is_some_and(|kept| kept.contains(&m.id)) {
+            continue;
+        }
+        if let Some(row) = index.get(&(m.account, threads.key(m.id))).and_then(|i| rows.get_mut(*i)) {
+            row.others.push(m.id);
+            if !hit {
+                kept_only.push(m.id);
             }
         }
-        for row in &mut out {
-            // Newest first inside a conversation, and the row shows the newest.
-            row.members.sort_by_key(|id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id))));
-            if let Some(first) = row.members.first() {
-                row.id = *first;
-            }
-        }
-    } else {
-        out.extend(shown.iter().map(|m| Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: 0 }));
     }
+}
 
-    let mut last: Option<String> = None;
-    // Show in Groups off: the sorted rows, no headings.
-    for row in out.iter_mut().filter(|_| s.prefs.show_groups) {
-        let label = mb.message(row.id).and_then(|m| group_label(s, m));
-        if label != last {
-            row.group = label.clone();
-            last = label;
+/// `rows`, with the messages of each open conversation (#503) listed under its row, newest first,
+/// whichever folder each is in. The newest one's own row there is its copy 1: copy 0 is the
+/// conversation's row.
+fn opened(s: &Session, threads: &ThreadIndex, rows: Vec<Row>) -> Vec<Row> {
+    let mb = &s.mailbox;
+    let open: HashSet<&(Id, ThreadKey)> = s.view.open.iter().collect();
+    let mut out = Vec::with_capacity(rows.len());
+    for mut row in rows {
+        row.open = row.conversation() && mb.message(row.id).is_some_and(|m| open.contains(&(m.account, threads.key(m.id))));
+        if !row.open {
+            out.push(row);
+            continue;
         }
+        let mut under: Vec<&Message> = row.members.iter().chain(&row.others).filter_map(|id| mb.message(*id)).collect();
+        under.sort_by_key(|m| std::cmp::Reverse((when(m), m.id)));
+        let head = row.id;
+        let listed: Vec<Row> = under.into_iter().map(|m| Row { under: Some(head), ..Row::of(m, u16::from(m.id == head)) }).collect();
+        out.push(row);
+        out.extend(listed);
     }
     out
 }
@@ -225,7 +517,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
 /// the headings, so they stay. Outlook does the same: unticking it there leaves a list arranged by
 /// categories grouped as it was (observed 2026-10-22).
 fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
-    let spelling = category_spellings(s, shown.iter().map(|m| m.categories.as_slice()));
+    let spelling = category_spellings(s, shown.iter().map(|m| (m.account, m.categories.as_slice())));
     // (heading's folded name, message); the sort is stable, so under each heading `shown`'s order stays.
     let mut placed: Vec<(Option<String>, &Message)> = Vec::new();
     for m in shown {
@@ -241,7 +533,7 @@ fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
     let mut out = Vec::with_capacity(placed.len());
     for (name, m) in placed {
         let copy = copies.entry(m.id).or_default();
-        let mut row = Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: *copy };
+        let mut row = Row::of(m, *copy);
         *copy = copy.saturating_add(1);
         let (label, category) = if m.pinned {
             ("Pinned".to_string(), false)
@@ -262,9 +554,10 @@ fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
     out
 }
 
-/// The row a message is in (its first, when it is listed more than once).
+/// The row a message is in (its first, when it is listed more than once): its own before a
+/// conversation's that has it (#503: under its open conversation).
 pub fn position(rows: &[Row], id: Id) -> Option<usize> {
-    rows.iter().position(|r| r.id == id || r.members.contains(&id))
+    rows.iter().position(|r| r.id == id).or_else(|| rows.iter().position(|r| r.members.contains(&id)))
 }
 
 /// The row numbered `copy` of a message's rows, or its first when it has fewer.
@@ -273,7 +566,7 @@ pub fn position_of(rows: &[Row], id: Id, copy: u16) -> Option<usize> {
 }
 
 /// How many messages (or conversations) the list shows: one listed under several categories
-/// counts once.
+/// counts once, and the messages listed under an open conversation are its row's.
 pub fn listed(rows: &[Row]) -> usize {
-    rows.iter().filter(|r| r.copy == 0).count()
+    rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).count()
 }

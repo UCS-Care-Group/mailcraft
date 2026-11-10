@@ -149,15 +149,17 @@ fn escape_on_a_menu_leaves_the_message_open() {
 }
 
 /// A menu is open while Send/Receive Progress shows: Escape is the menu's, and the panel stays
-/// open. (A click to open a menu closes the panel first, so the test opens one directly.)
+/// open. (A click to open a menu closes the panel first, so the panel comes up after the menu.)
 #[test]
 fn escape_on_a_menu_leaves_the_progress_open() {
     for (how, press) in PRESSES {
         let mut h = window();
+        open_a_menu(&mut h);
         h.state_mut().execute("ui.dialog", json!({"name": "syncProgress"})).unwrap();
         h.run_steps(3);
-        egui::Popup::open_id(&h.ctx, egui::Id::unique("a menu"));
+        assert!(egui::Popup::is_any_open(&h.ctx) && h.state().sync_panel.is_some(), "{how}");
         press(&mut h, Key::Escape);
+        assert!(!egui::Popup::is_any_open(&h.ctx), "{how}: the menu closed");
         assert!(h.state().sync_panel.is_some(), "{how}");
     }
 }

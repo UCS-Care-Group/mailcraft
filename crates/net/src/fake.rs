@@ -5,13 +5,37 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+
+/// Stops a fake server's listening thread when the fake is dropped, so a test run doesn't keep
+/// one thread per fake it ever started (FreeBSD allows a process 1,500).
+struct Stop {
+    port: u16,
+    flag: Arc<AtomicBool>,
+}
+
+impl Stop {
+    fn new(port: u16) -> (Stop, Arc<AtomicBool>) {
+        let flag = Arc::new(AtomicBool::new(false));
+        (Stop { port, flag: flag.clone() }, flag)
+    }
+}
+
+impl Drop for Stop {
+    fn drop(&mut self) {
+        self.flag.store(true, Ordering::SeqCst);
+        // Wake the listener's `accept`, which then sees the flag and returns.
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+    }
+}
 
 /// A fake web server (a token endpoint, a name server that answers over HTTP): each request is
 /// answered with bytes of the test's choosing, and kept for the test to look at.
 pub(crate) struct FakeHttp {
     pub(crate) port: u16,
+    _stop: Stop,
     requests: Arc<Mutex<Vec<String>>>,
 }
 
@@ -23,8 +47,12 @@ impl FakeHttp {
         let port = listener.local_addr().unwrap().port();
         let requests = Arc::new(Mutex::new(Vec::new()));
         let kept = requests.clone();
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for (n, mut stream) in listener.incoming().flatten().enumerate() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let (mut request, mut length) = (String::new(), 0usize);
                 loop {
@@ -48,7 +76,7 @@ impl FakeHttp {
                 let _ = stream.write_all(&answer);
             }
         });
-        FakeHttp { port, requests }
+        FakeHttp { port, _stop: stop, requests }
     }
 
     /// Answer every request with the same bytes.
@@ -86,6 +114,7 @@ pub(crate) enum Kept {
 /// own and is read request after request. It counts the connections it took.
 pub(crate) struct FakeKeptHttp {
     pub(crate) port: u16,
+    _stop: Stop,
     connections: Arc<Mutex<usize>>,
     requests: Arc<Mutex<Vec<String>>>,
 }
@@ -99,8 +128,12 @@ impl FakeKeptHttp {
         let (connections, requests) = (Arc::new(Mutex::new(0usize)), Arc::new(Mutex::new(Vec::new())));
         let (counted, kept) = (connections.clone(), requests.clone());
         let answer = Arc::new(answer);
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for mut stream in listener.incoming().flatten() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let connection = {
                     let mut count = counted.lock().unwrap();
                     *count += 1;
@@ -132,7 +165,7 @@ impl FakeKeptHttp {
                 });
             }
         });
-        FakeKeptHttp { port, connections, requests }
+        FakeKeptHttp { port, _stop: stop, connections, requests }
     }
 
     /// `http://127.0.0.1:{port}{path}`.
@@ -285,6 +318,9 @@ pub(crate) struct ImapWorld {
     pub(crate) refuse: Vec<String>,
     /// Hang up instead of answering a command whose line has this in it.
     pub(crate) hang_up_on: Option<String>,
+    /// Once, keep a message put in a mailbox by an APPEND whose line has this in it, and hang up
+    /// instead of saying so.
+    pub(crate) hang_up_after: Option<String>,
     /// Hang up half way through the download of this UID.
     pub(crate) cut_at_uid: Option<u32>,
     /// Say nothing more, and keep the connection open, from a command whose line has this in it.
@@ -302,6 +338,13 @@ pub(crate) struct ImapWorld {
     /// adds a label and leaves the message in it; a move to `\Trash` takes the message out of
     /// every other mailbox; and a message expunged from a label is still in `\All`.
     pub(crate) gmail: bool,
+    /// For a server that behaves as Gmail does: the mailbox, the UID and the word Gmail's search
+    /// finds it by after `category:` (`social`) of each message that is in one of Gmail's
+    /// categories other than Primary. Such a server answers `UID SEARCH UID <set> UNDELETED
+    /// X-GM-RAW "category:…"` and gives each message an `X-GM-MSGID` (its UID plus [`GMAIL_IDS`]).
+    pub(crate) gmail_categories: Vec<(String, u32, String)>,
+    /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
+    pub(crate) gmail_finds_deleted: bool,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
     /// Every line received.
@@ -362,6 +405,7 @@ pub(crate) struct SmtpWorld {
 /// A fake server and its state.
 pub(crate) struct Fake<W> {
     pub(crate) port: u16,
+    _stop: Stop,
     world: Arc<Mutex<W>>,
 }
 
@@ -375,13 +419,17 @@ impl<W: Send + 'static> Fake<W> {
         let port = listener.local_addr().unwrap().port();
         let world = Arc::new(Mutex::new(world));
         let shared = world.clone();
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let shared = shared.clone();
                 std::thread::spawn(move || serve(stream, shared));
             }
         });
-        Fake { port, world }
+        Fake { port, _stop: stop, world }
     }
 
     /// The server's state, to set up or to look at.
@@ -462,6 +510,16 @@ fn words(args: &str) -> Vec<String> {
     out
 }
 
+/// Whether the header of `message` has a field `field` with `text` in it, whatever the case.
+fn header_has(message: &[u8], field: &str, text: &str) -> bool {
+    let message = String::from_utf8_lossy(message);
+    let header = message.split("\r\n\r\n").next().unwrap_or_default().replace("\r\n ", " ").replace("\r\n\t", " ");
+    header
+        .split("\r\n")
+        .filter_map(|line| line.split_once(':'))
+        .any(|(name, value)| name.trim().eq_ignore_ascii_case(field) && value.to_ascii_lowercase().contains(&text.to_ascii_lowercase()))
+}
+
 /// Whether `uid` is in a set like `1:*` or `5,9,12:20`.
 fn in_set(set: &str, uid: u32) -> bool {
     let number = |s: &str| if s == "*" { u32::MAX } else { s.parse().unwrap_or(0) };
@@ -474,6 +532,9 @@ fn in_set(set: &str, uid: u32) -> bool {
 fn quote(name: &str) -> String {
     format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""))
 }
+
+/// What a server that behaves as Gmail does adds to a message's UID for its `X-GM-MSGID`.
+pub(crate) const GMAIL_IDS: u64 = 1_500_000_000_000_000_000;
 
 fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
@@ -652,9 +713,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 reply.extend(format!("{tag} OK done\r\n").bytes());
             }
             "APPEND" => {
-                // `"name" (flags) {size}`: the message follows the go-ahead.
+                // `"name" (flags) "date" {size}`, flags and date as the client likes: the message
+                // follows the go-ahead.
                 let name = words(args).into_iter().next().unwrap_or_default();
                 let flags = args.split_once('(').and_then(|(_, rest)| rest.split_once(')')).map_or("", |(flags, _)| flags).to_string();
+                let before_size = args.rsplit_once('{').map_or(args, |(head, _)| head);
+                let date = words(before_size).into_iter().skip(1).find(|w| w.len() == 26 && w.contains(':'));
+                let internal_date = date.unwrap_or_else(|| " 1-Jul-2003 09:52:37 +0000".to_string());
                 let size: usize = args.rsplit_once('{').and_then(|(_, n)| n.trim_end_matches('}').parse().ok()).unwrap_or(0);
                 if !world.mailboxes.iter().any(|m| m.raw == name) {
                     reply.extend(format!("{tag} NO [TRYCREATE] no such mailbox\r\n").bytes());
@@ -671,7 +736,11 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let mailbox = world.mailbox(&name);
                     let uid = mailbox.take_uid();
                     let code = if uidplus { format!("[APPENDUID {} {uid}] ", mailbox.uid_validity) } else { String::new() };
-                    mailbox.messages.push(FakeMessage { uid, flags, internal_date: " 1-Jul-2003 09:52:37 +0000".into(), body, claimed_size: None });
+                    mailbox.messages.push(FakeMessage { uid, flags, internal_date, body, claimed_size: None });
+                    if world.hang_up_after.as_ref().is_some_and(|text| line.contains(text.as_str())) {
+                        world.hang_up_after = None;
+                        return;
+                    }
                     drop(world);
                     let _ = reader.get_mut().write_all(format!("{tag} OK {code}kept\r\n").as_bytes());
                     continue;
@@ -685,6 +754,40 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
+            // `UID SEARCH UNDELETED HEADER <field> <text>`, and Gmail's `UID SEARCH UID <set>
+            // UNDELETED X-GM-RAW "category:…"`: the searches asked of a server.
+            "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
+                let said = words(args);
+                let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
+                let gmail_raw = said.len() == 6 && asked(1, "UID") && asked(3, "UNDELETED") && asked(4, "X-GM-RAW");
+                match open.and_then(|i| world.mailboxes.get(i)) {
+                    _ if gmail_raw && !world.gmail => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    Some(mailbox) if gmail_raw => match said[5].to_ascii_lowercase().strip_prefix("category:") {
+                        Some(wanted) => {
+                            let found: String = mailbox
+                                .messages
+                                .iter()
+                                .filter(|m| (world.gmail_finds_deleted || !m.has("\\Deleted")) && in_set(&said[2], m.uid))
+                                .filter(|m| world.gmail_categories.iter().any(|(at, uid, c)| *at == mailbox.raw && *uid == m.uid && *c == wanted))
+                                .map(|m| format!(" {}", m.uid))
+                                .collect();
+                            reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                        }
+                        None => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    },
+                    _ if said.len() != 5 || !asked(1, "UNDELETED") || !asked(2, "HEADER") => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
+                    Some(mailbox) => {
+                        let found: String = mailbox
+                            .messages
+                            .iter()
+                            .filter(|m| !m.has("\\Deleted") && header_has(&m.body, &said[3], &said[4]))
+                            .map(|m| format!(" {}", m.uid))
+                            .collect();
+                        reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                    }
+                }
+            }
             "UID" if !args.to_ascii_uppercase().starts_with("FETCH ") => {
                 let mut parts = args.splitn(3, ' ');
                 let (what, set, rest) = (parts.next().unwrap_or("").to_ascii_uppercase(), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
@@ -802,6 +905,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
                         reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
+                    } else if world.gmail && items.contains("X-GM-MSGID") {
+                        let id = GMAIL_IDS + u64::from(uid);
+                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid} X-GM-MSGID {id})\r\n").bytes());
                     } else {
                         reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid})\r\n").bytes());
                     }

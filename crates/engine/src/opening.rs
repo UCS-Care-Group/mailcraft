@@ -58,6 +58,16 @@ pub const BLOCKED: &[&str] = &[
     "application",
     "appref-ms",
     "appinstaller",
+    // More kinds the shell runs or hands to a program that runs what is in them.
+    "mad",
+    "appcontent-ms",
+    "vsmacros",
+    "bgi",
+    "asx",
+    "mcf",
+    "pcd",
+    "plg",
+    "osd",
     "gadget",
     "xbap",
     "xll",
@@ -277,7 +287,7 @@ pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", 
 /// refuses or asks about first ([`BLOCKED`], [`MACROS`] and [`SCRIPTS`] together): the one list
 /// the files an agent may not have written are refused by.
 pub fn is_risky(ext: &str) -> bool {
-    BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
+    !ext.is_ascii() || BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
 }
 
 /// Names Windows keeps for devices: a file with one of these before its first dot is no file.
@@ -289,11 +299,12 @@ const RESERVED: &[&str] = &[
 /// The longest a file name is made, in characters (a folder's path takes the rest).
 pub const MAX_NAME: usize = 120;
 
-/// The kind of a file name: what is after its last dot, in lower case (empty when nothing).
+/// The kind of a file name: what is after its last dot, folded to lower case by ASCII rules only
+/// (a letter like `ſ` or `ı` is never folded into an ASCII one; empty when nothing).
 pub fn extension(name: &str) -> String {
     let name = name.trim_end_matches(['.', ' ']);
     match name.rsplit_once('.') {
-        Some((_, ext)) => ext.trim().to_lowercase(),
+        Some((_, ext)) => ext.trim().to_ascii_lowercase(),
         None => String::new(),
     }
 }
@@ -310,6 +321,9 @@ pub fn verdict(name: &str) -> Verdict {
     }
     if BLOCKED.contains(&ext.as_str()) {
         Verdict::Blocked
+    } else if !ext.is_ascii() {
+        // A kind the lists can't judge (a computer may fold its letters into ASCII ones): ask.
+        Verdict::Macros
     } else if MACROS.contains(&ext.as_str()) {
         Verdict::Macros
     } else if SCRIPTS.contains(&ext.as_str()) {
@@ -356,11 +370,16 @@ pub fn save_name(name: &str) -> String {
 /// The name a file made from the mailbox is offered under: `stem` (a message's subject, a
 /// folder's name, an event's title; at most 80 characters of it) made safe as [`file_name`]
 /// makes a name, a slash in it being a character and not a folder, then `.ext`. `untitled` when
-/// nothing of `stem` is left.
+/// nothing of `stem` is left ([`export_name_or`] names another).
 pub fn export_name(stem: &str, ext: &str) -> String {
+    export_name_or(stem, ext, "untitled")
+}
+
+/// [`export_name`], named `fallback` when nothing of `stem` is left.
+pub fn export_name_or(stem: &str, ext: &str, fallback: &str) -> String {
     let stem: String = stem.chars().take(80).map(|c| if matches!(c, '/' | '\\') { '_' } else { c }).collect();
     let stem = clean(&stem);
-    let stem = if stem.is_empty() { "untitled" } else { stem.as_str() };
+    let stem = if stem.is_empty() { fallback } else { stem.as_str() };
     let ext: String = ext.chars().filter(|c| c.is_alphanumeric()).take(16).collect();
     if ext.is_empty() { clean(stem) } else { clean(&format!("{stem}.{ext}")) }
 }

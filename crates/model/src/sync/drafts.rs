@@ -67,7 +67,13 @@ pub struct DraftState {
     pub cc: Vec<Address>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub bcc: Vec<Address>,
+    /// Where replies go (`Reply-To`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub reply_to: Vec<Address>,
     pub importance: Importance,
+    /// It asks for a read receipt.
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_receipt: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SyncedAttachment>,
 }
@@ -81,7 +87,9 @@ impl DraftState {
             to: m.to.clone(),
             cc: m.cc.clone(),
             bcc: m.bcc.clone(),
+            reply_to: m.reply_to.clone(),
             importance: m.importance,
+            read_receipt: m.read_receipt,
             attachments: m
                 .attachments
                 .iter()
@@ -118,6 +126,22 @@ pub struct ServerDraft {
     /// again meanwhile.
     #[serde(skip_serializing_if = "is_zero")]
     pub saves: u32,
+    /// The server's own version of a draft, kept beside one changed here (S26) on the server's
+    /// word that it is a draft: never taken for a sent copy an earlier version kept as a draft
+    /// (#611), wherever it lies.
+    #[serde(skip_serializing_if = "is_false")]
+    pub theirs: bool,
+}
+
+impl ServerDraft {
+    /// Whether nothing but a fetch made this: a draft fetched whole gets one that holds what the
+    /// server had (`synced`) and nothing else, where one written or saved here has a marker, what
+    /// it answers, a save waiting or saves counted. A message that was never a draft here may
+    /// carry one of these (a sent copy taken for a draft, #611). The server's own version of a
+    /// draft kept beside one changed here (`theirs`) is a draft on the server's word.
+    pub fn only_fetched(&self) -> bool {
+        self.marker.is_empty() && !self.pending && self.of.is_none() && self.saves == 0 && !self.theirs
+    }
 }
 
 fn is_false(b: &bool) -> bool {
@@ -221,8 +245,15 @@ pub struct DraftUp {
     pub cc: Option<Vec<Address>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bcc: Option<Vec<Address>>,
+    /// Where replies go (`Reply-To`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<Vec<Address>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub importance: Option<Importance>,
+    /// Whether it asks for a read receipt (Graph's `isReadReceiptRequested`, Exchange's
+    /// `IsReadReceiptRequested`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_receipt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<AttachmentsUp>,
 }
@@ -230,7 +261,14 @@ pub struct DraftUp {
 impl DraftUp {
     /// Whether it changes anything of the message itself (rather than its attachments).
     pub fn has_fields(&self) -> bool {
-        self.subject.is_some() || self.body.is_some() || self.to.is_some() || self.cc.is_some() || self.bcc.is_some() || self.importance.is_some()
+        self.subject.is_some()
+            || self.body.is_some()
+            || self.to.is_some()
+            || self.cc.is_some()
+            || self.bcc.is_some()
+            || self.reply_to.is_some()
+            || self.importance.is_some()
+            || self.read_receipt.is_some()
     }
 
     /// The same without what its attachments hold, for an answer.
@@ -315,6 +353,20 @@ pub enum SendOutcome {
 /// address where the owner reads it; nothing is ever sent from another address instead.
 pub const SEND_AS_DENIED: &str = "you don't have permission to send as this shared mailbox";
 
+/// What stands for a draft of an Exchange server account in a delete that is queued when its
+/// server id is not known (its make was not answered): the draft's marker, found in Drafts by
+/// the run that deletes it (E8). Never a server id: ids do not begin so.
+pub fn marker_id(marker: &str) -> String {
+    format!("{MARKER_ID}{marker}")
+}
+
+/// The marker a [`marker_id`] stands for, or `None` for a server id.
+pub fn marker_of(id: &str) -> Option<&str> {
+    id.strip_prefix(MARKER_ID).filter(|marker| !marker.is_empty())
+}
+
+const MARKER_ID: &str = "marker:";
+
 /// A message sent and what became of it, with what became of its draft on the way.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -323,4 +375,10 @@ pub struct SendDone {
     pub outcome: SendOutcome,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<DraftDone>,
+    /// An Exchange server account's draft that was sent as a message of its own: its server id
+    /// when the server still has it after a send that is clear (taking it away failed), else
+    /// empty; the draft's [`marker_id`] when its id was not known and could not be found. The
+    /// takeaway is queued as an ordinary delete; the send is not made again.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub draft_left: String,
 }

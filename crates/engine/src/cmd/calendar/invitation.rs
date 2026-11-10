@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 use mailcraft_ical::WriteOptions;
-use mailcraft_model::{Address, Attachment, Attendee, Body, Event, FolderKind, Id, Message, NOT_SENDING_YET, Occurrence, Origin, Response, ShowAs};
+use mailcraft_model::{Address, Attachment, Attendee, Body, Event, FolderKind, Id, Message, Occurrence, Origin, Response, ShowAs};
 use mailcraft_time::{Date, DateTime, Timestamp};
 use serde_json::{Value, json};
 
@@ -60,7 +60,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             .params(r#"{"message"?: number} — the calendar on the day of the meeting a message carries, with the meeting selected when it is there: {"date", "event": number|null}"#),
         CommandSpec::new("calendar.deleteAnsweredRequests", "Delete Meeting Requests after Responding", "File › Options", delete_answered)
             .pure()
-            .params(r#"{"value"?: bool (default: toggle)} — whether a meeting request or a cancellation that was answered from the mail goes to Deleted Items (off unless turned on)"#),
+            .params(r#"{"value"?: bool (default: toggle)} — whether a meeting request or a cancellation answered from the mail goes from the Inbox to Deleted Items: the owner's choice in File › Options, on in a new install's window, off in a session without the window's settings (mailcraft-cli run, headless mcp)"#),
     ]
 }
 
@@ -197,7 +197,7 @@ pub(crate) fn tidy_imported(event: Event, offset_at: &dyn Fn(Timestamp) -> i32) 
 
 /// The meeting the message named in `v` (or the selected one) carries.
 fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
-    let id = p::id(v, "message").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::id_strict(v, "message")?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -379,16 +379,21 @@ fn note_answer(s: &mut Session, message: Id, response: Response) {
     }
 }
 
-/// The owner dealt with a meeting request or a cancellation: it goes to Deleted Items when that
-/// is the owner's option, like any message that is deleted (and never for good: one that is
-/// there already stays). Whether it went.
+/// The owner dealt with a meeting request or a cancellation: it goes from the Inbox to Deleted
+/// Items when that is the owner's option, like any message that is deleted. Only from the Inbox
+/// of one of the owner's own accounts, as the option says and as in Outlook: one in another
+/// folder (filed there by a rule, say), in a shared mailbox or in Deleted Items already stays
+/// where it is. Whether it went.
 fn file_away(s: &mut Session, message: Id) -> bool {
     if !s.prefs.delete_answered_requests {
         return false;
     }
     let Some((account, folder)) = s.mailbox.message(message).map(|m| (m.account, m.folder)) else { return false };
-    let Some(bin) = s.mailbox.folder_of_kind(account, FolderKind::Deleted) else { return false };
-    if s.mailbox.subtree(bin).contains(&folder) {
+    if s.mailbox.account(account).is_none_or(|a| a.is_shared()) || s.mailbox.folder_of_kind(account, FolderKind::Inbox) != Some(folder) {
+        return false;
+    }
+    // Never deleted for good: without a Deleted Items to go to, it stays.
+    if s.mailbox.folder_of_kind(account, FolderKind::Deleted).is_none() {
         return false;
     }
     let registry = s.registry.clone();
@@ -438,23 +443,30 @@ pub(crate) fn same_organizer<'a>(on_calendar: &'a Event, invitation: &'a Event) 
     who(on_calendar).eq_ignore_ascii_case(who(invitation))
 }
 
-/// Whether the message may call off the meeting that is on the calendar. The organizer written
-/// in a message is the sender's word, so it is not enough: a meeting on a local calendar is called
-/// off only by a message that names its organizer and comes from that address; one that a server
-/// keeps only by a message of the account that server belongs to. Anything else is shown, and
-/// the owner takes the meeting out of the calendar themselves.
-fn may_call_off(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
-    if !is_theirs(s, on_calendar) {
-        return false;
-    }
-    if remote::keeper(&s.mailbox, &on_calendar.origin).is_some() {
-        return on_calendar.origin.account == invitation.account;
-    }
+/// Whether the message is the word of the organizer of the meeting on the calendar: it names
+/// the same organizer ([`same_organizer`]) and comes from that address. A meeting with no
+/// organizer has nobody whose word that could be.
+fn from_its_organizer(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
     let Some(organizer) = on_calendar.organizer.as_ref().map(|who| who.email.trim()).filter(|email| !email.is_empty()) else {
         return false;
     };
     let from = s.mailbox.message(invitation.message).map_or("", |message| message.from.email.trim());
     same_organizer(on_calendar, &invitation.event) && from.eq_ignore_ascii_case(organizer)
+}
+
+/// Whether the message may call off the meeting that is on the calendar. The organizer written
+/// in a message is the sender's word, so it is not enough: a meeting is called off only by a
+/// message that names its organizer and comes from that address ([`from_its_organizer`]), and
+/// one that a server keeps only by such a message in the account that server belongs to. Anything
+/// else is shown, and the owner takes the meeting out of the calendar themselves.
+fn may_call_off(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
+    if !is_theirs(s, on_calendar) {
+        return false;
+    }
+    if remote::keeper(&s.mailbox, &on_calendar.origin).is_some() && on_calendar.origin.account != invitation.account {
+        return false;
+    }
+    from_its_organizer(s, invitation, on_calendar)
 }
 
 /// Why an invitation can't be answered from here; `None` when it can. `event` is the meeting
@@ -469,9 +481,13 @@ fn blocked(s: &Session, invitation: &Invitation, about: About, event: &Event) ->
     if event.organizer.as_ref().is_some_and(|who| is_mine(s, who)) || kept.is_some_and(|event| !event.origin.guest) {
         return Some("organizer");
     }
-    // A meeting kept here, on a local calendar, is changed only by its own organizer's word.
-    if kept.is_none() && on_calendar.is_some_and(|have| !same_organizer(have, event)) {
-        return Some("mismatch");
+    // A meeting kept here, on a local calendar, is changed only by its own organizer's word; one
+    // that a server keeps only by a message from that organizer too.
+    if let Some(have) = on_calendar {
+        let theirs = if kept.is_some() { from_its_organizer(s, invitation, have) } else { same_organizer(have, event) };
+        if !theirs {
+            return Some("mismatch");
+        }
     }
     if is_over(s, event) {
         return Some("past");
@@ -727,6 +743,12 @@ pub(super) fn respond(s: &mut Session, v: &Value) -> CmdResult {
     // occurrence of a series is answered as that occurrence.
     // (Another time that is proposed with the answer goes along: `calendar.propose`.)
     let propose = v.get("propose").cloned().unwrap_or(Value::Null);
+    // A meeting a server keeps is answered from a message only when it is its organizer's.
+    if about.event().and_then(|id| s.mailbox.event(id)).is_some_and(|have| on_server(s, have.id) && !from_its_organizer(s, &invitation, have)) {
+        return Err(fail(
+            "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there.",
+        ));
+    }
     let through = match about {
         About::Event(id) if on_server(s, id) => {
             Some((id, json!({"id": id, "response": response, "send": send, "comment": note, "scope": "series", "propose": propose})))
@@ -870,7 +892,7 @@ fn reply_message(
         if owner.kind.has_server() {
             return Err(failed!(
                 "{not_sending_yet}: answer the invitation without sending an answer.",
-                not_sending_yet = mailcraft_i18n::Arg::words(NOT_SENDING_YET)
+                not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
             ));
         }
         return Err(fail("This account has no mail server to send the answer through."));
@@ -970,7 +992,7 @@ pub(super) fn forward_message(s: &Session, event: &Event, to: &[Address], note: 
         if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
             failed!(
                 "{not_sending_yet}, and no other account here has a mail server to send this through.",
-                not_sending_yet = mailcraft_i18n::Arg::words(NOT_SENDING_YET)
+                not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
             )
         } else {
             fail("No account here has a mail server to send this through.")

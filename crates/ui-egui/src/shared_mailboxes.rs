@@ -52,6 +52,16 @@ fn refused_words(why: SharedRefusal, address: &str) -> String {
     crate::i18n::fmt(words, &[("address", address)])
 }
 
+/// A line of the Send/Receive report about the shared mailbox at `address`: which one, and what
+/// happens next. A refusal is left alone until the owner asks (File › Info says why); anything
+/// else is tried again at the next Send/Receive (#539).
+fn shared_problem_words(address: &str, error: &str, refused: bool) -> String {
+    let error = error.trim().trim_end_matches('.');
+    let words =
+        if refused { tl!("{address}: {error}. See File › Info.") } else { tl!("{address}: {error}. It will try again at the next Send/Receive.") };
+    crate::i18n::fmt(words, &[("address", address), ("error", error)])
+}
+
 impl MailApp {
     /// A Send/Receive of the shared mailbox `account`: its folders and mail, with its owner's
     /// sign-in.
@@ -69,7 +79,7 @@ impl MailApp {
         let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
         let address = owner.email.clone();
         let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &address)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if refresh.is_empty() {
             // Being added: the owner's own sign-in comes first, by itself.
             if self.shared_checking.contains(&account) {
@@ -108,8 +118,16 @@ impl MailApp {
             cancel: self.services.sync_cancel.clone(),
         };
         self.resume_fetch();
-        let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
+        if self.services.graph.is_none() {
+            return Err(tl!("This build can't connect to Microsoft").to_string());
+        }
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let opening = self.session.openings();
+        let rx = self.hand_graph(account, ask)?;
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
         self.graph_pieces_taken = 0;
@@ -120,7 +138,7 @@ impl MailApp {
             self.shared_send_waits.remove(&account);
         }
         self.sync_run = Some((account, None, false, quiet));
-        self.graph_rx = Some((account, quiet, false, graph(ask)));
+        self.graph_rx = Some((account, quiet, false, opening, rx));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true, "shared": true}))
     }
@@ -135,9 +153,11 @@ impl MailApp {
         if result.token_refused {
             self.graph_tokens.remove(&account);
         }
-        if let (Some(tokens), Some((owner, address))) = (result.tokens.take(), owner.as_ref()) {
+        // (Only the owner's own sign-in: somebody else's is neither kept nor remembered, AU3-10.)
+        let tokens = result.tokens.take().filter(|tokens| owner.as_ref().is_some_and(|(owner, _)| !self.signed_in_as_other(*owner, tokens)));
+        if let (Some(tokens), Some((owner, _))) = (tokens, owner.as_ref()) {
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", address, &tokens.refresh);
+                self.remember("refresh", *owner, &tokens.refresh);
                 if let Some(kept) = self.tokens.get_mut(owner) {
                     kept.refresh = tokens.refresh.clone();
                 }
@@ -156,6 +176,13 @@ impl MailApp {
                 }
                 Err(e) => errors.push(e.to_string()),
             }
+        }
+        // Which mailbox, and what happens next (#539): this is the owner's own window, so the
+        // address may be here; the log never gets these lines.
+        let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
+        let refused = self.shared_refused.contains_key(&account);
+        for line in &mut errors {
+            *line = shared_problem_words(&address, line, refused);
         }
         // The owner's sign-in was refused (run out, taken back, #124): signing in again is theirs
         // to do, from their own account's Send/Receive.
@@ -265,14 +292,13 @@ impl MailApp {
     /// mailbox is read now; without, why not is said (and one being added isn't kept).
     pub(crate) fn shared_signed_in(&mut self, shared: Id, owner: Id, answer: Result<Tokens, String>) {
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
         let refused = match answer {
             // The owner picks who signs in on the page: it has to be the account it is opened
             // through. Somebody else's tokens are neither used nor remembered (#103).
             Ok(tokens) if self.signed_in_as_other(owner, &tokens) => Some(self.status_msg.as_ref().map(|(said, _)| said.clone()).unwrap_or_default()),
             Ok(tokens) => {
                 if !tokens.refresh.is_empty() {
-                    self.remember("refresh", &address, &tokens.refresh);
+                    self.remember("refresh", owner, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&owner) {
                         kept.refresh = tokens.refresh.clone();
                     }
@@ -326,6 +352,8 @@ impl MailApp {
             with: Value::Null,
             more: Vec::new(),
             note: None,
+            cancel: None,
+            tick: None,
         };
         self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedSend".to_string(), params: json!({"account": shared}), ask });
         true
@@ -354,13 +382,12 @@ impl MailApp {
         use crate::approval::NO_BROWSER;
         use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
         let why = match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(owner, &tokens) => return,
             Ok(tokens) => {
                 if !tokens.refresh.is_empty() {
-                    self.remember("refresh", &address, &tokens.refresh);
+                    self.remember("refresh", owner, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&owner) {
                         kept.refresh = tokens.refresh.clone();
                     }

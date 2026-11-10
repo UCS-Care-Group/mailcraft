@@ -40,6 +40,7 @@ fn the_start_of_a_keyword_offers_it() {
     assert_eq!(offered("c"), ["cc:", "category:"]);
     assert_eq!(offered("ha"), ["has:"]);
     assert_eq!(offered("to"), ["to:"]);
+    assert_eq!(offered("rec"), ["received:"]);
     assert_eq!(first("budget cat").text, "category:");
     assert_eq!(first("budget cat").range, 7..10);
     // Words that start no keyword, a word in quotes, and text with a colon that is no keyword.
@@ -87,6 +88,19 @@ fn after_category_the_mailboxs_categories() {
     assert_eq!(first("category:grü").text, "category:Grüße ");
 }
 
+/// One letter that starts a name offers only the names it starts, not every one that holds it
+/// (`category:g` and the "… category" names); the others come when none starts with it, or from
+/// two letters on.
+#[test]
+fn names_that_only_hold_one_letter_wait_for_a_second() {
+    let cats: Vec<Category> = ["Green", "Red category", "Agenda"].iter().map(|n| Category { name: n.to_string(), color: Rgb(1, 2, 3) }).collect();
+    let offered = |q: &str| suggestions(q, q.len(), &cats).into_iter().map(|s| s.label).collect::<Vec<_>>();
+    assert_eq!(offered("category:g"), ["Green"]);
+    assert_eq!(offered("category:a"), ["Agenda"]);
+    assert_eq!(offered("category:d"), ["Red category", "Agenda"], "none starts with it");
+    assert_eq!(offered("category:re"), ["Red category", "Green"], "two letters");
+}
+
 /// A value with no letter or digit in it (`&`) is matched as it was typed, as the search matches
 /// it: only the categories that hold it are offered, not every one.
 #[test]
@@ -123,7 +137,8 @@ fn in_the_middle_of_a_query_the_rest_stays() {
     assert_eq!(taken(q, &s), "category:\"Green category\" is:unread");
 }
 
-/// After `is:` and `has:`, what they take; nothing after the other keywords (people come later).
+/// After `is:` and `has:`, what they take; nothing after the other keywords (people need someone
+/// to ask: `search_people_tests`).
 #[test]
 fn after_is_and_has_what_they_take() {
     assert_eq!(offered("is:"), ["unread", "read", "flagged", "important"]);
@@ -220,7 +235,7 @@ proptest::proptest! {
 /// is. Each value offered after `is:` and `has:` is read as that keyword's, not as text.
 #[test]
 fn what_is_offered_is_what_the_search_reads() {
-    const OTHER_NAMES: [&str; 6] = ["categories", "attachments", "hasattachment", "hasattachments", "received", "sent"];
+    const OTHER_NAMES: [&str; 5] = ["categories", "attachments", "hasattachment", "hasattachments", "sent"];
     for k in crate::search::KEYWORDS.iter().filter(|k| !OTHER_NAMES.contains(k)) {
         assert!(offered(k).contains(&format!("{k}:")), "{k}: is not offered");
     }

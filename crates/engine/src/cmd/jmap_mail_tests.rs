@@ -511,6 +511,27 @@ fn an_answer_for_another_account_or_kind_is_refused_and_changes_nothing() {
 }
 
 #[test]
+fn an_answer_from_the_server_the_account_named_before_is_refused() {
+    let (mut s, account) = session();
+    let listing = Some(FolderListing { folders: mailboxes(), complete: true });
+    // The run read SESSION; meanwhile the account was pointed at another server.
+    s.run("account.edit", &json!({"id": account, "jmap": {"session": "https://other.example.org/jmap/session"}})).unwrap();
+    let why = apply_jmap_mail(&mut s, JmapMailResult { session: SESSION.into(), listing: listing.clone(), ..piece(account) }).unwrap_err();
+    assert_eq!(why.to_string(), format!("this Send/Receive was for the server {ME} named before"));
+    assert!(!s.mailbox.folders.iter().any(|f| f.account == account && f.server.is_some()));
+    // From the server it names now, spaces around the address or not, and from a host that doesn't say.
+    let now = " https://other.example.org/jmap/session ";
+    apply_jmap_mail(&mut s, JmapMailResult { session: now.into(), listing: listing.clone(), ..piece(account) }).unwrap();
+    apply_jmap_mail(&mut s, JmapMailResult { listing, ..piece(account) }).unwrap();
+    assert!(s.mailbox.folders.iter().any(|f| f.account == account && f.server.is_some()));
+    // Nor are messages fetched whole from the server it named before.
+    let fetched = vec![GraphFetched { id: "E1".into(), mime: b"Subject: Then\r\n\r\nFrom the other server.\r\n".to_vec() }];
+    let late = GraphFetchResult { account, email: ME.into(), session: SESSION.into(), fetched, ..Default::default() };
+    let why = apply_jmap_fetch(&mut s, late).unwrap_err();
+    assert_eq!(why.to_string(), format!("this Send/Receive was for the server {ME} named before"));
+}
+
+#[test]
 fn the_status_says_how_the_run_ended() {
     let (mut s, account) = session();
     let answer = apply_jmap_mail(&mut s, JmapMailResult { auth_refused: true, partial: false, ..piece(account) }).unwrap();
@@ -582,7 +603,7 @@ fn a_message_beyond_its_cap_is_passed_over_and_not_asked_for_again() {
 fn a_draft_here_whole_stays_when_the_servers_copy_goes() {
     let (mut s, account) = session();
     let mut draft = email("D1", "Plan", 1);
-    draft.draft = true;
+    draft.draft = Some(true);
     run(&mut s, account, vec![window("M3", vec![draft], true)], true);
     let id = here(&s, account, "D1").unwrap().id;
     // Opened, so here whole (and perhaps changed here, which goes up only once changes do).
@@ -596,7 +617,7 @@ fn a_draft_here_whole_stays_when_the_servers_copy_goes() {
     assert!(m.server.is_none() && m.draft && m.body.text.contains("What I wrote."));
     // One not fetched yet goes, as any message does.
     let mut other = email("D2", "Notes", 2);
-    other.draft = true;
+    other.draft = Some(true);
     run(&mut s, account, vec![window("M3", vec![other], true)], true);
     run(&mut s, account, vec![window("M3", vec![], true)], true);
     assert!(here(&s, account, "D2").is_none() && s.mailbox.message(id).is_some());
@@ -706,7 +727,7 @@ fn a_folder_the_server_has_is_neither_renamed_nor_moved_until_changes_go_up() {
 fn discarding_a_draft_the_server_has_keeps_it_and_says_why() {
     let (mut s, account) = session();
     let mut draft = email("D1", "Plan", 1);
-    draft.draft = true;
+    draft.draft = Some(true);
     run(&mut s, account, vec![window("M3", vec![draft], true)], true);
     let id = here(&s, account, "D1").unwrap().id;
     let mime = b"From: Ada <ada@example.org>\r\nSubject: Plan\r\n\r\nWhat I wrote.\r\n".to_vec();

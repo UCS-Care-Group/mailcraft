@@ -98,7 +98,8 @@ impl MailApp {
                 errors: vec![tl!("Not connected").to_string()],
                 ..Default::default()
             };
-            let (Some(search), Some(access)) = (&self.services.graph_search, self.search_token(request.account)) else {
+            let (Some(search), Some(access)) = (self.services.graph_search.as_ref().filter(|_| !self.offline()), self.search_token(request.account))
+            else {
                 let _ = search_server::apply(&mut self.session, unreached);
                 continue;
             };

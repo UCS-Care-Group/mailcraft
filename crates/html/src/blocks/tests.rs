@@ -72,7 +72,7 @@ fn dump_block(b: &Block) -> String {
             _ => format!("img({src})"),
         },
         BlockKind::Table(t) => {
-            let mut out = format!("{}{align}", if t.layout { "layout" } else { "data" });
+            let mut out = format!("{}{align}{}", if t.layout { "layout" } else { "data" }, if t.inline { ".inline" } else { "" });
             if t.border {
                 out.push_str("+border");
             }
@@ -410,7 +410,8 @@ fn pictures_carry_the_size_they_ask_for_and_where_they_lead() {
 
 #[test]
 fn unsafe_or_tiny_images_leave_at_most_their_alt_text() {
-    assert_eq!(dump(r#"see <img src="data:image/png;base64,AAAA" alt="chart"> here"#), ["p|see chart here"]);
+    // A picture written into the message that is no picture is a placeholder, as a missing attached one is (#533).
+    assert_eq!(dump(r#"see <img src="data:image/png;base64,AAAA" alt="chart"> here"#), ["p|see", "img(data:image/png)|chart", "p|here"]);
     assert_eq!(dump(r#"<img src="javascript:alert(1)">x<img alt="">y<img>"#), ["p|xy"]);
     assert_eq!(dump(r#"a<img src="https://example.org/t.gif" width="1" height="1" alt="t">b"#), ["p|ab"]);
     assert_eq!(dump(r#"a<img src="https://example.org/t.gif" height=0>b"#), ["p|ab"]);
@@ -616,9 +617,40 @@ fn layout_tables() {
 }
 
 #[test]
-fn alignment_reaches_into_and_positions_tables() {
+fn a_column_that_only_makes_room_in_some_rows_keeps_its_place() {
+    // A notice's frame drawn with the borders of cells, its picture spanning two columns: the
+    // empty corner cells keep their column, so that the heading stays inside the frame.
+    let line = "2px solid #7f7f7f";
+    let frame = format!(
+        "<table width='100%' align='right' cellpadding=0 cellspacing=0>\
+         <tr><td width=20 height=5></td><td style='border-left:{line};border-top:{line}' width=20></td><td style='border-right:{line};border-top:{line}'></td></tr>\
+         <tr><td colspan=2 align=center><img src='cid:shield@example.org' width=17></td><td style='border-right:{line}'>Stay safe</td></tr>\
+         <tr><td width=10>&nbsp;</td><td style='border-left:{line};border-bottom:{line}'>&nbsp;</td><td style='border-right:{line};border-bottom:{line}'>Check the sender.</td></tr></table>"
+    );
+    assert_eq!(
+        dump(&frame),
+        ["layout.r w=100%[()(+tl )(+tr )][(x2 img(cid:shield@example.org 17x).c|)(+r p|Stay safe)][()(+bl )(+rb p|Check the sender.)]"]
+    );
+    // A column empty in every row still makes none, and an empty cell that spans it gives it up.
+    let spacer = "<table><tr><td><ul><li>a</li></ul></td><td width=10></td><td><ul><li>b</li></ul></td></tr>\
+                  <tr><td><ul><li>c</li></ul></td><td colspan=2></td></tr></table>";
+    assert_eq!(dump(spacer), ["layout[(ul0|a)(ul0|b)][(ul0|c)()]"]);
+    // Gutters beside a column that a heading above spans are the heading's room too.
+    let gutters = "<table><tr><td colspan=3><h2>News</h2></td></tr><tr><td width=20>&nbsp;</td><td><p>One</p><p>Two</p></td><td width=20>&nbsp;</td></tr></table>";
+    assert_eq!(dump(gutters), ["layout[(x3 h2|[B:News])][()(p|One ; p|Two)()]"]);
+    // A cell above that spans rows is minded: the empty cell under the heading is in its third column.
+    let tall = "<table><tr><td rowspan=2><p>Side</p><p>bar</p></td><td>&nbsp;</td><td><p>Top</p><p>right</p></td></tr>\
+                <tr><td>&nbsp;</td><td><p>Low</p><p>right</p></td></tr></table>";
+    let Some(BlockKind::Table(t)) = parse(tall).into_iter().next().map(|b| b.kind) else { panic!("no table") };
+    assert_eq!(t.rows.iter().map(|r| r.cells.len()).collect::<Vec<_>>(), [2, 1], "{t:?}");
+}
+
+#[test]
+fn a_cells_align_positions_a_nested_table_but_not_its_text() {
+    // A cell's `align` stands the table in the middle, and the table's text starts again at the
+    // left, as in a browser (a style's `text-align` would reach into it: `nested_align_tests`).
     let html = "<table width='100%'><tr><td align=center><table width=300><tr><td>a</td><td align=right><p>b</p><p>c</p></td></tr></table></td></tr></table>";
-    assert_eq!(dump(html), ["layout.c w=300[(p.c|a)(p.r|b ; p.r|c)]"]);
+    assert_eq!(dump(html), ["layout.c w=300[(p|a)(p.r|b ; p.r|c)]"]);
     assert_eq!(
         dump("<table><tr align=right><td>a</td><td style='text-align:left'>b</td></tr><tr><td>c</td><td>d</td></tr></table>"),
         ["data[(p.r|a)(p|b)][(p|c)(p|d)]"]
@@ -716,10 +748,13 @@ fn nesting_of_tables_and_boxes_is_capped() {
 fn scripts_styles_head_and_comments_are_dropped() {
     let html = "<html><head><title>T</title><style>p{color:red}</style><meta charset=utf-8></head>\
                 <body><!-- hidden --><script>alert('x')</script><p>Shown</p><template><p>never</p></template></body></html>";
-    assert_eq!(parse(html), [para("Shown")]);
+    // (The style sheet is read: see `sheet/tests.rs`.)
+    let mut shown = para("Shown");
+    shown.spans[0].color = Some(Rgb(255, 0, 0));
+    assert_eq!(parse(html), [shown]);
     assert_eq!(dump("<p onclick=\"alert(1)\">x</p><iframe src=x>inner</iframe><object>fallback</object>"), ["p|x", "p|fallback"]);
-    // A style sheet is never read: a class means nothing, whatever the sheet says about it.
-    assert_eq!(dump("<style>.x{display:none;color:red;font-size:40px}</style><p class=x>shown</p>"), ["p|shown"]);
+    // A style sheet is read, and what it hides is not shown.
+    assert_eq!(dump("<style>.x{display:none;color:red;font-size:40px}</style><p class=x>gone</p><p>kept</p>"), ["p|kept"]);
 }
 
 #[test]
@@ -945,7 +980,7 @@ fn what_is_hidden_from_outlook_alone_is_shown() {
     // that only Outlook reads: the comment is dropped, so the other one must stay.
     let button = "<div><!--[if mso]><v:roundrect href=\"https://shop.example/sale\" fillcolor=\"#556270\"><w:anchorlock/><center>FOR-OUTLOOK</center></v:roundrect><![endif]-->\
                   <a href=\"https://shop.example/sale\" style=\"background-color:#556270;color:#ffffff;display:inline-block;mso-hide:all;\">See the sale</a></div>";
-    assert_eq!(dump(button), ["p|[#ffffff@556270:See the sale→https://shop.example/sale]"]);
+    assert_eq!(dump(button), ["layout.inline[(@556270 p|[#ffffff:See the sale→https://shop.example/sale])]"]);
     // The picture likewise: one for Outlook in its comment, one for everybody else.
     let picture = "<!--[if mso]><img src=\"https://img.example/for-outlook.png\" width=\"600\"><![endif]-->\
                    <!--[if !mso]><!--><div style=\"mso-hide:all\"><img src=\"https://img.example/hero@2x.png\" width=\"600\" alt=\"Hero\"></div><!--<![endif]-->";
@@ -1027,11 +1062,14 @@ pub(crate) fn check_block(block: &Block, context: &str) {
         None => {}
     }
     // Only a picture or text stands in the line of the block before.
-    assert!(!(block.beside && matches!(block.kind, BlockKind::Table(_) | BlockKind::Rule)), "{context}: {block:?}");
+    assert!(!(block.beside && (matches!(&block.kind, BlockKind::Table(t) if !t.inline) || block.kind == BlockKind::Rule)), "{context}: {block:?}");
     match &block.kind {
         BlockKind::Rule => assert!(block.spans.is_empty(), "{context}"),
-        BlockKind::Image { src, link, .. } => {
-            assert!(is_safe_url(src), "{context}");
+        BlockKind::Image { src, link, data, .. } => {
+            // A picture written into the message keeps `data:` and its type, never its content.
+            let written = src.starts_with("data:") && src.len() <= 20;
+            assert!(is_safe_url(src) || written, "{context}");
+            assert!(data.is_none() || written, "{context}");
             assert!(link.as_deref().is_none_or(is_safe_url), "{context}");
         }
         BlockKind::Table(table) => {
@@ -1088,7 +1126,7 @@ proptest::proptest! {
     }
 
     #[test]
-    fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|border-bottom|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity|padding|padding-left|margin-left|margin-top|border-radius|border-width|border-style|border-color|line-height):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|99999px|1.5|-3px|hidden|center|solid|dashed|ignore|l0 level2|bold|calc\\(1px\\)|auto);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
+    fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|border-bottom|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity|padding|padding-left|margin-left|margin-top|border-radius|border-width|border-style|border-color|line-height):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|99999px|1.5|-3px|hidden|center|solid|dashed|ignore|l0 level2|bold|calc\\(1px\\)|auto);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x|data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=|DATA:image/svg\\+xml;base64,PHN2Zz4=)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
         let blocks = parse(&s);
         proptest::prop_assert!(table_depth(&blocks) <= MAX_TABLE_DEPTH);
         for block in &blocks {
@@ -1340,4 +1378,39 @@ fn inset_and_gap_never_pile_past_what_fits_a_byte() {
     for b in &parse(&"<div style='padding:64px;margin:64px'>x</div>".repeat(50)) {
         assert!(b.gap <= MAX_BOX_PX, "{b:?}");
     }
+}
+
+// ---- #596: where a cell sits in its row, and the gaps between cells ----
+
+#[test]
+fn a_cell_keeps_where_it_sits_in_its_row_its_own_or_its_rows() {
+    let (_, table) = only_table(
+        "<table><tr valign='bottom'><td valign='middle'>a</td><td style='vertical-align:top'>b</td><td>c</td><td valign='nonsense'>d</td></tr>\
+         <tr><td style='vertical-align: text-bottom'>e</td><td>f</td></tr></table>",
+    );
+    let at: Vec<Vec<Option<VAlign>>> = table.rows.iter().map(|r| r.cells.iter().map(|c| c.valign).collect()).collect();
+    use VAlign::{Bottom, Middle, Top};
+    assert_eq!(at, [vec![Some(Middle), Some(Top), Some(Bottom), Some(Bottom)], vec![Some(Bottom), None]]);
+}
+
+#[test]
+fn a_table_keeps_the_gap_between_its_cells_clamped() {
+    use crate::MAX_SPACING_PX;
+    let spacing = |html: &str| only_table(html).1.spacing;
+    assert_eq!(spacing("<table cellspacing='0'><tr><td>a</td><td>b</td></tr></table>"), Some(0));
+    assert_eq!(spacing("<table cellspacing='6'><tr><td>a</td><td>b</td></tr></table>"), Some(6));
+    assert_eq!(spacing("<table cellspacing='900'><tr><td>a</td><td>b</td></tr></table>"), Some(MAX_SPACING_PX));
+    assert_eq!(spacing("<table cellspacing='-4'><tr><td>a</td><td>b</td></tr></table>"), Some(0));
+    assert_eq!(spacing("<table cellspacing='x'><tr><td>a</td><td>b</td></tr></table>"), None);
+    // A style beats the attribute.
+    assert_eq!(spacing("<table cellspacing='2' style='border-spacing:10px 4px'><tr><td>a</td><td>b</td></tr></table>"), Some(10));
+    assert_eq!(spacing("<table><tr><td>a</td><td>b</td></tr></table>"), None);
+}
+
+#[test]
+fn an_hr_with_the_hidden_attribute_is_not_drawn() {
+    let rules = |html: &str| parse(html).iter().filter(|b| matches!(b.kind, BlockKind::Rule)).count();
+    assert_eq!(rules("<p>a</p><hr><p>b</p>"), 1);
+    assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
+    assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
 }

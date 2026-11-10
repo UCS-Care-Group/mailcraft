@@ -35,6 +35,7 @@ fn request() -> JmapMailRequest {
         ],
         sends: vec![SendUp { message: 7, draft: None, mime: Some(Box::new(to_bob)) }],
         background: true,
+        threads: vec!["E5".into()],
     }
 }
 
@@ -50,7 +51,9 @@ fn result() -> JmapMailResult {
     };
     JmapMailResult {
         account: 3,
+        threads: vec![crate::sync::ThreadOf { id: "E5".into(), thread: "T5".into(), ..Default::default() }],
         email: ME.into(),
+        session: SESSION.into(),
         changes: vec![
             JmapChangeDone { change: JmapChange::Destroy { id: "E9".into() }, outcome: JmapOutcome::Done { id: String::new() } },
             JmapChangeDone {
@@ -63,7 +66,12 @@ fn result() -> JmapMailResult {
                 outcome: JmapOutcome::Refused { why: format!("{ME} may not delete it") },
             },
         ],
-        sent: vec![SendDone { message: 7, outcome: SendOutcome::Held { lost: false, why: format!("{ME} was refused") }, draft: None }],
+        sent: vec![SendDone {
+            message: 7,
+            outcome: SendOutcome::Held { lost: false, why: format!("{ME} was refused") },
+            draft: None,
+            draft_left: String::new(),
+        }],
         listing: Some(FolderListing {
             folders: vec![GraphFolder { id: "M1".into(), name: ME.into(), kind: FolderKind::Inbox, total: 4, unread: 1, ..Default::default() }],
             complete: true,
@@ -86,7 +94,7 @@ fn a_request_and_a_result_read_and_write_as_json() {
         assert!(json.contains(part), "{part} in {json}");
     }
     let json = round_trip(&result());
-    for part in [r#""authRefused":true"#, r#""busyFor":30"#, r#""whole":true"#, r#""afresh":true"#, r#""stopped":true"#] {
+    for part in [r#""authRefused":true"#, r#""busyFor":30"#, r#""whole":true"#, r#""afresh":true"#, r#""stopped":true"#, r#""session":""#] {
         assert!(json.contains(part), "{part} in {json}");
     }
     assert!(!json.contains("auth_refused") && !json.contains("busy_for"), "{json}");
@@ -183,6 +191,7 @@ fn the_pieces_of_a_run_come_together() {
         JmapMailResult {
             account: 3,
             email: ME.into(),
+            session: SESSION.into(),
             partial: true,
             listing: Some(FolderListing { folders: vec![GraphFolder { id: "M1".into(), ..Default::default() }], complete: true }),
             changes: vec![JmapChangeDone { change: JmapChange::Destroy { id: "E9".into() }, outcome: JmapOutcome::Gone }],
@@ -203,7 +212,7 @@ fn the_pieces_of_a_run_come_together() {
     ];
     let mut whole = JmapMailResult::default();
     pieces.into_iter().for_each(|piece| whole.absorb(piece));
-    assert_eq!((whole.account, whole.email.as_str()), (3, ME));
+    assert_eq!((whole.account, whole.email.as_str(), whole.session.as_str()), (3, ME, SESSION));
     assert_eq!((whole.partial, whole.whole, whole.stopped, whole.auth_refused, whole.busy_for), (false, true, true, true, Some(30)));
     assert_eq!(whole.pages.iter().map(|p| (p.folder.as_str(), p.messages.len())).collect::<Vec<_>>(), [("M1", 2), ("M2", 1)]);
     assert_eq!((whole.changes.len(), whole.errors.join(", ").as_str(), whole.listing.map(|l| l.folders.len())), (1, "One, Two", Some(1)));

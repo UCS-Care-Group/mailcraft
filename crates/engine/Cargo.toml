@@ -3,6 +3,7 @@ name = "mailcraft-engine"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "MailCraft engine: session, selection, undo, the command registry (every action is a command), Outlook's command catalog, the sample mailbox, file I/O dispatch"
 
 [lints]
@@ -12,8 +13,12 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
+mailcraft-names = { workspace = true }
 mailcraft-html = { workspace = true }
+# Format characters made visible in View Source (`cmd::source`).
 mailcraft-mime = { workspace = true }
+# S/MIME Digital signatures checked where a message is read (#30).
+mailcraft-smime = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
 serde = { workspace = true }
@@ -21,12 +26,36 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 mailcraft-charset = { workspace = true }
+# .pst files read for File › Open & Export › Import a .pst File (#815).
+mailcraft-pst = { workspace = true }
+# Word boundaries for Review › Word Count (UAX #29); already in the tree under egui.
+unicode-segmentation = { workspace = true }
+# Pictures put in a message are scaled down to fit (`picture_fit`); already in the tree under egui.
+image = { workspace = true }
 
 # SHA-256 names the content files of a mailbox kept on disk (`store`). Not in the browser, which
 # keeps the mailbox as one file.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ring = { workspace = true }
 
+# `O_NONBLOCK` for opening a file named from outside (`io::regular_file`).
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+# The machine's physical memory (`store::physical_memory`), which Windows says only through a call
+# that needs `unsafe`.
+[target.'cfg(windows)'.dependencies]
+sysinfo = { workspace = true }
+
+[features]
+# Small limits for the tests of opening a mailbox file (`test_support`): the engine's own
+# integration tests and the fuzz targets turn it on; a build of the program never does.
+test-support = []
+
 [dev-dependencies]
+# Its own integration tests (`tests/`) with `test-support`.
+mailcraft-engine = { workspace = true, features = ["test-support"] }
+# Synthetic .pst files for the import's tests (the writer is a dev-only feature).
+mailcraft-pst = { workspace = true, features = ["test-writer"] }
 mailcraft-i18n = { workspace = true, features = ["test-support"] }
 proptest = { workspace = true }

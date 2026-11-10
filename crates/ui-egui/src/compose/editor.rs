@@ -17,18 +17,23 @@
 //! The formatting keys (Ctrl+B, I, U, K, Z, Y; Cmd on a Mac) are the body's only while it has the
 //! keyboard: elsewhere Ctrl+U marks a message unread and Ctrl+Z undoes what was done to the
 //! mailbox (`keys::global_shortcuts` leaves them to the body, [`owns_chord`]).
+//!
+//! On Linux and the BSDs it has the primary selection as egui's text fields do: what the owner
+//! selects goes there once it settles ([`settle`]), and a middle click pastes it where the pointer
+//! is, as plain text.
 
 use std::sync::{Arc, Mutex};
 
 use egui::epaint::text::CharIndex;
 use egui::text::{CCursor, LayoutJob, TextFormat};
-use egui::{Align2, Event, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use egui::{Align2, Event, FontFamily, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use mailcraft_model::RichBody;
 use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbers};
 use mailcraft_model::signature::Picture;
-use mailcraft_model::{RichBody, RichText};
 use serde_json::{Value, json};
 
 use crate::MailApp;
+use crate::clicks::{Anchor, Unit};
 use crate::theme::{Tokens, regular, semibold};
 
 /// The message's own font size on screen, in points (the reading pane's).
@@ -45,6 +50,14 @@ fn indent_of(p: &Paragraph) -> f32 {
 /// Longest text an input method is shown composing.
 const MAX_PREEDIT: usize = 256;
 
+/// What a picture is laid out as when egui must be able to break the line before it: a kana
+/// letter, never shown (a picture is laid out as [`OBJECT`] otherwise).
+const BREAKS_BEFORE: char = '\u{30A2}';
+
+/// The most times a paragraph's text is laid out to find the pictures that start a row
+/// ([`Layout::lay`]), with one more after that.
+const MOST_LAYOUTS: usize = 32;
+
 /// Which text the editor shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Which {
@@ -55,22 +68,36 @@ pub enum Which {
 }
 
 impl Which {
-    fn id(self) -> egui::Id {
+    fn id(self, app: &MailApp) -> egui::Id {
         match self {
-            Which::Message => id(),
+            Which::Message => id(app),
             Which::Signature => egui::Id::unique("mailcraft-signature-body"),
         }
     }
 }
 
-/// The body's id: what has the keyboard when it does.
-pub fn id() -> egui::Id {
-    egui::Id::unique("mailcraft-compose-body")
+/// The id of the body of the message being written `compose`: what has the keyboard when it
+/// does. Each message has its own (#286), so that two never share a caret, a layout or the keyboard.
+pub fn id_of(compose: u64) -> egui::Id {
+    egui::Id::unique("mailcraft-compose-body").with(compose)
 }
 
-/// Whether the body (or a signature being edited) has the keyboard.
+/// The body's id of the current message being written.
+pub fn id(app: &MailApp) -> egui::Id {
+    id_of(app.session.compose_id().unwrap_or_default())
+}
+
+/// What marks the id of a body drawn (of any message being written, or of a signature).
+const BODY: &str = "mailcraft-body";
+
+/// Whether `id` is the body of a message being written, or of a signature being edited.
+pub fn is_body(ctx: &egui::Context, id: egui::Id) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(id.with(BODY))).unwrap_or(false)
+}
+
+/// Whether a body (of a message being written, or of a signature being edited) has the keyboard.
 pub fn has_focus(ctx: &egui::Context) -> bool {
-    ctx.memory(|m| m.has_focus(id()) || m.has_focus(Which::Signature.id()))
+    ctx.memory(|m| m.focused()).is_some_and(|id| is_body(ctx, id))
 }
 
 /// The key a command has in the body (shown in tooltips and menus). They are not the registry's
@@ -98,17 +125,21 @@ fn on_screen(size: Option<u8>) -> f32 {
 }
 
 /// How a run looks on screen; in a plain-text message everything is plain.
-fn text_format(style: &Style, plain: bool, t: &Tokens) -> TextFormat {
+pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&FontFamily) -> bool) -> TextFormat {
     if plain {
         return TextFormat::simple(regular(BASE_SIZE), t.text);
     }
     let size = on_screen(style.size);
-    let font = if style.bold { semibold(size) } else { regular(size) };
-    // ponytail: a font is drawn in the window's own; the preview shows it (R4.5.4).
+    // The font chosen, from the face installed on this computer; the window's own when there is none (#582).
+    let font =
+        crate::theme::document_font(style.font, style.bold, size, has).unwrap_or_else(|| if style.bold { semibold(size) } else { regular(size) });
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
+    // A highlight is drawn as it is chosen, and the text over it kept readable on it.
+    let background = style.highlight.as_deref().and_then(|c| egui::Color32::from_hex(c).ok());
+    let color = background.map_or(color, |paper| crate::reading::colors::readable(color, paper));
     let underline = if style.underline || style.link.is_some() { Stroke::new(1.0, color) } else { Stroke::NONE };
-    TextFormat { font_id: font, color, italics: style.italic, underline, ..Default::default() }
+    TextFormat { font_id: font, color, italics: style.italic, underline, background: background.unwrap_or_default(), ..Default::default() }
 }
 
 /// What a layout was made for: when any of it changes, every paragraph is laid out again.
@@ -120,6 +151,8 @@ struct LayoutKey {
     plain: bool,
     /// The pictures' ids and widths.
     pictures: u64,
+    /// How many font families are installed: the messages' fonts arrive a frame after the first.
+    families: usize,
 }
 
 /// A picture in a paragraph, laid out: where it stands in the paragraph's text and where it is
@@ -189,19 +222,20 @@ pub(crate) struct Layout {
     atlas: f32,
     /// How many paragraphs were laid out so far, for tests.
     laid: usize,
+    /// How many times egui laid out a paragraph's text so far, for tests.
+    layouts: usize,
 }
 
 impl Layout {
     /// Bring the layout up to `doc`: the paragraphs that changed (and only those) are laid out
     /// again. Whether anything did.
-    fn sync(&mut self, ctx: &egui::Context, doc: &RichText, pictures: &[Picture], key: LayoutKey, t: &Tokens, width: f32) -> bool {
+    fn sync(&mut self, ctx: &egui::Context, paragraphs: &[Paragraph], pictures: &[Picture], key: LayoutKey, t: &Tokens, width: f32) -> bool {
         let atlas = ctx.fonts(|f| f.font_atlas_fill_ratio());
         if self.key != Some(key) || atlas < self.atlas {
             self.paras.clear();
             self.key = Some(key);
         }
         self.atlas = atlas;
-        let paragraphs = doc.paragraphs();
         let numbers = numbers(paragraphs);
         let same = |new: usize, old: usize| matches!((paragraphs.get(new), numbers.get(new), self.paras.get(old)), (Some(p), Some(n), Some(o)) if o.number == *n && o.source == *p);
         let (n_new, n_old) = (paragraphs.len(), self.paras.len());
@@ -229,34 +263,96 @@ impl Layout {
     fn lay(&mut self, ctx: &egui::Context, p: &Paragraph, number: u32, plain: bool, pictures: &[Picture], t: &Tokens, width: f32) -> Para {
         let indent = indent_of(p);
         let room = (width - indent).max(24.0);
-        let mut job = LayoutJob::default();
-        job.wrap.max_width = room;
         // A picture is a gap in the line as wide as the picture before an unseen character, in a
         // line as tall as the picture; it is painted into the gap.
+        let object = TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, ..Default::default() };
+        let known = ctx.fonts(|f| f.families());
+        let has = |family: &FontFamily| known.contains(family);
+        // Each picture shown: its run, its place in the paragraph, its id, its size and whether it
+        // comes right after a character egui does not break a line after (a word, or another
+        // picture).
         let mut sized = Vec::new();
-        let mut local = 0;
-        for run in &p.runs {
-            match run.picture.and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room)))) {
-                Some((id, size)) if !plain => {
-                    let format =
-                        TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, line_height: Some(size.y), ..Default::default() };
-                    job.append(&OBJECT.to_string(), size.x, format);
-                    sized.push((local, id, size));
-                }
-                _ => job.append(&run.text, 0.0, text_format(&run.style, plain, t)),
+        let (mut local, mut last) = (0, None::<char>);
+        for (r, run) in p.runs.iter().enumerate() {
+            if let Some((id, size)) =
+                run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room))))
+            {
+                let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
+                sized.push((r, local, id, size, glued));
             }
             local += run.text.chars().count();
+            last = run.text.chars().last().or(last);
         }
-        if job.sections.is_empty() {
-            job.append("", 0.0, text_format(&Style::default(), plain, t));
+        // But egui drops a gap that starts a wrapped row, and a gap at the start of a paragraph
+        // makes it put an empty row first when the line is too narrow: the picture was then drawn
+        // left of the body (#792). A picture that starts a row stands right of its character
+        // instead, and its gap goes before what follows it. That is every picture at the start of
+        // its paragraph, and those found to wrap once laid out. egui breaks a line only after a
+        // space (or by a CJK letter), so a picture right after a word or another picture would go
+        // along with it and stand past the right edge: such a picture is laid out as a kana letter
+        // instead, which egui may break before. That is settled before the first layout, so only
+        // the gaps change from one layout to the next: and only the first picture found to start
+        // a row is marked each time, as the gap it moves shifts everything after it but nothing
+        // before it. That is one layout more for each picture that starts a row, and a draft can
+        // repeat a picture any number of times in a paragraph: after [`MOST_LAYOUTS`], every
+        // picture not marked yet is marked, and laid out once more. A marked picture keeps both
+        // gaps, the one before its character (which egui drops at the start of a row) and the
+        // one after it, and is drawn in whichever its row has: one marked that needn't be only
+        // leaves a blank as wide as itself, and nothing is ever drawn over it.
+        let mut wrapped: Vec<bool> = sized.iter().map(|(_, local, ..)| *local == 0).collect();
+        let starts_row = |glyph: Rect, size: Vec2| glyph.min.x < size.x - 0.5;
+        let mut galley;
+        let mut passes = 0;
+        loop {
+            let mut job = LayoutJob::default();
+            job.wrap.max_width = room;
+            let (mut k, mut carry) = (0, 0.0);
+            for (r, run) in p.runs.iter().enumerate() {
+                match sized.get(k).filter(|(at, ..)| *at == r) {
+                    Some((_, local, _, size, glued)) => {
+                        let before = if *local == 0 { 0.0 } else { size.x };
+                        let mark = if *glued { BREAKS_BEFORE } else { OBJECT };
+                        job.append(&mark.to_string(), carry + before, TextFormat { line_height: Some(size.y), ..object.clone() });
+                        carry = if wrapped.get(k).copied().unwrap_or(false) { size.x } else { 0.0 };
+                        k += 1;
+                    }
+                    None => {
+                        job.append(&run.text, carry, text_format(&run.style, plain, t, &has));
+                        carry = 0.0;
+                    }
+                }
+            }
+            if job.sections.is_empty() {
+                job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
+            }
+            galley = ctx.fonts_mut(|f| f.layout_job(job));
+            passes += 1;
+            self.layouts += 1;
+            if wrapped.iter().all(|w| *w) {
+                break;
+            }
+            if passes >= MOST_LAYOUTS {
+                wrapped.iter_mut().for_each(|w| *w = true);
+                continue;
+            }
+            let found = sized.iter().zip(&wrapped).position(|((_, local, _, size, _), w)| {
+                !*w && starts_row(galley.pos_from_cursor(CCursor { index: (*local).into(), prefer_next_row: true }), *size)
+            });
+            match found.and_then(|i| wrapped.get_mut(i)) {
+                Some(w) => *w = true,
+                None => break,
+            }
         }
         self.laid += 1;
-        let galley = ctx.fonts_mut(|f| f.layout_job(job));
+        // Each picture is drawn where its gap is: in the gap before its character, or right of
+        // its character when it starts its row (whether or not it was marked, so a picture is
+        // never drawn away from its gap).
         let pictures = sized
             .into_iter()
-            .filter_map(|(local, id, size)| {
-                let glyph = galley.pos_from_cursor(CCursor::new(local));
-                let rect = Rect::from_min_max(pos2(glyph.min.x - size.x, glyph.max.y - size.y), pos2(glyph.min.x, glyph.max.y));
+            .filter_map(|(_, local, id, size, _)| {
+                let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
+                let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
+                let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
                 rect.is_finite().then_some(PictureBox { local, id, rect })
             })
             .collect();
@@ -288,6 +384,17 @@ impl Layout {
             return p.start + b.local + usize::from(local.x > b.rect.center().x);
         }
         p.start + p.galley.cursor_from_pos(local).index.0.min(p.chars)
+    }
+
+    /// The character under a point of the body, when it is on one (not the nearest gap, as for
+    /// the caret): what a double click takes the word of.
+    fn char_under(&self, at: Vec2) -> Option<usize> {
+        let p = self.para_at_y(at.y)?;
+        let local = vec2(at.x - p.indent(), at.y - p.top);
+        if let Some(b) = p.pictures.iter().find(|b| b.rect.contains(local.to_pos2())) {
+            return Some(p.start + b.local);
+        }
+        crate::reading::char_at(&p.galley, local).filter(|c| *c < p.chars).map(|c| p.start + c)
     }
 
     /// The picture under a point of the body: its place in the text, its id and where it is.
@@ -333,6 +440,10 @@ impl Layout {
         if let Some(b) = p.picture_at(local) {
             // Before a picture is at its left, not after its gap.
             return Rect::from_min_max(pos2(b.rect.min.x, b.rect.min.y), pos2(b.rect.min.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        }
+        if let Some(b) = local.checked_sub(1).and_then(|l| p.picture_at(l)) {
+            // After a picture is at its right, wherever its character stands.
+            return Rect::from_min_max(pos2(b.rect.max.x, b.rect.min.y), pos2(b.rect.max.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
         }
         let r = p.galley.pos_from_cursor(CCursor::new(local)).translate(vec2(p.indent(), p.top));
         if r.height() < 1.0 { Rect::from_min_size(pos2(p.indent(), p.top), vec2(0.0, p.height())) } else { r }
@@ -438,14 +549,14 @@ fn pictures_key(pictures: &[Picture]) -> u64 {
 }
 
 /// The layout of the body, kept from frame to frame.
-fn store(ctx: &egui::Context, which: Which) -> Arc<Mutex<Layout>> {
-    ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(which.id().with("layout")).clone())
+fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
+    ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(id.with("layout")).clone())
 }
 
-/// How many paragraphs of the body were laid out since the window opened, for tests.
+/// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
-pub(crate) fn laid(ctx: &egui::Context) -> usize {
-    store(ctx, Which::Message).lock().map_or(0, |l| l.laid)
+pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
+    store(ctx, id(app)).lock().map_or(0, |l| l.laid)
 }
 
 /// What the body remembers between frames besides its layout.
@@ -453,12 +564,17 @@ pub(crate) fn laid(ctx: &egui::Context) -> usize {
 struct State {
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
-    /// Where the pointer went down, for dragging a selection from there.
-    anchor: Option<usize>,
+    /// What the pointer took where it went down, for dragging a selection from there.
+    anchor: Option<Anchor<usize>>,
     /// What an input method is composing, not yet typed.
     preedit: String,
     /// A picture's corner being dragged: its id and the width it has so far.
     resizing: Option<(u32, f32)>,
+    /// The selection as the body last saw it, and whether the owner made it here ([`own`]).
+    seen: Option<Selection>,
+    mine: bool,
+    /// What was last put in the primary selection, `[from, to)`; `None` once nothing is selected.
+    told: Option<(usize, usize)>,
 }
 
 /// What the keyboard and the pointer do to the text, as the command that does it.
@@ -486,9 +602,32 @@ fn body(app: &MailApp, which: Which) -> Option<(&RichBody, bool)> {
 /// The pictures the text `which` names may show.
 fn pictures(app: &MailApp, which: Which) -> Vec<Picture> {
     match which {
-        Which::Message => app.session.compose.as_ref().and_then(|c| c.signature.as_ref()).map(|s| s.pictures.clone()).unwrap_or_default(),
+        // The signature's, and those the owner put in the text (#547).
+        Which::Message => app
+            .session
+            .compose
+            .as_ref()
+            .map(|c| c.signature.iter().flat_map(|s| s.pictures.iter()).chain(c.pictures.iter()).cloned().collect())
+            .unwrap_or_default(),
         Which::Signature => app.session.signature_edit.as_ref().map(|e| e.signature.pictures().to_vec()).unwrap_or_default(),
     }
+}
+
+/// The signature's own HTML while the message shows it as it goes out, under the text in place of
+/// its simpler copy ([`crate::compose`] draws it): an unedited HTML signature, unless the owner
+/// chose to edit it as text (`compose.signatureAsText`).
+pub(crate) fn html_signature(app: &MailApp) -> Option<&str> {
+    app.session.compose.as_ref()?.signature_html_shown()
+}
+
+/// The signature's own HTML while it is still unedited: an HTML signature that ends an HTML
+/// message with text before it, shown as it goes out or as its simpler copy.
+pub(crate) fn unedited_html_signature(app: &MailApp) -> Option<&str> {
+    let c = app.session.compose.as_ref()?;
+    let html = c.signature.as_ref()?.html.as_deref()?;
+    let paragraphs = c.body.text().paragraphs();
+    let ends = paragraphs.first().is_some_and(|p| !p.signature) && paragraphs.last().is_some_and(|p| p.signature);
+    (c.format == mailcraft_engine::BodyFormat::Html && ends && c.signature_unedited()).then_some(html)
 }
 
 /// The selection, the caret and whether the text is plain.
@@ -507,17 +646,29 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, min_height: f32, take_focus: 
 pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height: f32, take_focus: bool) {
     let ctx = ui.ctx().clone();
     let t = Tokens::get(&ctx);
-    let id = which.id();
+    let id = which.id(app);
+    ctx.data_mut(|d| d.insert_temp(id.with(BODY), true));
     let width = ui.available_width().max(40.0);
     let Some((_, plain)) = now(app, which) else { return };
     let editable = which == Which::Signature || app.session.signature_edit.is_none();
     let shown = pictures(app, which);
-    let key = LayoutKey { width: width as u32, dark: t.dark, scale: ctx.pixels_per_point().to_bits(), plain, pictures: pictures_key(&shown) };
-    let store = store(&ctx, which);
+    let key = LayoutKey {
+        width: width as u32,
+        dark: t.dark,
+        scale: ctx.pixels_per_point().to_bits(),
+        plain,
+        pictures: pictures_key(&shown),
+        families: ctx.fonts(|f| f.families().len()),
+    };
+    let store = store(&ctx, id);
     let mut layout = store.lock().unwrap_or_else(|e| e.into_inner());
     let resync = |layout: &mut Layout, app: &MailApp| {
         if let Some((b, _)) = body(app, which) {
-            layout.sync(&ctx, b.text(), &shown, key, &t, width);
+            let all = b.text().paragraphs();
+            // An HTML signature drawn as it goes out is not in the text laid out here.
+            let html = which == Which::Message && html_signature(app).is_some();
+            let end = if html { all.iter().position(|p| p.signature).unwrap_or(all.len()) } else { all.len() };
+            layout.sync(&ctx, all.get(..end).unwrap_or(all), &shown, key, &t, width);
         }
     };
     resync(&mut layout, app);
@@ -528,7 +679,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let origin = rect.min;
     let state_id = id.with("state");
     let mut st: State = ctx.data(|d| d.get_temp(state_id)).unwrap_or_default();
-    if editable && (take_focus || (which == Which::Message && std::mem::take(&mut app.body_focus_wanted))) {
+    // Changed since the last frame, by a command from elsewhere (an agent's or a script's
+    // `compose.select`, the ribbon's): not selected by the owner here.
+    own(app, which, &mut st, None);
+    if editable && (take_focus || (which == Which::Message && app.take_body_focus())) {
         resp.request_focus();
     }
     let mut reveal = false;
@@ -556,49 +710,94 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a
-    // word, a triple click the paragraph; Shift and a click selects from where the selection
-    // started.
+    // word and a triple click the paragraph as the button goes down, and a drag from them goes on
+    // by words or paragraphs, keeping that one; Shift and a click selects from where the
+    // selection started. Asked in every pass, so that every click is counted.
+    let unit = crate::clicks::pressed(&ctx).unwrap_or(Unit::Char);
     if editable
         && st.resizing.is_none()
         && let Some(pointer) = resp.interact_pointer_pos()
         && let Some((sel, _)) = now(app, which)
     {
         let at = layout.hit(pointer - origin);
+        let on = layout.char_under(pointer - origin).unwrap_or(at);
         let (pressed, shift) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers.shift));
         let picture = layout.picture_hit(pointer - origin).filter(|_| pressed && !shift);
+        let under = |unit: Unit| match unit {
+            Unit::Char => (at, at),
+            Unit::Word => layout.word_ends(on),
+            Unit::Paragraph => layout.paragraph_ends(at),
+        };
         let asked = if let Some((place, _, _)) = picture {
             st.anchor = None;
             resp.request_focus();
             select(place, place + 1)
-        } else if resp.triple_clicked() {
-            st.anchor = None;
-            let (a, b) = layout.paragraph_ends(at);
-            select(a, b)
-        } else if resp.double_clicked() {
-            st.anchor = None;
-            let (a, b) = layout.word_ends(at);
-            select(a, b)
-        } else if pressed && resp.is_pointer_button_down_on() {
-            let anchor = if shift { sel.anchor } else { at };
+        // A press let go of in the same frame (a tap on a touchpad) is a press all the same.
+        } else if pressed && (resp.is_pointer_button_down_on() || resp.clicked()) {
+            let anchor = if shift { Anchor::new(Unit::Char, (sel.anchor, sel.anchor)) } else { Anchor::new(unit, under(unit)) };
             st.anchor = Some(anchor);
             resp.request_focus();
-            select(anchor, at)
+            let (a, b) = anchor.reach(under(anchor.unit));
+            select(a, b)
         } else if resp.dragged() {
             reveal = true;
-            st.anchor.filter(|a| (*a, at) != (sel.anchor, sel.head)).and_then(|a| select(a, at))
+            st.anchor.map(|a| a.reach(under(a.unit))).filter(|ends| *ends != (sel.anchor, sel.head)).and_then(|(a, b)| select(a, b))
         } else {
             None
         };
         if let Some(Ask { command, params }) = asked {
             let _ = app.execute(command, params);
             st.column = None;
+            own(app, which, &mut st, Some(command));
         }
+        // Format Painter: the look it copied goes on what the pointer has just selected.
+        if (resp.drag_stopped() || resp.clicked()) && body(app, which).is_some_and(|(b, _)| b.painter().is_some() && !b.selection().is_empty()) {
+            let _ = app.run("edit.formatPainter", json!({"apply": true}));
+            own(app, which, &mut st, Some("edit.formatPainter"));
+        }
+    }
+    // A middle click on X11 and Wayland pastes the primary selection where the pointer is, as
+    // plain text (egui-winit gives the event; elsewhere there is none), through the commands a
+    // paste of text takes: its limits, and one step back.
+    if editable
+        && resp.contains_pointer()
+        && let Some((pos, text)) = ui.input(|i| {
+            i.events.iter().find_map(|e| match e {
+                Event::MiddleClickPaste { pos, text } => Some((*pos, text.clone())),
+                _ => None,
+            })
+        })
+    {
+        let pos = ctx.layer_transform_from_global(ui.layer_id()).map_or(pos, |from_global| from_global * pos);
+        resp.request_focus();
+        if app.execute("compose.select", json!({"from": layout.hit(pos - origin)})).is_ok() {
+            let _ = app.run("edit.paste", json!({"text": text}));
+        }
+        resync(&mut layout, app);
+        (st.anchor, st.column, reveal) = (None, None, true);
+        own(app, which, &mut st, Some("edit.paste"));
     }
     if resp.hovered() && editable {
         ctx.set_cursor_icon(egui::CursorIcon::Text);
         if let Some(url) = ui.input(|i| i.pointer.hover_pos()).and_then(|p| layout.link_at(p - origin)) {
             resp.clone().on_hover_text(url);
         }
+    }
+    // A right click: the caret goes where it is, unless that is on the selection; then the text's
+    // menu, whose items do what their keys do (`crate::text_menu`).
+    if editable {
+        if resp.hovered()
+            && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
+            && let (Some(pointer), Some((sel, _))) = (ui.input(|i| i.pointer.interact_pos()), now(app, which))
+            && let at = layout.hit(pointer - origin)
+            && (sel.is_empty() || at < sel.start() || at > sel.end())
+        {
+            let _ = app.execute("compose.select", json!({"from": at, "to": at}));
+            st.column = None;
+        }
+        // Both take pictures: a signature, and a message's text since #547.
+        let takes = crate::text_menu::Takes::Pictures;
+        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes);
     }
 
     // The keyboard.
@@ -622,6 +821,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             resync(&mut layout, app);
             let Some((sel, plain)) = now(app, which) else { break };
             let asked = match event {
+                // (A space may start a list, #973: the engine looks at the paragraph.)
+                Event::Text(text) if text == " " => ask("compose.type", json!({"text": text, "autoList": true})),
                 Event::Text(text) if !text.is_empty() => ask("compose.type", json!({"text": text})),
                 Event::Ime(egui::ImeEvent::Commit(text)) => {
                     st.preedit.clear();
@@ -650,18 +851,43 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     None
                 }
                 // What is pasted comes as HTML when the clipboard has some (reduced to the set
-                // by `edit.paste`), else as the text egui read from it; into a signature, a
-                // picture on the clipboard comes as a picture.
+                // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
+                // a picture alone), else as that text; into a signature, a picture on the
+                // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
+                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`).
                 Event::Paste(text) => {
-                    let image =
-                        (which == Which::Signature && text.is_empty()).then(|| app.services.clipboard.as_ref().and_then(|b| b.image())).flatten();
-                    match (image, app.services.clipboard.as_ref().and_then(|board| board.html()).filter(|h| !h.trim().is_empty())) {
-                        (Some(png), _) => {
-                            ask("signature.picture.add", json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
+                    let (html, image) = match crate::text_menu::taken_paste(&ctx, id) {
+                        Some(found) => (found.html, None),
+                        None => {
+                            let board = app.services.clipboard.as_ref();
+                            let html = board.and_then(|b| b.html()).filter(|h| !h.trim().is_empty());
+                            // Into the message, a picture only when nothing else is on the clipboard (#547).
+                            let image =
+                                (text.is_empty() && (which == Which::Signature || html.is_none())).then(|| board.and_then(|b| b.image())).flatten();
+                            (html, image)
                         }
-                        (None, Some(html)) => ask("edit.paste", json!({"html": html})),
-                        (None, None) => ask("edit.paste", json!({"text": text})),
+                    };
+                    match (image, html) {
+                        (Some(png), _) => {
+                            let command = if which == Which::Signature { "signature.picture.add" } else { "insert.picture" };
+                            ask(command, json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
+                        }
+                        (None, Some(html)) => ask("edit.paste", json!({"html": html, "text": text})),
+                        (None, None) if !text.is_empty() => ask("edit.paste", json!({"text": text})),
+                        (None, None) => None,
                     }
+                }
+                // A picture alone on the clipboard, as the system hands one over for Ctrl+V: a picture
+                // in the signature or the message (#547), as the menu's Paste brings it
+                // (`crate::clipboard_picture_png`).
+                Event::PasteImage(picture) => {
+                    let [width, height] = picture.size;
+                    let fits = width <= crate::MAX_PICTURE_SIDE && height <= crate::MAX_PICTURE_SIDE;
+                    let rgba: Vec<u8> = if fits { picture.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect() } else { Vec::new() };
+                    crate::clipboard_picture_png(width, height, &rgba).and_then(|png| {
+                        let command = if which == Which::Signature { "signature.picture.add" } else { "insert.picture" };
+                        ask(command, json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
+                    })
                 }
                 Event::Key { key, pressed: true, modifiers, .. } => {
                     let (asked, vertical) = key_press(&layout, &mut st, sel, plain, key, modifiers, page);
@@ -674,13 +900,18 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             };
             if let Some(Ask { command, params }) = asked {
                 reveal = true;
-                // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said.
+                // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said. A
+                // picture pasted into a signature goes as Paste Picture's does: made smaller when
+                // it is too big as it is.
                 let enabled = app.enabled(command);
-                if enabled
+                if command == "signature.picture.add" {
+                    crate::signatures::add_picture(app, params);
+                } else if enabled
                     || !matches!(command, "compose.undo" | "compose.redo" | "format.bold" | "format.italic" | "format.underline" | "compose.link")
                 {
                     let _ = app.run(command, params);
                 }
+                own(app, which, &mut st, Some(command));
             }
         }
         resync(&mut layout, app);
@@ -793,7 +1024,54 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         ui.scroll_to_rect(caret.expand2(vec2(2.0, 6.0)), None);
     }
     drop(layout);
+    if editable {
+        own(app, which, &mut st, None);
+        settle(app, ui, which, &mut st);
+    }
     ctx.data_mut(|d| d.insert_temp(state_id, st));
+}
+
+/// Whose the selection is, after the body ran `command` for the pointer or the keys (`None`:
+/// nothing, it only looks). What the owner selects (`compose.select`, in a frame whose input is
+/// theirs) is theirs, and is told again even when it is what was selected; anything else that
+/// changes it is not: what undo or redo brings back, a command from elsewhere, the control
+/// channel's input.
+fn own(app: &MailApp, which: Which, st: &mut State, command: Option<&str>) {
+    let sel = now(app, which).map(|(sel, _)| sel);
+    if command == Some("compose.select") && !app.driven {
+        (st.mine, st.told) = (true, None);
+    } else if sel != st.seen {
+        st.mine = false;
+    }
+    st.seen = sel;
+}
+
+/// What is selected, once it has settled (no button is down), goes to the primary selection of
+/// Linux and the BSDs: `TextSelectionSettled`, which egui-winit puts there and the other systems
+/// and the browser leave alone. As a text field does it: the text a copy has, once, and again
+/// only when the selection changes or the owner selects it again. Only what the owner selected
+/// here ([`own`]): what an agent or a script did through the control channel, or undo brought
+/// back, is not told to every other program.
+fn settle(app: &MailApp, ui: &Ui, which: Which, st: &mut State) {
+    let Some((body, _)) = body(app, which) else { return };
+    let sel = body.selection();
+    let span = (!sel.is_empty()).then(|| (sel.start(), sel.end()));
+    if span == st.told || ui.input(|i| i.pointer.any_down()) {
+        return;
+    }
+    let Some((from, to)) = span else {
+        st.told = None;
+        return;
+    };
+    if !st.mine {
+        return;
+    }
+    let Ok(part) = body.text().slice(from, to) else { return };
+    st.told = span;
+    let text = part.to_plain();
+    if !text.is_empty() {
+        ui.ctx().send_cmd(egui::OutputCommand::TextSelectionSettled(text));
+    }
 }
 
 /// The selection's part of a paragraph, behind its text.
@@ -892,6 +1170,8 @@ fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: 
         Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),
         Key::Backspace if sel.is_empty() && word && head > 0 => ask("compose.delete", json!({"from": layout.word_left(head), "to": head})),
         Key::Backspace => ask("compose.delete", json!({})),
+        // (At the end, nothing: not the paragraph break before a signature that isn't shown.)
+        Key::Delete if sel.is_empty() && head >= len => None,
         Key::Delete if sel.is_empty() && word && head < len => ask("compose.delete", json!({"from": head, "to": layout.word_right(head)})),
         Key::Delete => ask("compose.delete", json!({"forward": true})),
         // In a list, Tab at an item's start (or over a selection) takes it a level deeper and
@@ -920,3 +1200,7 @@ mod tests {
         assert_eq!([class(' '), class(','), class('é'), class('7')], [0, 1, 2, 2]);
     }
 }
+
+#[cfg(test)]
+#[path = "wide_picture_tests.rs"]
+mod wide_picture_tests;

@@ -23,6 +23,16 @@ USAGE:
   mailcraft-cli import <mailbox> <file>... [--folder PATH]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
+  mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
+                                                preview: the mail and contacts of a .pst file;
+                                                mail into a new folder named after the file on this
+                                                computer (or under the local folder PATH),
+                                                contacts into the computer's contacts, each marked
+                                                as imported from the file; the
+                                                file's password, when it has one, is read from
+                                                MAILCRAFT_PST_PASSWORD. Prints the import report
+                                                (JSON) and saves the mailbox (not with --dry-run);
+                                                a second import skips what is already there
   mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
@@ -45,11 +55,14 @@ USAGE:
   mailcraft-cli mcp [--connect HOST:PORT | --file F | --sample] [--files DIR] [--allow CLASS,...]
                                                 MCP server on stdio (headless, or bridged to the app).
                                                 Agents get only what the owner allows: files only
-                                                inside --files DIR; sending, deleting for good,
+                                                inside --files DIR; sending, deleting permanently,
                                                 accounts, the mailbox file and options are asked
                                                 about in the app (bridged) or refused (headless),
                                                 unless allowed with --allow send, delete, accounts,
-                                                mailbox, settings or input (clicking and typing)
+                                                mailbox, settings or input (clicking and typing).
+                                                Leaving or throwing away what the owner is writing
+                                                or changing is asked about in the app every time
+                                                (with input, the agent clicks as the owner does)
   mailcraft-cli --version
 ";
 
@@ -61,8 +74,11 @@ fn open(path: &str) -> Result<Session, String> {
     if let Some(notice) = opened.notice() {
         eprintln!("warning: {path}: {notice}");
     }
-    let mut s = Session::new(opened.mailbox);
+    let mut s = trusting(Session::new(opened.mailbox));
     s.path = Some(path.into());
+    // The steps every opening takes (#793): mail put back empty is fetched again before a
+    // command can move it.
+    mailcraft_engine::cmd::file::after_opening(&mut s);
     Ok(s)
 }
 
@@ -71,14 +87,21 @@ fn open_or_new(path: &str) -> Result<Session, String> {
     if std::path::Path::new(path).exists() {
         return open(path);
     }
-    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
     s.path = Some(path.into());
     Ok(s)
 }
 
 fn sample() -> Session {
     let now = mailcraft_time::now();
-    Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)))
+    trusting(Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now))))
+}
+
+/// `s` with the certification authorities this computer trusts for mail (#30), as the window
+/// has them: a Digital signature is checked here as there.
+fn trusting(mut s: Session) -> Session {
+    s.set_trust_anchors(mailcraft_net::system_trust_anchors());
+    s
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -335,6 +358,40 @@ fn run(args: &[String]) -> Result<(), Failure> {
             eprintln!("wrote {mailbox}");
             Ok(())
         }
+        "import-pst" => {
+            let pos = positionals("import-pst", &rest, &[flag("--dry-run"), value("--under")])?;
+            let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
+            let dry = rest.iter().any(|a| a == "--dry-run");
+            let mut s = open_or_new(mailbox)?;
+            let mut params = json!({});
+            if let Some(under) = arg_value(&rest, "--under") {
+                s.run("folder.select", &json!({"path": under}))?;
+                params["places"] = json!({"mail": s.view.folder});
+            }
+            // The file's password from the environment, never the command line.
+            let password = std::env::var("MAILCRAFT_PST_PASSWORD").ok();
+            // A batch at a time, as the window does (#815): attachments go to the mailbox's
+            // content folder as they are read, so a large file doesn't fill the memory.
+            // An import into a mailbox file that isn't there yet, and doesn't end in a saved one,
+            // leaves no content folder behind.
+            let new_file = !std::path::Path::new(mailbox).exists();
+            let undo = |e: String| {
+                if new_file {
+                    mailcraft_engine::store::remove_unwritten(std::path::Path::new(mailbox));
+                }
+                e
+            };
+            let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| undo(format!("{file}: {e}")))?;
+            // (The import is kept, or its content taken away, whether or not the report could be
+            // written out: a closed pipe doesn't skip the save.)
+            let printed = print_json(&report);
+            if !dry {
+                s.run("file.save", &json!({"path": mailbox})).map_err(|e| undo(e.to_string()))?;
+                eprintln!("wrote {mailbox}");
+            }
+            printed?;
+            Ok(())
+        }
         "export" => {
             let pos = positionals("export", &rest, &[value("--folder"), value("--id")])?;
             let mut s = open(pos.first().ok_or_else(missing)?)?;
@@ -356,7 +413,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match mailcraft_engine::io::Format::from_extension(input) {
                 Some(mailcraft_engine::io::Format::Mailbox) => open(input)?,
                 _ => {
-                    let mut s = Session::new(Mailbox::with_local_account("", ""));
+                    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
                     s.run("file.import", &json!({"path": input})).map_err(|e| format!("{input}: {e}"))?;
                     s
                 }
@@ -373,7 +430,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                 (Some(f), _) => open(&f)?,
                 (None, true) => sample(),
-                (None, false) => Session::new(Mailbox::with_local_account("", "")),
+                (None, false) => trusting(Session::new(Mailbox::with_local_account("", ""))),
             };
             let print = rest.iter().any(|a| a == "--print");
             let mut i = 0;
@@ -412,7 +469,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let accounts = &s.mailbox.accounts;
                     accounts
                         .iter()
-                        .find(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap)
+                        .find(|a| {
+                            a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange)
+                        })
                         .or_else(|| accounts.iter().find(|a| a.kind.has_server()))
                         .map(|a| a.id)
                         .ok_or("sync: no account in this mailbox is connected to a mail server")?
@@ -434,9 +493,16 @@ fn run(args: &[String]) -> Result<(), Failure> {
                         Ok(token) => token,
                         Err(_) => {
                             if oauth.client_id.is_empty() {
-                                // The one named when this runs, else the one the build was given.
-                                let built_in = option_env!("MAILCRAFT_MS_CLIENT_ID").unwrap_or_default().to_string();
-                                oauth.client_id = std::env::var("MAILCRAFT_MS_CLIENT_ID").unwrap_or(built_in);
+                                // Never give a Google sign-in the Microsoft app registration.
+                                let (variable, built_in) = match oauth.provider {
+                                    mailcraft_model::OAuthProvider::Microsoft => {
+                                        ("MAILCRAFT_MS_CLIENT_ID", option_env!("MAILCRAFT_MS_CLIENT_ID").unwrap_or_default())
+                                    }
+                                    mailcraft_model::OAuthProvider::Google => {
+                                        ("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID").unwrap_or_default())
+                                    }
+                                };
+                                oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
                             }
                             let open = |url: &str| {
                                 eprintln!(
@@ -445,8 +511,24 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                 )
                             };
                             let cancel = std::sync::atomic::AtomicBool::new(false);
-                            let tokens =
-                                mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel).map_err(|e| format!("sync: {e}"))?;
+                            let signed_in = match oauth.provider {
+                                mailcraft_model::OAuthProvider::Microsoft => {
+                                    mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel)
+                                }
+                                mailcraft_model::OAuthProvider::Google => {
+                                    let default = option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_default();
+                                    let secret = std::env::var("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_else(|_| default.to_string());
+                                    mailcraft_net::oauth::sign_in_google_at(
+                                        &mailcraft_net::oauth::Endpoints::of(&oauth),
+                                        &oauth,
+                                        &secret,
+                                        &request.account.email,
+                                        &open,
+                                        &cancel,
+                                    )
+                                }
+                            };
+                            let tokens = signed_in.map_err(|e| format!("sync: {e}"))?;
                             if tokens.someone_else(&request.account.email, &request.account.username) {
                                 return Err(SOMEONE_ELSE.to_string().into());
                             }
@@ -530,7 +612,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let session = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                         (Some(f), _) => open(&f)?,
                         (None, true) => sample(),
-                        (None, false) => Session::empty(),
+                        (None, false) => trusting(Session::empty()),
                     };
                     Box::new(mailcraft_mcp::Headless::new(session, allow.clone()))
                 }
@@ -563,6 +645,15 @@ mod tests {
 
     fn strings(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// A session of the command line (and of the MCP server it runs) has the system's
+    /// authorities for mail handed in, as the window's has (#30): read, whether any were found.
+    #[test]
+    fn a_session_has_the_systems_authorities_for_mail() {
+        assert!(sample().trust_anchors_read().is_some());
+        assert!(trusting(Session::empty()).trust_anchors_read().is_some());
+        assert!(Session::empty().trust_anchors_read().is_none(), "the engine reads none itself");
     }
 
     #[test]

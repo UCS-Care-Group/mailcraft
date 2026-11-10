@@ -43,20 +43,20 @@ const MAX_PAGES: usize = 1_000;
 const MAX_LINES: usize = 32;
 const MAX_LINE: usize = 400;
 /// Longest subject and `Message-ID` kept, in characters.
-const MAX_TEXT: usize = 998;
+pub(crate) const MAX_TEXT: usize = 998;
 /// Longest preview kept, in characters.
-const MAX_PREVIEW: usize = 256;
+pub(crate) const MAX_PREVIEW: usize = 256;
 /// Longest name and address kept, in characters, and most addresses of a `To` or a `Cc`.
 const MAX_NAME: usize = 256;
 const MAX_ADDRESS: usize = 320;
 const MAX_PEOPLE: usize = 500;
 /// Longest a busy server is waited for, in seconds: a day.
-const MAX_BUSY: u32 = 86_400;
+pub(crate) const MAX_BUSY: u32 = 86_400;
 /// Most messages of a batch fetched whole, the largest taken (Download messages in full goes up to
 /// 50 MB), and the most a batch brings in all, the one message past it taken still.
-const MAX_FETCHED: usize = 100;
-const MAX_MESSAGE: usize = 50 << 20;
-const MAX_BATCH: usize = 64 << 20;
+pub(crate) const MAX_FETCHED: usize = 100;
+pub(crate) const MAX_MESSAGE: usize = 50 << 20;
+pub(crate) const MAX_BATCH: usize = 64 << 20;
 /// How many of the Inbox's newest messages the background fetches whole; any other is fetched when
 /// it is opened, so that what a browser tab holds stays small.
 pub(crate) const BACKGROUND_NEWEST: usize = 40;
@@ -107,7 +107,7 @@ pub(crate) fn fetch_queue(mb: &Mailbox, account: Id, most: usize, passed_over: &
     newest
         .into_iter()
         .take(BACKGROUND_NEWEST)
-        .filter(|m| m.unfetched && !m.incomplete)
+        .filter(|m| super::graph_down::still_to_fetch(mb, m) && !m.incomplete)
         .filter_map(|m| m.server.as_ref())
         .filter(|s| limit.is_none_or(|limit| s.size <= limit) && !passed_over.contains(&(account, s.id.clone())))
         .take(most)
@@ -117,7 +117,7 @@ pub(crate) fn fetch_queue(mb: &Mailbox, account: Id, most: usize, passed_over: &
 
 /// `text` on one line: words parted by one space (a control character parts them too), `most`
 /// characters at the most.
-fn line(text: &str, most: usize) -> String {
+pub(crate) fn line(text: &str, most: usize) -> String {
     let mut out = String::new();
     let mut length = 0usize;
     for word in text.split(|c: char| c.is_whitespace() || c.is_control()).filter(|word| !word.is_empty()) {
@@ -137,7 +137,7 @@ fn line(text: &str, most: usize) -> String {
 /// An address as a server said it, on one line, or none: one whose address part holds what parts
 /// addresses in a list or encloses one (`,` `;` `<` `>` `"`) would be two people, or another one,
 /// once it is written into a reply.
-fn person(a: &Address) -> Option<Address> {
+pub(crate) fn person(a: &Address) -> Option<Address> {
     let (name, email) = (line(&a.name, MAX_NAME), line(&a.email, MAX_ADDRESS));
     if email.contains([',', ';', '<', '>', '"']) {
         return None;
@@ -145,12 +145,12 @@ fn person(a: &Address) -> Option<Address> {
     (!name.is_empty() || !email.is_empty()).then_some(Address { name, email })
 }
 
-fn people(list: &[Address]) -> Vec<Address> {
+pub(crate) fn people(list: &[Address]) -> Vec<Address> {
     list.iter().take(MAX_PEOPLE).filter_map(person).collect()
 }
 
 /// The lines of trouble a piece tells of, held to their number and length.
-fn lines(said: &[String]) -> Vec<String> {
+pub(crate) fn lines(said: &[String]) -> Vec<String> {
     said.iter().take(MAX_LINES).map(|said| line(said, MAX_LINE)).filter(|said| !said.is_empty()).collect()
 }
 
@@ -171,6 +171,9 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     (server.flag_start, server.flag_due, server.flag_completed) = (None, None, None);
     server.change_key.clear();
     server.gone = false;
+    // (Its thread, as an opaque id or none, #795; it is never asked for by itself.)
+    server.thread = mailcraft_model::sync::thread_id(&server.thread);
+    (server.thread_asked, server.thread_tries) = (false, 0);
     m.message_id = line(&m.message_id, MAX_TEXT);
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);
@@ -257,6 +260,7 @@ pub(crate) fn bounded(mut result: JmapMailResult) -> JmapMailResult {
     }
     result.errors = lines(&result.errors);
     result.busy_for = result.busy_for.map(|seconds| seconds.min(MAX_BUSY));
+    super::thread_ids::bounded(&mut result.threads, is_id);
     if let Some(progress) = result.progress.as_mut().filter(|progress| !is_id(&progress.folder)) {
         progress.folder.clear();
     }

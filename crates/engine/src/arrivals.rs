@@ -9,14 +9,17 @@
 //! never do:
 //!
 //! - an account's first download (its Inbox had never been read from its server when the run
-//!   began: no UID seen, or for a Microsoft account no round of the folder ended);
+//!   began: no UID seen, or for a Microsoft account no round of the folder ever ended; a run that
+//!   stopped partway through a later round does not make it one again, #609);
 //! - mail a rule moved out of the Inbox as it arrived, and mail in Junk E-mail or any other
 //!   folder;
 //! - the mail of a shared mailbox, of a local account, and of an account a newer MailCraft
 //!   added, which no run here keeps in step (nothing arrives in either by itself);
 //! - an Inbox the server numbered anew during the run (UIDVALIDITY changed), whose mail all comes
 //!   down again;
-//! - mail already read (on another device, or by a rule).
+//! - mail already read (on another device, or by a rule);
+//! - for a Gmail account whose owner asked for alerts for Primary alone (#911), mail Gmail put in
+//!   another of its categories.
 //!
 //! Nothing here shows anything: it only says which messages, and who they are from. The text is
 //! the message's own, hostile, and the window cleans it before it goes anywhere.
@@ -56,7 +59,7 @@ pub fn mark(mailbox: &Mailbox) -> InboxMark {
         .folders
         .iter()
         .filter(|f| f.kind == FolderKind::Inbox && own(mailbox, f.account))
-        .filter(|f| f.uid_seen > 0 || f.server.as_ref().is_some_and(|s| s.caught_up))
+        .filter(|f| f.uid_seen > 0 || f.server.as_ref().is_some_and(|s| s.round_ended || s.caught_up))
         .map(|f| (f.id, f.uid_validity))
         .collect();
     InboxMark { last_id, inboxes }
@@ -81,10 +84,18 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
         .messages
         .range(from..)
         .map(|(_, m)| m)
-        .filter(|m| !m.read && !m.draft && watched(m.folder) && own(mailbox, m.account))
+        .filter(|m| !m.read && !m.draft && watched(m.folder) && own(mailbox, m.account) && alerted(mailbox, m))
         .take(MOST)
         .map(|m| Arrival { message: m.id, account: m.account, folder: m.folder, sender: m.from.display().to_string(), subject: m.subject.clone() })
         .collect()
+}
+
+/// Whether `m` is mail its account alerts for: any, but for a Gmail account that alerts for
+/// Primary alone (#911), mail Gmail put in another category. One whose category isn't known yet
+/// is alerted for: better told once too often than not at all.
+fn alerted(mailbox: &Mailbox, m: &mailcraft_model::Message) -> bool {
+    let primary_only = mailbox.account(m.account).is_some_and(|a| a.is_gmail() && a.alert_primary_only);
+    !primary_only || m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)
 }
 
 #[cfg(test)]

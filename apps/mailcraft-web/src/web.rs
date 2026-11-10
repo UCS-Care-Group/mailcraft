@@ -1,11 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The browser shell: web `Services` (file picker, downloads, storage), drag-and-drop and the
-//! eframe web runner.
+//! The browser shell: web `Services` (file picker, downloads, storage, JMAP), drag-and-drop and
+//! the eframe web runner.
+
+use std::rc::Rc;
 
 use mailcraft_engine::Session;
 use mailcraft_model::Mailbox;
-use mailcraft_ui_egui::{Inbox, MailApp, Services, UiState};
+use mailcraft_ui_egui::opening::{Arrival, Trouble};
+use mailcraft_ui_egui::{Delivered, Inbox, MailApp, Services, UiState, Unread};
 use wasm_bindgen::JsCast as _;
 
 use crate::page;
@@ -29,6 +32,8 @@ pub fn start() {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
         };
+        // The JMAP accounts of the page that serves MailCraft, when it names some (`jmap.rs`).
+        let hook = crate::jmap::Hook::read().map(Rc::new);
         let mut options = eframe::WebOptions::default();
         if query().contains("webgl")
             && let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup
@@ -44,10 +49,41 @@ pub fn start() {
                         log::info!("mailcraft-web: wgpu backend {:?}", rs.adapter.get_info().backend);
                     }
                     let inbox: Inbox = Inbox::default();
-                    let mut app = MailApp::new(Session::new(first_mailbox()), services(inbox.clone(), cc.egui_ctx.clone()));
-                    if let Some(ui) = stored(UI_KEY).and_then(|text| serde_json::from_str::<UiState>(&text).ok()) {
-                        app.apply_prefs(ui);
-                    }
+                    let named = hook.as_ref().is_some_and(|hook| hook.names_accounts());
+                    let prefs = stored(UI_KEY).and_then(|text| serde_json::from_str::<UiState>(&text).ok());
+                    // The window is there at once, and the mailbox is read from the browser's
+                    // storage after its first frame (#519): the same opening screen as on the
+                    // desktop, which says "Opening…" alone, for the storage says nothing of how far
+                    // it has got.
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    let (ctx, wake, first_prefs, build_inbox) = (cc.egui_ctx.clone(), cc.egui_ctx.clone(), prefs.clone(), inbox.clone());
+                    let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
+                        let mut services = services(build_inbox, ctx.clone());
+                        crate::jmap::install(&mut services, &ctx, hook.clone());
+                        let mut session = Session::new(arrival.mailbox);
+                        // The browser trusts no certification authority for mail (#30): handed in as
+                        // none, so that its signers say so, not that they are still being read.
+                        session.set_trust_anchors(Vec::<Vec<u8>>::new());
+                        // The steps every opening takes (#793).
+                        mailcraft_engine::cmd::file::after_opening(&mut session);
+                        let mut app = MailApp::new(session, services);
+                        match prefs {
+                            Some(ui) => app.apply_prefs(ui),
+                            None => app.fresh_prefs(),
+                        }
+                        if let Some(hook) = &hook {
+                            hook.add_accounts(&mut app);
+                        }
+                        app
+                    });
+                    wasm_bindgen_futures::spawn_local(async move {
+                        after_a_frame().await;
+                        let _ = tx.send(first_mailbox(named));
+                        wake.request_repaint();
+                    });
+                    let opening = mailcraft_ui_egui::opening::Opening::new(rx, Default::default(), build);
+                    let locale = web_sys::window().and_then(|w| w.navigator().language());
+                    let app = MailApp::opening(opening, first_prefs, locale);
                     let saved_ui = serde_json::to_string(&app.prefs()).unwrap_or_default();
                     Ok(Box::new(WebShell { app, inbox, saved_ui, checked: 0.0 }))
                 }),
@@ -80,23 +116,36 @@ fn sample() -> Mailbox {
 }
 
 /// The mailbox to start with: what the URL asks for, else the one kept in this browser, else the
-/// sample (an empty mail program in a browser tab has nothing to show).
-fn first_mailbox() -> Mailbox {
+/// sample (an empty mail program in a browser tab has nothing to show), or an empty one when the
+/// page names accounts of its own (`named`), which are added to it. One kept here that can't be
+/// read says why before the window carries on with the sample or an empty one, as it always did.
+fn first_mailbox(named: bool) -> Arrival {
     let q = query();
     if page::has_flag(&q, "empty") {
-        return Mailbox::with_local_account("", "");
+        return Arrival::opened(Mailbox::with_local_account("", ""), None);
     }
     if page::has_flag(&q, "sample") {
-        return sample();
+        return Arrival::opened(sample(), None);
     }
+    let fresh = || if named { Mailbox::with_local_account("", "") } else { sample() };
     match stored(MAILBOX_KEY).map(|text| mailcraft_engine::io::read_mailbox(text.as_bytes())) {
-        Some(Ok(mailbox)) => mailbox,
+        Some(Ok(mailbox)) => Arrival::opened(mailbox, None),
         Some(Err(e)) => {
             log::error!("the stored mailbox couldn't be read: {e}");
-            sample()
+            Arrival { trouble: Some(Trouble::Unreadable(e.to_string())), ..Arrival::opened(fresh(), None) }
         }
-        None => sample(),
+        None => Arrival::opened(fresh(), None),
     }
+}
+
+/// Resolved once the browser has had a moment to show the page (a frame, as a rule).
+async fn after_a_frame() {
+    let tick = js_sys::Promise::new(&mut |resolve, _| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 30);
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(tick).await;
 }
 
 /// Wraps the app to read dropped files asynchronously (browsers can't read them synchronously),
@@ -119,7 +168,7 @@ impl eframe::App for WebShell {
                 let name = f.path().file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "dropped".into());
                 match f.bytes_async().await {
                     Ok(bytes) => {
-                        inbox.lock().unwrap_or_else(|e| e.into_inner()).push((name, bytes));
+                        inbox.lock().unwrap_or_else(|e| e.into_inner()).push(Delivered::dropped(name, bytes));
                         ctx.request_repaint();
                     }
                     Err(e) => log::error!("couldn't read dropped file {name}: {e}"),
@@ -180,32 +229,74 @@ fn open_links(ctx: &egui::Context) {
 }
 
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
-    let open_inbox = inbox.clone();
+    // What the picker delivers comes in apart from what is dropped: it is for what the picker
+    // was opened for, and a dropped file never is.
+    let picked = Inbox::default();
+    let open_inbox = picked.clone();
+    // Each pick is numbered, so that two for one message are never one batch.
+    let picks = std::cell::Cell::new(0u64);
     Services {
-        open_async: Some(Box::new(move |purpose: &str| {
+        open_async: Some(Box::new(move |purpose: &str, asking: Option<u64>| {
             let inbox = open_inbox.clone();
             let ctx = ctx.clone();
+            let picked_for = purpose.to_string();
+            let pick = picks.get().wrapping_add(1);
+            picks.set(pick);
             let dialog = match purpose {
                 "mailbox" => rfd::AsyncFileDialog::new().add_filter("MailCraft mailbox", MAILBOX_EXTS),
                 "import" => rfd::AsyncFileDialog::new().add_filter("Mail, calendar and contact files", IMPORT_EXTS),
                 // Anything can be attached.
                 _ => rfd::AsyncFileDialog::new(),
             };
+            // Files to attach may be picked several at once; anything else is one file.
+            let many = purpose == "attach";
             wasm_bindgen_futures::spawn_local(async move {
-                let Some(file) = dialog.pick_file().await else {
+                let picked = if many { dialog.pick_files().await } else { dialog.pick_file().await.map(|f| vec![f]) };
+                let Some(files) = picked else {
                     return;
                 };
-                let bytes = file.read().await;
-                inbox.lock().unwrap_or_else(|e| e.into_inner()).push((file.file_name(), bytes));
+                // Each file as it was picked for: a picker's answer is never taken for another's.
+                // Of files to attach, what is read is decided from their sizes before any is
+                // read: a page can't hold a pick of large files, and the message being written
+                // would go down with it (never crash). A file over the most a message carries,
+                // one past the most files of a pick, and every one from the first that would
+                // take the pick past the most bytes together are delivered unread, saying why.
+                // The one file of any other pick (a mailbox, a file to import) is read whole,
+                // whatever its size: those caps are an attachment's, not a mailbox's.
+                let plan = if many {
+                    let sizes: Vec<u64> = files.iter().map(|f| f.inner().size() as u64).collect();
+                    mailcraft_ui_egui::files::reads_of_pick(&sizes)
+                } else {
+                    vec![None; files.len()]
+                };
+                let mut read = Vec::with_capacity(files.len());
+                for (file, unread) in files.iter().zip(plan) {
+                    let name = file.file_name();
+                    if let Some(why) = unread {
+                        read.push(Delivered::unread(name, why, &picked_for, asking, pick));
+                        continue;
+                    }
+                    read.push(match read_file(file.inner()).await {
+                        Ok(bytes) => Delivered::picked(name, bytes, &picked_for, asking, pick),
+                        Err(e) => {
+                            log::error!("couldn't read picked file {name}: {e}");
+                            Delivered::unread(name.clone(), Unread::Failed(e), &picked_for, asking, pick)
+                        }
+                    });
+                }
+                inbox.lock().unwrap_or_else(|e| e.into_inner()).extend(read);
                 ctx.request_repaint();
             });
         })),
         download: Some(Box::new(download)),
+        picked: Some(picked),
         inbox: Some(inbox),
         persist: Some(Box::new(persist)),
         // The browser's language, for an interface language left on Automatic; and the page says
         // which language it is in (`<html lang>`), for screen readers and the browser's own tools.
         system_locale: web_sys::window().and_then(|w| w.navigator().language()),
+        // The same language's region (`en-GB`) is the one English dates are written for (#978).
+        system_time_locale: web_sys::window().and_then(|w| w.navigator().language()),
         on_language: Some(Box::new(|code: &str| {
             let root = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element());
             if let Some(root) = root {
@@ -214,6 +305,13 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         })),
         ..Default::default()
     }
+}
+
+/// A picked file's bytes, as the browser gives them: a read that fails (the file moved or changed
+/// since it was picked) is an error, never a stop of the page.
+async fn read_file(file: &web_sys::File) -> Result<Vec<u8>, String> {
+    let buffer = wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await.map_err(|e| format!("{e:?}"))?;
+    Ok(js_sys::Uint8Array::new(&buffer).to_vec())
 }
 
 /// Keep the mailbox in the browser's storage. A full store is the usual failure: say so plainly.

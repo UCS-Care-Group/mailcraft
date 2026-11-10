@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::{FlagStatus, FolderKind, Id, Importance};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Mailbox, Message};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -527,6 +527,43 @@ fn search_filters_the_list_and_can_look_everywhere() {
     assert_eq!(run(&mut s, "mail.findRelated", json!({}))["found"], 1);
 }
 
+/// #329: `received:today`, a date without a year and `"this week"` are matched on the session's
+/// day and its first day of the week; the list is matched again when the first day changes.
+#[test]
+fn a_search_for_today_or_this_week_goes_by_the_sessions_day() {
+    let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
+    let account = mb.accounts[0].id;
+    let folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let noon = |d: u8| DateTime::new(Date::new(2026, 10, d).unwrap(), 12, 0, 0).unwrap().civil_seconds();
+    for d in [23, 24, 25, 26] {
+        mb.add_message(Message { folder, account, subject: format!("On the {d}th"), date: noon(d), received: noon(d), ..Default::default() })
+            .unwrap();
+    }
+    // Monday, October 26, 2026, at three in the afternoon.
+    let mut s = Session::at(mb, noon(26) + 3 * 3600, 0);
+    s.view.folder = folder;
+    s.prefs.week_start = mailcraft_time::Weekday::Sun;
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today"}))["found"], 1);
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:yesterday"}))["found"], 1);
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:10/24..10/26"}))["found"], 3);
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:\"this week\""}))["found"], 2);
+    // From Monday, this week is today alone.
+    s.prefs.week_start = mailcraft_time::Weekday::Mon;
+    assert_eq!(s.rows().len(), 1);
+    // Today is the day here: at 23:30 on the 26th five hours west of UTC (04:30 on the 27th in
+    // UTC), today is still the 26th.
+    s.clock = Clock { now: Some(noon(27) - 7 * 3600 - 30 * 60), offset: Some(-300), zone: None };
+    assert_eq!(s.today(), Date::new(2026, 10, 26).unwrap());
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today"}))["found"], 1);
+    // Another zone on the same day is matched again: at 00:30 UTC on the 26th it is the 26th in
+    // UTC and 13 hours east of it, where the message of the 26th came in on the 27th.
+    s.clock = Clock { now: Some(noon(26) - 11 * 3600 - 30 * 60), offset: Some(0), zone: None };
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today 26th"}))["found"], 1);
+    s.clock.offset = Some(13 * 60);
+    assert_eq!(s.today(), Date::new(2026, 10, 26).unwrap());
+    assert_eq!(s.rows().len(), 0);
+}
+
 /// A list shows what a message says to its reader: the HTML's words when there is HTML, never
 /// the padding, references and addresses a sender's plain-text part is full of. Nothing of it is
 /// kept with the message, so mail that was already here reads the same way.
@@ -675,7 +712,8 @@ fn rules_and_accounts() {
     let r = run(&mut s, "rules.fromMessage", json!({"id": book, "folder": news}));
     assert_eq!(r["matched"], 1);
     assert_eq!(s.mailbox.message(book).unwrap().folder, news);
-    assert!(s.mailbox.message(book).unwrap().has_category("Purple category"));
+    // The new rule alone ran, as Outlook offers for a rule just made: not the bookshop's.
+    assert!(!s.mailbox.message(book).unwrap().has_category("Purple category"));
     assert!(s.run("rules.add", &json!({"name": "Bad", "conditions": [], "actions": [{"type": "flag"}]})).is_err());
     assert!(
         s.run("rules.add", &json!({"name": "Bad", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "moveTo", "value": 424242}]}))
@@ -737,6 +775,14 @@ fn accounts_that_sign_in_on_the_providers_page() {
     // The provider's own domain needs nobody's exchangers.
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@outlook.com", "mx": ["aspmx.l.google.com"]}))["service"], "Outlook.com");
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@gmail.com"}))["incoming"]["host"], "imap.gmail.com");
+    // An existing Gmail account stays on the app-password path until its owner opts in.
+    assert_eq!(run(&mut s, "account.preset", json!({"email": "a@gmail.com"}))["auth"], "password");
+    // Explicit OAuth selects Google mail servers and never silently chooses Microsoft Graph.
+    let chosen = run(&mut s, "account.preset", json!({"email": "a@gmail.com", "provider": "google"}));
+    assert_eq!((chosen["auth"].as_str(), chosen["provider"].as_str()), (Some("oauth2"), Some("google")));
+    assert_eq!((chosen["service"].as_str(), chosen["incoming"]["host"].as_str()), (Some("Gmail"), Some("imap.gmail.com")));
+    let workspace = run(&mut s, "account.preset", json!({"email": "a@workspace.example", "provider": "google", "service": "google"}));
+    assert_eq!((workspace["service"].as_str(), workspace["auth"].as_str()), (Some("Google Workspace"), Some("oauth2")));
     for bad in [
         json!({}),
         json!({"email": "nobody"}),
@@ -844,6 +890,8 @@ fn a_sync_result_lands_in_the_right_folders() {
             new: vec![mail(12, "Two again"), mail(13, "Three")],
             flags: vec![RemoteFlags { uid: 12, read: true, flagged: true, ..Default::default() }],
             removed: vec![11],
+            complete: true,
+            ..Default::default()
         }],
         ..Default::default()
     };
@@ -1400,7 +1448,8 @@ mod two_way {
             ..Default::default()
         };
         apply(&mut s, partly);
-        assert_eq!(s.mailbox.pending, [Pending::Delete { account: a, from: "INBOX".into(), uid: 3, message_id: "three@mail.example".into() }]);
+        let pending = s.mailbox.pending.clone();
+        assert!(matches!(pending.as_slice(), [Pending::Delete { uid: 3, message_id, seen: Some(_), .. }] if message_id == "three@mail.example"));
         assert_eq!((s.mailbox.count(inbox), s.mailbox.count(deleted), unpushed(&s, a)), (0, 0, 1));
         // A download that still lists the message a deletion is waiting for doesn't bring it back.
         let still_there = SyncResult {
@@ -1473,6 +1522,11 @@ mod two_way {
         run(&mut s, "mail.markUnread", json!({"id": one}));
         run(&mut s, "mail.delete", json!({"id": filed}));
         assert_eq!(unpushed(&s, a), 4);
+        let three_seen = s.mailbox.pending.iter().find_map(|p| match p {
+            Pending::Delete { seen, .. } => seen.clone(),
+            _ => None,
+        });
+        assert!(three_seen.is_some());
         // The Inbox has a new UIDVALIDITY: its UIDs name other messages now, or none.
         let anew = SyncResult {
             account: a,
@@ -1499,7 +1553,7 @@ mod two_way {
             s.mailbox.pending,
             [
                 Pending::Move { account: a, message: two, from: "INBOX".into(), uid: 0, synced: Some(has(0, false, false)), to: archive },
-                Pending::Delete { account: a, from: "INBOX".into(), uid: 0, message_id: "three@mail.example".into() },
+                Pending::Delete { account: a, from: "INBOX".into(), uid: 0, message_id: "three@mail.example".into(), seen: three_seen.clone() },
                 Pending::Move { account: a, message: filed, from: "Archive".into(), uid: 1, synced: Some(has(1, false, false)), to: deleted },
             ]
         );
@@ -1518,6 +1572,53 @@ mod two_way {
         assert_eq!((f.uid_validity, f.uid_seen), (70, 2));
         // The message that was moved out before stays where it was put, off the server.
         assert_eq!((state(&s, two).0, state(&s, two).1), (archive, 0));
+    }
+
+    /// A Message-ID is the sender's to choose: after a renumbering a deletion goes only to the one
+    /// arrival that is also the same mail, never to a different message that carries the id.
+    #[test]
+    fn a_deletion_is_never_carried_to_another_message_with_the_same_message_id() {
+        let anew_with = |arrivals: Vec<Message>, s: &mut Session, a: Id, inbox: Id| {
+            apply(
+                s,
+                SyncResult {
+                    account: a,
+                    folders: vec![FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 70, arrivals, vec![]) }],
+                    ..Default::default()
+                },
+            )
+        };
+        let deletes = |s: &Session, a: Id| request(s, a).ops.iter().any(|op| matches!(op, RemoteOp::Delete { .. }));
+        // Two arrivals share the id: the legitimate one first (lower UID), the copy of the deleted one after it.
+        let (mut s, a, inbox, _) = synced();
+        let three = titled(&s, a, "Three");
+        let spoof = s.mailbox.message(three).cloned().unwrap();
+        run(&mut s, "mail.deletePermanently", json!({"id": three}));
+        let legit = Message { from: Address::new("", "real@example.org"), date: 5_000, ..from_server(21, "Three") };
+        let r = anew_with(vec![legit, Message { uid: 22, ..spoof.clone() }], &mut s, a, inbox);
+        assert!(!deletes(&s, a), "{:?}", request(&s, a).ops);
+        assert!(s.mailbox.pending.is_empty());
+        assert!(r["errors"].as_array().is_some_and(|e| e.iter().any(|n| n.as_str().is_some_and(|n| n.contains("not made on the server")))), "{r}");
+        assert_eq!(s.mailbox.count(inbox), 2);
+
+        // One arrival with the id, but another mail: dropped too.
+        let (mut s, a, inbox, _) = synced();
+        let three = titled(&s, a, "Three");
+        run(&mut s, "mail.deletePermanently", json!({"id": three}));
+        anew_with(vec![Message { from: Address::new("", "real@example.org"), date: 5_000, ..from_server(21, "Three") }], &mut s, a, inbox);
+        assert!(!deletes(&s, a) && s.mailbox.pending.is_empty());
+        assert_eq!(s.mailbox.messages_in(inbox).filter(|m| m.uid == 21).count(), 1);
+
+        // A change of 0.8.0 (no record of the mail) is not carried over a renumbering either.
+        let (mut s, a, inbox, _) = synced();
+        let three = titled(&s, a, "Three");
+        let again = s.mailbox.message(three).cloned().unwrap();
+        run(&mut s, "mail.deletePermanently", json!({"id": three}));
+        if let Some(Pending::Delete { seen, .. }) = s.mailbox.pending.first_mut() {
+            *seen = None;
+        }
+        anew_with(vec![Message { uid: 23, ..again }], &mut s, a, inbox);
+        assert!(!deletes(&s, a) && s.mailbox.pending.is_empty());
     }
 
     #[test]
@@ -1674,7 +1775,7 @@ mod two_way {
         assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
 
         // A deletion the owner took back while it was carried out: the server no longer has the
-        // message, so the one here is the only one. It stays, off the server.
+        // message, so the one here is the only one. It stays, and goes on the server again (#451).
         let (mut s, a, inbox, _) = synced();
         let three = titled(&s, a, "Three");
         run(&mut s, "mail.deletePermanently", json!({"id": three}));
@@ -1688,7 +1789,8 @@ mod two_way {
         };
         apply(&mut s, gone);
         assert_eq!((state(&s, three).0, state(&s, three).1, s.mailbox.count(inbox)), (inbox, 0, 3));
-        assert_eq!((known(&request(&s, a), inbox), unpushed(&s, a)), (vec![1, 2], 0));
+        assert_eq!((known(&request(&s, a), inbox), unpushed(&s, a)), (vec![1, 2], 1));
+        assert_eq!(request(&s, a).places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [three]);
     }
 
     #[test]
@@ -1701,10 +1803,11 @@ mod two_way {
         assert_eq!((s.mailbox.pending.len(), unpushed(&s, a), request(&s, a).ops.len()), (1, 0, 0));
         run(&mut s, "mail.move", json!({"id": one, "folder": archive}));
         assert_eq!(unpushed(&s, a), 1);
-        // To another account: its own server keeps it where it is.
+        // To a folder on this computer: its server keeps it until it is whole in the mailbox
+        // file, and this one was never saved (#451).
         let local = kind(&s, FolderKind::Inbox);
         run(&mut s, "mail.move", json!({"id": two, "folder": local}));
-        assert_eq!((s.mailbox.pending.len(), unpushed(&s, a)), (1, 1));
+        assert_eq!((s.mailbox.pending.len(), unpushed(&s, a)), (2, 1));
         // A copy is not on the server, and changing it is nobody's business.
         let copy = run(&mut s, "mail.copy", json!({"id": three, "folder": inbox}))["copies"][0].as_u64().unwrap();
         run(&mut s, "mail.markRead", json!({"id": copy}));
@@ -1732,6 +1835,7 @@ mod two_way {
             conditions: vec![mailcraft_model::Condition::SubjectContains("report".into())],
             actions: vec![mailcraft_model::Action::MarkRead, mailcraft_model::Action::MoveTo(archive)],
             stop: false,
+            ..Default::default()
         });
         // The same UID twice in one answer is one message.
         let arrived = SyncResult {
@@ -2095,15 +2199,17 @@ mod two_way {
         assert_eq!(unpushed(&s, a), 4);
 
         // The server's INBOX comes back numbered anew, every message on it under another UID.
-        let anew = vec![
-            from_server(11, "One"),
-            from_server(12, "Two"),
-            from_server(13, "Three"),
-            Message { message_id: String::new(), ..from_server(14, "Four") },
-        ];
+        // (The same mails, so each keeps the date it was sent.)
+        let again = |uid: u32, was: u32, subject: &str| Message { date: 100 + i64::from(was), ..from_server(uid, subject) };
+        let anew =
+            vec![again(11, 1, "One"), again(12, 2, "Two"), again(13, 3, "Three"), Message { message_id: String::new(), ..from_server(14, "Four") }];
         let r = apply(
             &mut s,
-            SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 70, anew, vec![])], ..Default::default() },
+            SyncResult {
+                account: a,
+                folders: vec![FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 70, anew, vec![]) }],
+                ..Default::default()
+            },
         );
         let note = r["errors"][0].as_str().unwrap();
         assert!(note.contains("anew") && note.contains("3 change(s)") && note.contains("1 change(s)"), "{note}");
@@ -2153,6 +2259,9 @@ fn files_round_trip() {
         (archive, &orig.subject, &orig.from, &orig.to, &orig.body.text, 1)
     );
     assert_eq!(copy.attachments[0].data, orig.attachments[0].data);
+    // Selected, it is shown where it went (#485).
+    assert_eq!(s.view.folder, archive);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
 
     // A folder as .mbox, the calendar as .ics, the contacts as .vcf.
     let mbox = run(&mut s, "file.exportFolder", json!({}));
@@ -2205,6 +2314,15 @@ fn parity_has_a_floor_that_only_rises() {
         assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
     }
     assert!(catalog::parity_markdown(&s.registry).contains("## Missing"));
+    // What is out of scope is a catalog row, said why, and listed apart from what is missing.
+    for (id, why) in catalog::OUT_OF_SCOPE {
+        assert!(catalog::features().any(|f| f.id == id), "{id} is in the catalog");
+        assert!(!why.is_empty());
+        let listed = |k: &str| p[k].as_array().unwrap().iter().any(|m| m["id"] == id);
+        assert!(!listed("missing"), "{id} isn't missing");
+        assert!(listed("outOfScope") || s.registry.get(id).is_some(), "{id} is out of scope");
+    }
+    assert!(catalog::parity_markdown(&s.registry).contains("## Out of scope"));
 }
 
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
@@ -2223,6 +2341,18 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        // Messages forwarded together (#360): more than one message carries, each named again and
+        // again, ids that are none, and a list that is no list; an id or ids of null (#512).
+        json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
+        json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
+        json!({"id": null}),
+        json!({"ids": null}),
+        json!({"ids": {"0": 1}, "message": [1, 2]}),
+        json!({"ids": [1, "7", -1, 0, 1.5, null, {"id": 2}, [3], 1e300], "id": "4"}),
+        // The message list's keys (#426): pages of no rows, of more rows than there are, of nonsense.
+        json!({"extend": true, "rows": 18446744073709551615u64}),
+        json!({"extend": "yes", "rows": 1e300, "range": true}),
+        json!({"extend": true, "rows": 0, "copy": 65536}),
         json!({"result": {"account": 1, "folders": [{"id": 1, "remote": "\u{0}", "new": [{"uid": 1}, {"uid": 1}], "flags": [{"uid": 4294967295u32}], "removed": [0, 1]}], "sent": [0, 1, 2]}}),
         json!({"result": {
             "account": 1, "sent": [1, 2, 3], "filed": [1, 3, 18446744073709551615u64],
@@ -2240,10 +2370,20 @@ fn hostile_params_never_panic() {
         json!({"conditions": [{"type": "x"}, 5, null], "actions": [{"type": "moveTo", "value": "x"}], "name": "r"}),
         json!({"email": "a@b.example", "incoming": {"host": "", "port": 1e9, "security": 5}, "outgoing": 7}),
         json!({"emails": [1, null, {"value": 2}], "phones": "x", "address": {"street": 5}, "birthday": 5, "workDays": [], "weekStart": 1}),
+        // A merge of contacts (#506): itself, twice, nobody, nonsense choices.
+        json!({"keep": 1, "others": [1, 1, 0, -1, "x", 1e300], "ids": [1, 1], "fields": {"first": "x", "emails": 18446744073709551615u64, "": null}}),
+        json!({"keep": 2, "others": [3], "ids": [2, 3], "fields": {"emails": "all", "notes": 3, "birthday": 2}}),
         json!({"account": 1, "address": "a@example.org/../../me\r\n?$top=1#x"}),
         json!({"account": 2, "address": "x".repeat(100_000)}),
         json!({"id": 2, "address": "\u{0}@example.org", "email": "\u{202e}@example.org"}),
         json!({"account": 1, "download": {"account": 1, "calendar": "\u{0}", "from": 1e300, "events": [{"id": 5}, null], "contacts": {"id": "c"}}}),
+        json!({"account": 1, "download": {"account": 1, "complete": true, "lists": [{"id": "\u{0}"}, null, {"id": "L", "complete": true}], "tasks": [
+            {"id": "t\r\n", "list": "L", "title": "\u{0}"}, {"id": "t1", "list": "L", "title": "x", "due": {"year": 0, "month": 99, "day": 0}, "reminder": i64::MAX}, {}, null, {"id": "t1", "list": "L"},
+        ]}}),
+        json!({"account": 1, "result": {"account": 1, "outcomes": [
+            {"kind": "create", "task": 18446744073709551615u64, "result": "done", "id": "", "list": "L", "patch": {"title": null, "due": 5}},
+            {"kind": "update", "task": 0, "result": "gone"}, {"kind": "delete", "id": "\u{0}", "result": "refused"}, {"kind": "create", "task": 1, "result": "done", "id": "x", "list": "L", "patch": {"title": "t"}}, null, {},
+        ]}}),
         json!({"account": 1, "download": {
             "account": 1, "complete": true, "from": i64::MIN, "to": i64::MAX,
             "events": [
@@ -2256,7 +2396,17 @@ fn hostile_params_never_panic() {
     let mut s = session();
     // Shared mailboxes switched on, under a Microsoft account, so that their commands get past
     // the door (#70).
-    let _ = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"}));
+    let owner = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).ok().and_then(|v| v["id"].as_u64()).unwrap_or(0);
+    // Its server's rules, and its answers to changes, that make no sense: so that the merges are
+    // reached, not only the door (#566).
+    junk.push(json!({"download": {"account": owner, "email": "owner@example.org", "complete": true, "rules": [
+        {"id": "r1", "name": "\u{0}", "sequence": i32::MIN, "conditions": [{"type": "bodyContains", "value": ""}], "actions": [{"type": "moveTo", "value": 1}], "moveTo": "../x", "unknown": [" ", "\u{0}"]},
+        {"id": "r1", "sequence": i32::MAX}, {"id": "r 2", "name": "x".repeat(10_000)}, {},
+    ]}}));
+    junk.push(json!({"result": {"account": owner, "email": "owner@example.org", "outcomes": [
+        {"kind": "create", "rule": 18446744073709551615u64, "id": "r1", "result": "done", "sequence": i32::MIN},
+        {"kind": "update", "rule": 1, "id": "\u{0}", "result": "gone"}, {"kind": "delete", "result": "refused", "error": "x".repeat(100_000)}, {},
+    ]}}));
     // And one open, so that the folder pane's commands (Favorites, counts) meet its folders.
     let _ = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"}));
     // And a JMAP account (M6), so that its commands get past the door too, with answers for it
@@ -2282,6 +2432,30 @@ fn hostile_params_never_panic() {
     }}));
     junk.push(json!({"result": {"account": jmap, "email": "jmap@example.org", "fetched": [{"id": "E1", "mime": []}, {"id": "\u{0}", "mime": [1]}], "missing": ["E1", ""]}}));
     junk.push(json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "jmap": {"session": 5, "bearer": "no"}, "kind": "jmap"}));
+    // And an Exchange server account (#252), so that its commands get past the door too: answers
+    // that name it with nothing that makes sense, and settings that are none.
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let ews = json!({"email": "ews@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ews"}});
+    let ews = s.run("account.add", &ews).unwrap()["id"].as_u64().unwrap();
+    junk.push(json!({"result": {
+        "account": ews, "email": "ews@example.org", "url": url, "whole": true, "busyFor": 4294967295u32, "hierarchy": "x".repeat(100_000),
+        "listing": {"complete": true, "folders": [{"id": "../x", "parent": "../x", "name": "\u{0}", "kind": "outbox"}]},
+        "pages": [{"folder": "\u{0}", "afresh": true, "removed": ["E1"], "messages": [{"server": {"id": ""}}, {}]}],
+        "states": [{"folder": "\u{0}", "state": "x".repeat(100_000)}, {}, null],
+        "errors": ["\u{0}", "x".repeat(100_000)], "untrusted": 5,
+    }}));
+    junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
+    junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
+    junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
+    // Several messages being written (#286): ids of messages being written that are none, of
+    // another kind, the largest there is, and ones open beside others.
+    junk.push(json!({"compose": null, "text": "x"}));
+    junk.push(json!({"compose": "1", "from": 0, "to": 1e300}));
+    junk.push(json!({"compose": -1, "discard": true}));
+    junk.push(json!({"compose": 18446744073709551615u64, "body": "\u{0}"}));
+    junk.push(json!({"compose": [1], "id": 1}));
+    junk.push(json!({"compose": 1, "subject": "\r\nBcc: x@example.org", "discard": true}));
+    junk.push(json!({"compose": 2, "text": "x".repeat(10_000), "from": 18446744073709551615u64}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {
@@ -2297,6 +2471,8 @@ fn hostile_params_never_panic() {
                 let _ = s.run("file.new", &json!({"sample": true}));
                 let first = s.rows().first().map(|r| r.id).unwrap_or(0);
                 let _ = s.run("mail.select", &json!({"id": first}));
+                let _ = s.run("mail.new", &json!({}));
+                // And another beside it, so that `compose` names one that isn't current.
                 let _ = s.run("mail.new", &json!({}));
                 let e = s.mailbox.events.keys().next().copied().unwrap_or(0);
                 let _ = s.run("calendar.select", &json!({"id": e}));

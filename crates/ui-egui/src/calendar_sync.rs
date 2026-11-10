@@ -85,7 +85,7 @@ const SETTINGS_MS: f64 = 3_600_000.0;
 pub(crate) struct CalendarSync {
     /// The job in flight: the account, whether it carried changes, when it started
     /// (milliseconds), and the answer to come.
-    pub(crate) rx: Option<(Id, bool, f64, Receiver<GraphResult>)>,
+    pub(crate) rx: Option<(Id, bool, f64, u64, Receiver<GraphResult>)>,
     /// When each account's calendar was last asked for (milliseconds).
     pub(crate) checked: HashMap<Id, f64>,
     /// How many jobs in a row came to nothing for an account, and when the last one did.
@@ -126,9 +126,18 @@ pub(crate) struct CalendarSync {
     /// told to the owner (#70): said again only when that changes.
     held_told: HashMap<Id, usize>,
     /// A check of an account's calendar connection that the host is making.
-    check_rx: Option<(Id, Receiver<CalendarCheckResult>)>,
+    check_rx: Option<(Id, u64, Receiver<CalendarCheckResult>)>,
     /// What the last check of the calendar connection came to, as its report says it.
     pub(crate) last_check: Vec<String>,
+}
+
+impl CalendarSync {
+    /// Another mailbox took the place of the open one: the job and the check in flight are let
+    /// go of (AU3-V8).
+    pub(crate) fn forget_jobs(&mut self) {
+        (self.rx, self.check_rx, self.directory) = (None, None, false);
+        self.by_hand.clear();
+    }
 }
 
 impl MailApp {
@@ -360,7 +369,7 @@ impl MailApp {
         let Some(signer) = signer else { return false };
         let Some(oauth) = signer.oauth.clone() else { return false };
         let kept = self.tokens.get(&signer.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &signer.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", signer.id)).unwrap_or_default();
         let held = if shared { self.shared_calendar_access(account) } else { self.graph_access(account, false) };
         if refresh.is_empty() && held.is_empty() {
             return false;
@@ -398,12 +407,12 @@ impl MailApp {
             mail_pieces: None,
             cancel: Default::default(),
         };
-        let Some(graph) = &self.services.graph else { return false };
+        let Some(graph) = self.services.graph.as_ref().filter(|_| !self.offline()) else { return false };
         if settings {
             self.calendar.settings_asked.insert(account, now);
         }
         self.calendar.directory = directory;
-        self.calendar.rx = Some((account, carried, now, graph(ask)));
+        self.calendar.rx = Some((account, carried, now, self.session.openings(), graph(ask)));
         if round.is_none() {
             self.calendar.checked.insert(account, now);
             self.calendar.shown.insert(account, self.calendar_window());
@@ -415,8 +424,15 @@ impl MailApp {
     /// The calendar job answered: keep its token, take in what the server said to the changes
     /// and what it has in the days that were asked for. (Public for a host's tests.)
     pub fn poll_calendar(&mut self) {
-        let Some((account, carried, started, rx)) = &self.calendar.rx else { return };
+        let Some((account, carried, started, opening, rx)) = &self.calendar.rx else { return };
         let (account, carried, started) = (*account, *carried, *started);
+        // For a mailbox that has been closed since: its accounts are other accounts, whatever
+        // their ids and addresses, and the answer is nobody's (AU3-V8).
+        if *opening != self.session.openings() {
+            log::info!("calendar: the answer is for a mailbox that is no longer open; let go of");
+            self.calendar.forget_jobs();
+            return;
+        }
         let mut result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -444,9 +460,9 @@ impl MailApp {
         }
         if let Some(tokens) = result.tokens.take() {
             if shared {
-                let owner = self.session.mailbox.owner_of(account).map(|o| (o.id, o.email.clone()));
-                if let Some((owner, address)) = owner.filter(|(owner, _)| !self.signed_in_as_other(*owner, &tokens)) {
-                    self.keep_shared_calendar_tokens(account, owner, &address, tokens);
+                let owner = self.session.mailbox.owner_of(account).map(|o| o.id);
+                if let Some(owner) = owner.filter(|owner| !self.signed_in_as_other(*owner, &tokens)) {
+                    self.keep_shared_calendar_tokens(account, owner, tokens);
                 }
             } else {
                 self.keep_graph_tokens(account, tokens);
@@ -507,9 +523,8 @@ impl MailApp {
             return;
         }
         self.note_directory(account, &tokens.tenant);
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         if !tokens.refresh.is_empty() {
-            self.remember("refresh", &address, &tokens.refresh);
+            self.remember("refresh", account, &tokens.refresh);
             if let Some(mail) = self.tokens.get_mut(&account) {
                 mail.refresh = tokens.refresh.clone();
             }
@@ -679,13 +694,16 @@ impl MailApp {
         let account = owner.id;
         let access = self.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone()).unwrap_or_default();
         let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if access.is_empty() && refresh.is_empty() {
             return Err(tl!("This account's calendar can't be asked yet: Send/Receive signs it in first.").to_string());
         }
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let request = CalendarCheckRequest { account: owner, oauth: self.effective_oauth(oauth), refresh, access };
         let Some(check) = &self.services.check_calendar else { return Err(tl!("This build can't reach the account's calendar.").to_string()) };
-        self.calendar.check_rx = Some((account, check(request)));
+        self.calendar.check_rx = Some((account, self.session.openings(), check(request)));
         self.status(tl!("Checking the calendar connection…"));
         Ok(json!({"pending": "calendarCheck", "account": account}))
     }
@@ -703,8 +721,13 @@ impl MailApp {
     /// The host is done checking the calendar connection: keep its token, show what the server
     /// answered at each step in a report, and put the same in the log. (Public for a host's tests.)
     pub fn poll_calendar_check(&mut self) {
-        let Some((account, rx)) = &self.calendar.check_rx else { return };
+        let Some((account, opening, rx)) = &self.calendar.check_rx else { return };
         let account = *account;
+        if *opening != self.session.openings() {
+            log::info!("calendar check: the answer is for a mailbox that is no longer open; let go of");
+            self.calendar.check_rx = None;
+            return;
+        }
         let mut result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,

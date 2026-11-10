@@ -392,7 +392,7 @@ impl OnlineMeeting {
         let host = rest.split(['/', '?', '#']).next().unwrap_or("");
         let plain = url.len() <= MAX_JOIN_LINK && !url.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '"' | '<' | '>' | '\\'));
         let named = !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'));
-        let parses = || url::Url::parse(url).is_ok_and(|u| u.scheme() == "https" && u.host_str().is_some_and(|h| !h.is_empty()));
+        let parses = || mailcraft_link::WebLink::parse(url).is_some_and(|l| l.is_https());
         (plain && named && parses()).then(|| format!("https://{rest}"))
     }
 

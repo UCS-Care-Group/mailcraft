@@ -342,7 +342,7 @@ impl Cache {
     fn read(&self, entry: &Entry, looks: fn(&[u8]) -> bool) -> Option<Vec<u8>> {
         let (_, path) = self.path(&entry.content)?;
         let len = usize::try_from(entry.len).ok().filter(|len| *len <= MAX_PICTURE)?;
-        let file = open_plain(&path, entry.len)?;
+        let file = open_plain_waiting(&path, entry.len)?;
         let mut bytes = Vec::new();
         bytes.try_reserve_exact(len.checked_add(1)?).ok()?;
         // Never more than was promised, however the file grows while it is read.
@@ -411,9 +411,11 @@ impl Cache {
         create_private_dir_all(&folder)?;
         let serial = self.serial.fetch_add(1, Ordering::Relaxed);
         let partial = folder.join(format!("{}.{}-{serial}.part", content.hex(), std::process::id()));
-        let written = create_private_replacing(&partial)
-            .and_then(|mut f| f.write_all(bytes).and_then(|()| f.flush()))
-            .and_then(|()| fs::rename(&partial, &file));
+        let written = create_private_replacing(&partial).and_then(|mut f| f.write_all(bytes).and_then(|()| f.flush())).and_then(|()| {
+            // Another thread may have kept it while this one wrote: renaming over a file that is
+            // being read is refused on Windows, or leaves it missing for a moment, so don't.
+            if there(&file) { Err(std::io::Error::other("kept meanwhile")) } else { fs::rename(&partial, &file) }
+        });
         match written {
             Ok(()) => Ok(()),
             // Another thread kept the same picture at the same moment.
@@ -570,6 +572,25 @@ impl Cache {
         }
         self.write_index(true);
     }
+}
+
+/// How often, and how long between tries, a file that is not there or will not open is asked
+/// for again by [`open_plain_waiting`].
+const OPEN_TRIES: u32 = 10;
+const OPEN_WAIT: Duration = Duration::from_millis(10);
+
+/// [`open_plain`], tried again for a moment when it fails: a file another thread is just
+/// renaming over the same name is, on Windows, refused to a reader or missing for a moment,
+/// and a picture that was kept would be taken for one that was not. A file that really is not
+/// right costs `OPEN_TRIES` waits once and is forgotten as before.
+fn open_plain_waiting(path: &Path, max: u64) -> Option<fs::File> {
+    for _ in 1..OPEN_TRIES {
+        if let Some(file) = open_plain(path, max) {
+            return Some(file);
+        }
+        std::thread::sleep(OPEN_WAIT);
+    }
+    open_plain(path, max)
 }
 
 /// Open `path` for reading when it is a plain file (not a link) of no more than `max` bytes.

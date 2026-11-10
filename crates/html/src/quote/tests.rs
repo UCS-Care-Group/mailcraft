@@ -289,3 +289,12 @@ proptest::proptest! {
         proptest::prop_assert!(attribute_names(&out).iter().all(|n| !n.starts_with("on")), "{}", out);
     }
 }
+
+/// #598: what the sender hid with a style sheet goes with its content, and the sheet is not carried.
+#[test]
+fn what_a_style_sheet_hid_is_not_carried() {
+    let html = "<style>.pre{display:none}.m{visibility:hidden}</style><div class=pre>PREHEADER</div><p class=m>MOBILE</p><p class=x>KEPT</p>";
+    let out = quotable(html);
+    assert!(out.contains("KEPT") && !out.contains("PREHEADER") && !out.contains("MOBILE") && !out.contains("<style"), "{out}");
+    assert_eq!(quotable(&out), out);
+}

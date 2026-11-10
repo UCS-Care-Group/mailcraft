@@ -61,16 +61,42 @@ const MAX_ID: usize = 1_024;
 const MAX_NAME: usize = 255;
 /// The folders asked for by their well-known names, with what each is here. `msgfolderroot` is
 /// the top of the mailbox: what lies in it directly is at the top here.
-const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
-    ("msgfolderroot", None),
+///
+/// The server's Outbox is not among them: what Exchange holds there is queued for sending with
+/// the owner's rights, and MailCraft's own Outbox (the queue it sends from) is never bound to
+/// it (AU2-V2). It is asked for by [`OUTBOX`] only to be told apart: an empty one is left out
+/// of the listing (an Exchange mailbox's always is, over IMAP), so the folder pane doesn't show two
+/// Outboxes; one that holds mail is listed as any folder is.
+///
+/// The names after the first [`SPECIAL`] are the server's other own folders (Conversation History,
+/// Sync Issues and the like, #756). They have no kind here, but are told apart so that they are
+/// never deleted or moved (the server refuses it). A server that won't say anything of one of
+/// them loses nothing else.
+const WELL_KNOWN: [(&str, Option<FolderKind>); 17] = [
+    (ROOT, None),
+    (OUTBOX, None),
     ("inbox", Some(FolderKind::Inbox)),
     ("drafts", Some(FolderKind::Drafts)),
     ("sentitems", Some(FolderKind::Sent)),
     ("deleteditems", Some(FolderKind::Deleted)),
     ("archive", Some(FolderKind::Archive)),
     ("junkemail", Some(FolderKind::Junk)),
-    ("outbox", Some(FolderKind::Outbox)),
+    ("clutter", None),
+    ("conflicts", None),
+    ("conversationhistory", None),
+    ("localfailures", None),
+    ("recoverableitemsdeletions", None),
+    ("scheduled", None),
+    ("searchfolders", None),
+    ("serverfailures", None),
+    ("syncissues", None),
 ];
+/// How many of [`WELL_KNOWN`] the listing can't do without.
+const SPECIAL: usize = 8;
+/// The well-known name of the server's Outbox.
+const OUTBOX: &str = "outbox";
+/// The well-known name of the top of the mailbox.
+const ROOT: &str = "msgfolderroot";
 
 /// Make the folder changes of `request` on the server and list the mailbox's folders, as the
 /// owner of `token` (an access token for Graph that covers `Mail.ReadWrite`).
@@ -133,7 +159,16 @@ pub(crate) fn sync_mail_renewing_with(
     emit(folders);
     let priority = if request.background { Priority::Background } else { Priority::Owner };
     let mut last = match for_mail(base, token, &bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
-        Ok(graph) => down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit),
+        Ok(graph) => {
+            let mut last = down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit);
+            // Then the conversation ids of mail listed before they were asked for (#795), unless
+            // the server asked to be left alone or the owner stopped the run.
+            if !request.threads.is_empty() && last.busy_for.is_none() && !last.stopped && !cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                let (threads, busy_for) = threads::conversations(&graph, request, cancel);
+                (last.threads, last.busy_for) = (threads, busy_for);
+            }
+            last
+        }
         Err(e) => GraphMailResult {
             account: request.account,
             email: request.email.clone(),
@@ -283,6 +318,17 @@ fn folders_in(graph: &Graph<'_>, request: &GraphMailRequest, gate: &Arc<Gate>, m
     // What was changed here goes up first: the listing then shows the server after it.
     let mut made: HashMap<u64, String> = HashMap::new();
     for change in request.changes.iter().take(MAX_FOLDER_CHANGES) {
+        // One of the server's own folders (#756) is never renamed, moved or deleted: the server
+        // would refuse it, and a shared mailbox's 403 would stop the run before the listing that
+        // marks the folder. It is refused here without asking, and put back as any refusal is.
+        if let FolderChange::Rename { id, .. } | FolderChange::Move { id, .. } | FolderChange::Delete { id, .. } = change
+            && known.own.contains(id)
+        {
+            log::info!("graph folders: a change of one of the server's own folders is refused without asking");
+            let why = "it is one of the server's own folders, which may not be renamed, moved or deleted".to_string();
+            out.changes.push(FolderChangeDone { change: change.clone(), outcome: ChangeOutcome::Refused { why } });
+            continue;
+        }
         match make_change(graph, &known, &made, change) {
             Ok(Some(outcome)) => {
                 if let (FolderChange::Create { folder, .. }, ChangeOutcome::Done { folder: there }) = (change, &outcome) {
@@ -411,6 +457,10 @@ fn shared_address(request: &GraphMailRequest) -> Option<&str> {
 struct Known {
     root: String,
     kinds: HashMap<String, FolderKind>,
+    /// The server's Outbox, when it has one: never MailCraft's own (AU2-V2).
+    outbox: Option<String>,
+    /// The server's own folders, those of [`WELL_KNOWN`] it has (#756).
+    own: HashSet<String>,
 }
 
 impl Known {
@@ -434,25 +484,72 @@ fn id_of(value: &str) -> Option<String> {
 /// `GET /me/mailFolders/{name}` for every well-known name, twenty to a batch (one at a time
 /// when the server won't take a batch). Every name has to get an answer (a folder, or "there is
 /// none"): which folder is the Inbox is not guessed.
+///
+/// The names of [`WELL_KNOWN`] after the first [`SPECIAL`] are asked in a batch of their own,
+/// once the others have been answered: a mailbox that refuses is not asked about more (#756).
 fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
+    let mut answers: Vec<Option<Option<String>>> = vec![None; WELL_KNOWN.len()];
+    ask(graph, 0..SPECIAL, &mut answers)?;
+    ask(graph, SPECIAL..WELL_KNOWN.len(), &mut answers)?;
+    let mut known = Known::default();
+    for ((name, kind), answer) in WELL_KNOWN.iter().zip(answers) {
+        let Some(Some(id)) = answer else { continue };
+        if *name != ROOT {
+            known.own.insert(id.clone());
+        }
+        match kind {
+            None if *name == OUTBOX => known.outbox = Some(id),
+            None if *name == ROOT => known.root = id,
+            None => {}
+            Some(kind) => {
+                known.kinds.entry(id).or_insert(*kind);
+            }
+        }
+    }
+    if known.root.is_empty() {
+        // Graph's own code said "no mailbox" above when it was one (#70, #539); any other
+        // "not found" is an ordinary error, and the next run asks again.
+        return Err(nonsense("Microsoft Graph didn't say where the top of the mailbox is"));
+    }
+    Ok(known)
+}
+
+/// The names of [`WELL_KNOWN`] in `span`, asked in one batch and then, for what it didn't settle,
+/// one at a time: their answers go into `answers` by their place in the list.
+fn ask(graph: &Graph<'_>, span: std::ops::Range<usize>, answers: &mut [Option<Option<String>>]) -> Result<(), NetError> {
     let select = http::form(&[("$select", "id")]);
     let requests: Vec<Value> = WELL_KNOWN
         .iter()
         .enumerate()
+        .filter(|(n, _)| span.contains(n))
         .map(|(n, (name, _))| json!({"id": n.to_string(), "method": "GET", "url": graph.batch_path(&format!("/mailFolders/{name}?{select}")), "headers": {"Prefer": IMMUTABLE_IDS}}))
         .collect();
     let body = json!({"requests": requests}).to_string();
-    let reply = graph.call(Kind::Read, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), ASK_TIMEOUT, MAX_BATCH)?;
-    let mut answers: Vec<Option<Option<String>>> = vec![None; WELL_KNOWN.len()];
+    // (The names only told apart, #756, are not worth ending the run for when the server can't
+    // be reached for them: none of them is taken as there, and the next run asks again.)
+    let extras = span.start >= SPECIAL;
+    let reply = match graph.call(Kind::Read, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), ASK_TIMEOUT, MAX_BATCH)
+    {
+        Err(e) if extras && e.is_unreachable() => {
+            for slot in answers.iter_mut().skip(span.start).take(span.len()) {
+                *slot = Some(None);
+            }
+            return Ok(());
+        }
+        reply => reply?,
+    };
     if reply.status == 200 {
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         let said = json.get("responses").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
         for one in said.iter().take(BATCH_SIZE * 2) {
             let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
-            let Some(slot) = n.and_then(|n| answers.get_mut(n)) else { continue };
+            let Some(slot) = n.filter(|n| span.contains(n)).and_then(|n| answers.get_mut(n)) else { continue };
             let status = one.get("status").and_then(Value::as_u64);
-            // A shared mailbox that isn't to be opened says so in every answer (#70).
+            let extra = n.is_some_and(|n| n >= SPECIAL);
+            // A shared mailbox that isn't to be opened says so in every answer (#70): the first
+            // [`SPECIAL`] show it, so what is asked only to tell folders apart isn't heard.
             if graph.shared()
+                && !extra
                 && let Some(why) = super::shared_refusal(status.unwrap_or(0), one.get("body").unwrap_or(&Value::Null))
             {
                 return Err(NetError::SharedRefused(why));
@@ -461,17 +558,39 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
                 Some(200) => one.get("body").map(|body| id_of(text(body, "id"))).filter(Option::is_some),
                 // The mailbox has no such folder (an Archive, say).
                 Some(404) => Some(None),
+                // A folder only told apart (#756) that this mailbox won't answer for (a 400 for a
+                // name it doesn't know, a 403 for one it doesn't let the owner see) is taken as
+                // not there, not asked again name by name. Any other answer is asked again below.
+                Some(400 | 403) if extra => Some(None),
                 _ => None,
             };
         }
+    } else if extras && matches!(reply.status, 403 | 500..=599) {
+        // The names only told apart (#756) are not needed to list the mailbox: a batch of them
+        // the server refuses or is in trouble with is taken as none of them there, without
+        // asking them one by one, and the next run asks again. (The mark of a folder stays once
+        // set.) "Sign in again" and "slow down" end the run below as for any folder; another
+        // answer (a server that won't take a batch) has them asked one at a time.
+        for slot in answers.iter_mut().skip(span.start).take(span.len()) {
+            *slot = Some(None);
+        }
+        return Ok(());
     } else if matches!(reply.status, 401 | 403 | 429 | 503 | 504) {
         return Err(graph.refusal(Doing::Folders, &reply, &body));
     }
     // What the batch didn't settle, one at a time.
-    for ((name, _), slot) in WELL_KNOWN.iter().zip(answers.iter_mut()).filter(|(_, slot)| slot.is_none()) {
+    for (n, ((name, _), slot)) in WELL_KNOWN.iter().zip(answers.iter_mut()).enumerate().filter(|(n, (_, slot))| span.contains(n) && slot.is_none()) {
         let url = graph.url(&format!("{}/{name}?{select}", folders(graph)));
-        let reply = graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE)?;
+        let extra = n >= SPECIAL;
+        let reply = match graph.call(Kind::Read, &url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE) {
+            Err(e) if extra && e.is_unreachable() => {
+                *slot = Some(None);
+                continue;
+            }
+            reply => reply?,
+        };
         if graph.shared()
+            && !extra
             && let Some(why) = super::shared_refusal(u64::from(reply.status), &serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null))
         {
             return Err(NetError::SharedRefused(why));
@@ -479,30 +598,23 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
         *slot = match reply.status {
             200 => {
                 let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-                Some(Some(id_of(text(&json, "id")).ok_or_else(|| nonsense("Microsoft Graph named a folder without an id"))?))
+                match id_of(text(&json, "id")) {
+                    Some(id) => Some(Some(id)),
+                    None if extra => Some(None),
+                    None => return Err(nonsense("Microsoft Graph named a folder without an id")),
+                }
             }
             404 => Some(None),
+            // A folder only told apart (#756) is not needed to list the mailbox: whatever the
+            // server says of it besides "sign in again" (401) or "slow down" (429), which end the
+            // run as for any folder, is taken as "not there" (a 400, a 403, its own trouble), so
+            // that a mailbox that always answers one of them so still lists. The mark of a
+            // folder stays once set, and the next run asks again.
+            _ if extra && !matches!(reply.status, 401 | 429) => Some(None),
             _ => return Err(graph.refusal(Doing::Folders, &reply, "")),
         };
     }
-    let mut known = Known::default();
-    for ((_, kind), answer) in WELL_KNOWN.iter().zip(answers) {
-        let Some(Some(id)) = answer else { continue };
-        match kind {
-            None => known.root = id,
-            Some(kind) => {
-                known.kinds.entry(id).or_insert(*kind);
-            }
-        }
-    }
-    if known.root.is_empty() {
-        // For a shared mailbox, that is Graph having no mailbox there for the owner (#70).
-        if graph.shared() {
-            return Err(NetError::SharedRefused(mailcraft_model::sync::SharedRefusal::NoMailbox));
-        }
-        return Err(nonsense("Microsoft Graph didn't say where the top of the mailbox is"));
-    }
-    Ok(known)
+    Ok(())
 }
 
 /// A folder in an answer: its id, its name, how many folders lie in it, and whether it is one
@@ -581,6 +693,11 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                     if entry.unseen || !seen.insert(entry.id.clone()) {
                         continue;
                     }
+                    // The server's Outbox while it holds nothing: MailCraft's own Outbox is the
+                    // one shown.
+                    if known.outbox.as_deref() == Some(entry.id.as_str()) && entry.counted && entry.total == 0 && entry.children == 0 {
+                        continue;
+                    }
                     if entry.children > 0 {
                         if depth + 1 < MAX_DEPTH {
                             next.push(entry.id.clone());
@@ -589,6 +706,7 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                         }
                     }
                     let kind = known.kinds.get(&entry.id).copied().unwrap_or_default();
+                    let well_known = known.own.contains(&entry.id);
                     out.folders.push(GraphFolder {
                         id: entry.id,
                         parent: parent.clone(),
@@ -597,6 +715,7 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                         total: entry.total,
                         unread: entry.unread,
                         counted: entry.counted,
+                        well_known,
                     });
                 }
             }
@@ -779,8 +898,16 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                 _ => outcome_of(graph, &reply, &body),
             }
         }
-        FolderChange::Delete { id } => {
+        FolderChange::Delete { id, shown } => {
             let id = checked(id)?;
+            // Only what the owner was shown goes with it (AU3-H7): the server is asked what it
+            // holds there first, and anything more keeps the folder.
+            match delete_check::unshown(graph, &id, shown)? {
+                delete_check::Found::Gone => return Ok(Some(ChangeOutcome::Gone)),
+                delete_check::Found::Unshown(0) => {}
+                delete_check::Found::Unshown(items) => return Ok(Some(ChangeOutcome::NotShown { items })),
+                delete_check::Found::Unknown => return Ok(Some(refused(CHECK_FAILED))),
+            }
             let url = graph.url(&format!("{}/{}", folders(graph), http::encode(&id)));
             let reply = graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
             refusing(graph, &reply)?;
@@ -805,6 +932,9 @@ fn refusing(graph: &Graph<'_>, reply: &Reply) -> Result<(), NetError> {
     }
     Ok(())
 }
+
+/// Why a folder wasn't deleted when what the server holds in it couldn't be read first (AU3-H7).
+const CHECK_FAILED: &str = "what the server holds in it couldn't be checked first, so nothing was deleted";
 
 fn refused(why: &str) -> ChangeOutcome {
     ChangeOutcome::Refused { why: why.to_string() }
@@ -862,19 +992,31 @@ fn child_named(graph: &Graph<'_>, known: &Known, parent: &str, name: &str) -> Re
     Ok(found)
 }
 
+mod delete_check;
 mod down;
 mod drafts;
 mod fetch;
 mod place;
 mod search;
 mod send;
+mod threads;
 mod up;
 
 pub use fetch::fetch_messages;
 pub use search::search_messages;
 
 #[cfg(test)]
+mod delete_check_tests;
+#[cfg(test)]
 mod down_tests;
+#[cfg(test)]
+mod draft_content_tests;
+#[cfg(test)]
+mod header_order_tests;
+#[cfg(test)]
+mod inbox_first_tests;
+#[cfg(test)]
+mod inline_picture_tests;
 #[cfg(test)]
 mod renew_tests;
 #[cfg(test)]
@@ -885,3 +1027,7 @@ mod shared_tests;
 mod skip_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod threads_tests;
+#[cfg(test)]
+mod well_known_tests;

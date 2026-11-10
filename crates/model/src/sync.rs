@@ -12,11 +12,13 @@ use crate::{Account, Address, FlagStatus, FolderCounts, FolderKind, Id, Importan
 use mailcraft_time::Timestamp;
 
 mod drafts;
+mod ews;
 mod jmap;
 mod place;
 mod progress;
 mod search;
 pub use drafts::*;
+pub use ews::*;
 pub use jmap::*;
 pub use place::*;
 pub use progress::*;
@@ -40,6 +42,10 @@ pub struct FolderState {
     pub uid_from: u32,
     /// UIDs of the messages the mailbox has in this folder (to notice deletions and flag changes).
     pub known_uids: Vec<u32>,
+    /// UIDs of messages here that are to be downloaded again, whole, to be read anew (#650:
+    /// mail kept with U+FFFD). A few at a time; the run asks for them without setting `\Seen`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub again: Vec<u32>,
 }
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
@@ -113,6 +119,51 @@ pub struct SyncRequest {
     /// has for it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ops: Vec<RemoteOp>,
+    /// Messages to put on the server, moved or copied into the account's folders from another
+    /// account or from this computer (#451); after `ops`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub places: Vec<ImapPlace>,
+    /// Messages of a Gmail account's Inbox the owner moved to another of Gmail's categories here
+    /// (#911), for Gmail's API: after `ops`, before anything is read. Only for an account that
+    /// signs in with Google, and only while moves are switched on; empty otherwise.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_moves: Vec<GmailMove>,
+}
+
+/// Most moves between Gmail's categories asked of Gmail's API in one run ([`SyncRequest::gmail_moves`]):
+/// the rest wait for the next.
+pub const MAX_GMAIL_MOVES: usize = 500;
+
+/// One message moved to another of Gmail's categories here ([`SyncRequest::gmail_moves`]), or one
+/// Gmail took the move of ([`SyncResult::gmail_moved`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GmailMove {
+    /// The message here.
+    pub message: Id,
+    /// Gmail's own id of it (`X-GM-MSGID`), which its API knows it by (in hex).
+    pub id: u64,
+    /// The category it goes to.
+    pub category: crate::GmailCategory,
+}
+
+/// A message to put in one of the server's mailboxes ([`SyncRequest::places`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ImapPlace {
+    /// The whole message: its fields, its body and its files.
+    pub message: Message,
+    /// Where it goes, as [`RemoteOp::Move`] says it: the local folder `to_folder`, whose server
+    /// path is `to`; or, for a folder that only exists here, `create` holds its names below `to`,
+    /// the path of the nearest folder above it that the server has (empty: the top level).
+    pub to: String,
+    pub to_folder: Id,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub create: Vec<String>,
+    /// The marker the copy carries ([`crate::Queued::PlaceMessage`]): a copy on the server is
+    /// taken for this one only when it carries it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub marker: String,
 }
 
 impl SyncRequest {
@@ -134,6 +185,8 @@ impl std::fmt::Debug for SyncRequest {
             .field("folders", &self.folders.len())
             .field("outbox", &self.outbox.len())
             .field("ops", &self.ops.len())
+            .field("places", &self.places.len())
+            .field("gmail_moves", &self.gmail_moves.len())
             .finish()
     }
 }
@@ -256,6 +309,62 @@ pub struct ServerMessage {
     /// from the server's copy of one made here (R3.4.1, S26). Empty when not known.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub change_key: String,
+    /// The server's id of the conversation it is in (#795): Graph's `conversationId`, EWS's
+    /// `ConversationId`, JMAP's `threadId`. Opaque, never shown, and sent nowhere but back to
+    /// its own server; what [`crate::ThreadIndex`] links a conversation by, with the headers.
+    /// Printable ASCII of at most [`MAX_THREAD_ID`] bytes ([`thread_id`]); empty when the server
+    /// hasn't said (a listing from before it was asked for), and it goes with the rest of this
+    /// when the message leaves the account.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub thread: String,
+    /// It was asked for its `thread` after the listing that brought it without one (the look-up of
+    /// #795), and the server gave none, or refused [`MAX_THREAD_TRIES`] times: it isn't asked again.
+    #[serde(skip_serializing_if = "is_false")]
+    pub thread_asked: bool,
+    /// How many runs its server refused to say its `thread` (an error for the message, or the
+    /// whole question refused; never a busy server or a lost connection): at
+    /// [`MAX_THREAD_TRIES`] it is marked [`ServerMessage::thread_asked`], so that a server that
+    /// never will isn't asked at every run.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub thread_tries: u32,
+}
+
+/// Most runs a message's server may refuse to say its conversation before it isn't asked again.
+pub const MAX_THREAD_TRIES: u32 = 3;
+
+/// The longest server conversation id kept ([`ServerMessage::thread`]), in bytes.
+pub const MAX_THREAD_ID: usize = 256;
+
+/// A server's conversation id as it is kept ([`ServerMessage::thread`]): printable ASCII of at
+/// most [`MAX_THREAD_ID`] bytes, else none. What a server or a file says is hostile.
+pub fn thread_id(said: &str) -> String {
+    let said = said.trim();
+    if said.len() <= MAX_THREAD_ID && said.bytes().all(|b| b.is_ascii_graphic()) { said.to_string() } else { String::new() }
+}
+
+/// Most messages one run asks the conversation id of (#795): the messages listed before it was
+/// asked for, a thousand a run, newest first, until every one has it or was asked once.
+pub const MAX_THREAD_ASKS: usize = 1_000;
+
+/// What a server said of the conversation of a message it was asked about ([`MAX_THREAD_ASKS`]):
+/// the message's server id and the conversation id, empty when the server gave none (or no
+/// longer has the message). `refused` when the server refused to say ([`MAX_THREAD_TRIES`]). A
+/// message the server didn't answer for isn't here, and is asked again in a later run.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ThreadOf {
+    pub id: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub thread: String,
+    #[serde(skip_serializing_if = "is_false")]
+    pub refused: bool,
+}
+
+impl ThreadOf {
+    /// What a server refused to say of the message `id`.
+    pub fn refused(id: &str) -> ThreadOf {
+        ThreadOf { id: id.to_string(), thread: String::new(), refused: true }
+    }
 }
 
 /// The server's copy of a message that is **being moved** out of a Microsoft account
@@ -269,6 +378,15 @@ pub struct MovingOut {
     /// back to when its move into another mailbox of the same owner's is refused (#70).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub folder: String,
+    /// The server said the copy left that folder (deleted, or moved on by another program) and
+    /// hasn't shown it in another since: there may be nothing there to go back to (#451).
+    #[serde(skip_serializing_if = "is_false")]
+    pub left: bool,
+    /// `left` was said by a listing of that folder afresh that hasn't ended (#30): the copy may
+    /// still be there, in a page to come, and counts as one that may hold the bytes the message
+    /// came as until the listing ends without it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub listing: bool,
 }
 
 /// Whether two names are the same category's. Outlook's categories are matched by name and a
@@ -333,6 +451,11 @@ pub struct GraphFetchRequest {
 pub struct GraphFetchResult {
     pub account: Id,
     pub email: String,
+    /// For a JMAP account, the address of the server's session resource the messages were fetched
+    /// from (their request's): they are taken in only while the account still names that server.
+    /// Empty for a Microsoft account's. It may carry the account's address, so it is never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fetched: Vec<GraphFetched>,
     /// Server ids the server answered "not found" for (deleted or moved meanwhile; the next run
@@ -366,12 +489,12 @@ pub struct GraphFetched {
 pub(crate) fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
+    T: serde::de::DeserializeOwned,
 {
-    Ok(match Maybe::<T>::deserialize(deserializer)? {
-        Maybe::Is(value) => Some(value),
-        Maybe::Not(_) => None,
-    })
+    // (Held as JSON first, then read from it as the file is, every list element in it charged to
+    // the budget of the file being read: `load_limit`.)
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(crate::load_limit::from_value(&value).ok())
 }
 
 /// [`lenient`] for a value that has a "nothing was said" of its own: that, when what the file
@@ -379,7 +502,7 @@ where
 pub(crate) fn lenient_or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: Deserialize<'de> + Default,
+    T: serde::de::DeserializeOwned + Default,
 {
     lenient(deserializer).map(Option::unwrap_or_default)
 }
@@ -388,31 +511,10 @@ where
 pub(crate) fn lenient_list<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
+    T: serde::de::DeserializeOwned,
 {
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum List<T> {
-        Is(Vec<Maybe<T>>),
-        Not(serde::de::IgnoredAny),
-    }
-    Ok(match List::<T>::deserialize(deserializer)? {
-        List::Is(entries) => entries
-            .into_iter()
-            .filter_map(|entry| match entry {
-                Maybe::Is(value) => Some(value),
-                Maybe::Not(_) => None,
-            })
-            .collect(),
-        List::Not(_) => Vec::new(),
-    })
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Maybe<T> {
-    Is(T),
-    Not(serde::de::IgnoredAny),
+    let serde_json::Value::Array(entries) = serde_json::Value::deserialize(deserializer)? else { return Ok(Vec::new()) };
+    Ok(entries.iter().filter_map(|entry| crate::load_limit::from_value(entry).ok()).collect())
 }
 
 /// What changed in one server folder.
@@ -435,6 +537,43 @@ pub struct FolderDelta {
     pub flags: Vec<RemoteFlags>,
     /// UIDs the mailbox has that the server no longer does.
     pub removed: Vec<u32>,
+    /// This piece ends the folder's reading and everything that was wanted of it came (#504):
+    /// the folder has been read whole once ([`crate::Folder::read_whole`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub complete: bool,
+    /// Messages of [`FolderState::again`] downloaded again (`uid` set): only their subject,
+    /// names and text are taken from them (#650).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetched: Vec<Message>,
+    /// UIDs of [`FolderState::again`] that are settled without a new copy (the message is too
+    /// large to download), so that they are not asked for at every run.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_done: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those too large to download (#30): what waits for the
+    /// bytes they came as can't have them here.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_too_large: Vec<u32>,
+    /// Of [`FolderDelta::refetch_done`], those the server refused (#30): asked for again by a run
+    /// after, so many times.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_refused: Vec<u32>,
+    /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
+    /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
+    /// ends the folder's reading; empty from every other server and folder.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail: Vec<GmailSorted>,
+}
+
+/// What Gmail said of one message of a Gmail account's Inbox ([`FolderDelta::gmail`], #911).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GmailSorted {
+    pub uid: u32,
+    /// The category Gmail put it in.
+    pub category: crate::GmailCategory,
+    /// Gmail's own id of it (`X-GM-MSGID`); 0 when the server gave none.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub id: u64,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).
@@ -491,6 +630,23 @@ pub struct Deleted {
     pub uid: u32,
 }
 
+/// A message the server took ([`SyncRequest::places`]), in the mailbox of local folder
+/// `to_folder`: its UID there and that mailbox's `UIDVALIDITY` when the server said them
+/// (`APPENDUID`), 0 when it didn't, and the flags it was given (the message may have changed
+/// here since).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Placed {
+    pub message: Id,
+    pub to_folder: Id,
+    pub uid: u32,
+    pub uid_validity: u32,
+    pub flags: RemoteFlags,
+    /// The message put there had the bytes it came as whole (#30, [`Message::original`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub original: bool,
+}
+
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -541,6 +697,11 @@ pub struct SyncResult {
     /// (it wouldn't take it, or has no mailbox for sent mail): the copy here is the one there is.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unfiled: Vec<Id>,
+    /// Outbox messages whose send was cut off after they were handed to the outgoing server
+    /// (the connection broke, no answer came): whether they went is not known, so they are held
+    /// for the owner, never sent again by itself (AU3-26).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unsure: Vec<Id>,
     /// What became of [`SyncRequest::ops`]. An op that isn't here failed (see `errors`) or wasn't
     /// tried, and is still to be pushed.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -552,6 +713,26 @@ pub struct SyncResult {
     /// Mailboxes made on the server, whether or not the move they were made for went through.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub created: Vec<Created>,
+    /// What became of [`SyncRequest::places`]: the messages the server took. One that isn't here
+    /// nor in `unplaced` wasn't tried, or its answer was lost, and is put there again next time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub placed: Vec<Placed>,
+    /// Messages the server wouldn't take (see `errors`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unplaced: Vec<Id>,
+    /// What became of [`SyncRequest::gmail_moves`]: the moves Gmail took (#911). One that isn't
+    /// here failed (see `errors`) or wasn't tried, and is asked for again next time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_moved: Vec<GmailMove>,
+    /// The moves Gmail refused on their own, one message at a time (#911): asked for again next
+    /// time, until Gmail has refused it [`crate::gmail::MAX_GMAIL_REFUSALS`] times.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_refused: Vec<GmailMove>,
+    /// How many of Gmail's messages had their moves not sent this run (the run's requests to
+    /// Gmail's API ran out); they wait for the next. Counted by Gmail's id: two copies here of
+    /// one message are one.
+    #[serde(skip_serializing_if = "is_zero_usize")]
+    pub gmail_unsent: usize,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
     /// piece of an answer: the problems since the piece before.
     pub errors: Vec<String>,
@@ -581,7 +762,13 @@ impl SyncResult {
 
     /// How many changes made here the server took on.
     pub fn pushed_count(&self) -> usize {
-        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len()
+        self.flagged.len()
+            + self.moved.len()
+            + self.deleted.len()
+            + self.created.len()
+            + self.placed.len()
+            + self.unplaced.len()
+            + self.gmail_moved.len()
     }
 
     /// Whether there is anything in it for a mailbox to take in. A piece with only a line of
@@ -592,6 +779,9 @@ impl SyncResult {
             && self.sent.is_empty()
             && self.filed.is_empty()
             && self.unfiled.is_empty()
+            && self.unsure.is_empty()
+            && self.gmail_refused.is_empty()
+            && self.gmail_unsent == 0
             && self.pushed_count() == 0)
     }
 
@@ -610,10 +800,16 @@ impl SyncResult {
         self.filed.retain(|id| !later.unfiled.contains(id));
         self.filed.extend(later.filed);
         self.unfiled.extend(later.unfiled);
+        self.unsure.extend(later.unsure);
         self.flagged.extend(later.flagged);
         self.moved.extend(later.moved);
         self.deleted.extend(later.deleted);
         self.created.extend(later.created);
+        self.placed.extend(later.placed);
+        self.unplaced.extend(later.unplaced);
+        self.gmail_moved.extend(later.gmail_moved);
+        self.gmail_refused.extend(later.gmail_refused);
+        self.gmail_unsent = self.gmail_unsent.saturating_add(later.gmail_unsent);
         self.errors.extend(later.errors);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
@@ -627,6 +823,8 @@ impl SyncResult {
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
+                    folder.gmail.extend(delta.gmail);
+                    folder.complete |= delta.complete;
                 }
                 None => self.folders.push(delta),
             }
@@ -704,8 +902,74 @@ pub enum FolderChange {
         #[serde(default, skip_serializing_if = "String::is_empty")]
         parent: String,
     },
-    /// The folder the server calls `id` was deleted for good here.
-    Delete { id: String },
+    /// The folder the server calls `id` was deleted for good here. `shown` is what the owner
+    /// had of it when it was (AU3-H7): the host sends the delete only when the server holds
+    /// nothing in it or under it beyond that ([`ChangeOutcome::NotShown`] otherwise).
+    Delete {
+        id: String,
+        #[serde(default, skip_serializing_if = "Shown::is_empty")]
+        shown: Shown,
+    },
+}
+
+/// What the owner had of a folder deleted for good here, and of everything under it, when it was
+/// deleted (AU3-H7): the server's ids of those folders and of their messages, each kept as its
+/// [`Shown::key`], and the folder's name for the line that says it wasn't deleted. Before the
+/// server is asked to delete the folder, which takes with it whatever the server holds there, the
+/// host reads what it holds, and anything not here (mail that arrived since, a folder made
+/// elsewhere) keeps the folder. One from a file of before has nothing: the folder goes only when
+/// the server holds nothing in it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Shown {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub folders: Vec<u64>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub messages: Vec<u64>,
+}
+
+/// Most folders, and most messages, a [`Shown`] keeps, and that the host reads of a folder before
+/// deleting it: past either, the folder isn't deleted on the server.
+pub const MAX_SHOWN_FOLDERS: usize = MAX_LISTED_FOLDERS;
+pub const MAX_SHOWN_MESSAGES: usize = 500_000;
+/// Longest name a [`Shown`] keeps, in characters.
+const MAX_SHOWN_NAME: usize = 80;
+
+impl Shown {
+    /// What `name` (the folder's), `folders` and `messages` (server ids) come to, held to the
+    /// caps (what is past them is left out, and the server then holds what isn't shown).
+    pub fn of<'a>(name: &str, folders: impl IntoIterator<Item = &'a str>, messages: impl IntoIterator<Item = &'a str>) -> Self {
+        fn keys<'a>(ids: impl Iterator<Item = &'a str>, most: usize) -> Vec<u64> {
+            let mut out: Vec<u64> = ids.take(most).map(Shown::key).collect();
+            out.sort_unstable();
+            out.dedup();
+            out
+        }
+        Shown {
+            name: name.chars().filter(|c| !c.is_control()).take(MAX_SHOWN_NAME).collect(),
+            folders: keys(folders.into_iter(), MAX_SHOWN_FOLDERS),
+            messages: keys(messages.into_iter(), MAX_SHOWN_MESSAGES),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.name.is_empty() && self.folders.is_empty() && self.messages.is_empty()
+    }
+
+    /// A server id as it is kept: FNV-1a, 64 bits, of its bytes. (A name for telling ids apart,
+    /// not a secret: the ids are the mailbox's own.)
+    pub fn key(id: &str) -> u64 {
+        id.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, b| (hash ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3))
+    }
+
+    /// The keys of the folders and of the messages as sets, for the host's check (held to the
+    /// caps, whatever a file said).
+    pub fn sets(&self) -> (std::collections::HashSet<u64>, std::collections::HashSet<u64>) {
+        let set = |keys: &[u64], most: usize| keys.iter().take(most).copied().collect();
+        (set(&self.folders, MAX_SHOWN_FOLDERS), set(&self.messages, MAX_SHOWN_MESSAGES))
+    }
 }
 
 impl FolderChange {
@@ -766,6 +1030,10 @@ pub struct GraphMailRequest {
     /// same counts as before. The first run after the mailbox is opened, then one an hour.
     #[serde(skip_serializing_if = "is_false")]
     pub full: bool,
+    /// Messages listed before their conversation ids were asked for, by server id: the server is
+    /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub threads: Vec<String>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -934,9 +1202,10 @@ pub struct GraphMessage {
     pub preview: String,
     #[serde(skip_serializing_if = "is_false")]
     pub has_attachments: bool,
-    /// It is a draft (Graph's `isDraft`).
-    #[serde(skip_serializing_if = "is_false")]
-    pub draft: bool,
+    /// It is a draft (Graph's `isDraft`); `None` when the server didn't say, which changes nothing
+    /// here (#611).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub draft: Option<bool>,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so
@@ -1004,6 +1273,14 @@ pub struct GraphFolder {
     /// whose counts aren't known is never passed over as unchanged.
     #[serde(skip_serializing_if = "is_false")]
     pub counted: bool,
+    /// It is one of the server's own folders (a well-known one, such as Conversation History),
+    /// which can't be deleted or moved (#756).
+    #[serde(skip_serializing_if = "is_false")]
+    pub well_known: bool,
+}
+
+fn is_zero_usize(n: &usize) -> bool {
+    *n == 0
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -1033,6 +1310,10 @@ pub enum ChangeOutcome {
     /// The server won't (403, 400, a name that is taken there): the folder is put back to what
     /// the server has, and this says why, in plain words.
     Refused { why: String },
+    /// A deletion that wasn't sent (AU3-H7): the server holds `items` folders and messages in the
+    /// folder or under it that weren't there when the owner deleted it (mail that arrived since,
+    /// a folder made elsewhere). The folder comes back as with a refusal.
+    NotShown { items: u32 },
 }
 
 /// A change and what became of it. A change that isn't answered (the server was busy, the
@@ -1106,6 +1387,10 @@ pub struct GraphMailResult {
     /// end of the account's part of the run, and never says the mailbox was read whole.
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass: bool,
+    /// What the server said of the conversations of the messages the run asked about
+    /// ([`GraphMailRequest::threads`], #795).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub threads: Vec<ThreadOf>,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by
@@ -1144,6 +1429,7 @@ impl GraphMailResult {
         if piece.listing.is_some() {
             self.listing = piece.listing;
         }
+        self.threads.extend(piece.threads);
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);
@@ -1262,7 +1548,7 @@ mod tests {
         // A mailbox of 0.4.0 (folder deletes only, or no queue at all) opens as it was.
         let before = r#"{"version": 1, "queued": [{"deleteFolder": {"account": 1, "id": "F9"}}]}"#;
         let mb: crate::Mailbox = serde_json::from_str(before).unwrap();
-        assert_eq!(mb.queued, [crate::Queued::DeleteFolder { account: 1, id: "F9".into() }]);
+        assert_eq!(mb.queued, [crate::Queued::DeleteFolder { account: 1, id: "F9".into(), shown: Default::default() }]);
         let mb: crate::Mailbox = serde_json::from_str(r#"{"version": 1}"#).unwrap();
         assert!(mb.queued.is_empty());
         // A kind of change from a later version is left out; the rest is kept.

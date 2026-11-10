@@ -7,7 +7,10 @@
 //! [`take_links`] takes out of a frame before eframe would open it behind our back).
 //!
 //! On Windows and macOS the system's own way of opening a page brings the browser forward, and
-//! that is all that is done there. On Linux and FreeBSD a program started from another one only
+//! that is all that is done there: `rundll32 url.dll,FileProtocolHandler <address>` and
+//! `open <address>`, started as programs with the address as their one argument, never through a
+//! shell ([`windows_command`], [`macos_command`]). No crate opens pages for us (#350), and the
+//! address is first written by [`normalised`], so that it holds only what is safe to pass. On Linux and FreeBSD a program started from another one only
 //! comes in front when it is handed an activation token from the program the owner was using:
 //! under Wayland an xdg-activation token, under X11 a startup-notification id. So a page waits
 //! for one: the window asks winit for a token ([`Browser::pump`]), winit hands it back as a
@@ -215,48 +218,161 @@ pub fn take_links(ctx: &egui::Context) -> Vec<String> {
 }
 
 /// The kinds of address the system's opener is ever handed.
-const OPENED: [&str; 4] = ["http:", "https:", "mailto:", "tel:"];
+const OPENED: [&str; 4] = ["http", "https", "mailto", "tel"];
 
 /// Whether an address may reach the system's opener. A link in a message is checked where it is
 /// read; this is the last check before anything leaves the program, whoever asked, so that a
 /// `file:`, `smb:` or `ms-msdt:` address can't be launched by a way in that forgot the first.
+#[cfg(test)]
 pub fn openable(url: &str) -> bool {
-    if url.chars().any(char::is_control) || !OPENED.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s))) {
-        return false;
-    }
-    // A web address the parser rejects would be taken for a relative file path by the opener
-    // (and become a `file:` address): refuse it here.
-    if url.get(..4).is_some_and(|p| p.eq_ignore_ascii_case("http")) {
-        return url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty()));
-    }
-    true
+    normalised(url).is_some()
 }
 
-/// The address as the opener is handed it: a web address as the URL parser writes it (what is
-/// launched is what was checked), anything else as it came; `None` when it may not be opened.
+/// The address as the opener is handed it, and `None` when it may not be opened. A web address
+/// is written by `mailcraft_link` (a host with a name and a parse, as a browser reads it): what
+/// is launched is what was checked. A `mailto:` or `tel:` address has its spaces, quotes and
+/// anything else outside ASCII written as `%XX`. So what comes out starts with its scheme in
+/// lower case and holds no space, quote, control character or backslash: no opener can take it
+/// for an option, for more than one argument, or (a web address the parser rejects, which an
+/// opener takes for a relative file path and turns into a `file:` address) for a file.
 pub fn normalised(url: &str) -> Option<String> {
-    if !openable(url) {
+    // Before anything is encoded, so that no address is written out at unbounded length.
+    if url.len() > mailcraft_link::MAX_LINK || url.chars().any(char::is_control) {
         return None;
     }
-    if url.get(..4).is_some_and(|p| p.eq_ignore_ascii_case("http")) {
-        return url::Url::parse(url).ok().map(String::from);
+    let (scheme, rest) = url.split_once(':')?;
+    let scheme = scheme.to_ascii_lowercase();
+    match scheme.as_str() {
+        "http" | "https" => mailcraft_link::WebLink::parse(url).map(mailcraft_link::WebLink::into_string),
+        "mailto" | "tel" if !rest.is_empty() && !rest.contains('\\') => Some(format!("{scheme}:{}", mailcraft_link::encode_opaque(rest))),
+        _ => None,
     }
-    Some(url.to_string())
 }
 
-/// The system's own way of opening a page (ShellExecute,Launch Services, the desktop's opener).
+/// Whether an address, as [`normalised`] writes it, is safe to hand to a program as one
+/// argument: one of the allowed schemes first (so never `-x` or a path), then printable ASCII
+/// only, and no quote (which Windows' command lines would read as the end of the argument).
+fn plain_argument(url: &str) -> bool {
+    OPENED.iter().any(|s| url.strip_prefix(s).and_then(|rest| rest.strip_prefix(':')).is_some_and(|rest| !rest.is_empty()))
+        && url.len() <= 1 << 16
+        && url.bytes().all(|b| b.is_ascii_graphic() && !matches!(b, b'"' | b'\\'))
+}
+
+/// The longest address given to a Windows launcher: `CreateProcess` takes a command line of at
+/// most 32,767 characters, and the program's path and `url.dll,FileProtocolHandler` come first.
+/// A longer address is refused (and said so as a browser that couldn't be started), not cut.
+pub const WINDOWS_MAX_ARGUMENT: usize = 32_000;
+
+/// `rundll32.exe url.dll,FileProtocolHandler <url>`: how a page is opened on Windows.
+///
+/// `url.dll`'s `FileProtocolHandler` hands the address to the shell's own handler for its scheme
+/// (what ShellExecute does), so the default browser or mail program opens, brought in front by
+/// Windows. It is a program started with an argument list, not a command line given to `cmd.exe`:
+/// nothing reads `&`, `^`, `|`, `%` or a quote in the address (`start` does, and so does a
+/// `.cmd` file). The address is one argument that [`plain_argument`] has checked: it starts with
+/// its scheme, so rundll32 can't take it for another entry point or an option; it holds no
+/// space or quote, so the command line Rust builds for it is the address and nothing more.
+/// `ShellExecuteW` itself is `unsafe` to call and this program forbids unsafe code; `explorer.exe
+/// <url>` was the other choice, and it reads its argument as a path or a folder when it doesn't
+/// care for the address. The program is the one in Windows' own directory, not whatever the
+/// search path finds first. `None` when the address is not for a program's argument.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn windows_command(url: &str, system_root: Option<std::ffi::OsString>) -> Option<std::process::Command> {
+    use std::process::{Command, Stdio};
+    if !plain_argument(url) || url.len() > WINDOWS_MAX_ARGUMENT {
+        return None;
+    }
+    let program = match system_root.filter(|r| !r.is_empty()) {
+        Some(root) => std::path::Path::new(&root).join("System32").join("rundll32.exe").into_os_string(),
+        None => "rundll32.exe".into(),
+    };
+    let mut command = Command::new(program);
+    command.arg("url.dll,FileProtocolHandler").arg(url);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // No console window flashes up for it.
+        command.creation_flags(0x0800_0000);
+    }
+    Some(command)
+}
+
+/// `open <url>`: how a page is opened on macOS (Launch Services). The address starts with its
+/// scheme, so `open` can't take it for an option; it is one argument, no shell.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn macos_command(url: &str) -> Option<std::process::Command> {
+    use std::process::{Command, Stdio};
+    if !plain_argument(url) {
+        return None;
+    }
+    let mut command = Command::new("/usr/bin/open");
+    command.arg(url);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    Some(command)
+}
+
+/// The commands that open a page on the other systems, in the order they are tried: what
+/// `$BROWSER` names (a list of programs divided by `:`, each with an optional `%s` for the
+/// address, split at spaces and never through a shell), then the desktops' own openers.
+pub fn unix_commands(url: &str, browser: Option<&str>) -> Vec<std::process::Command> {
+    use std::process::{Command, Stdio};
+    if !plain_argument(url) {
+        return Vec::new();
+    }
+    let mut commands = Vec::new();
+    for entry in browser.unwrap_or("").split(':').take(8) {
+        let mut words = entry.split_whitespace();
+        let Some(program) = words.next() else { continue };
+        let mut command = Command::new(program);
+        let mut given = false;
+        for word in words {
+            if word.contains("%s") {
+                given = true;
+            }
+            command.arg(word.replace("%s", url));
+        }
+        if !given {
+            command.arg(url);
+        }
+        commands.push(command);
+    }
+    for (program, first) in
+        [("xdg-open", None), ("gio", Some("open")), ("kde-open", None), ("gnome-open", None), ("x-www-browser", None), ("www-browser", None)]
+    {
+        let mut command = Command::new(program);
+        if let Some(first) = first {
+            command.arg(first);
+        }
+        command.arg(url);
+        commands.push(command);
+    }
+    for command in &mut commands {
+        command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    }
+    commands
+}
+
+/// The system's own way of opening a page: Windows' shell handler (`rundll32`), macOS' `open`,
+/// elsewhere `$BROWSER` and the desktop's openers. Nothing else is run, and never through a shell.
 pub fn system_open(url: &str) -> bool {
     let Some(url) = normalised(url) else {
         log::warn!("browser: an address of a kind that is never opened was refused");
         return false;
     };
-    match webbrowser::open(&url) {
-        Ok(()) => true,
-        Err(e) => {
-            log::warn!("couldn't start a browser ({:?})", e.kind());
-            false
+    #[cfg(windows)]
+    let commands: Vec<_> = windows_command(&url, std::env::var_os("SystemRoot")).into_iter().collect();
+    #[cfg(target_os = "macos")]
+    let commands: Vec<_> = macos_command(&url).into_iter().collect();
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let commands = unix_commands(&url, std::env::var("BROWSER").ok().as_deref());
+    for mut command in commands {
+        if run_opener(&mut command) {
+            return true;
         }
     }
+    log::warn!("couldn't start a browser");
+    false
 }
 
 /// Opens pages on Linux and FreeBSD: `xdg-open`, with the activation token in its environment,
@@ -272,7 +388,7 @@ impl Launch for Desktop {
         if let Some(token) = token
             && std::env::var_os("BROWSER").is_none()
             && let Some(mut command) = opener_command(url, token)
-            && xdg_open(&mut command)
+            && run_opener(&mut command)
         {
             return true;
         }
@@ -280,15 +396,13 @@ impl Launch for Desktop {
     }
 }
 
-/// How long `xdg-open` is given to say it couldn't open a page before it is taken to have.
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+/// How long an opener is given to say it couldn't open a page before it is taken to have.
 const OPENER_WAIT: Duration = Duration::from_secs(2);
 
-/// Start `xdg-open` and see whether it opened the page: it exits at once on the desktops (it
+/// Start an opener and see whether it opened the page: it exits at once on the desktops (it
 /// hands the page to the desktop's own opener); where it starts the browser itself, it is still
 /// running, and is left to it.
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-fn xdg_open(command: &mut std::process::Command) -> bool {
+fn run_opener(command: &mut std::process::Command) -> bool {
     let Ok(mut child) = command.spawn() else { return false };
     let started = Instant::now();
     loop {
@@ -323,205 +437,5 @@ pub fn opener_command(url: &str, token: &str) -> Option<std::process::Command> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Records what it was asked to open, and with which token.
-    #[derive(Default)]
-    struct Fake(Mutex<Vec<(String, Option<String>)>>);
-
-    impl Launch for Fake {
-        fn launch(&self, url: &str, token: Option<&str>) -> bool {
-            self.0.lock().unwrap().push((url.to_string(), token.map(str::to_string)));
-            true
-        }
-    }
-
-    fn browser() -> (Arc<Fake>, Browser<u32>) {
-        let fake = Arc::new(Fake::default());
-        (fake.clone(), Browser::new(fake))
-    }
-
-    #[test]
-    fn a_page_opens_with_the_token_the_window_was_given() {
-        let (fake, browser) = browser();
-        let (_, rx) = browser.open("https://login.example/authorize");
-        let now = Instant::now();
-        let next = browser.pump(&mut || Some(7), now);
-        assert_eq!(next, Some(TOKEN_WAIT));
-        assert!(fake.0.lock().unwrap().is_empty(), "waits for its token");
-        browser.token_arrived(&8, "other".into());
-        browser.token_arrived(&7, "tok-7".into());
-        assert!(rx.recv_timeout(Duration::from_secs(5)).unwrap());
-        assert_eq!(*fake.0.lock().unwrap(), vec![("https://login.example/authorize".to_string(), Some("tok-7".to_string()))]);
-        // Nothing left waiting, and a late answer for it opens nothing more.
-        browser.token_arrived(&7, "tok-7".into());
-        assert_eq!(browser.pump(&mut || None, now), None);
-    }
-
-    #[test]
-    fn without_a_token_a_page_opens_at_once_or_when_the_wait_is_over() {
-        let (fake, browser) = browser();
-        let (_, rx) = browser.open("https://one.example/");
-        browser.pump(&mut || None, Instant::now());
-        assert!(rx.recv_timeout(Duration::from_secs(5)).unwrap());
-        let (_, rx) = browser.open("https://two.example/");
-        let then = Instant::now();
-        browser.pump(&mut || Some(1), then);
-        assert_eq!(browser.pump(&mut || Some(2), then + TOKEN_WAIT / 2), Some(TOKEN_WAIT / 2));
-        assert_eq!(browser.pump(&mut || Some(3), then + TOKEN_WAIT), None);
-        assert!(rx.recv_timeout(Duration::from_secs(5)).unwrap());
-        let opened = fake.0.lock().unwrap().clone();
-        assert_eq!(opened, vec![("https://one.example/".to_string(), None), ("https://two.example/".to_string(), None)]);
-    }
-
-    #[test]
-    fn followed_links_wait_for_tokens_too_and_their_number_is_capped() {
-        let (fake, browser) = browser();
-        browser.follow((0..40).map(|i| format!("https://site.example/{i}")).collect());
-        let mut serial = 0;
-        browser.pump(
-            &mut || {
-                serial += 1;
-                Some(serial)
-            },
-            Instant::now(),
-        );
-        // The ones past the cap don't wait.
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while fake.0.lock().unwrap().len() < 40 - MAX_WAITING && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        assert_eq!(fake.0.lock().unwrap().len(), 40 - MAX_WAITING);
-        assert!(fake.0.lock().unwrap().iter().all(|(_, token)| token.is_none()));
-        browser.token_arrived(&1, "t1".into());
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while fake.0.lock().unwrap().len() < 40 - MAX_WAITING + 1 && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        assert!(fake.0.lock().unwrap().contains(&("https://site.example/0".to_string(), Some("t1".to_string()))));
-    }
-
-    #[test]
-    fn a_page_the_window_never_takes_is_opened_by_whoever_waits() {
-        let (fake, browser) = browser();
-        // No window pumps: the page is withdrawn and opened here, without a token.
-        assert!(browser.open_and_wait("https://login.example/"));
-        assert_eq!(*fake.0.lock().unwrap(), vec![("https://login.example/".to_string(), None)]);
-        assert_eq!(browser.pump(&mut || Some(1), Instant::now()), None, "nothing left behind");
-    }
-
-    #[test]
-    fn the_windows_links_are_taken_out_of_its_output() {
-        let ctx = egui::Context::default();
-        let mut taken = Vec::new();
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            ui.ctx().open_url(egui::OpenUrl::new_tab("https://news.example/a"));
-            ui.ctx().copy_text("kept".into());
-            ui.ctx().open_url(egui::OpenUrl::same_tab("https://news.example/b"));
-            taken = take_links(ui.ctx());
-        });
-        assert_eq!(taken, ["https://news.example/a", "https://news.example/b"]);
-        output.textures_delta.clear();
-        assert!(matches!(output.platform_output.commands.as_slice(), [egui::OutputCommand::CopyText(t)] if t == "kept"));
-    }
-
-    #[test]
-    fn web_addresses_the_parser_rejects_are_refused() {
-        // `webbrowser` would take these for relative file paths and open a `file:` address.
-        for url in ["http://a b/../../../etc/hosts", "https://x:99999/", "http://[bad/x", "http://", "https://"] {
-            assert!(!openable(url), "{url:?}");
-            assert!(!system_open(url), "{url:?}");
-        }
-        assert!(openable("https://a.example:8443/x?y#z"));
-    }
-
-    #[test]
-    fn a_followed_link_is_checked_and_launched_as_the_parser_writes_it() {
-        // AU2-V1: every way in passes the same last check, on every system.
-        let (fake, browser) = browser();
-        browser.follow(vec!["file:///etc/passwd".into(), "http://[bad/x".into(), "HTTP://EXAMPLE.org/a b".into(), "mailto:a@example.org".into()]);
-        let _ = browser.pump(&mut || None, Instant::now());
-        for _ in 0..100 {
-            if fake.0.lock().unwrap().len() >= 2 {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        std::thread::sleep(Duration::from_millis(50));
-        let mut launched: Vec<String> = fake.0.lock().unwrap().iter().map(|(u, _)| u.clone()).collect();
-        launched.sort();
-        assert_eq!(launched, ["http://example.org/a%20b", "mailto:a@example.org"]);
-        assert_eq!(normalised("file:///x"), None);
-        assert_eq!(normalised("HTTPS://Example.org").as_deref(), Some("https://example.org/"));
-    }
-
-    #[test]
-    fn only_web_mail_and_phone_addresses_reach_the_system() {
-        for url in ["https://a.example/", "HTTP://a.example", "mailto:ada@example.org", "tel:+441234"] {
-            assert!(openable(url), "{url:?}");
-        }
-        for url in [
-            "file:///etc/passwd",
-            "smb://host/share",
-            "ms-msdt:/id",
-            "search-ms:query=x",
-            "javascript:x",
-            "data:,x",
-            "cid:x",
-            "",
-            "https://a.example/\n",
-        ] {
-            assert!(!openable(url), "{url:?}");
-            assert!(!system_open(url), "{url:?}");
-        }
-    }
-
-    #[test]
-    fn the_opener_is_given_the_token_and_nothing_an_address_could_misuse() {
-        let command = opener_command("https://login.example/authorize?x=1", "abc_123").unwrap();
-        assert_eq!(command.get_program(), "xdg-open");
-        assert_eq!(command.get_args().collect::<Vec<_>>(), ["https://login.example/authorize?x=1"]);
-        let envs: Vec<_> = command.get_envs().map(|(k, v)| (k.to_owned(), v.map(|v| v.to_owned()))).collect();
-        assert!(envs.contains(&("XDG_ACTIVATION_TOKEN".into(), Some("abc_123".into()))));
-        assert!(envs.contains(&("DESKTOP_STARTUP_ID".into(), Some("abc_123".into()))));
-        for url in ["-x https://a.example/", "mailto:a@example.org", "file:///etc/passwd", "https://a.example/\nb", "", "ht"] {
-            assert!(opener_command(url, "abc").is_none(), "{url:?}");
-        }
-        assert!(opener_command("https://a.example/", "a b").is_none());
-        assert!(opener_command("https://a.example/", "").is_none());
-    }
-
-    /// Every page the program opens comes through this module: nothing else names the opener.
-    #[test]
-    fn nothing_else_opens_a_page() {
-        let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let roots = [here.join("src"), here.join("../../crates")];
-        let mut stack: Vec<std::path::PathBuf> = roots.to_vec();
-        let mut offenders = Vec::new();
-        while let Some(path) = stack.pop() {
-            if path.is_dir() {
-                if path.file_name().is_some_and(|n| n == "target") {
-                    continue;
-                }
-                stack.extend(std::fs::read_dir(&path).unwrap().map(|e| e.unwrap().path()));
-            // ponytail: opened_files.rs opens saved attachments (files, not pages) with `open`;
-            // it could take the activation token too if those programs should come in front.
-            } else if path.extension().is_some_and(|e| e == "rs")
-                && !path.ends_with("src/browser.rs")
-                && !path.ends_with("src/opened_files.rs")
-                && !path.ends_with("src/file_launcher.rs")
-                && !path.ends_with("src/file_launcher_tests.rs")
-            {
-                let text = std::fs::read_to_string(&path).unwrap();
-                if text.contains(concat!("webbrowser", "::"))
-                    || text.contains(concat!("open", "::that"))
-                    || text.contains(concat!("\"xdg", "-open\""))
-                {
-                    offenders.push(path);
-                }
-            }
-        }
-        assert!(offenders.is_empty(), "pages opened outside browser.rs: {offenders:?}");
-    }
-}
+#[path = "browser_tests.rs"]
+mod browser_tests;

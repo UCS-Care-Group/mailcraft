@@ -7,3 +7,10 @@ xtask = "run --package xtask --"
 # http://localhost). An identifier, not a secret; it is compiled into the desktop app and the CLI
 # as the default. Set the variable yourself to build with another registration.
 MAILCRAFT_MS_CLIENT_ID = "6e83816e-f26c-455a-9253-494b784e61fa"
+
+# Issue #232: the project's Google Desktop OAuth client is injected into release builds from the
+# repository secrets of the same names (package.yml); a build from source alone has none.
+# Set both yourself to build with a registration of your own; never use another application's client.
+# Google's desktop client "secret" is not confidential, but never place user tokens here.
+MAILCRAFT_GOOGLE_CLIENT_ID = ""
+MAILCRAFT_GOOGLE_CLIENT_SECRET = ""

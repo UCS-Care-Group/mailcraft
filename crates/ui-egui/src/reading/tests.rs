@@ -5,10 +5,10 @@
 //!
 //! The pictures the corpus refers to are drawn here, in code.
 
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, LazyLock, Mutex, mpsc};
 
 use egui::Color32;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use mailcraft_engine::Session;
 use mailcraft_html::Span;
 use mailcraft_html::corpus::{self, PictureKind};
@@ -150,7 +150,15 @@ fn html_message(n: usize, from: (&str, &str), subject: &str, html: &str) -> Mess
 }
 
 /// The corpus as mail: the ordinary messages, the plain-text thread, then the hostile ones.
+/// Built once for the whole test binary: it holds messages of a million cells, and building it
+/// for every message a test asks for made one test take five minutes.
 pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
+    CORPUS.clone()
+}
+
+static CORPUS: LazyLock<Vec<(&'static str, Message)>> = LazyLock::new(build_corpus);
+
+fn build_corpus() -> Vec<(&'static str, Message)> {
     let mut out = vec![
         (
             "outlook reply",
@@ -206,6 +214,7 @@ pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
             "style boxes",
             html_message(34, ("Hollowpine Rambling Club", "bulletin@hollowpine.example"), "The Hollowpine bulletin", corpus::STYLE_BOXES),
         ),
+        ("style inline", html_message(35, ("Marrowby Trust", "garden@marrowby.example"), "Autumn open day at the garden", corpus::STYLE_INLINE)),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -232,7 +241,7 @@ fn large_newsletter() -> Message {
 fn in_frame<R>(dark: bool, f: impl FnOnce(&egui::Context) -> R) -> R {
     let ctx = egui::Context::default();
     ctx.set_fonts(crate::theme::font_definitions());
-    crate::theme::apply(&ctx, if dark { Appearance::Dark } else { Appearance::Light }.preference(None));
+    crate::theme::apply(&ctx, if dark { Appearance::Dark } else { Appearance::Light }.preference(None), &crate::theme::ThemeChoice::default());
     ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
     let mut out = None;
     let mut f = Some(f);
@@ -257,7 +266,7 @@ fn lay_out(ctx: &egui::Context, m: &Message, width: f32) -> Laid {
 }
 
 fn corpus_message(name: &str) -> Message {
-    corpus_messages().into_iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("no {name} in the corpus")).1
+    CORPUS.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("no {name} in the corpus")).1.clone()
 }
 
 /// The text of a laid-out piece.
@@ -368,7 +377,7 @@ fn write_the_corpus_as_a_mailbox() {
     std::fs::write(dir.join("corpus-ids.txt"), list).unwrap();
 }
 
-fn window(app: MailApp, size: (f32, f32)) -> egui_kittest::Harness<'static, MailApp> {
+pub(super) fn window(app: MailApp, size: (f32, f32)) -> egui_kittest::Harness<'static, MailApp> {
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(size.0, size.1)).build_ui_state(
             |ui, app: &mut MailApp| {
@@ -427,8 +436,10 @@ fn remote_pictures_are_stand_ins_and_nothing_is_looked_at_for_them() {
                 let m = corpus_message(name);
                 assert!(m.attachments.is_empty(), "{name}");
                 let laid = lay_out(ctx, &m, 820.0);
-                assert_eq!(laid.stats.pictures, 0, "{name}");
-                assert!(shown_pictures(&laid).is_empty(), "{name}");
+                // (The hostile one has a picture written into it, which is shown: #533.)
+                let written = usize::from(name == "remote");
+                assert_eq!(laid.stats.pictures, written, "{name}");
+                assert_eq!(shown_pictures(&laid).len(), written, "{name}");
             }
             let newsletter = lay_out(ctx, &corpus_message("newsletter"), 820.0);
             assert_eq!((newsletter.stats.placeholders, newsletter.stats.remote), (8, 8));
@@ -443,8 +454,10 @@ fn remote_pictures_are_stand_ins_and_nothing_is_looked_at_for_them() {
             let remote = lay_out(ctx, &corpus_message("remote"), 820.0);
             assert_eq!((remote.stats.placeholders, remote.stats.remote), (8, 7));
             assert!(stand_ins(&remote).contains(&("missing part", false)));
-            // No picture was kept, because no bytes were ever looked at: there were none to look at.
-            assert_eq!(Pictures::of(ctx).lock().unwrap().counts(), (0, 0));
+            // No picture on the web was kept, because no bytes of one were ever looked at: there
+            // were none to look at. The one written into the message was looked at, and is kept
+            // once though the message was read here twice.
+            assert_eq!(Pictures::of(ctx).lock().unwrap().counts(), (1, 0));
             // A part that claims a web address as its Content-ID does not stand in for that address.
             let mut sneaky = corpus_message("newsletter");
             sneaky.attachments = vec![Attachment {
@@ -912,6 +925,168 @@ fn the_theme_changes_the_colours_of_a_message_that_is_open() {
     assert!(blue.b() > blue.r() && contrast(blue, Tokens::dark().surface) >= super::colors::TARGET_CONTRAST, "{blue:?}");
 }
 
+/// In the dark theme, an owner who keeps messages light reads them in the light theme's colours,
+/// as their senders made them, laid out again when the switch is turned, while the window around
+/// them stays dark. The original under a reply being written keeps the window's colours.
+#[test]
+fn messages_can_stay_light_in_the_dark_theme() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "outlook reply");
+    let mut harness = window(app, (1280.0, 800.0));
+    let colours = |harness: &mut egui_kittest::Harness<'static, MailApp>| {
+        harness.run_steps(4);
+        super::view::kept(&harness.ctx, id, |laid, _| {
+            let colours = laid.items.iter().filter_map(|item| match &item.kind {
+                ItemKind::Text(text) => Some((text.paper, text.job.sections.iter().map(|s| s.format.color).collect::<Vec<_>>())),
+                ItemKind::Fill { color, .. } => Some((*color, Vec::new())),
+                _ => None,
+            });
+            colours.collect::<Vec<_>>()
+        })
+        .unwrap()
+    };
+    harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    let light = colours(&mut harness);
+    // In the light theme the page is the window's own: turning the switch lays nothing out again.
+    let begun = super::view::layouts_begun(&harness.ctx);
+    for value in [true, false] {
+        harness.state_mut().execute("ui.lightMessages", json!({"value": value})).unwrap();
+        assert_eq!(colours(&mut harness), light);
+    }
+    assert_eq!(super::view::layouts_begun(&harness.ctx), begun);
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    let dark = colours(&mut harness);
+    assert_ne!(dark, light);
+
+    assert_eq!(harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap()["value"], true);
+    assert_eq!(colours(&mut harness), light);
+    assert!(harness.ctx.global_style().visuals.dark_mode, "the window stays dark");
+    assert!(super::view::on_light_page(harness.state(), Place::Pane) && super::view::on_light_page(harness.state(), Place::Window(1)));
+    assert!(!super::view::on_light_page(harness.state(), Place::Quote) && !super::view::on_light_page(harness.state(), Place::Preview));
+
+    // The page is painted light under the body in the pane, and in a message's own window.
+    assert_eq!(light_pages(&harness).len(), 1);
+    harness.state_mut().execute("ui.openWindow", json!({"message": id})).unwrap();
+    harness.run_steps(8);
+    assert_eq!(light_pages(&harness).len(), 2);
+
+    harness.state_mut().execute("ui.lightMessages", json!({"value": false})).unwrap();
+    assert_eq!(colours(&mut harness), dark);
+    assert_eq!(light_pages(&harness).len(), 0);
+}
+
+/// A message still being laid out when the owner keeps messages light and turns the window dark
+/// at once is laid out again: its page is still light, but what was begun without the light page
+/// must not go on in the dark window's colours.
+#[test]
+fn a_layout_begun_before_the_light_page_goes_on_in_its_colours() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "one paragraph");
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(2);
+    assert_eq!(super::view::kept(&harness.ctx, id, |laid, _| laid.done), Some(false));
+    harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap();
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    for _ in 0..500 {
+        if super::view::kept(&harness.ctx, id, |laid, _| laid.done) == Some(true) {
+            break;
+        }
+        harness.step();
+    }
+    let inks = super::view::kept(&harness.ctx, id, |laid, _| {
+        let inks = laid.items.iter().filter_map(|item| match &item.kind {
+            ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.color)),
+            _ => None,
+        });
+        (laid.done, inks.flatten().collect::<std::collections::HashSet<_>>())
+    })
+    .unwrap();
+    assert_eq!(inks, (true, std::collections::HashSet::from([Tokens::light().text])));
+}
+
+/// With messages kept light in the dark theme, what the owner writes keeps the window's colours:
+/// the original under a reply being written and File › Signatures' sample are laid out dark.
+#[test]
+fn the_owners_own_text_keeps_the_windows_colours() {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
+    app.autosave = false;
+    app.execute("ui.theme", json!({"value": "dark"})).unwrap();
+    app.execute("ui.lightMessages", json!({"value": true})).unwrap();
+    app.execute("signature.set", json!({"name": "Mine", "text": "Avery"})).unwrap();
+    app.execute("signature.open", json!({"name": "Mine"})).unwrap();
+    let id = app.session.mailbox.messages.values().find(|m| m.subject.starts_with("Five new arrivals")).map(|m| m.id).unwrap();
+    app.execute("mail.select", json!({"id": id})).unwrap();
+    app.execute("mail.reply", json!({"id": id})).unwrap();
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(4);
+    let inks = |harness: &Window, place: Place, id: u64| {
+        super::view::kept_at(&harness.ctx, place, id, |laid, _| {
+            let inks = laid.items.iter().filter_map(|item| match &item.kind {
+                ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.color)),
+                _ => None,
+            });
+            inks.flatten().collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_else(|| panic!("nothing is laid out at {place:?}"))
+    };
+    let quote = inks(&harness, Place::Quote, id);
+    assert!(quote.contains(&Tokens::dark().text) && !quote.contains(&Tokens::light().text), "{quote:?}");
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(inks(&harness, Place::Preview, 0), std::collections::HashSet::from([Tokens::dark().text]));
+}
+
+/// On a light page in a dark window the body's scroll bar is the light theme's, not the dark
+/// window's on the white page.
+#[test]
+fn a_light_page_scrolls_with_the_light_themes_bar() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "one paragraph");
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(4);
+    // The bar floats in sight while the pointer is over the body.
+    let page = light_pages(&harness)[0];
+    harness.event(egui::Event::PointerMoved(page.center()));
+    harness.run_steps(30);
+    let scroll = harness.ctx.global_style().spacing.scroll;
+    let bar = rects(&harness).into_iter().filter(|r| page.contains_rect(r.rect) && r.rect.width() <= scroll.bar_width && r.fill.a() > 0);
+    let light = Tokens::light();
+    assert_eq!(
+        bar.map(|r| r.fill).collect::<std::collections::HashSet<_>>(),
+        std::collections::HashSet::from([
+            light.input.gamma_multiply(scroll.active_background_opacity),
+            light.text.gamma_multiply(scroll.active_handle_opacity)
+        ])
+    );
+}
+
+/// Every rectangle painted in the last frame.
+fn rects(harness: &Window) -> Vec<egui::epaint::RectShape> {
+    fn walk(shape: &egui::Shape, rects: &mut Vec<egui::epaint::RectShape>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, rects)),
+            egui::Shape::Rect(r) => rects.push(r.clone()),
+            _ => {}
+        }
+    }
+    let mut rects = Vec::new();
+    harness.output().shapes.iter().for_each(|s| walk(&s.shape, &mut rects));
+    rects
+}
+
+/// The light pages painted in the last frame: rectangles in the light theme's surface colour
+/// taller and wider than a block of a message.
+fn light_pages(harness: &Window) -> Vec<egui::Rect> {
+    let pages = rects(harness).into_iter().filter(|r| r.fill == Tokens::light().surface && r.rect.width() > 300.0 && r.rect.height() > 300.0);
+    pages.map(|r| r.rect).collect()
+}
+
 /// Generous bounds: this is an unoptimised build of this crate, on whatever machine runs the
 /// tests. What it takes is printed (`--nocapture`).
 #[test]
@@ -1001,7 +1176,10 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 11, "reading.rs, colors, images (and its tests), invitation, layout, remote, select, sharing (and its tests) and view");
+    assert_eq!(
+        checked, 20,
+        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), view (and its zoom tests) and warnings (and its tests)"
+    );
 }
 
 /// The symbols these files write as text have glyphs in the interface fonts (the check of the
@@ -1113,7 +1291,7 @@ fn newsletter_picture(url: &str) -> Result<Vec<u8>, String> {
 }
 
 /// A message whose body is these pictures on the web, one under the other.
-fn web_message(n: usize, from: &str, subject: &str, pictures: &[String]) -> Message {
+pub(super) fn web_message(n: usize, from: &str, subject: &str, pictures: &[String]) -> Message {
     let html: String = pictures.iter().map(|src| format!("<p>Picture:</p><img src=\"{src}\" width=40 height=30 alt=\"A picture\">")).collect();
     message(n, ("A Sender", from), subject, Some(html), String::new())
 }
@@ -1123,7 +1301,7 @@ fn web_pictures(host: &str, count: usize) -> Vec<String> {
 }
 
 /// A window on a mailbox that holds `messages`, and their ids.
-fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
+pub(super) fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
     served_by_example_org(&mut mailbox);
     let inbox = mailbox.inbox().unwrap();
@@ -1146,7 +1324,7 @@ fn click_at(harness: &mut Window, pos: egui::Pos2) {
     harness.run_steps(2);
 }
 
-fn select(harness: &mut Window, id: u64) {
+pub(super) fn select(harness: &mut Window, id: u64) {
     harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
     harness.run_steps(6);
 }
@@ -1199,7 +1377,8 @@ fn pictures_on_the_web_are_placeholders_until_the_owner_asks() {
         // It was asked for this message: the next one with pictures is not downloaded with it,
         // and coming back asks for nothing again.
         select(&mut harness, id_of(&ids, "remote"));
-        assert_eq!(shown(&harness, id_of(&ids, "remote")), (0, 8, 7));
+        // (Its picture written into the message is shown: #533.)
+        assert_eq!(shown(&harness, id_of(&ids, "remote")), (1, 8, 7));
         select(&mut harness, id);
         harness.run_steps(10);
         assert_eq!(shown(&harness, id), (8, 0, 0));
@@ -1319,6 +1498,64 @@ fn a_remembered_sender_and_the_switch_for_all_mail() {
     harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": false})).unwrap();
     select(&mut harness, other);
     assert_eq!(shown(&harness, other), (0, 2, 2));
+}
+
+/// File › Options folds a list of remembered senders and domains that is longer than a page
+/// away, and shows it twenty at a time.
+#[test]
+fn a_long_list_of_remembered_senders_is_folded_and_paged() {
+    let (mut app, _) = app_with(vec![]);
+    app.ui.picture_senders = (0..45).map(|i| format!("sender{i:02}@shop.example")).collect();
+    app.ui.picture_domains = vec!["kite.example".into()];
+    // (Tall enough for the page's buttons to be on screen to be clicked.)
+    let mut harness = window(app, (1200.0, 1600.0));
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    // Folded, with the count; the rows of the page below are still there.
+    assert!(says(&harness, "Pictures are always downloaded from (46):") && !says(&harness, "sender00@"));
+    assert!(says(&harness, "Show sender images from Gravatar"));
+    harness.get_by_label_contains("Pictures are always downloaded from").click();
+    harness.run_steps(3);
+    let page = |harness: &Window| ["sender00@", "sender19@", "sender20@", "sender39@", "sender40@", "@kite.example"].map(|s| says(harness, s));
+    assert_eq!(page(&harness), [true, true, false, false, false, false]);
+    assert!(says(&harness, "Page 1 of 3") && harness.get_by_label("Previous").accesskit_node().is_disabled());
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert_eq!(page(&harness), [false, false, true, true, false, false]);
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert_eq!(page(&harness), [false, false, false, false, true, true]);
+    assert!(says(&harness, "Page 3 of 3") && harness.get_by_label("Next").accesskit_node().is_disabled());
+
+    // Taking off what the last page held leaves the page before it.
+    for i in 40..45 {
+        harness.state_mut().execute("ui.alwaysDownloadPictures", json!({"sender": format!("sender{i}@shop.example"), "value": false})).unwrap();
+    }
+    harness.state_mut().execute("ui.alwaysDownloadPictures", json!({"domain": "kite.example", "value": false})).unwrap();
+    harness.run_steps(3);
+    assert_eq!(page(&harness), [false, false, true, true, false, false]);
+    assert!(says(&harness, "Pictures are always downloaded from (40):") && says(&harness, "Page 2 of 2"));
+}
+
+/// The smallest window: File › Options is laid out in the room on screen, its text wrapped there
+/// rather than cut off at the window's edge, and Previous and Next can be clicked.
+#[test]
+fn the_list_of_remembered_senders_pages_in_a_narrow_window() {
+    let (mut app, _) = app_with(vec![]);
+    app.ui.picture_senders = (0..45).map(|i| format!("sender{i:02}@shop.example")).collect();
+    let mut harness = window(app, (760.0, 2400.0));
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label_contains("Pictures are always downloaded from").click();
+    harness.run_steps(3);
+    let screen = harness.ctx.content_rect();
+    for text in ["Gravatar is asked for", "Previous", "Next"] {
+        let r = harness.get_by_label_contains(text).rect();
+        assert!(r.min.x >= screen.min.x && r.max.x <= screen.max.x + 0.5, "{text}: {r:?} in {screen:?}");
+    }
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert!(says(&harness, "Page 2 of 3"));
 }
 
 /// (A8-9) A long display name is cut short, never the address after it.
@@ -1488,7 +1725,7 @@ fn only_what_is_shown_as_a_picture_is_asked_for() {
 
     // The second look, on blocks the parser would not have let through.
     let picture = |src: &str, width: Option<u16>, height: Option<u16>| {
-        mailcraft_html::Block::new(mailcraft_html::BlockKind::Image { src: src.into(), width, height, link: None }, Vec::new())
+        mailcraft_html::Block::new(mailcraft_html::BlockKind::Image { src: src.into(), width, height, link: None, data: None }, Vec::new())
     };
     let doc = Doc::from_blocks(vec![
         picture("https://t.example/1x1.gif", Some(1), Some(1)),
@@ -1507,7 +1744,8 @@ fn only_what_is_shown_as_a_picture_is_asked_for() {
         picture("", None, None),
     ]);
     assert_eq!(doc.remote.iter().map(|url| &**url).collect::<Vec<_>>(), ["https://t.example/real.png", "HTTPS://t.example/unsized.png"]);
-    assert_eq!((doc.remote_pictures, doc.remote_left_out), (13, 0));
+    // A picture written into the message (`data:`) is the message's own, as a `cid:` one is.
+    assert_eq!((doc.remote_pictures, doc.remote_left_out), (12, 0));
     for (src, on_the_web) in [
         ("http://a.example/x", true),
         ("HtTpS://a.example/x", true),
@@ -1785,7 +2023,7 @@ fn everybody_at_a_domain_can_be_trusted_with_pictures() {
     // File › Options lists it, and takes it off again: its senders' pictures wait to be asked for.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
-    assert!(says(&harness, "everybody at @shop.example") && says(&harness, "Pictures are always downloaded from:"));
+    assert!(says(&harness, "everybody at @shop.example") && says(&harness, "Pictures are always downloaded from (1):"));
     let removed = harness.state_mut().execute("ui.alwaysDownloadPictures", json!({"domain": " @Shop.Example. ", "value": false})).unwrap();
     assert_eq!((&removed["domain"], &removed["value"], &removed["domains"]), (&json!("shop.example"), &json!(false), &json!(0)));
     harness.run_steps(3);
@@ -2996,6 +3234,212 @@ fn two_clicks_take_a_word_three_a_paragraph_and_shift_moves_the_end() {
     assert_eq!(copy_key(&mut harness), None);
 }
 
+/// So many clicks in a row at `from`, the last of them held and dragged to `to`.
+fn clicks_and_drag(harness: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    clicks(harness, from, count - 1, egui::Modifiers::NONE);
+    drag(harness, from, to);
+}
+
+/// The gmail reply in the pane, and the paragraph that starts "Yes to both" with where its
+/// word "projector" starts.
+fn reading_the_reply() -> (Window, u64, String, usize) {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "gmail reply");
+    let mut harness = quick_window(app, (1280.0, 1400.0));
+    select(&mut harness, id);
+    let (text, _) = gap_at(&harness, Place::Pane, id, "Yes to both", 0);
+    let word = text.find("projector").unwrap();
+    (harness, id, text, word)
+}
+
+#[test]
+fn a_drag_from_two_clicks_goes_on_by_words() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let thursday = text.find("Thursday").unwrap();
+    // From the fourth letter of a word to the third of a word further on: both words whole.
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", thursday + 2) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 2, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector, and Thursday"));
+}
+
+#[test]
+fn a_drag_back_from_two_clicks_keeps_the_word_clicked() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let bring = text.find("bring").unwrap();
+    // Back from inside a word to inside one before it: the word clicked stays whole.
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", bring + 2) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 2, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("bring the projector"));
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    // Up into the paragraph before: both paragraphs whole, the one clicked in to its end.
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 3, to);
+    assert_eq!(copy_key(&mut harness), Some(format!("Hi Priya,\n\n{text}")));
+}
+
+#[test]
+fn a_drag_from_one_click_goes_by_characters() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let thursday = text.find("Thursday").unwrap();
+    let (from, to) = (gap(&harness, id, "Yes to both", word + 3), gap(&harness, id, "Yes to both", thursday + 3));
+    // Two clicks a while ago at the same place are not this press's.
+    clicks(&mut harness, from, 2, egui::Modifiers::NONE);
+    pause(&mut harness);
+    clicks_and_drag(&mut harness, from, 1, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("jector, and Thu"));
+    // Back as well.
+    pause(&mut harness);
+    drag(&mut harness, to, from);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("jector, and Thu"));
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs_forward_too() {
+    let (mut harness, id, text, _) = reading_the_reply();
+    let on = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", 3) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 3, to);
+    assert_eq!(copy_key(&mut harness), Some(format!("Hi Priya,\n\n{text}")));
+}
+
+/// So many clicks in a row at `from`, the last of them held and dragged through `through`: what
+/// a copy has at each of those places, the button still down.
+fn clicks_and_drag_through(harness: &mut Window, from: egui::Pos2, count: usize, through: &[egui::Pos2]) -> Vec<Option<String>> {
+    clicks(harness, from, count - 1, egui::Modifiers::NONE);
+    harness.event(egui::Event::PointerMoved(from));
+    harness.step();
+    harness.event(button(from, egui::PointerButton::Primary, true, egui::Modifiers::NONE));
+    harness.step();
+    let mut at = from;
+    let mut copies = Vec::new();
+    for to in through {
+        for n in 1..=5 {
+            harness.event(egui::Event::PointerMoved(at + (*to - at) * (n as f32 / 5.0)));
+            harness.step();
+        }
+        at = *to;
+        copies.push(copy_key(harness));
+    }
+    harness.event(button(at, egui::PointerButton::Primary, false, egui::Modifiers::NONE));
+    harness.step();
+    copies
+}
+
+#[test]
+fn a_drag_from_two_clicks_turns_back_past_the_word_and_out_again() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let (bring, thursday) = (text.find("bring").unwrap(), text.find("Thursday").unwrap());
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let forward = gap(&harness, id, "Yes to both", thursday + 2) + egui::vec2(1.5, 0.0);
+    let back = gap(&harness, id, "Yes to both", bring + 2) + egui::vec2(1.5, 0.0);
+    let copies = clicks_and_drag_through(&mut harness, on, 2, &[forward, back, forward]);
+    let want = ["projector, and Thursday", "bring the projector", "projector, and Thursday"];
+    assert_eq!(copies, want.map(|w| Some(w.to_string())));
+}
+
+/// So many clicks in a row at `pos`, each pressed and let go within one frame, as a touchpad's
+/// taps come.
+fn taps(harness: &mut Window, pos: egui::Pos2, count: usize) {
+    harness.event(egui::Event::PointerMoved(pos));
+    harness.step();
+    // One frame for each of the harness's queued events: these go straight into the frame's input.
+    for _ in 0..count {
+        let tap = [true, false].map(|pressed| button(pos, egui::PointerButton::Primary, pressed, egui::Modifiers::NONE));
+        harness.input_mut().events.extend(tap);
+        harness.step();
+    }
+    harness.step();
+}
+
+#[test]
+fn clicks_pressed_and_let_go_within_a_frame_take_a_word_and_a_paragraph() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    taps(&mut harness, on, 2);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector"));
+    pause(&mut harness);
+    taps(&mut harness, on, 3);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some(text.as_str()));
+}
+
+#[test]
+fn a_click_pressed_and_let_go_within_a_frame_lets_go_of_a_word() {
+    let (mut harness, id, _, word) = reading_the_reply();
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    clicks(&mut harness, on, 2, egui::Modifiers::NONE);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector"));
+    pause(&mut harness);
+    let elsewhere = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    taps(&mut harness, elsewhere, 1);
+    assert!(selection(&harness, Place::Pane).is_none());
+}
+
+/// So many clicks in a row at `from`, each click's release in the frame of the next press (one
+/// frame's input, as a quick hand on a slow frame gives), the last press held and dragged to `to`.
+fn clicks_run_together_and_drag(harness: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    let press = |pressed| button(from, egui::PointerButton::Primary, pressed, egui::Modifiers::NONE);
+    harness.event(egui::Event::PointerMoved(from));
+    harness.step();
+    harness.input_mut().events.push(press(true));
+    harness.step();
+    for _ in 1..count {
+        harness.input_mut().events.extend([press(false), press(true)]);
+        harness.step();
+    }
+    for n in 1..=5 {
+        harness.event(egui::Event::PointerMoved(from + (to - from) * (n as f32 / 5.0)));
+        harness.step();
+    }
+    harness.event(button(to, egui::PointerButton::Primary, false, egui::Modifiers::NONE));
+    harness.step();
+}
+
+#[test]
+fn a_drag_from_clicks_whose_release_and_press_share_a_frame_goes_by_words_and_paragraphs() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let thursday = text.find("Thursday").unwrap();
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", thursday + 2) + egui::vec2(1.5, 0.0);
+    clicks_run_together_and_drag(&mut harness, on, 2, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector, and Thursday"));
+    pause(&mut harness);
+    let back = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    clicks_run_together_and_drag(&mut harness, on, 3, back);
+    assert_eq!(copy_key(&mut harness), Some(format!("Hi Priya,\n\n{text}")));
+    // In the header as well.
+    pause(&mut harness);
+    // The sender in the header, not in the message list beside it.
+    let sender = harness.query_all_by_label("Kofi Mensah").map(|node| node.rect()).max_by(|a, b| a.min.x.total_cmp(&b.min.x)).unwrap();
+    clicks_run_together_and_drag(&mut harness, sender.left_center() + egui::vec2(3.0, 0.0), 2, sender.right_center() - egui::vec2(3.0, 0.0));
+    assert_eq!(selection(&harness, Place::Pane).map(|s| s.0), Some(Zone::Header));
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("Kofi Mensah"));
+}
+
+#[test]
+fn taps_in_the_header_take_a_word_and_a_tap_lets_go_of_it() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "outlook reply");
+    let mut harness = quick_window(app, (1280.0, 900.0));
+    select(&mut harness, id);
+    let field =
+        |harness: &Window, text: &str| harness.query_all_by_label(text).next().unwrap_or_else(|| panic!("the header does not say {text}")).rect();
+    let on = field(&harness, "Marta Lindqvist").left_center() + egui::vec2(3.0, 0.0);
+    taps(&mut harness, on, 2);
+    assert_eq!(selection(&harness, Place::Pane).map(|s| s.0), Some(Zone::Header));
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("Marta"));
+    pause(&mut harness);
+    let elsewhere = field(&harness, "RE: Q4 lane pricing: revised schedule").left_center() + egui::vec2(3.0, 0.0);
+    taps(&mut harness, elsewhere, 1);
+    assert!(selection(&harness, Place::Pane).is_none());
+}
+
 #[test]
 fn the_header_is_selected_and_copied_field_by_field_and_across() {
     let (app, ids) = corpus_app(false);
@@ -3388,7 +3832,7 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     let (mut app, ids) = corpus_app(false);
     let _host = Host::answering(&mut app, newsletter_picture);
     let id = id_of(&ids, "newsletter");
-    let mut harness = window(app, (1280.0, 1600.0));
+    let mut harness = window(app, (1500.0, 1600.0));
     select(&mut harness, id);
     assert_eq!(shown(&harness, id), (0, 8, 8));
     let (from, to) = (gap(&harness, id, "The first frost", 4), gap(&harness, id, "Members get first pick", 7));
@@ -3401,8 +3845,9 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     harness.run_steps(16);
     assert_eq!(shown(&harness, id), (8, 0, 0));
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text.clone())));
-    // So are they at another width, where the lines break elsewhere.
-    harness.set_size(egui::vec2(820.0, 1600.0));
+    // So are they at another width, where the lines break elsewhere. (A width on the same side of every
+    // condition of the newsletter's `@media`: across one the look is another, and nothing goes over.)
+    harness.set_size(egui::vec2(1800.0, 1600.0));
     harness.run_steps(6);
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text)));
     // All of it, with and without its pictures: their descriptions are copied only while they
@@ -3550,8 +3995,12 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod inline_blocks;
 mod invitation;
+mod primary;
 mod remote_server;
+mod responsive;
+mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
 /// heading, its list), not as text; and a remote picture in it stays a stand-in until the owner
@@ -3573,6 +4022,45 @@ fn the_original_under_a_reply_is_shown_as_the_reading_pane_shows_it() {
     assert!(done && heading && bullets == 1);
     // Nothing of it can be selected or edited: the keys stay with the owner's text.
     assert!(harness.state().text_selection.at(Place::Quote).is_none());
+}
+
+/// The earlier messages under a reply can be copied: a drag in them and Ctrl+C, or Copy in
+/// their menu, put the selected text on the clipboard, though the owner's text had the keyboard.
+/// Ctrl+C in the owner's text copies from the owner's text, as before.
+#[test]
+fn the_original_under_a_reply_can_be_copied() {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
+    app.autosave = false;
+    let id = app.session.mailbox.messages.values().find(|m| m.subject.starts_with("Five new arrivals")).map(|m| m.id).unwrap();
+    app.execute("mail.select", json!({"id": id})).unwrap();
+    app.execute("mail.reply", json!({"id": id})).unwrap();
+    app.execute("compose.set", json!({"body": "Mine alone"})).unwrap();
+    app.execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+    app.want_body_focus();
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(4);
+    assert!(crate::compose::editor::has_focus(&harness.ctx), "the owner's text has the keyboard");
+    let start = "New on our shelves this month";
+    let (from, to) = (gap_at(&harness, Place::Quote, id, start, 0).1, gap_at(&harness, Place::Quote, id, start, 6).1);
+    drag(&mut harness, from, to);
+    assert!(selection(&harness, Place::Quote).is_some());
+    // Ctrl+C is the quote's: it copies the quote's words, and nothing of the owner's text.
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("New on"));
+    let copies = |h: &Window| h.output().platform_output.commands.iter().filter(|c| matches!(c, egui::OutputCommand::CopyText(_))).count();
+    assert_eq!(copies(&harness), 1, "the owner's text copies nothing: {:?}", harness.output().platform_output.commands);
+    assert!(!crate::compose::editor::has_focus(&harness.ctx), "a press in the original takes the keyboard from the owner's text");
+    assert_eq!(harness.state().session.compose.as_ref().unwrap().body.plain(), "Mine alone");
+    // So does Copy in its menu.
+    menu_click(&mut harness, to);
+    choose(&mut harness, &keyed("Copy", "Mod+C"), to);
+    assert_eq!(copied_within(&mut harness, 3).as_deref(), Some("New on"));
+    // A click in the owner's text gives it the keyboard back, and Ctrl+C copies its selection.
+    let body = harness.state().hit.rect("composeBody", 0).unwrap();
+    click_at(&mut harness, egui::pos2(body.min.x + 2.0, body.min.y + 6.0));
+    harness.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+    harness.run_steps(2);
+    assert!(crate::compose::editor::has_focus(&harness.ctx));
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("Mine"));
 }
 
 /// (#47) In a wide pane a message's text fills it, as the body of a reply does above the
@@ -3655,6 +4143,23 @@ fn a_row_of_small_pictures_stays_a_row_where_it_fits() {
         // Where they don't fit, they are stacked as before.
         let laid = lay_out(ctx, &m, 100.0);
         assert_eq!(laid.stats.stacked, 1);
+    });
+}
+
+#[test]
+fn small_pictures_in_a_table_in_a_centred_cell_stand_in_the_middle() {
+    // The table's text and pictures start at the left of their cells, as in a browser, and the
+    // cells are as wide as the pictures: so the table, centred, has them in the middle.
+    let icon = |name: &str| format!("<td style='padding:0 4px'><img src='cid:{name}@quillon.example' width='16' height='16' alt='{name}'></td>");
+    let html =
+        format!("<table width='100%'><tr><td align='center'><table><tr>{}{}</tr></table></td></tr></table>", icon("tick-16"), icon("cross-16"));
+    let m = html_message(52, ("Digest", "digest@bellweather.example"), "Icons", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &m, 600.0);
+        let pictures = shown_pictures(&laid);
+        assert_eq!(pictures.len(), 2, "{pictures:?}");
+        let centre = (pictures[0].rect.min.x + pictures[1].rect.max.x) / 2.0;
+        assert!((centre - 300.0).abs() < 0.5, "{:?} {:?}", pictures[0].rect, pictures[1].rect);
     });
 }
 
@@ -3762,4 +4267,317 @@ fn boxes_are_drawn_with_their_room_lines_and_corners() {
             }
         });
     }
+}
+
+/// The line of a link's tip that says where it goes.
+fn goes_to(href: &str) -> String {
+    let tip = super::view::link_tip(href);
+    tip.lines().next().unwrap_or_default().to_string()
+}
+
+#[test]
+fn a_link_tip_shows_the_host_of_addresses_written_to_mislead() {
+    // Numbers for a host are the address they are.
+    assert!(goes_to("http://2130706433/login").ends_with(" 127.0.0.1"));
+    assert!(goes_to("http://0x7f.1/").ends_with(" 127.0.0.1"));
+    assert!(goes_to("https://[2001:DB8::1]:8443/x").ends_with(" [2001:db8::1]"));
+    // A user name that looks like a host, and an `@` hidden after the path starts.
+    assert!(goes_to("https://paypal.com:secret@evil.example/").ends_with(" evil.example"));
+    assert!(goes_to("https://evil.example/https://paypal.com@x").ends_with(" evil.example"));
+    // A full stop of another script is no full stop, and the name is not shown as ours.
+    assert_eq!(super::view::link_tip("https://paypal\u{3002}com/"), "https://paypal\u{3002}com/");
+    assert!(goes_to("https://\u{1f4a9}.example/").contains("xn--"));
+}
+
+// ---- tables floated to a side, and a frame drawn with the lines of cells ----
+
+/// A bill: a greeting beside a framed notice (two tables floated left, in shares of the width),
+/// and labels at the left with their values at the right (a table floated each way). The notice's
+/// frame is drawn with the lines of cells, its picture spanning the two corner columns.
+const BILL: &str = "<table width='100%' cellpadding=0 cellspacing=0><tr><td align='center'>\
+    <table width='100%' cellpadding=0 cellspacing=0><tr><td valign='top'>\
+      <table width='55%' align='left' cellpadding=0 cellspacing=0>\
+        <tr><td align='left' style='font-size:24px;font-weight:bold;padding:16px 0 10px 20px'>Good morning,</td></tr>\
+        <tr><td style='padding:0 0 20px 20px'>we have issued your invoice.</td></tr></table>\
+      <table width='42%' align='left'><tr><td>\
+        <table width='100%' align='right' cellpadding=0 cellspacing=0>\
+          <tr><td width=20 height=5></td><td width=20 style='border-left:2px solid #7f7f7f;border-top:2px solid #7f7f7f'></td><td style='border-right:2px solid #7f7f7f;border-top:2px solid #7f7f7f'></td></tr>\
+          <tr><td colspan=2 align=center><img src='cid:shield@notices.example' width=17></td><td style='padding:0 10px;border-right:2px solid #7f7f7f'>Stay safe</td></tr>\
+          <tr><td width=10>&nbsp;</td><td style='border-left:2px solid #7f7f7f;border-bottom:2px solid #7f7f7f'>&nbsp;</td>\
+              <td align='left' style='padding:0 10px 10px 10px;width:100%;border-right:2px solid #7f7f7f;border-bottom:2px solid #7f7f7f'>Check that the sender is ours.</td></tr>\
+        </table></td></tr></table>\
+    </td></tr>\
+    <tr><td style='padding:0 20px 5px 20px'>\
+      <table align='left' cellpadding=0 cellspacing=0><tr><td align='left' style='white-space:nowrap'>Invoice number</td></tr></table>\
+      <table align='right' cellpadding=0 cellspacing=0><tr><td align='right' style='white-space:nowrap'>INV-0001/10/26</td></tr></table>\
+    </td></tr>\
+    <tr><td style='padding:0 20px 5px 20px'>\
+      <table width='35%' align='left' cellpadding=0 cellspacing=0><tr><td align='left' style='white-space:nowrap'>Bank account</td></tr></table>\
+      <table align='right' cellpadding=0 cellspacing=0><tr><td align='right' style='white-space:nowrap'>00 1111 2222 3333 4444 5555 6666</td></tr></table>\
+    </td></tr></table></td></tr></table>";
+
+/// The nearest line down the side of a cell to the right of `item`, in its height.
+fn line_right_of(laid: &Laid, item: &Item) -> Option<egui::Rect> {
+    laid.items
+        .iter()
+        .filter(|i| matches!(i.kind, ItemKind::Fill { .. }) && i.rect.width() <= 4.0 && i.rect.height() >= 4.0)
+        .map(|i| i.rect)
+        .filter(|r| r.min.x >= item.rect.max.x - 0.5 && r.min.y < item.rect.max.y && r.max.y > item.rect.min.y)
+        .min_by(|a, b| a.min.x.total_cmp(&b.min.x))
+}
+
+#[test]
+fn tables_floated_left_and_right_stand_on_one_line_and_a_frame_keeps_its_heading() {
+    let m = html_message(53, ("Billing", "billing@notices.example"), "Invoice", BILL);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &m, 700.0);
+            check(&laid, &Tokens::get(ctx), "bill");
+            // A label at the left of the line, its value at the right of the same line.
+            for (label, value) in [("Invoice number", "INV-0001/10/26"), ("Bank account", "00 1111 2222 3333 4444 5555 6666")] {
+                let (label, value) = (find_exact(&laid, label), find_exact(&laid, value));
+                assert!((label.rect.min.y - value.rect.min.y).abs() < 1.0, "{:?} {:?}", label.rect, value.rect);
+                assert!(label.rect.min.x < 40.0 && value.rect.max.x > 700.0 - 40.0, "{:?} {:?}", label.rect, value.rect);
+            }
+            // The greeting and the notice side by side, the notice at the right of the greeting.
+            let (greeting, heading) = (find_exact(&laid, "Good morning,"), find_exact(&laid, "Stay safe"));
+            assert!(
+                heading.rect.min.x > greeting.rect.max.x && heading.rect.min.y < greeting.rect.max.y + 30.0,
+                "{:?} {:?}",
+                greeting.rect,
+                heading.rect
+            );
+            // The heading is inside the frame: the line at its right is the frame's, the one at
+            // the right of the notice's text.
+            let text = find_exact(&laid, "Check that the sender is ours.");
+            let (beside_heading, beside_text) = (line_right_of(&laid, heading), line_right_of(&laid, text));
+            assert!(beside_heading.zip(beside_text).is_some_and(|(a, b)| (a.min.x - b.min.x).abs() < 1.0), "{beside_heading:?} {beside_text:?}");
+            assert!(heading.rect.min.x > text.rect.min.x - 1.0, "{:?} {:?}", heading.rect, text.rect);
+        });
+    }
+}
+
+#[test]
+fn a_label_and_its_value_never_overlap_however_narrow_the_pane() {
+    let m = html_message(54, ("Billing", "billing@notices.example"), "Invoice", BILL);
+    in_frame(false, |ctx| {
+        for width in [300.0, 360.0, 420.0, 520.0, 700.0, 1000.0] {
+            let laid = lay_out(ctx, &m, width);
+            check(&laid, &Tokens::get(ctx), "bill");
+            let (label, value) = (find_exact(&laid, "Bank account"), find_exact(&laid, "00 1111 2222 3333 4444 5555 6666"));
+            assert!(!label.rect.intersects(value.rect), "{width}: {:?} {:?}", label.rect, value.rect);
+            // At the right edge, on its line or the one below.
+            assert!(value.rect.max.x > width - 40.0 && value.rect.max.x <= width + 0.5, "{width}: {:?}", value.rect);
+        }
+    });
+}
+
+/// Tables floated side by side whose words need more than the share of the width they ask for:
+/// a data table of four columns beside an address; a two-column table beside a long note; five
+/// short columns in 55 % beside 42 %. Each a pair floated left and right, and both floated left.
+fn wider_than_their_share() -> Vec<(&'static str, String)> {
+    let order = "<table align='{a}' width='48%' border='1'><tr><th>Item</th><th>Quantity</th><th>Unit price</th><th>Total</th></tr>\
+        <tr><td>Garden hose</td><td>2</td><td>10.00</td><td>20.00</td></tr></table>";
+    let address = "<table align='{b}' width='48%'><tr><td>Ship to: Ada Example, 1 Sample Street, Exampleton</td></tr></table>";
+    let reference = "<table align='{a}' width='30%'><tr><td>Reference</td><td>Department</td></tr></table>";
+    let note = "<table align='{b}' width='65%'><tr><td>Please keep this note with your records until the order has arrived.</td></tr></table>";
+    let five = "<table align='{a}' width='55%'><tr><td>Mon</td><td>Tue</td><td>Wed</td><td>Thu</td><td>Fri</td></tr></table>";
+    let beside = "<table align='{b}' width='42%'><tr><td>Opening hours of the shop</td></tr></table>";
+    let mut out = Vec::new();
+    for (name, first, second) in [("order", order, address), ("reference", reference, note), ("five", five, beside)] {
+        for (a, b) in [("left", "right"), ("right", "left"), ("left", "left")] {
+            let pair = format!("{}{}", first.replace("{a}", a), second.replace("{b}", b));
+            out.push((name, format!("<table width='100%'><tr><td>{pair}</td></tr></table>")));
+        }
+    }
+    out
+}
+
+#[test]
+fn tables_floated_side_by_side_never_overlap_when_their_words_need_more_than_their_share() {
+    in_frame(false, |ctx| {
+        for (name, html) in wider_than_their_share() {
+            let m = html_message(55, ("Shop", "orders@shop.example"), "Order", &html);
+            for width in [240.0, 300.0, 360.0, 400.0, 440.0, 520.0, 700.0] {
+                let laid = lay_out(ctx, &m, width);
+                check(&laid, &Tokens::get(ctx), name);
+                let words: Vec<&Item> = laid.items.iter().filter(|i| !text_of(i).trim().is_empty()).collect();
+                // Each fits the pane: none runs past its right edge.
+                assert!(
+                    words.iter().all(|w| w.rect.max.x <= width + 0.5),
+                    "{name} at {width}: {:?}",
+                    words.iter().map(|w| (text_of(w), w.rect)).collect::<Vec<_>>()
+                );
+                for (n, a) in words.iter().enumerate() {
+                    for b in words.iter().skip(n + 1) {
+                        assert!(
+                            !a.rect.shrink(0.5).intersects(b.rect.shrink(0.5)),
+                            "{name} at {width}: {:?} {:?} {:?} {:?}",
+                            text_of(a),
+                            a.rect,
+                            text_of(b),
+                            b.rect
+                        );
+                    }
+                }
+            }
+        }
+    });
+}
+
+#[test]
+fn a_column_or_a_pair_in_a_centred_or_right_aligned_cell_stands_where_it_puts_them() {
+    in_frame(false, |ctx| {
+        for (attr, start) in [("center", 60.0), ("right", 120.0)] {
+            // A column four fifths of the 600-pixel cell: in the middle, or at the right, its text
+            // at its left.
+            let html = format!(
+                "<table width='600' cellpadding=0 cellspacing=0><tr><td align='{attr}'><table width='80%' cellpadding=0 cellspacing=0><tr><td>Hello there</td></tr></table></td></tr></table>"
+            );
+            let m = html_message(56, ("Shop", "news@shop.example"), "Column", &html);
+            let laid = lay_out(ctx, &m, 700.0);
+            check(&laid, &Tokens::get(ctx), "column");
+            let hello = find_exact(&laid, "Hello there");
+            assert!((hello.rect.min.x - start).abs() < 2.0, "{attr}: {:?}", hello.rect);
+            // A label and its value floated in a wrapper of no width: together, where the cell's
+            // align says.
+            let html = format!(
+                "<table width='600' cellpadding=0 cellspacing=0><tr><td align='{attr}'><table cellpadding=0 cellspacing=0><tr><td>\
+                   <table align='left' cellpadding=0 cellspacing=0><tr><td>Label</td></tr></table>\
+                   <table align='right' cellpadding=0 cellspacing=0><tr><td>Value</td></tr></table>\
+                 </td></tr></table></td></tr></table>"
+            );
+            let m = html_message(57, ("Shop", "news@shop.example"), "Pair", &html);
+            let laid = lay_out(ctx, &m, 700.0);
+            check(&laid, &Tokens::get(ctx), "pair");
+            let (label, value) = (find_exact(&laid, "Label"), find_exact(&laid, "Value"));
+            assert!((label.rect.min.y - value.rect.min.y).abs() < 1.0, "{attr}: {:?} {:?}", label.rect, value.rect);
+            assert!(label.rect.max.x <= value.rect.min.x && value.rect.min.x - label.rect.max.x < 12.0, "{attr}: {:?} {:?}", label.rect, value.rect);
+            let at = if attr == "right" { value.rect.max.x - 600.0 } else { (label.rect.min.x + value.rect.max.x) / 2.0 - 300.0 };
+            assert!(at.abs() < 2.0, "{attr}: {:?} {:?}", label.rect, value.rect);
+        }
+    });
+}
+
+// ---- #596: where a cell sits in its row, and the gaps between cells ----
+
+#[test]
+fn a_cell_sits_where_the_source_puts_it_in_its_row() {
+    let tall = "<p>one</p><p>two</p><p>three</p><p>four</p><p>five</p>";
+    let html = format!(
+        "<table role='presentation' width='600'><tr><td width='150'>{tall}</td><td width='150' valign='top'>Top</td>\
+         <td width='150' style='vertical-align:middle'>Middle</td><td width='150' valign='bottom'>Bottom</td></tr></table>"
+    );
+    let m = html_message(51, ("Digest", "digest@bellweather.example"), "Cells", &html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &m, 800.0);
+            check(&laid, &Tokens::get(ctx), "valign");
+            let (first, last) = (find_exact(&laid, "one"), find_exact(&laid, "five"));
+            let (top, mid, bottom) = (find_exact(&laid, "Top"), find_exact(&laid, "Middle"), find_exact(&laid, "Bottom"));
+            assert!((top.rect.min.y - first.rect.min.y).abs() < 1.0, "{:?} {:?}", top.rect, first.rect);
+            assert!((middle(mid) - (first.rect.min.y + last.rect.max.y) / 2.0).abs() < 2.0, "{:?}", mid.rect);
+            assert!((bottom.rect.max.y - last.rect.max.y).abs() < 1.0, "{:?} {:?}", bottom.rect, last.rect);
+        });
+    }
+}
+
+#[test]
+fn cellspacing_is_the_gap_between_cells() {
+    let html = |spacing: &str| {
+        format!("<table role='presentation' {spacing}><tr><td bgcolor='#eeeeee'>Left</td><td bgcolor='#eeeeee'>Right</td></tr></table>")
+    };
+    in_frame(false, |ctx| {
+        let apart = |attr: &str| {
+            let m = html_message(52, ("Digest", "digest@bellweather.example"), "Gaps", &html(attr));
+            let laid = lay_out(ctx, &m, 800.0);
+            let fills: Vec<egui::Rect> = laid.items.iter().filter(|i| matches!(i.kind, ItemKind::Fill { .. })).map(|i| i.rect).collect();
+            assert_eq!(fills.len(), 2, "{fills:?}");
+            fills[1].min.x - fills[0].max.x
+        };
+        assert!(apart("cellspacing='0'").abs() < 0.5);
+        assert!((apart("cellspacing='10'") - 10.0).abs() < 0.5);
+    });
+}
+
+/// "Download pictures in all mail" in the bar above a message (#910): it turns on the switch of
+/// File › Options, but only once the owner has read what that means and said yes; it is not
+/// offered in Junk E-mail, whose mail still never downloads by itself; and it is kept with the
+/// settings. Off from File › Options asks nothing.
+#[test]
+fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "news@shop.example", "First", &web_pictures("a.shop.example", 2)),
+        web_message(1, "other@elsewhere.example", "Second", &web_pictures("b.elsewhere.example", 2)),
+        web_message(2, "news@shop.example", "In the junk", &web_pictures("c.shop.example", 2)),
+    ]);
+    let (first, second, junk) = (ids[0], ids[1], ids[2]);
+    app.execute("mail.junk", json!({"ids": [junk]})).unwrap();
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesAutomatically");
+
+    // Off unless the owner turns it on; the bar offers it, and not in Junk E-mail.
+    assert!(!harness.state().ui.download_pictures);
+    select(&mut harness, junk);
+    assert!(harness.state().hit.rect("downloadPictures", junk).is_some());
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", junk).is_none());
+    select(&mut harness, first);
+    assert!(says(&harness, "Download pictures in all mail"));
+    let all = harness.state().hit.rect("downloadPicturesInAllMail", first).unwrap();
+
+    // It asks first, saying what it means; Cancel leaves it off and asks no server.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    assert!(says(&harness, "Each sender's server then learns when you opened the message and from which internet address"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(6);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    assert_eq!((shown(&harness, first), host.asked().len()), ((0, 2, 2), 0));
+
+    // Yes turns it on: this message's pictures come, and the next one's without a word.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    harness.get_by_label("Download in all mail").click();
+    harness.run_steps(8);
+    assert!(harness.state().dialog.is_none());
+    assert!(harness.state().ui.download_pictures);
+    assert_eq!(shown(&harness, first), (2, 0, 0));
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_none());
+    select(&mut harness, second);
+    assert_eq!(shown(&harness, second), (2, 0, 0));
+    // Junk E-mail's still don't.
+    select(&mut harness, junk);
+    assert_eq!(shown(&harness, junk), (0, 2, 2));
+    assert!(host.asked().iter().all(|url| !url.contains("c.shop")), "{:?}", host.asked());
+
+    // It is kept with the settings, and comes back with them.
+    let saved = serde_json::to_value(harness.state().prefs()).unwrap();
+    assert_eq!(saved["downloadPictures"], json!(true));
+    let restored: crate::UiState = serde_json::from_value(saved).unwrap();
+    assert!(restored.download_pictures);
+
+    // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    // On again there asks the same question; Cancel leaves it off.
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
+    select(&mut harness, second);
+    select(&mut harness, first);
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_some());
+    // A script or an agent is never asked: the command does what it is told.
+    assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
+    assert!(harness.state().dialog.is_none());
 }

@@ -3,15 +3,33 @@
 //! Which kind of copy of MailCraft this is, and so whether it can update itself, and which file
 //! of a release it would be updated from.
 //!
-//! A copy installed from the Windows `.msi`, the macOS app (wherever the owner put it) or a
-//! Linux AppImage updates itself; every other copy (`.deb`, `.rpm`, Flatpak, the portable
-//! `.zip`, a `.tar.gz`, FreeBSD, one built from source) is told of new versions and nothing
-//! more. It is known from where the program runs; when that can't be told, it is the notice only.
+//! A copy installed from the Windows `.msi` or a Linux AppImage updates itself, and so does the
+//! macOS app (wherever the owner put it) when [`MAC_SELF_INSTALL`] is on; every other copy
+//! (`.deb`, `.rpm`, Flatpak, the portable `.zip`, a `.tar.gz`, FreeBSD, one built from source)
+//! is told of new versions and nothing more. It is known from where the program runs; when that
+//! can't be told, it is the notice only. A macOS app or an AppImage in a folder this program
+//! can't write to is the notice only too: it is replaced by this program, not by an installer.
 
 use std::ffi::OsStr;
+use std::fs;
 use std::path::{Component, Path};
 
 use mailcraft_model::update::Version;
+
+/// Whether a macOS app installs new versions by itself. **Off** (#497): the builds are signed
+/// ad hoc and not notarized, and an app swapped in place by the program is what macOS's checks
+/// then judge; one update that went wrong (0.8.1) left an app that wouldn't start. A Mac copy is
+/// told of new versions instead, with a link to the release's page.
+///
+/// Turn it on only when all of this is true: releases are signed with the project's Developer ID
+/// and notarized (with the ticket stapled to the app); `self_update::mac_swap` requires the new
+/// app's signature to be the project's Team ID (`codesign -R`), not any valid signature; the
+/// check after the swap also asks Gatekeeper (`spctl -a -vv` on the app in its place) or checks
+/// for a stapled notarization ticket (`stapler validate`), because `codesign --verify` alone is
+/// not enough: it passed on the reporter's app that wouldn't start, which `spctl -a` rejected;
+/// and an update from the previous release has been tried on a real Mac, from `/Applications`
+/// and from a folder of the owner's. The code that installs it is built and tested meanwhile.
+pub const MAC_SELF_INSTALL: bool = false;
 
 /// How this copy came to be installed, as far as updating it goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,8 +63,41 @@ impl Install {
     }
 }
 
-/// This copy.
+/// This copy, as far as updating it goes: what it was installed as ([`found`]), unless it is a
+/// macOS app while [`MAC_SELF_INSTALL`] is off, or it is replaced by this program and the folder
+/// it is in can't be written to ([`updating`]).
 pub fn this_copy() -> Install {
+    let found = found();
+    updating(found, MAC_SELF_INSTALL, &mut || crate::self_update::target(found).and_then(|target| target.parent().map(writable)).unwrap_or(false))
+}
+
+/// Of a copy installed as `found`, the kind that updates it: a macOS app only with
+/// `mac_self_install`, and a macOS app or an AppImage, which this program replaces itself, only
+/// where `parent_writable` (asked only then) says that the folder it is in can be written to.
+/// The `.msi` is installed by Windows Installer, which asks for an administrator's say-so.
+pub fn updating(found: Install, mac_self_install: bool, parent_writable: &mut dyn FnMut() -> bool) -> Install {
+    match found {
+        Install::MacApp if !mac_self_install => Install::NoticeOnly,
+        Install::MacApp | Install::AppImage if !parent_writable() => Install::NoticeOnly,
+        other => other,
+    }
+}
+
+/// Whether this program can make and remove a file in `dir`: tried, as permissions alone don't
+/// tell (access lists, a read-only disk, macOS's protections).
+pub fn writable(dir: &Path) -> bool {
+    let probe = dir.join(format!(".mailcraft-write-test-{}", std::process::id()));
+    match fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+        Ok(file) => {
+            drop(file);
+            fs::remove_file(&probe).is_ok()
+        }
+        Err(_) => false,
+    }
+}
+
+/// What this copy was installed as, whether or not it updates itself.
+pub fn found() -> Install {
     let Ok(exe) = std::env::current_exe() else { return Install::NoticeOnly };
     #[cfg(target_os = "windows")]
     {
@@ -118,83 +169,5 @@ pub fn linux(image: Option<&OsStr>, dir: Option<&OsStr>, flatpak: bool, exe: &Pa
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn v(text: &str) -> Version {
-        Version::parse(text).unwrap()
-    }
-
-    #[test]
-    fn the_file_for_each_copy() {
-        let version = v("0.5.0");
-        for (install, arch, name) in [
-            (Install::Msi, "x86_64", Some("mailcraft-0.5.0-windows-x64.msi")),
-            (Install::Msi, "x86", Some("mailcraft-0.5.0-windows-x86.msi")),
-            (Install::Msi, "aarch64", Some("mailcraft-0.5.0-windows-arm64.msi")),
-            (Install::MacApp, "aarch64", Some("mailcraft-0.5.0-macos-universal.dmg")),
-            (Install::MacApp, "x86_64", Some("mailcraft-0.5.0-macos-universal.dmg")),
-            (Install::AppImage, "x86_64", Some("mailcraft-0.5.0-linux-x86_64.AppImage")),
-            (Install::AppImage, "aarch64", Some("mailcraft-0.5.0-linux-aarch64.AppImage")),
-            (Install::AppImage, "riscv64", None),
-            (Install::Msi, "powerpc", None),
-            (Install::NoticeOnly, "x86_64", None),
-        ] {
-            assert_eq!(install.file_name(&version, arch).as_deref(), name, "{install:?} {arch}");
-        }
-        assert_eq!(Install::Msi.file_name(&v("1.2.3-rc.1"), "x86_64").as_deref(), Some("mailcraft-1.2.3-rc.1-windows-x64.msi"));
-        // Every name is one a release's file may have.
-        for install in [Install::Msi, Install::MacApp, Install::AppImage] {
-            for arch in ["x86_64", "x86", "aarch64"] {
-                if let Some(name) = install.file_name(&v("10.20.30"), arch) {
-                    assert!(mailcraft_model::update::is_file_name(&name), "{name}");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn an_msi_copy_is_the_one_the_installer_registered() {
-        let exe = Path::new(r"C:\Program Files\MailCraft\mailcraft.exe");
-        assert_eq!(windows(exe, Some(Path::new(r"C:\Program Files\MailCraft\mailcraft.exe"))), Install::Msi);
-        assert_eq!(windows(exe, Some(Path::new(r"c:\program files\mailcraft\MAILCRAFT.EXE"))), Install::Msi);
-        // The portable zip, anywhere, while an installed copy is registered elsewhere; or none.
-        let portable = Path::new(r"C:\Users\a\Downloads\mailcraft\mailcraft.exe");
-        assert_eq!(windows(portable, Some(exe)), Install::NoticeOnly);
-        assert_eq!(windows(exe, None), Install::NoticeOnly);
-    }
-
-    // Paths of macOS and Linux, which are absolute only there.
-    #[test]
-    #[cfg(unix)]
-    fn a_mac_app_where_the_owner_keeps_it() {
-        assert_eq!(mac(Path::new("/Applications/MailCraft.app/Contents/MacOS/mailcraft")), Install::MacApp);
-        assert_eq!(mac(Path::new("/Users/a/Apps/MailCraft.app/Contents/MacOS/mailcraft")), Install::MacApp);
-        for not in [
-            "/Volumes/MailCraft/MailCraft.app/Contents/MacOS/mailcraft",
-            "/private/var/folders/x/T/AppTranslocation/1234/d/MailCraft.app/Contents/MacOS/mailcraft",
-            "/usr/local/bin/mailcraft",
-            "/Users/a/mailcraft/target/release/mailcraft",
-            "/Applications/MailCraft.app/Contents/Resources/mailcraft",
-            "MailCraft.app/Contents/MacOS/mailcraft",
-        ] {
-            assert_eq!(mac(Path::new(not)), Install::NoticeOnly, "{not}");
-        }
-    }
-
-    // Paths of macOS and Linux, which are absolute only there.
-    #[test]
-    #[cfg(unix)]
-    fn an_appimage_by_what_its_runtime_says() {
-        let image = Some(OsStr::new("/home/a/Apps/mailcraft-0.5.0-linux-x86_64.AppImage"));
-        let dir = Some(OsStr::new("/tmp/.mount_mailcrXYZ"));
-        let exe = Path::new("/tmp/.mount_mailcrXYZ/usr/bin/mailcraft");
-        assert_eq!(linux(image, dir, false, exe), Install::AppImage);
-        assert_eq!(linux(image, dir, true, exe), Install::NoticeOnly);
-        assert_eq!(linux(None, dir, false, exe), Install::NoticeOnly);
-        assert_eq!(linux(image, None, false, exe), Install::NoticeOnly);
-        assert_eq!(linux(image, dir, false, Path::new("/usr/bin/mailcraft")), Install::NoticeOnly);
-        assert_eq!(linux(Some(OsStr::new("relative.AppImage")), dir, false, exe), Install::NoticeOnly);
-        assert_eq!(linux(Some(OsStr::new("/home/a/mailcraft.tar.gz")), dir, false, exe), Install::NoticeOnly);
-    }
-}
+#[path = "install_tests.rs"]
+mod install_tests;

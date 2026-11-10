@@ -300,10 +300,22 @@ impl Pictures {
     fn entry(&mut self, data: &Arc<Vec<u8>>, frame: u64) -> Option<&mut Entry> {
         let index = match self.entries.iter().position(|e| Arc::ptr_eq(&e.data, data)) {
             Some(index) => index,
-            None => {
-                self.entries.push(Entry { data: data.clone(), size: probe(data), texture: None, failed: false, used: frame });
-                self.entries.len() - 1
-            }
+            // The same picture as new bytes (a message read again is parsed again, and the
+            // pictures written into it come anew): its entry is kept, and holds these from now on,
+            // so that the next look finds it at once and the old bytes go.
+            None => match self.entries.iter().position(|e| e.data.len() == data.len() && e.data == *data) {
+                Some(index) => {
+                    if let Some(entry) = self.entries.get_mut(index) {
+                        entry.data = data.clone();
+                    }
+                    index
+                }
+                None => {
+                    self.forget_unheld();
+                    self.entries.push(Entry { data: data.clone(), size: probe(data), texture: None, failed: false, used: frame });
+                    self.entries.len() - 1
+                }
+            },
         };
         let entry = self.entries.get_mut(index)?;
         entry.used = frame;
@@ -442,6 +454,7 @@ impl Pictures {
 
     /// [`Pictures::release_unseen`] at the time `now`; whether textures are still held.
     fn release_at(&mut self, now: f64) -> bool {
+        self.forget_unheld();
         let idle = self.asked_at.is_none_or(|at| now - at > IDLE_SECONDS);
         if idle {
             for entry in &mut self.entries {
@@ -449,6 +462,14 @@ impl Pictures {
             }
         }
         !idle && self.entries.iter().any(|e| e.texture.is_some())
+    }
+
+    /// Forget the pictures whose bytes nothing but this holds: no message read has them any more
+    /// (its pictures written into it were dropped with it, an attachment with its message, a
+    /// picture from the web with the pictures kept from the web), so nothing can ask for them
+    /// again by these bytes.
+    fn forget_unheld(&mut self) {
+        self.entries.retain(|e| Arc::strong_count(&e.data) > 1);
     }
 
     /// Forget the pictures shown longest ago while there are too many or they take too much.

@@ -7,6 +7,8 @@
 //!
 //! The script is JSON lines: control-channel requests (`{"method": …, "params": …}`, see
 //! `docs/control-protocol.md`), `{"shot": "/abs/out.png"}` to save the window as PNG,
+//! `{"open": "/abs/file.ics"}` (or a `mailto:` link) as a later start would hand it over (#505),
+//! `{"trust": "/abs/ca.der"}` to trust a certification authority as the system's are (#30),
 //! `{"steps": n}` to run extra frames (a request with `"agent": {"allow": [...]}` comes as the MCP
 //! bridge's would: what needs the owner puts its question over the window), or `{"wait": ms}` to keep running frames for a while. The
 //! window is 1440×900 pt at 2× (override with `{"width": w, "height": h}` and `{"scale": s}` on
@@ -16,7 +18,9 @@
 //! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
 //! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
-//! in another).
+//! in another). The system has no language or regional format unless a line names one
+//! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are
+//! written the way of its region).
 //!
 //! The window has no host: nothing in it can sign in, send or receive. A script that wants to
 //! look at what Add Account says about a sign-in on Microsoft's page gives it a stand-in for
@@ -36,6 +40,10 @@
 //! turn that off for the computer from the start, and `{"host": {"updates": "didntStart 0.4.2"}}`
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
+//! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
+//! asks whether the tasks that exist only here are to be sent to it (#248).
+//! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
+//! now, as a server has them; `"readOnly"`, the same read with a sign-in that may not change them.
 //! And a Graph job (`{"host": {"graph": …}}`): `"consent"` (Microsoft wants the owner's
 //! permission first), `"refused"` (it refused the sign-in) or `"sendConsent"` (a shared
 //! mailbox's mail waits for permission to send from shared mailboxes, #70), `"opened"` (the
@@ -51,6 +59,21 @@
 //! saver (`{"host": {"saving": …}}`): `"messages 12000 200000"` or `"content 3 90000"` (a save
 //! that has been at it for a minute, at that stage, done of total; it never ends), `"sweeping"`,
 //! or `""` (nothing being written).
+//!
+//! `{"opening": {"read": bytes, "total": bytes, "after"?: ms, "trouble"?: "unreadable"|"stopped"|"damaged"|"repaired", "repaired"?: n, "theme"?: "light"|"dark"}}`
+//! on any line has the window still opening its mailbox (#519): reading that far, until `after`
+//! ms have gone by (never, without it), or waiting on the page that says what was wrong. While it
+//! opens, the control channel answers everything but `app.status` with "still opening", so the
+//! theme is given here. The opening screen shows after 0.3 s: `{"wait": 400}` before a shot.
+//!
+//! A folder of mailboxes being looked at (#420, `ui.dialog` `importTree`) never finishes; `{"host": {"treeProgress": [folders, files, messages]}}` sets the counts it shows, and `{"host": {"treeDir": "/path"}}` has it look into that folder at once.
+//! And setting up an Exchange server account (#252, E7): `{"host": {"ews":
+//! …}}` is how the job of Add Account for one ends, from that line on and for the job waiting when the
+//! line comes: `"waits"` (it is searching), `"consent autodiscover.other.example"` (the owner is
+//! asked before the sign-in goes to that host), `"works"`, `"online"` (the mailbox is in Microsoft
+//! 365), `"certificate"` (the system doesn't trust the server's, which has a made-up fingerprint),
+//! `"changed"` (the one the account trusted has changed), `"expired"` (a certificate nobody may trust),
+//! `"refused"` (the password was not accepted) or `"fails"` (nobody answered).
 //!
 //! And Send/Receive, for Send/Receive Progress (`{"host": {"sync": [[piece, …], …]}}`): one list
 //! of pieces for each run of an account from that line on, in turn, each piece a `sync.apply`
@@ -86,6 +109,7 @@ use mailcraft_engine::Session;
 use mailcraft_engine::io::{BackgroundSave, SaveProgress, SaveReport, SaveStage};
 use mailcraft_model::sync::{SyncResult, Tokens};
 use mailcraft_ui_egui::approval::{NEEDS_APPROVAL, NO_BROWSER, SIGN_IN_DECLINED, SIGN_IN_TIMED_OUT};
+use mailcraft_ui_egui::ews_setup::{EwsCertificate, EwsCertificateFault, EwsConsentReason, EwsSetupEnd, EwsSetupEvent, EwsSetupFailure};
 use mailcraft_ui_egui::{AdminConsentAnswer, ControlRequest, GraphResult, MailApp, Services};
 
 static READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -111,6 +135,10 @@ struct Host {
     approvals: Vec<Sender<AdminConsentAnswer>>,
     /// How far the background saver has got (see the header).
     saving: Option<SaveProgress>,
+    /// The folder imports begun (#420): their progress, never finished; `treeProgress` moves it.
+    tree_jobs: Vec<(Arc<mailcraft_engine::import_tree::Progress>, Sender<Result<mailcraft_engine::import_tree::Parsed, String>>)>,
+    /// A folder the import looks into at once instead of waiting (`treeDir`).
+    tree_dir: String,
     /// Copies of the mailbox being "written": never finished (see the header).
     copies: Vec<Sender<Result<(), String>>>,
     /// The pieces of the Send/Receive runs to come, one list for each, and whether the script
@@ -128,6 +156,9 @@ struct Host {
     alert_trouble: Option<mailcraft_ui_egui::alerts::AlertTrouble>,
     /// The window is not the one in front (see the header).
     unfocused: bool,
+    /// How Exchange server account setup ends (see the header), and the jobs that wait for it.
+    ews: String,
+    ews_jobs: Vec<Sender<EwsSetupEvent>>,
 }
 
 /// A stand-in for the system's notifications: every alert is taken (and shown nowhere), unless
@@ -241,8 +272,56 @@ impl Host {
         })
     }
 
+    /// What the job of Add Account for an Exchange server account is told now; `None` while it
+    /// is still searching. Every name and fingerprint in it is invented.
+    fn ews_event(&self) -> Option<EwsSetupEvent> {
+        const URL: &str = "https://mail.example.org/EWS/Exchange.asmx";
+        let certificate = |changed: bool| {
+            EwsSetupEnd::Certificate(EwsCertificate {
+                url: URL.into(),
+                fingerprint: if changed { "3f9a2c7e".repeat(8) } else { "a1b2c3d4".repeat(8) },
+                subject: "mail.example.org, Example Organisation".into(),
+                issuer: "Example Organisation Internal CA".into(),
+                not_before: 1_767_225_600,
+                not_after: 1_893_456_000,
+                changed,
+            })
+        };
+        let mut words = self.ews.split_whitespace();
+        Some(match words.next()? {
+            "waits" => return None,
+            "consent" => {
+                return Some(EwsSetupEvent::Consent {
+                    host: words.next().unwrap_or("autodiscover.other.example").into(),
+                    reason: EwsConsentReason::Redirect,
+                });
+            }
+            "works" => EwsSetupEvent::Finished(EwsSetupEnd::Works { url: URL.into(), signed_in_with: "basic".into() }),
+            "online" => EwsSetupEvent::Finished(EwsSetupEnd::ExchangeOnline),
+            "certificate" => EwsSetupEvent::Finished(certificate(false)),
+            "changed" => EwsSetupEvent::Finished(certificate(true)),
+            "expired" => EwsSetupEvent::Finished(EwsSetupEnd::Failed(EwsSetupFailure::Certificate(EwsCertificateFault::Expired))),
+            "ntlm" => EwsSetupEvent::Finished(EwsSetupEnd::Failed(EwsSetupFailure::SignInNtlm)),
+            "refused" => EwsSetupEvent::Finished(EwsSetupEnd::Failed(EwsSetupFailure::SignInRefused)),
+            _ => EwsSetupEvent::Finished(EwsSetupEnd::Failed(EwsSetupFailure::Unreachable)),
+        })
+    }
+
     /// Take in what a line of the script says, and answer what was waiting for it.
     fn told(&mut self, said: &serde_json::Value) {
+        if let Some(how) = said.get("ews").and_then(|v| v.as_str()) {
+            self.ews = how.to_string();
+            if let Some(event) = self.ews_event() {
+                // (A job that was asked a question goes on waiting for what comes after.)
+                let asks = matches!(event, EwsSetupEvent::Consent { .. });
+                for waiting in std::mem::take(&mut self.ews_jobs) {
+                    let _ = waiting.send(event.clone());
+                    if asks {
+                        self.ews_jobs.push(waiting);
+                    }
+                }
+            }
+        }
         if let Some(why) = said.get("alerts").and_then(|v| v.as_str()) {
             use mailcraft_ui_egui::alerts::AlertTrouble;
             self.alert_trouble = [AlertTrouble::NotInstalled, AlertTrouble::OutsideApp, AlertTrouble::TurnedOff, AlertTrouble::NoService]
@@ -286,6 +365,17 @@ impl Host {
         }
         if let Some(found) = said.get("serverSearch") {
             self.server_search = Some(found.clone());
+        }
+        if let Some(dir) = said.get("treeDir").and_then(|v| v.as_str()) {
+            self.tree_dir = dir.to_string();
+        }
+        if let Some(n) = said.get("treeProgress").and_then(|v| v.as_array()) {
+            let n: Vec<usize> = n.iter().map(|v| v.as_u64().unwrap_or(0) as usize).collect();
+            if let (Some(job), [folders, files, messages]) = (self.tree_jobs.last().map(|(p, _)| p), n.as_slice()) {
+                job.folders.store(*folders, std::sync::atomic::Ordering::Relaxed);
+                job.files.store(*files, std::sync::atomic::Ordering::Relaxed);
+                job.messages.store(*messages, std::sync::atomic::Ordering::Relaxed);
+            }
         }
         if let Some(how) = said.get("saving").and_then(|v| v.as_str()) {
             let mut words = how.split_whitespace();
@@ -341,10 +431,27 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
     }
     let (signing, approving, updating, graphing, copying) = (host.clone(), host.clone(), host.clone(), host.clone(), host.clone());
     let syncing = host.clone();
+    let setting_up = host.clone();
     let searching = host.clone();
+    let tree = host.clone();
     Services {
         microsoft_client_id: "11111111-2222-3333-4444-555555555555".into(),
         lookup_mx: Some(Box::new(|_| answered(Ok(vec!["example-org.mail.protection.outlook.com".to_string()])))),
+        ews_setup: Some(Box::new(move |_job| {
+            let (tx, rx) = channel();
+            let Ok(mut host) = setting_up.lock() else { return rx };
+            match host.ews_event() {
+                Some(event) => {
+                    let asks = matches!(event, EwsSetupEvent::Consent { .. });
+                    let _ = tx.send(event);
+                    if asks {
+                        host.ews_jobs.push(tx);
+                    }
+                }
+                None => host.ews_jobs.push(tx),
+            }
+            rx
+        })),
         sign_in: Some(Box::new(move |request| {
             let (tx, rx) = channel();
             let Ok(mut host) = signing.lock() else { return rx };
@@ -480,7 +587,20 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
                 ..Default::default()
             })
         })),
-        secrets: Some(Box::new(StandInSecrets(host.clone()))),
+        secrets: Some(std::sync::Arc::new(StandInSecrets(host.clone()))),
+        // A folder import that is looked at for ever: `{"host": {"treeProgress": [folders, files, messages]}}` moves its counts.
+        import_tree: Some(Box::new(move |job| {
+            let dir = tree.lock().map(|host| host.tree_dir.clone()).unwrap_or_default();
+            if !dir.is_empty() {
+                // Answered at once from a folder on this computer (`treeDir`).
+                return answered(mailcraft_engine::import_tree::load_path(&dir, None, job.count_only, &job.progress).map_err(|e| e.to_string()));
+            }
+            let (tx, rx) = channel();
+            if let Ok(mut host) = tree.lock() {
+                host.tree_jobs.push((job.progress, tx));
+            }
+            rx
+        })),
         write_copy: Some(Box::new(move |_, _| {
             let (tx, rx) = channel();
             if let Ok(mut host) = copying.lock() {
@@ -558,6 +678,11 @@ fn main() {
     services.alert = Some(Box::new(StandInAlerts(host.clone())));
     // Remove MailCraft's data (#177): offered, and removes nothing here.
     services.data_wipe = Some(Box::new(StandInWipe));
+    // Open MailCraft's data folder (#460): offered, and opens nothing here.
+    services.data_folder = Some(mailcraft_ui_egui::data_removal::DataFolder {
+        path: std::path::PathBuf::from("/home/you/.config/mailcraft"),
+        open: Box::new(|_| Ok(())),
+    });
     // The organisation has turned updating by itself off for the computer.
     services.updates_turned_off_by_organisation = lines.iter().any(|l| l.pointer("/host/updates").and_then(|v| v.as_str()) == Some("organisation"));
     // A newly installed version that didn't start twice running, with the one before it kept.
@@ -566,12 +691,56 @@ fn main() {
     {
         services.update_start.didnt_start = Some((env!("CARGO_PKG_VERSION").to_string(), kept));
     }
+    // The system's language and regional format, when a line says (`{"locale": "en-GB"}`, #978).
+    if let Some(locale) = lines.iter().find_map(|l| l.get("locale").and_then(|v| v.as_str())) {
+        services.system_locale = Some(locale.to_string());
+        services.system_time_locale = Some(locale.to_string());
+    }
     let mut app = MailApp::new(session, services).with_control(rx);
     app.autosave = false;
+    // Every frame may be a shot: a password shown with its eye is drawn as dots (#438).
+    app.headless_shots = true;
     // (With a host that answers, nothing is to happen by itself: what a shot shows, its script asked for.)
     app.auto_sync = !stood_in;
     if let Some(overlay) = lines.iter().find_map(|l| l.get("overlayScrollBars").and_then(|v| v.as_bool())) {
         app.overlay_scroll_bars = overlay;
+    }
+    // A window still opening its mailbox (#519), until `after` ms have gone by (never, without it).
+    let mut _arriving = None;
+    if let Some(said) = lines.iter().find_map(|l| l.get("opening").cloned()) {
+        let (tx, arrive) = channel();
+        let progress = Arc::new(mailcraft_engine::io::OpenProgress::default());
+        let n = |k: &str| said.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+        progress.set_total(n("total"));
+        progress.add_read(n("read"));
+        use mailcraft_ui_egui::opening::{Arrival, Opening, Trouble};
+        let trouble = match said.get("trouble").and_then(|v| v.as_str()) {
+            Some("unreadable") => {
+                Some(Trouble::Unreadable("/home/you/.config/mailcraft/mailbox.mailcraft: this mailbox file is damaged (its header)".into()))
+            }
+            Some("stopped") => Some(Trouble::Stopped),
+            Some("damaged") => Some(Trouble::Damaged),
+            Some("repaired") => Some(Trouble::Repaired(n("repaired").max(1) as usize)),
+            _ => None,
+        };
+        let arrival = |trouble| Arrival { trouble, ..Arrival::opened(mailcraft_model::Mailbox::with_local_account("", ""), None) };
+        if trouble.is_some() {
+            let _ = tx.send(arrival(trouble));
+        } else if let Some(after) = said.get("after").and_then(|v| v.as_u64()) {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(after));
+                let _ = tx.send(arrival(None));
+            });
+        } else {
+            _arriving = Some(tx);
+        }
+        let theme = match said.get("theme").and_then(|v| v.as_str()) {
+            Some("dark") => mailcraft_ui_egui::theme::Appearance::Dark,
+            _ => mailcraft_ui_egui::theme::Appearance::Light,
+        };
+        let prefs = mailcraft_ui_egui::UiState { theme, ..Default::default() };
+        let built = app;
+        app = MailApp::opening(Opening::new(arrive, progress, Box::new(move |_| built)), Some(prefs), None);
     }
     let w = lines.iter().find_map(|l| l.get("width").and_then(|v| v.as_f64())).unwrap_or(1440.0) as f32;
     let h = lines.iter().find_map(|l| l.get("height").and_then(|v| v.as_f64())).unwrap_or(900.0) as f32;
@@ -606,6 +775,26 @@ fn main() {
                 // In front or not, for desktop alerts about new mail.
                 harness.input_mut().focused = !host.unfocused;
             }
+            // Every Microsoft account's To Do works (the question about the local tasks follows).
+            if said.get("tasksWork").is_some() {
+                harness.state_mut().stand_in_tasks_work();
+            }
+            // Every Microsoft account's automatic replies as a server has them: on (`"on"`), or
+            // on and only readable with the sign-in it has (`"readOnly"`).
+            if let Some(how) = said.get("autoReplies").and_then(|v| v.as_str()) {
+                let app = harness.state_mut();
+                let setting = mailcraft_model::auto_replies::AutoReplies::from_graph(&serde_json::json!({
+                    "status": "scheduled",
+                    "externalAudience": "contactsOnly",
+                    "scheduledStartDateTime": {"dateTime": "2026-10-14T09:00:00", "timeZone": "UTC"},
+                    "scheduledEndDateTime": {"dateTime": "2026-10-23T17:00:00", "timeZone": "UTC"},
+                    "internalReplyMessage": "<p>I'm away until Friday 23 October.</p><p>For anything urgent, ask bo@example.org.</p>",
+                    "externalReplyMessage": "<p>Thank you for your message. I'm out of the office until 23 October.</p>",
+                }));
+                for account in mailcraft_engine::cmd::auto_replies::reply_accounts(&app.session.mailbox) {
+                    let _ = app.stand_in_auto_replies(account, &setting, how != "readOnly");
+                }
+            }
             // A search on the server is asked with a token of this session (invented).
             if said.get("serverSearch").is_some() {
                 let app = harness.state_mut();
@@ -626,6 +815,17 @@ fn main() {
                 let count = |k: usize| u32::try_from(n(k)).unwrap_or(u32::MAX);
                 harness.state_mut().session.sync_progress.set_full(n(0), count(1), count(2));
             }
+            step_n(&mut harness, 2);
+        }
+        // A certification authority to trust, as the system's would be (#30): `{"trust": "/abs/ca.der"}`.
+        if let Some(path) = l.get("trust").and_then(|v| v.as_str()) {
+            let der = std::fs::read(path).expect("read the certificate");
+            harness.state_mut().session.set_trust_anchors([der.as_slice()]);
+            step_n(&mut harness, 2);
+        }
+        // What the system hands the program (a later start, the command line): `{"open": "…"}`.
+        if let Some(what) = l.get("open").and_then(|v| v.as_str()) {
+            harness.state_mut().open_from_system(what);
             step_n(&mut harness, 2);
         }
         if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {

@@ -1,19 +1,24 @@
 # The gates every change must pass: formatting, clippy with warnings as errors, the tests, asset
 # attribution, crate layering, the wasm build and cargo-deny (`cargo xtask ci`), on the three desktop systems
 # (clippy and wasm on Linux only). Changes to documentation alone don't run it, nor changes under
-# .github/ alone (other workflows, templates, the CodeQL set-up), save to this file; `ci-ok` reports
-# on every pull request either way, and is the check that protection of main requires.
+# .github/ alone (templates, the CodeQL set-up), save to the workflows, which `cargo xtask
+# workflows` reads; `ci-ok` reports on every pull request either way, and is the check that
+# protection of main requires.
 name: CI
 
 on:
   push:
     branches: [main]
-    paths: ['**', '!docs/**', '!**/*.md', '!.github/**', 'ATTRIBUTION.md', '.github/workflows/ci.yml']
+    paths: ['**', '!docs/**', '!**/*.md', '!.github/**', 'ATTRIBUTION.md', '.github/workflows/**']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  # A dropped connection to crates.io is tried again rather than failing the run.
+  CARGO_NET_RETRY: 10
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -22,7 +27,7 @@ concurrency:
 jobs:
   # Whether a pull request changes anything but documentation (Markdown files and docs/;
   # ATTRIBUTION.md counts as code, since `cargo xtask assets` reads it) and .github/ (nothing the
-  # build reads; this workflow counts as code).
+  # build reads; the workflows count as code, since `cargo xtask workflows` reads them).
   changes:
     runs-on: ubuntu-24.04
     outputs:
@@ -39,7 +44,7 @@ jobs:
         run: |
           if [ "$EVENT" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
           files=$(git diff --name-only "$BASE"...HEAD)
-          if printf '%s\n' "$files" | grep -qvE '^docs/|^\.github/|\.md$|^$' || printf '%s\n' "$files" | grep -qxE 'ATTRIBUTION\.md|\.github/workflows/ci\.yml'; then
+          if printf '%s\n' "$files" | grep -qvE '^docs/|^\.github/|\.md$|^$' || printf '%s\n' "$files" | grep -qxE 'ATTRIBUTION\.md|\.github/workflows/.*\.ya?ml'; then
             echo code=true >> "$GITHUB_OUTPUT"
           else
             echo code=false >> "$GITHUB_OUTPUT"
@@ -62,11 +67,19 @@ jobs:
           toolchain: 1.98.1
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         # Pull requests read main's cache but don't write their own: a cache per PR fills the
         # repository's 10 GB and pushes out the caches that matter (FreeBSD's above all).
         with:
+          # The same cache as `fragments` reads.
+          shared-key: ci
           save-if: ${{ github.ref == 'refs/heads/main' }}
+          # A main run whose tests fail still keeps what it compiled for the next run.
+          cache-on-failure: true
+      # Runs the test binaries side by side (`cargo xtask ci` uses it when it is there).
+      - uses: taiki-e/install-action@682ce6c3c696a4cd5168a05f98e51aa02b877941 # v2.89.1
+        with:
+          tool: cargo-nextest@0.9.150
       # Windowing and file-dialog headers the desktop app links against.
       - name: Linux build dependencies
         if: runner.os == 'Linux'
@@ -87,15 +100,37 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@682ce6c3c696a4cd5168a05f98e51aa02b877941 # v2.89.1
         with:
           tool: cargo-deny@0.20.2
       - run: cargo run --locked --package xtask -- deny
 
+  # A pull request of documentation alone skips `ci`, but its fragments (`docs/log.d/`,
+  # `packaging/release-notes.d/`) are joined at release time: they are checked here, so that one
+  # that wouldn't join fails the pull request that adds it and not the release.
+  fragments:
+    needs: changes
+    if: needs.changes.outputs.code != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        # `ci`'s cache (main writes it), read and never written here.
+        with:
+          shared-key: ci
+          save-if: false
+      - run: cargo run --locked --package xtask -- docs-log --check
+      - run: cargo run --locked --package xtask -- release-notes > /dev/null
+
   # The one check main's protection requires: passes when every platform passed, or when there
   # was nothing but documentation to check.
   ci-ok:
-    needs: [changes, ci, deny]
+    needs: [changes, ci, deny, fragments]
     if: always()
     runs-on: ubuntu-24.04
     steps:

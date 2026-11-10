@@ -121,8 +121,8 @@ fn snapshots_share_messages_until_one_changes() {
     let b = mb.add_message(mail(inbox, "Two", 2)).unwrap();
     let snapshot = mb.clone();
     mb.message_mut(a).unwrap().read = true;
-    assert!(!Arc::ptr_eq(&mb.messages[&a], &snapshot.messages[&a]));
-    assert!(Arc::ptr_eq(&mb.messages[&b], &snapshot.messages[&b]));
+    assert!(!Arc::ptr_eq(mb.messages.get(&a).unwrap(), snapshot.messages.get(&a).unwrap()));
+    assert!(Arc::ptr_eq(mb.messages.get(&b).unwrap(), snapshot.messages.get(&b).unwrap()));
     assert!(!snapshot.message(a).unwrap().read);
 }
 
@@ -157,6 +157,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::SubjectContains("digest".into())],
             actions: vec![Action::MoveTo(news), Action::MarkRead, Action::Categorize("Blue category".into())],
             stop: true,
+            ..Default::default()
         },
         Rule {
             id: 2,
@@ -165,6 +166,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::FromContains("bob".into())],
             actions: vec![Action::Flag],
             stop: false,
+            ..Default::default()
         },
         Rule {
             id: 3,
@@ -173,6 +175,7 @@ fn rules_run_on_new_mail() {
             conditions: vec![Condition::SubjectContains("hello".into())],
             actions: vec![Action::MoveTo(4242), Action::Delete],
             stop: false,
+            ..Default::default()
         },
     ];
     let digest = mb.add_message(mail(inbox, "Weekly Digest", 1)).unwrap();
@@ -192,19 +195,19 @@ fn categories_rename_and_remove_everywhere() {
     let inbox = mb.inbox().unwrap();
     let m = mb.add_message(Message { categories: vec!["Red category".into()], ..mail(inbox, "x", 1) }).unwrap();
     let c = mb.add_contact(Contact { first: "Bob".into(), categories: vec!["red CATEGORY".into(), "Other".into()], ..Default::default() });
-    mb.rename_category("red category", "Urgent").unwrap();
+    mb.rename_category(0, "red category", "Urgent").unwrap();
     assert_eq!(mb.message(m).unwrap().categories, ["Urgent"]);
     assert_eq!(mb.contact(c).unwrap().categories, ["Urgent", "Other"]);
-    assert!(mb.rename_category("Urgent", "Blue category").is_err());
-    assert!(mb.rename_category("Nope", "X").is_err());
-    mb.set_category("urgent", Rgb(1, 2, 3)).unwrap();
+    assert!(mb.rename_category(0, "Urgent", "Blue category").is_err());
+    assert!(mb.rename_category(0, "Nope", "X").is_err());
+    mb.set_category(0, "urgent", Rgb(1, 2, 3)).unwrap();
     assert_eq!(mb.category_color("Urgent"), Rgb(1, 2, 3));
     assert_eq!(mb.categories.len(), 6);
-    mb.remove_category("URGENT").unwrap();
+    mb.remove_category(0, "URGENT").unwrap();
     assert!(mb.message(m).unwrap().categories.is_empty());
     assert_eq!(mb.contact(c).unwrap().categories, ["Other"]);
     assert_eq!(mb.category_color("Urgent"), Rgb(0x8A, 0x8A, 0x8A));
-    assert!(mb.remove_category("Urgent").is_err());
+    assert!(mb.remove_category(0, "Urgent").is_err());
 }
 
 #[test]
@@ -246,6 +249,7 @@ fn a_mailbox_round_trips_as_json() {
         conditions: vec![Condition::HasAttachment],
         actions: vec![Action::Flag],
         stop: false,
+        ..Default::default()
     });
     let json = serde_json::to_string(&mb).unwrap();
     let mut back: Mailbox = serde_json::from_str(&json).unwrap();
@@ -376,10 +380,10 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
     assert_eq!(mb.pending, [Pending::Move { account, message: a, from: "INBOX".into(), uid: 44, synced: Some(unread(44)), to: deleted }]);
     // And then for good, before the server heard of the move: deleted where the server has it.
     assert_eq!(mb.delete_message(a), Ok(true));
-    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new() }]);
+    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new(), seen: None }]);
     // For good straight away.
     mb.remove_message(b).unwrap();
-    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new() }));
+    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None }));
     // What a synchronisation takes out because the server no longer has it is not told back.
     mb.forget_message(c).unwrap();
     // A message that was never on the server is nobody's business.
@@ -397,24 +401,41 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
 }
 
 #[test]
-fn mail_moved_to_another_account_stays_on_its_own_server() {
+fn mail_moved_to_another_imap_account_waits_to_be_put_on_its_server_and_its_original_with_it() {
     let (mut mb, account, a) = synced_mailbox();
-    let archive = mb.folder_of_kind(account, FolderKind::Archive).unwrap();
-    let other = mb.add_account(Account { email: "work@example.org".into(), ..Default::default() });
+    mb.accounts[0].kind = AccountKind::Imap;
+    let (inbox, archive) = (mb.inbox().unwrap(), mb.folder_of_kind(account, FolderKind::Archive).unwrap());
+    let other = mb.add_account(Account { email: "work@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
     let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
     mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
-    // A server can't hand a message to another one.
+    // Put on the other server by its own run; the original stays on its own until it is there
+    // (#451). The other account's INBOX is not the one it came from.
     mb.move_message(a, other_inbox).unwrap();
-    assert!(mb.pending.is_empty());
     assert_eq!(mb.message(a).map(|m| (m.account, m.uid, m.synced)), Some((other, 0, None)));
-    // Nor when a move within its own account was still waiting; and the other account's INBOX
-    // is not the one it came from.
-    let b = mb.add_message(Message { uid: 45, synced: Some(unread(45)), ..mail(mb.inbox().unwrap(), "Two", 2) }).unwrap();
+    let moved_out = |to: Id| Pending::Move { account, message: a, from: "INBOX".into(), uid: 44, synced: Some(unread(44)), to };
+    assert_eq!(mb.pending, [moved_out(other_inbox)]);
+    assert!(
+        matches!(mb.queued.as_slice(), [Queued::PlaceMessage { account: to, message, copy: false, from: None, .. }] if *to == other && *message == a)
+    );
+    // A move within its own account that was still waiting goes on into the other account.
+    let b = mb.add_message(Message { uid: 45, synced: Some(unread(45)), ..mail(inbox, "Two", 2) }).unwrap();
     mb.move_message(b, archive).unwrap();
-    assert_eq!(mb.pending.len(), 1);
     mb.move_message(b, other_inbox).unwrap();
-    assert!(mb.pending.is_empty());
+    assert_eq!(mb.pending.len(), 2);
     assert_eq!(mb.message(b).map(|m| (m.account, m.uid)), Some((other, 0)));
+    assert!(mb.repair().is_empty());
+    // On to this computer before the other server has it: nothing is put there, and the
+    // original goes once it is safe here.
+    let local = mb.local_account();
+    let kept = mb.add_folder(local, None, "Kept").unwrap();
+    mb.move_message(b, kept).unwrap();
+    assert!(!mb.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == b)));
+    assert!(mb.pending.iter().any(|p| matches!(p, Pending::Move { account: owner, message, .. } if *owner == account && *message == b)));
+    // Back where its server has it: nothing is put anywhere, and nothing goes.
+    mb.move_message(a, inbox).unwrap();
+    assert_eq!(mb.message(a).map(|m| (m.account, m.uid, m.synced)), Some((account, 44, Some(unread(44)))));
+    assert!(!mb.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == a)));
+    assert!(!mb.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == a)));
     assert!(mb.repair().is_empty());
 }
 
@@ -430,6 +451,7 @@ fn removing_a_folder_or_an_account_drops_what_waited_for_it() {
     let b = mb.add_message(Message { uid: 5, ..mail(old, "From the old folder", 2) }).unwrap();
     let c = mb.add_message(Message { uid: 6, ..mail(old, "Deleted there", 3) }).unwrap();
     let d = mb.add_message(Message { uid: 45, ..mail(inbox, "Stays", 4) }).unwrap();
+    let first = mb.message(a).map(|m| m.uid).unwrap();
     mb.move_message(a, projects).unwrap();
     mb.move_message(b, archive).unwrap();
     mb.remove_message(c).unwrap();
@@ -439,11 +461,16 @@ fn removing_a_folder_or_an_account_drops_what_waited_for_it() {
     assert_eq!(mb.delete_folder(projects), Ok(false));
     assert_eq!(mb.pending.len(), 4);
     assert_eq!(mb.delete_folder(projects), Ok(true));
-    assert_eq!(mb.pending.len(), 3);
+    assert_eq!(mb.pending.len(), 4);
     assert_eq!((mb.delete_folder(old), mb.delete_folder(old)), (Ok(false), Ok(true)));
-    // What was to go into Projects, and what was to leave Old or be deleted there, is forgotten;
-    // the rest waits on.
-    assert_eq!(mb.pending, [Pending::Move { account, message: d, from: "INBOX".into(), uid: 45, synced: None, to: archive }]);
+    // What was to leave Old or be deleted there is forgotten: the server's folder goes with it.
+    // What was to go into Projects goes for good with it, deleted where the server has it, as a
+    // message deleted for good is (#451); the rest waits on.
+    assert!(
+        matches!(&mb.pending[..], [Pending::Delete { from, uid, .. }, Pending::Move { message, .. }] if from == "INBOX" && *uid == first && *message == d),
+        "{:?}",
+        mb.pending
+    );
     assert!(mb.message(a).is_none() && mb.message(b).is_some());
     assert!(mb.repair().is_empty());
 
@@ -534,8 +561,8 @@ fn repair_drops_nonsense_about_the_server() {
         mb.pending,
         [
             Pending::Move { account: 1, message: 16, from: "INBOX".into(), uid: 40, synced: None, to: 6 },
-            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, message_id: String::new() },
-            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, message_id: String::new() },
+            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, message_id: String::new(), seen: None },
+            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, message_id: String::new(), seen: None },
         ]
     );
     assert!(mb.repair().is_empty(), "{:?}", mb.clone().repair());
@@ -573,15 +600,31 @@ fn a_change_waiting_for_a_mailbox_numbered_anew_is_kept_when_it_can_be_found_aga
     let (mut mb, account) = mailbox();
     let inbox = mb.inbox().unwrap();
     mb.folder_mut(inbox).unwrap().remote = "INBOX".into();
-    let waiting = Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: "gone@mail.example".into() };
+    let seen = MailIdentity { date: 1_700_000_000, from: "a@mail.example".into(), subject: "Hi".into(), people: vec!["b@mail.example".into()] };
+    let waiting = Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: "gone@mail.example".into(), seen: Some(seen) };
     let saved = serde_json::to_value(&waiting).unwrap();
     assert_eq!(saved["delete"]["messageId"], "gone@mail.example");
     assert_eq!(serde_json::from_value::<Pending>(saved).unwrap(), waiting);
     // Without a Message-ID it could never be found again: the repair lets it go.
-    mb.pending = vec![waiting.clone(), Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: String::new() }];
+    mb.pending = vec![waiting.clone(), Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: String::new(), seen: None }];
     let fixed = mb.repair();
     assert!(fixed.iter().any(|line| line.contains("waiting for the mail server")), "{fixed:?}");
     assert_eq!(mb.pending, [waiting]);
+}
+
+#[test]
+fn a_change_of_0_8_0_waiting_for_a_renumbered_mailbox_is_let_go_and_the_file_still_opens() {
+    let (mut mb, account) = mailbox();
+    let inbox = mb.inbox().unwrap();
+    mb.folder_mut(inbox).unwrap().remote = "INBOX".into();
+    // A mailbox file of 0.8.0 has no `seen` in the change.
+    let old: Pending =
+        serde_json::from_value(serde_json::json!({"delete": {"account": account, "from": "INBOX", "uid": 0, "messageId": "x@mail.example"}}))
+            .unwrap();
+    assert!(matches!(&old, Pending::Delete { seen: None, .. }));
+    mb.pending = vec![old];
+    mb.repair();
+    assert!(mb.pending.is_empty());
 }
 
 // ---- shared mailboxes (#70) ----
@@ -791,12 +834,23 @@ fn a_kind_that_is_any_other_word_or_cant_be_read_is_one_this_version_doesnt_know
         let mb: Mailbox = serde_json::from_value(serde_json::json!({"accounts": [{"id": 4, "email": "ada@example.org", "kind": kind}]})).unwrap();
         mb.accounts[0].kind
     };
-    for kind in
-        [serde_json::json!("exchange"), serde_json::json!("IMAP"), serde_json::json!(7), serde_json::json!({"newer": {}}), serde_json::Value::Null]
-    {
+    for kind in [
+        serde_json::json!("carrierPigeon"),
+        serde_json::json!("Exchange"),
+        serde_json::json!("IMAP"),
+        serde_json::json!(7),
+        serde_json::json!({"newer": {}}),
+        serde_json::Value::Null,
+    ] {
         assert_eq!(kind_of(kind.clone()), AccountKind::Unknown, "{kind}");
     }
-    for (word, kind) in [("local", AccountKind::Local), ("imap", AccountKind::Imap), ("microsoft", AccountKind::Microsoft)] {
+    for (word, kind) in [
+        ("local", AccountKind::Local),
+        ("imap", AccountKind::Imap),
+        ("microsoft", AccountKind::Microsoft),
+        ("jmap", AccountKind::Jmap),
+        ("exchange", AccountKind::Exchange),
+    ] {
         assert_eq!(kind_of(serde_json::json!(word)), kind);
     }
     // A file from before there were kinds says none: a local account, as always.
@@ -989,6 +1043,7 @@ fn repair_trims_rules_to_the_most_a_mailbox_keeps() {
             conditions: vec![Condition::HasAttachment],
             actions: vec![Action::Flag],
             stop: false,
+            ..Default::default()
         });
     }
     let fixed = mb.repair();
@@ -1068,4 +1123,56 @@ fn a_file_with_too_many_items_is_refused_while_it_is_read() {
     assert!(err.contains("more items"), "{err}");
     // The budget is not left set for the next read.
     assert_eq!(serde_json::from_str::<Mailbox>(&json).map(|m| m.messages.len()).ok(), Some(2000));
+}
+
+#[test]
+fn a_switch_to_ask_before_deleting_a_conversation_this_version_cant_read_still_opens_the_mailbox() {
+    // As its neighbours: written as nothing this version reads, it is "nothing was said" (#503).
+    for written in ["null", "\"yes\"", "1", "{\"ask\": false}"] {
+        let json = format!(r#"{{"id": 3, "email": "noor@example.org", "skipConversationQuestion": {written}}}"#);
+        let read = serde_json::from_str::<Account>(&json);
+        assert!(read.as_ref().is_ok_and(|a| !a.skip_conversation_question), "{written}: {read:?}");
+    }
+    let said: Account = serde_json::from_str(r#"{"id": 3, "email": "noor@example.org", "skipConversationQuestion": true}"#).unwrap();
+    assert!(said.skip_conversation_question);
+}
+
+/// Exchange's stamp that mail came from inside the organisation is its server's word, or a
+/// sender's own where no Exchange removed it: it doesn't go with the mail onto another account's
+/// server, where it would vouch for it (#781).
+#[test]
+fn exchange_stamps_stay_behind_when_mail_goes_to_another_server() {
+    let (mut mb, _, a) = synced_mailbox();
+    mb.accounts[0].kind = AccountKind::Imap;
+    let stamp = || (auth_results::AUTH_AS.to_string(), "Internal".to_string());
+    mb.message_mut(a).unwrap().headers = vec![stamp(), ("X-Other".into(), "1".into())];
+    let other = mb.add_account(Account { email: "work@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
+    let copy = mb.copy_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(copy).unwrap().headers, [("X-Other".to_string(), "1".to_string())]);
+    assert_eq!(mb.message(a).unwrap().headers.first(), Some(&stamp()));
+    mb.move_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(a).map(|m| (m.account, m.headers.len())), Some((other, 1)));
+}
+
+/// Before #781 a message moved into a Microsoft 365 account kept every header, a sender's forged
+/// `AuthAs: Internal` among them, and the mailbox file kept it too. Loaded again, that stamp vouches
+/// for nothing; one read by this version is believed, and still is after a save.
+#[test]
+fn exchange_stamps_saved_before_781_vouch_for_nothing() {
+    let (mut mb, _, a) = synced_mailbox();
+    (mb.accounts[0].kind, mb.accounts[0].email) = (AccountKind::Microsoft, "owner@lumen.example".into());
+    let m = mb.message_mut(a).unwrap();
+    m.from = Address::new("Forger", "boss@lumen.example");
+    m.headers = vec![(auth_results::AUTH_AS.to_string(), "Internal".to_string())];
+    let saved = |mb: &Mailbox| serde_json::to_vec(mb).unwrap();
+    let vouched = |mb: &Mailbox| mb.message(a).is_some_and(|m| auth_results::vouched(mb.account(m.account), m));
+    // As a build from before wrote it: nothing says how the stamp was read.
+    let before = saved(&mb);
+    assert!(!String::from_utf8_lossy(&before).contains("freshStamps"));
+    assert!(!vouched(&from_json(&before, usize::MAX).unwrap()));
+    mb.message_mut(a).unwrap().fresh_stamps = true;
+    assert!(vouched(&mb));
+    assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
 }

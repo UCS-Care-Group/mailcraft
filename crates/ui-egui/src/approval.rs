@@ -44,6 +44,15 @@ pub const NEEDS_APPROVAL: &str = crate::favorites_sync::NEEDS_APPROVAL;
 pub const SIGN_IN_DECLINED: &str = "Microsoft's page came back without signing you in";
 /// Nothing came back in the time that is waited: the page was closed, or left open.
 pub const SIGN_IN_TIMED_OUT: &str = "Nothing came back from Microsoft's sign-in page";
+/// Google declined the owner's permission on its own page, without Microsoft approval.
+pub const GOOGLE_SIGN_IN_DECLINED: &str = "Google sign-in was declined";
+/// An external Google 403 page may never return a callback, so a timeout is not always a closed tab.
+pub const GOOGLE_SIGN_IN_TIMED_OUT: &str = "Google sign-in did not complete";
+/// The refresh grant was confirmed revoked or expired. Remove this account's stored refresh
+/// credential so the next owner-initiated Send/Receive starts a clean browser sign-in.
+pub const GOOGLE_REAUTH_REQUIRED: &str = "Google sign-in expired or was revoked. Use Send/Receive to sign in again.";
+/// A Google or Workspace policy prevented authorization, not Microsoft's approval flow.
+pub const GOOGLE_SIGN_IN_BLOCKED: &str = "Google blocked MailCraft sign-in for this account";
 /// No browser could be started for the page.
 pub const NO_BROWSER: &str = "MailCraft couldn't open your browser";
 
@@ -66,9 +75,9 @@ impl SignInEnd {
     /// The way `error` names, as a host answers a sign-in with it.
     pub fn of(error: &str) -> SignInEnd {
         match error {
-            NEEDS_APPROVAL => SignInEnd::Approval,
-            SIGN_IN_DECLINED => SignInEnd::Declined,
-            SIGN_IN_TIMED_OUT => SignInEnd::TimedOut,
+            NEEDS_APPROVAL | GOOGLE_SIGN_IN_BLOCKED => SignInEnd::Approval,
+            SIGN_IN_DECLINED | GOOGLE_SIGN_IN_DECLINED => SignInEnd::Declined,
+            SIGN_IN_TIMED_OUT | GOOGLE_SIGN_IN_TIMED_OUT => SignInEnd::TimedOut,
             NO_BROWSER => SignInEnd::NoBrowser,
             _ => SignInEnd::Other,
         }
@@ -185,6 +194,8 @@ pub(crate) struct Whose {
 /// An approval the host is busy with (Microsoft's page is open in the browser).
 struct Asking {
     account: Id,
+    /// The mailbox opening it was asked from (AU3-08): an answer for another is nobody's.
+    opening: u64,
     rx: Receiver<AdminConsentAnswer>,
     cancel: Arc<AtomicBool>,
 }
@@ -294,6 +305,9 @@ impl MailApp {
         if self.signing_in.is_some() || self.approvals.asking.is_some() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         let Some(ask) = &self.services.admin_consent else { return Ok(()) };
         let cancel = Arc::new(AtomicBool::new(false));
         let request = AdminConsentRequest {
@@ -304,7 +318,7 @@ impl MailApp {
         };
         let rx = ask(request);
         self.approvals.answer = None;
-        self.approvals.asking = Some(Asking { account: whose.account, rx, cancel });
+        self.approvals.asking = Some(Asking { account: whose.account, opening: self.session.openings(), rx, cancel });
         self.session.sync_status = tl!("Microsoft's approval page is open in your browser…").to_string();
         Ok(())
     }
@@ -315,6 +329,18 @@ impl MailApp {
         asking.cancel.store(true, Ordering::Relaxed);
         self.session.sync_status.clear();
         Some(asking.account)
+    }
+
+    /// Another mailbox took the place of the open one: the approval being waited for, and an
+    /// answer nobody took, were the old one's accounts'.
+    pub(crate) fn forget_admin_consent(&mut self) {
+        self.cancel_admin_consent();
+        self.approvals.answer = None;
+    }
+
+    /// Whether an approval is being waited for, or its answer is still to be taken.
+    pub(crate) fn admin_consent_busy(&self) -> bool {
+        self.approvals.asking.is_some() || self.approvals.answer.is_some()
     }
 
     /// What the approval that was asked for `account` came to, once it has: taken by the page
@@ -332,6 +358,11 @@ impl MailApp {
     /// host's tests, which have no window.)
     pub fn poll_admin_consent(&mut self) {
         let Some(asking) = &self.approvals.asking else { return };
+        if asking.opening != self.session.openings() {
+            log::info!("approval by an administrator: the answer is for a mailbox that is no longer open; let go of");
+            self.forget_admin_consent();
+            return;
+        }
         let answer = match asking.rx.try_recv() {
             Ok(answer) => answer,
             Err(TryRecvError::Empty) => return,

@@ -1,0 +1,1 @@
+| 2026-11-09 | patch | #30 key holders: gap 16: the keys for signing and decrypting are reached where the system keeps them, not wired yet; a PKCS#11 key that asks for its PIN at every use (a PIV card's signing key) is refused for now |

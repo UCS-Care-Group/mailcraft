@@ -37,73 +37,184 @@ macro_rules! tln {
 }
 
 mod account_setup;
+mod advanced_search;
 pub mod agent_gate;
+#[cfg(test)]
+mod agent_gate_binding_tests;
+#[cfg(test)]
+mod agent_gate_tests;
+#[cfg(test)]
+mod agent_leaves_tests;
+#[cfg(test)]
+mod agent_names_tests;
+#[cfg(test)]
+mod agent_undo_tests;
 pub mod alerts;
 pub mod approval;
+#[cfg(test)]
+mod attachment_menu_tests;
 mod attachment_open;
+pub mod auto_replies;
+#[cfg(test)]
+mod auto_replies_tests;
 pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
 pub mod chrome;
+mod clicks;
+#[cfg(test)]
+mod clicks_tests;
 pub mod compose;
+#[cfg(test)]
+mod confirm_ids_tests;
 pub mod control;
 pub mod credits;
 pub mod data_removal;
+pub mod date_picker;
 pub mod dates;
+#[cfg(test)]
+mod dialog_scrim_tests;
 pub mod dialogs;
+#[cfg(test)]
+mod draft_continue_tests;
+mod drag_pointer;
+#[cfg(test)]
+mod drag_pointer_tests;
+#[cfg(test)]
+mod ews_info_tests;
+pub mod ews_mail;
+pub mod ews_setup;
 pub mod favorites_sync;
+#[cfg(test)]
+mod field_drag_tests;
 pub mod files;
+mod find_replace;
 mod folder_properties;
+mod font_index;
 pub mod forms;
+#[cfg(test)]
+#[path = "forms_date_tests.rs"]
+mod forms_date_tests;
+#[cfg(test)]
+mod frame_bench_tests;
+mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
+mod gmail_tabs;
+#[cfg(test)]
+mod gmail_tabs_tests;
+#[cfg(test)]
+#[path = "google_credential_security_tests.rs"]
+mod google_credential_security_tests;
+#[cfg(test)]
+mod google_registration_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+pub mod import_pst;
+pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
+#[cfg(test)]
+mod job_replacement_tests;
+mod jobs;
 mod keep_offline;
+#[cfg(test)]
+mod key_chain_tests;
 pub mod keys;
 #[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
+#[cfg(test)]
+mod leave_message_tests;
+#[cfg(test)]
+mod list_keys_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
+mod merge_contacts;
 pub mod nav;
 #[cfg(test)]
 mod on_top_tests;
 mod open_shared;
 #[cfg(test)]
 mod open_shared_tests;
+mod opened_message;
+#[cfg(test)]
+mod opened_message_tests;
+pub mod opening;
+#[cfg(test)]
+mod password_kept_tests;
 pub mod people_view;
+mod pick_item;
+#[cfg(test)]
+mod pick_item_tests;
 pub mod reading;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+pub mod rule_sync;
+#[cfg(test)]
+mod rule_sync_tests;
 pub mod scheduling;
 mod search_pills;
+#[cfg(test)]
+mod search_pills_tests;
 mod search_suggest;
+mod secret_field;
+#[cfg(test)]
+mod secret_field_tests;
+mod secret_read;
+#[cfg(test)]
+#[path = "secret_read_tests.rs"]
+mod secret_read_tests;
+#[cfg(test)]
+#[path = "secrets_binding_tests.rs"]
+mod secrets_binding_tests;
 #[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+mod send_receive;
 mod sender_images;
+mod sending;
 pub mod server_search;
+pub mod settings_notice;
 mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+mod symbol;
 mod sync_panel;
+pub mod task_sync;
+#[cfg(test)]
+mod task_sync_tests;
 pub mod tasks_view;
+mod text_menu;
+#[cfg(test)]
+mod text_menu_gesture_tests;
+#[cfg(test)]
+mod text_menu_tests;
 pub mod theme;
+#[cfg(test)]
+mod theme_choice_tests;
 pub mod unconfirmed;
+#[cfg(test)]
+mod update_switches_tests;
 pub mod updates;
+mod view_source;
+#[cfg(test)]
+mod view_source_tests;
 pub mod widgets;
 pub mod window_geometry;
+pub mod window_places;
 pub mod windows;
+#[cfg(test)]
+mod writing_tools_tests;
 mod zones;
 
 use std::sync::mpsc::Receiver;
@@ -118,19 +229,33 @@ pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
 pub use files::FileDialogRequest;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
+pub use settings_notice::SettingsUnread;
 pub use unconfirmed::ConfirmedMailbox;
 
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
+    /// Desktop: the icon and application id of the main window, which every other window of the
+    /// system (reminders, messages) takes too.
+    pub window_identity: Option<windows::WindowIdentity>,
     /// Desktop: show a native file dialog without blocking the UI thread. The host sends the
-    /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
-    /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
-    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<String>>>>,
-    /// Web: open a file picker; the file arrives later through `inbox`. The argument says what
-    /// for (`mailbox`, `import`, `attach`).
-    pub open_async: Option<Box<dyn Fn(&str)>>,
-    /// Files (name, bytes) delivered asynchronously (the web picker, drag and drop).
+    /// picked paths (`None` when cancelled; several only for files to attach, one otherwise)
+    /// through the returned channel and wakes the UI; a dropped sender counts as cancelled. The
+    /// app shows one dialog at a time ([`files`]).
+    pub file_dialog: Option<Box<dyn Fn(FileDialogRequest) -> Receiver<Option<Vec<String>>>>>,
+    /// Web: open a file picker; what is picked arrives later through `picked`, each file with
+    /// what the picker was opened for (`mailbox`, `import`, `attach`, …) and the message being
+    /// written that asked, as given here ([`Delivered::picked`]): the picker's answer is never
+    /// taken for another's, however the pickers overlap, and a cancelled one delivers nothing
+    /// and leaves nothing behind. Of files to attach, the host reads at most [`files::MOST_ATTACHED`]
+    /// of one pick, none larger than a message may carry, and none once the pick would pass
+    /// [`files::MOST_ATTACHED_BYTES`]; each left unread is delivered saying why
+    /// ([`Delivered::unread`]), and nothing past the caps is ever read.
+    pub open_async: Option<Box<dyn Fn(&str, Option<u64>)>>,
+    /// Files the picker of `open_async` delivered, each saying what it was picked for.
+    pub picked: Option<Inbox>,
+    /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
+    /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
     /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
     /// system's own program for its kind: the host writes it, under the name given (already
@@ -165,6 +290,14 @@ pub struct Services {
     /// Desktop: search a Microsoft mailbox on its server, one page, on a background thread
     /// (R6.2: More results on the server, only on the owner's click).
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
+    pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
+    /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
+    pub graph_rules: Option<Box<dyn Fn(rule_sync::RulesJob) -> Receiver<rule_sync::RulesResult>>>,
+    /// Read and change the automatic replies of a Microsoft account on its server
+    /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
+    /// browser: File › Info then has no Automatic Replies.
+    pub graph_auto_replies: Option<Box<dyn Fn(auto_replies::AutoRepliesJob) -> Receiver<auto_replies::AutoRepliesResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
     /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
     /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
@@ -175,9 +308,26 @@ pub struct Services {
     /// The same host: fetch messages of a JMAP account whole, as `graph_fetch` does for a Microsoft
     /// account (`mailcraft_jmap::fetch::fetch_messages`).
     pub jmap_fetch: Option<Box<dyn Fn(jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
-    /// The host holds the credential of its JMAP accounts itself (a page that signed the owner in):
-    /// the window never asks for a password, and its JMAP jobs go without one.
-    pub jmap_host_credentials: bool,
+    /// Desktop: read an Exchange server account (#252, E6) as the job says, on a background thread:
+    /// sign in to the account's server with the job's password (Basic over TLS, the certificate
+    /// trusted as the request says), read what the request asks for (`mailcraft_ews::sync_mail`) and
+    /// hand the run back through the channel in pieces (`EwsMailResult::partial` on all but the
+    /// last), waking the UI for each. Absent where no host does (the browser): an Exchange server
+    /// account then has no Send/Receive ([`ews_mail`]).
+    pub ews: Option<Box<dyn Fn(ews_mail::EwsJob) -> Receiver<mailcraft_model::sync::EwsMailResult>>>,
+    /// The same host: fetch messages of an Exchange server account whole
+    /// (`mailcraft_ews::fetch_messages`), as `graph_fetch` does for a Microsoft account.
+    pub ews_fetch: Option<Box<dyn Fn(ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
+    /// has pressed Connect and not before: find the server unless its address is given, ask the
+    /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
+    /// test the account with one request for the Inbox ([`ews_setup`]). Absent where no host does
+    /// (the browser): Add Account then says it can't connect.
+    pub ews_setup: Option<Box<dyn Fn(ews_setup::EwsSetupJob) -> Receiver<ews_setup::EwsSetupEvent>>>,
+    /// Whether the host holds the credential of this JMAP account itself (a page that signed the
+    /// owner in to its server): for such an account the window never asks for a password, and its
+    /// jobs go without one. Absent, or false for an account: the owner types it.
+    pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
     /// Desktop: ask the DNS for a domain's mail exchangers on a background thread (best first),
     /// so account setup can tell whose servers an address at a company's own domain uses. Only
     /// the domain is given, never the mailbox name.
@@ -190,10 +340,19 @@ pub struct Services {
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
-    pub secrets: Option<Box<dyn SecretStore>>,
+    pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
+    /// MailCraft's own Google Desktop OAuth registration, not an account credential.
+    pub google_client_id: String,
+    /// Desktop registration supplied by the host's build or process environment. Kept in
+    /// memory, never in UI preferences; not an owner access or refresh token.
+    pub google_client_secret: String,
+    /// While Google reviews the project's registration (Testing mode), only the testers added to
+    /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
+    /// a new Gmail account starts on an app password, Google sign-in second with how to join.
+    pub google_testers_only: bool,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -205,6 +364,29 @@ pub struct Services {
     /// take a while for a large mailbox. Without one (tests, scripts) the copy is written in
     /// place by `account.graphSwitch`.
     pub write_copy: Option<Box<dyn Fn(std::path::PathBuf, mailcraft_model::Mailbox) -> Receiver<Result<(), String>>>>,
+    /// Desktop: walk, read and parse a folder of mbox files on a background thread
+    /// (`mailcraft_engine::import_tree::load_path`), so that neither the look at it nor the
+    /// import holds the window up (#420). The job carries the folder and a shared progress the
+    /// window shows and cancels through. Without one (tests, scripts) the window does it in place.
+    pub import_tree: Option<Box<dyn Fn(import_tree::TreeJob) -> Receiver<Result<mailcraft_engine::import_tree::Parsed, String>>>>,
+    /// Desktop: read a .pst file on a background thread (`mailcraft_engine::import_pst::read_path`,
+    /// #815), sending its mail a batch at a time and then the outcome; the window puts each batch
+    /// in as it comes and shows and cancels through the job's progress. Without one (tests,
+    /// scripts) the window reads the file in place.
+    pub import_pst: Option<Box<dyn Fn(import_pst::PstJob) -> Receiver<mailcraft_engine::import_pst::Event>>>,
+    /// Desktop: read a mailbox file on a background thread ahead of its taking the place of the
+    /// one open (File › Open, a mailbox file dropped or handed over; [`opening`]), counting what
+    /// it reads in the progress it is given and stopping when that is cancelled
+    /// (`mailcraft_engine::store::open_ahead`). Whether it could be read arrives through the
+    /// channel and the host wakes the UI; `file.open` then takes what was read. Absent in the
+    /// browser and the tests: `file.open` reads the file there and then.
+    pub read_ahead: Option<Box<dyn Fn(std::path::PathBuf, std::sync::Arc<mailcraft_engine::io::OpenProgress>) -> Receiver<Result<(), String>>>>,
+    /// Desktop: take the lock of another mailbox file for this window (#517), before the window
+    /// opens it or saves to it, keeping the lock of the one open until that one is let go of (the
+    /// host then lets go of whichever the window no longer has open). `false`: another MailCraft
+    /// has that file open, and the window leaves it alone ([`opening::OPEN_ELSEWHERE`]). Absent in
+    /// the browser and the tests, where nothing is locked.
+    pub claim_mailbox: Option<Box<dyn Fn(&std::path::Path) -> bool>>,
     /// Desktop: download one picture a message refers to on the web, on a background thread,
     /// once the owner has asked for that message's pictures ([`reading::remote`]). The address
     /// is the message's own choice: the host checks where it leads before going there, takes
@@ -230,8 +412,13 @@ pub struct Services {
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
     pub data_wipe: Option<Box<dyn data_removal::DataWipe>>,
+    /// Desktop: the settings folder, and the host's way of showing a folder in the system's file
+    /// manager ([`data_removal::DataFolder`], File › Info › Open MailCraft's data folder, #460):
+    /// the window shows the open mailbox's own folder instead when it is kept elsewhere. Absent in
+    /// the browser, the tests and a run that keeps nothing.
+    pub data_folder: Option<data_removal::DataFolder>,
     /// Desktop: ask an account's server when people are free and busy, on a background thread,
-    /// for a meeting's Scheduling Assistant ([`scheduling`]). It reads and writes nothing. The
+    /// for a meeting's Find a Time page ([`scheduling`]). It reads and writes nothing. The
     /// answer, or why there is none, arrives through the channel and the host wakes the UI.
     /// Absent in the browser and for accounts whose server has no calendar: the assistant then
     /// shows the owner's own calendar only, and says so.
@@ -255,8 +442,9 @@ pub struct Services {
     /// UI. Absent in the browser.
     pub admin_consent: Option<Box<dyn Fn(AdminConsentRequest) -> Receiver<AdminConsentAnswer>>>,
     /// Desktop: the system's clipboard for what egui's can't carry, HTML: the body of a message
-    /// being written copies its selection as HTML and text, and pastes HTML when there is some.
-    /// Absent in the browser and the tests: copying and pasting are then text.
+    /// being written copies its selection as HTML and text, and pastes HTML when there is some;
+    /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
+    /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
@@ -297,15 +485,19 @@ pub struct Services {
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
+    /// The system's regional format for dates and times (`en-GB`: `LC_TIME` on Unix, the
+    /// browser's language in the browser build), whose region English dates are written for
+    /// (#978). `None` (the tests, scripts): the language's own way.
+    pub system_time_locale: Option<String>,
     /// Web: told the interface language's code (`en`) whenever it changes, for the page's
     /// `<html lang>`.
     pub on_language: Option<Box<dyn Fn(&str)>>,
 }
 
 impl Services {
-    /// Whether this build reaches mail servers at all: with mail connections, or over JMAP.
+    /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
-        self.sync.is_some() || self.jmap.is_some()
+        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
     }
 }
 
@@ -319,20 +511,96 @@ pub trait RichClipboard {
     fn image(&self) -> Option<Vec<u8>> {
         None
     }
+    /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
+    /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V
+    /// does with what the system read.
+    fn text(&self) -> Option<String> {
+        None
+    }
 }
 
-/// Files delivered asynchronously.
-pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
+/// The largest side of a picture taken from the clipboard, in pixels.
+pub const MAX_PICTURE_SIDE: usize = 4096;
+
+/// A picture from the clipboard, RGBA pixels `width` by `height`, as PNG: what the clipboard's
+/// picture is when it is pasted, by a text's menu (`RichClipboard::image`) or by Ctrl+V
+/// (`egui::Event::PasteImage`). Nothing when it is no picture of a size that is taken.
+pub fn clipboard_picture_png(width: usize, height: usize, rgba: &[u8]) -> Option<Vec<u8>> {
+    if width == 0
+        || height == 0
+        || width > MAX_PICTURE_SIDE
+        || height > MAX_PICTURE_SIDE
+        || rgba.len() != width.checked_mul(height)?.checked_mul(4)?
+    {
+        return None;
+    }
+    let mut out = Vec::new();
+    let encoder = image::codecs::png::PngEncoder::new(&mut out);
+    image::ImageEncoder::write_image(encoder, rgba, u32::try_from(width).ok()?, u32::try_from(height).ok()?, image::ExtendedColorType::Rgba8).ok()?;
+    Some(out)
+}
+
+/// Files delivered asynchronously ([`Delivered`]).
+pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<Delivered>>>;
+
+/// A file that arrived asynchronously: picked in the browser's picker, or dropped on the page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Delivered {
+    pub name: String,
+    /// Its bytes, or why it has none ([`Unread`]): said, and the other files of its pick go in.
+    pub bytes: Result<Vec<u8>, Unread>,
+    /// What the picker it was picked in was opened for (`mailbox`, `import`, `attach`, …) and
+    /// the message being written that asked, if one did; none for a drop, which goes by its
+    /// kind and to the message with the keyboard.
+    pub asked: Option<(String, Option<u64>)>,
+    /// Which pick it came in, counted by the host: two picks for one message that arrive in the
+    /// same frame are two batches, each said by itself. `0` for a drop.
+    pub pick: u64,
+}
+
+/// Why a file that was picked has no bytes: the host read nothing of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unread {
+    /// The browser couldn't read it (the file moved or changed since it was picked); what went
+    /// wrong, without the file's name, which the window adds in the reader's language.
+    Failed(String),
+    /// Larger than a message may carry ([`files::MOST_ATTACHMENT_BYTES`]): never read.
+    TooLarge,
+    /// Past the most files of one pick ([`files::MOST_ATTACHED`]): never read.
+    PastMost,
+    /// Past the most bytes of one pick together ([`files::MOST_ATTACHED_BYTES`]): never read,
+    /// nor anything picked after it.
+    PastTotal,
+}
+
+impl Delivered {
+    /// A file dropped on the page.
+    pub fn dropped(name: String, bytes: Vec<u8>) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: None, pick: 0 }
+    }
+
+    /// A file picked in the picker [`Services::open_async`] opened for `purpose`, on behalf of
+    /// the message `asking`, read; `pick` numbers the pick it came in.
+    pub fn picked(name: String, bytes: Vec<u8>, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Ok(bytes), asked: Some((purpose.to_string(), asking)), pick }
+    }
+
+    /// A file picked as [`Delivered::picked`], of which nothing was read, for `why`.
+    pub fn unread(name: String, why: Unread, purpose: &str, asking: Option<u64>, pick: u64) -> Self {
+        Delivered { name, bytes: Err(why), asked: Some((purpose.to_string(), asking)), pick }
+    }
+}
 
 /// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
 /// and `refresh:<address>`.
-pub trait SecretStore {
+pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Option<String>;
     fn set(&self, key: &str, secret: &str) -> Result<(), String>;
     fn delete(&self, key: &str);
     /// Why the store itself couldn't be used the last time something was asked of it (none is
     /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
-    /// clears it.
+    /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
+    /// itself, only a background thread does, [`secret_read`].)
     fn take_trouble(&self) -> Option<StoreTrouble> {
         None
     }
@@ -387,6 +655,9 @@ pub struct SignInRequest {
     pub email: String,
     /// A refresh token from earlier in this session to try first; empty when there is none.
     pub refresh: String,
+    /// Google Desktop registration's installed-app secret for this one sign-in. Never stored
+    /// in a mailbox or passed to an IMAP/SMTP server; not an owner credential.
+    pub google_client_secret: String,
     /// Set when the owner gives up waiting, for the host to stop too.
     pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Nobody asked for this (a Send/Receive that started by itself): renew with the refresh
@@ -421,6 +692,18 @@ pub struct SignInRequest {
     /// mailbox's calendar and said go ahead; with `graph` alone, the owner opened a calendar by
     /// address and it is to be read (Open Shared Calendar). One permission, one question.
     pub shared_calendars: bool,
+    /// With `graph`: ask for reading and changing the owner's To Do lists and tasks
+    /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
+    /// the sign-in doesn't cover it, and the owner said go ahead.
+    pub tasks: bool,
+    /// With `graph`: ask for changing the rules the account's server keeps
+    /// (`MailboxSettings.ReadWrite`, #566) by itself, never with a sign-in of any other kind: a
+    /// rule is to go to the server, the sign-in doesn't cover it, and the owner said go ahead.
+    pub rules: bool,
+    /// With `graph`: ask for changing the mailbox's settings (`MailboxSettings.ReadWrite`), for
+    /// its automatic replies, by itself, never with a sign-in of any other kind: a change found
+    /// the sign-in doesn't cover it, and the owner said go ahead.
+    pub replies: bool,
 }
 
 /// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
@@ -536,6 +819,10 @@ pub struct GraphResult {
     /// Outbox messages that must not be sent another way in this run: whether they went is not
     /// known, or the server said to try later.
     pub held: Vec<Id>,
+    /// Those of `held` whose answer was lost after they were handed over (a timeout, a broken
+    /// connection, an answer that doesn't say): they may have gone, and are held for the owner
+    /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
+    pub unsure: Vec<Id>,
     pub events: Option<mailcraft_model::remote::EventsDownload>,
     pub contacts: Option<mailcraft_model::remote::ContactsDownload>,
     /// What the server said to the calendar changes it was told ([`GraphRequest::changes`]).
@@ -574,6 +861,9 @@ struct SigningIn {
     /// Nobody asked for it (a Send/Receive that started by itself).
     quiet: bool,
     account: Id,
+    /// The saved account at the start of the request. Its credential identity must still match
+    /// when the answer arrives; unrelated account preferences may have changed meanwhile.
+    snapshot: Option<mailcraft_model::Account>,
     /// For reading this shared mailbox, which is read once it is had (#70).
     shared: Option<Id>,
     /// And for sending from it: what waits in its Outbox goes once it is had, or is held.
@@ -581,6 +871,12 @@ struct SigningIn {
     /// And for reading other people's calendars (one permission): a shared mailbox's (with
     /// `shared`) or those opened by address (without); read once it is had (#70).
     shared_calendars: bool,
+    /// And for the To Do lists (#248).
+    tasks: bool,
+    /// And for changing the rules on the server (#566).
+    rules: bool,
+    /// And for changing the automatic replies.
+    replies: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
     /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
@@ -602,16 +898,40 @@ pub struct UiState {
     pub ribbon_mode: ribbon::Mode,
     /// Interface theme: light, dark, or follow the OS appearance.
     pub theme: theme::Appearance,
+    /// High contrast: a stronger version of whichever theme is in use.
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub high_contrast: bool,
+    /// The accent colour of the window.
+    pub accent: theme::Accent,
+    /// A message's body on a light page in the light theme's colours, as its sender made it, also
+    /// when the window is dark: the reading pane and a message's own window, not its header.
+    pub light_messages: bool,
+    /// File › Options › Mail, "Open new messages, replies and forwards in a new window" (#286):
+    /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
+    /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
+    pub replies_in_window: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
     pub window: Option<window_geometry::WindowGeometry>,
+    /// Desktop: the size and place each kind of window of its own last had (#286), for the next
+    /// one of its kind.
+    pub window_places: window_places::Places,
     /// Interface language: `auto` or a language code.
     pub language: String,
-    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]).
+    /// Engine preferences; the session owns them while running (see [`MailApp::prefs`]). Settings
+    /// saved without them (an older install's) are read back on the engine's own, not on a new
+    /// install's: an owner who never chose is not moved onto what a new install turns on (#755).
+    #[serde(default = "mailcraft_engine::Prefs::default")]
     pub options: mailcraft_engine::Prefs,
     /// How the window was arranged; the session owns it while running.
     pub view: mailcraft_engine::ViewState,
+    /// The address of the account whose tasks the list showed (`view.task_account`): an account's
+    /// id is that account in its own mailbox only (#632).
+    pub task_account_address: String,
+    /// The address of the account whose contacts People showed (`view.people_account`), for the
+    /// same reason (#631).
+    pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
@@ -625,6 +945,8 @@ pub struct UiState {
     /// The application (client) id Microsoft knows this installation by, for accounts that sign
     /// in on Microsoft's page and name none of their own. An identifier, not a secret.
     pub microsoft_client_id: String,
+    /// Override MailCraft's Google Desktop client ID from File > Options; empty uses build's.
+    pub google_client_id: String,
     /// Keep passwords and sign-ins in the operating system's credential store between runs.
     pub remember_sign_in: bool,
     /// Passwords and sign-ins kept by the system are filed under the servers they go to; the
@@ -674,6 +996,8 @@ pub struct UiState {
     pub alert_new_mail: bool,
     /// Show a desktop alert for each reminder as it falls due: on unless the owner turns it off.
     pub alert_reminders: bool,
+    /// The filters Advanced Search's Add filters puts in its panel (#329).
+    pub advanced_filters: advanced_search::Filters,
 }
 
 impl Default for UiState {
@@ -685,11 +1009,18 @@ impl Default for UiState {
             ribbon_collapsed: false,
             ribbon_mode: ribbon::Mode::default(),
             theme: theme::Appearance::default(),
+            high_contrast: false,
+            accent: theme::Accent::default(),
+            light_messages: false,
+            replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
+            window_places: Default::default(),
             language: i18n::AUTO.into(),
-            options: mailcraft_engine::Prefs::default(),
+            options: fresh_options(),
             view: mailcraft_engine::ViewState::default(),
+            task_account_address: String::new(),
+            people_account_address: String::new(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             sync_panel_width: sync_panel::WIDTH,
@@ -697,11 +1028,13 @@ impl Default for UiState {
             collapsed_folders: Vec::new(),
             recent: Vec::new(),
             microsoft_client_id: String::new(),
+            google_client_id: String::new(),
             remember_sign_in: true,
             sign_ins_bound: false,
             remembered_keys: Vec::new(),
             confirmed_mailboxes: Vec::new(),
             dismissed_reminders: Vec::new(),
+            advanced_filters: Default::default(),
             download_pictures: false,
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
@@ -720,6 +1053,14 @@ impl Default for UiState {
     }
 }
 
+/// The engine's preferences in the window's settings for a new install: the engine's own, but
+/// for what the window turns on that a session without its settings (`mailcraft-cli run`,
+/// headless `mcp`) leaves off. An answered meeting request goes from the Inbox to Deleted Items,
+/// as in Outlook (#755); a saved choice, on or off, is read back as it was.
+fn fresh_options() -> mailcraft_engine::Prefs {
+    mailcraft_engine::Prefs { delete_answered_requests: true, ..Default::default() }
+}
+
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
 const SAVING_SHOWN_AFTER_MS: u64 = 700;
 
@@ -734,18 +1075,44 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"account"|"categories"|"rules"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"pseudo"}"#),
+    ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
+    ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
+    (
+        "ui.lightMessages",
+        "Messages on a Light Background",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — a message's body on a light page as its sender made it, also in the dark theme"#,
+    ),
+    (
+        "ui.repliesInWindow",
+        "Open Replies and Forwards in a New Window",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
+    ),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     ("ui.focusSearch", "Search", "Search", "{}"),
+    (
+        "ui.advancedSearch",
+        "Advanced Search",
+        "Search",
+        r#"{"open"?: bool (open it, or close it; left out: open it when closed, close it when open), "search"?: bool (true: search with what the open panel says, and close it)}"#,
+    ),
     (
         "ui.removeAllData",
         "Remove MailCraft's Data from This Computer",
         "File › Info",
         "{} — removes everything MailCraft keeps on this computer, for an installed or a portable copy alike: every account's mail and the settings (the mailbox file and its content, the settings, the logs), the sign-ins remembered in the system's credential store, the downloaded pictures and the opened attachments; then quits. Mail on the servers is not touched. By hand it asks first; never for an agent",
+    ),
+    (
+        "ui.openDataFolder",
+        "Open Data Folder",
+        "File › Info",
+        "{} — shows, in the system's file manager, the folder of the mailbox open now when it is kept outside MailCraft's settings folder, else the settings folder (which holds the mailbox and the settings). Answers {\"opened\": \"mailbox\"|\"settings\"}. Not in the browser; never for an agent",
     ),
     (
         "ui.confirmServers",
@@ -766,6 +1133,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "{} — gives up the sign-in, or the administrator's approval, that the browser is open for",
     ),
     ("ui.cancelSync", "Cancel Send/Receive", "Send / Receive", "{}"),
+    (
+        "ui.cancelOpen",
+        "Cancel Opening the Mailbox",
+        "Status bar",
+        "{} — stops reading the mailbox File › Open is opening in the background; the one open stays",
+    ),
     (
         "ui.moreResultsOnServer",
         "More Results on the Server",
@@ -797,6 +1170,18 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"account": number (a shared mailbox, or a Microsoft account that opens calendars by address), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read the calendars of the shared mailboxes he was given access to, and the calendars people share with him that he opens by address (Calendars.ReadWrite.Shared, one permission for both), by itself and never with a sign-in. The window asks first, when the owner ticks a shared mailbox's calendar for the first time, and File › Info and File › Open & Export has "Ask again". Allowed, the calendars of that shared mailbox are read with the next look at the calendar; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": the account it is opened through}"#,
     ),
     (
+        "ui.allowTasks",
+        "Allow Keeping Tasks in Step with Microsoft To Do",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read and change the To Do lists and tasks (Tasks.ReadWrite), by itself: an account that signed in before this was asked is not asked with a sign-in. The window asks first, when a tasks run finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the tasks are kept in step at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowRules",
+        "Allow Keeping Rules on the Server",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the rules the account's server keeps (MailboxSettings.ReadWrite), by itself and never with a sign-in. The window asks first, the first time a rule is to go to the server and the sign-in doesn't cover it, and File › Info has "Ask again". Until it is allowed the account's rules stay on this computer and nothing of them is sent. Allowed, the rules waiting go at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
         "ui.allowSharedSend",
         "Allow Sending from Shared Mailboxes",
         "Send / Receive",
@@ -806,13 +1191,25 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.keepOffline",
         "Mail to Keep Offline",
         "File › Info",
-        r#"{"account": number (a Microsoft account, not a shared mailbox), "keepOffline": "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all", "confirmed"?: true} — the slider's: how far back the account's mail (and its shared mailboxes') is kept in full on this computer. Shorter asks first, saying how much space it frees (`account.offlineSize`), unless "confirmed"; then the mail now outside goes back to its headers and preview at once (`account.thinOffline`, a few hundred messages a frame) and its files leave the disk with the next save. It stays on the server. Longer fetches the newly covered mail in the background, newest first. Answers {"account", "keepOffline", "changed": bool}"#,
+        r#"{"account": number (a Microsoft or Exchange server account, not a shared mailbox), "keepOffline": "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all", "confirmed"?: true} — the slider's: how far back the account's mail (and its shared mailboxes') is kept in full on this computer. Shorter asks first, saying how much space it frees (`account.offlineSize`), unless "confirmed"; then the mail now outside goes back to its headers and preview at once (`account.thinOffline`, a few hundred messages a frame) and its files leave the disk with the next save. It stays on the server. Longer fetches the newly covered mail in the background, newest first. Answers {"account", "keepOffline", "changed": bool}"#,
     ),
     (
         "ui.connectMicrosoft",
         "Connect Calendar and Contacts",
         "File › Info",
         r#"{"account"?: number} — signs in for sending, calendar and contacts through Microsoft"#,
+    ),
+    (
+        "ui.automaticRepliesSignIn",
+        "Sign In Again for Automatic Replies",
+        "File › Info",
+        r#"{"account": number (a Microsoft account)} — signs in again on Microsoft's page in the browser, for an account whose sign-in doesn't read its mailbox's settings or is over; its automatic replies are read again once it is done. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowAutomaticReplies",
+        "Allow Changing Automatic Replies",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the mailbox's settings (MailboxSettings.ReadWrite) for its automatic replies, by itself: never with a sign-in. The window asks first, when a change finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the change that waited goes; refused, or when an administrator has to approve first, it is dropped and the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.checkCalendar",
@@ -870,6 +1267,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"minutes": 1-10080, "event"?: number, "occurrence"?: string (default: all that are showing)}"#,
     ),
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
+    ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.desktopAlerts",
@@ -885,19 +1283,31 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.openWindow",
         "Open in a Window of Its Own",
         "Window",
-        r#"{"message": number} | {"event": number, "proposed"?: {"start": "YYYY-MM-DDTHH:MM", "end": same} (another time, as somebody proposed it, put into the fields: nothing is changed or sent until the window sends it)} | {"new": "appointment"|"meeting", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same, "allDay"?: bool, "calendar"?: number, "title"?: string, …the other fields of calendar.new} — a draft opens in the composer instead; a new appointment or meeting is made when its window is saved"#,
+        r#"{"message": number} | {"event": number, "proposed"?: {"start": "YYYY-MM-DDTHH:MM", "end": same} (another time, as somebody proposed it, put into the fields: nothing is changed or sent until the window sends it)} | {"compose": number (a message being written, as `ui.inspect` lists it under `beingWritten`: as compose.popOut does)} | {"new": "appointment"|"meeting", "start"?: "YYYY-MM-DDTHH:MM", "end"?: same, "allDay"?: bool, "calendar"?: number, "title"?: string, …the other fields of calendar.new} — a draft opens ready to be written in, in a window of its own; a new appointment or meeting is made when its window is saved. At most 12 windows of their own are open at a time"#,
     ),
     (
         "ui.closeWindow",
         "Close Window",
         "Window",
-        r#"{"window": number} | {"message": number} | {"event": number} | {"all": true} (default: the one in front) — closes without asking, also an appointment with unsaved changes"#,
+        r#"{"window": number} | {"message": number} | {"event": number} | {"compose": number} | {"all": true} (default: the one in front), "save"?: true, "discard"?: true — closes without asking, also an appointment with unsaved changes. A window with a message being written closes with its message, and needs `save` (it goes to Drafts first) or `discard` (it closes as it was last saved): neither, or both, is an error and closes nothing"#,
+    ),
+    (
+        "ui.moveWindowMessage",
+        "Move to Folder",
+        "Window",
+        r#"{"folder": number, "window"?: number (default: the message-file window in front)} — files the message of a window that shows a message file (an .eml the system opened: it is in no folder until now) into `folder`; the mailbox gains that one message and the window is about it from then on. Answers {"window", "message"}. Never for an agent"#,
+    ),
+    (
+        "ui.saveWindowMessage",
+        "Save Message File As",
+        "Window",
+        r#"{"window"?: number (default: the message-file window in front), "path"?: string} — writes the file of a window that shows a message file to `path`; without one, answers {"name", "bytes", "data" (base64)}. Never for an agent"#,
     ),
     (
         "ui.eventWindow",
         "Appointment Window",
         "Window",
-        r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Scheduling Assistant), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for the Scheduling Assistant} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
+        r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Find a Time page), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for Find a Time} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
     ),
     (
         "ui.downloadPictures",
@@ -952,7 +1362,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.reportProblem",
         "Report a Problem",
         "Help",
-        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github"|"email" (default github), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. email: starts a new message to MailCraft's maintainers from an account that sends mail, with the diagnostics attached when asked; nothing is sent until Send is pressed. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url"?, "length"?, "saved"?, "attached"?}"#,
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default and only way; email went in #956), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
@@ -964,13 +1374,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
         "ui.updateCheck",
         "Check for New Versions",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether MailCraft asks GitHub once a day which is the newest release (off until the owner turns it on). Answers {"value", "setting": "notAsked"|"on"|"off", "asked": number, "version", "newer": {"version", "security", "page"}|null, "checking": bool, "install": {"value": bool, "setting": "on"|"off"|"needsCheck"|"organisation"|"notThisCopy", "downloading": bool, "downloaded": version|null}}"#,
     ),
     (
         "ui.updateInstall",
         "Install Updates Automatically",
-        "File › Options",
+        "File › About",
         r#"{"value"?: bool (default: toggle)} — whether a copy that updates itself (the Windows .msi, the macOS app, a Linux AppImage) downloads a newer release by itself while the daily check is on, and checks it by the release's own signature (on unless the owner turns it off). Refused when the organisation has turned it off ("Turned off by your organisation") and for a copy that doesn't update itself. Agents and scripts can't start a download. Answers what `ui.updateCheck` answers"#,
     ),
     (
@@ -984,6 +1394,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Go Back to the Previous Version",
         "Above the status bar",
         r#"{} — offered when a newly installed version didn't start twice running and the one it replaced is kept: closes the window as quitting does, puts the kept version back (and the mailbox file as it was before the new version changed its format, when it did) and starts it; the version gone back from is never installed by itself again. The owner's click only: refused for agents and the control channel"#,
+    ),
+    (
+        "ui.dismissSettingsNotice",
+        "Dismiss Settings Notice",
+        "Above the status bar",
+        r#"{} — puts away the line that says the settings file couldn't be read at start, so MailCraft started with its own settings (for this run). Answers {"dismissed": bool}"#,
     ),
     (
         "ui.dismissUpdateNotice",
@@ -1014,20 +1430,35 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 /// The application.
 pub struct MailApp {
     pub session: Session,
+    /// The system's certification authorities for mail, read off the window's thread by the host
+    /// (#30): handed to the session when they come, and the window never waits for them.
+    pub trust_anchors_arriving: Option<std::sync::mpsc::Receiver<Vec<Vec<u8>>>>,
+    /// How many rows of the list may still have their Digital signature checked this frame, and
+    /// whether one was left for the next (#30: the list never checks many in one frame).
+    pub(crate) row_checks_left: u32,
+    pub(crate) row_checks_wanted: bool,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
+    /// The contacts picked together in the People list with Ctrl (⌘ on a Mac) and a click, the
+    /// selected one among them; empty when one contact alone is selected. The window's own: a
+    /// command is given the ids (Merge Contacts…, #506).
+    pub people_picked: Vec<Id>,
     pub status_msg: Option<(String, f64)>,
     /// macOS: the window has no title bar; leave room for the traffic lights.
     pub integrated_titlebar: bool,
     /// The search box's text while it is being typed.
     pub(crate) search_text: String,
     pub(crate) search_focus: bool,
-    /// The Bcc line of the message being written is shown.
-    pub(crate) compose_bcc: bool,
-    /// The body of the message being written takes the keyboard back at its next frame (after a
-    /// ribbon button or a dialog changed its text).
-    pub(crate) body_focus_wanted: bool,
+    /// Advanced Search, while its panel is open under the search box (#329).
+    pub(crate) advanced_search: Option<advanced_search::Panel>,
+    /// Whether the title bar had room for the search box when it was last drawn.
+    pub(crate) search_box_shown: bool,
+    /// The messages being written whose Bcc line is shown, by their ids (#286).
+    pub(crate) compose_bcc: std::collections::HashSet<u64>,
+    /// The message being written whose body takes the keyboard back at its next frame (after a
+    /// ribbon button or a dialog changed its text), by its id (#286).
+    pub(crate) body_focus_wanted: Option<u64>,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1038,14 +1469,45 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The rows the message list was last drawn from, the selection then (its messages, and those
+    /// picked as their conversation) and what the rows drew selected: worked out again only when
+    /// one of them changes, not at every frame (#503).
+    pub(crate) drawn: Option<(std::sync::Weak<Vec<mailcraft_engine::list::Row>>, Vec<Id>, Vec<Id>, std::sync::Arc<mailcraft_engine::Drawn>)>,
+    /// The rows of the message list that fit in it as last drawn: what Page Up and Page Down move
+    /// by (#426).
+    pub(crate) list_page_rows: usize,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
+    /// The folders of an Exchange server account the last run could not read (named as the owner
+    /// knows them; no id), for File › Info. Not saved.
+    pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
+    /// How the last run of each Exchange server account signed in (`basic` or `ntlm`), for File ›
+    /// Info. Not saved.
+    pub(crate) ews_signed_in: std::collections::HashMap<Id, String>,
+    /// The fingerprint of the certificate an Exchange server account's server showed that needs
+    /// the owner's say (its last run stopped at it), for File › Info. Not saved.
+    pub(crate) ews_certificate: std::collections::HashMap<Id, String>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
+    /// What the credential store gave back for each key this session, read in the background
+    /// ([`secret_read`]); only what was found. The window asks this, never the store.
+    secret_cache: std::collections::HashMap<String, String>,
+    /// The background read of the store under way, with the opening it was started for.
+    secret_read: Option<(u64, std::sync::mpsc::Receiver<secret_read::SecretRead>)>,
+    /// The opening, and whether remembering was on, when the store was last read by itself.
+    secrets_asked: Option<(u64, bool)>,
+    /// Send/Receive the owner asked for, held until the store has answered.
+    sync_after_secrets: Vec<Value>,
     /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
     /// reaches a server ([`unconfirmed`]).
     pub(crate) unconfirmed: bool,
+    /// The opening whose accounts were last looked at for an address two of them have: the
+    /// mailbox the window started with is looked at too (AU3-03).
+    shared_address_judged: Option<u64>,
+    /// The settings file couldn't be read at start, and the line saying so hasn't been put away
+    /// ([`settings_notice`]).
+    pub settings_unread: Option<settings_notice::SettingsUnread>,
     /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
     pub(crate) held: unconfirmed::Held,
     /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
@@ -1060,7 +1522,8 @@ pub struct MailApp {
     pub(crate) graph_tokens: std::collections::HashMap<Id, Tokens>,
     /// What Graph is doing for an account before its mail is synchronised: the account, whether
     /// nobody asked, whether the calendar and contacts were asked for, and the answer to come.
-    graph_rx: Option<(Id, bool, bool, Receiver<GraphResult>)>,
+    /// And the mailbox opening it was started under ([`Session::openings`]).
+    graph_rx: Option<(Id, bool, bool, u64, Receiver<GraphResult>)>,
     /// The pieces of a Graph mail run as they come (R3.2), and what they had to say.
     graph_pieces: Option<Receiver<mailcraft_model::sync::GraphMailResult>>,
     graph_problems: Vec<String>,
@@ -1094,6 +1557,14 @@ pub struct MailApp {
     /// With `shared_next`: that sign-in asks for reading the calendars of shared mailboxes too;
     /// without it, for reading the calendars opened by address (#70).
     shared_calendars_next: bool,
+    tasks_next: bool,
+    /// The next sign-in asks for changing the automatic replies ([`auto_replies`]).
+    replies_next: bool,
+    pub(crate) tasks: task_sync::TaskSync,
+    rules_next: bool,
+    pub(crate) rules: rule_sync::RuleSync,
+    /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
+    pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
     /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
@@ -1137,6 +1608,12 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// The password the run in flight went with, until the system is asked to remember it: once
+    /// a run (#802).
+    sync_password: Option<String>,
+    /// JMAP accounts whose server turned their credential down this session: no round that starts
+    /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
+    jmap_refused: std::collections::HashSet<Id>,
     control_rx: Option<Receiver<ControlRequest>>,
     shot_token: u64,
     queued_shots: Vec<(u64, f64, u32)>,
@@ -1148,7 +1625,7 @@ pub struct MailApp {
     pub(crate) asking: agent_gate::Questions,
     styled: bool,
     /// The interface theme last installed in egui ([`theme::apply`]).
-    applied_theme: Option<egui::ThemePreference>,
+    applied_theme: Option<(egui::ThemePreference, theme::ThemeChoice)>,
     /// The interface language last told the host ([`Services::on_language`]).
     applied_language: Option<i18n::Lang>,
     fonts_frames: u32,
@@ -1186,6 +1663,13 @@ pub struct MailApp {
     /// is over it, as a Mac's do: the message list keeps no lane for its bar and has no arrows.
     /// On a Mac only; tests and screenshots turn it on anywhere.
     pub overlay_scroll_bars: bool,
+    /// The window is drawn for headless screenshots (`examples/ui_shot`): a password shown with
+    /// its eye is drawn as dots all the same, as while `ui.screenshot` waits for a frame (#438).
+    pub headless_shots: bool,
+    /// This frame's input came from the control channel (`synthetic`), or a request from it is
+    /// being handled: a password's eye doesn't answer it (#438), and what it selects in a message
+    /// isn't put in the primary selection (`reading::select::settle`, `compose::editor`).
+    driven: bool,
     /// When the last round that started by itself began (milliseconds; 0 before the first).
     last_auto_sync: f64,
     /// Accounts waiting their turn in a Send/Receive round, and whether nobody asked for it.
@@ -1206,8 +1690,9 @@ pub struct MailApp {
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
     last_autosave: f64,
-    /// When the draft being written was last saved by itself (ms; 0: not since it was opened).
-    draft_saved_at: f64,
+    /// When the messages being written were last saved by themselves, by the session's clock
+    /// (seconds; `None`: none has had changes since one was opened).
+    draft_saved_at: Option<i64>,
     saved_rev: u64,
     /// How far the background saver has got with what it was handed, as of this frame (`None`:
     /// nothing waiting or being written).
@@ -1234,8 +1719,9 @@ pub struct MailApp {
     pub(crate) ctx: Option<egui::Context>,
     /// The file dialog the host is showing, and what its answer is for ([`files`]).
     pub(crate) file_dialog: Option<files::PendingDialog>,
-    /// Web: what the file the picker will deliver is for.
-    pub(crate) pending_open: Option<String>,
+    /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
+    /// about ([`files::ask_next`]).
+    pub(crate) opened_waiting: std::collections::VecDeque<String>,
     /// The time zone the calendar was shown in when the window was last laid out: what the
     /// appointments that stand open were read by ([`MailApp::follow_zone`]).
     shown_zone: Option<mailcraft_time::Zone>,
@@ -1270,20 +1756,38 @@ pub struct MailApp {
     /// it went: an appointment window whose save had to ask first learns from it what came of
     /// the question once it is answered.
     pub(crate) ran: (u64, String, Result<Value, String>),
-    /// When people are free and busy, as the Scheduling Assistant found out ([`scheduling`]).
+    /// When people are free and busy, as Find a Time found out ([`scheduling`]).
     pub(crate) free_busy: scheduling::Store,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
     pub(crate) alerts: alerts::State,
+    /// The mailbox the window starts with is still being read ([`opening`]).
+    pub(crate) opening: Option<opening::Opening>,
+    /// What the window takes up once it shows its mailbox ([`opening::after`]).
+    pub(crate) later: opening::Later,
+    /// Another mailbox being read in the background, to take the place of this one ([`opening`]).
+    pub(crate) reading_ahead: Option<opening::ReadAhead>,
+    /// `file.open` runs for a mailbox read in the background: it isn't read again.
+    pub(crate) swapping: bool,
+    /// A Send/Receive that waits for the "sending" marks of what it sends to be written to the
+    /// mailbox file before it is handed to the host ([`sending`], AU3-26).
+    pub(crate) send_gate: Option<sending::SendGate>,
+    /// A piece of the mail run under way was refused (AU3-26): at its end, the marks of what it
+    /// sent are left for the next run to hold, not taken off.
+    pub(crate) send_doubt: bool,
 }
 
 /// A Send/Receive of one account in flight, its pieces to come. A JMAP account's run takes the place
 /// of an IMAP one, so that whatever waits for a Send/Receive (another run, Cancel, Skip, a round by
 /// itself, the calendar's job) waits for it too.
 pub(crate) enum MailRun {
-    Imap(Receiver<SyncResult>),
-    Jmap { account: Id, pieces: Receiver<mailcraft_model::sync::JmapMailResult> },
+    /// An IMAP account's run: the account, and the mailbox opening it was started under.
+    Imap { account: Id, opening: u64, rx: Receiver<SyncResult> },
+    /// `opening`: the mailbox opening it was started under ([`Session::openings`]).
+    Jmap { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::JmapMailResult> },
+    /// An Exchange server account's run ([`ews_mail`]).
+    Ews { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::EwsMailResult> },
 }
 
 impl MailApp {
@@ -1292,22 +1796,39 @@ impl MailApp {
         let own_mailbox = session.path.as_ref().map(|p| unconfirmed::kept_path(&p.to_string_lossy()));
         MailApp {
             session,
+            trust_anchors_arriving: None,
+            row_checks_left: 1,
+            row_checks_wanted: false,
             ui: UiState::default(),
             services,
             dialog: None,
+            people_picked: Vec::new(),
             status_msg: None,
             integrated_titlebar: false,
             search_text: String::new(),
             search_focus: false,
-            compose_bcc: false,
-            body_focus_wanted: false,
+            advanced_search: None,
+            search_box_shown: false,
+            compose_bcc: Default::default(),
+            body_focus_wanted: None,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            drawn: None,
+            list_page_rows: 10,
             passwords: Default::default(),
+            ews_unreadable: Default::default(),
+            ews_signed_in: Default::default(),
+            ews_certificate: Default::default(),
             secrets_opening: 0,
+            secret_cache: Default::default(),
+            secret_read: None,
+            secrets_asked: None,
+            sync_after_secrets: Vec::new(),
             unconfirmed: false,
+            shared_address_judged: None,
+            settings_unread: None,
             held: Default::default(),
             own_mailbox,
             secrets_trouble: None,
@@ -1329,6 +1850,12 @@ impl MailApp {
             shared_next: None,
             shared_send_next: false,
             shared_calendars_next: false,
+            tasks_next: false,
+            rules_next: false,
+            replies_next: false,
+            tasks: Default::default(),
+            rules: Default::default(),
+            auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
@@ -1345,6 +1872,8 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            sync_password: None,
+            jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
             queued_shots: Vec::new(),
@@ -1370,6 +1899,8 @@ impl MailApp {
             graph_switch_waiting_shown: Default::default(),
             auto_sync: true,
             overlay_scroll_bars: cfg!(target_os = "macos"),
+            headless_shots: false,
+            driven: false,
             last_auto_sync: 0.0,
             sync_queue: Default::default(),
             inbox_queue: Default::default(),
@@ -1379,7 +1910,7 @@ impl MailApp {
             push_only_next: Default::default(),
             push_seen: Default::default(),
             last_autosave: 0.0,
-            draft_saved_at: 0.0,
+            draft_saved_at: None,
             saved_rev,
             save_progress: None,
             closing_after_save: None,
@@ -1390,7 +1921,7 @@ impl MailApp {
             running_after_save: false,
             ctx: None,
             file_dialog: None,
-            pending_open: None,
+            opened_waiting: Default::default(),
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
@@ -1406,6 +1937,12 @@ impl MailApp {
             free_busy: Default::default(),
             updates: Default::default(),
             alerts: Default::default(),
+            opening: None,
+            later: Default::default(),
+            reading_ahead: None,
+            swapping: false,
+            send_gate: None,
+            send_doubt: false,
         }
     }
 
@@ -1414,15 +1951,45 @@ impl MailApp {
         self
     }
 
+    /// The address of the account `choice` names, kept beside its id in `ui.json`.
+    fn choice_address(&self, choice: mailcraft_model::AccountChoice) -> String {
+        match choice {
+            mailcraft_model::AccountChoice::Account(id) => self.session.mailbox.account(id).map(|a| a.email.trim().to_string()).unwrap_or_default(),
+            _ => String::new(),
+        }
+    }
+
     /// Preferences to save between runs: the UI state plus the engine's preferences and view.
     pub fn prefs(&self) -> UiState {
         let mut ui = self.ui.clone();
         ui.options = self.session.prefs.clone();
         ui.view = self.session.view.clone();
+        ui.task_account_address = self.choice_address(ui.view.task_account);
+        ui.people_account_address = self.choice_address(ui.view.people_account);
         // What is searched for and looked at belongs to the run, not to the next one.
         ui.view.search.clear();
         ui.view.people_search.clear();
         ui
+    }
+
+    /// Whether a window of its own is about to open as a window of the system: the host lists the
+    /// monitors connected now for it ([`MailApp::set_monitors`]), so that it opens on one (#286).
+    pub fn wants_monitors(&self) -> bool {
+        self.windows.wants_monitors()
+    }
+
+    /// The monitors connected now, in the system's pixels with each one's scale, for the windows
+    /// about to open in this frame. An empty list: the system places them.
+    pub fn set_monitors(&mut self, monitors: Vec<window_places::Monitor>) {
+        self.windows.monitors = Some(monitors);
+    }
+
+    /// Start on the window's settings for a new install, for a run that has none saved (no
+    /// settings file, one set aside, or a run that keeps none): the engine's preferences become
+    /// the ones of [`UiState::default`], which turn on what a session without the window leaves
+    /// off (#755). The hosts call this where they would otherwise [`MailApp::apply_prefs`].
+    pub fn fresh_prefs(&mut self) {
+        self.session.prefs = fresh_options();
     }
 
     /// Restore preferences saved by [`MailApp::prefs`].
@@ -1450,6 +2017,13 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        // Gmail's categories as folders or as tabs (#911).
+        v.gmail_tabs = saved.gmail_tabs;
+        // One account's tasks and contacts only in the mailbox they were chosen in: in another,
+        // the same id is somebody else's account, or none, and the list starts on All accounts.
+        let mailbox = &self.session.mailbox;
+        v.task_account = restored_choice(mailbox, saved.task_account, &self.ui.task_account_address);
+        v.people_account = restored_choice(mailbox, saved.people_account, &self.ui.people_account_address);
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
@@ -1457,7 +2031,13 @@ impl MailApp {
 
     /// Whether a command exists and is enabled.
     pub fn enabled(&self, id: &str) -> bool {
+        // Nothing runs while the mailbox the window starts with is read.
+        if self.opening.is_some() {
+            return false;
+        }
         match self.session.registry.get(id) {
+            // Cancel All, while the window has a Send/Receive under way.
+            Some(_) if id == "sync.cancel" => self.syncing(),
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
                 !self.data_removed
@@ -1469,10 +2049,12 @@ impl MailApp {
             }
             None if id == "ui.cancelSignIn" => self.signing_in.is_some() || self.approving(),
             None if id == "ui.cancelSync" => self.sync_rx.is_some(),
+            None if id == "ui.cancelOpen" => self.reading_ahead.is_some(),
             None if id == "ui.moreResultsOnServer" => {
                 matches!(self.server_link(), server_search::Link::Ask | server_search::Link::NotConnected { retry: true })
             }
             None if id == "ui.copySelection" => self.text_selection.any(),
+            None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
     }
@@ -1481,8 +2063,21 @@ impl MailApp {
     /// input the user hasn't given yet opens its dialog; one that writes a file asks where (or, in
     /// the browser, downloads it); a failure shows in the status bar.
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        if self.opening.is_some() {
+            return Err(opening::STILL_OPENING.into());
+        }
+        // Another window's mailbox is refused before anything is asked or read (#517).
+        if let Some(e) = opening::claim_refused(self, id, &params) {
+            self.say_refused(id, &e);
+            return Err(e);
+        }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
+        // A message being written isn't let go of without a word (#442).
+        if dialogs::leaves_message(self, id, &params) {
+            self.dialog = Some(dialogs::leaving(id, params));
+            return Ok(json!({"pending": "discardDraft"}));
+        }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)
         {
@@ -1490,15 +2085,30 @@ impl MailApp {
             if let Some(opened) = windows::open_form(self, name, &params) {
                 return opened;
             }
-            self.dialog = dialogs::open_dialog(self, name, &params);
+            // Rename Folder without a name (the ribbon's button, F2) asks for the new name of the folder
+            // in view: the folder dialog opens as New Folder unless it is told to rename (the folder
+            // pane's own Rename Folder… says so already).
+            let asked = match (id, params.clone()) {
+                ("folder.rename", Value::Object(mut map)) => {
+                    map.insert("mode".into(), json!("rename"));
+                    Value::Object(map)
+                }
+                ("folder.rename", Value::Null) => json!({"mode": "rename"}),
+                (_, asked) => asked,
+            };
+            self.dialog = dialogs::open_dialog(self, name, &asked);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
-            if self.dialog.is_some() || name != "folderProperties" {
+            if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
                 return Ok(json!({"pending": name}));
             }
         }
-        // A message not fetched yet is fetched first, and then the command goes on (R3.2).
+        // A message not fetched yet is fetched first, and then the command goes on (R3.2); one that
+        // can't be is said, as a refusal of the command's own would be.
         if let Some(r) = self.fetch_first(id, &params) {
+            if let Err(e) = &r {
+                self.say_refused(id, e);
+            }
             return r;
         }
         if let Some(r) = files::intercept(self, id, &params) {
@@ -1510,17 +2120,35 @@ impl MailApp {
             && let Some(ask) = reading::invitation_question(self, id, &params).unwrap_or_else(|| dialogs::confirmation(self, id, &params))
         {
             let params = if params.is_object() { params } else { json!({}) };
+            // What the question named is what goes ahead, though the selection changes while it
+            // is open (#620).
+            let params = dialogs::pin_targets(self, id, params);
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
+        let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
+        // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
+        // Options says so or the caller asked for one.
+        let place = self.windows.place.take().or_else(|| windows::compose_window::hint(self, id));
         // Check for Updates pressed by the owner checks whether the daily check is on or not.
         // So are Restart to update and Go back, which are the owner's clicks alone.
         let r = match id {
             updates::CHECK => self.check_for_updates(true),
             updates::RESTART => self.restart_to_update(),
             updates::GO_BACK => self.go_back_a_version(),
-            _ => self.execute(id, params),
+            // Another mailbox file is read in the background, and opens once it is.
+            "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
+            _ => {
+                self.windows.place = place;
+                let r = self.execute(id, params);
+                self.windows.place = None;
+                r
+            }
         };
+        // View Source pressed by the owner: its window, with what it answered.
+        if let (Ok(v), "mail.viewSource") = (&r, id) {
+            self.show_source(v);
+        }
         // Sent from a shared mailbox (#70): pressing Send is the owner asking for it to go.
         if id == "compose.send"
             && let Ok(v) = &r
@@ -1531,28 +2159,25 @@ impl MailApp {
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
         }
+        // A mailbox file the owner opened is a recent one once it is open, not while it is still
+        // being read or waits for a save; and File closes then.
+        if let (Some(path), Ok(v)) = (&opening_file, &r)
+            && v.get("pending").is_none()
+        {
+            files::remember_recent(self, path);
+        }
         match &r {
-            Err(e) => {
-                // The engine's refusal in the interface language: its template, filled; any other
-                // text is looked up whole.
-                let said = match self.last_error.take() {
-                    Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-                    _ => tl!(e).to_string(),
-                };
-                // What the owner has just done by hand and was refused at once is said in a
-                // message box too, as Outlook does (#152).
-                if self.by_hand && refusal_worth_a_box(id, e) {
-                    self.refused = Some(said.clone());
-                }
-                self.status(said);
-            }
+            Err(e) => self.say_refused(id, e),
             Ok(v) => {
                 if let Some(msg) = feedback(id, v).or_else(|| self.stays_here_note(id, v)) {
                     self.status(msg);
                 }
             }
         }
-        if matches!(id, "mail.next" | "mail.previous") {
+        // Help's pages, and Feedback's window, for the owner's click.
+        send_receive::after_owner(self, id, &r);
+        // And closing a conversation, which may select its row (#503).
+        if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
         }
         // What was done to the text being written leaves the keyboard in it.
@@ -1560,18 +2185,61 @@ impl MailApp {
             && (id.starts_with("format.")
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
-            self.body_focus_wanted = true;
+            self.want_body_focus();
         }
         r
+    }
+
+    /// The body of the current message being written takes the keyboard back at its next frame.
+    pub(crate) fn want_body_focus(&mut self) {
+        self.body_focus_wanted = self.session.compose_id();
+    }
+
+    /// Whether the body of the current message being written is to take the keyboard back now; asked once.
+    pub(crate) fn take_body_focus(&mut self) -> bool {
+        self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the Bcc line of the current message being written is shown.
+    pub(crate) fn bcc_shown(&self) -> bool {
+        self.session.compose_id().is_some_and(|id| self.compose_bcc.contains(&id))
+    }
+
+    /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
+    /// engine's refusal, its template filled; any other text looked up whole), and, when the
+    /// owner has just done it by hand, in a message box too, as Outlook does (#152).
+    fn say_refused(&mut self, id: &str, e: &str) {
+        let said = match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        };
+        if self.by_hand && refusal_worth_a_box(id, e) {
+            self.refused = Some(said.clone());
+        }
+        self.status(said);
     }
 
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
     /// UI-level commands (`ui.*`) are handled here, the rest by the engine.
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        if self.opening.is_some() {
+            return Err(opening::STILL_OPENING.into());
+        }
+        // Another window's mailbox is neither opened nor written over, and what is under way here
+        // stays as it is (#517).
+        if let Some(e) = opening::claim_refused(self, id, &params) {
+            return Err(e);
+        }
+        // Whatever replaces the mailbox gives up one being read in the background, which would
+        // otherwise take the place of this one later.
+        if matches!(id, "file.open" | "file.new") {
+            opening::cancel_ahead(self);
+        }
         if let Some(r) = self.ui_command(id, &params) {
             return r;
         }
-        let composing = self.session.compose.is_some();
+        // (The main window's: the reading pane's message being written, #286.)
+        let composing = windows::compose_window::pane_compose(self).is_some();
         // An account that goes takes what was remembered for it along.
         let leaving = if id == "account.remove" {
             params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
@@ -1587,14 +2255,29 @@ impl MailApp {
         if let Some(r) = self.through_saver(id, &params) {
             return r;
         }
+        if let Some(r) = send_receive::before(self, id) {
+            return r;
+        }
+        // No room for the window a message would open in (#286).
+        if let Err(e) = windows::compose_window::before_run(self, id, &params) {
+            self.windows.place = None;
+            return Err(e);
+        }
+        let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
         let r = self.session.run(id, &params);
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
+        // A message it opened goes where it is to: the reading pane or a window of its own.
+        let r = windows::compose_window::after_run(self, id, &before, r);
+        // Work Offline, File › Account.
+        send_receive::after(self, id, &r);
         // Asked for the reminders: their window comes up, due or not.
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
         }
+        // Automatic replies (File › Info): read on the server, or changed there, by the host.
+        let r = self.auto_replies_after(id, r);
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
@@ -1627,26 +2310,44 @@ impl MailApp {
         }
         if let (Ok(_), Some(gone)) = (&r, leaving) {
             let account = gone.id;
-            // Its calendar and contacts were the server's, not the owner's own.
-            let _ = mailcraft_engine::cmd::remote::forget(&mut self.session, account);
+            // A late OAuth response must never restore tokens for a removed account.
+            self.cancel_pending_sign_in(account);
+            // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
             self.graph_checked.remove(&account);
             self.graph_consent_needed.remove(&account);
+            self.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
+            self.jmap_refused.remove(&account);
+            self.ews_unreadable.remove(&account);
+            self.ews_signed_in.remove(&account);
+            self.ews_certificate.remove(&account);
             self.forget_account_secrets(&gone);
+        }
+        // End a request as soon as its credential identity changes, using the same check as
+        // poll_sign_in even when the storage key remains the same.
+        if let (Ok(_), Some(before)) = (&r, &edited)
+            && self.session.mailbox.account(before.id).is_some_and(|after| !Self::same_sign_in_identity(before, after))
+        {
+            self.cancel_pending_sign_in(before.id);
         }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
         // is asked again.
         if let (Ok(_), Some(before)) = (&r, edited)
             && let Some(after) = self.session.mailbox.account(before.id).cloned()
-            && ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after))
+            && (before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
             self.forget_account_secrets(&before);
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
+            self.jmap_refused.remove(&before.id);
+            self.ews_signed_in.remove(&before.id);
+            self.ews_certificate.remove(&before.id);
         }
         // Likewise when Undo or Redo changed them: what was typed for the ones it had goes to none
         // of the others.
@@ -1656,16 +2357,28 @@ impl MailApp {
                     self.passwords.remove(&account);
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
+                    self.jmap_refused.remove(&account);
                 }
             }
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
-        if r.is_ok() && composing != self.session.compose.is_some() {
-            self.compose_bcc = false;
+        // (What is remembered of a message being written goes with it.)
+        let open: std::collections::HashSet<u64> = self.session.all_composing().map(|c| c.id).collect();
+        self.compose_bcc.retain(|id| open.contains(id));
+        if r.is_ok() && composing != windows::compose_window::pane_compose(self).is_some() {
             self.ui.tab = if composing { "Home".into() } else { "Message".into() };
             self.ui.backstage = false;
         }
         r
+    }
+
+    /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
+    /// its folder's All tab with no search, the list scrolled to it (#485).
+    pub(crate) fn open_in_mail(&mut self, id: Id) {
+        self.ui.backstage = false;
+        let _ = self.run("mail.select", json!({"id": id, "elsewhere": true}));
+        let _ = self.run("view.mail", json!({}));
+        self.reveal_selection = true;
     }
 
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
@@ -1673,7 +2386,9 @@ impl MailApp {
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
+            "ui.openDataFolder" => self.open_data_folder(),
             "ui.confirmServers" => self.confirm_servers(),
+            "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -1705,6 +2420,21 @@ impl MailApp {
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
             }
+            "ui.repliesInWindow" => {
+                let value = match p.get("value").filter(|v| !v.is_null()) {
+                    None => !self.ui.replies_in_window,
+                    Some(v) => match v.as_bool() {
+                        Some(value) => value,
+                        None => return Some(Err("`value` is true or false".into())),
+                    },
+                };
+                self.ui.replies_in_window = value;
+                Ok(json!({"value": value}))
+            }
+            "ui.lightMessages" => {
+                self.ui.light_messages = b("value").unwrap_or(!self.ui.light_messages);
+                Ok(json!({"value": self.ui.light_messages}))
+            }
             "ui.collapseRibbon" => {
                 self.ui.ribbon_collapsed = b("value").unwrap_or(!self.ui.ribbon_collapsed);
                 Ok(json!({"value": self.ui.ribbon_collapsed}))
@@ -1723,6 +2453,13 @@ impl MailApp {
                 if let Some(panel) = sync_panel::Panel::named(name) {
                     self.sync_panel = Some(panel);
                     return Some(Ok(json!({"panel": "syncProgress"})));
+                }
+                // The New rule filled in from a message: an id that is none is refused, never
+                // taken to mean the selection (#566).
+                if name == "rules"
+                    && let Some(e) = ["folder", "id"].into_iter().find_map(|k| mailcraft_engine::p::id_strict(p, k).err())
+                {
+                    return Some(Err(e.to_string()));
                 }
                 match dialogs::open_dialog(self, name, p) {
                     Some(d) => {
@@ -1745,6 +2482,20 @@ impl MailApp {
                 }
                 None => Err("`value` is light, dark or system".into()),
             },
+            "ui.highContrast" => match p.get("on").and_then(Value::as_bool) {
+                Some(on) => {
+                    self.ui.high_contrast = on;
+                    Ok(json!({"on": on}))
+                }
+                None => Err("`on` is true or false".into()),
+            },
+            "ui.accent" => match s("accent").and_then(theme::Accent::from_code) {
+                Some(a) => {
+                    self.ui.accent = a;
+                    Ok(json!({"accent": a.code()}))
+                }
+                None => Err("`accent` is blue, teal, violet or graphite".into()),
+            },
             "ui.language" => {
                 let code = s("language").unwrap_or_default();
                 let lang = i18n::Lang::from_code(code);
@@ -1766,10 +2517,14 @@ impl MailApp {
                 }
                 None => Err("`value` is a percentage from 80 to 200".into()),
             },
+            "ui.advancedSearch" => advanced_search::command(self, p),
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;
-                let _ = self.session.run("view.mail", &json!({}));
+                // People searches its own contacts; Calendar's and Tasks' box searches the mail (#555).
+                if self.session.view.module != mailcraft_engine::Module::People {
+                    let _ = self.session.run("view.mail", &json!({}));
+                }
                 Ok(json!({}))
             }
             "ui.copyDiagnostics" => {
@@ -1789,6 +2544,14 @@ impl MailApp {
                 }
                 self.ui.microsoft_client_id = id.to_string();
                 Ok(json!({"value": id}))
+            }
+            "ui.googleClientId" => {
+                let id = s("value").unwrap_or_default().trim();
+                if id.len() > 200 || !id.chars().all(|c| c.is_ascii_alphanumeric() || "-._".contains(c)) {
+                    return Some(Err(tl!("An application ID is letters, digits and dashes").to_string()));
+                }
+                self.ui.google_client_id = id.to_string();
+                Ok(json!({"configured": !id.is_empty()}))
             }
             "ui.rememberSignIn" => {
                 let on = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.remember_sign_in);
@@ -1838,10 +2601,19 @@ impl MailApp {
                 let account = p
                     .get("account")
                     .and_then(Value::as_u64)
-                    .or_else(|| self.session.mailbox.accounts.iter().find(|a| a.oauth.is_some()).map(|a| a.id))
+                    .or_else(|| {
+                        self.session
+                            .mailbox
+                            .accounts
+                            .iter()
+                            .find(|a| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft))
+                            .map(|a| a.id)
+                    })
                     .and_then(|id| self.session.mailbox.account(id).cloned());
                 let Some(account) = account else { return Some(Err(tl!("No account signs in with Microsoft").to_string())) };
-                let Some(oauth) = account.oauth.clone() else { return Some(Err(tl!("This account doesn't sign in with Microsoft").to_string())) };
+                let Some(oauth) = account.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
+                    return Some(Err(tl!("This account doesn't sign in with Microsoft").to_string()));
+                };
                 self.begin_sign_in(account.id, oauth, &account.email, String::new(), false, true)
                     .map(|()| json!({"pending": "signIn", "account": account.id}))
             }
@@ -1856,6 +2628,34 @@ impl MailApp {
                     self.begin_opened_calendars_sign_in(shared)
                 }
             }
+            "ui.automaticRepliesSignIn" => {
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                if let Err(e) = mailcraft_engine::cmd::auto_replies::can_reply(&self.session.mailbox, account) {
+                    return Some(Err(e.to_string()));
+                }
+                self.auto_replies_sign_in(account)
+            }
+            "ui.allowAutomaticReplies" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_replies_sign_in(account)
+            }
+            "ui.allowTasks" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_tasks_sign_in(account)
+            }
+            "ui.allowRules" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_rules_sign_in(account)
+            }
             "ui.allowSharedSend" => {
                 let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 self.begin_shared_send_sign_in(shared)
@@ -1866,6 +2666,12 @@ impl MailApp {
                 }
                 self.more_on_server();
                 Ok(json!({"pending": "serverSearch"}))
+            }
+            "ui.cancelOpen" => {
+                if !opening::cancel_ahead(self) {
+                    return Some(Err(tl!("No mailbox is being opened").to_string()));
+                }
+                Ok(json!({"cancelled": true}))
             }
             "ui.cancelSync" => {
                 if !self.syncing() {
@@ -1973,9 +2779,57 @@ impl MailApp {
             // and a bearer token is no password.)
             let (session, bearer) = a.jmap.as_ref().map_or(("none", false), |j| (j.session.trim(), j.bearer));
             format!("{kind}:{address}|jmap={session}|bearer={bearer}")
+        } else if a.kind == mailcraft_model::AccountKind::Exchange {
+            // (Its whole EWS address: another one, on the same server or not, is another server;
+            // the user name it signs in with: a password is for one name; and the certificate it
+            // trusts besides the system's, when it does: a password remembered for the server the
+            // system vouches for is never handed to a connection that a pin lets through, AU3-02.)
+            let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
+            let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
+            match a.ews.as_ref().map(|e| e.trusted.trim().to_ascii_lowercase()).filter(|pin| !pin.is_empty()) {
+                Some(pin) => format!("{kind}:{address}|ews={url}|user={user}|pin={pin}"),
+                None => format!("{kind}:{address}|ews={url}|user={user}"),
+            }
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
+    }
+
+    /// Whether a pending sign-in still belongs to the saved account. The storage key binds
+    /// its address and endpoints; login, transport security, ownership and OAuth registration
+    /// also belong to its credential identity. Names, signatures and download preferences do not.
+    fn same_sign_in_identity(before: &mailcraft_model::Account, after: &mailcraft_model::Account) -> bool {
+        before.id == after.id
+            && before.kind == after.kind
+            && before.shared_of == after.shared_of
+            && before.login() == after.login()
+            && Self::secret_key("refresh", before) == Self::secret_key("refresh", after)
+            && before.incoming.as_ref().map(|s| s.security) == after.incoming.as_ref().map(|s| s.security)
+            && before.outgoing.as_ref().map(|s| s.security) == after.outgoing.as_ref().map(|s| s.security)
+            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+    }
+
+    /// Stop only this account's pending sign-in and remove its waiting text.
+    fn cancel_pending_sign_in(&mut self, account: Id) {
+        if self.signing_in.as_ref().is_some_and(|pending| pending.account == account)
+            && let Some(pending) = self.signing_in.take()
+        {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.session.sync_status.clear();
+        }
+    }
+
+    /// Every name the account's secret of this kind may be kept under: its own, the one from
+    /// before a pin was part of an Exchange server account's name, and the one from before
+    /// secrets were bound to servers. For forgetting, never for reading.
+    pub(crate) fn secret_keys_of(kind: &str, a: &mailcraft_model::Account) -> Vec<String> {
+        let mut keys = vec![Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)];
+        if let Some(e) = a.ews.as_ref().filter(|e| !e.trusted.trim().is_empty()) {
+            let unpinned = mailcraft_model::Account { ews: Some(mailcraft_model::EwsServer { trusted: String::new(), ..e.clone() }), ..a.clone() };
+            keys.push(Self::secret_key(kind, &unpinned));
+        }
+        keys
     }
 
     /// The name secrets were kept under before they were bound to servers.
@@ -1983,33 +2837,71 @@ impl MailApp {
         format!("{kind}:{}", address.trim().to_ascii_lowercase())
     }
 
-    /// The account in this mailbox with this address.
-    fn account_at(&self, address: &str) -> Option<&mailcraft_model::Account> {
+    /// The account in this mailbox with this address; none when two or more have it (a mailbox
+    /// from a file may), since then the address doesn't say which (AU3-03). (For tests: secrets
+    /// are read and written by the account itself, never found by an address.)
+    #[cfg(test)]
+    pub(crate) fn account_at(&self, address: &str) -> Option<&mailcraft_model::Account> {
         let address = address.trim();
-        self.session.mailbox.accounts.iter().find(|a| a.email.trim().eq_ignore_ascii_case(address))
+        let mut with = self.session.mailbox.accounts.iter().filter(|a| a.email.trim().eq_ignore_ascii_case(address));
+        let first = with.next()?;
+        with.next().is_none().then_some(first)
     }
 
-    /// What the owner had the operating system remember for `address` (`password` or `refresh`),
-    /// for the account of that address with the servers it has now.
-    fn remembered(&self, kind: &str, address: &str) -> Option<String> {
-        if !self.ui.remember_sign_in {
+    /// Whether two or more accounts of the open mailbox that connect to servers have the same
+    /// address. A mailbox like that is opened, and nothing is read from the credential store for
+    /// it until the owner has seen in Confirm Servers where each of them connects (AU3-03).
+    /// (A shared mailbox keeps no secret of its own: its owner's sign-in reads it.)
+    pub(crate) fn has_shared_address(&self) -> bool {
+        self.session.mailbox.accounts.iter().any(|a| self.address_shared(&a.email))
+    }
+
+    /// Whether two or more accounts that keep secrets of their own have this address.
+    pub(crate) fn address_shared(&self, address: &str) -> bool {
+        let address = address.trim();
+        self.session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
+            .nth(1)
+            .is_some()
+    }
+
+    /// What the owner had the operating system remember (`password` or `refresh`) for the
+    /// account `account` of this mailbox, with the servers it has now: that account's own, never
+    /// one found by its address (another may have it too, with other servers, AU3-03).
+    fn remembered(&self, kind: &str, account: Id) -> Option<String> {
+        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || self.unconfirmed {
             return None;
         }
-        let key = Self::secret_key(kind, self.account_at(address)?);
-        self.services.secrets.as_ref()?.get(&key).filter(|secret| !secret.is_empty())
+        let a = self.session.mailbox.account(account)?;
+        // (What the background read brought, never the store itself: it may be locked, and then
+        // asking blocks until the owner answers.)
+        self.secret_cache.get(&Self::secret_key(kind, a)).cloned()
     }
 
-    /// Have the operating system remember a secret for `address`, when the owner wants that.
-    fn remember(&mut self, kind: &str, address: &str, secret: &str) {
-        if !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
+    /// Have the operating system remember a secret for the account `account`, when the owner
+    /// wants that: under that account's own name.
+    fn remember(&mut self, kind: &str, account: Id, secret: &str) {
+        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed || self.unconfirmed {
             return;
         }
-        let Some(account) = self.account_at(address) else { return };
+        let Some(account) = self.session.mailbox.account(account) else { return };
         let key = Self::secret_key(kind, account);
         let Some(store) = &self.services.secrets else { return };
         match store.set(&key, secret) {
-            Ok(()) => self.index_secret_key(key),
-            Err(e) => log::warn!("couldn't keep the sign-in for next time: {e}"),
+            Ok(()) => {
+                self.secret_cache.insert(key.clone(), secret.to_string());
+                self.index_secret_key(key);
+            }
+            Err(_) => {
+                // A store error can echo its input; never put it in diagnostics. A partial
+                // store write must not leave a credential that appears successfully saved.
+                log::warn!("couldn't keep a sign-in in the operating system's credential store");
+                store.delete(&key);
+                self.secret_cache.remove(&key);
+            }
         }
     }
 
@@ -2028,8 +2920,7 @@ impl MailApp {
         let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
         for a in &self.session.mailbox.accounts {
             for kind in ["password", "refresh"] {
-                keys.push(Self::secret_key(kind, a));
-                keys.push(Self::legacy_secret_key(kind, &a.email));
+                keys.extend(Self::secret_keys_of(kind, a));
             }
         }
         keys.sort();
@@ -2043,15 +2934,19 @@ impl MailApp {
             }
         }
         self.ui.remembered_keys = left.clone();
+        self.secret_cache.clear();
         left
     }
 
     /// Tell the owner, once a session, when the system's credential store can't be used, so that
     /// being asked again at the next start is no surprise.
     pub(crate) fn check_secret_store(&mut self) {
-        let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) else {
-            return;
-        };
+        if let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) {
+            self.note_secret_trouble(trouble);
+        }
+    }
+
+    fn note_secret_trouble(&mut self, trouble: StoreTrouble) {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
             self.status(trouble.notice());
@@ -2059,54 +2954,91 @@ impl MailApp {
     }
 
     /// Drop everything the operating system remembers for this account as it is, and under the
-    /// name from before secrets were bound to servers.
-    pub(crate) fn forget_account_secrets(&self, a: &mailcraft_model::Account) {
-        if let Some(store) = &self.services.secrets {
-            for kind in ["password", "refresh"] {
-                store.delete(&Self::secret_key(kind, a));
-                store.delete(&Self::legacy_secret_key(kind, &a.email));
-            }
-        }
-    }
-
-    /// Secrets kept before they were bound to servers move, once, to the name made from the
-    /// servers of the account in this mailbox, and the old name goes. Only for a mailbox the
-    /// owner has not been asked to confirm; the owner's setting says when it has been done.
-    pub(crate) fn migrate_secrets(&mut self) {
-        if self.ui.sign_ins_bound {
-            return;
-        }
-        let mut moved = Vec::new();
-        if let Some(store) = &self.services.secrets {
-            for a in &self.session.mailbox.accounts {
-                for kind in ["password", "refresh"] {
-                    let old = Self::legacy_secret_key(kind, &a.email);
-                    if let Some(secret) = store.get(&old).filter(|s| !s.is_empty()) {
-                        let new = Self::secret_key(kind, a);
-                        if let Err(e) = store.set(&new, &secret) {
-                            log::warn!("couldn't move a remembered sign-in: {e}");
-                            continue;
-                        }
-                        store.delete(&old);
-                        moved.push(new);
-                    }
+    /// name from before secrets were bound to servers; and the names of the entries that went
+    /// from `remembered_keys`, so that the settings don't name the account any more (#325). A
+    /// name whose entry is still there stays, for the full removal to try again; so does every
+    /// name when the store couldn't be used (locked, or not answering), which says nothing then.
+    pub(crate) fn forget_account_secrets(&mut self, a: &mailcraft_model::Account) {
+        let Some(store) = &self.services.secrets else { return };
+        let mut gone = Vec::new();
+        for kind in ["password", "refresh"] {
+            for key in Self::secret_keys_of(kind, a) {
+                store.delete(&key);
+                if store.get(&key).is_none() {
+                    gone.push(key);
                 }
             }
         }
-        for key in moved {
-            self.index_secret_key(key);
+        for key in &gone {
+            self.secret_cache.remove(key);
         }
-        self.ui.sign_ins_bound = true;
+        // (Taken here, the owner hears of it as `check_secret_store` would have said it.)
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
+        }
+    }
+
+    /// Forget only this account's rejected refresh grant, including the in-memory cache.
+    fn forget_account_refresh(&mut self, account: &mailcraft_model::Account) {
+        let keys = Self::secret_keys_of("refresh", account);
+        for key in &keys {
+            self.secret_cache.remove(key);
+        }
+        let Some(store) = &self.services.secrets else { return };
+        let mut gone = Vec::new();
+        for key in keys {
+            store.delete(&key);
+            if store.get(&key).is_none() {
+                gone.push(key);
+            }
+        }
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
+        }
     }
 
     /// The sign-in settings as the host should use them: an account that names no application id
     /// of its own takes this installation's.
     pub(crate) fn effective_oauth(&self, mut oauth: mailcraft_model::OAuth) -> mailcraft_model::OAuth {
-        if oauth.client_id.is_empty() && oauth.provider == mailcraft_model::OAuthProvider::Microsoft {
-            let own = &self.ui.microsoft_client_id;
-            oauth.client_id = if own.is_empty() { self.services.microsoft_client_id.clone() } else { own.clone() };
+        if oauth.client_id.is_empty() {
+            let own = match oauth.provider {
+                mailcraft_model::OAuthProvider::Microsoft => {
+                    if self.ui.microsoft_client_id.is_empty() {
+                        &self.services.microsoft_client_id
+                    } else {
+                        &self.ui.microsoft_client_id
+                    }
+                }
+                mailcraft_model::OAuthProvider::Google => {
+                    if self.ui.google_client_id.is_empty() {
+                        &self.services.google_client_id
+                    } else {
+                        &self.ui.google_client_id
+                    }
+                }
+            };
+            oauth.client_id.clone_from(own);
         }
         oauth
+    }
+
+    /// The host's Desktop registration value. UI preferences never supply or retain it.
+    pub(crate) fn google_client_secret(&self) -> &str {
+        &self.services.google_client_secret
+    }
+
+    pub(crate) fn google_registration_ready(&self) -> bool {
+        let oauth = self.effective_oauth(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Google, ..Default::default() });
+        let (id, secret) = (oauth.client_id.as_str(), self.google_client_secret());
+        !id.is_empty()
+            && id.len() <= 200
+            && id.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+            && !secret.is_empty()
+            && secret.len() <= 512
+            && secret.bytes().all(|b| b.is_ascii_graphic())
+            && self.services.sign_in.is_some()
     }
 
     /// Hand a sign-in to the host. `account` is 0 while an account is being set up.
@@ -2125,8 +3057,14 @@ impl MailApp {
         let shared_send = std::mem::take(&mut self.shared_send_next) && shared.is_some();
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
+        let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
+        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none() && !tasks;
+        let replies = std::mem::take(&mut self.replies_next) && graph && shared.is_none() && !tasks && !rules;
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
+        }
+        if self.offline() {
+            return Err(crate::send_receive::said());
         }
         let Some(sign_in) = &self.services.sign_in else {
             return Err(tl!("This build can't sign in to this kind of account. Use the desktop app.").to_string());
@@ -2134,11 +3072,14 @@ impl MailApp {
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let browser = refresh.is_empty();
         let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
+        let google_client_secret =
+            if oauth.provider == mailcraft_model::OAuthProvider::Google { self.google_client_secret().to_string() } else { String::new() };
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
             email: email.to_string(),
             refresh,
+            google_client_secret,
             cancel: cancel.clone(),
             quiet,
             graph,
@@ -2150,10 +3091,30 @@ impl MailApp {
             shared: shared.is_some(),
             shared_send,
             shared_calendars,
+            tasks,
+            rules,
+            replies,
         };
+        let snapshot = self.session.mailbox.account(account).cloned();
         let rx = sign_in(request);
         let opening = self.session.openings();
-        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, browser, opening, rx, cancel });
+        self.signing_in = Some(SigningIn {
+            graph,
+            favorites,
+            quiet,
+            account,
+            snapshot,
+            shared,
+            shared_send,
+            shared_calendars,
+            tasks,
+            rules,
+            replies,
+            browser,
+            opening,
+            rx,
+            cancel,
+        });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -2177,12 +3138,16 @@ impl MailApp {
 
     /// Account setup: the account exists now; keep what signing in brought back for it.
     pub(crate) fn adopt_tokens(&mut self, account: Id, tokens: Tokens) {
+        let Some(saved) = self.session.mailbox.account(account) else { return };
+        // A newly authorized Google account must identify its owner. A refresh grant which
+        // legitimately omits identity is handled by poll_sign_in, not by account setup.
+        if saved.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google) && tokens.email.trim().is_empty() {
+            return;
+        }
         if self.signed_in_as_other(account, &tokens) {
             return;
         }
-        if let Some(address) = self.session.mailbox.account(account).map(|a| a.email.clone()) {
-            self.remember("refresh", &address, &tokens.refresh);
-        }
+        self.remember("refresh", account, &tokens.refresh);
         self.note_directory(account, &tokens.tenant);
         self.tokens.insert(account, tokens);
     }
@@ -2193,7 +3158,14 @@ impl MailApp {
     /// who to sign in as. Tokens that name nobody are the account's, as they always were.
     pub(crate) fn signed_in_as_other(&mut self, account: Id, tokens: &Tokens) -> bool {
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        if !tokens.someone_else(&a.email, &a.username) {
+        // A Google identity must match the account's address, not an alternate IMAP user
+        // name: that name is plain editable mailbox data and cannot authorize another owner.
+        let wrong = if a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google) && !tokens.email.trim().is_empty() {
+            !tokens.email.trim().eq_ignore_ascii_case(a.email.trim())
+        } else {
+            tokens.someone_else(&a.email, &a.username)
+        };
+        if !wrong {
             return false;
         }
         let who = tokens.email.trim();
@@ -2208,8 +3180,9 @@ impl MailApp {
     }
 
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
-    /// (it is remembered for later runs once the first one has gone through).
+    /// (it is remembered for later runs once the server has let the first one in).
     pub(crate) fn adopt_password(&mut self, account: Id, password: String) {
+        self.jmap_refused.remove(&account);
         self.passwords.insert(account, password);
     }
 
@@ -2228,6 +3201,10 @@ impl MailApp {
         if self.data_removed {
             return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
         }
+        // Work Offline: nothing goes to a server; what is sent waits in the Outbox.
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         // The Inbox checked by itself gives way to a run (#276).
         self.give_up_inbox_check();
         if self.sync_rx.is_some() || self.graph_rx.is_some() {
@@ -2241,6 +3218,11 @@ impl MailApp {
             return Err(cant_connect());
         }
         let quiet = p.get("quiet").and_then(Value::as_bool).unwrap_or(false);
+        // Send/Receive the owner asked for is the time to ask the store again (it may have been
+        // locked, or refused): the run goes on when it has answered ([`secret_read`]).
+        if !quiet && self.hold_for_secrets(p) {
+            return Ok(json!({"pending": "secrets"}));
+        }
         // Never two jobs for one account at once: the calendar's job (a short one, but the
         // wide stretch every quarter of an hour is not) finishes first.
         let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
@@ -2277,6 +3259,13 @@ impl MailApp {
                 self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
+        // A message an earlier run handed to the server, whose answer never came back, may have
+        // gone: it is held for the owner to look at, never sent again by itself (AU3-26).
+        self.hold_unanswered(account);
+        // An Exchange server account is kept in step through Exchange Web Services (#252).
+        if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
+            return self.start_ews_mail(account, quiet, p);
+        }
         // Nor has one kept in step over JMAP, where the host runs JMAP (M6).
         if self.services.jmap.is_some() && self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) {
             return self.start_jmap_mail(account, quiet, p);
@@ -2299,7 +3288,7 @@ impl MailApp {
             // Signed in on the provider's page: a token that is still good goes along; without
             // one the host renews it or the owner signs in, and this runs again after.
             let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-            let refresh = kept.or_else(|| self.remembered("refresh", &address)).unwrap_or_default();
+            let refresh = kept.or_else(|| self.remembered("refresh", account)).unwrap_or_default();
             // Good for the whole run: Microsoft ends an IMAP session the moment its token runs
             // out, folders still to go. ponytail: ten minutes covers a run; a longer first
             // download still meets the end, and the next run renews.
@@ -2344,9 +3333,10 @@ impl MailApp {
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
-                if let Some(graph) = &self.services.graph {
-                    self.graph_rx = Some((account, quiet, false, graph(ask)));
-                }
+                // What it sends is marked so, on disk, before it leaves (AU3-26).
+                let opening = self.session.openings();
+                let rx = self.hand_graph(account, ask)?;
+                self.graph_rx = Some((account, quiet, false, opening, rx));
                 return Ok(json!({"pending": "graph", "account": account}));
             }
             // What Graph sent, or couldn't say whether it sent, is not sent again by SMTP.
@@ -2356,7 +3346,7 @@ impl MailApp {
             if let Some(pw) = p.get("password").and_then(Value::as_str) {
                 self.passwords.insert(account, pw.to_string());
             } else if !self.passwords.contains_key(&account)
-                && let Some(pw) = self.remembered("password", &address)
+                && let Some(pw) = self.remembered("password", account)
             {
                 self.passwords.insert(account, pw);
             }
@@ -2366,9 +3356,23 @@ impl MailApp {
             };
             request.password = password;
         }
-        let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
+        if self.services.sync.is_none() {
+            return Err(tl!("This build can't connect to mail servers").to_string());
+        }
         self.sync_run = Some((account, None, false, quiet));
-        self.sync_rx = Some(MailRun::Imap(start(request)));
+        // (A refusal said by a run whose thread ended before its last piece is not this run's.)
+        self.sync_refused = false;
+        self.sync_password = Some(request.password.clone()).filter(|password| !password.is_empty());
+        let opening = self.session.openings();
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let rx = match self.hand_imap(account, request) {
+            Ok(rx) => rx,
+            Err(why) => {
+                (self.sync_run, self.sync_password) = (None, None);
+                return Err(why);
+            }
+        };
+        self.sync_rx = Some(MailRun::Imap { account, opening, rx });
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
     }
@@ -2378,6 +3382,9 @@ impl MailApp {
     /// due, brings the calendar and the contacts; no IMAP, no SMTP. Its token is always renewed
     /// for the job, with `Mail.ReadWrite`.
     fn start_graph_mail(&mut self, account: Id, quiet: bool) -> Result<Value, String> {
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
         if self.services.graph.is_none() {
             return Err(tl!("This build can't connect to Microsoft").to_string());
         }
@@ -2389,7 +3396,7 @@ impl MailApp {
         let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
         let address = owner.email.clone();
         let kept = self.tokens.get(&account).or(self.graph_tokens.get(&account)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &address)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", account)).unwrap_or_default();
         if refresh.is_empty() {
             // Nobody asked for this run: no page is put in front of the owner.
             if quiet {
@@ -2427,13 +3434,15 @@ impl MailApp {
             cancel: self.services.sync_cancel.clone(),
         };
         self.resume_fetch();
-        let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let opening = self.session.openings();
+        let rx = self.hand_graph(account, ask)?;
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
         self.graph_pieces_taken = 0;
         self.sync_run = Some((account, None, false, quiet));
-        self.graph_rx = Some((account, quiet, false, graph(ask)));
+        self.graph_rx = Some((account, quiet, false, opening, rx));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true}))
     }
@@ -2444,12 +3453,14 @@ impl MailApp {
         mb.accounts.iter().all(|a| a.email.trim().is_empty()) && mb.messages.is_empty()
     }
 
-    fn server_accounts(&self) -> Vec<Id> {
+    pub(crate) fn server_accounts(&self) -> Vec<Id> {
         // A JMAP account where the host runs JMAP (without, every run of it would end in a
         // refusal); the others where it opens mail connections, or, when it reaches no server
         // at all, to be told so.
         let runs = |a: &&mailcraft_model::Account| match a.kind {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
+            // (Where the host runs it, #252.)
+            mailcraft_model::AccountKind::Exchange => self.services.ews.is_some(),
             kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
@@ -2457,7 +3468,7 @@ impl MailApp {
 
     /// How much of `account` waits to go to its server: mail in the Outbox, and changes made here
     /// that the server hasn't been told.
-    fn waiting_to_go(&self, account: Id) -> usize {
+    pub(crate) fn waiting_to_go(&self, account: Id) -> usize {
         let mb = &self.session.mailbox;
         // (A held message waits for the owner, not for a run; and so does mail in a shared
         // mailbox's Outbox that may not be sent from it yet, #70.)
@@ -2483,18 +3494,47 @@ impl MailApp {
         let opening = self.session.openings();
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
+            // A question about the mailbox that was open goes with it: it names messages and
+            // accounts by ids, which the other mailbox may have too (#503).
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+                self.dialog = None;
+            }
+            // An agent's too.
+            agent_gate::forget(self);
+            // The automatic replies' jobs and what waits to go up are the old mailbox's too.
+            self.auto_replies_forget_if_replaced();
             self.passwords.clear();
+            self.sync_password = None;
+            self.secret_cache.clear();
+            self.secret_read = None;
+            self.secrets_asked = None;
+            self.sync_after_secrets.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
-            // Work started for the old mailbox stays with it: a sign-in on its way is called
-            // off, and a switch to Graph (its copy, its backup) is forgotten.
-            if let Some(s) = self.signing_in.take() {
-                s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                self.session.sync_status.clear();
-            }
+            self.jmap_refused.clear();
+            self.ews_unreadable.clear();
+            self.ews_signed_in.clear();
+            self.ews_certificate.clear();
+            // Work started for the old mailbox stays with it: every job is called off and its run
+            // state forgotten, Send/Receive Progress included ([`jobs`]; what
+            // still comes of one is let go of by its poll), the messages being fetched whole are
+            // called off (`graph_fetch`), and a switch to Graph (its copy, its backup) is
+            // forgotten.
+            self.clear_jobs_on_replace();
+            self.fetching.forget();
             self.forget_graph_switch();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
+            self.shared_address_judged = Some(opening);
+        }
+        // The one the window started with is never from a file, but two of its accounts may have
+        // the same address all the same: then it is held back too, until the owner has seen where
+        // each connects (AU3-03). Before anything is read from the credential store for it.
+        if self.shared_address_judged != Some(opening) {
+            self.shared_address_judged = Some(opening);
+            if !self.unconfirmed && self.has_shared_address() {
+                self.judge_mailbox();
+            }
         }
     }
 
@@ -2508,15 +3548,21 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        // (A JMAP account's secret is in memory only, never with the operating system.)
+        // (A JMAP account's secret is in memory only, never with the operating system; and one its
+        // server turned down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Jmap {
-            return self.jmap_secret(account).is_some();
+            return !self.jmap_refused.contains(&account) && self.jmap_secret(account).is_some();
+        }
+        // (An Exchange server account's password is in memory only, for now; and one its server turned
+        // down waits for the owner.)
+        if a.kind == mailcraft_model::AccountKind::Exchange {
+            return !self.jmap_refused.contains(&account) && self.ews_secret(account).is_some();
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());
-            self.services.sign_in.is_some() && (kept || self.remembered("refresh", &a.email).is_some())
+            self.services.sign_in.is_some() && (kept || self.remembered("refresh", account).is_some())
         } else {
-            self.passwords.contains_key(&account) || self.remembered("password", &a.email).is_some()
+            self.passwords.contains_key(&account) || self.remembered("password", account).is_some()
         }
     }
 
@@ -2541,7 +3587,8 @@ impl MailApp {
             }
         }
         let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
-        if !self.services.can_sync() || busy || self.dialog.is_some() {
+        // (Working offline, nothing starts by itself either: mail waits in the Outbox.)
+        if !self.services.can_sync() || busy || self.dialog.is_some() || self.offline() {
             return;
         }
         // The round's Inbox passes come before anything else of it (#276); neither starts while
@@ -2628,8 +3675,17 @@ impl MailApp {
     /// go on with the mail (for an account kept in step through Graph: take its folders in, and
     /// the run is over). Public for a host's tests, which have no window.
     pub fn poll_graph(&mut self) {
-        let Some((account, quiet, directory, _)) = &self.graph_rx else { return };
-        let (account, quiet, directory) = (*account, *quiet, *directory);
+        let Some((account, quiet, directory, opening, _)) = &self.graph_rx else { return };
+        let (account, quiet, directory, opening) = (*account, *quiet, *directory, *opening);
+        // Another mailbox took the place of the one the job was for: its accounts are other
+        // accounts, whatever their ids and addresses, and what the job brings is nobody's
+        // (AU3-09, AU3-10). The run is called off; what it sent is found held at its file's next
+        // run.
+        if opening != self.session.openings() {
+            log::info!("graph: the answer is for a mailbox that is no longer open; let go of");
+            self.forget_mail_runs();
+            return;
+        }
         // The mail's pieces first, each taken in as it comes; the job's answer is looked at once
         // the last of them is in.
         if let Some(pieces) = &self.graph_pieces {
@@ -2665,7 +3721,10 @@ impl MailApp {
                             said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
                         self.graph_problems.extend(errors.unwrap_or_default());
                     }
-                    Err(e) => self.graph_problems.push(e.to_string()),
+                    Err(e) => {
+                        self.graph_problems.push(e.to_string());
+                        self.send_doubt = true;
+                    }
                 }
                 if let Some((progress, status)) = kept {
                     (self.session.sync_progress, self.session.sync_status) = (progress, status);
@@ -2692,13 +3751,13 @@ impl MailApp {
                 self.session.sync_progress.phase(account, SyncPhase::CalendarAndContacts);
             }
         }
-        let Some((_, _, _, rx)) = &self.graph_rx else { return };
-        let mut result = match rx.try_recv() {
-            Ok(r) => r,
+        let Some((_, _, _, _, rx)) = &self.graph_rx else { return };
+        let (mut result, answered) = match rx.try_recv() {
+            Ok(r) => (r, true),
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::warn!("graph, account {account}: the job ended without an answer (its thread ended early)");
-                GraphResult { account, ..Default::default() }
+                (GraphResult { account, ..Default::default() }, false)
             }
         };
         self.graph_rx = None;
@@ -2706,6 +3765,31 @@ impl MailApp {
         if self.inbox_run.take() == Some(account) {
             self.graph_pieces_taken = 0;
             return self.finish_inbox_pass(account, result);
+        }
+        // What was handed to Microsoft and whose answer was lost may have gone: held for the
+        // owner, never sent again by itself (AU3-26).
+        let mut said = Vec::new();
+        if mailcraft_engine::cmd::graph_send::hold_lost(
+            &mut self.session.mailbox,
+            account,
+            &result.unsure,
+            "Microsoft",
+            self.session.interface_language,
+            &mut said,
+        ) {
+            self.session.mailbox_changed();
+            if let Some(first) = said.first() {
+                self.status(first.clone());
+            }
+        }
+        // What the run sent is filed by now, what it held for a lost answer is held, and the rest
+        // (not tried, or Microsoft said later) didn't go: no message of the account is marked as
+        // being sent any more. (A job that ended without an answer, or with a piece refused,
+        // leaves them marked: they may have gone.)
+        // ponytail: a host that doesn't stream (`result.mail`) has its sends cleared one by one
+        // as they are taken in; one it didn't try is held at the next run.
+        if answered && result.mail.is_none() {
+            self.run_answered(account);
         }
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
@@ -2722,7 +3806,6 @@ impl MailApp {
         }
         // The Favorites as Outlook has them, when they came along ([`favorites_sync`]).
         self.take_in_favorites(account, &mut result);
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         let mut errors = result.errors;
         if result.token_refused {
             self.graph_tokens.remove(&account);
@@ -2733,7 +3816,7 @@ impl MailApp {
             self.note_directory(account, &tokens.tenant);
             // The newest refresh token is the account's, for mail and Graph alike.
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", account, &tokens.refresh);
                 if let Some(mail) = self.tokens.get_mut(&account) {
                     mail.refresh = tokens.refresh.clone();
                 }
@@ -2892,9 +3975,14 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("Signing in stopped unexpectedly").to_string()),
         };
         let (account, for_graph, for_favorites) = (waiting.account, waiting.graph, waiting.favorites);
+        let snapshot = waiting.snapshot.clone();
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
+        let for_tasks = waiting.tasks;
+        let for_rules = waiting.rules;
+        let for_replies = waiting.replies;
         let started_under = waiting.opening;
+        let on_the_page = waiting.browser;
         self.signing_in = None;
         // Another mailbox took the place of the one it was for: its accounts are other accounts,
         // whatever their ids, and this answer is nobody's.
@@ -2917,6 +4005,18 @@ impl MailApp {
             self.setup_sign_in = Some(answer);
             return;
         }
+        // A removed or changed credential identity cannot take a late response, even if an ID
+        // was reused or the host ignored cancellation. Ordinary account preferences can change.
+        let same_identity =
+            snapshot.as_ref().zip(self.session.mailbox.account(account)).is_some_and(|(before, after)| Self::same_sign_in_identity(before, after));
+        if !same_identity {
+            self.session.sync_status.clear();
+            return;
+        }
+        // Signed in on the page: what it now covers may let the automatic replies be read.
+        if on_the_page && answer.is_ok() {
+            self.auto_replies_signed_in_on_page(account);
+        }
         // For reading a shared mailbox (#70): it is read now, or why not is said.
         if let Some(shared) = for_shared {
             // (And for reading its calendars: they are read now, or why not is said.)
@@ -2929,11 +4029,22 @@ impl MailApp {
             }
             return self.shared_signed_in(shared, account, answer);
         }
+        // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
+        if for_tasks {
+            return self.tasks_signed_in(account, answer);
+        }
+        // For keeping rules on the server (#566): those waiting go now, or why not is said.
+        if for_rules {
+            return self.rules_signed_in(account, answer);
+        }
+        // For changing the automatic replies: the change that waited goes now, or why not is said.
+        if for_replies {
+            return self.replies_signed_in(account, answer);
+        }
         // For reading the calendars opened by address (#70): they are read now, or why not is said.
         if for_shared_calendars {
             return self.opened_calendars_signed_in(account, answer);
         }
-        let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
         // The owner picks who signs in on the page: it has to be this account. Somebody else's
         // tokens are neither used nor remembered, mail's or Graph's (#103).
         if let Ok(tokens) = &answer {
@@ -2948,7 +4059,7 @@ impl MailApp {
             match answer {
                 Ok(tokens) => {
                     if !tokens.refresh.is_empty() {
-                        self.remember("refresh", &address, &tokens.refresh);
+                        self.remember("refresh", account, &tokens.refresh);
                         if let Some(mail) = self.tokens.get_mut(&account) {
                             mail.refresh = tokens.refresh.clone();
                         }
@@ -2992,7 +4103,7 @@ impl MailApp {
         }
         match answer {
             Ok(tokens) => {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
                 if let Err(e) = self.start_sync(&json!({"account": account})) {
                     self.session.sync_status.clear();
@@ -3000,9 +4111,18 @@ impl MailApp {
                 }
             }
             Err(e) => {
-                // What was kept stays: the host only gives up on it when the provider refuses it,
-                // and a sign-in that works replaces it. The access token is spent either way.
-                if let Some(tokens) = self.tokens.get_mut(&account) {
+                // A confirmed revoked Google refresh grant is different from a closed browser,
+                // denied consent or transient network failure. Delete only this account's
+                // old key and in-memory tokens; a later owner-initiated sync opens the browser.
+                if e == approval::GOOGLE_REAUTH_REQUIRED
+                    && let Some(saved) = self.session.mailbox.account(account).cloned()
+                    && saved.oauth.as_ref().is_some_and(|oauth| oauth.provider == mailcraft_model::OAuthProvider::Google)
+                {
+                    self.forget_account_refresh(&saved);
+                    self.tokens.remove(&account);
+                } else if let Some(tokens) = self.tokens.get_mut(&account) {
+                    // A retry may renew the otherwise usable refresh grant. Never erase it
+                    // merely because the sign-in window was closed or the network failed.
                     tokens.access.clear();
                 }
                 self.session.sync_status.clear();
@@ -3122,6 +4242,29 @@ impl MailApp {
         self.sync_rx.is_some() || (self.graph_pieces.is_some() && !self.inbox_check.under_way())
     }
 
+    /// The server let `account`'s run in flight in: the password it went with is worth
+    /// remembering (when the owner lets it be), at once, so that a run that has a problem later
+    /// or is cut short by closing MailCraft keeps it all the same (#802). The system is asked
+    /// once a run at most (a store that can't keep it is asked again by the next run, as it was
+    /// by the end of one), not when it holds that password already (a round by itself comes
+    /// every few minutes), and never after a piece of the run said a sign-in was refused: the
+    /// end of such a run forgets it. Remembering switched on during the run counts from its
+    /// next piece. Only the password the run went with, while it is still the one in memory: one
+    /// typed since (in Account Settings, say) has not been tried, and the next run tries it.
+    pub(crate) fn keep_accepted_password(&mut self, account: Id) {
+        if self.sync_refused || !self.ui.remember_sign_in {
+            return;
+        }
+        let Some(sent) = self.sync_password.take() else { return };
+        if self.passwords.get(&account) != Some(&sent) {
+            return;
+        }
+        let Some(key) = self.session.mailbox.account(account).map(|a| Self::secret_key("password", a)) else { return };
+        if self.secret_cache.get(&key) != Some(&sent) {
+            self.remember("password", account, &sent);
+        }
+    }
+
     /// Take in what a Send/Receive has brought so far. It arrives in pieces (what was sent, what
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
@@ -3132,32 +4275,52 @@ impl MailApp {
             if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
                 return self.poll_jmap();
             }
-            let Some(MailRun::Imap(rx)) = &self.sync_rx else { return };
+            if matches!(self.sync_rx, Some(MailRun::Ews { .. })) {
+                return self.poll_ews();
+            }
+            let Some(MailRun::Imap { account: whose, opening, rx }) = &self.sync_rx else { return };
+            // Another mailbox took the place of the one the run was for: its accounts are other
+            // accounts, whatever their ids and addresses, and what the run brings is nobody's
+            // (AU3-21). The run is called off; what it sent is found held at its file's next run.
+            if *opening != self.session.openings() {
+                log::info!("send/receive, account {whose}: the answer is for a mailbox that is no longer open; let go of");
+                self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                (self.sync_rx, self.sync_run, self.sync_password, self.sync_refused) = (None, None, None, false);
+                self.sync_totals = Default::default();
+                return;
+            }
             let piece = match rx.try_recv() {
                 Ok(piece) => piece,
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
-                    self.sync_rx = None;
+                    (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
             };
             let (account, last) = (piece.account, !piece.partial);
             let downloading = !piece.folders.is_empty();
+            let signed_in = piece.step.as_ref().is_some_and(|step| step.stage.signed_in());
             let refused = piece.errors.iter().any(|e| {
                 let e = e.to_lowercase();
                 // Microsoft's word for a token that ran out during the run.
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
             });
             self.sync_refused |= refused;
+            if signed_in {
+                self.keep_accepted_password(account);
+            }
             self.note_sync_problems(account, &piece.errors, false);
             match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
                 Ok(_) => {}
-                Err(e) => self.status(e.to_string()),
+                Err(e) => {
+                    self.status(e.to_string());
+                    self.send_doubt = true;
+                }
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
             // waits beyond what waits at this moment was done here since.
@@ -3169,31 +4332,36 @@ impl MailApp {
             }
             // The run is over.
             self.sync_rx = None;
+            // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
+            self.run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.sync_queue.push_front((whose, quiet));
             }
             let totals = std::mem::take(&mut self.sync_totals);
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
             if std::mem::take(&mut self.sync_refused) {
                 // Forget the password so the next try asks again, and the access token so the
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.account_at(&address)) {
-                    store.delete(&Self::secret_key("password", a));
+                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
+                    let key = Self::secret_key("password", a);
+                    store.delete(&key);
+                    self.secret_cache.remove(&key);
                 }
                 if let Some(tokens) = self.tokens.get_mut(&account) {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
-                if let Some(password) = self.passwords.get(&account).cloned() {
-                    // It went through: this password is worth remembering.
-                    self.remember("password", &address, &password);
+                // It went through: this password is worth remembering, if no piece said so before
+                // (a run called off may have been before it signed in, and proves nothing).
+                if !totals.stopped {
+                    self.keep_accepted_password(account);
                 }
                 // And nothing is left of the last run's problems.
                 self.note_sync_problems(account, &[], true);
             }
+            self.sync_password = None;
             self.status(totals.summary_in(i18n::current()));
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
@@ -3205,7 +4373,35 @@ impl MailApp {
     /// mailbox opens, a message, calendar or contact file is imported, anything else is attached
     /// to the message being written. A failure shows in the status bar.
     pub fn open_path(&mut self, path: &str) {
+        // Handed over while the mailbox opens: opened once it is.
+        if opening::queue(self, path) {
+            return;
+        }
         files::dropped_path(self, path);
+    }
+
+    /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
+    /// `mailto:` link starts a new message, a message file opens read-only in a window of its own
+    /// (filed nowhere until the owner says so: Move to Folder, #515), a calendar or contact file is imported only
+    /// once the owner says so, and a mailbox or a folder of mail as [`open_path`](Self::open_path).
+    pub fn open_from_system(&mut self, what: &str) {
+        // Handed over while the mailbox opens: opened once it is.
+        if opening::queue(self, what) {
+            return;
+        }
+        files::from_system(self, what);
+    }
+
+    /// `n` things the system handed over were no mail link and no file MailCraft opens, and were
+    /// left alone: the status bar says so.
+    pub fn note_left_alone(&mut self, n: usize) {
+        if n > 0 {
+            self.status(tln!(
+                n,
+                "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone",
+                "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
+            ));
+        }
     }
 
     pub fn status(&mut self, s: impl Into<String>) {
@@ -3258,12 +4454,18 @@ impl MailApp {
     }
 
     /// Put the interface language in force: the window's text, the engine's, and the host's
-    /// (`<html lang>` in the browser) when it changed.
+    /// (`<html lang>` in the browser) when it changed; its dates written the way of the system's
+    /// region, and the clock and first day of the week the owner never chose theirs (#978).
     fn apply_language(&mut self) {
         let lang = self.language();
+        let region = self.services.system_time_locale.as_deref().and_then(mailcraft_i18n::date::region_of);
         i18n::set_current(lang);
+        i18n::set_region(region);
         self.session.interface_language = lang;
-        self.session.prefs.follow_language(lang);
+        if self.session.date_region.as_deref() != region {
+            self.session.date_region = region.map(str::to_string);
+        }
+        self.session.prefs.follow_conventions(lang.conventions_in(region));
         if self.applied_language != Some(lang) {
             self.applied_language = Some(lang);
             if let Some(tell) = &self.services.on_language {
@@ -3276,6 +4478,37 @@ impl MailApp {
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.apply_language();
+        // The system's authorities for mail, once the host has read them: what was checked
+        // without them is checked again (#30).
+        if let Some(rx) = &self.trust_anchors_arriving {
+            match rx.try_recv() {
+                Ok(ders) => {
+                    self.session.set_trust_anchors(&ders);
+                    self.trust_anchors_arriving = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.trust_anchors_arriving = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        // One row's Digital signature a frame (#30); one left over asks for the next frame.
+        self.row_checks_left = 1;
+        if std::mem::take(&mut self.row_checks_wanted) {
+            ctx.request_repaint();
+        }
+        // A .pst import whose window went while it read (closed, or another dialog put in its
+        // place) has stopped: what came in is one step to undo, and Undo is free again.
+        if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
+            mailcraft_engine::import_pst::end_staged(&mut self.session);
+        }
+        // A .pst import takes in what its reader has sent here, in the logic and not in the
+        // dialog's frame: the toolkit runs the logic when the window is hidden or minimised and
+        // paints nothing, and a batch waiting for a frame would stop the reader (#815).
+        if let Some(dialogs::Dialog::ImportPst(mut d)) = self.dialog.take_if(|d| matches!(d, dialogs::Dialog::ImportPst(d) if d.is_importing())) {
+            d.pump(self, ctx);
+            if self.dialog.is_none() {
+                self.dialog = Some(dialogs::Dialog::ImportPst(d));
+            }
+        }
         if !self.styled {
             theme::install_fonts(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
@@ -3287,9 +4520,10 @@ impl MailApp {
         }
         // Settled from the main window's input, so every window has the same theme.
         let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
-        if self.applied_theme != Some(preference) {
-            theme::apply(ctx, preference);
-            self.applied_theme = Some(preference);
+        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: self.ui.accent, high_contrast: self.ui.high_contrast };
+        if self.applied_theme != Some((preference, choice)) {
+            theme::apply(ctx, preference, &choice);
+            self.applied_theme = Some((preference, choice));
         }
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
@@ -3297,6 +4531,20 @@ impl MailApp {
         }
         if self.ctx.is_none() {
             self.ctx = Some(ctx.clone());
+        }
+        windows::remember_identity(ctx, self.services.window_identity.as_ref());
+        // Waiting for the mailbox: nothing else happens.
+        if self.opening.is_some() {
+            opening::logic(self, ctx);
+            return;
+        }
+        opening::after(self, ctx);
+        // The conversations (#795), which the message list and the reading pane look a message's
+        // up in: worked out on the first frame over the mailbox, rather than at the first click
+        // or the first list in conversation view, and kept through the changes that don't
+        // regroup them (`mailcraft_engine::conversations`).
+        if self.session.prepare_conversations() {
+            ctx.request_repaint();
         }
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
@@ -3314,9 +4562,7 @@ impl MailApp {
         self.sweep_admin_consent();
         self.drop_secrets_if_replaced();
         // The mailbox the window started with: secrets kept the old way are filed under its servers.
-        if self.session.openings() == 0 && !self.unconfirmed {
-            self.migrate_secrets();
-        }
+        self.secrets_tick();
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();
@@ -3332,6 +4578,9 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
+        self.poll_tasks();
+        self.poll_rules();
+        self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_sync();
@@ -3351,8 +4600,16 @@ impl MailApp {
             self.inbox_check_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // The tasks by themselves, after the calendar ([`task_sync`]).
+            self.tasks_tick(ctx);
+            // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
+            self.rules_tick(ctx);
+            // The automatic replies, read now and then so that the status bar can say they are on.
+            self.auto_replies_tick(ctx);
         }
         reminders::tick(self, ctx);
+        // What was done in the Reminders window, which has passes of its own (#771).
+        reminders::carry_out(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
             self.dialog = dialogs::Dialog::open("account", self, &json!({}));
         }
@@ -3360,6 +4617,8 @@ impl MailApp {
         self.tick_graph_switch();
         let _ = files::poll(self);
         files::drain_inbox(self);
+        opening::poll_ahead(self, ctx);
+        files::ask_next(self);
         self.autosave_tick(ctx);
         self.draft_autosave_tick(ctx);
         self.collect_screenshots();
@@ -3413,30 +4672,39 @@ impl MailApp {
     /// Save a moment after the last change: to the mailbox file on the desktop (through the
     /// host's background saver when it has one, so the window never waits for the disk), to the
     /// host's storage in the browser. A failure shows in the status bar and is tried again later.
-    /// A draft of a Microsoft account that is being written is saved every five minutes while
-    /// it has changes, and so goes up to its server with the next Send/Receive (R3.4.1).
-    fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
-        const EVERY_MS: f64 = 5.0 * 60_000.0;
-        let Some(c) = &self.session.compose else {
-            self.draft_saved_at = 0.0;
-            return;
-        };
-        let graph = self.session.mailbox.account(c.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
-        if !graph || !c.dirty {
+    /// Every message being written that has changes, the ones in windows, put aside or in the
+    /// reading pane, is saved to Drafts every five minutes, for every kind of account, as Save
+    /// Draft saves it (#286): a Microsoft or Exchange account's goes up to its server with the
+    /// next Send/Receive (R3.4.1), another's is kept in Drafts here. The clock is the session's.
+    /// It is saved as the owner's Save Draft is, which leaves what is written in it as it was: a
+    /// message an agent is writing doesn't become the owner's by being saved (#577).
+    pub(crate) fn draft_autosave_tick(&mut self, ctx: &egui::Context) {
+        const EVERY_SECS: i64 = 5 * 60;
+        let due: Vec<u64> = self.session.all_composing().filter(|c| c.dirty).map(|c| c.id).collect();
+        if due.is_empty() {
+            // The five minutes start again with the next change.
+            self.draft_saved_at = None;
             return;
         }
-        let now = now_ms();
-        if self.draft_saved_at == 0.0 {
-            self.draft_saved_at = now;
-        }
-        let waited = now - self.draft_saved_at;
-        if waited >= EVERY_MS {
-            self.draft_saved_at = now;
-            if let Err(e) = self.run("compose.saveDraft", json!({})) {
-                log::info!("the draft couldn't be saved by itself: {e}");
+        let now = self.session.now();
+        let since = *self.draft_saved_at.get_or_insert(now);
+        let waited = now.saturating_sub(since);
+        // While the owner is asked whether to save a message (Unsaved Message, a window's own
+        // question, an agent's question), nothing is saved behind the answer: once it is given,
+        // a save that is due comes at once.
+        let asked = matches!(self.dialog, Some(dialogs::Dialog::DiscardDraft { .. })) || self.windows.asks() || !self.asking.is_empty();
+        if !(0..EVERY_SECS).contains(&waited) && !asked {
+            self.draft_saved_at = Some(now);
+            for compose in due {
+                // (No command: no agent or script can save one in the background, #286. One that
+                // was no draft before leaves Drafts again with Don't Save.)
+                if let Err(e) = self.session.save_in_background(compose) {
+                    log::info!("a message being written couldn't be saved to Drafts by itself: {e}");
+                }
             }
-        } else {
-            ctx.request_repaint_after(std::time::Duration::from_millis((EVERY_MS - waited).max(1_000.0) as u64));
+        } else if !asked {
+            let left = u64::try_from(EVERY_SECS.saturating_sub(waited)).unwrap_or(1).max(1);
+            ctx.request_repaint_after(std::time::Duration::from_secs(left));
         }
     }
 
@@ -3453,6 +4721,8 @@ impl MailApp {
         }
         let saved_before = self.saved_rev;
         let failed = self.collect_saves();
+        // A Send/Receive whose "sending" marks were waiting to be written goes now, or not at all.
+        self.send_gate_tick(failed.as_deref());
         if self.saved_rev > saved_before {
             // Saving works again: closing waits for it again.
             self.close_anyway = false;
@@ -3465,7 +4735,8 @@ impl MailApp {
                 self.close_anyway = true;
             }
             // So does File › New or File › Open, as the command itself would have.
-            if let Some((id, _)) = self.after_save.take() {
+            if let Some((id, params)) = self.after_save.take() {
+                opening::forget_unopened(&id, &params);
                 let error = format!("the mailbox couldn't be saved first, so it stays open ({e})");
                 self.after_save_outcome = Some(json!({"command": id, "ok": false, "error": error}));
             }
@@ -3567,6 +4838,13 @@ impl MailApp {
         failed
     }
 
+    /// Whether File › New or Open would wait for the background saver to write the mailbox first
+    /// ([`Self::through_saver`]), and run later.
+    pub(crate) fn waits_for_save(&self) -> bool {
+        let (Some(saver), Some(_)) = (&self.services.saver, &self.session.path) else { return false };
+        !self.running_after_save && (self.session.rev() != self.saved_rev || saver.progress().is_some())
+    }
+
     /// With a background saver keeping the mailbox file, what writes that file doesn't do it on
     /// the window's thread, where it would wait for whatever the saver is in the middle of (the
     /// first save after a large download) and then do the writing itself: Save hands the mailbox
@@ -3595,7 +4873,8 @@ impl MailApp {
                     return None;
                 }
                 // Asked again meanwhile: the newer request takes the place of the older.
-                if let Some((before, _)) = self.after_save.replace((id.to_string(), params.clone())) {
+                if let Some((before, waited)) = self.after_save.replace((id.to_string(), params.clone())) {
+                    opening::forget_unopened(&before, &waited);
                     self.after_save_outcome = Some(json!({"command": before, "ok": false, "error": format!("{id} was asked for instead")}));
                 } else {
                     self.after_save_outcome = None;
@@ -3611,7 +4890,10 @@ impl MailApp {
     /// moment the save is done and then close on it (#134). An agent that was answered
     /// `"pending": "save"` hears that it didn't happen, and why.
     fn drop_for_close(&mut self) {
-        if let Some((id, _)) = self.after_save.take() {
+        // Nor is a mailbox read in the background opened on the way out.
+        opening::cancel_ahead(self);
+        if let Some((id, params)) = self.after_save.take() {
+            opening::forget_unopened(&id, &params);
             self.after_save_outcome = Some(json!({"command": id, "ok": false, "error": "the window was closed instead"}));
         }
     }
@@ -3669,8 +4951,17 @@ impl MailApp {
         })
     }
 
+    /// What a password's eye has to know of the window (#438): whether it is being captured
+    /// (a screenshot is waited for, or every frame is one), and whether this frame's input came
+    /// from the control channel.
+    pub(crate) fn secret_watch(&self) -> secret_field::Watch {
+        let captured = self.headless_shots || !self.queued_shots.is_empty() || !self.pending_shots.is_empty();
+        secret_field::Watch { captured, driven: self.driven }
+    }
+
     /// Inject synthetic input events from the control channel (one pointer event per frame).
     pub fn raw_input_hook(&mut self, raw: &mut egui::RawInput) {
+        self.driven = !self.synthetic.is_empty();
         if self.synthetic.is_empty() {
             return;
         }
@@ -3714,21 +5005,36 @@ impl MailApp {
             ctx.request_repaint();
             return;
         }
+        // Waiting for the mailbox: the opening screen and nothing else.
+        if self.opening.is_some() {
+            opening::show(self, ui);
+            return;
+        }
         let t = theme::Tokens::get(&ctx);
         self.hit.clear();
+        // What was chosen in a text's menu, for a text of the main window, before anything reads
+        // the input.
+        let menus = text_menu::deliver(&ctx);
         // (Before the shortcuts take their keys.)
         self.by_hand = owner_input(&ctx);
         // The computer may have been carried to another time zone since the last frame: the
         // mailbox's times are put by the new clock before anything of it is drawn, and so are
         // the appointments that stand open.
         self.follow_zone();
-        // The agent's question is on top of everything, so it gets Enter and Escape first.
+        // Escape and Enter go to one place, and to nothing under it: worked out here, before
+        // anything reads them (#406). The agent's question is on top of everything.
+        keys::gate_main(self, &ctx);
         agent_gate::keys(self, &ctx);
-        // Windows of their own (a message, an appointment), before the shortcuts: Escape closes
-        // the one in front where they are inside this window.
+        // Windows of their own (a message, an appointment), before the shortcuts: their keys are
+        // not also the main window's where they are inside it.
         windows::show(self, &ctx);
-        // Escape closes Send/Receive Progress before anything else hears it.
+        // The main window acts on the reading pane's message being written (#286).
+        let fronted = windows::compose_window::front_pane(self);
         sync_panel::escape(self, &ctx);
+        // Advanced Search closes when what it was opened for has gone, and on Escape, before the
+        // window's Escape ends the search (#329).
+        advanced_search::follow(self);
+        advanced_search::escape(self, &ctx);
         // Shortcuts first, so the frame shows what the key did.
         keys::global_shortcuts(self, &ctx);
         if self.ui.backstage {
@@ -3741,6 +5047,7 @@ impl MailApp {
             chrome::status_bar(self, ui);
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
+            settings_notice::bar(self, ui);
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
@@ -3751,11 +5058,16 @@ impl MailApp {
                 mailcraft_engine::Module::Tasks => tasks_view::show(self, ui),
             });
         }
+        windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
         reminders::show(self, &ctx);
+        // What was chosen in a text's menu, once everything that has one is drawn.
+        text_menu::carry_out(self, &ctx);
         // Over everything: what an agent wants that needs the owner.
         agent_gate::show(self, &ctx);
+        // While messages are dragged: the pointer for what is under it (#430).
+        drag_pointer::apply(&ctx);
         self.by_hand = false;
         self.refusal();
         let title = format!("{} - MailCraft", self.title_stem());
@@ -3767,6 +5079,7 @@ impl MailApp {
         reading::images::Pictures::of(&ctx).lock().unwrap_or_else(|e| e.into_inner()).release_unseen(&ctx);
         self.frame_ms = now_ms() - t0;
         self.report_dirty();
+        text_menu::finish(&ctx, menus);
     }
 
     /// The window's close button. MailCraft saves by itself, so closing only waits for a message
@@ -3776,8 +5089,14 @@ impl MailApp {
         // later one: held below by a question, the close the owner asks for next waits again for
         // whatever the saver is at by then.
         let (ready, anyway) = (std::mem::take(&mut self.close_ready), std::mem::take(&mut self.close_anyway));
-        if self.session.compose.as_ref().is_some_and(|c| c.dirty) {
-            self.dialog = dialogs::Dialog::open("discardDraft", self, &json!({"then": "quit"}));
+        // Still opening: nothing to wait for or write.
+        if self.opening.is_some() {
+            return true;
+        }
+        // Every message being written goes to Drafts, unasked (#286); one that can't be is asked
+        // about, as before.
+        if !windows::compose_window::save_all_for_quit(self) && dialogs::unsaved_closed_by(self, "file.new", &json!({})) > 0 {
+            self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }
         // An appointment window with unsaved changes asks about them first.
@@ -3803,7 +5122,10 @@ impl MailApp {
             if unsaved {
                 saver.submit(path, &self.session.mailbox, rev);
             }
-            if unsaved || saver.progress().is_some() {
+            // (A sweep of the content folder writes nothing of the mailbox: it isn't waited for,
+            // #586, and is left where it got to.)
+            let writing = saver.progress().is_some_and(|p| p.stage != mailcraft_engine::io::SaveStage::Sweeping);
+            if unsaved || writing {
                 self.closing_after_save = Some(rev);
                 self.quit_requested = false;
                 // Closing waits for the save now: an Open that waited for it too gives way.
@@ -3821,7 +5143,8 @@ impl MailApp {
     /// `Err` says why the mailbox couldn't be saved.
     pub fn save_on_exit(&mut self) -> Result<(), String> {
         // Its data was removed from this computer: writing now would bring some of it back.
-        if self.data_removed {
+        // And a window that was still opening its mailbox has nothing to write.
+        if self.data_removed || self.opening.is_some() {
             return Ok(());
         }
         let unsaved = self.autosave && self.session.path.is_some() && (self.session.dirty || self.session.rev() != self.saved_rev);
@@ -3918,9 +5241,52 @@ impl MailApp {
     }
 }
 
+/// A list's saved choice of account, when `address` says it is the same account in `mailbox`;
+/// else All accounts (a file from before the address was kept says nothing, so All too).
+fn restored_choice(mailbox: &mailcraft_model::Mailbox, choice: mailcraft_model::AccountChoice, address: &str) -> mailcraft_model::AccountChoice {
+    let address = address.trim();
+    match choice {
+        mailcraft_model::AccountChoice::Account(id)
+            if address.is_empty() || !mailbox.account(id).is_some_and(|a| a.email.trim().eq_ignore_ascii_case(address)) =>
+        {
+            mailcraft_model::AccountChoice::All
+        }
+        choice => choice,
+    }
+}
+
 /// What the owner is told when part of the mailbox file was damaged and left out as it opened.
 pub fn damaged_mailbox_notice() -> String {
     tl!("Part of the mailbox file is damaged and was left out, so some recent changes may be missing. The file as it was is kept beside it the next time the mailbox is saved.").to_string()
+}
+
+/// What the owner is told of the messages a mailbox just opened marked to be fetched again
+/// (`mailcraft_engine::cmd::file::after_opening`): those kept with characters that couldn't be
+/// read (#185, #650), and those an earlier version put back empty after a refused delete for
+/// good (#793). Nothing for none.
+pub fn fetched_again_notices(unreadable: usize, hollow: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    if unreadable > 0 {
+        out.push(
+            tln!(
+                unreadable,
+                "{n} message with characters that couldn't be read is being downloaded again.",
+                "{n} messages with characters that couldn't be read are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    if hollow > 0 {
+        out.push(
+            tln!(
+                hollow,
+                "{n} message that came back empty after a refused delete is being downloaded again.",
+                "{n} messages that came back empty after a refused delete are being downloaded again."
+            )
+            .to_string(),
+        );
+    }
+    out
 }
 
 /// What the status bar says after a command the user ran, when it is worth saying.
@@ -3944,6 +5310,22 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
     let n = |k: &str| v.get(k).and_then(Value::as_u64);
     match id {
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
+        // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without
+        // most of the original's headers, which is said rather than hidden (#451).
+        "mail.move" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
+        "mail.copy" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
         // A mailbox whose content folder lost something still opens; say how much is missing. A
         // mailbox file damaged part of the way opens as far as it can be read: that is said first.
         "file.open" => {
@@ -3974,6 +5356,33 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
         }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
+        // (A batch handed over by the import's window, `staged`, says nothing: the window does.)
+        "file.importPst" if v.get("staged").is_none() => {
+            let what = tln!(n("added")?, "{n} message", "{n} messages");
+            Some(if v.get("dryRun").and_then(Value::as_bool) == Some(true) {
+                i18n::fmt(tl!("The .pst file has {what} to import; nothing was imported"), &[("what", &what)])
+            } else {
+                i18n::fmt(tl!("Imported {what} from the .pst file"), &[("what", &what)])
+            })
+        }
+        "file.importFolderTree" => {
+            let messages = n("messages")?;
+            let what = tln!(messages, "{n} message", "{n} messages");
+            let left = n("skippedCount").unwrap_or(0);
+            let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
+            let said = i18n::fmt(tl!("Imported {what} into the new folder {name}"), &[("what", &what), ("name", name)]);
+            let stopped = v.get("stopped").and_then(Value::as_bool) == Some(true);
+            Some(match (left, stopped) {
+                (0, false) => said,
+                (left, _) => {
+                    let left = tln!(left, "{n} file left out", "{n} files left out");
+                    i18n::fmt(
+                        tl!("{said}; {left}{more}"),
+                        &[("said", &said), ("left", &left), ("more", if stopped { tl!(", stopped at a limit") } else { "" })],
+                    )
+                }
+            })
+        }
         "file.import" => {
             let mut parts = Vec::new();
             let counts: [(&str, fn(u64) -> String); 4] = [
@@ -3988,10 +5397,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 }
             }
             let what = parts.join(", ");
-            // Mail meant for a Microsoft account went to a local folder (R3 spec S30).
-            if v.get("local").and_then(Value::as_bool) == Some(true) {
+            // Mail meant for a Microsoft account went to a local folder (R3 spec S30); moved into
+            // the account from there, it is put on the server (#451). Drafts stay in their own
+            // mailbox, this computer's.
+            let local = v.get("local").and_then(Value::as_bool) == Some(true);
+            if local && v.get("drafts").and_then(Value::as_bool) == Some(true) {
                 return Some(i18n::fmt(
-                    tl!("Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"),
+                    tl!("Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"),
+                    &[("what", &what)],
+                ));
+            }
+            if local {
+                return Some(i18n::fmt(
+                    tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
                     &[("what", &what)],
                 ));
             }
@@ -4045,5 +5463,7 @@ pub fn now_ms() -> f64 {
 
 #[cfg(test)]
 mod privacy_tests;
+#[cfg(test)]
+mod product_names_tests;
 #[cfg(test)]
 mod tests;

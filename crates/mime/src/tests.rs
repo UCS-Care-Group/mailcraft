@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message};
 use proptest::prelude::*;
 
-use crate::{WriteOptions, parse, parse_mbox, write, write_mbox};
+use crate::{WriteOptions, parse, parse_mbox, write, write_mbox, written_message_id};
 
 fn a(name: &str, email: &str) -> Address {
     Address { name: name.into(), email: email.into() }
@@ -122,7 +122,8 @@ fn a_plain_message_round_trips() {
     m.headers = vec![
         ("X-Mailer".into(), "Synthetic 1.0".into()),
         ("List-Id".into(), "Example list <list.example.org>".into()),
-        ("X-Note".into(), "ünïcode value".into()),
+        ("Comments".into(), "ünïcode value".into()),
+        ("X-Note".into(), "=?not decoded?=".into()),
     ];
     round_trip(&m);
     m.flag = FlagStatus::Complete;
@@ -481,7 +482,12 @@ fn message() -> impl Strategy<Value = Message> {
         proptest::sample::select(vec![FlagStatus::None, FlagStatus::Flagged, FlagStatus::Complete]),
         proptest::sample::select(vec![Importance::Low, Importance::Normal, Importance::High]),
         proptest::collection::vec(header_text().prop_filter("a category", |c| !c.is_empty()), 0..3),
-        proptest::collection::vec(("X-Test-[A-Za-z0-9]{1,8}", header_text()), 0..3),
+        // Unstructured text comes back whatever it is; another field as it was written, which
+        // printable ASCII is (`has_words`).
+        proptest::collection::vec(
+            prop_oneof![("Comments|Organization|Thread-Topic", header_text()), ("X-Test-[A-Za-z0-9]{1,8}", "([!-~]([ -~]{0,38}[!-~])?)?"),],
+            0..3,
+        ),
     );
     (people, ids, header_text(), -2_000_000_000i64..4_000_000_000i64, content, state).prop_map(
         |(
@@ -505,32 +511,54 @@ fn message() -> impl Strategy<Value = Message> {
             // Not carried by the format: must not come back.
             received: date.wrapping_add(99),
             body: Body { text, html },
+            hidden_text: String::new(),
             attachments,
             read,
             flag,
             importance,
+            read_receipt: false,
             categories,
             answered,
             headers,
+            fresh_stamps: false,
             id: 7,
             account: 3,
             folder: 5,
             uid: 11,
             draft: true,
             pinned: true,
+            warnings_dismissed: vec!["external".into()],
             forwarded: true,
             flag_due: Some(1),
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
             not_downloaded: 62_914_560,
+            gmail_category: Some(mailcraft_model::GmailCategory::Social),
+            gmail_synced: Some(mailcraft_model::GmailCategory::Updates),
+            gmail_refusals: 0,
+            gmail_id: 42,
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,
+            refetch: false,
+            refetched: false,
             attachments_on_server: false,
             moving_out: None,
+            returned: 0,
+            placed: String::new(),
             incomplete: false,
             server_draft: None,
             held: String::new(),
+            sending: false,
             answers: None,
             kept: None,
+            original: None,
+            parts_removed: false,
+            original_wanted: false,
+            original_asked: false,
+            original_tries: 0,
+            original_refused: 0,
+            original_retry: 0,
+            original_no_room: 0,
+            original_placed: 0,
         },
     )
 }
@@ -713,4 +741,59 @@ proptest! {
         prop_assert!(m.reply_to.len() <= crate::MAX_RECIPIENTS);
         prop_assert!(m.categories.len() <= crate::MAX_CATEGORIES);
     }
+}
+
+#[test]
+fn the_message_id_said_to_be_written_is_the_one_written() {
+    for raw in ["abc.123@example.org", "<abc@example.org>", "id@example.org>\r\nX-Evil: 1\r\n<x", "< >", ""] {
+        let m = Message { message_id: raw.into(), ..base() };
+        let out = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+        let field = out.lines().find_map(|line| line.strip_prefix("Message-ID: ")).map(str::to_string);
+        assert_eq!(written_message_id(raw), field, "{raw:?}");
+    }
+}
+
+/// A sender who pads a message with headers can't push Exchange's own stamp of where it came from
+/// out of what is kept, and a flood of stamps is itself capped.
+#[test]
+fn exchange_stamps_are_kept_past_the_header_cap() {
+    use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+    let stamps = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(AUTH_AS)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
+    let padded = format!(
+        "{}{AUTH_AS}: Internal\r\n{}x-ms-exchange-organization-authas: Anonymous\r\n\r\n",
+        "X-Pad: 1\r\n".repeat(150),
+        "X-Pad: 1\r\n".repeat(150)
+    );
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // Read here, so believed (#781): a stamp saved by a build from before is not.
+    assert!(parse(padded.as_bytes()).fresh_stamps);
+    let flood = format!("{AUTH_AS}: Internal\r\n").repeat(MAX_AUTH_AS + 10);
+    assert_eq!(stamps(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
+    // Past the cap on header fields too.
+    let padded = format!("{AUTH_AS}: Internal\r\n{}{AUTH_AS}: Anonymous\r\n\r\n", "X-Pad: 1\r\n".repeat(2_500));
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // Past the cap on header bytes too.
+    let padded = format!("{AUTH_AS}: Internal\r\n{}{AUTH_AS}: Anonymous\r\n\r\n", format!("X-Pad: {}\r\n", "p".repeat(250_000)).repeat(20));
+    assert_eq!(stamps(&parse(padded.as_bytes())), ["Internal", "Anonymous"]);
+    // A long value is cut, and never cut down to `Internal`.
+    let long = format!("{AUTH_AS}: Internal{}x\r\n\r\n", " ".repeat(10_000));
+    let cut = stamps(&parse(long.as_bytes()));
+    assert_eq!(cut[0].chars().count(), 65);
+    assert_ne!(cut[0].trim(), "Internal");
+}
+
+/// Nor can padding push out Exchange's word on which way a message went (AU3-V5), past the cap on
+/// kept headers, on header fields or on header bytes; a flood of it is capped too.
+#[test]
+fn exchanges_direction_is_kept_past_the_header_cap() {
+    use mailcraft_model::auth_results::{DIRECTIONALITY, MAX_AUTH_AS};
+    let words = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(DIRECTIONALITY)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
+    for padding in ["X-Pad: 1\r\n".repeat(200), "X-Pad: 1\r\n".repeat(2_500), format!("X-Pad: {}\r\n", "p".repeat(250_000)).repeat(20)] {
+        let padded = format!("From: a@example.org\r\n{padding}{DIRECTIONALITY}: Incoming\r\n\r\n");
+        assert_eq!(words(&parse(padded.as_bytes())), ["Incoming"]);
+    }
+    let flood = format!("{DIRECTIONALITY}: Incoming\r\n").repeat(MAX_AUTH_AS + 10);
+    assert_eq!(words(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
+    let long = format!("{DIRECTIONALITY}: Incoming{}x\r\n\r\n", " ".repeat(10_000));
+    assert_ne!(words(&parse(long.as_bytes()))[0].trim(), "Incoming");
 }

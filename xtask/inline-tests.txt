@@ -2,20 +2,15 @@
 # Only ever shrinks: move a file's tests to `<name>_tests.rs` and take its line off.
 apps/mailcraft-cli/src/main.rs
 apps/mailcraft/src/alerts.rs
-apps/mailcraft/src/browser.rs
 apps/mailcraft/src/clipboard.rs
 apps/mailcraft/src/control_server.rs
 apps/mailcraft/src/desktop_theme.rs
 apps/mailcraft/src/diagnostics.rs
 apps/mailcraft/src/graphics.rs
-apps/mailcraft/src/install.rs
 apps/mailcraft/src/logging.rs
-apps/mailcraft/src/main.rs
 apps/mailcraft/src/opened_files.rs
 apps/mailcraft/src/picture_cache.rs
 apps/mailcraft/src/secrets.rs
-apps/mailcraft/src/self_update.rs
-apps/mailcraft/src/single_instance.rs
 apps/mailcraft/src/updater.rs
 crates/charset/src/lib.rs
 crates/control-key/src/lib.rs
@@ -68,7 +63,6 @@ crates/model/src/message.rs
 crates/model/src/offline.rs
 crates/model/src/provider.rs
 crates/model/src/remote.rs
-crates/model/src/rule.rs
 crates/model/src/search.rs
 crates/model/src/sync/progress.rs
 crates/model/src/sync.rs
@@ -108,14 +102,11 @@ crates/ui-egui/src/credits.rs
 crates/ui-egui/src/dates.rs
 crates/ui-egui/src/dialogs.rs
 crates/ui-egui/src/files.rs
-crates/ui-egui/src/forms.rs
 crates/ui-egui/src/graph_fetch.rs
 crates/ui-egui/src/i18n.rs
 crates/ui-egui/src/keep_offline.rs
 crates/ui-egui/src/keys.rs
 crates/ui-egui/src/mail_view.rs
-crates/ui-egui/src/nav.rs
-crates/ui-egui/src/people_view.rs
 crates/ui-egui/src/reading/colors.rs
 crates/ui-egui/src/reading/images.rs
 crates/ui-egui/src/reading/select.rs
@@ -130,7 +121,6 @@ crates/ui-egui/src/tasks_view.rs
 crates/ui-egui/src/theme.rs
 crates/ui-egui/src/updates.rs
 crates/ui-egui/src/widgets.rs
-crates/ui-egui/src/window_geometry.rs
 crates/ui-egui/src/windows.rs
 crates/ui-egui/src/zones.rs
 crates/vcard/src/lines.rs
@@ -139,9 +129,7 @@ crates/vcard/src/text.rs
 crates/vcard/src/write.rs
 xtask/src/assets.rs
 xtask/src/i18n.rs
-xtask/src/icon.rs
 xtask/src/ico.rs
-xtask/src/layers.rs
 xtask/src/release_key.rs
 xtask/src/spdx.rs
 xtask/src/stats.rs

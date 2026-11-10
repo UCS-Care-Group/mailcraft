@@ -20,20 +20,85 @@ mod mailto;
 mod mbox;
 mod media;
 mod parse;
+mod protected;
 pub mod rich;
+mod signed;
 mod transfer;
 mod words;
 mod write;
 
 #[cfg(test)]
+mod fields_tests;
+#[cfg(test)]
+mod hidden_text_tests;
+#[cfg(test)]
+mod private_headers_tests;
+#[cfg(test)]
+mod protected_tests;
+#[cfg(test)]
+mod read_receipt_tests;
+#[cfg(test)]
+mod signed_tests;
+#[cfg(test)]
 mod tests;
 
 pub use mailto::{Mailto, is_mailto, parse_mailto};
+
+/// The header in which a message opened from a file keeps that file's SHA-256 (#505), so that
+/// opening the file again finds it. MailCraft's own: never read from a message (a sender could
+/// write one) and never written into one.
+pub const OPENED_FILE_HEADER: &str = "X-MailCraft-Opened-File-SHA256";
+
+/// The header in which a message brought in from a .pst file keeps where in that file it was
+/// (#815): the file's identity and the item's node id, so that importing the same file again
+/// skips it. MailCraft's own: never read from a message (a sender could write one) and never
+/// written into one.
+pub const PST_ITEM_HEADER: &str = "X-MailCraft-Pst-Item";
+
+/// The header in which the copy that MailCraft puts on a mail server, of a message moved or
+/// copied there from elsewhere, carries that copy's marker (#451): what tells it that copy from
+/// the server's own messages, which may look the same. Written into that copy alone
+/// ([`write_placed`]), never from a message's kept headers into anything else.
+pub const PLACE_HEADER: &str = "X-MailCraft-Place";
+
+/// `message` as [`write()`] writes it, for a copy put on a mail server, with [`PLACE_HEADER`]
+/// carrying `marker` first (none when it is empty): for a
+/// Digitally signed or Encrypted message that keeps its original, its body as it came, which a
+/// header field put before the others leaves as its Digital signature covers it (#30).
+///
+/// The sending server's DKIM signature and a forwarder's ARC seals (`DKIM-Signature`,
+/// `ARC-Seal`, `ARC-Message-Signature`) are left out: they cover header fields as the sender
+/// wrote them, which a copy written from the message doesn't keep byte for byte, so they would
+/// fail there. A Digital signature (S/MIME, OpenPGP) covers the body, which goes as it came.
+pub fn write_placed(message: &mailcraft_model::Message, opts: &WriteOptions, marker: &str) -> Vec<u8> {
+    let breaks = |name: &str| ["dkim-signature", "arc-seal", "arc-message-signature"].iter().any(|n| name.eq_ignore_ascii_case(n));
+    let unsigned;
+    let message = if message.headers.iter().any(|(name, _)| breaks(name)) {
+        let headers = message.headers.iter().filter(|(name, _)| !breaks(name)).cloned().collect();
+        unsigned = mailcraft_model::Message { headers, ..message.clone() };
+        &unsigned
+    } else {
+        message
+    };
+    let mut out = Vec::new();
+    if !marker.is_empty() {
+        header::write_field(&mut out, PLACE_HEADER, marker);
+    }
+    out.extend(write(message, opts));
+    out
+}
+
+/// Whether the header block `header` has [`PLACE_HEADER`] carrying `marker`.
+pub fn carries_place(header: &[u8], marker: &str) -> bool {
+    !marker.is_empty() && header::split(header, true).0.0.iter().any(|f| f.name.eq_ignore_ascii_case(PLACE_HEADER) && f.value == marker)
+}
 pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
+pub use protected::{Protection, crlf, has_binary, is_protected, parse_fetched, protection};
+pub use signed::{SignedKind, SignedParts, signed_parts};
 pub use words::{decode_words, encode_words};
-pub use write::write;
+pub use write::{write, writes_original, written_message_id};
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

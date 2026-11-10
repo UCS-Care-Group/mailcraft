@@ -69,6 +69,13 @@ impl Builder {
             f(m);
         }
     }
+
+    /// `id` answers `parent`, as its headers say (`In-Reply-To`, `References`): one thread (#795).
+    fn answers(&mut self, id: Id, parent: Id) {
+        let Some((mid, mut references)) = self.mb.message(parent).map(|p| (p.message_id.clone(), p.references.clone())) else { return };
+        references.push(mid.clone());
+        self.edit(id, |m| (m.in_reply_to, m.references) = (mid, references));
+    }
 }
 
 /// The sample mailbox as of `now`, in a zone `offset` minutes east of UTC.
@@ -133,7 +140,8 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         m.attachments = vec![Attachment::new("invoice-october.csv", "text/csv", b"item,quantity,unit price,amount\nTeam plan,7,12.00,84.00\n".to_vec())];
     });
     let checklist = "Draft checklist for the 4.2 release:\n\n- Freeze the main branch Tuesday noon\n- Run the full test pass on all three platforms\n- Update the screenshots in the help pages\n- Write the release notes (Avery)\n- Tag and publish Thursday morning\n\nAnything missing?\n\nTomás";
-    b.mail(inbox, TOMAS, &[ME, MAYA], "Release checklist", b.at(4, 10, 15), checklist);
+    let checklist_root = b.mail(inbox, TOMAS, &[ME, MAYA], "Release checklist", b.at(4, 10, 15), checklist);
+    let root_id = b.mb.message(checklist_root).map(|m| m.message_id.clone()).unwrap_or_default();
     let id = b.mail(
         inbox,
         TOMAS,
@@ -145,6 +153,7 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
     b.edit(id, |m| {
         m.flag = FlagStatus::Flagged;
         m.in_reply_to = "sample.reply-1@lumen.example".into();
+        m.references = vec![root_id, "sample.reply-1@lumen.example".into()];
     });
     b.mail(
         inbox,
@@ -163,6 +172,7 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         "Hello Avery,\n\nWe rolled the new onboarding out to our support team last week, twelve people in all. Overall it went well. A few notes, in the order people hit them:\n\nThe invitation e-mail landed in junk for three people. Its subject line might be the reason.\n\nStep two asks for a team name before explaining what a team is. Two people stopped there and asked me.\n\nThe sample project is very helpful. Several people said it was the moment the product made sense.\n\nNobody found the keyboard shortcuts page on their own.\n\nHappy to get on a call if useful.\n\nBest,\nLin",
     );
     b.edit(id, |m| m.read = false);
+    let feedback = id;
     let id = b.mail(
         inbox,
         BOOKS,
@@ -211,6 +221,7 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         "Avery! It has been too long. I'm near your office Tuesday and Wednesday next week. Lunch?\n\nDev",
     );
     b.edit(id, |m| m.answered = true);
+    let lunch = id;
     let id = b.mail(
         inbox,
         PRIYA,
@@ -266,7 +277,9 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
     // ---- Sent, Drafts, Archive, Junk, Deleted ----
     let id = b.mail(sent, ME, &[TOMAS, MAYA], "RE: Release checklist", b.at(2, 9, 5), &format!("One thing missing: signing the installers. Last time it cost us half a day.\n\nAvery\n\n-----Original Message-----\nFrom: Tomás Rivera <tomas@lumen.example>\nSubject: Release checklist\n\n{checklist}\n"));
     b.edit(id, |m| m.message_id = "sample.reply-1@lumen.example".into());
-    b.mail(sent, ME, &[DEV], "RE: Lunch next week?", b.at(14, 9, 40), "Tuesday works. Noon at the place by the canal?\n\nAvery");
+    b.answers(id, checklist_root);
+    let id = b.mail(sent, ME, &[DEV], "RE: Lunch next week?", b.at(14, 9, 40), "Tuesday works. Noon at the place by the canal?\n\nAvery");
+    b.answers(id, lunch);
     b.mail(sent, ME, &[HANNAH], "Lisbon conference travel", b.at(11, 10, 20), "Hi Hannah,\n\nCould you book travel for the Lisbon conference, November 3 to 6? Morning flight out if there is one, and a hotel within walking distance of the hall.\n\nThanks,\nAvery");
     let drafts = b.folder(FolderKind::Drafts);
     let id = b.mail(
@@ -278,6 +291,7 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         "Hi Lin,\n\nThank you, this is exactly the kind of detail we need. On the invitation e-mail: ",
     );
     b.edit(id, |m| m.draft = true);
+    b.answers(id, feedback);
     let archive = b.folder(FolderKind::Archive);
     b.mail(archive, JONAS, &[ME], "Budget for next year: first pass", b.at(52, 11, 0), "First pass at next year's numbers is in the shared sheet. Travel is flat, tooling is up by a tenth.\n\nComments by the end of the month, please.\n\nJonas");
     b.mail(archive, PRIYA, &[ME], "Notes from the customer council", b.at(66, 15, 20), "Three themes came up again and again: onboarding, reporting, and a way to see everything in one place.\n\nThat last one is what became Atlas.\n\nPriya");
@@ -317,6 +331,8 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         conditions: vec![Condition::FromContains("harborbooks".into())],
         actions: vec![Action::Categorize("Purple category".into())],
         stop: false,
+        account,
+        ..Default::default()
     });
     b.mb
 }

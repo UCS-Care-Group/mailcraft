@@ -1,9 +1,8 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-24 · **Change:** minor (release notes open with a headline list, **in short**; a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-07 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
-The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
-this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
+This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
 permissions, its own installer identity), so a release has exactly the files a Craft app's has,
 under the same names.
@@ -27,6 +26,27 @@ WordCraft does.
    last tag, `gh pr list --state merged --search "merged:>YYYY-MM-DD" --json number,title,closingIssuesReferences`:
    every user-visible change is in the notes, and a security fix always is. Lines are added as
    fixes merge and cleared when the next release's notes start.
+
+   A pull request doesn't edit **Fixes** or **What's new** in `packaging/release-notes.md`: it
+   adds its line as a file of its own, `packaging/release-notes.d/fixes/<issue>.md` (a feature:
+   `new/<issue>.md`), named by the issue it resolves, or its own number, or a short name when it
+   has neither, and holding the line exactly as it reads under the heading (`- …`, more than one
+   if it needs). So two pull requests never conflict over the notes. `cargo xtask release-notes`
+   prints the notes with every fragment joined in, newest first, and changes nothing; `cargo xtask
+   ci` checks that they join. Before tagging, `cargo xtask release-notes --write` puts the
+   fragments' lines at the top of their sections and removes the fragments, in the release's own
+   pull request: what is tagged is what is released, and `release.yml` reads the file as before.
+   **In short** and the closing paragraphs are written in the file itself.
+
+   The documents' tables are joined the same way: a pull request adds its row of a document's
+   **Revision history** (or of `ROADMAP.md`'s **Progress log**) as a file of its own,
+   `docs/log.d/<document without .md>/revisions/<name>.md` (`progress/` for the progress log;
+   [`docs/log.d/README.md`](log.d/README.md)). `cargo xtask docs-log` prints the documents with
+   the rows joined in and changes nothing; `cargo xtask ci` checks them. In the same release
+   pull request, `cargo xtask docs-log --write` puts the rows into their tables by date,
+   newest first, and removes the fragments. Then set the status line of each document that got
+   rows: **Last updated** is its newest row's date, and **Change** is the largest kind among
+   them. Pull requests don't touch status lines, so this is the only place they change.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.
@@ -36,7 +56,7 @@ WordCraft does.
 | Platform | Artifacts | Signing |
 |---|---|---|
 | macOS | universal `MailCraft.app` in a `.dmg`, universal CLI zip | Developer ID + notarization (`APPLE_*` secrets) |
-| Windows | x64, x86 and arm64 `.msi` + portable `.zip` | Azure Trusted Signing (`AZURE_*` secrets) or a certificate (`WINDOWS_CERTIFICATE*`) |
+| Windows | x64, x86 and arm64 `.msi` + portable `.zip` | Azure Artifact Signing (`AZURE_*` secrets, OIDC sign-in) or a certificate (`WINDOWS_CERTIFICATE*`) |
 | Linux | x86_64 and aarch64 `.AppImage` (+ `.zsync` for AppImageUpdate), `.flatpak` bundle, `.deb`, `.rpm`, `.tar.gz` | checksums |
 | FreeBSD | x86_64 `.tar.gz` (built in a FreeBSD VM; on a tag always, on a dry run only when asked for) | checksums |
 | Web | `mailcraft-web-<version>.zip` (static site: `index.html`, wasm, glue) | none |
@@ -55,21 +75,81 @@ WordCraft does.
 
 A pushed tag builds and signs only if its commit is on `main` and `ci-ok` passed on it: the first
 job of `release.yml` (`version`) checks both and every other job needs it, so a tag on a branch
-commit, or on a commit that CI never passed, stops before any signing secret is in reach. Tag
-the merge commit once CI on `main` is green (a documentation-only commit runs no `ci-ok` and
-can't be tagged). The Windows and macOS jobs compile in a step of their own with no signing
-secret in the environment (`package.ps1 -BuildOnly`, `package.sh --build-only`) and sign in a
-later one (`-SkipBuild`, `--skip-build`); the job that signs the checksums builds `xtask` first
-and runs the finished binary with the key (`MAILCRAFT_XTASK`), so no build script or macro of a
-dependency ever runs with a signing secret in its environment. Release builds use no build cache
-(`Swatinem/rust-cache` is for CI only).
+commit, or on a commit that CI never passed, stops before any signing secret is in reach. The
+merge commit of a pull request that was up to date with `main` (as the release's own pull request
+is) can be tagged as soon as it is merged: it holds the very tree the pull request's `ci-ok`
+passed on, and that check stands for it, so the release doesn't wait for CI to run again on
+`main`. Any other commit is tagged once CI on `main` is green (a documentation-only commit runs
+no `ci-ok` and can't be tagged). Building and signing are separate jobs. The Windows and macOS
+programs are compiled in jobs that hold no signing secret and name no environment
+(`package.ps1 -BuildOnly`, `package.sh --build-only`); each hands its binaries on as an artifact
+with a list of their SHA-256 and gives that list's digest as a job output
+(`packaging/ci/handoff.sh`). The jobs that sign check out the scripts afresh, check what they
+downloaded against that digest, and sign and package it (`-SkipBuild -NoRun`,
+`--skip-build --no-run`) with the systems' own signing tools and the pinned Artifact Signing
+client; they never run cargo, rustup or a program built here. The programs are run (the CLI,
+the window's `--version`, the MSI installed and removed) in check jobs that hold no secret. Every
+release file comes with the digest of the job that made it, and the job that makes the draft
+checks them all before it makes `SHA256SUMS.txt`, which it signs with the runner's OpenSSL, not
+with anything compiled from this repository. `cargo xtask workflows` (part of `cargo xtask ci`)
+fails when a job with a signing secret, an Azure sign-in, a keychain import or the `release`
+environment runs cargo, rustup or a built program. Release builds use no build cache
+(`Swatinem/rust-cache` is for CI only). The Google desktop client (`MAILCRAFT_GOOGLE_CLIENT_ID`,
+`MAILCRAFT_GOOGLE_CLIENT_SECRET`) is read by the build jobs, which name no environment, so it is
+a secret of the repository, not of the `release` environment.
 
 Signing secrets (`APPLE_*`, `WINDOWS_CERTIFICATE*` and `AZURE_*`) are secrets of the `release`
-environment, not of the repository. That environment accepts version tags (`v*`) only and waits
+environment, not of the repository. Windows signing with Azure Artifact Signing has no client
+secret: the job signs in with GitHub's OIDC token (`azure/login`), which the app registration's
+federated credential accepts only from the `release` environment; its secrets are
+`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT` and
+`AZURE_CERT_PROFILE`. That environment accepts version tags (`v*`) only and waits
 for a maintainer's approval; the Windows and macOS jobs that sign, and the job that makes the
 draft, run in it, and only for a pushed version tag. Without the secrets the builds are unsigned
 (ad-hoc on macOS) and the scripts say so, so forks still build. None is set yet, so every
 release so far is unsigned. There is no riscv64 Linux build, and no Flathub manifest is published.
+
+## Google Desktop OAuth release readiness
+
+Desktop Google sign-in (#232) uses IMAP/SMTP XOAUTH2; it does not ship browser Gmail (#233).
+The [account guide](google-accounts.md) is the user-facing reference. Before advertising Google
+sign-in for general use, the maintainer should:
+
+1. Supply and own the official **Desktop app** registration and its matching ID/registration
+   value through the approved build configuration. Development accounts and personal test-client
+   values must not become release defaults. Verify the produced binary and its ID/secret pair;
+   the public client-ID option alone cannot configure a release. The registration secret comes
+   only from the build or process environment, never a File → Options preference. Blank, invalid
+   or mismatched registration must explain why Google sign-in is unavailable and retain
+   app-password setup.
+2. Confirm the requested scopes (`https://mail.google.com/ openid email`), audience, support and
+   privacy information. Complete the applicable [restricted-scope verification][google-verification]
+   before unrestricted public rollout; review Google's assessment requirements for the actual
+   data flow rather than assuming either that a server assessment is always required or that a
+   native client is exempt from all verification. Changing publishing status alone is not proof
+   of approval. Development/testing exceptions and test-user warnings are not public verification.
+3. Exercise OAuth-first setup, explicit app-password fallback, unchanged existing accounts,
+   canceled and successful same-primary-address conversion, rejection of Workspace aliases as
+   account identities, restart/reconnect and token renewal against the release configuration.
+   Verify that changing a public client ID cannot reuse another registration's secret. Keep
+   ordinary automated CI on synthetic accounts and stand-ins.
+   Manual real-account acceptance requires the account owner's approval and isolated saved data.
+   An SMTP AUTH/QUIT check proves authentication, not delivery; sending needs a separately
+   approved test recipient and message.
+4. Retest the final patch with an unskipped `cargo xtask ci` and the relevant platform packages.
+   Focused tests or a prior build's successful gates do not substitute for the final source tree.
+   Windows manual acceptance does not certify every platform, Workspace policy or public client.
+5. Keep review, merge and public release distinct. A development implementation can be reviewed
+   before Google verification is finished; maintainer approval, the contributor's own CLA,
+   project-owned registration and the applicable release requirements are still required.
+
+As of the November 3 desktop acceptance, developer registrations demonstrated Gmail and
+Workspace sign-in, legacy password restart/conversion, refresh and incoming synchronization;
+SMTP authentication was checked on TLS 465 and STARTTLS 587 without sending. The project's
+production registration and public verification are not claimed complete. The broader
+interoperability limits remain in [gaps](gaps.md) and [Google acceptance scope](google-accounts.md#what-has-been-verified-and-what-has-not).
+
+[google-verification]: https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
 
 ## The release signature (`SHA256SUMS.txt.sig`)
 
@@ -93,6 +173,17 @@ must keep its `UpgradeCode` and `AllowDowngrades` (going back installs the older
 newer). An organisation installs the `.msi` with `DISABLEAUTOMATICUPDATES=1` to turn updating by
 itself off for every user of the computer.
 
+**On macOS a copy doesn't install updates by itself for now** (#497): it says a new version is
+out, with a link to its page, as a copy installed by a package manager does. The builds are signed
+ad hoc and not notarized (the project has no Apple Team ID yet), and an app swapped in place by
+the program, in a folder it may not fully control, is what macOS's checks then judge; one update
+that went wrong (0.8.1) left an app that wouldn't start. The code that installs from the disk
+image is still built and tested, and comes back on with one switch, `MAC_SELF_INSTALL` in
+`apps/mailcraft/src/install.rs`, once releases are signed with a Developer ID and notarized and
+`mac_swap` requires the project's Team ID of the new app. On every system, a copy whose folder
+(the one holding the app or the AppImage) it can't write to is told of new versions and installs
+nothing; the `.msi`, installed by Windows Installer, isn't affected.
+
 - **Making the keys (once):** `cargo xtask release-key new <folder>` writes two private keys,
   `mailcraft-release-key-in-use.pkcs8.b64` and `mailcraft-release-key-spare.pkcs8.b64` (base64
   PKCS#8, readable by their owner only), and prints the two public keys. It never writes over
@@ -102,10 +193,15 @@ itself off for every user of the computer.
   (Settings › Environments › release › Environment secrets, or
   `gh secret set MAILCRAFT_RELEASE_KEY --env release < mailcraft-release-key-in-use.pkcs8.b64`),
   and nowhere else. The public keys go into `RELEASE_KEYS`; they are not secret.
-- **Signing:** `packaging/sign-sums.sh <folder>` runs `cargo xtask release-key sign
-  <folder>/SHA256SUMS.txt` with the key from the environment (xtask is built from the checkout
-  with the locked crates in an earlier step that has no key, and the script runs that binary; no
-  tool is downloaded). The key is never printed; the step names the public key
+- **Signing:** `packaging/sign-sums.sh <folder>` signs `<folder>/SHA256SUMS.txt` with the key
+  from the environment, using OpenSSL 3 (`openssl pkeyutl -sign -rawin`, the same signature
+  `cargo xtask release-key sign` makes). In the workflow it is the runner's OpenSSL, checked
+  against its package's file list (`dpkg --verify`) before the key is handed to it; nothing is
+  compiled or downloaded in that job, and no program built from this repository runs with the
+  key. Locally, without OpenSSL 3, the script falls back to `cargo xtask release-key sign`.
+  The dry run makes a throwaway key with `cargo xtask release-key new` and checks that the
+  script's signature is byte for byte the one `cargo xtask release-key sign` makes with it (that
+  job holds no secret, so it may build). The key is never printed or written to a file; the step names the public key
   it signed with. Without the secret (a fork, a dry run) it says "unsigned" and the run goes on:
   such a release has no `.sig`, and no copy of MailCraft installs it by itself.
 - **Checking by hand:** the signature is a plain ed25519 signature over the bytes of
@@ -140,7 +236,7 @@ What the build fetches is pinned: every action by full commit SHA (Dependabot mo
 after their release), the shared workflows of `storytold/craft-common-actions` by full commit SHA
 (moved by hand), and every tool downloaded by URL by exact version and
 sha256, checked before it is used: nfpm (`package.yml`), appimagetool and the AppImage runtime
-(`packaging/linux/package.sh`), the Trusted Signing client (`packaging/windows/sign.ps1`),
+(`packaging/linux/package.sh`), the Artifact Signing client (`packaging/windows/sign.ps1`),
 rustup-init on FreeBSD and wasm-opt (`package.yml`). WiX 5.0.2 and its two extensions are NuGet
 packages: `package.yml` downloads each by exact version and checks its sha256 before installing
 the tool from the checked file (the extensions are fetched by `wix extension add`, after their
@@ -151,8 +247,10 @@ its version and its sha256 together, taken from the file itself.
 
 Dry run: `gh workflow run release.yml --ref <branch>` builds everything on any branch, unsigned,
 and keeps the files as workflow artifacts (FreeBSD only when asked for: it is slow), and their
-`SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). A dry run names no
-environment, is given no secrets and publishes nothing.
+`SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). It goes through the same
+jobs as a tag's run (build, then package, then check), checks every file against the digest of
+the job that made it, and checks that OpenSSL and xtask sign alike with a throwaway key. A dry run names
+no environment, is given no secrets and publishes nothing.
 
 
 Each release also carries `mailcraft-<version>.intoto.jsonl`: the build provenance GitHub attests
@@ -168,7 +266,7 @@ MailCraft, and where each part stands:
 | Needs | State |
 |---|---|
 | One release per version with Craft file names and `SHA256SUMS.txt` | The workflow above produces it; seven have been published, v0.1.0 to v0.4.1 |
-| An icon in the Craft style: an engraved animal in black ink and cream on one flat app colour, in the rounded tile (`rx` 112 of 512, the figure clipped 6 units in) | `cargo xtask icon` builds every size from `assets/app-icon/source/mailcraft-art.png` once the artwork is there; until then the icon is the drawn placeholder |
+| An icon in the Craft style: an engraved animal in black ink and cream on one flat app colour, in the rounded tile (`rx` 112 of 512, the figure clipped 6 units in) | MailCraft's icon is its own instead (an envelope that is also a calendar page, on a blue tile): `cargo xtask icon` builds every size from `assets/app-icon/source/mailcraft.svg`. The launcher takes its 128 px PNG as it is |
 | A row in the launcher's catalog (`crates/core/src/catalog.rs` in `storytold/craft-launcher`): id, name, tagline, what it is like, colours, `owner/repo`; for an app outside the organisation also its own reverse-DNS id and publisher (the "community apps" group) | A pull request on that repository, after the first release; the 128 px icon goes with it |
 
 ## What the installers do
@@ -182,9 +280,15 @@ MailCraft, and where each part stands:
 - **Linux (`.deb`, `.rpm`, `.AppImage`, `.tar.gz`):** `/usr/bin/mailcraft` and `mailcraft-cli`, a
   desktop entry that offers MailCraft for `mailto:` links, messages, calendar files and contact
   cards, AppStream metadata and the icons. The binaries need glibc 2.35 or later.
+- **macOS (the app in a disk image):** `Info.plist` declares messages, calendar files and contact
+  cards, each as an alternative (`LSHandlerRank` Alternate), so MailCraft is offered in Open With
+  and never takes a type over. There is no `mailto:` declaration yet: a link would arrive as an
+  Apple event the app can't receive (#505).
 - **One window per mailbox:** started a second time (the shortcut again, a link, a file from the
-  file manager), MailCraft hands what it was started with to the window already open and exits
-  (`apps/mailcraft/src/single_instance.rs`), so two windows never save over each other.
+  file manager), MailCraft hands what it was started with to the window already open, which comes
+  to the front, and exits (`apps/mailcraft/src/single_instance.rs`), so two windows never save
+  over each other. No installer makes MailCraft the default for anything but its own
+  `.mailcraft`: the owner chooses it in the system's settings.
 - **Product identity:** the MSI's UpgradeCode and component GUIDs are MailCraft's own. Never copy
   them from or into a sibling Craft app (Windows would treat the two as one product).
 
@@ -266,6 +370,17 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-07 | AU3-04: release programs are built in jobs without signing material and handed on by digest; the jobs that sign never run cargo or a built program, the programs are run in check jobs without secrets, the checksums are signed with OpenSSL, and `cargo xtask workflows` checks the shape |
+| 2026-11-06 | Pull requests leave status lines alone; the release pull request sets each one from the rows it joins in |
+| 2026-11-04 | The rows of the documents' revision histories and of the progress log are fragments, `docs/log.d/<document>/{revisions,progress}/<name>.md`, joined into their tables by `cargo xtask docs-log --write` in the release's pull request, beside the release notes' |
+| 2026-11-04 | #232: require a matching release registration pair, retain only a public client-ID option, and check primary-address and alias behavior |
+| 2026-11-03 | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
+| 2026-11-02 | The merge commit of an up-to-date pull request is tagged at once, on its pull request's `ci-ok`, without waiting for CI on `main` |
+| 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
+| 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |
+| 2026-10-26 | #497: macOS copies don't install updates by themselves until the builds are signed with a Developer ID and notarized (`MAC_SELF_INSTALL`); a copy that can't write to its own folder is told of new versions only |
+| 2026-10-26 | #505: the macOS bundle's file types, one per kind and never the default; the hand-over brings the window to the front |
+| 2026-10-26 | #464: Fixes and What's new lines are fragments, `packaging/release-notes.d/{fixes,new}/<issue>.md`, joined into the notes by `cargo xtask release-notes --write` before tagging, so pull requests don't conflict over the notes; `cargo xtask ci` checks they join |
 | 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
 | 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |

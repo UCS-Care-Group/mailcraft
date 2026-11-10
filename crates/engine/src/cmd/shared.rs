@@ -119,7 +119,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
-    let id = match (p::id(v, "id"), p::str(v, "address")) {
+    let id = match (p::id_strict(v, "id")?, p::str(v, "address")) {
         (Some(id), _) => id,
         (None, Some(_)) => {
             let address = address(v)?;

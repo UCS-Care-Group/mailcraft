@@ -5,7 +5,10 @@
 //! A message is written for a white page; the window may be dark, and the message may be out to
 //! hide text. Two rules keep it readable, in both themes:
 //!
-//! 1. **Backgrounds.** In the light theme a background the message asks for is painted as asked.
+//! 1. **Backgrounds.** In the light theme a background the message asks for is painted as asked,
+//!    and so it is in the dark theme for a message whose style sheet brings its own design for
+//!    dark windows (`@media (prefers-color-scheme: dark)`, [`Tokens::sender_dark`]): the sender's
+//!    palette is used, and only text whose contrast falls short (rule 2) is adjusted.
 //!    In the dark theme a light one (lightness over a half) is turned dark by inverting its
 //!    lightness, keeping its hue and muting it a little, so a white card becomes the window's own
 //!    surface and a pale band a slightly lighter one; a dark or strongly coloured one stays.
@@ -33,6 +36,9 @@ pub const TARGET_CONTRAST: f32 = 4.5;
 /// The least contrast a line round a box keeps with the paper it is drawn on: a line is not text,
 /// so far less than [`MIN_CONTRAST`], but never invisible.
 pub const LINE_CONTRAST: f32 = 1.5;
+
+/// With high contrast on, the contrast every text colour of a message is brought to (WCAG AAA).
+pub const HIGH_CONTRAST: f32 = 7.0;
 
 pub fn c32(c: Rgb) -> Color32 {
     Color32::from_rgb(c.0, c.1, c.2)
@@ -62,27 +68,38 @@ fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
 /// lightness turned over (the colour a dark-on-light design becomes light-on-dark, and the other
 /// way round); else moved towards black or white until it can be read.
 pub fn readable(ink: Color32, paper: Color32) -> Color32 {
-    if contrast(ink, paper) >= MIN_CONTRAST {
+    readable_at(ink, paper, MIN_CONTRAST, TARGET_CONTRAST)
+}
+
+/// [`readable`] with high contrast on: the colour is kept when it has [`HIGH_CONTRAST`], else
+/// turned over or moved towards black or white until it does. Never stripped: a colour that
+/// can be made readable stays its hue as far as it can.
+pub fn readable_strong(ink: Color32, paper: Color32) -> Color32 {
+    readable_at(ink, paper, HIGH_CONTRAST, HIGH_CONTRAST)
+}
+
+fn readable_at(ink: Color32, paper: Color32, min: f32, target: f32) -> Color32 {
+    if contrast(ink, paper) >= min {
         return ink;
     }
     let (h, s, l) = hsl(ink);
     let turned = from_hsl(h, s, 1.0 - l);
-    if contrast(turned, paper) >= TARGET_CONTRAST {
+    if contrast(turned, paper) >= target {
         return turned;
     }
-    at_least(if contrast(turned, paper) > contrast(ink, paper) { turned } else { ink }, paper, TARGET_CONTRAST)
+    at_least(if contrast(turned, paper) > contrast(ink, paper) { turned } else { ink }, paper, target)
 }
 
-/// `ink` itself when its contrast on `paper` is at least `min`, else moved towards black or white
-/// until it reaches [`TARGET_CONTRAST`].
-fn at_least(ink: Color32, paper: Color32, min: f32) -> Color32 {
-    if contrast(ink, paper) >= min {
+/// `ink` itself when its contrast on `paper` is at least `target`, else moved towards black or
+/// white until it reaches it.
+fn at_least(ink: Color32, paper: Color32, target: f32) -> Color32 {
+    if contrast(ink, paper) >= target {
         return ink;
     }
     let end = if contrast(Color32::BLACK, paper) >= contrast(Color32::WHITE, paper) { Color32::BLACK } else { Color32::WHITE };
     for step in 1..=12 {
         let moved = mix(ink, end, step as f32 / 12.0);
-        if contrast(moved, paper) >= TARGET_CONTRAST {
+        if contrast(moved, paper) >= target {
             return moved;
         }
     }
@@ -143,7 +160,8 @@ impl Paper {
     /// A background the message asks for, as it is painted in this theme.
     pub fn of(asked: Rgb, t: &Tokens) -> Paper {
         let asked = c32(asked);
-        if !t.dark {
+        // (A message with its own design for dark windows has its backgrounds as it asks.)
+        if !t.dark || t.sender_dark {
             return Paper { fill: asked, own: true };
         }
         let (h, s, l) = hsl(asked);
@@ -164,7 +182,7 @@ impl Paper {
         let (dark, light) = (Tokens::light().text, Tokens::dark().text);
         let best = if contrast(dark, self.fill) >= contrast(light, self.fill) { dark } else { light };
         // On a mid-tone neither is enough: then it is black or white.
-        at_least(best, self.fill, TARGET_CONTRAST)
+        at_least(best, self.fill, if t.high_contrast { HIGH_CONTRAST } else { TARGET_CONTRAST })
     }
 
     /// The colour of a link that names none.
@@ -173,7 +191,8 @@ impl Paper {
             return t.accent_text;
         }
         let (dark, light) = (Tokens::light().accent_text, Tokens::dark().accent_text);
-        readable(if contrast(dark, self.fill) >= contrast(light, self.fill) { dark } else { light }, self.fill)
+        let ink = if contrast(dark, self.fill) >= contrast(light, self.fill) { dark } else { light };
+        if t.high_contrast { readable_strong(ink, self.fill) } else { readable(ink, self.fill) }
     }
 
     /// The colour of a rule, a quote bar or a cell border.
@@ -198,6 +217,7 @@ impl Paper {
     /// else that one adjusted; a link's or the text's own when it asks for none.
     pub fn ink(&self, t: &Tokens, asked: Option<Rgb>, link: bool, quoted: bool) -> Color32 {
         match asked {
+            Some(asked) if t.high_contrast => readable_strong(c32(asked), self.fill),
             Some(asked) => readable(c32(asked), self.fill),
             None if link => self.link(t),
             None => self.text(t, quoted),

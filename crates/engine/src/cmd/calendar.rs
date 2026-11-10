@@ -16,6 +16,9 @@ mod invitation;
 mod invitation_tests;
 pub(crate) use invitation::{same_organizer, tidy_imported};
 mod meeting;
+pub mod share;
+#[cfg(test)]
+mod share_tests;
 
 pub use meeting::teams_refusal;
 
@@ -23,6 +26,7 @@ pub fn specs() -> Vec<CommandSpec> {
     let mut specs = own_specs();
     specs.extend(invitation::specs());
     specs.extend(meeting::specs());
+    specs.extend(share::specs());
     specs
 }
 
@@ -42,7 +46,7 @@ fn own_specs() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.delete", "Delete", "Appointment › Actions", delete)
             .params(r#"{"id"?: number, "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)}"#)
             .selection(needs_event),
-        CommandSpec::new("calendar.select", "Select Event", "Calendar", select).pure().params(r#"{"id": number | null, "day"?: "YYYY-MM-DD"}"#),
+        CommandSpec::new("calendar.select", "Select Event", "Calendar", select).pure().params(r#"{"id": number | null, "day"?: "YYYY-MM-DD"} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
         CommandSpec::new("calendar.list", "List Events", "Calendar", list)
             .pure()
@@ -87,7 +91,7 @@ fn needs_event(s: &Session) -> Option<&'static str> {
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id(v, "id").or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
+    let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
     s.mailbox.event(id).map(|e| e.id).ok_or_else(|| failed!("no event with id {id}", id))
 }
 
@@ -447,6 +451,11 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         e.online = None;
     }
     meeting::online_fits(s, &e, None)?;
+    // Its categories take the spelling of its calendar's account's list; a new name joins it.
+    if p::strings(v, "categories").is_some() {
+        let account = s.mailbox.event_account(&e);
+        e.categories = super::category::spelled_all(s, account, &e.categories, &[], account)?;
+    }
     let id = s.mailbox.add_event(e)?;
     // In a calendar that a server keeps: the server is to have it too.
     remote::note_created(s, id)?;
@@ -542,10 +551,21 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Ev
         let (from, to, at) = (series.instants(&here), (instant(one.start), instant(one.end)), was.instants(&here));
         one.set_instants(at.0.saturating_add(to.0.saturating_sub(from.0)), at.1.saturating_add(to.1.saturating_sub(from.1)), &here);
     }
+    // What is the organizer's to say and the mail to those invited are refused before a full
+    // list of categories is: neither depends on the categories, so a change of anything else is
+    // checked first. The categories are spelled after that, and before whether the day changes
+    // at all is seen: that is seen with its final categories.
+    let besides = kept && Event { categories: was.categories.clone(), ..one.clone() } != was;
+    let asked = if besides { Some(may_change(s, v, &was, &one)?) } else { None };
+    spell_categories(s, v, &mut one, series)?;
     if one == was {
         return Ok(json!({"id": series.id}));
     }
-    let send = if kept { may_change(s, v, &was, &one)? } else { false };
+    let send = match asked {
+        Some(send) => send,
+        None if kept => may_change(s, v, &was, &one)?,
+        None => false,
+    };
     s.mailbox.event_mut(series.id)?.exceptions.push(day);
     let id = s.mailbox.add_event(one)?;
     if kept {
@@ -593,7 +613,7 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
         let calendar = if e.calendar == 0 { current_calendar(s) } else { e.calendar };
         return (served(s, calendar) && !e.attendees.is_empty()).then_some(Mail::Invitation(e.attendees.len()));
     }
-    let before = s.mailbox.event(p::id(v, "id").or(s.sel.event)?)?.clone();
+    let before = s.mailbox.event(p::id_strict(v, "id").ok()?.or(s.sel.event)?)?.clone();
     let one = part(s, &before, v).ok()?;
     if id == "calendar.delete" {
         // (One that isn't on the server yet has invited nobody yet.)
@@ -620,6 +640,17 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     (people > 0 && seen).then_some(Mail::Update(people))
 }
 
+/// The categories `v` gives the event `before` becomes as `e` take the spelling of the list of
+/// the account of the calendar it ends up in, as for a new one; a new name joins that list. Done
+/// after the other refusals, so that a full list isn't what a call that fails anyway is told.
+fn spell_categories(s: &mut Session, v: &Value, e: &mut Event, before: &Event) -> Result<(), CmdError> {
+    if p::strings(v, "categories").is_some() {
+        let (account, was) = (s.mailbox.event_account(e), s.mailbox.event_account(before));
+        e.categories = super::category::spelled_all(s, account, &e.categories, &before.categories, was)?;
+    }
+    Ok(())
+}
+
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let before = changing(s, v)?;
     let id = before.id;
@@ -641,6 +672,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         // ([`remote::note_moved`]). Anything else stays where it is, and is told why.
         if moved {
             meeting::movable(s, &before, &e, who)?;
+            spell_categories(s, v, &mut e, &before)?;
             *s.mailbox.event_mut(id)? = e;
             remote::note_moved(s, id, &before)?;
             return Ok(json!({"id": id, "moved": true}));
@@ -655,6 +687,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
             e.organizer = s.mailbox.calendar(e.calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.address()).or(e.organizer);
         }
     }
+    spell_categories(s, v, &mut e, &before)?;
     *s.mailbox.event_mut(id)? = e;
     match kept {
         Some(_) => changed(s, &before)?,
@@ -754,7 +787,9 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    match p::id(v, "id") {
+    // `null` selects nothing, as leaving `id` out does; an id named wrongly is refused (#553).
+    let named = if v.get("id").is_some_and(Value::is_null) { None } else { p::id_strict(v, "id")? };
+    match named {
         Some(id) => {
             let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
             s.sel.event_day = p::date(v, "day")?.or(Some(e.start.date));
@@ -834,7 +869,8 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
 
 fn respond(s: &mut Session, v: &Value) -> CmdResult {
     // An invitation in the mail is answered through what it says (`calendar.invitation`).
-    if p::id(v, "message").is_some() {
+    // (Named wrongly, it is refused there, never taken for the selected appointment, #553.)
+    if v.get("message").is_some() {
         return invitation::respond(s, v);
     }
     let before = changing(s, v)?;
@@ -953,12 +989,15 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     if kept_by(s, &before).is_some() {
         writable(s, before.calendar)?;
     }
-    let e = s.mailbox.event_mut(id)?;
-    let has = e.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
+    let has = before.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
     let on = p::bool(v, "value").unwrap_or(!has);
+    // The event takes the spelling of its calendar's account's list; a new name joins that list.
+    let account = s.mailbox.event_account(&before);
+    let spelling = super::category::spelled(s, account, &name, on)?;
+    let e = s.mailbox.event_mut(id)?;
     e.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
     if on {
-        e.categories.push(name);
+        e.categories.push(spelling);
     }
     let categories = e.categories.clone();
     // The account's server keeps an event's categories with it (and tells nobody else).
@@ -967,7 +1006,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(mid).is_none() {
         return Err(failed!("no message with id {id}", id = mid));
     }

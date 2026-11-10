@@ -342,7 +342,11 @@ fn a_close_held_by_a_question_waits_for_the_saver_again_next_time() {
     let rev = app.session.rev();
     *script.progress.lock().unwrap() = Some(busy);
     assert!(!app.close_requested());
-    // Meanwhile a message is being written, and something is typed into it.
+    // Meanwhile a message is being written, and something is typed into it. (With no Drafts to
+    // save it to, so that closing asks about it rather than saving it unasked, #286.)
+    for f in app.session.mailbox.folders.iter_mut().filter(|f| f.kind == mailcraft_model::FolderKind::Drafts) {
+        f.kind = mailcraft_model::FolderKind::Custom;
+    }
     app.session.run("mail.new", &json!({})).unwrap();
     app.session.compose.as_mut().unwrap().dirty = true;
     // Written: the window would close, but the draft is asked about and the owner keeps it.
@@ -466,6 +470,27 @@ fn open_during_a_download_runs_once_the_saver_is_done_and_says_so() {
     assert!(on_disk(&path) == after);
     let saving = app.saving_inspect();
     assert_eq!((&saving["pending"], &saving["last"]["command"], &saving["last"]["ok"]), (&json!(null), &json!("file.open"), &json!(true)));
+}
+
+#[test]
+fn closing_while_the_content_folder_is_swept_closes_at_once_and_a_change_still_waits_to_be_written() {
+    // #586: a sweep writes nothing of the mailbox; the window closed only once it was over.
+    let tmp = Temp::new("sweep-close");
+    let path = tmp.0.join("mailbox.mailcraft");
+    let ctx = egui::Context::default();
+    let script = Arc::new(Scripted::default());
+    let mut app = app(&path, Box::new(Handle(script.clone())));
+    *script.progress.lock().unwrap() = Some(SaveProgress { stage: SaveStage::Sweeping, done: 0, total: 0, millis: 5_000 });
+    app.logic(&ctx);
+    assert!(app.close_requested(), "nothing to write: it closes");
+    assert!(script.handed.lock().unwrap().is_empty());
+    // A change made just before: handed to the saver, and the window waits for it.
+    let mut app = self::app(&path, Box::new(Handle(script.clone())));
+    let id = unread(&app);
+    app.execute("mail.markRead", json!({"id": id})).unwrap();
+    let rev = app.session.rev();
+    assert!(!app.close_requested());
+    assert_eq!(*script.handed.lock().unwrap(), [(path.clone(), rev)]);
 }
 
 #[test]

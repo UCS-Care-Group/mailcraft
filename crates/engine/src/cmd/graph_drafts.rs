@@ -80,8 +80,33 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         to: differs(&|was| was.to == now.to).then(|| m.to.clone()),
         cc: differs(&|was| was.cc == now.cc).then(|| m.cc.clone()),
         bcc: differs(&|was| was.bcc == now.bcc).then(|| m.bcc.clone()),
+        // (Nothing to say of where replies go, for a draft the server never had: none is set.)
+        reply_to: differs(&|was| was.reply_to == now.reply_to).then(|| m.reply_to.clone()).filter(|r| synced.is_some() || !r.is_empty()),
         importance: differs(&|was| was.importance == now.importance).then_some(m.importance),
+        // (Nor of a read receipt, for a draft the server never had that asks for none.)
+        read_receipt: differs(&|was| was.read_receipt == now.read_receipt).then_some(m.read_receipt).filter(|on| synced.is_some() || *on),
         attachments,
+    })
+}
+
+/// Everything of `m` as the owner has it, for a draft that is to be sent: every field and the
+/// whole set of attachments, whatever the server last had. What was changed on the server since
+/// (a Bcc, the body, an attachment added) is written over before the draft is sent, never sent
+/// (AU2-14). `None` when `m` is no draft of the server's.
+pub fn draft_up_whole(m: &Message) -> Option<DraftUp> {
+    let up = draft_up(m)?;
+    let synced = m.server_draft.as_ref().and_then(|sd| sd.synced.as_ref()).map(|was| was.attachments.clone()).unwrap_or_default();
+    Some(DraftUp {
+        subject: Some(m.subject.clone()),
+        body: Some(DraftBody::of(m)),
+        to: Some(m.to.clone()),
+        cc: Some(m.cc.clone()),
+        bcc: Some(m.bcc.clone()),
+        reply_to: Some(m.reply_to.clone()),
+        importance: Some(m.importance),
+        read_receipt: Some(m.read_receipt),
+        attachments: Some(up.attachments.unwrap_or_else(|| AttachmentsUp { here: m.attachments.iter().map(AttachmentUp::of).collect(), synced })),
+        ..up
     })
 }
 
@@ -178,6 +203,12 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
         if let Some(bcc) = &change.bcc {
             state.bcc = bcc.clone();
         }
+        if let Some(reply_to) = &change.reply_to {
+            state.reply_to = reply_to.clone();
+        }
+        if let Some(read_receipt) = change.read_receipt {
+            state.read_receipt = read_receipt;
+        }
         if let Some(importance) = change.importance {
             state.importance = importance;
             if let Some(server) = m.server.as_mut() {
@@ -195,8 +226,9 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
 }
 
 /// A draft here and on the server each changed since the last run (S26): both are kept. The
-/// server's comes down as a draft of its own (`there`, under its server id); this one lets go of
-/// the server's copy and is made there anew with the next run. The id of the server's version here.
+/// server's comes down as `there` (under its server id: a draft of its own, or the message as
+/// sent when the server sent it meanwhile, #611); this one lets go of the server's copy and is
+/// made there anew with the next run. The id of the server's version here.
 pub fn keep_twice(mb: &mut Mailbox, here: Id, there: Option<Message>) -> Option<Id> {
     let m = mb.message_mut(here).ok()?;
     let key = m.server.as_ref().map(|s| s.change_key.clone()).unwrap_or_default();
@@ -209,7 +241,7 @@ pub fn keep_twice(mb: &mut Mailbox, here: Id, there: Option<Message>) -> Option<
     }
     log::info!("graph drafts: a draft was changed here and elsewhere; both are kept");
     match there {
-        Some(there) => mb.add_message(Message { draft: true, ..there }).ok(),
+        Some(there) => mb.add_message(there).ok(),
         None => Some(here),
     }
 }

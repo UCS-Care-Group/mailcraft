@@ -7,8 +7,13 @@ const MAX_LINK: usize = 8192;
 
 #[test]
 fn only_web_mail_and_phone_links_are_opened() {
-    for ok in ["https://example.org/a?b=1", "http://example.org", "mailto:ada@example.org", "tel:+15550100"] {
-        assert_eq!(web_link(ok).as_deref(), Some(ok));
+    for (ok, opened) in [
+        ("https://example.org/a?b=1", "https://example.org/a?b=1"),
+        ("http://example.org", "http://example.org/"),
+        ("mailto:ada@example.org", "mailto:ada@example.org"),
+        ("tel:+15550100", "tel:+15550100"),
+    ] {
+        assert_eq!(web_link(ok).as_deref(), Some(opened));
     }
     for bad in [
         "javascript:alert(1)",
@@ -24,6 +29,17 @@ fn only_web_mail_and_phone_links_are_opened() {
         assert_eq!(web_link(bad), None, "{bad:?}");
     }
     assert_eq!(web_link(&format!("https://example.org/{}", "a".repeat(MAX_LINK))), None);
+}
+
+#[test]
+fn a_web_link_opens_the_host_its_tip_shows() {
+    // A full-width letter is mapped by the browser (ｅxample.org is example.org), never by the tip,
+    // so the page opens the address as mailcraft-link writes it, the host the tip shows.
+    for href in ["https://\u{ff45}xample.org/", "https://\u{2488}example.org/", "HTTPS://Example.ORG/a"] {
+        let shown = mailcraft_link::WebLink::parse(href).map(mailcraft_link::WebLink::into_string);
+        assert_eq!(web_link(href), shown, "{href:?}");
+    }
+    assert!(!web_link("https://\u{ff45}xample.org/").is_some_and(|u| u.contains("example.org")));
 }
 
 #[test]

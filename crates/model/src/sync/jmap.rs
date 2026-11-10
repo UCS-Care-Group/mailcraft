@@ -32,7 +32,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{FolderListing, GraphProgress, MessagePage, SendDone, SendUp, is_false};
+use super::{FolderListing, GraphProgress, MessagePage, SendDone, SendUp, ThreadOf, is_false};
 use crate::Id;
 
 /// Most messages of one mailbox that a run reads (the newest ones): what [`JmapMailRequest::window`]
@@ -78,6 +78,10 @@ pub struct JmapMailRequest {
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+    /// Messages listed before their conversation ids were asked for, by server id: the server is
+    /// asked for those ids after the rest of the run, at most [`super::MAX_THREAD_ASKS`] (#795).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub threads: Vec<String>,
 }
 
 /// Messages of a JMAP account to fetch whole (their raw octets, which an email's blob holds), by
@@ -217,10 +221,20 @@ pub struct JmapChangeDone {
 #[serde(default, rename_all = "camelCase")]
 pub struct JmapMailResult {
     pub account: Id,
+    /// What the server said of the conversations of the messages the run asked about
+    /// ([`JmapMailRequest::threads`], #795).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub threads: Vec<ThreadOf>,
+
     /// The address of the account the run was for: an answer is not taken in by another account
     /// that happens to have the id.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub email: String,
+    /// The address of the server's session resource the run read (its request's): an answer is
+    /// not taken in once the account names another server. It may carry the account's address, so
+    /// it is never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
     /// What became of the changes of messages sent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<JmapChangeDone>,
@@ -269,12 +283,16 @@ impl JmapMailResult {
         if !piece.email.is_empty() {
             self.email = piece.email;
         }
+        if !piece.session.is_empty() {
+            self.session = piece.session;
+        }
         self.changes.extend(piece.changes);
         self.sent.extend(piece.sent);
         if piece.listing.is_some() {
             self.listing = piece.listing;
         }
         self.pages.extend(piece.pages);
+        self.threads.extend(piece.threads);
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);

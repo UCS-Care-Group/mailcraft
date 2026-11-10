@@ -45,7 +45,12 @@
   <key>NSHumanReadableCopyright</key>
   <string>Copyright © the MailCraft authors. MIT OR Apache-2.0.</string>
 
-  <!-- Files MailCraft opens: messages, calendars, contact cards (system type declarations). -->
+  <!-- Files MailCraft opens: messages, calendars, contact cards (the system's own type
+       declarations). LSHandlerRank Alternate: MailCraft is offered in Open With and in the
+       system's choice of program, and never becomes what opens them unless the owner chooses it.
+       A second start is the Finder's open-documents event to the running app (apple_events.rs).
+       No CFBundleURLTypes for mailto: yet: a link arrives as a GetURL Apple event, which the app
+       can't receive until fmv-macos-events hands it on (#505). -->
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>
@@ -59,7 +64,30 @@
       <array>
         <string>com.apple.mail.email</string>
         <string>public.email-message</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Calendar File</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
         <string>com.apple.ical.ics</string>
+        <string>public.calendar-event</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Contact Card</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
         <string>public.vcard</string>
       </array>
     </dict>

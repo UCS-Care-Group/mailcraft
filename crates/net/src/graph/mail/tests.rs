@@ -82,6 +82,26 @@ fn every_folder_is_listed_whole_under_its_parent() {
 }
 
 #[test]
+fn the_servers_outbox_is_left_out_while_it_holds_nothing() {
+    // MailCraft's own Outbox is the one shown: an empty one of the server's beside it made the
+    // folder pane show two Outboxes.
+    let server = StandIn::start().unwrap();
+    let outbox = server.state().well_known("outbox");
+    assert!(!outbox.is_empty());
+    let listing = run(&server, vec![]).listing.unwrap();
+    assert!(listing.complete);
+    assert!(!listing.folders.iter().any(|f| f.id == outbox || f.name == "Outbox"), "{:?}", tree(&listing));
+    assert!(listing.folders.iter().any(|f| f.kind == FolderKind::Inbox));
+
+    // One that holds mail is listed as any folder is, and is not the Outbox mail is sent from.
+    server.state().mailbox.add(&outbox, "Stuck on its way", 1_800_000_000);
+    let listing = run(&server, vec![]).listing.unwrap();
+    let there: Vec<_> = listing.folders.iter().filter(|f| f.id == outbox).collect();
+    assert_eq!(there.len(), 1);
+    assert_eq!(there.first().map(|f| f.kind), Some(FolderKind::Custom));
+}
+
+#[test]
 fn folders_made_renamed_moved_and_deleted_here_are_so_there() {
     let server = StandIn::start().unwrap();
     let mut state = server.state();
@@ -101,7 +121,7 @@ fn folders_made_renamed_moved_and_deleted_here_are_so_there() {
         FolderChange::Rename { folder: 43, id: old.clone(), name: "New name".into() },
         FolderChange::Move { folder: 44, id: wanders.clone(), parent: inbox.clone() },
         FolderChange::Move { folder: 45, id: going.clone(), parent: deleted.clone() },
-        FolderChange::Delete { id: gone_for_good.clone() },
+        FolderChange::Delete { id: gone_for_good.clone(), shown: Default::default() },
     ];
     let result = run(&server, changes);
     assert!(result.errors.is_empty(), "{:?}", result.errors);
@@ -149,18 +169,24 @@ fn a_folder_made_before_whose_answer_was_lost_is_found_not_made_twice() {
 fn what_the_server_refuses_or_no_longer_has_is_said() {
     let server = StandIn::start().unwrap();
     let inbox = server.state().well_known("inbox");
+    let kept = server.state().add_folder("Kept", None);
+    // The server won't rename this one of the owner's (a 403).
+    server.state().fail_next.push((format!("PATCH /v1.0/me/mailFolders/{kept}"), 403, "ErrorAccessDenied".into()));
     let ghost = "AQMkAGV4YW1wbGUtb3JnLW1haWxib3gtZm9sZGVycwAuAAADgone-folder-0000AAAA=".to_string();
     let result = run(
         &server,
         vec![
-            // The special folders keep their names.
-            FolderChange::Rename { folder: 41, id: inbox, name: "Mail".into() },
+            // The special folders keep their names: refused here, without asking (#756).
+            FolderChange::Rename { folder: 41, id: inbox.clone(), name: "Mail".into() },
+            FolderChange::Rename { folder: 43, id: kept, name: "Renamed".into() },
             FolderChange::Rename { folder: 42, id: ghost.clone(), name: "Anything".into() },
-            FolderChange::Delete { id: ghost },
+            FolderChange::Delete { id: ghost, shown: Default::default() },
         ],
     );
-    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("may not")), "{:?}", result.changes);
-    assert_eq!((&result.changes[1].outcome, &result.changes[2].outcome), (&ChangeOutcome::Gone, &ChangeOutcome::Gone));
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("server's own")), "{:?}", result.changes);
+    assert!(!server.state().requests.iter().any(|a| a.method == "PATCH" && a.target.contains(&inbox)), "the Inbox isn't asked");
+    assert!(matches!(&result.changes[1].outcome, ChangeOutcome::Refused { why } if why.contains("may not")), "{:?}", result.changes);
+    assert_eq!((&result.changes[2].outcome, &result.changes[3].outcome), (&ChangeOutcome::Gone, &ChangeOutcome::Gone));
     assert!(result.errors.is_empty() && result.listing.is_some_and(|l| l.complete));
 }
 
@@ -221,7 +247,8 @@ fn a_folder_is_never_made_twice_by_asking_again() {
     assert!(result.changes.is_empty() && !result.errors.is_empty() && result.busy_for.is_some(), "{result:?}");
     let posts = |server: &StandIn| server.state().requests.iter().filter(|a| a.method == "POST" && a.target.ends_with("mailFolders")).count();
     let batches = server.state().requests.iter().filter(|a| a.target.ends_with("$batch")).count();
-    assert_eq!((posts(&server), batches), (1, 2));
+    // (The one that was told "later" and its second try, then the other well-known names, #756.)
+    assert_eq!((posts(&server), batches), (1, 3));
     assert!(server.state().folder_named("Once").is_none());
     // The next run makes it, once.
     let result = run(&server, once());
@@ -286,10 +313,11 @@ fn a_level_of_the_tree_is_listed_twenty_folders_to_a_batch() {
     assert!(tree.contains(&("Receipt 147".into(), "Project 0".into())), "{tree:?}");
     let ours = tree.iter().filter(|(name, _)| name.starts_with("Project") || name.starts_with("Receipt")).count();
     assert_eq!(ours, made);
-    // The special folders (one batch), the top (one page), the forty under it (two batches,
-    // and the second page of the first one's 150), the forty under those (two batches): seven,
-    // where a request for every folder with subfolders was 83.
-    assert_eq!(folder_requests(&result), 7);
+    // The special folders (one batch) and the server's other own ones (one, #756), the top (one
+    // page), the forty under it (two batches, and the second page of the first one's 150), the
+    // forty under those (two batches): eight, where a request for every folder with subfolders
+    // was 83.
+    assert_eq!(folder_requests(&result), 8);
     // Every one of them asked for immutable ids, those inside a batch too.
     for asked in &server.state().requests {
         assert!(asked.header("prefer").contains("IdType=\"ImmutableId\""), "{} {}", asked.method, asked.target);
