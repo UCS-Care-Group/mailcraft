@@ -2394,6 +2394,26 @@ impl MailApp {
                 }
             }
         }
+        // A contact made, changed or deleted in a DAV address book: written there at
+        // once, not only at the next Send/Receive.
+        if r.is_ok() && matches!(id, "people.new" | "people.edit" | "people.delete" | "people.fromMessage") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_dav()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::contact_upload(&self.session, account).is_some() {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
+        // An event made or changed in a DAV account's calendar: written to its server now,
+        // not only at the next Send/Receive.
+        if r.is_ok() && id.starts_with("calendar.") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_dav()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::event_upload(&self.session, account).is_ok_and(|upload| !upload.ops.is_empty()) {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)

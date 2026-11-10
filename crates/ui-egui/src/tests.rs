@@ -1563,6 +1563,28 @@ fn deleting_a_contact_is_asked_about_first() {
     assert!(a.session.mailbox.contact(only).is_some());
 }
 
+/// A contact kept by a server is asked about before it is deleted there too.
+#[test]
+fn deleting_a_server_contact_is_asked_about_first() {
+    use crate::dialogs::Dialog;
+    use mailcraft_model::{Contact, ContactBook, Origin, Rights};
+    let mut a = app();
+    a.session.mailbox.contact_books.push(ContactBook { account: 1, id: "team".into(), name: "Team".into(), rights: Rights::Edit });
+    let id = a.session.mailbox.add_contact(Contact {
+        display_name: "Remote Person".into(),
+        uid: "remote-1".into(),
+        book: "Team".into(),
+        book_id: "team".into(),
+        origin: Origin { account: 1, id: "/carddav/me@example.org/contacts/team/remote-1.vcf".into(), ..Default::default() },
+        ..Default::default()
+    });
+    assert_eq!(a.run("people.delete", json!({"id": id})).unwrap()["pending"], "confirm");
+    let Some(Dialog::Confirm { ask, command, .. }) = &a.dialog else { panic!("a server contact is asked about too") };
+    assert_eq!((command.as_str(), ask.title.as_str(), ask.action.as_str()), ("people.delete", "Delete Contact", "Delete"));
+    a.dialog = None;
+    assert!(a.session.mailbox.contact(id).is_some());
+}
+
 /// Typing a recipient offers the people it could be; Enter takes the one that is marked, the
 /// arrows mark another, and typing carries on after it.
 #[test]

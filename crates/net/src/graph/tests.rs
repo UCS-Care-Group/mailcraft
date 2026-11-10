@@ -910,6 +910,7 @@ fn contacts_come_page_by_page() {
             change_key: "EQAAABYAAAC".into(),
             uid: String::new(),
             book: String::new(),
+            book_id: String::new(),
             display_name: "Ada Lovelace".into(),
             first: "Ada".into(),
             middle: "King".into(),
