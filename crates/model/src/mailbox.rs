@@ -2793,12 +2793,23 @@ impl Mailbox {
     /// for good of `source` on its own server waits for that copy's answer, so that a copy
     /// refused, or called off, leaves the original where it was (#566).
     pub fn copy_waits_for(&self, source: Id) -> bool {
-        self.queued.iter().any(|q| match q {
-            Queued::PlaceMessage { account, message, source: Some(s), .. } => {
-                *s == source && self.message(*message).is_some_and(|m| m.account == *account)
+        self.queued.iter().any(|q| self.copy_waiting_of(q) == Some(source))
+    }
+
+    /// Every message [`Mailbox::copy_waits_for`] says yes of, found in one pass: for a run that
+    /// looks at each delete waiting to go, of which an emptied Deleted Items queues thousands.
+    pub fn copies_wait_for(&self) -> HashSet<Id> {
+        self.queued.iter().filter_map(|q| self.copy_waiting_of(q)).collect()
+    }
+
+    /// The message `q` is a copy of, when it is one waiting to be made on its account's server.
+    fn copy_waiting_of(&self, q: &Queued) -> Option<Id> {
+        match q {
+            Queued::PlaceMessage { account, message, source: Some(s), .. } if self.message(*message).is_some_and(|m| m.account == *account) => {
+                Some(*s)
             }
-            _ => false,
-        })
+            _ => None,
+        }
     }
 
     /// Whether `id`, moved into the account `to`, is a copy of a Digitally signed or Encrypted

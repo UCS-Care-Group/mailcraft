@@ -65,7 +65,7 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     // to put back (#566; the run makes copies before it deletes). So is one whose copy has nowhere
     // to go yet (a folder the server hasn't listed, say): that copy goes once the folder is listed
     // or made, from the original's server id, which a delete before it would have taken away.
-    let copying: Vec<&str> = mb
+    let copying: HashSet<&str> = mb
         .queued
         .iter()
         .filter_map(|q| match q {
@@ -73,6 +73,9 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
             _ => None,
         })
         .collect();
+    // (Found once: every delete of a Microsoft account's keeps the message, and an emptied Deleted
+    // Items queues thousands of them.)
+    let copied_from = mb.copies_wait_for();
     for queued in mb.queued.iter().filter(|q| q.account() == account) {
         match queued {
             Queued::CopyMessage { id, to, copy, marker, .. } => {
@@ -82,7 +85,7 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
             // (Nor while a copy of the message here is still on its way to another account's
             // server, from the whole message here: a refused one puts the original back, #566.)
             Queued::DeleteMessage { id, kept, .. } => {
-                let held = copying.contains(&id.as_str()) || kept.as_ref().is_some_and(|m| mb.copy_waits_for(m.id));
+                let held = copying.contains(id.as_str()) || kept.as_ref().is_some_and(|m| copied_from.contains(&m.id));
                 note(&|| (!held).then(|| MessageChange::Delete { id: id.clone() }));
             }
             // (Made by the run with the whole message: `graph_place`.)

@@ -992,6 +992,7 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
     let folders: HashMap<Id, &Folder> = mb.folders.iter().filter(|f| f.account == account).map(|f| (f.id, f)).collect();
     let followed = |f: &&Folder| !f.remote.is_empty() && f.uid_validity != 0;
     let mailboxes: HashSet<&str> = folders.values().copied().filter(followed).map(|f| f.remote.as_str()).collect();
+    let copied_from = mb.copies_wait_for();
     for pending in mb.pending.iter().filter(|p| p.account() == account) {
         let (from, uid) = pending.source();
         if uid == 0 || !mailboxes.contains(from) {
@@ -1001,7 +1002,7 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
             // (Not while a copy of the message is still on its way to another account's server: a
             // refused one puts the original back, which the server must still have, #566.)
             Pending::Delete { kept, .. } => {
-                let held = kept.as_ref().is_some_and(|m| mb.copy_waits_for(m.id));
+                let held = kept.as_ref().is_some_and(|m| copied_from.contains(&m.id));
                 note(&|| (!held).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
             }
             Pending::Move { message, synced, to, .. } => {

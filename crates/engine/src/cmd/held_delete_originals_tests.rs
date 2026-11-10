@@ -727,6 +727,22 @@ fn many_deletes_for_good_keep_the_background_fetch_quick() {
     assert!(took.as_millis() < 200, "{took:?}");
 }
 
+/// The same deletes waiting: the count of changes the window shows while they wait, which it
+/// asks for every second or two, and the list a run sends, come quickly too.
+#[test]
+fn many_deletes_for_good_keep_the_count_of_changes_quick() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    for i in 0..50_000u64 {
+        let kept = Box::new(Message { id: 1_000_000 + i, ..Default::default() });
+        s.mailbox.queued.push(mailcraft_model::Queued::DeleteMessage { account: ms, id: format!("D{i}"), kept: Some(kept) });
+    }
+    let started = std::time::Instant::now();
+    assert_eq!(crate::cmd::graph_mail::unpushed(&s, ms), 50_000);
+    let took = started.elapsed();
+    assert!(took.as_millis() < 200, "{took:?}");
+}
+
 /// Two copies made at the cap: deleted for good, the message gives the bytes it came as to both,
 /// which share them. One of them deleted for good too, the other still has them, and the
 /// message's server keeps it meanwhile.
