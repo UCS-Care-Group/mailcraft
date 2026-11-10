@@ -875,6 +875,9 @@ struct Removing {
     deletes: HashSet<(Id, String)>,
     /// Where in [`Mailbox::pending`] the first move waiting of each of them is.
     moves: HashMap<Id, usize>,
+    /// Those gone so far: what was to be copied of them, and their moves waiting, go once the
+    /// run is done ([`Mailbox::removed`]). One that couldn't go keeps them.
+    went: HashSet<Id>,
 }
 
 /// What a message deleted for good keeps of itself while its server is asked to delete it
@@ -2948,9 +2951,9 @@ impl Mailbox {
     /// What has to wait until a run of [`Mailbox::remove_one`] is done: what was to be copied of
     /// what went, and its moves still waiting, go too.
     fn removed(&mut self, removing: &Removing) {
-        self.not_copied(&removing.gone);
-        if !self.pending.is_empty() {
-            self.pending.retain(|p| !matches!(p, Pending::Move { message, .. } if removing.gone.contains(message)));
+        self.not_copied(&removing.went);
+        if !self.pending.is_empty() && !removing.went.is_empty() {
+            self.pending.retain(|p| !matches!(p, Pending::Move { message, .. } if removing.went.contains(message)));
         }
     }
 
@@ -2991,7 +2994,9 @@ impl Mailbox {
                 }
             }
         }
-        self.drop_message(id)
+        let m = self.drop_message(id)?;
+        removing.went.insert(id);
+        Ok(m)
     }
 
     /// Remove a message without a word to the server: for a synchronisation taking out what the

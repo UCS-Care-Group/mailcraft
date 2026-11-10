@@ -1183,3 +1183,24 @@ fn exchange_stamps_saved_before_781_vouch_for_nothing() {
     assert!(vouched(&mb));
     assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
 }
+
+/// A run of deletes for good that stops at a message its JMAP account's server keeps: what went
+/// before it is gone, and it keeps what was to be copied of it and its move waiting.
+#[test]
+fn deletes_for_good_that_stop_part_way_leave_the_rest_as_it_was() {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let here = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Inbox).unwrap();
+    let jmap = mb.add_account(Account { name: "Ada".into(), email: "ada@mail.example".into(), kind: AccountKind::Jmap, ..Default::default() });
+    let theirs = mb.folder_of_kind(jmap, FolderKind::Inbox).unwrap();
+    let first = mb.add_message(Message { folder: here, subject: "First".into(), ..Default::default() }).unwrap();
+    let server = Some(crate::sync::ServerMessage { id: "J1".into(), ..Default::default() });
+    let kept = mb.add_message(Message { folder: theirs, subject: "Kept".into(), server, ..Default::default() }).unwrap();
+    let place = Queued::PlaceMessage { account: jmap, message: kept, marker: "m".into(), copy: false, from: None, source: None };
+    mb.queued.push(place.clone());
+    let waiting = Pending::Move { account: jmap, message: kept, from: "INBOX".into(), uid: 3, synced: None, to: theirs };
+    mb.pending.push(waiting.clone());
+    assert!(mb.remove_messages(&[first, kept]).is_err());
+    assert!(mb.message(first).is_none());
+    assert!(mb.message(kept).is_some());
+    assert_eq!((mb.queued.as_slice(), mb.pending.as_slice()), ([place].as_slice(), [waiting].as_slice()));
+}
