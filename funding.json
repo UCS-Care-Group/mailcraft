@@ -24,6 +24,11 @@
             "type": "bank",
             "address": "",
             "description": "Bank transfer to UCS Care Group against an invoice: write to systems@ucscaregroup.co.uk."
+        }, {
+            "guid": "github-sponsors",
+            "type": "payment-provider",
+            "address": "https://github.com/sponsors/UCS-Care-Group",
+            "description": "GitHub Sponsors: monthly or one-off, in any amount."
         }],
         "plans": [
             {
@@ -34,7 +39,7 @@
                 "amount": 0,
                 "currency": "GBP",
                 "frequency": "one-time",
-                "channels": ["bank-transfer"]
+                "channels": ["bank-transfer", "github-sponsors"]
             },
             {
                 "guid": "signing",
