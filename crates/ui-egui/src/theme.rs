@@ -861,6 +861,9 @@ pub(crate) fn font_dirs() -> Vec<std::path::PathBuf> {
             std::env::var_os("XDG_DATA_HOME").filter(|d| !d.is_empty()).map(PathBuf::from).or_else(|| home.as_ref().map(|h| h.join(".local/share")));
         dirs.extend(data_home.map(|d| d.join("fonts")));
         dirs.extend(home.iter().map(|h| h.join(".fonts")));
+        // Flatpak exposes the host's fonts separately from its XDG data directories.
+        #[cfg(target_os = "linux")]
+        dirs.extend(["/run/host/user-fonts", "/run/host/local-fonts", "/run/host/fonts"].map(PathBuf::from));
         let data_dirs = std::env::var_os("XDG_DATA_DIRS").filter(|d| !d.is_empty()).unwrap_or_else(|| "/usr/local/share:/usr/share".into());
         dirs.extend(std::env::split_paths(&data_dirs).filter(|d| d.is_absolute()).map(|d| d.join("fonts")));
         dirs.push("/usr/local/share/fonts".into());

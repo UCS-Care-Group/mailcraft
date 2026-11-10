@@ -178,8 +178,8 @@ pub struct TextItem {
     /// Where the text's origin is, from the left of the item (centred and right-aligned text is
     /// laid out around its origin).
     pub anchor: f32,
-    /// The parts that lead somewhere: character ranges and their addresses.
-    pub links: Vec<(Range<usize>, Arc<str>)>,
+    /// The linked spans, in character order.
+    pub links: Vec<TextLink>,
     /// What is painted behind it: what its colours were checked against (and are, by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub paper: Color32,
@@ -189,6 +189,14 @@ pub struct TextItem {
     pub join: Join,
     /// What a copy that starts at its beginning writes in front of it: a list item's marker.
     pub lead: String,
+}
+
+/// A linked span and the ink used to underline it.
+#[derive(Clone, Debug)]
+pub struct TextLink {
+    pub range: Range<usize>,
+    pub url: Arc<str>,
+    pub ink: Color32,
 }
 
 /// A picture: one of the message's own, or one from the web that the owner asked for.
@@ -646,7 +654,7 @@ fn text_job(
     align: Align,
     line_height: Option<LineHeight>,
     zoom: f32,
-) -> (LayoutJob, Vec<(Range<usize>, Arc<str>)>, usize) {
+) -> (LayoutJob, Vec<TextLink>, usize) {
     let (base, line) = type_scale(kind);
     let pre = matches!(kind, BlockKind::Preformatted);
     let mut job = LayoutJob { wrap: TextWrapping { max_width: wrap, ..TextWrapping::default() }, halign: halign(align), ..LayoutJob::default() };
@@ -673,7 +681,7 @@ fn text_job(
             font_id: font,
             color: ink,
             italics: span.italic,
-            underline: if span.underline || span.link.is_some() { stroke } else { Stroke::NONE },
+            underline: if span.underline && span.link.is_none() { stroke } else { Stroke::NONE },
             strikethrough: if span.strike { stroke } else { Stroke::NONE },
             background,
             line_height: Some(line_height.map_or(size * line, |lh| lh.of(size)).round()),
@@ -681,7 +689,7 @@ fn text_job(
         };
         let count = span.text.chars().count();
         if let Some(url) = &span.link {
-            links.push((chars..chars + count, Arc::clone(url)));
+            links.push(TextLink { range: chars..chars + count, url: Arc::clone(url), ink });
         }
         chars += count;
         job.append(&span.text, 0.0, format);

@@ -26,7 +26,7 @@ use mailcraft_model::Message;
 use super::Place;
 use super::colors::Paper;
 use super::images::{self, Picture, Pictures, Remote};
-use super::layout::{Glue, ItemKind, Laid, PIECE_CHARS, PlaceholderItem, TextItem, cut};
+use super::layout::{Glue, ItemKind, Laid, PIECE_CHARS, PlaceholderItem, TextItem, TextLink, cut};
 use super::remote::Access;
 use super::select::{self, Action};
 use crate::MailApp;
@@ -725,9 +725,9 @@ pub fn paint(
                     marks.text(&mut galley, part);
                 }
                 if !flagged.is_empty() {
-                    for (range, url) in &text.links {
-                        if super::warnings::is_mismatched(url, flagged) {
-                            for r in char_rects(&galley, range) {
+                    for link in &text.links {
+                        if super::warnings::is_mismatched(&link.url, flagged) {
+                            for r in char_rects(&galley, &link.range) {
                                 painter.rect_stroke(
                                     r.translate(at.to_vec2()).expand(1.5),
                                     2.0,
@@ -738,7 +738,8 @@ pub fn paint(
                         }
                     }
                 }
-                painter.galley(at, galley, t.text);
+                painter.galley(at, Arc::clone(&galley), t.text);
+                paint_link_underlines(&painter, at, &galley, &text.links);
             }
             ItemKind::Picture(picture) => {
                 let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
@@ -912,10 +913,41 @@ fn char_rects(galley: &egui::Galley, range: &std::ops::Range<usize>) -> Vec<Rect
     out
 }
 
+/// Draw each link just below its glyphs' baseline. egui's underline follows the bottom of
+/// the line box, which includes the extra spacing of a message's line height.
+pub(super) fn paint_link_underlines(painter: &egui::Painter, at: egui::Pos2, galley: &egui::Galley, links: &[TextLink]) {
+    let mut links = links.iter().peekable();
+    let mut row_start = 0;
+    for row in &galley.rows {
+        if links.peek().is_none() {
+            break;
+        }
+        let row_end = row_start + row.glyphs.len();
+        let origin = at + row.pos.to_vec2();
+        let visible = painter.clip_rect().intersects(row.rect().translate(at.to_vec2()));
+        while let Some(link) = links.peek().filter(|link| link.range.start < row_end) {
+            let from = link.range.start.saturating_sub(row_start);
+            let to = link.range.end.min(row_end).saturating_sub(row_start);
+            if visible
+                && let Some(glyphs) = row.glyphs.get(from..to)
+                && let (Some(first), Some(last)) = (glyphs.first(), glyphs.last())
+            {
+                let y = glyphs.iter().map(|g| g.pos.y + (g.font_face_height * 0.10).max(1.0)).fold(0.0, f32::max);
+                painter.line_segment([origin + vec2(first.pos.x, y), origin + vec2(last.max_x(), y)], Stroke::new(1.0, link.ink));
+            }
+            if link.range.end > row_end {
+                break;
+            }
+            links.next();
+        }
+        row_start = row_end + usize::from(row.ends_with_newline);
+    }
+}
+
 /// The link of a laid-out text that a point (from the text's origin) is on.
 pub fn link_under(text: &TextItem, galley: &egui::Galley, point: egui::Vec2) -> Option<Arc<str>> {
     let index = char_at(galley, point)?;
-    text.links.iter().find(|(range, _)| range.contains(&index)).map(|(_, url)| url.clone())
+    text.links.iter().find(|link| link.range.contains(&index)).map(|link| Arc::clone(&link.url))
 }
 
 /// A list bullet: a disc, a ring or a square by the depth of the list, as in a browser.
