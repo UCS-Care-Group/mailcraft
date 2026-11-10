@@ -239,6 +239,31 @@ fn a_rule_made_here_is_sent_whole_and_comes_back_with_its_id() {
 }
 
 #[test]
+fn a_rule_starts_with_conditions_are_kept_here_and_not_sent() {
+    let mut rule = news_rule();
+    rule.conditions = vec![
+        Condition::FromStartsWith("news@".into()),
+        Condition::SubjectStartsWith("Order".into()),
+        Condition::BodyStartsWith("Amount due".into()),
+        Condition::ToStartsWith("me@".into()),
+    ];
+    // A server's rules have no starts-with condition: one with them is not made there.
+    assert!(rule_body(&rule).is_err());
+
+    // A rule from the server that has them is only switched, moved and deleted: the parts are
+    // named as unknown.
+    let back = rule_of(&json!({
+        "id": "A1", "displayName": "Starts", "sequence": 1, "isEnabled": true,
+        "conditions": {"senderStartsWith": ["news@"], "subjectStartsWith": ["Order"]},
+        "actions": {"markAsRead": true}
+    }))
+    .unwrap();
+    assert!(back.conditions.is_empty(), "{:?}", back.conditions);
+    assert!(back.unknown.iter().any(|u| u == "senderStartsWith"), "{:?}", back.unknown);
+    assert!(back.unknown.iter().any(|u| u == "subjectStartsWith"), "{:?}", back.unknown);
+}
+
+#[test]
 fn a_rule_the_server_cannot_keep_is_not_sent() {
     let mut flagged = news_rule();
     flagged.actions.push(Action::Flag);
@@ -255,6 +280,10 @@ fn a_rule_the_server_cannot_keep_is_not_sent() {
     let mut two = news_rule();
     two.actions.extend([Action::SetImportance(Importance::High), Action::SetImportance(Importance::Low)]);
     assert!(rule_body(&two).is_err());
+    // A pattern is no part of a server's rules.
+    let mut pattern = news_rule();
+    pattern.conditions.push(Condition::SubjectMatches("invoice #2[0-9]{4}".into()));
+    assert!(rule_body(&pattern).is_err());
 
     let s = state(Vec::new());
     let server = serve(&s);

@@ -1549,6 +1549,16 @@ msgstr ""
 msgid "Body contains"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Body starts with"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Bold"
@@ -3824,6 +3834,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "From outside your organisation."
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "From starts with"
 msgstr ""
 
 #. interface
@@ -7695,6 +7710,11 @@ msgstr ""
 msgid "Recipient's address contains"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient's address starts with"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Recommended"
@@ -7728,6 +7748,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Redo {what}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Regular expression (case-insensitive)"
 msgstr ""
 
 #. ribbon
@@ -8885,6 +8910,11 @@ msgid "Sender's address contains"
 msgstr ""
 
 #. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender's address starts with"
+msgstr ""
+
+#. name
 #: crates/model/src/sync/progress.rs
 msgid "Sending"
 msgstr ""
@@ -8934,6 +8964,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Sent to"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent to addresses that start with"
 msgstr ""
 
 #. what a command says
@@ -9762,6 +9797,16 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Subject contains"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject matches"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject starts with"
 msgstr ""
 
 #. what a command says
@@ -12967,6 +13012,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "a server's rules read no pattern"
 msgstr ""
 
 #. what a command says
