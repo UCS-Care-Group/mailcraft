@@ -318,7 +318,7 @@ fn html_inline_pictures_ole_links_and_smime_are_kept_or_named() {
 }
 
 #[test]
-fn rich_text_alone_is_kept_as_an_attachment_and_named() {
+fn rich_text_alone_becomes_the_body_and_is_kept_as_an_attachment() {
     let rtf = b"{\\rtf1 Hello}";
     let mut stored = Vec::new();
     stored.extend_from_slice(&((rtf.len() + 12) as u32).to_le_bytes());
@@ -339,6 +339,8 @@ fn rich_text_alone_is_kept_as_an_attachment_and_named() {
     let rich = inbox.iter().find(|m| m.subject == "Rich").unwrap();
     let file = rich.attachments.iter().find(|a| a.name == "message body.rtf").unwrap();
     assert_eq!(file.data.as_slice(), rtf);
+    assert_eq!(file.mime, "application/rtf");
+    assert_eq!(rich.body.text, "Hello");
     let plain = inbox.iter().find(|m| m.subject == "Plain").unwrap();
     assert!(plain.body.text.starts_with("Plain") && plain.attachments.is_empty(), "{:?}", plain.attachments);
     let notes = answer["notes"].as_array().unwrap();
@@ -1640,6 +1642,72 @@ fn uncompressed_rtf(rtf: &str) -> Vec<u8> {
     v.extend([0u8; 4]);
     v.extend(rtf.bytes());
     v
+}
+
+#[test]
+fn compressed_rich_text_alone_is_read_and_broken_rich_text_is_kept_as_it_was() {
+    let rich = |subject: &str, stored: &[u8]| {
+        let mut m = note(subject);
+        m.body = String::new();
+        m.extra = vec![(0x1009, w::binary(stored))];
+        m
+    };
+    let items = vec![
+        rich("Packed", &COMPRESSED_HELLO),
+        rich("Broken", &COMPRESSED_HELLO[..30]),
+        rich("Not rich", &uncompressed_rtf("no rich text here")),
+        rich("Lines", &uncompressed_rtf("{\\rtf1\\ansi First\\par Caf\\'e9 \\u8364?}")),
+    ];
+    let mut s = session();
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", items, vec![])])), json!({})).unwrap();
+    adds_up(&answer);
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let by = |subject: &str| *inbox.iter().find(|m| m.subject == subject).unwrap();
+    let packed = by("Packed");
+    assert_eq!(packed.body.text, "hello world");
+    let file = packed.attachments.iter().find(|a| a.name == "message body.rtf").unwrap();
+    assert_eq!(file.data.as_slice(), b"{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n".as_slice());
+    assert_eq!(by("Lines").body.text, "First\nCaf\u{e9} \u{20ac}");
+    // What can't be read stays whole, and is named.
+    let broken = by("Broken");
+    assert_eq!(broken.body.text, "");
+    let kept = broken.attachments.iter().find(|a| a.name == "message body (compressed rich text).bin").unwrap();
+    assert_eq!(kept.data.as_slice(), &COMPRESSED_HELLO[..30]);
+    let not_rich = by("Not rich");
+    assert_eq!(not_rich.body.text, "");
+    assert_eq!(not_rich.attachments.iter().find(|a| a.name == "message body.rtf").unwrap().data.as_slice(), b"no rich text here".as_slice());
+    let why = texts(&answer, "notes", "why");
+    assert_eq!(why.iter().filter(|w| w.contains("could not be read")).count(), 2, "{why:?}");
+}
+
+#[test]
+fn a_small_file_of_rich_text_can_not_bring_more_than_the_cap() {
+    // Megabytes that open out past what rich text may be: kept as they are, and said.
+    let head = b"{\\rtf1 x\\par y ";
+    let bomb = repeating_rtf(head, 6, 4_200_000);
+    assert!(bomb.len() < 10 << 20);
+    // Past what a body may be, but within what rich text may: the text is cut, and said.
+    let long = repeating_rtf(head, 6, 2_400_000);
+    let rich = |subject: &str, stored: &[u8]| {
+        let mut m = note(subject);
+        m.body = String::new();
+        m.extra = vec![(0x1009, w::binary(stored))];
+        m
+    };
+    let dir = crate::import_pst_memory_tests::Temp::new("rich-text-cap");
+    let mut s = crate::import_pst_memory_tests::kept_session(&dir);
+    let items = vec![rich("Bomb", &bomb), rich("Long", &long)];
+    let pst = dir.pst(&w::build(&folder_list(vec![folder("Inbox", "IPF.Note", items, vec![])])));
+    let answer = crate::import_pst_memory_tests::import(&mut s, &pst).unwrap();
+    adds_up(&answer);
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let by = |subject: &str| *inbox.iter().find(|m| m.subject == subject).unwrap();
+    assert_eq!(by("Bomb").body.text, "");
+    assert_eq!(by("Bomb").attachments[0].name, "message body (compressed rich text).bin");
+    assert!(by("Long").body.text.len() <= 32 << 20 && by("Long").body.text.len() > 30 << 20);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("could not be read")), "{why:?}");
+    assert!(why.iter().any(|w| w.contains("text is cut")), "{why:?}");
 }
 
 #[test]

@@ -7,7 +7,8 @@
 //! What the file holds is hostile: every text is decoded within its size, every list is capped,
 //! and what an item brings in all (its text and its attachments, with those of the messages
 //! attached to it) is within [`MAX_ITEM_BYTES`]. What can't be brought is said in the item's
-//! notes, which the import report lists; the item itself still comes in.
+//! notes, which the import report lists; the item itself still comes in. A body kept as rich
+//! text alone comes in as its text, with the rich text as an attachment.
 
 use std::io::{Read, Seek};
 
@@ -19,6 +20,10 @@ use mailcraft_pst::{AttachmentContent, Error as PstError, MessageRef, PropValue,
 pub const MAX_ITEM_BYTES: u64 = 256 << 20;
 /// Most bytes of one body (its text or its HTML) read from the file.
 pub const MAX_BODY: u64 = 32 << 20;
+/// Most bytes a body kept as rich text opens out to.
+const MAX_RTF: usize = 64 << 20;
+/// The name of the attachment that keeps a body's rich text.
+const RTF_FILE: &str = "message body.rtf";
 /// Most bytes of the transport headers kept.
 pub const MAX_HEADERS: usize = 1 << 20;
 /// Most characters of a short text (a name, an address, a subject) kept.
@@ -512,34 +517,57 @@ fn body<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, text: &Tex
         (None, Some(h)) => h,
         (None, None) => String::new(),
     };
-    // Rich text (compressed RTF, [MS-OXRTFCP]) is read by a later part: until then, a body that
-    // is rich text alone (no HTML, no text) is kept as an attachment as it is in the file. One
-    // with a text as well (as Outlook keeps most) has its text, and its rich text is let be.
-    if html.is_none() && out.body.text.trim().is_empty() {
-        match p.get(0x1009) {
-            Some(PropValue::Large { .. }) | Some(PropValue::Binary(_)) => {
-                if let Some(PropValue::Binary(rtf)) = body_value(pst, m, 0x1009, item, "rich text")? {
-                    let (name, data) = rtf_file(rtf);
-                    out.attachments.push(Attachment::new(name.clone(), "application/octet-stream", data));
-                    item.note(format!("its rich text (RTF) is kept as the attachment {name} until rich text can be read (a later part)"));
-                }
-            }
-            _ => {}
-        }
+    // A body that is rich text alone (no HTML, no text): its text. One with a text as well (as
+    // Outlook keeps most) has its text, and its rich text is let be.
+    if html.is_none()
+        && out.body.text.trim().is_empty()
+        && let Some(PropValue::Binary(stored)) = body_value(pst, m, 0x1009, item, "rich text")?
+    {
+        rich_text(stored, item, out);
     }
     out.body.html = html;
     Ok(())
 }
 
-/// The rich text of a body as a file: plain RTF when the file kept it uncompressed (`MELA`),
-/// else the compressed bytes as they are.
-fn rtf_file(rtf: Vec<u8>) -> (String, Vec<u8>) {
-    let raw = rtf.get(8..12) == Some(b"MELA");
-    let size = rtf.get(4..8).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_le_bytes).unwrap_or(0);
-    if raw && let Some(body) = rtf.get(16..16usize.saturating_add(size as usize)) {
-        return ("message body.rtf".to_string(), body.to_vec());
+/// A body kept as rich text alone ([MS-OXRTFCP]): its text becomes the body and the RTF is kept
+/// as an attachment, for the fonts and pictures the text leaves behind. What can't be opened
+/// stays as it is in the file, and is named; nothing is lost either way.
+fn rich_text(stored: Vec<u8>, item: &mut Item, out: &mut Message) {
+    let raw = match mailcraft_pst::decompress_rtf(&stored, MAX_RTF) {
+        Ok(raw) if item.take(raw.len() as u64) => raw,
+        Ok(_) => {
+            keep_stored(stored, "it is larger than what one item may bring", item, out);
+            return;
+        }
+        Err(e) => {
+            keep_stored(stored, &e.to_string(), item, out);
+            return;
+        }
+    };
+    let read = mailcraft_pst::rtf_text(&raw, usize::try_from(MAX_BODY).unwrap_or(usize::MAX));
+    out.attachments.push(Attachment::new(RTF_FILE.to_string(), "application/rtf", raw));
+    match read {
+        Ok((text, _)) if !item.take(text.len() as u64) => {
+            item.note(format!("its rich text is larger than what one item may bring: it is kept as the attachment {RTF_FILE}"));
+        }
+        Ok((text, cut)) => {
+            out.body.text = text;
+            item.note(format!(
+                "its body is rich text alone: its text is brought in without its formatting, and the rich text is kept as the attachment {RTF_FILE}"
+            ));
+            if cut {
+                item.note("its rich text was longer than a body can be and its text is cut".to_string());
+            }
+        }
+        Err(e) => item.note(format!("its rich text could not be read ({e}) and is kept as the attachment {RTF_FILE}")),
     }
-    ("message body (compressed rich text).bin".to_string(), rtf)
+}
+
+/// Rich text that can't be opened, kept as it is in the file.
+fn keep_stored(stored: Vec<u8>, why: &str, item: &mut Item, out: &mut Message) {
+    let name = "message body (compressed rich text).bin";
+    out.attachments.push(Attachment::new(name.to_string(), "application/octet-stream", stored));
+    item.note(format!("its rich text could not be read ({why}) and is kept as the attachment {name}"));
 }
 
 /// A file name from the file: its last part, without control characters, cut to size.
