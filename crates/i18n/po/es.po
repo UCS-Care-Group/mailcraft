@@ -357,11 +357,6 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Una reunión periódica que omite algunos días no se puede poner en el calendario del servidor desde aquí: todos los invitados recibirían una cancelación por cada día omitido. Guárdela en un calendario de este equipo o vuelva a crearla sin los días omitidos."
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -723,11 +718,6 @@ msgstr "Agregar una cuenta"
 #, fuzzy
 msgid "Add an account first"
 msgstr "Agregue primero una cuenta"
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Add an account that sends mail first (File › Add Account)."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4039,11 +4029,6 @@ msgid "Fingerprint (SHA-256):"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Finish or close the message you're writing first."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Finish signing in first (your browser is waiting)"
@@ -4464,7 +4449,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
-msgid "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
+msgid "GitHub is public and needs a GitHub account."
 msgstr ""
 
 #. interface
@@ -7654,11 +7639,6 @@ msgid "On"
 msgstr "El día"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the"
@@ -10034,11 +10014,6 @@ msgstr "Enviar y recibir automáticamente"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Send automatic replies"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Send by Email"
 msgstr ""
 
 #. interface
@@ -12545,6 +12520,11 @@ msgid "They are removed from the mail server too."
 msgstr "También se quitan del servidor de correo."
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "They share {what}."
 msgstr ""
@@ -12783,11 +12763,6 @@ msgstr "Este contacto se eliminará de forma definitiva."
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "Esta copia de MailCraft no se actualiza sola."
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "This copy of MailCraft has no address to send reports to."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14587,11 +14562,6 @@ msgstr "El administrador de su organización tiene que aprobarlo una vez"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Your own name."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-msgid "Your report is ready in a new message: check it, then press Send."
 msgstr ""
 
 #. interface

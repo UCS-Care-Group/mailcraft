@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Report a Problem: what goes into GitHub's address (and what never does), the file of
-//! diagnostics, the message by email, and the window.
+//! diagnostics, and the window.
 
 use egui_kittest::kittest::Queryable as _;
 use mailcraft_engine::Session;
@@ -117,51 +117,14 @@ fn the_file_holds_exactly_what_copy_diagnostics_copies() {
     assert_eq!(std::fs::read_to_string(&path).unwrap(), copied);
     assert!(a.status_msg.as_ref().unwrap().0.contains("MailCraft sent nothing"));
     let _ = std::fs::remove_dir_all(&dir);
-    assert!(saves_file(&json!({"diagnostics": true})) && !saves_file(&json!({"diagnostics": true, "via": "email"})));
+    assert!(saves_file(&json!({"diagnostics": true})));
 }
 
 #[test]
-fn by_email_a_new_message_to_the_maintainers_waits_for_send() {
+fn email_is_not_a_way_any_more() {
     let mut a = app();
-    let p = json!({"title": "Search stops", "what": "It stopped", "expected": "Results", "diagnostics": true, "via": "email"});
-    let r = report(&mut a, p).unwrap();
-    assert_eq!((r["to"].as_str().unwrap(), r["subject"].as_str().unwrap()), (MAINTAINERS, "Search stops"));
-    let c = a.session.compose.as_ref().unwrap();
-    assert_eq!((c.to.as_str(), c.subject.as_str()), (MAINTAINERS, "Search stops"));
-    let body = c.body.plain();
-    assert!(body.starts_with("It stopped") && body.contains("What I expected:\nResults") && body.contains("MailCraft version: 9.8.7"), "{body}");
-    assert!(!body.contains(LOG_LINE), "{body}");
-    let file = c.attachments.iter().find(|f| f.name == "mailcraft-diagnostics-2026-10-14.txt").unwrap();
-    assert_eq!(*file.data, diagnostics(&a).into_bytes());
-    // It is sent from the account that sends mail, and not sent at all.
-    let from = a.session.mailbox.account(c.account).unwrap();
-    assert_eq!(from.email, EMAIL);
-    assert!(
-        a.session.mailbox.folders.iter().filter(|f| f.kind == mailcraft_model::FolderKind::Outbox).all(|f| a
-            .session
-            .mailbox
-            .messages
-            .values()
-            .all(|m| m.folder != f.id))
-    );
-    // While that message is open another isn't started.
-    assert!(report(&mut a, json!({"what": "x", "via": "email"})).unwrap_err().contains("Finish"));
-}
-
-#[test]
-fn by_email_is_refused_without_an_account_that_sends() {
-    let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    a.autosave = false;
-    assert!(a.session.mailbox.accounts.iter().all(|x| !x.kind.sends_mail()), "the sample sends nothing");
-    assert!(email_refused(&a).unwrap().contains("Add an account"));
     assert!(report(&mut a, json!({"what": "x", "via": "email"})).is_err());
     assert!(a.session.compose.is_none());
-}
-
-#[test]
-fn the_maintainers_address_is_funding_jsons() {
-    let funding: Value = serde_json::from_str(include_str!("../../../../funding.json")).unwrap();
-    assert_eq!(MAINTAINERS, funding["entity"]["email"].as_str().unwrap());
 }
 
 /// The whole window, kept for clicking.
