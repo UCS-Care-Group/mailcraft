@@ -2065,7 +2065,7 @@ msgid "Change email address"
 msgstr "Cambiar dirección de correo electrónico"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
 msgstr "Cambiar el color"
@@ -2465,7 +2465,7 @@ msgid "Collapse the Ribbon"
 msgstr "Contraer la cinta"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Colour"
 msgstr "Color"
@@ -7144,6 +7144,12 @@ msgid "No changes are left behind: only mail in the Outbox is waiting."
 msgstr "No queda ningún cambio pendiente: solo espera el correo de la Bandeja de salida."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No colour"
+msgstr "Sin color"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "No command matches."
@@ -10579,6 +10585,12 @@ msgstr "Si está vacío, se muestra como Nombre Apellidos"
 #: crates/ui-egui/src/view_source.rs
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
+msgstr "Se muestra junto al nombre de la cuenta y en su correo donde se lista junto el correo de varias cuentas."
 
 #. interface
 #: crates/ui-egui/src/compose.rs

@@ -1814,7 +1814,7 @@ msgid "Change email address"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/widgets.rs
 msgid "Change the colour"
 msgstr ""
 
@@ -2161,7 +2161,7 @@ msgid "Collapse the Ribbon"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
 msgid "Colour"
 msgstr ""
 
@@ -6231,6 +6231,11 @@ msgid "No changes are left behind: only mail in the Outbox is waiting."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "No colour"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "No command matches."
 msgstr ""
@@ -9220,6 +9225,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/view_source.rs
 msgid "Shown as text: nothing in it runs, opens or is downloaded."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr ""
 
 #. interface
