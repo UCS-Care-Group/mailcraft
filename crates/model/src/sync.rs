@@ -15,6 +15,8 @@ mod drafts;
 mod ews;
 mod jmap;
 mod place;
+#[cfg(test)]
+mod problems_tests;
 mod progress;
 mod search;
 pub use drafts::*;
@@ -734,8 +736,14 @@ pub struct SyncResult {
     #[serde(skip_serializing_if = "is_zero_usize")]
     pub gmail_unsent: usize,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
-    /// piece of an answer: the problems since the piece before.
+    /// piece of an answer: the problems since the piece before. In English: what the CLI, MCP
+    /// and the log read.
     pub errors: Vec<String>,
+    /// The same problems as texts the window says in its language, for those a host said that
+    /// way ([`SyncResult::problem`]); [`SyncResult::problems`] pairs them with `errors`. Never
+    /// sent anywhere: an answer that crosses as JSON has the English only.
+    #[serde(skip)]
+    pub said: Vec<mailcraft_i18n::Text>,
     /// This is a piece of an answer, and more follows. The last piece doesn't have it.
     #[serde(skip_serializing_if = "is_false")]
     pub partial: bool,
@@ -756,6 +764,27 @@ pub struct SyncResult {
 }
 
 impl SyncResult {
+    /// Tell a problem: its English among `errors`, and the text it is made of for the window.
+    pub fn problem(&mut self, said: mailcraft_i18n::Text) {
+        self.errors.push(said.to_string());
+        self.said.push(said);
+    }
+
+    /// Each of `errors` as a text to say in the interface's language: the one a host told it
+    /// with ([`SyncResult::problem`]) when its English is that line still, else the line as it
+    /// is. (A line changed after it was told, a password blanked out of it say, is said as it
+    /// now stands.)
+    pub fn problems(&self) -> Vec<mailcraft_i18n::Text> {
+        let mut unused: Vec<Option<&mailcraft_i18n::Text>> = self.said.iter().map(Some).collect();
+        self.errors
+            .iter()
+            .map(|line| {
+                let found = unused.iter_mut().find(|t| t.is_some_and(|t| t.to_string() == *line)).and_then(Option::take);
+                found.cloned().unwrap_or_else(|| mailcraft_i18n::Text::verbatim(line.clone()))
+            })
+            .collect()
+    }
+
     pub fn new_count(&self) -> usize {
         self.folders.iter().map(|f| f.new.len()).sum()
     }
@@ -809,6 +838,7 @@ impl SyncResult {
             gmail_refused: _,
             gmail_unsent: _,
             errors: _,
+            said: _,
             partial: _,
             progress: _,
             step: _,
@@ -837,6 +867,7 @@ impl SyncResult {
         self.gmail_refused.extend(later.gmail_refused);
         self.gmail_unsent = self.gmail_unsent.saturating_add(later.gmail_unsent);
         self.errors.extend(later.errors);
+        self.said.extend(later.said);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
                 Some(folder) => {

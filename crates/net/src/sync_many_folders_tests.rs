@@ -138,7 +138,7 @@ fn the_first_of_a_name_is_the_parent_and_only_one_that_is_read() {
     assert_eq!(tree.len(), MAX_FOLDERS);
     let child = tree.iter().find(|f| f.remote == "Late/child").map(|f| (f.parent.as_str(), f.name.as_str()));
     assert_eq!(child, Some(("", "Late/child")));
-    let said = left_out(&plan, false).unwrap_or_default();
+    let said = left_out(&plan, false).map(|t| t.to_string()).unwrap_or_default();
     assert!(said.ends_with("leaves out the other 2, from \"F9999\" on"), "{said}");
     // Nothing left out, nothing said.
     assert_eq!(left_out(plan.get(..MAX_FOLDERS).unwrap(), false), None);

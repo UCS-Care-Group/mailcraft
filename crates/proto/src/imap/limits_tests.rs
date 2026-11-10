@@ -29,7 +29,7 @@ fn a_flood_of_long_lines_ends_the_command() {
     let server = flood(600, |n| format!("* {n} FETCH (UID {} FLAGS ({pad}))\r\n", n + 1)) + "A0001 OK done\r\n";
     let mut s = Script::new(server);
     let err = opened(&mut s, 1000, 2000).uid_fetch_flags("1:*").unwrap_err();
-    assert!(matches!(err, ProtoError::Protocol(ref m) if m.contains("too much")), "{err:?}");
+    assert!(matches!(err, ProtoError::Protocol(ref m) if m.to_string().contains("too much")), "{err:?}");
     // The same in a list.
     let server = flood(600, |n| format!("* LIST () \"/\" \"{n}{pad}\"\r\n")) + "A0001 OK done\r\n";
     let mut s = Script::new(server);
@@ -41,7 +41,7 @@ fn a_flood_of_responses_ends_the_command() {
     let server = "* OK still here\r\n".repeat(MAX_RESPONSES + 1) + "A0001 OK done\r\n";
     let mut s = Script::new(server);
     let err = opened(&mut s, 0, 0).uid_fetch_sizes("1:*").unwrap_err();
-    assert!(matches!(err, ProtoError::Protocol(ref m) if m.contains("too many")), "{err:?}");
+    assert!(matches!(err, ProtoError::Protocol(ref m) if m.to_string().contains("too many")), "{err:?}");
 }
 
 #[test]
