@@ -627,7 +627,8 @@ pub struct Quote {
     /// with only the elements and attributes that give it its look), for the HTML part.
     pub html: String,
     /// The original's pictures its HTML shows (`cid:`), sent with a reply so the quote keeps
-    /// them. A forward carries every attachment anyway.
+    /// them (a forward carries every attachment anyway), and those written into it (`data:`),
+    /// each made a part of its own that the quote refers to (#602), sent with both.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub pictures: Vec<Attachment>,
 }
