@@ -254,13 +254,13 @@ fn a_run_under_way_when_another_mailbox_is_opened_brings_nothing_into_it() {
     let other = json!({"email": "ada@example.org", "kind": "jmap", "jmap": {"session": SESSION}});
     let other = app.execute("account.add", other).unwrap()["id"].as_u64().unwrap();
     assert!(app.passwords.is_empty(), "what was typed for the mailbox before is gone with it");
-    // What the run still brings was for the mailbox before: none of it is taken in, the run is
-    // called off and ends.
+    // What the run still brings was for the mailbox before: the run was called off with it, and
+    // none of what it still brings is taken in (AU3-21: the window may no longer listen).
     let inbox = GraphFolder { id: "M1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() };
     let listing = Some(FolderListing { folders: vec![inbox], complete: true });
     let session = job.request.session.clone();
-    tx.send(JmapMailResult { partial: true, listing, session: session.clone(), ..last(&job, JmapMailResult::default()) }).unwrap();
-    tx.send(last(&job, JmapMailResult { whole: true, session, ..Default::default() })).unwrap();
+    let _ = tx.send(JmapMailResult { partial: true, listing, session: session.clone(), ..last(&job, JmapMailResult::default()) });
+    let _ = tx.send(last(&job, JmapMailResult { whole: true, session, ..Default::default() }));
     app.poll_sync();
     assert!(job.cancel.load(Ordering::Relaxed));
     assert!(!app.syncing());

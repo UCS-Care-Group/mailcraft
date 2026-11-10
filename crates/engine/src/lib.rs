@@ -32,6 +32,10 @@ pub mod columns;
 pub mod composing;
 mod conversations;
 pub mod counts;
+mod digital_signature;
+#[cfg(test)]
+mod digital_signature_tests;
+pub mod gmail;
 pub mod import_pst;
 pub mod import_tree;
 pub mod io;
@@ -415,6 +419,8 @@ mod counts_tests;
 mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
+#[cfg(test)]
+mod gmail_tests;
 #[cfg(test)]
 mod import_pst_memory_tests;
 #[cfg(test)]

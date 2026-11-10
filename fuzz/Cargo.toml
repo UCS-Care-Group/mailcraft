@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, mailbox files, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -13,6 +13,7 @@ license = "MIT OR Apache-2.0"
 cargo-fuzz = true
 
 [dependencies]
+mailcraft-assuan = { path = "../crates/assuan" }
 mailcraft-dav = { path = "../crates/dav" }
 # Mailbox files in every form (`mailbox_file`), with the small limits of its tests.
 mailcraft-engine = { path = "../crates/engine", features = ["test-support"] }
@@ -25,8 +26,11 @@ mailcraft-jmap = { path = "../crates/jmap" }
 mailcraft-ews = { path = "../crates/ews" }
 mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
+mailcraft-model = { path = "../crates/model" }
+mailcraft-openpgp = { path = "../crates/openpgp" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-pst = { path = "../crates/pst" }
+mailcraft-smime = { path = "../crates/smime" }
 mailcraft-vcard = { path = "../crates/vcard" }
 
 # Its own workspace, so the main one's builds, lints and cargo-deny leave it alone.
@@ -63,6 +67,13 @@ bench = false
 [[bin]]
 name = "vcard"
 path = "fuzz_targets/vcard.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "openpgp"
+path = "fuzz_targets/openpgp.rs"
 test = false
 doc = false
 bench = false
@@ -182,6 +193,20 @@ bench = false
 [[bin]]
 name = "mailbox_file"
 path = "fuzz_targets/mailbox_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "smime"
+path = "fuzz_targets/smime.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "assuan"
+path = "fuzz_targets/assuan.rs"
 test = false
 doc = false
 bench = false

@@ -97,6 +97,12 @@ pub mod forms;
 mod forms_date_tests;
 #[cfg(test)]
 mod frame_bench_tests;
+mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
+mod gmail_tabs;
+#[cfg(test)]
+mod gmail_tabs_tests;
 #[cfg(test)]
 #[path = "google_credential_security_tests.rs"]
 mod google_credential_security_tests;
@@ -110,6 +116,9 @@ pub mod import_pst;
 pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
+#[cfg(test)]
+mod job_replacement_tests;
+mod jobs;
 mod keep_offline;
 #[cfg(test)]
 mod key_chain_tests;
@@ -171,6 +180,7 @@ mod secrets_bound_tests;
 mod secrets_replaced_tests;
 mod send_receive;
 mod sender_images;
+mod sending;
 pub mod server_search;
 pub mod settings_notice;
 mod shared_calendars;
@@ -339,6 +349,10 @@ pub struct Services {
     /// Desktop registration supplied by the host's build or process environment. Kept in
     /// memory, never in UI preferences; not an owner access or refresh token.
     pub google_client_secret: String,
+    /// While Google reviews the project's registration (Testing mode), only the testers added to
+    /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
+    /// a new Gmail account starts on an app password, Google sign-in second with how to join.
+    pub google_testers_only: bool,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -801,6 +815,10 @@ pub struct GraphResult {
     /// Outbox messages that must not be sent another way in this run: whether they went is not
     /// known, or the server said to try later.
     pub held: Vec<Id>,
+    /// Those of `held` whose answer was lost after they were handed over (a timeout, a broken
+    /// connection, an answer that doesn't say): they may have gone, and are held for the owner
+    /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
+    pub unsure: Vec<Id>,
     pub events: Option<mailcraft_model::remote::EventsDownload>,
     pub contacts: Option<mailcraft_model::remote::ContactsDownload>,
     /// What the server said to the calendar changes it was told ([`GraphRequest::changes`]).
@@ -1340,7 +1358,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.reportProblem",
         "Report a Problem",
         "Help",
-        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github"|"email" (default github), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. email: starts a new message to MailCraft's maintainers from an account that sends mail, with the diagnostics attached when asked; nothing is sent until Send is pressed. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url"?, "length"?, "saved"?, "attached"?}"#,
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default and only way; email went in #956), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
@@ -1408,6 +1426,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 /// The application.
 pub struct MailApp {
     pub session: Session,
+    /// The system's certification authorities for mail, read off the window's thread by the host
+    /// (#30): handed to the session when they come, and the window never waits for them.
+    pub trust_anchors_arriving: Option<std::sync::mpsc::Receiver<Vec<Vec<u8>>>>,
+    /// How many rows of the list may still have their Digital signature checked this frame, and
+    /// whether one was left for the next (#30: the list never checks many in one frame).
+    pub(crate) row_checks_left: u32,
+    pub(crate) row_checks_wanted: bool,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
@@ -1493,7 +1518,8 @@ pub struct MailApp {
     pub(crate) graph_tokens: std::collections::HashMap<Id, Tokens>,
     /// What Graph is doing for an account before its mail is synchronised: the account, whether
     /// nobody asked, whether the calendar and contacts were asked for, and the answer to come.
-    graph_rx: Option<(Id, bool, bool, Receiver<GraphResult>)>,
+    /// And the mailbox opening it was started under ([`Session::openings`]).
+    graph_rx: Option<(Id, bool, bool, u64, Receiver<GraphResult>)>,
     /// The pieces of a Graph mail run as they come (R3.2), and what they had to say.
     graph_pieces: Option<Receiver<mailcraft_model::sync::GraphMailResult>>,
     graph_problems: Vec<String>,
@@ -1740,25 +1766,24 @@ pub struct MailApp {
     pub(crate) reading_ahead: Option<opening::ReadAhead>,
     /// `file.open` runs for a mailbox read in the background: it isn't read again.
     pub(crate) swapping: bool,
+    /// A Send/Receive that waits for the "sending" marks of what it sends to be written to the
+    /// mailbox file before it is handed to the host ([`sending`], AU3-26).
+    pub(crate) send_gate: Option<sending::SendGate>,
+    /// A piece of the mail run under way was refused (AU3-26): at its end, the marks of what it
+    /// sent are left for the next run to hold, not taken off.
+    pub(crate) send_doubt: bool,
 }
 
 /// A Send/Receive of one account in flight, its pieces to come. A JMAP account's run takes the place
 /// of an IMAP one, so that whatever waits for a Send/Receive (another run, Cancel, Skip, a round by
 /// itself, the calendar's job) waits for it too.
 pub(crate) enum MailRun {
-    Imap(Receiver<SyncResult>),
+    /// An IMAP account's run: the account, and the mailbox opening it was started under.
+    Imap { account: Id, opening: u64, rx: Receiver<SyncResult> },
     /// `opening`: the mailbox opening it was started under ([`Session::openings`]).
-    Jmap {
-        account: Id,
-        opening: u64,
-        pieces: Receiver<mailcraft_model::sync::JmapMailResult>,
-    },
+    Jmap { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::JmapMailResult> },
     /// An Exchange server account's run ([`ews_mail`]).
-    Ews {
-        account: Id,
-        opening: u64,
-        pieces: Receiver<mailcraft_model::sync::EwsMailResult>,
-    },
+    Ews { account: Id, opening: u64, pieces: Receiver<mailcraft_model::sync::EwsMailResult> },
 }
 
 impl MailApp {
@@ -1767,6 +1792,9 @@ impl MailApp {
         let own_mailbox = session.path.as_ref().map(|p| unconfirmed::kept_path(&p.to_string_lossy()));
         MailApp {
             session,
+            trust_anchors_arriving: None,
+            row_checks_left: 1,
+            row_checks_wanted: false,
             ui: UiState::default(),
             services,
             dialog: None,
@@ -1909,6 +1937,8 @@ impl MailApp {
             later: Default::default(),
             reading_ahead: None,
             swapping: false,
+            send_gate: None,
+            send_doubt: false,
         }
     }
 
@@ -1984,6 +2014,8 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        // Gmail's categories as folders or as tabs (#911).
+        v.gmail_tabs = saved.gmail_tabs;
         // One account's tasks and contacts only in the mailbox they were chosen in: in another,
         // the same id is somebody else's account, or none, and the list starts on All accounts.
         let mailbox = &self.session.mailbox;
@@ -3224,6 +3256,9 @@ impl MailApp {
                 self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
+        // A message an earlier run handed to the server, whose answer never came back, may have
+        // gone: it is held for the owner to look at, never sent again by itself (AU3-26).
+        self.hold_unanswered(account);
         // An Exchange server account is kept in step through Exchange Web Services (#252).
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
             return self.start_ews_mail(account, quiet, p);
@@ -3295,9 +3330,10 @@ impl MailApp {
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
-                if let Some(graph) = &self.services.graph {
-                    self.graph_rx = Some((account, quiet, false, graph(ask)));
-                }
+                // What it sends is marked so, on disk, before it leaves (AU3-26).
+                let opening = self.session.openings();
+                let rx = self.hand_graph(account, ask)?;
+                self.graph_rx = Some((account, quiet, false, opening, rx));
                 return Ok(json!({"pending": "graph", "account": account}));
             }
             // What Graph sent, or couldn't say whether it sent, is not sent again by SMTP.
@@ -3317,12 +3353,23 @@ impl MailApp {
             };
             request.password = password;
         }
-        let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
+        if self.services.sync.is_none() {
+            return Err(tl!("This build can't connect to mail servers").to_string());
+        }
         self.sync_run = Some((account, None, false, quiet));
         // (A refusal said by a run whose thread ended before its last piece is not this run's.)
         self.sync_refused = false;
         self.sync_password = Some(request.password.clone()).filter(|password| !password.is_empty());
-        self.sync_rx = Some(MailRun::Imap(start(request)));
+        let opening = self.session.openings();
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let rx = match self.hand_imap(account, request) {
+            Ok(rx) => rx,
+            Err(why) => {
+                (self.sync_run, self.sync_password) = (None, None);
+                return Err(why);
+            }
+        };
+        self.sync_rx = Some(MailRun::Imap { account, opening, rx });
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
     }
@@ -3384,13 +3431,15 @@ impl MailApp {
             cancel: self.services.sync_cancel.clone(),
         };
         self.resume_fetch();
-        let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let opening = self.session.openings();
+        let rx = self.hand_graph(account, ask)?;
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
         self.graph_pieces_taken = 0;
         self.sync_run = Some((account, None, false, quiet));
-        self.graph_rx = Some((account, quiet, false, graph(ask)));
+        self.graph_rx = Some((account, quiet, false, opening, rx));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true}))
     }
@@ -3463,22 +3512,14 @@ impl MailApp {
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
             self.ews_certificate.clear();
-            // Work started for the old mailbox stays with it: a JMAP run and the messages being
-            // fetched whole are called off (what they still bring is thrown away, `jmap_mail`,
-            // `graph_fetch`), a sign-in on its way is called off, and a switch to Graph (its copy,
-            // its backup) is forgotten.
-            if matches!(self.sync_rx, Some(MailRun::Jmap { .. } | MailRun::Ews { .. })) {
-                self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
+            // Work started for the old mailbox stays with it: every job is called off and its run
+            // state forgotten, Send/Receive Progress included ([`jobs`]; what
+            // still comes of one is let go of by its poll), the messages being fetched whole are
+            // called off (`graph_fetch`), and a switch to Graph (its copy, its backup) is
+            // forgotten.
+            self.clear_jobs_on_replace();
             self.fetching.forget();
-            if let Some(s) = self.signing_in.take() {
-                s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                self.session.sync_status.clear();
-            }
             self.forget_graph_switch();
-            // The rules job's answer is let go of (`poll_rules`), and what was known of the old
-            // mailbox's permissions goes: its account ids may name others here (#566).
-            self.rules = rule_sync::RuleSync::default();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
             self.shared_address_judged = Some(opening);
@@ -3631,8 +3672,17 @@ impl MailApp {
     /// go on with the mail (for an account kept in step through Graph: take its folders in, and
     /// the run is over). Public for a host's tests, which have no window.
     pub fn poll_graph(&mut self) {
-        let Some((account, quiet, directory, _)) = &self.graph_rx else { return };
-        let (account, quiet, directory) = (*account, *quiet, *directory);
+        let Some((account, quiet, directory, opening, _)) = &self.graph_rx else { return };
+        let (account, quiet, directory, opening) = (*account, *quiet, *directory, *opening);
+        // Another mailbox took the place of the one the job was for: its accounts are other
+        // accounts, whatever their ids and addresses, and what the job brings is nobody's
+        // (AU3-09, AU3-10). The run is called off; what it sent is found held at its file's next
+        // run.
+        if opening != self.session.openings() {
+            log::info!("graph: the answer is for a mailbox that is no longer open; let go of");
+            self.forget_mail_runs();
+            return;
+        }
         // The mail's pieces first, each taken in as it comes; the job's answer is looked at once
         // the last of them is in.
         if let Some(pieces) = &self.graph_pieces {
@@ -3668,7 +3718,10 @@ impl MailApp {
                             said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
                         self.graph_problems.extend(errors.unwrap_or_default());
                     }
-                    Err(e) => self.graph_problems.push(e.to_string()),
+                    Err(e) => {
+                        self.graph_problems.push(e.to_string());
+                        self.send_doubt = true;
+                    }
                 }
                 if let Some((progress, status)) = kept {
                     (self.session.sync_progress, self.session.sync_status) = (progress, status);
@@ -3695,13 +3748,13 @@ impl MailApp {
                 self.session.sync_progress.phase(account, SyncPhase::CalendarAndContacts);
             }
         }
-        let Some((_, _, _, rx)) = &self.graph_rx else { return };
-        let mut result = match rx.try_recv() {
-            Ok(r) => r,
+        let Some((_, _, _, _, rx)) = &self.graph_rx else { return };
+        let (mut result, answered) = match rx.try_recv() {
+            Ok(r) => (r, true),
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::warn!("graph, account {account}: the job ended without an answer (its thread ended early)");
-                GraphResult { account, ..Default::default() }
+                (GraphResult { account, ..Default::default() }, false)
             }
         };
         self.graph_rx = None;
@@ -3709,6 +3762,31 @@ impl MailApp {
         if self.inbox_run.take() == Some(account) {
             self.graph_pieces_taken = 0;
             return self.finish_inbox_pass(account, result);
+        }
+        // What was handed to Microsoft and whose answer was lost may have gone: held for the
+        // owner, never sent again by itself (AU3-26).
+        let mut said = Vec::new();
+        if mailcraft_engine::cmd::graph_send::hold_lost(
+            &mut self.session.mailbox,
+            account,
+            &result.unsure,
+            "Microsoft",
+            self.session.interface_language,
+            &mut said,
+        ) {
+            self.session.mailbox_changed();
+            if let Some(first) = said.first() {
+                self.status(first.clone());
+            }
+        }
+        // What the run sent is filed by now, what it held for a lost answer is held, and the rest
+        // (not tried, or Microsoft said later) didn't go: no message of the account is marked as
+        // being sent any more. (A job that ended without an answer, or with a piece refused,
+        // leaves them marked: they may have gone.)
+        // ponytail: a host that doesn't stream (`result.mail`) has its sends cleared one by one
+        // as they are taken in; one it didn't try is held at the next run.
+        if answered && result.mail.is_none() {
+            self.run_answered(account);
         }
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
@@ -4197,7 +4275,17 @@ impl MailApp {
             if matches!(self.sync_rx, Some(MailRun::Ews { .. })) {
                 return self.poll_ews();
             }
-            let Some(MailRun::Imap(rx)) = &self.sync_rx else { return };
+            let Some(MailRun::Imap { account: whose, opening, rx }) = &self.sync_rx else { return };
+            // Another mailbox took the place of the one the run was for: its accounts are other
+            // accounts, whatever their ids and addresses, and what the run brings is nobody's
+            // (AU3-21). The run is called off; what it sent is found held at its file's next run.
+            if *opening != self.session.openings() {
+                log::info!("send/receive, account {whose}: the answer is for a mailbox that is no longer open; let go of");
+                self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                (self.sync_rx, self.sync_run, self.sync_password, self.sync_refused) = (None, None, None, false);
+                self.sync_totals = Default::default();
+                return;
+            }
             let piece = match rx.try_recv() {
                 Ok(piece) => piece,
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -4226,7 +4314,10 @@ impl MailApp {
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
                 Ok(_) => {}
-                Err(e) => self.status(e.to_string()),
+                Err(e) => {
+                    self.status(e.to_string());
+                    self.send_doubt = true;
+                }
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
             // waits beyond what waits at this moment was done here since.
@@ -4238,6 +4329,8 @@ impl MailApp {
             }
             // The run is over.
             self.sync_rx = None;
+            // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
+            self.run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
@@ -4376,6 +4469,23 @@ impl MailApp {
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.apply_language();
+        // The system's authorities for mail, once the host has read them: what was checked
+        // without them is checked again (#30).
+        if let Some(rx) = &self.trust_anchors_arriving {
+            match rx.try_recv() {
+                Ok(ders) => {
+                    self.session.set_trust_anchors(&ders);
+                    self.trust_anchors_arriving = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.trust_anchors_arriving = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        // One row's Digital signature a frame (#30); one left over asks for the next frame.
+        self.row_checks_left = 1;
+        if std::mem::take(&mut self.row_checks_wanted) {
+            ctx.request_repaint();
+        }
         // A .pst import whose window went while it read (closed, or another dialog put in its
         // place) has stopped: what came in is one step to undo, and Undo is free again.
         if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
@@ -4600,6 +4710,8 @@ impl MailApp {
         }
         let saved_before = self.saved_rev;
         let failed = self.collect_saves();
+        // A Send/Receive whose "sending" marks were waiting to be written goes now, or not at all.
+        self.send_gate_tick(failed.as_deref());
         if self.saved_rev > saved_before {
             // Saving works again: closing waits for it again.
             self.close_anyway = false;

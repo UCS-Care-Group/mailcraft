@@ -8,6 +8,8 @@ use crate::{MAX_LINE, MAX_LITERAL, ProtoError};
 
 /// How much is asked of the stream in one read.
 const CHUNK: usize = 16 * 1024;
+/// Most bytes of one over-long untagged line read past ([`Wire::read_line_or_skip`]).
+const MAX_SKIPPED: usize = 4 * 1024 * 1024;
 /// Reads interrupted in a row before giving up.
 const MAX_INTERRUPTS: u32 = 1_000;
 
@@ -67,25 +69,55 @@ impl<S: Read + Write> Wire<S> {
 
     /// The next line without its line ending (CRLF, or a bare LF).
     pub(crate) fn read_line(&mut self) -> Result<Vec<u8>, ProtoError> {
+        self.next_line(false)?.ok_or_else(too_long)
+    }
+
+    /// The next line, or `None` for an untagged one (`* …`) longer than [`MAX_LINE`], which is
+    /// read past to its end (at most [`MAX_SKIPPED`] bytes of it) so that the session goes on.
+    /// Any other line that long is an error, as for [`Wire::read_line`].
+    pub(crate) fn read_line_or_skip(&mut self) -> Result<Option<Vec<u8>>, ProtoError> {
+        self.next_line(true)
+    }
+
+    fn next_line(&mut self, skip: bool) -> Result<Option<Vec<u8>>, ProtoError> {
         // How much of the pending bytes has been searched for a line feed already.
         let mut scanned = 0usize;
+        // Bytes of an over-long line dropped so far, when one is being read past.
+        let mut skipped: Option<usize> = None;
         loop {
             let pending = self.buf.get(self.start..).unwrap_or(&[]);
             if let Some(i) = pending.get(scanned..).and_then(|rest| rest.iter().position(|b| *b == b'\n')) {
                 let end = scanned.saturating_add(i);
                 let line = pending.get(..end).unwrap_or(&[]);
                 let line = line.strip_suffix(b"\r").unwrap_or(line);
-                if line.len() > MAX_LINE {
-                    return Err(too_long());
-                }
-                let line = line.to_vec();
+                let line = if skipped.is_some() {
+                    None
+                } else if line.len() > MAX_LINE {
+                    if !(skip && line.starts_with(b"* ")) {
+                        return Err(too_long());
+                    }
+                    None
+                } else {
+                    Some(line.to_vec())
+                };
                 self.start = self.start.saturating_add(end).saturating_add(1);
                 return Ok(line);
             }
             scanned = pending.len();
             // The limit is on the line itself; a CR may still come on top.
             if scanned > MAX_LINE + 1 {
-                return Err(too_long());
+                let dropped = match skipped {
+                    Some(n) => n,
+                    None if skip && pending.starts_with(b"* ") => 0,
+                    None => return Err(too_long()),
+                };
+                let dropped = dropped.saturating_add(scanned);
+                if dropped > MAX_SKIPPED {
+                    return Err(too_long());
+                }
+                skipped = Some(dropped);
+                self.start = self.buf.len();
+                scanned = 0;
             }
             // Each round reads at least one byte, so this ends at the line feed, the cap or the end of the stream.
             self.fill()?;

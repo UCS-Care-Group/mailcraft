@@ -68,18 +68,61 @@ const NAME_PIECE: usize = 52;
 /// CRLF. Attachments are base64 in 76-column lines; an attached message (`message/rfc822`) that is
 /// clean 7-bit text goes as it is, as RFC 2046 asks. Boundaries are made from the content, so the
 /// same message always gives the same bytes.
+///
+/// A Digitally signed or Encrypted message that isn't a draft, whose original is in memory
+/// ([`Message::original`], #30), keeps the body it came with: its header fields are written from
+/// the message as for any other (with every rule above: what is private, the owner's marks; and
+/// without what the caller took out of its headers, such as a server's stamps), and after them
+/// come the original's own `MIME-Version` and content fields and its body, byte for byte in CRLF
+/// lines. The header block of a message is outside every Digital signature
+/// (S/MIME and PGP/MIME sign the body part, inline PGP the armoured text), so it still checks,
+/// and still opens. (One whose original is kept outside memory is brought in by whoever writes
+/// it; without it, the message is built as any other.)
 pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     let mut out = Vec::new();
-    write_field(&mut out, "Date", &mailcraft_time::format_rfc5322(message.date, opts.offset_minutes));
-    addresses(&mut out, "From", std::slice::from_ref(&message.from));
-    addresses(&mut out, "To", &message.to);
-    addresses(&mut out, "Cc", &message.cc);
-    if opts.include_bcc {
-        addresses(&mut out, "Bcc", &message.bcc);
+    write_header(&mut out, message, opts);
+    if let Some((content_fields, body)) = original_body(message) {
+        out.extend_from_slice(&content_fields);
+        out.extend_from_slice(b"\r\n");
+        out.extend_from_slice(&body);
+        return out;
     }
-    addresses(&mut out, "Reply-To", &message.reply_to);
+    write_field(&mut out, "MIME-Version", "1.0");
+    let body = body(message);
+    for (name, value) in &body.fields {
+        write_field(&mut out, name, value);
+    }
+    out.extend_from_slice(b"\r\n");
+    out.extend_from_slice(&body.content);
+    out.extend_from_slice(b"\r\n");
+    out
+}
+
+/// The content fields and the body of the bytes `message` came as, which [`write()`] writes it
+/// with (#30). (An original whose content fields can't be written as header lines is no original
+/// here: the message is built from its parts.)
+fn original_body(message: &Message) -> Option<(Vec<u8>, Vec<u8>)> {
+    message.original_bytes().filter(|_| !message.draft).and_then(crate::protected::content_of)
+}
+
+/// Whether [`write()`] writes `message`'s body as the bytes it came as (#30), not from its parts.
+pub fn writes_original(message: &Message) -> bool {
+    original_body(message).is_some()
+}
+
+/// The header fields [`write()`] writes from the message, before `MIME-Version` and the content
+/// fields.
+fn write_header(out: &mut Vec<u8>, message: &Message, opts: &WriteOptions) {
+    write_field(out, "Date", &mailcraft_time::format_rfc5322(message.date, opts.offset_minutes));
+    addresses(out, "From", std::slice::from_ref(&message.from));
+    addresses(out, "To", &message.to);
+    addresses(out, "Cc", &message.cc);
+    if opts.include_bcc {
+        addresses(out, "Bcc", &message.bcc);
+    }
+    addresses(out, "Reply-To", &message.reply_to);
     if !clean(&message.subject).is_empty() {
-        write_field(&mut out, "Subject", &unstructured("Subject", &message.subject));
+        write_field(out, "Subject", &unstructured("Subject", &message.subject));
     }
     let ids = |list: &[String]| list.iter().map(|i| message_id(i)).filter(|i| !i.is_empty()).map(|i| format!("<{i}>")).collect::<Vec<_>>().join(" ");
     for (name, value) in [
@@ -88,39 +131,39 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
         ("References", ids(&message.references)),
     ] {
         if !value.is_empty() {
-            write_field(&mut out, name, &value);
+            write_field(out, name, &value);
         }
     }
     match message.importance {
         Importance::High => {
-            write_field(&mut out, "Importance", "high");
-            write_field(&mut out, "X-Priority", "1");
+            write_field(out, "Importance", "high");
+            write_field(out, "X-Priority", "1");
         }
         Importance::Low => {
-            write_field(&mut out, "Importance", "low");
-            write_field(&mut out, "X-Priority", "5");
+            write_field(out, "Importance", "low");
+            write_field(out, "X-Priority", "5");
         }
         Importance::Normal => {}
     }
     // Request a Read Receipt (RFC 8098): the receipt goes to the sender, never anywhere else.
     if message.read_receipt && !message.from.email.trim().is_empty() {
-        addresses(&mut out, "Disposition-Notification-To", std::slice::from_ref(&message.from));
+        addresses(out, "Disposition-Notification-To", std::slice::from_ref(&message.from));
     }
     let keywords: Vec<String> = message.categories.iter().map(|c| clean(c)).filter(|c| !c.is_empty()).map(|c| keyword(&c)).collect();
     if !keywords.is_empty() {
-        write_field(&mut out, "Keywords", &keywords.join(", "));
+        write_field(out, "Keywords", &keywords.join(", "));
     }
     if message.read {
-        write_field(&mut out, "Status", "RO");
+        write_field(out, "Status", "RO");
     }
     let status: String =
         [(message.answered, 'A'), (message.flag == FlagStatus::Flagged, 'F')].iter().filter(|(on, _)| *on).map(|(_, c)| *c).collect();
     if !status.is_empty() {
-        write_field(&mut out, "X-Status", &status);
+        write_field(out, "X-Status", &status);
     }
     if message.flag == FlagStatus::Complete {
         // `X-Status` has no letter for a finished follow-up.
-        write_field(&mut out, "X-MailCraft-Flag", "complete");
+        write_field(out, "X-MailCraft-Flag", "complete");
     }
     for (name, value) in &message.headers {
         let lower = name.to_ascii_lowercase();
@@ -136,18 +179,9 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
             && !blind
         {
             let value = if has_words(&lower) { unstructured(name, value) } else { kept(name, value) };
-            write_field(&mut out, name, &value);
+            write_field(out, name, &value);
         }
     }
-    write_field(&mut out, "MIME-Version", "1.0");
-    let body = body(message);
-    for (name, value) in &body.fields {
-        write_field(&mut out, name, value);
-    }
-    out.extend_from_slice(b"\r\n");
-    out.extend_from_slice(&body.content);
-    out.extend_from_slice(b"\r\n");
-    out
 }
 
 fn addresses(out: &mut Vec<u8>, name: &str, list: &[Address]) {
