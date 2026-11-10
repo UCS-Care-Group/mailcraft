@@ -142,18 +142,26 @@ fn own_text(m: &Message) -> &str {
     if m.not_downloaded > 0 { "" } else { &m.body.text }
 }
 
+/// How big a size condition takes `m` to be: as the message list says ([`Message::list_size`]),
+/// but an opaque signed message that was opened (#30) as an ordinary one with the same text and
+/// files, whether or not the bytes it came as are kept: those are here beside its signed data as
+/// well as inside it. Signed data with nothing beside it (an Encrypted message, one not opened)
+/// is all there is of the message, and counts.
+fn rule_size(m: &Message) -> Option<u64> {
+    let listed = m.list_size()?;
+    let said = m.not_downloaded > 0 || ((m.unfetched || m.incomplete) && m.server.as_ref().is_some_and(|s| s.size > 0));
+    let signed_data = |a: &crate::Attachment| {
+        let mime = a.mime.trim().to_ascii_lowercase();
+        matches!(mime.split(';').next().map(str::trim), Some("application/pkcs7-mime" | "application/x-pkcs7-mime"))
+    };
+    let Some(opened) = m.attachments.iter().find(|a| signed_data(a)) else { return Some(listed) };
+    let beside = m.body_is_kept() || !m.body.text.trim().is_empty() || m.body.html.is_some() || m.attachments.iter().any(|a| !signed_data(a));
+    Some(if said || !beside { listed } else { listed.saturating_sub(opened.size() as u64) })
+}
+
 /// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
 /// letters' case: each text is put in lower case once, for all the words, and only when the texts
 /// before it don't have one.
-/// How big a size condition takes `m` to be: as the message list says ([`Message::list_size`]),
-/// but as it came for a Digitally signed or Encrypted message whose bytes are here (#30), which
-/// is what its server measured. What its parts hold can be more: an opaque signed message's files
-/// are kept beside the signed data they were opened from.
-fn rule_size(m: &Message) -> Option<u64> {
-    let listed = m.list_size()?;
-    Some(m.original.as_ref().filter(|_| !m.partly_here()).map_or(listed, crate::Original::size))
-}
-
 fn any_in(words: &[String], texts: &[&str]) -> bool {
     let words: Vec<String> = words.iter().filter(|w| !w.is_empty()).map(|w| w.to_lowercase()).collect();
     !words.is_empty()
