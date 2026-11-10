@@ -4106,11 +4106,6 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is not configured for this build"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is not configured for this build."
 msgstr ""
 
