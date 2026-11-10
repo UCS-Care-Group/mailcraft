@@ -702,10 +702,7 @@ fn list_in_view(s: &mut Session, limit: usize) -> CmdResult {
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets_whole(s, v)?;
     let before = s.rows();
-    let mut gone = 0;
-    for id in &ids {
-        gone += usize::from(s.mailbox.delete_message(*id)?);
-    }
+    let gone = s.mailbox.delete_messages(&ids)?;
     select_after_removal(s, &before, &ids);
     Ok(json!({"deleted": ids.len(), "permanently": gone}))
 }
@@ -713,9 +710,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 fn delete_permanently(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets_whole(s, v)?;
     let before = s.rows();
-    for id in &ids {
-        s.mailbox.remove_message(*id)?;
-    }
+    s.mailbox.remove_messages(&ids)?;
     select_after_removal(s, &before, &ids);
     Ok(json!({"deleted": ids.len(), "permanently": ids.len()}))
 }

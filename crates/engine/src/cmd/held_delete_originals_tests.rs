@@ -803,3 +803,59 @@ fn a_waiting_copy_refused_onto_this_computer_is_told_in_the_windows_language() {
     assert!(refused.to_string().starts_with("“Signed” is still on its way"), "{refused}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// `n` messages in the Microsoft account `ms`'s Inbox, which its server has as "M0", "M1"...
+fn many_on_microsoft(s: &mut Session, ms: Id, n: u64) -> Vec<Id> {
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    (0..n)
+        .map(|i| {
+            let server = Some(ServerMessage { id: format!("M{i}"), folder: "in".into(), ..Default::default() });
+            s.mailbox.add_message(Message { folder: inbox, account: ms, subject: format!("m{i}"), server, ..Default::default() }).unwrap()
+        })
+        .collect()
+}
+
+/// An emptied Deleted Items of tens of thousands, deleted for good at once: each message's
+/// delete is queued once, and quickly (it looked through the whole queue for each one).
+#[test]
+fn many_microsoft_messages_deleted_for_good_go_quickly() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    let ids = many_on_microsoft(&mut s, ms, 40_000);
+    s.mailbox.queued.push(mailcraft_model::Queued::DeleteMessage { account: ms, id: "M7".into(), kept: None });
+    let started = std::time::Instant::now();
+    s.run("mail.deletePermanently", &json!({"ids": ids})).unwrap();
+    let took = started.elapsed();
+    assert!(took.as_millis() < 1_000, "{took:?}");
+    let deletes = s.mailbox.queued.iter().filter(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. })).count();
+    assert_eq!(deletes, 40_000, "M7's was queued already");
+}
+
+/// The same on an IMAP account: each message's delete waits in its own place, and quickly.
+#[test]
+fn many_imap_messages_deleted_for_good_go_quickly() {
+    let mut s = Session::empty();
+    let read: Vec<Message> = (1..=60_000u32).map(|uid| Message { uid, subject: format!("m{uid}"), ..Default::default() }).collect();
+    let a = imap_account(&mut s, "avery@mail.example", read);
+    let ids: Vec<Id> = s.mailbox.messages.values().filter(|m| m.account == a).map(|m| m.id).collect();
+    let started = std::time::Instant::now();
+    s.run("mail.deletePermanently", &json!({"ids": ids})).unwrap();
+    let took = started.elapsed();
+    assert!(took.as_millis() < 1_000, "{took:?}");
+    assert_eq!(s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count(), 60_000);
+}
+
+/// A message and its copy on its way deleted for good in one go, either way round: nothing is
+/// left for the delete of the message on its server to wait for, and it goes.
+#[test]
+fn a_message_deleted_for_good_with_its_waiting_copy_goes_from_its_server() {
+    for copy_first in [false, true] {
+        let (mut s, from, to, id) = two_imap();
+        let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+        let copy = s.run("mail.copy", &json!({"ids": [id], "folder": theirs})).unwrap()["copies"][0].as_u64().unwrap();
+        let ids = if copy_first { [copy, id] } else { [id, copy] };
+        s.run("mail.deletePermanently", &json!({"ids": ids})).unwrap();
+        assert!(deletes(&s, from), "copy first: {copy_first}");
+        assert!(sync_request(&s, to).unwrap().places.is_empty());
+    }
+}
