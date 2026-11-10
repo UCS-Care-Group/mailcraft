@@ -105,7 +105,7 @@ pub const MAX_ROW_SPAN: u16 = 200;
 pub const MIN_FONT_PX: u8 = 10;
 
 /// The largest font size a message can ask for, in CSS pixels.
-pub const MAX_FONT_PX: u8 = 32;
+pub const MAX_FONT_PX: u8 = 96;
 
 /// A colour a message asks for (sRGB).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -373,6 +373,9 @@ pub struct Block {
     /// elements round it that have no frame of their own, saturating at 255.
     #[serde(default, skip_serializing_if = "is_no_inset")]
     pub inset: [u8; 2],
+    /// Padding around a picture, inside its place in a line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_padding: Option<Insets>,
     /// How a rule looks, where the source draws it with a border (a `Rule` block only).
     #[serde(default, skip_serializing_if = "is_default_line")]
     pub line: Line,
@@ -393,7 +396,19 @@ fn is_zero_u8(n: &u8) -> bool {
 impl Block {
     /// A block of `kind` with no quoting, alignment or gap.
     pub fn new(kind: BlockKind, spans: Vec<Span>) -> Block {
-        Block { kind, spans, quote: 0, align: Align::Left, space: 0, beside: false, gap: 0, line_height: None, inset: [0, 0], line: Line::default() }
+        Block {
+            kind,
+            spans,
+            quote: 0,
+            align: Align::Left,
+            space: 0,
+            beside: false,
+            gap: 0,
+            line_height: None,
+            inset: [0, 0],
+            image_padding: None,
+            line: Line::default(),
+        }
     }
 
     /// The block's text without formatting (not what is inside a table: see [`has_text`]).

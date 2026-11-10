@@ -306,7 +306,11 @@ fn check(laid: &Laid, t: &Tokens, what: &str) {
                     section.format.color,
                     if t.dark { "dark" } else { "light" }
                 );
-                assert!((9.0..=33.0).contains(&section.format.font_id.size), "{what}: text of size {}", section.format.font_id.size);
+                assert!(
+                    (9.0..=f32::from(mailcraft_html::MAX_FONT_PX)).contains(&section.format.font_id.size),
+                    "{what}: text of size {}",
+                    section.format.font_id.size
+                );
             }
         }
     }
@@ -4160,6 +4164,29 @@ fn small_pictures_in_a_table_in_a_centred_cell_stand_in_the_middle() {
         assert_eq!(pictures.len(), 2, "{pictures:?}");
         let centre = (pictures[0].rect.min.x + pictures[1].rect.max.x) / 2.0;
         assert!((centre - 300.0).abs() < 0.5, "{:?} {:?}", pictures[0].rect, pictures[1].rect);
+    });
+}
+
+#[test]
+fn an_inner_percentage_table_can_keep_a_centred_wrapper_at_content_width() {
+    let icons: String = (0..5)
+        .map(|i| {
+            let pad = if i < 4 { 32 } else { 0 };
+            format!("<td style='width:20%'><img src='cid:tick-16@quillon.example' width='40' height='40' style='padding-right:{pad}px'></td>")
+        })
+        .collect();
+    let html = format!(
+        "<table align='center'><tr><td style='padding:20px 0'><table width='100%' cellspacing='0'><tr>{icons}</tr></table></td></tr></table>"
+    );
+    let message = html_message(53, ("Digest", "digest@bellweather.example"), "Icons", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &message, 600.0);
+        let icons = shown_pictures(&laid);
+        assert_eq!(icons.len(), 5);
+        for (index, icon) in icons.iter().enumerate() {
+            assert_eq!(icon.rect.size(), egui::vec2(40.0, 40.0));
+            assert_eq!(icon.rect.min, egui::pos2(136.0 + index as f32 * 72.0, 20.0));
+        }
     });
 }
 

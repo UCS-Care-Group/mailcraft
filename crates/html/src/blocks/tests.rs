@@ -20,6 +20,18 @@ fn para(text: &str) -> Block {
     Block::new(BlockKind::Paragraph, vec![Span::plain(text)])
 }
 
+#[test]
+fn newsletter_type_and_button_line_height_survive_parsing() {
+    let html = "<div style='font-size:54px'>A large headline</div>\
+                <div><a href='https://example.org' style='font-size:34px;line-height:1'>Read</a></div>";
+    let blocks = parse(html);
+    assert_eq!(blocks[0].spans[0].size, Some(54));
+    let button = &blocks[1];
+    assert_eq!(button.line_height, Some(LineHeight::Scale(100)));
+    assert_eq!(button.spans[0].size, Some(34));
+    assert_eq!(button.spans[0].link.as_deref(), Some("https://example.org"));
+}
+
 fn hex(c: Rgb) -> String {
     format!("{:02x}{:02x}{:02x}", c.0, c.1, c.2)
 }

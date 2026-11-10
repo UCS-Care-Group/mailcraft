@@ -45,6 +45,9 @@ const MAX_SPACE: u8 = 3;
 /// The largest picture size a message can ask for, in CSS pixels.
 const MAX_IMAGE_PX: f32 = 8192.0;
 
+/// The original limit for text imported into the composer.
+const MAX_PASTE_FONT_PX: u8 = 32;
+
 /// Most text a cell of a data table holds, in bytes; a table with more in a cell is laying things out.
 const DATA_CELL_TEXT: usize = 240;
 
@@ -95,7 +98,8 @@ pub struct Read {
 pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
 /// [`parse`], without decoding the pictures written into the message: for when only the text
-/// and the look are wanted (plain text, an HTML draft or a paste in the composer).
+/// and the look are wanted (plain text, an HTML draft or a paste in the composer). It uses
+/// the composer's smaller font limit.
 pub fn parse_text(html: &str) -> Vec<Block> {
     build(html, false, &Env::default(), false).blocks
 }
@@ -338,7 +342,7 @@ impl Delta {
     }
 
     /// The style inside the element.
-    fn apply(&self, parent: &Style) -> Style {
+    fn apply(&self, parent: &Style, max_font_px: u8) -> Style {
         let mut style = parent.clone();
         // A size of nothing is inherited, as in a browser, but not past a class or an id: not
         // by an element that carries one, and not from an element that does.
@@ -384,7 +388,7 @@ impl Delta {
         }
         if let Some(size) = self.size {
             // A share of a size that is nothing is nothing still.
-            let resolved = if parent.tiny && matches!(size, Size::Scale(_)) { None } else { size.resolve(parent.size) };
+            let resolved = if parent.tiny && matches!(size, Size::Scale(_)) { None } else { size.resolve(parent.size, max_font_px) };
             match resolved {
                 Some(px) => {
                     style.size = Some(px);
@@ -1129,7 +1133,13 @@ impl Builder {
                 };
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
-                let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
+                let block = Block {
+                    quote: self.quote_depth(),
+                    align: if css.centred() { Align::Center } else { self.loose_align() },
+                    beside,
+                    image_padding: css.padding_insets().filter(|padding| padding.any()),
+                    ..Block::new(kind, spans)
+                };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
@@ -1151,7 +1161,7 @@ impl Builder {
         if self.nodes.len() >= MAX_DEPTH {
             return false;
         }
-        let style = delta.apply(self.style());
+        let style = delta.apply(self.style(), self.max_font_px());
         if hidden {
             self.hidden = self.hidden.saturating_add(1);
         }
@@ -1163,16 +1173,21 @@ impl Builder {
 
     /// Work out again the styles of the nodes from `index` up, after the stack changed below them.
     fn restyle(&mut self, index: usize) {
+        let max_font_px = self.max_font_px();
         for i in index..self.nodes.len() {
             let parent = match i.checked_sub(1).and_then(|p| self.nodes.get(p)) {
                 Some(parent) => parent.style.clone(),
                 None => self.base.clone(),
             };
             if let Some(node) = self.nodes.get_mut(i) {
-                node.style = node.delta.apply(&parent);
+                node.style = node.delta.apply(&parent, max_font_px);
             }
         }
         self.fresh = true;
+    }
+
+    fn max_font_px(&self) -> u8 {
+        if self.decode { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
     }
 
     /// Close the node at `index` and what is open inside it. Formatting elements opened inside
@@ -1615,9 +1630,11 @@ impl Builder {
         // alignment says, a share of the line wide or as wide as the floats together, with its
         // text at the left, as in a browser.
         let floated = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
-        let stands = table.outer_align.is_some()
-            && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
-                || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
+        let shrink_wrapped = table.width.is_none() && table.align != Align::Left && nested;
+        let stands = shrink_wrapped
+            || table.outer_align.is_some()
+                && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
+                    || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
         if layout
             && plain
             && !slices
@@ -1944,6 +1961,7 @@ impl Builder {
         delta.color = own.color.or(delta.color);
         delta.size = own.size.or(delta.size);
         delta.font = own.font.or(delta.font);
+        delta.line_height = own.line_height.or(delta.line_height);
         delta.background = css.background.or(delta.background);
         delta.hooked = hooked(tag);
         let marker = css.mso_list == Some(MsoList::Ignore);

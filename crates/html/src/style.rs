@@ -50,8 +50,8 @@
 //! nothing around it (without that, such a message showed no text at all).
 
 use crate::{
-    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
-    MIN_FONT_PX, MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
+    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX, MIN_FONT_PX,
+    MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
 };
 
 /// Longest `style` attribute read, in bytes; the rest is ignored.
@@ -85,7 +85,7 @@ pub(crate) enum Size {
 impl Size {
     /// The size in whole pixels, clamped to what is readable, given the size around it; `None`
     /// when it is so small that the text is meant not to be seen.
-    pub fn resolve(self, parent: Option<u8>) -> Option<u8> {
+    pub fn resolve(self, parent: Option<u8>, max_font_px: u8) -> Option<u8> {
         let px = match self {
             Size::Px(px) => px,
             Size::Scale(scale) => scale * parent.map_or(BASE_FONT_PX, f32::from),
@@ -93,7 +93,7 @@ impl Size {
         if !px.is_finite() || px <= HIDDEN_FONT_PX {
             return None;
         }
-        Some(px.round().clamp(f32::from(MIN_FONT_PX), f32::from(MAX_FONT_PX)) as u8)
+        Some(px.round().clamp(f32::from(MIN_FONT_PX), f32::from(max_font_px)) as u8)
     }
 }
 
@@ -1170,6 +1170,7 @@ mod style_family_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MAX_FONT_PX;
 
     #[test]
     fn colour_names_are_sorted() {
@@ -1253,7 +1254,7 @@ mod tests {
         assert_eq!(css.background, Some(Rgb(255, 255, 0)));
         assert_eq!((css.bold, css.italic, css.underline, css.strike), (Some(true), Some(true), Some(true), Some(true)));
         assert_eq!(css.align, Some(Align::Right));
-        assert_eq!(css.size.and_then(|s| s.resolve(None)), Some(15));
+        assert_eq!(css.size.and_then(|s| s.resolve(None, MAX_FONT_PX)), Some(15));
         assert!(!css.hidden);
         // Later declarations win; `!important` is only a word.
         let css = Css::parse("font-weight:bold;font-weight:normal !important;text-decoration:none;color:red;color:nonsense");
@@ -1316,7 +1317,7 @@ mod tests {
 
     #[test]
     fn font_sizes() {
-        let size = |style: &str, parent: Option<u8>| Css::parse(style).size.and_then(|s| s.resolve(parent));
+        let size = |style: &str, parent: Option<u8>| Css::parse(style).size.and_then(|s| s.resolve(parent, MAX_FONT_PX));
         assert_eq!(size("font-size:14px", None), Some(14));
         assert_eq!(size("font-size:12pt", None), Some(16));
         assert_eq!(size("font-size:small", None), Some(13));
@@ -1331,7 +1332,7 @@ mod tests {
         assert_eq!(size("font-size:big", None), None);
         // The shorthand: weight, slant and size (its families: `style_family_tests.rs`).
         let css = Css::parse("font: italic bold 7.0pt/1.2 \"Times New Roman\"");
-        assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None))), (Some(true), Some(true), Some(MIN_FONT_PX)));
+        assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None, MAX_FONT_PX))), (Some(true), Some(true), Some(MIN_FONT_PX)));
         assert_eq!(Css::parse("font: 12px bold").bold, None);
     }
 
@@ -1375,11 +1376,11 @@ mod tests {
         for tiny in ["font-size:0", "font-size:1px", "font-size:0.0pt", "font-size:2px;line-height:0"] {
             let css = Css::parse(tiny);
             assert!(!css.hidden, "{tiny}");
-            assert_eq!(css.size.and_then(|s| s.resolve(Some(16))), None, "{tiny}");
+            assert_eq!(css.size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None, "{tiny}");
         }
         // A relative size is judged against the size around it.
-        assert_eq!(Css::parse("font-size:0%").size.and_then(|s| s.resolve(Some(16))), None);
-        assert_eq!(Css::parse("font-size:10%").size.and_then(|s| s.resolve(Some(16))), None);
+        assert_eq!(Css::parse("font-size:0%").size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None);
+        assert_eq!(Css::parse("font-size:10%").size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None);
     }
 
     #[test]
@@ -1635,7 +1636,7 @@ mod tests {
         #[test]
         fn any_style_parses(s in proptest::prelude::any::<String>()) {
             let css = Css::parse(&s);
-            if let Some(size) = css.size.and_then(|s| s.resolve(None)) {
+            if let Some(size) = css.size.and_then(|s| s.resolve(None, MAX_FONT_PX)) {
                 proptest::prop_assert!((MIN_FONT_PX..=MAX_FONT_PX).contains(&size));
             }
             proptest::prop_assert!(in_range(&css));
