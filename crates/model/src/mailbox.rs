@@ -3519,6 +3519,12 @@ impl Mailbox {
             .collect();
         for outcome in outcomes.iter().take(crate::remote::MAX_CATEGORY_CHANGES) {
             let name = outcome.name.trim();
+            // The end of a line about a refusal: the server's reason, when it gave one, as the
+            // rules and the to-dos say it.
+            let why = match outcome.error.trim().trim_end_matches('.') {
+                "" => ".".to_string(),
+                reason => format!(": {reason}."),
+            };
             match (outcome.result, outcome.kind) {
                 (CategoryResult::Done, CategoryChangeKind::Delete) => synced.retain(|c| !same_category(&c.name, name)),
                 (CategoryResult::Done, CategoryChangeKind::Create | CategoryChangeKind::Color) => {
@@ -3568,7 +3574,7 @@ impl Mailbox {
                     {
                         c.name = was;
                     }
-                    said.push(format!("The server didn't take the new spelling of the category \"{name}\": it has the server's again."));
+                    said.push(format!("The server didn't take the new spelling of the category \"{name}\"; it has the server's again{why}"));
                 }
                 // Other letters for one this job deleted there to make it so: the old letters are
                 // made there again with the next job, in its colour, so that nothing of it is lost
@@ -3577,7 +3583,7 @@ impl Mailbox {
                     if let Some(c) = self.account_categories.get_mut(&owner).and_then(|list| list.iter_mut().find(|c| same_category(&c.name, name))) {
                         c.name = (*old).to_string();
                     }
-                    said.push(format!("The server didn't take the new spelling of the category \"{name}\": it has the server's again."));
+                    said.push(format!("The server didn't take the new spelling of the category \"{name}\"; it has the server's again{why}"));
                 }
                 (CategoryResult::Refused, CategoryChangeKind::Create) => {
                     let listed = self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name));
@@ -3585,7 +3591,7 @@ impl Mailbox {
                     if listed && !on_list(names, name) && names.len() < MAX_CATEGORIES {
                         names.push(name.to_string());
                     }
-                    said.push(format!("The server didn't take the category \"{name}\": it stays on this computer only."));
+                    said.push(format!("The server didn't take the category \"{name}\"; it stays on this computer only{why}"));
                     // The old name of a rename to it stays the server's, and comes back here with
                     // the next read; any other deletion that waited on what is made goes.
                     let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
@@ -3608,7 +3614,7 @@ impl Mailbox {
                     {
                         c.color = color;
                     }
-                    said.push(format!("The server didn't take the new colour of the category \"{name}\": it has the server's again."));
+                    said.push(format!("The server didn't take the new colour of the category \"{name}\"; it has the server's again{why}"));
                 }
                 (CategoryResult::Refused, CategoryChangeKind::Delete) => {
                     let was = synced.iter().find(|c| same_category(&c.name, name)).cloned();
@@ -3623,9 +3629,9 @@ impl Mailbox {
                         }
                     }
                     if self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name)) {
-                        said.push(format!("The server didn't delete the category \"{name}\": it is back on the list."));
+                        said.push(format!("The server didn't delete the category \"{name}\"; it is back on the list{why}"));
                     } else {
-                        said.push(format!("The server didn't delete the category \"{name}\": it stays in Outlook."));
+                        said.push(format!("The server didn't delete the category \"{name}\"; it stays in Outlook{why}"));
                     }
                 }
                 (CategoryResult::Failed | CategoryResult::Denied, _) => {}

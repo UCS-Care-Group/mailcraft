@@ -70,7 +70,20 @@ fn took(s: &mut Session, account: Id, sent: &[CategoryChange]) {
 }
 
 fn answer(s: &mut Session, account: Id, kind: CategoryChangeKind, name: &str, color: Rgb, result: CategoryResult) -> serde_json::Value {
-    let outcome = CategoryOutcome { kind, name: name.into(), color, result, error: String::new(), found: false };
+    refused_with(s, account, kind, name, color, result, "")
+}
+
+/// [`answer`], with the server's reason.
+fn refused_with(
+    s: &mut Session,
+    account: Id,
+    kind: CategoryChangeKind,
+    name: &str,
+    color: Rgb,
+    result: CategoryResult,
+    why: &str,
+) -> serde_json::Value {
+    let outcome = CategoryOutcome { kind, name: name.into(), color, result, error: why.into(), found: false };
     let result = CategoriesUploaded { account, email: "a@example.org".into(), outcomes: vec![outcome], ..Default::default() };
     s.run("sync.applyCategoryChanges", &json!({"result": result})).unwrap()
 }
@@ -222,6 +235,25 @@ fn what_the_server_refused_is_put_back_and_said() {
     // The server says the sign-in doesn't cover it: read-only from now on.
     answer(&mut s, a, CategoryChangeKind::Color, "Red category", BLUE, CategoryResult::Denied);
     assert!(s.mailbox.categories_read_only(a).is_some());
+}
+
+#[test]
+fn a_refusal_says_the_servers_reason_as_rules_and_to_dos_do() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"})).unwrap();
+    let why = "Microsoft Graph answered with status 400 (ErrorInvalidRequest).";
+    let said = refused_with(&mut s, a, CategoryChangeKind::Create, "Travel", GREEN, CategoryResult::Refused, why);
+    assert_eq!(
+        said["messages"][0],
+        "The server didn't take the category \"Travel\"; it stays on this computer only: Microsoft Graph answered with status 400 (ErrorInvalidRequest)."
+    );
+    s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+    let said = refused_with(&mut s, a, CategoryChangeKind::Delete, "Old", RED, CategoryResult::Refused, "  it is in use  ");
+    assert_eq!(said["messages"][0], "The server didn't delete the category \"Old\"; it is back on the list: it is in use.");
+    // With none, the line ends where it did.
+    s.run("category.set", &json!({"account": a, "name": "Red category", "color": "#2E8B57"})).unwrap();
+    let said = answer(&mut s, a, CategoryChangeKind::Color, "Red category", GREEN, CategoryResult::Refused);
+    assert_eq!(said["messages"][0], "The server didn't take the new colour of the category \"Red category\"; it has the server's again.");
 }
 
 #[test]
