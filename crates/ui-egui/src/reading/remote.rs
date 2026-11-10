@@ -448,6 +448,21 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             if download.clicked() {
                 let _ = app.run("ui.downloadPictures", json!({"message": m.id}));
             }
+            // The switch of File › Options for all mail, from here (#910): it asks first. It does
+            // nothing for Junk E-mail, so it is not offered there.
+            if !in_junk(app, m) && !app.ui.download_pictures {
+                let all = action(
+                    ui,
+                    tl!("Download pictures in all mail").to_string(),
+                    tl!("Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."),
+                );
+                if place == Place::Pane {
+                    app.hit.add("downloadPicturesInAllMail", m.id, all.rect);
+                }
+                if all.clicked() {
+                    let _ = app.run("ui.downloadPicturesAutomatically", json!({"value": true}));
+                }
+            }
             // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
             // server doesn't vouch for, so it is not offered there.
             let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };

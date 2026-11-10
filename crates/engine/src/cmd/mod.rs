@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -134,6 +136,8 @@ mod wipe_tests;
 pub mod writing_tools;
 #[cfg(test)]
 mod writing_tools_tests;
+#[cfg(test)]
+mod written_quote_tests;
 #[cfg(test)]
 mod zone_tests;
 pub mod zones;

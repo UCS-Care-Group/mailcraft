@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Dates and times as the window shows them: in the interface language
-//! ([`mailcraft_i18n::date`]), from `mailcraft_time`'s days and clocks. `mailcraft_time`'s own
+//! ([`mailcraft_i18n::date`]) the way of the system's region (`i18n::dated`: English in Britain
+//! writes the day first, #978), from `mailcraft_time`'s days and clocks. `mailcraft_time`'s own
 //! text (`Date::long`, `list_label`…) stays English for commands, the CLI and agents; the window
 //! says dates through here.
 //!
@@ -11,7 +12,7 @@
 use mailcraft_i18n::date::{self, Day};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday};
 
-use crate::i18n::{Lang, current};
+use crate::i18n::{Lang, current, dated};
 
 /// The window's language, for as long as the program runs (so that a name it gives is
 /// `&'static`).
@@ -34,47 +35,47 @@ pub fn day(d: Date) -> Day {
 
 /// `Sunday, October 11, 2026`.
 pub fn long(d: Date) -> String {
-    date::long(lang(), day(d))
+    date::long(&dated(), day(d))
 }
 
 /// `Oct 11, 2026`.
 pub fn medium(d: Date) -> String {
-    date::medium(lang(), day(d))
+    date::medium(&dated(), day(d))
 }
 
 /// `Wed, Oct 14, 2026`.
 pub fn weekday_medium(d: Date) -> String {
-    date::weekday_medium(lang(), day(d))
+    date::weekday_medium(&dated(), day(d))
 }
 
 /// `October 11, 2026`.
 pub fn long_without_weekday(d: Date) -> String {
-    date::long_without_weekday(lang(), day(d))
+    date::long_without_weekday(&dated(), day(d))
 }
 
 /// `October 3`.
 pub fn month_day_long(d: Date) -> String {
-    date::month_day_long(lang(), d.month, d.day)
+    date::month_day_long(&dated(), d.month, d.day)
 }
 
 /// `October 2026`.
 pub fn month_year(d: Date) -> String {
-    date::month_year(lang(), d.year, d.month)
+    date::month_year(&dated(), d.year, d.month)
 }
 
 /// `Oct 3`.
 pub fn month_day(d: Date) -> String {
-    date::month_day(lang(), d.month, d.day)
+    date::month_day(&dated(), d.month, d.day)
 }
 
 /// `Wed, Oct 14`.
 pub fn weekday_month_day(d: Date) -> String {
-    date::weekday_month_day(lang(), day(d))
+    date::weekday_month_day(&dated(), day(d))
 }
 
 /// `Wednesday, October 14`.
 pub fn weekday_month_day_long(d: Date) -> String {
-    date::weekday_month_day_long(lang(), day(d))
+    date::weekday_month_day_long(&dated(), day(d))
 }
 
 /// `October`.
@@ -99,7 +100,7 @@ pub fn weekday_short(d: Weekday) -> &'static str {
 
 /// `9:30 AM`, or `09:30` on a 24-hour clock.
 pub fn time(hour: u8, minute: u8, twelve_hour: bool) -> String {
-    date::time(lang(), hour, minute, twelve_hour)
+    date::time(&dated(), hour, minute, twelve_hour)
 }
 
 /// The time of `t`.
@@ -117,18 +118,18 @@ pub fn medium_time(t: DateTime, twelve_hour: bool) -> String {
 pub fn list_label(ts: Timestamp, now: Timestamp, offset_minutes: i32, twelve_hour: bool) -> String {
     let (t, n) = (DateTime::from_timestamp(ts, offset_minutes), DateTime::from_timestamp(now, offset_minutes));
     let days_ago = t.date.days_until(n.date);
-    date::list_label(lang(), day(t.date), t.hour, t.minute, days_ago, t.date.year == n.date.year, twelve_hour)
+    date::list_label(&dated(), day(t.date), t.hour, t.minute, days_ago, t.date.year == n.date.year, twelve_hour)
 }
 
 /// The date line of an open message: `Sun 10/11/2026 9:30 AM`.
 pub fn header_label(ts: Timestamp, offset_minutes: i32, twelve_hour: bool) -> String {
     let t = DateTime::from_timestamp(ts, offset_minutes);
-    date::header_label(lang(), day(t.date), t.hour, t.minute, twelve_hour)
+    date::header_label(&dated(), day(t.date), t.hour, t.minute, twelve_hour)
 }
 
 /// A length of time: `30 minutes`, `1 hour`, `1.5 hours`, `2 days`.
 pub fn duration(minutes: i64) -> String {
-    date::duration(lang(), minutes)
+    date::duration(&dated(), minutes)
 }
 
 #[cfg(test)]
