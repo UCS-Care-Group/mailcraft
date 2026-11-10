@@ -485,6 +485,10 @@ pub struct Services {
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
+    /// The system's regional format for dates and times (`en-GB`: `LC_TIME` on Unix, the
+    /// browser's language in the browser build), whose region English dates are written for
+    /// (#978). `None` (the tests, scripts): the language's own way.
+    pub system_time_locale: Option<String>,
     /// Web: told the interface language's code (`en`) whenever it changes, for the page's
     /// `<html lang>`.
     pub on_language: Option<Box<dyn Fn(&str)>>,
@@ -4450,12 +4454,18 @@ impl MailApp {
     }
 
     /// Put the interface language in force: the window's text, the engine's, and the host's
-    /// (`<html lang>` in the browser) when it changed.
+    /// (`<html lang>` in the browser) when it changed; its dates written the way of the system's
+    /// region, and the clock and first day of the week the owner never chose theirs (#978).
     fn apply_language(&mut self) {
         let lang = self.language();
+        let region = self.services.system_time_locale.as_deref().and_then(mailcraft_i18n::date::region_of);
         i18n::set_current(lang);
+        i18n::set_region(region);
         self.session.interface_language = lang;
-        self.session.prefs.follow_language(lang);
+        if self.session.date_region.as_deref() != region {
+            self.session.date_region = region.map(str::to_string);
+        }
+        self.session.prefs.follow_conventions(lang.conventions_in(region));
         if self.applied_language != Some(lang) {
             self.applied_language = Some(lang);
             if let Some(tell) = &self.services.on_language {
