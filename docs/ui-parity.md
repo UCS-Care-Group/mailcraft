@@ -66,7 +66,7 @@ go when a row has several (files, importance, categories) is ours, the reference
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
   Missing: keytips, Customize Keyboard, full keyboard access to every control, screen-reader
   labels beyond what egui/AccessKit give by default.
-- **Languages:** English, and French, German, Spanish, Italian and Dutch as preview languages (named
+- **Languages:** English, and French, German, Spanish, Italian, Dutch and Russian as preview languages (named
   "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)" and so on in File › Options, every text translated, not
   yet reviewed by a native speaker; see `docs/translating.md`); Automatic follows the system. Every
   string goes through `tl!` and a pseudo-language proves it, each sentence one text with named

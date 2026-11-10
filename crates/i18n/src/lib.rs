@@ -363,11 +363,20 @@ mod tests {
     /// "Archive" the command, and a text said with a folder's name names the folder.
     #[test]
     fn a_context_tells_the_folder_from_the_command() {
-        let said: Vec<(&str, &str)> =
-            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
+        let said: Vec<(&str, &str)> = [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Russian]
+            .iter()
+            .map(|l| (l.t("Archive"), l.folder("Archive")))
+            .collect();
         assert_eq!(
             said,
-            [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio"), ("Archiveren", "Archief")]
+            [
+                ("Archiver", "Archives"),
+                ("Archivieren", "Archiv"),
+                ("Archivar", "Archivo"),
+                ("Archivia", "Archivio"),
+                ("Archiveren", "Archief"),
+                ("Архивировать", "Архив")
+            ]
         );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
         // A context the catalogue doesn't have is English, never the word of another meaning.

@@ -1322,7 +1322,7 @@ msgstr "апреля"
 #: crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Archive"
-msgstr "Архив"
+msgstr "Архивировать"
 
 #. name
 #: crates/model/src/rich.rs
