@@ -85,3 +85,35 @@ fn the_search_box_finds_a_gmail_category_and_not_the_owners() {
     let offered: Vec<String> = search::suggestions("gmail:p", 7, &[]).into_iter().map(|s| s.text).collect();
     assert_eq!(offered, ["gmail:primary ", "gmail:promotions "]);
 }
+
+#[test]
+fn each_category_has_its_label_for_gmails_api() {
+    let labels: Vec<&str> = GmailCategory::ALL.iter().map(|c| c.api_label()).collect();
+    assert_eq!(labels, ["CATEGORY_PERSONAL", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"]);
+}
+
+#[test]
+fn only_a_gmail_account_signed_in_with_google_moves_between_categories() {
+    let server = |host: &str| Some(Server { host: host.into(), port: 993, security: Security::Tls });
+    let google = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
+    let gmail = Account { incoming: server("imap.gmail.com"), ..Default::default() };
+    assert!(!gmail.moves_gmail_categories(), "an app password");
+    assert!(Account { oauth: google.clone(), ..gmail.clone() }.moves_gmail_categories());
+    let microsoft = Some(OAuth { provider: OAuthProvider::Microsoft, ..Default::default() });
+    assert!(!Account { oauth: microsoft, ..gmail }.moves_gmail_categories());
+    assert!(!Account { incoming: server("imap.mail.example"), oauth: google, ..Default::default() }.moves_gmail_categories());
+}
+
+#[test]
+fn a_move_waits_while_the_category_here_isnt_what_gmail_said() {
+    let m = Message { gmail_category: Some(GmailCategory::Social), gmail_synced: Some(GmailCategory::Primary), gmail_id: 7, ..Default::default() };
+    assert_eq!(m.gmail_move_waiting(), Some(GmailCategory::Social));
+    // Not without Gmail's id, nor once the two agree, nor before Gmail has said anything.
+    assert_eq!(Message { gmail_id: 0, ..m.clone() }.gmail_move_waiting(), None);
+    assert_eq!(Message { gmail_synced: Some(GmailCategory::Social), ..m.clone() }.gmail_move_waiting(), None);
+    assert_eq!(Message { gmail_synced: None, ..m.clone() }.gmail_move_waiting(), None);
+    // Leaving the Inbox forgets it.
+    let mut left = m;
+    left.left_gmail_inbox();
+    assert_eq!((left.gmail_category, left.gmail_synced, left.gmail_id), (None, None, 0));
+}

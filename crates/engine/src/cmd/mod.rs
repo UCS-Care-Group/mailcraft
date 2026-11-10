@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -48,6 +50,9 @@ mod forward_attachment_tests;
 mod forward_several_tests;
 #[cfg(test)]
 mod full_count_tests;
+pub mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
 pub mod graph_down;
 pub mod graph_drafts;
 pub mod graph_mail;
@@ -90,6 +95,8 @@ pub mod picture;
 #[cfg(test)]
 mod picture_tests;
 #[cfg(test)]
+mod protected_moves_tests;
+#[cfg(test)]
 mod quote_tests;
 #[cfg(test)]
 mod range_select_tests;
@@ -131,6 +138,8 @@ pub mod writing_tools;
 #[cfg(test)]
 mod writing_tools_tests;
 #[cfg(test)]
+mod written_quote_tests;
+#[cfg(test)]
 mod zone_tests;
 pub mod zones;
 
@@ -149,6 +158,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
     v.extend(picture::specs());

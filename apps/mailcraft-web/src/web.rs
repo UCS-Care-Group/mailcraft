@@ -61,6 +61,9 @@ pub fn start() {
                         let mut services = services(build_inbox, ctx.clone());
                         crate::jmap::install(&mut services, &ctx, hook.clone());
                         let mut session = Session::new(arrival.mailbox);
+                        // The browser trusts no certification authority for mail (#30): handed in as
+                        // none, so that its signers say so, not that they are still being read.
+                        session.set_trust_anchors(Vec::<Vec<u8>>::new());
                         // The steps every opening takes (#793).
                         mailcraft_engine::cmd::file::after_opening(&mut session);
                         let mut app = MailApp::new(session, services);
@@ -292,6 +295,8 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         // The browser's language, for an interface language left on Automatic; and the page says
         // which language it is in (`<html lang>`), for screen readers and the browser's own tools.
         system_locale: web_sys::window().and_then(|w| w.navigator().language()),
+        // The same language's region (`en-GB`) is the one English dates are written for (#978).
+        system_time_locale: web_sys::window().and_then(|w| w.navigator().language()),
         on_language: Some(Box::new(|code: &str| {
             let root = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element());
             if let Some(root) = root {

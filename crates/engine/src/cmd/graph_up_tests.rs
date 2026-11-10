@@ -132,7 +132,7 @@ fn a_move_out_of_the_account_waits_for_the_whole_message_and_the_save() {
     s.mailbox.message_mut(m).unwrap().unfetched = true;
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
     let moved = s.mailbox.message(m).unwrap();
-    assert_eq!(moved.moving_out, Some(MovingOut { account, id: "M-1".into(), folder: "F-in".into(), left: false }));
+    assert_eq!(moved.moving_out, Some(MovingOut { account, id: "M-1".into(), folder: "F-in".into(), left: false, listing: false }));
     assert!(moved.server.is_none() && moved.folder == kept);
     // Fetched first of all, whatever its size.
     assert_eq!(super::super::graph_down::fetch_queue(&s.mailbox, account, 5, s.now()), ["M-1"]);

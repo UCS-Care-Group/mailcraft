@@ -426,6 +426,18 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         "ui.removeAllData" if app.services.data_wipe.is_some() && !app.data_removed => Some(crate::data_removal::question()),
         // A mailbox from a file: where its accounts connect to.
         "ui.confirmServers" if app.unconfirmed => Some(app.confirm_servers_question()),
+        // Pictures in all mail, switched on from the bar above a message or File › Options (#910):
+        // what it tells every sender. Turning it off asks nothing.
+        "ui.downloadPicturesAutomatically" if !app.ui.download_pictures && params.get("value").and_then(Value::as_bool) != Some(false) => {
+            let text = format!(
+                "{} {}",
+                tl!(
+                    "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+                ),
+                tl!("Mail in Junk E-mail still asks first. File › Options turns this off again.")
+            );
+            question(tl!("Download Pictures in All Mail"), text, tl!("Download in all mail"))
+        }
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
@@ -1280,7 +1292,7 @@ fn host_and_port(typed: &str) -> bool {
 }
 
 /// Every command (engine and window) as `(id, label, location, shortcut, enabled)`, for search.
-fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
+pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
     let mut out: Vec<(String, String, String, String, bool)> = app
         .session
         .registry
@@ -1311,6 +1323,8 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
                     | "tasks.select"
             ) && !c.id.ends_with(".get")
                 && !c.id.ends_with(".list")
+                // Not even greyed while it waits for Google's review (#911).
+                && (c.id != "mail.setGmailCategory" || crate::gmail_move::switched_on(app))
         })
         .map(|c| {
             (
@@ -1333,7 +1347,7 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
 
 /// How well `query` matches a command: lower is better, `None` is no match. Every word must be
 /// found in the label, the location or the id.
-fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
+pub(crate) fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
     let (l, loc, i) = (label.to_lowercase(), location.to_lowercase(), id.to_lowercase());
     let mut total = 0;
     for word in query.to_lowercase().split_whitespace() {

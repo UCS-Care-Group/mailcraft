@@ -301,6 +301,13 @@ impl AccountKind {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
+    /// Whether the account keeps its mail in full only within its mail to keep offline (#143),
+    /// and older mail as headers and a preview: a Microsoft account and an Exchange server account
+    /// (#966), which both bring every message's headers and fetch the whole messages afterwards.
+    pub fn has_offline_window(self) -> bool {
+        matches!(self, AccountKind::Microsoft | AccountKind::Exchange)
+    }
+
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
     /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
     /// sending comes after its reading, and until then no mail is put in its Outbox, where it
@@ -402,6 +409,13 @@ pub struct Account {
     /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub skip_conversation_question: bool,
+    /// The account's colour (#893): a dot beside its name in the folder pane, and a stripe on
+    /// its mail where the list holds mail of more than one account, so that whose mail is whose
+    /// is seen at a glance. A new account is given one ([`Mailbox::unused_account_color`]);
+    /// `None` for none, as in a file from before there were any, and for one the file has in a
+    /// form this version can't read.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub color: Option<Rgb>,
     /// For a Gmail account: its owner turned off Gmail's categories (#911), which the folder pane
     /// then doesn't show under its Inbox. Off for a new account and in a file from before there
     /// was one: they are shown. Every other account has none to show, whatever this says.
@@ -849,6 +863,9 @@ fn kept_for_put_back(m: &Message) -> Message {
         for a in &mut copy.attachments {
             a.kept = None;
         }
+        if let Some(o) = copy.original.as_mut() {
+            o.kept = None;
+        }
     } else {
         copy.to_fetch_again();
     }
@@ -974,6 +991,23 @@ pub struct Category {
     pub name: String,
     pub color: Rgb,
 }
+
+/// The twelve colours a category or an account can be given in the window: ours, each strong
+/// enough to be seen as a mark on a light and on a dark background.
+pub const PALETTE: [Rgb; 12] = [
+    Rgb(0xD1, 0x3B, 0x3B),
+    Rgb(0xE0, 0x7B, 0x1F),
+    Rgb(0xD9, 0xA4, 0x0C),
+    Rgb(0x2E, 0x8B, 0x57),
+    Rgb(0x1A, 0x9B, 0xA6),
+    Rgb(0x2F, 0x6F, 0xD0),
+    Rgb(0x7E, 0x57, 0xC2),
+    Rgb(0xC2, 0x4E, 0x9A),
+    Rgb(0x8A, 0x5A, 0x44),
+    Rgb(0x6B, 0x7A, 0x1F),
+    Rgb(0x4F, 0x6D, 0x8F),
+    Rgb(0x7A, 0x7A, 0x7A),
+];
 
 /// The colour of a category with none: one a list doesn't have, or one new to the list.
 pub const GREY_CATEGORY: Rgb = Rgb(0x8A, 0x8A, 0x8A);
@@ -1149,6 +1183,10 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The Public keys of the people mail came from, by address (#30 R9): certificates
+    /// collected from Digitally signed mail, contact or not.
+    #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
+    pub public_keys: crate::public_keys::PublicKeys,
     next_id: Id,
 }
 
@@ -1185,6 +1223,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            public_keys: Default::default(),
             next_id: 1,
         }
     }
@@ -1419,6 +1458,13 @@ impl Mailbox {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
     }
 
+    /// The colour a new account is given (#893): the first of [`PALETTE`] no account has yet, and
+    /// once every one is taken, the one the fewest have (the first of those).
+    pub fn unused_account_color(&self) -> Rgb {
+        let used = |c: &Rgb| self.accounts.iter().filter(|a| a.color == Some(*c)).count();
+        PALETTE.iter().min_by_key(|c| used(c)).copied().unwrap_or_default()
+    }
+
     /// Whether Delete on a whole conversation of `account`'s asks first (#503): its own switch,
     /// and for a shared mailbox its owner's.
     pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
@@ -1522,6 +1568,8 @@ impl Mailbox {
             kind: AccountKind::Microsoft,
             download_in_full,
             shared_of: Some(owner),
+            // A colour of its own, as `account.add` gives a new account (#893).
+            color: Some(self.unused_account_color()),
             ..Default::default()
         };
         let id = self.add_account(shared);
@@ -1975,6 +2023,10 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        // Within what the mailbox keeps of originals in all (#30).
+        if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
+            m.original = None;
+        }
         if m.id == 0 || self.messages.contains_key(&m.id) {
             m.id = self.alloc_id();
         }
@@ -1982,6 +2034,12 @@ impl Mailbox {
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
+    }
+
+    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30), by the
+    /// running total the messages keep ([`Messages::originals_size`]).
+    pub fn room_for_original(&mut self, size: u64) -> bool {
+        self.messages.originals_size().saturating_add(size) <= crate::MAX_ORIGINALS
     }
 
     pub fn message(&self, id: Id) -> Option<&Message> {
@@ -2416,6 +2474,17 @@ impl Mailbox {
         let copy = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone(), ..Default::default() };
         let original = m.moving_out.clone();
         if original.as_ref().is_some_and(|out| out.account == to && !out.left) {
+            self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
+            return;
+        }
+        // The bytes a protected message came as may be lost with the original (#30): it stays the
+        // copy the message is moved out of, by the gate every release goes through, and this one,
+        // which Graph made of its parts and so holds none of them, goes. (A record of where it
+        // was put is of the mailbox it leaves: [`Message::original_placed`] counts not here.)
+        let protected = m.original.is_some() && !m.original_asked;
+        let held = original.as_ref().is_some_and(|out| (!out.left || out.listing) && !out.id.is_empty())
+            || self.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == id) && p.account() != m.account);
+        if protected && held {
             self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
             return;
         }

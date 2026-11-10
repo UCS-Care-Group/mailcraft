@@ -142,6 +142,9 @@ const SAFE: &[&str] = &[
     "mail.delete",
     "mail.archive",
     "mail.move",
+    // Moving between Gmail's categories is a move, and asks what a move asks (#911): the messages
+    // named (`NEEDS_IDS`).
+    "mail.setGmailCategory",
     "mail.copy",
     "mail.markRead",
     "mail.markUnread",
@@ -162,6 +165,10 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // Downloads a signed or encrypted message's own bytes again from its own server (#30).
+    "mail.checkAgain",
+    // What checking a message's Digital signature found, read only (#30 R23).
+    "mail.digitalSignature",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -998,6 +1005,7 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",
+    "mail.setGmailCategory",
     "mail.copy",
     "mail.archive",
     "mail.junk",

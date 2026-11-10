@@ -8,6 +8,7 @@
 //! The script is JSON lines: control-channel requests (`{"method": …, "params": …}`, see
 //! `docs/control-protocol.md`), `{"shot": "/abs/out.png"}` to save the window as PNG,
 //! `{"open": "/abs/file.ics"}` (or a `mailto:` link) as a later start would hand it over (#505),
+//! `{"trust": "/abs/ca.der"}` to trust a certification authority as the system's are (#30),
 //! `{"steps": n}` to run extra frames (a request with `"agent": {"allow": [...]}` comes as the MCP
 //! bridge's would: what needs the owner puts its question over the window), or `{"wait": ms}` to keep running frames for a while. The
 //! window is 1440×900 pt at 2× (override with `{"width": w, "height": h}` and `{"scale": s}` on
@@ -17,7 +18,9 @@
 //! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
 //! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
-//! in another).
+//! in another). The system has no language or regional format unless a line names one
+//! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are
+//! written the way of its region).
 //!
 //! The window has no host: nothing in it can sign in, send or receive. A script that wants to
 //! look at what Add Account says about a sign-in on Microsoft's page gives it a stand-in for
@@ -688,6 +691,11 @@ fn main() {
     {
         services.update_start.didnt_start = Some((env!("CARGO_PKG_VERSION").to_string(), kept));
     }
+    // The system's language and regional format, when a line says (`{"locale": "en-GB"}`, #978).
+    if let Some(locale) = lines.iter().find_map(|l| l.get("locale").and_then(|v| v.as_str())) {
+        services.system_locale = Some(locale.to_string());
+        services.system_time_locale = Some(locale.to_string());
+    }
     let mut app = MailApp::new(session, services).with_control(rx);
     app.autosave = false;
     // Every frame may be a shot: a password shown with its eye is drawn as dots (#438).
@@ -807,6 +815,12 @@ fn main() {
                 let count = |k: usize| u32::try_from(n(k)).unwrap_or(u32::MAX);
                 harness.state_mut().session.sync_progress.set_full(n(0), count(1), count(2));
             }
+            step_n(&mut harness, 2);
+        }
+        // A certification authority to trust, as the system's would be (#30): `{"trust": "/abs/ca.der"}`.
+        if let Some(path) = l.get("trust").and_then(|v| v.as_str()) {
+            let der = std::fs::read(path).expect("read the certificate");
+            harness.state_mut().session.set_trust_anchors([der.as_slice()]);
             step_n(&mut harness, 2);
         }
         // What the system hands the program (a later start, the command line): `{"open": "…"}`.

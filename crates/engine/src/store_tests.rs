@@ -2093,6 +2093,9 @@ mod launch;
 #[path = "store_hidden_tests.rs"]
 mod hidden;
 
+#[path = "store_original_tests.rs"]
+mod original;
+
 /// #702: the order the owner put the accounts in goes into the mailbox file with the save after
 /// the move, and comes back from it; the default account stays the first added.
 #[test]

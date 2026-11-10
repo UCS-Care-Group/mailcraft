@@ -289,15 +289,17 @@ struct Parts {
     /// The words the sender hid ([`Message::hidden_text`]), when over [`INLINE_MAX`] (#599).
     hidden: Option<Part>,
     attachments: Vec<Option<Part>>,
+    /// The bytes a Digitally signed or Encrypted message came as ([`Message::original`], #30).
+    original: Option<Part>,
 }
 
 impl Parts {
     fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none)
+        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none) && self.original.is_none()
     }
 
     fn all(&self) -> impl Iterator<Item = &Part> {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten())
+        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original)
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -315,6 +317,9 @@ impl Parts {
         }
         if !self.attachments.is_empty() {
             fields.push(format!("\"attachments\":[{}]", self.attachments.iter().map(one).collect::<Vec<_>>().join(",")));
+        }
+        if self.original.is_some() {
+            fields.push(format!("\"original\":{}", one(&self.original)));
         }
         format!("{{{}}}", fields.join(","))
     }
@@ -337,6 +342,9 @@ impl Parts {
                 out.push((r, a.data.as_slice()));
             }
         }
+        if let (Some(r), Some(bytes)) = (held(&self.original), m.original_bytes()) {
+            out.push((r, bytes));
+        }
         out
     }
 }
@@ -358,6 +366,7 @@ struct WireParts {
     hidden: Option<(String, u64)>,
     #[serde(deserialize_with = "capped")]
     attachments: Vec<Option<(String, u64)>>,
+    original: Option<(String, u64)>,
 }
 
 /// At most [`MAX_PARTS`] entries of a list; the rest is skipped without being kept.
@@ -390,13 +399,26 @@ fn parse_ref(wire: &(String, u64)) -> Option<Ref> {
 impl WireParts {
     /// Every name given, parsed or not.
     fn hashes(&self) -> impl Iterator<Item = Digest> + '_ {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash)
+        self.text
+            .iter()
+            .chain(&self.html)
+            .chain(&self.hidden)
+            .chain(self.attachments.iter().flatten())
+            .chain(&self.original)
+            .filter_map(parse_ref)
+            .map(|r| r.hash)
     }
 
     /// The parts as named, all taken to be in memory (what couldn't be read is marked after).
     fn parts(&self) -> Parts {
         let one = |p: &Option<(String, u64)>| p.as_ref().and_then(parse_ref).map(|r| Part { r, held: true });
-        Parts { text: one(&self.text), html: one(&self.html), hidden: one(&self.hidden), attachments: self.attachments.iter().map(one).collect() }
+        Parts {
+            text: one(&self.text),
+            html: one(&self.html),
+            hidden: one(&self.hidden),
+            attachments: self.attachments.iter().map(one).collect(),
+            original: one(&self.original),
+        }
     }
 }
 
@@ -792,7 +814,7 @@ struct State {
     ahead: Option<(Box<Opened>, Stamp)>,
     /// The content folder, and the content in it the opening left on disk without looking for
     /// it, with how many parts name each, for [`check_parts`].
-    unchecked: Option<(PathBuf, Vec<(Ref, u32)>)>,
+    unchecked: Option<(PathBuf, Vec<(Ref, u32)>, Vec<Ref>)>,
     /// The bodies the budget holds that an opening for a window left on disk, newest first, for
     /// [`bodies_later`].
     later: Option<Vec<crate::session::BodyLater>>,
@@ -835,6 +857,7 @@ impl Pins {
                 out.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(|r| Digest(r.sha256)));
             }
             out.extend(m.attachments.iter().filter_map(|a| a.kept).map(|r| Digest(r.sha256)));
+            out.extend(m.original.as_ref().and_then(|o| o.kept).map(|r| Digest(r.sha256)));
         }
         out
     }
@@ -868,7 +891,7 @@ const MAX_FORGETTING: usize = 4_000_000;
 
 /// Whether message `m` names content it keeps on disk rather than in memory.
 fn names_kept(m: &Message) -> bool {
-    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some())
+    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some()) || m.original.as_ref().is_some_and(|o| o.kept.is_some())
 }
 
 /// Keep the content that `messages` keep on disk (named on them, not in memory) from being swept
@@ -1233,6 +1256,7 @@ pub fn copy_content(from: &Path, to: &Path, mailbox: &Mailbox) -> Result<usize, 
             wanted.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(Ref::from_model));
         }
         wanted.extend(m.attachments.iter().filter(|a| a.data.is_empty()).filter_map(|a| a.kept.as_ref()).map(Ref::from_model));
+        wanted.extend(m.original.as_ref().filter(|o| o.data.is_empty()).and_then(|o| o.kept.as_ref()).map(Ref::from_model));
     }
     if wanted.is_empty() {
         return Ok(0);
@@ -1309,17 +1333,24 @@ pub(crate) fn end_session_for_test(path: &Path) {
 }
 
 /// Which of the 256 folders of two digits are folders of their own (not links to somewhere
-/// else), each looked at once however many files are read from it.
-struct Folders([OnceLock<bool>; 256]);
+/// else), each looked at once however many files are read from it; and whether the content
+/// folder is whole ([`Folders::whole`]), looked at once too.
+struct Folders([OnceLock<bool>; 256], OnceLock<bool>);
 
 impl Folders {
     fn new() -> Folders {
-        Folders(std::array::from_fn(|_| OnceLock::new()))
+        Folders(std::array::from_fn(|_| OnceLock::new()), OnceLock::new())
     }
 
     fn real(&self, hash: &Digest, sub: &Path) -> bool {
         let first = hash.0.first().copied().unwrap_or(0);
         self.0.get(usize::from(first)).is_some_and(|seen| *seen.get_or_init(|| fs::symlink_metadata(sub).is_ok_and(|m| m.file_type().is_dir())))
+    }
+
+    /// Whether the content folder `dir` is there and whole, by a content file in it that reads
+    /// ([`one_reads`], `sub` looked in first): looked at once.
+    fn whole(&self, dir: &Path, sub: &Path) -> bool {
+        *self.1.get_or_init(|| one_reads(dir, sub))
     }
 }
 
@@ -2213,19 +2244,69 @@ fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref
     on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect()
 }
 
+/// Whether the content `r` is surely not under `dir`: the folder it would be in is a real one,
+/// and a content file in the folder reads ([`Folders::whole`]), so the content folder is there
+/// and whole (not an empty mount point, a share that dropped, a cloud drive that put its files
+/// away); and the file isn't (the system says there is no such file, and no cloud drive keeps a
+/// stand-in for it) or isn't the length it must be. A look that fails any other way (a file
+/// another program holds, one that can't be looked at) is no answer, and says not.
+fn absent_in(dir: &Path, r: &Ref, folders: &Folders) -> bool {
+    blob_path(dir, &r.hash).is_some_and(|(sub, file)| {
+        folders.real(&r.hash, &sub)
+            && match fs::symlink_metadata(&file) {
+                Err(e) => e.kind() == std::io::ErrorKind::NotFound && !evicted(&sub, &r.hash) && folders.whole(dir, &sub),
+                Ok(m) => !(m.file_type().is_file() && m.len() == r.len) && folders.whole(dir, &sub),
+            }
+    })
+}
+
+/// Whether a cloud drive keeps a stand-in for the content `hash` in `sub` (iCloud's
+/// `.<name>.icloud`): the file is away, not gone.
+fn evicted(sub: &Path, hash: &Digest) -> bool {
+    fs::symlink_metadata(sub.join(format!(".{}.icloud", hash.hex()))).is_ok()
+}
+
+/// How many entries of the content folder's subfolders are looked at for a content file that
+/// reads ([`Folders::whole`]).
+const WHOLE_LOOKS: usize = 1_024;
+
+/// Whether a content file under `dir` reads (its first byte), `first` (a subfolder) looked in
+/// before the others, within [`WHOLE_LOOKS`] entries.
+fn one_reads(dir: &Path, first: &Path) -> bool {
+    let others = fs::read_dir(dir).into_iter().flatten().flatten().filter(|e| e.file_name().to_str().is_some_and(|n| n.len() == 2 && is_hex(n)));
+    let subs = std::iter::once(first.to_path_buf()).chain(others.map(|e| e.path()));
+    subs.flat_map(|sub| fs::read_dir(sub).into_iter().flatten().flatten()).take(WHOLE_LOOKS).any(|e| {
+        // (A name of 64 hex digits alone: never a cloud drive's `.<name>.icloud` stand-in.)
+        e.file_name().to_str().is_some_and(|n| !n.starts_with('.') && Digest::parse(n).is_some())
+            && open_plain(&e.path()).is_some_and(|(mut f, len)| len > 0 && std::io::Read::read(&mut f, &mut [0u8; 1]).is_ok_and(|n| n == 1))
+    })
+}
+
+/// Which of `refs` are surely gone from under `dir` ([`absent_in`]), looked for as
+/// [`missing_of`] looks, within [`STAT_TIME`]: what isn't looked at in time is taken to be there.
+fn absent_of(dir: &Path, refs: &[Ref], folders: &Folders) -> Vec<Ref> {
+    let deadline = Instant::now().checked_add(STAT_TIME);
+    let looked = fan_out(refs.len(), |i| refs.get(i).map(|r| deadline.is_none_or(|d| Instant::now() < d).then(|| absent_in(dir, r, folders))));
+    refs.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(true))))).map(|(r, _)| *r).collect()
+}
+
 /// Look for the content files the mailbox file at `path` names and its opening left on disk
 /// unlooked for ([`open_for_window`]): how many bodies and attachments are missing or damaged,
 /// for the window to say as the opening would have ([`Opened::notice`]). Once only: 0 after
 /// that, and for a file opened otherwise. Saves aren't held up meanwhile.
 pub fn check_parts(path: &Path) -> crate::session::Missing {
     let shared = shared(path);
-    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
-    let missing = missing_of(&dir, &on_disk, &Folders::new());
+    let Some((dir, on_disk, originals)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
+    let folders = Folders::new();
+    let missing = missing_of(&dir, &on_disk, &folders);
     let count = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
     if count > 0 {
         log::warn!("{}: {count} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
     }
-    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r.to_model()).collect() }
+    // (The originals found gone are named too, and counted nowhere: without one a message is
+    // whole, #30. `Session::mark_unavailable` asks the server for each again.)
+    let gone = absent_of(&dir, &originals, &folders);
+    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r).chain(gone).map(|r| r.to_model()).collect() }
 }
 
 /// The bodies the memory budget holds that the opening of the file at `path` for a window left on
@@ -2355,11 +2436,14 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             let hidden_wire = wire.hidden.clone().filter(|(_, len)| *len <= mailcraft_model::MAX_HIDDEN_TEXT as u64);
             let hidden = want(&hidden_wire, true, now, &mut st.live);
             let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
-            plan.push((id, text, html, hidden, attachments));
+            // (A message's original, #30, is never brought in at opening: it is read when it is
+            // written whole.)
+            let original = want(&wire.original, false, true, &mut st.live);
+            plan.push((id, text, html, hidden, attachments, original));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
-                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()) {
+                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()).chain(&wire.original) {
                     want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
@@ -2378,7 +2462,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
         let later = plan
             .iter()
-            .filter_map(|(id, text, html, hidden, _)| {
+            .filter_map(|(id, text, html, hidden, _, _)| {
                 let (text, html, hidden) = (pick(text), pick(html), pick(hidden));
                 (text.is_some() || html.is_some() || hidden.is_some()).then_some(crate::session::BodyLater { id: *id, text, html, hidden })
             })
@@ -2389,7 +2473,8 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut seen: HashMap<Ref, usize> = HashMap::new();
     // (What the sender hid is not looked for: if it is gone there is no hidden text, which is not
     // a loss the owner is told of.)
-    for (_, text, html, _, attachments) in &plan {
+    // (Nor is a message's original: without it the message is as one read before it was kept.)
+    for (_, text, html, _, attachments, _) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
             if let (Some(r), None) = (want.r, want.slot) {
                 let at = *seen.entry(r).or_insert_with(|| {
@@ -2403,11 +2488,17 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         }
     }
     drop(seen);
-    let missing: HashSet<Ref> = if launch.checks_later {
-        st.unchecked = Some((dir.to_path_buf(), on_disk));
-        HashSet::new()
+    // The originals left on disk (#30), looked for as the rest is, but only to ask a server for
+    // one that is surely gone.
+    let mut originals: Vec<Ref> = plan.iter().filter_map(|p| p.5.as_ref().and_then(|w| w.r)).collect();
+    originals.sort_unstable_by_key(|r| r.hash.0);
+    originals.dedup();
+    let (missing, gone_originals): (HashSet<Ref>, HashSet<Ref>) = if launch.checks_later {
+        st.unchecked = Some((dir.to_path_buf(), on_disk, originals));
+        (HashSet::new(), HashSet::new())
     } else {
-        missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect()
+        let missing = missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect();
+        (missing, absent_of(dir, &originals, &folders).into_iter().collect())
     };
     let mut filled = Filled::default();
     // Three ways a part can stand after this: in memory (`Some(true)`), on disk (`Some(false)`),
@@ -2438,7 +2529,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let bytes = Arc::try_unwrap(bytes).unwrap_or_else(|used_elsewhere| used_elsewhere.to_vec());
         Some(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
     };
-    for (id, text, html, hidden, attachments) in plan {
+    for (id, text, html, hidden, attachments, original) in plan {
         let Some(m) = mailbox.messages.get_mut(&id).map(Arc::make_mut) else { continue };
         let mut held = parts.as_deref_mut().and_then(|p| p.remove(&id));
         let mut kept = KeptBody::default();
@@ -2509,6 +2600,22 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             stand(want, &mut filled);
             if let Some(p) = held.as_mut().and_then(|p| p.attachments.get_mut(i)).and_then(Option::as_mut) {
                 p.held = false;
+            }
+        }
+        if let Some(want) = &original {
+            // (Not counted among what is unavailable: without it the message is as one read
+            // before it was kept, #30. A name that isn't one: no original.)
+            m.original =
+                stand(want, &mut Filled::default()).zip(want.kept()).map(|(_, r)| mailcraft_model::Original { data: Arc::default(), kept: Some(r) });
+            if let Some(p) = held.as_mut().and_then(|p| p.original.as_mut()) {
+                p.held = false;
+            }
+            // Its file surely gone (a build from before #30 swept it, say): the message is
+            // written from its parts, and asks its server for the bytes again, keeping them
+            // named until a download brings them ([`crate::cmd::mail::check_again::lost`]).
+            if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| gone_originals.contains(&Ref::from_model(&r))) {
+                let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
+                crate::cmd::mail::check_again::lost(kind, m);
             }
         }
         if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {
@@ -2597,6 +2704,12 @@ impl ContentSource for Content {
     fn fetch(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
         fetch(mailbox, r)
     }
+
+    fn fetch_fresh(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
+        let r = Ref::from_model(r);
+        let dir = blob_dir(&resolve(mailbox));
+        get(&dir, &r, &Folders::new()).map(Arc::new).ok_or_else(|| format!("the file that keeps it is missing from {} or damaged", dir.display()))
+    }
 }
 
 /// Bring every kept part of every message of `mailbox` into memory from the content folder
@@ -2644,6 +2757,22 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
                 n += 1;
             }
             a.kept = None;
+        }
+        // An original that can't be read leaves the copy without one (#30): the message is whole
+        // without it, and is written from its parts.
+        if let Some(o) = m.original.as_mut()
+            && let Some(r) = o.kept.filter(|_| o.data.is_empty())
+        {
+            match take(&r) {
+                Ok(bytes) => {
+                    (o.data, o.kept) = (bytes, None);
+                    n += 1;
+                }
+                Err(e) => {
+                    log::warn!("{e}: the bytes it came as are left out");
+                    m.original = None;
+                }
+            }
         }
         mailbox.messages.insert(id, Arc::new(m));
     }
@@ -2708,6 +2837,19 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
             a.kept = Some(p.r.to_model());
             any = true;
         }
+    }
+    if let (Some(p), Some(o)) = (parts.original, lean.original.as_mut())
+        && !o.data.is_empty()
+        && o.data.len() as u64 == p.r.len
+        && st
+            .hashes
+            .get(&(Arc::as_ptr(&o.data) as usize))
+            .filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(&o.data)))
+            .map_or_else(|| Digest::of(&o.data), |(_, hash)| *hash)
+            == p.r.hash
+    {
+        (o.data, o.kept) = (Arc::default(), Some(p.r.to_model()));
+        any = true;
     }
     if !any {
         return None;
@@ -2846,23 +2988,31 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
             outside(m.hidden_text.as_bytes())
         },
         attachments: Vec::new(),
+        original: None,
+    };
+    // A file's bytes are hashed once while the same bytes are in memory: a save after a read mark
+    // doesn't hash every attachment and original again.
+    let mut held = |data: &Arc<Vec<u8>>| {
+        (data.len() > INLINE_MAX).then(|| {
+            let key = Arc::as_ptr(data) as usize;
+            let known = hashes.get(&key).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(data))).map(|(_, hash)| *hash);
+            let hash = known.unwrap_or_else(|| {
+                let hash = Digest::of(data);
+                hashes.insert(key, (Arc::downgrade(data), hash));
+                hash
+            });
+            Part { r: Ref { hash, len: data.len() as u64 }, held: true }
+        })
     };
     for a in m.attachments.iter().take(MAX_PARTS) {
         let was = a.kept.as_ref().filter(|_| a.data.is_empty()).map(on_disk);
-        let part = was.or_else(|| {
-            (a.data.len() > INLINE_MAX).then(|| {
-                let key = Arc::as_ptr(&a.data) as usize;
-                let known = hashes.get(&key).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(&a.data))).map(|(_, hash)| *hash);
-                let hash = known.unwrap_or_else(|| {
-                    let hash = Digest::of(&a.data);
-                    hashes.insert(key, (Arc::downgrade(&a.data), hash));
-                    hash
-                });
-                Part { r: Ref { hash, len: a.data.len() as u64 }, held: true }
-            })
-        });
-        parts.attachments.push(part);
+        parts.attachments.push(was.or_else(|| held(&a.data)));
     }
+    // The bytes it came as (#30): what stayed on disk keeps its name, as an attachment does.
+    parts.original = m.original.as_ref().and_then(|o| match o.kept.as_ref().filter(|_| o.data.is_empty()) {
+        Some(r) => Some(on_disk(r)),
+        None => held(&o.data),
+    });
     if parts.attachments.iter().all(Option::is_none) {
         parts.attachments.clear();
     }
@@ -2881,6 +3031,11 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
         if part.is_some() {
             a.data = nothing.clone();
         }
+    }
+    if let (Some(o), Some(_)) = (lean.original.as_mut(), parts.original) {
+        o.data = nothing.clone();
+    } else if !m.has_original() {
+        lean.original = None;
     }
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
