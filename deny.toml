@@ -31,6 +31,13 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant merged into zbus 6; zbus 5 waits on accesskit/atspi and secret-service" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names merged into zbus 6; zbus 5 waits on accesskit/atspi and secret-service" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive merged into zbus 6; zbus 5 waits on accesskit/atspi and secret-service" },
+    # 2026-11-09: rPGP 0.21 (`mailcraft-openpgp`, #30) brings rsa 0.9 and crypto-bigint 0.5. Both
+    # advisories are timing leaks of a *private* key while it signs or decrypts; MailCraft only
+    # checks Digital signatures with Public keys, where nothing secret is computed on. Look again
+    # before signing or decrypting with a key MailCraft holds itself (#30, later parts), and when
+    # rPGP moves to rsa 0.10 / crypto-bigint 0.7.
+    { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack: private-key timing; mailcraft-openpgp only verifies with public keys; remove or justify again before MailCraft signs or decrypts with a key it holds (#30 parts 5 and 6)" },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 timing on secret integers; mailcraft-openpgp only verifies with public keys; remove or justify again before MailCraft signs or decrypts with a key it holds (#30 parts 5 and 6)" },
 ]
 
 [licenses]
