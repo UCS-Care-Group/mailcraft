@@ -241,3 +241,62 @@ fn always_move_messages_from_a_sender_without_a_whole_address_looks_for_its_word
         assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().conditions, [made], "{from}");
     }
 }
+
+/// A DER element of `tag` holding `value`.
+fn der(tag: u8, value: &[u8]) -> Vec<u8> {
+    let mut out = vec![tag];
+    let len = value.len().to_be_bytes();
+    let len: Vec<u8> = len.iter().copied().skip_while(|b| *b == 0).collect();
+    if value.len() < 0x80 {
+        out.push(value.len() as u8);
+    } else {
+        out.push(0x80 | len.len() as u8);
+        out.extend(len);
+    }
+    out.extend_from_slice(value);
+    out
+}
+
+/// An S/MIME opaque signed message from example.org (#30): signed data, with no signer, holding
+/// a short text and a file of `size` bytes.
+fn opaque_signed_with_file(size: usize) -> Vec<u8> {
+    let lines = |bytes: &[u8]| {
+        let text = mailcraft_charset::base64::STANDARD.encode(bytes);
+        text.as_bytes().chunks(76).map(|line| format!("{}\r\n", std::str::from_utf8(line).unwrap())).collect::<String>()
+    };
+    let file: Vec<u8> = (0..size).map(|i| (i * 7 + 13) as u8).collect();
+    let inner = format!(
+        "Content-Type: multipart/mixed; boundary=\"b1\"\r\n\r\n--b1\r\nContent-Type: text/plain\r\n\r\nThe report.\r\n--b1\r\nContent-Type: application/pdf; name=\"report.pdf\"\r\nContent-Disposition: attachment; filename=\"report.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}--b1--\r\n",
+        lines(&file)
+    );
+    let oid = |last: u8| [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, last];
+    let content = der(0x30, &[oid(1).to_vec(), der(0xa0, &der(0x04, inner.as_bytes()))].concat());
+    let signed = der(0x30, &[vec![0x02, 0x01, 0x01], vec![0x31, 0x00], content].concat());
+    let data = der(0x30, &[oid(2).to_vec(), der(0xa0, &signed)].concat());
+    format!(
+        "From: Ann <ann@example.org>\r\nTo: Me <{ME}>\r\nSubject: Report\r\nMessage-ID: <r1@example.org>\r\nMIME-Version: 1.0\r\nContent-Type: application/pkcs7-mime; smime-type=signed-data; name=\"smime.p7m\"\r\nContent-Disposition: attachment; filename=\"smime.p7m\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}",
+        lines(&data)
+    )
+    .into_bytes()
+}
+
+/// To a size condition, an opaque signed message (#30) is as big as it came: here its files are
+/// kept beside the signed data they were opened from, which holds them too. A rule for mail
+/// bigger than that, deleting for good, leaves it alone, and one for its size finds it.
+#[test]
+fn a_size_rule_measures_an_opaque_signed_message_as_it_came() {
+    let bytes = opaque_signed_with_file(256 << 10);
+    let (mut s, _, inbox, kept) = session();
+    let mut m = mailcraft_mime::parse_fetched(&bytes);
+    assert!(m.original.is_some() && m.attachments.iter().any(|a| a.name == "report.pdf"));
+    m.folder = inbox;
+    let id = s.mailbox.add_message(m).unwrap();
+    let kb = bytes.len() as u64 / 1024;
+    let size = |min: u64, max: u64| json!([{"type": "sizeBetween", "value": {"min": min, "max": max}}]);
+    let bigger = json!({"name": "Bigger", "conditions": size(kb + 1, 1_000_000), "actions": [{"type": "deleteForGood"}]});
+    let its_size = json!({"name": "Its size", "conditions": size(kb, kb), "actions": [{"type": "moveTo", "value": kept}]});
+    s.run("rules.add", &bigger).unwrap();
+    s.run("rules.add", &its_size).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.message(id).map(|m| m.folder), Some(kept), "{kb} KB as it came");
+}

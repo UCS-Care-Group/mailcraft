@@ -145,6 +145,15 @@ fn own_text(m: &Message) -> &str {
 /// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
 /// letters' case: each text is put in lower case once, for all the words, and only when the texts
 /// before it don't have one.
+/// How big a size condition takes `m` to be: as the message list says ([`Message::list_size`]),
+/// but as it came for a Digitally signed or Encrypted message whose bytes are here (#30), which
+/// is what its server measured. What its parts hold can be more: an opaque signed message's files
+/// are kept beside the signed data they were opened from.
+fn rule_size(m: &Message) -> Option<u64> {
+    let listed = m.list_size()?;
+    Some(m.original.as_ref().filter(|_| !m.partly_here()).map_or(listed, crate::Original::size))
+}
+
 fn any_in(words: &[String], texts: &[&str]) -> bool {
     let words: Vec<String> = words.iter().filter(|w| !w.is_empty()).map(|w| w.to_lowercase()).collect();
     !words.is_empty()
@@ -185,7 +194,7 @@ impl Condition {
                 any_in(w, &lines.iter().map(String::as_str).collect::<Vec<_>>())
             }
             Condition::Sensitivity(s) => m.sensitivity() == *s,
-            Condition::SizeBetween { min, max } => m.size_known() && m.list_size().is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
+            Condition::SizeBetween { min, max } => m.size_known() && rule_size(m).is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
             Condition::MeetingRequest => m.is_meeting_request(),
             Condition::AutomaticReply => m.is_automatic_reply(),
             Condition::Category(names) => names.iter().any(|c| m.has_category(c)),
