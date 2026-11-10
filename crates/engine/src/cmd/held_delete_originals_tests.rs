@@ -727,10 +727,11 @@ fn many_deletes_for_good_keep_the_background_fetch_quick() {
     assert!(took.as_millis() < 200, "{took:?}");
 }
 
-/// Two copies made at the cap: deleted for good, the message gives the bytes it came as to the
-/// first, whose share it lets go of, and not to the second, for which there is no room besides.
+/// Two copies made at the cap: deleted for good, the message gives the bytes it came as to both,
+/// which share them. One of them deleted for good too, the other still has them, and the
+/// message's server keeps it meanwhile.
 #[test]
-fn at_the_cap_only_one_of_two_copies_of_a_signed_message_deleted_for_good_gets_its_bytes() {
+fn at_the_cap_two_copies_of_a_signed_message_deleted_for_good_both_get_its_bytes() {
     let (mut s, from, to, id) = two_imap();
     let third = imap_account(&mut s, "home@mail.example", vec![]);
     let used = s.mailbox.messages.originals_size();
@@ -742,9 +743,9 @@ fn at_the_cap_only_one_of_two_copies_of_a_signed_message_deleted_for_good_gets_i
     let copy_b = s.run("mail.copy", &json!({"ids": [id], "folder": b})).unwrap()["copies"][0].as_u64().unwrap();
     let copy_c = s.run("mail.copy", &json!({"ids": [id], "folder": c})).unwrap()["copies"][0].as_u64().unwrap();
     s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
-    let has = |copy: Id| s.mailbox.message(copy).unwrap().original.is_some();
-    assert_eq!((has(copy_b), has(copy_c)), (true, false));
-    assert!(s.mailbox.messages.originals_size() <= mailcraft_model::MAX_ORIGINALS);
+    s.run("mail.deletePermanently", &json!({"ids": [copy_b]})).unwrap();
+    assert_eq!(s.mailbox.message(copy_c).unwrap().original_bytes(), Some(long_signed().as_slice()));
+    assert!(!deletes(&s, from), "held for the other copy");
 }
 
 /// The bytes the message came as whole on the disk here: its waiting copy may be moved onto this
