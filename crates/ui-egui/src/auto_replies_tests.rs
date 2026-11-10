@@ -16,7 +16,7 @@ use mailcraft_model::auto_replies::{AutoReplies, AutoReplyStatus, ExternalAudien
 use mailcraft_model::sync::Tokens;
 use serde_json::json;
 
-use crate::auto_replies::{Again, AutoRepliesJob, AutoRepliesResult, Draft, Permission, Trouble};
+use crate::auto_replies::{Again, AutoRepliesJob, AutoRepliesResult, Draft, Permission, Trouble, Unchanged};
 use crate::dialogs::Dialog;
 use crate::{MailApp, Services, SignInRequest};
 
@@ -425,4 +425,60 @@ fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
         app.poll_sign_in();
         assert!(jobs.lock().unwrap().iter().skip(before).all(|(_, change)| change.is_none()), "{busy}");
     }
+}
+
+/// "Your automatic replies weren't changed" is translated once and each reason by itself (#912),
+/// and the sentence they make is the one shown before, in English and in Dutch (the language
+/// that had them translated).
+#[test]
+fn why_automatic_replies_werent_changed_is_one_heading_and_a_reason() {
+    use crate::i18n::{Lang, RestoreLanguage, set_current};
+    let _language = RestoreLanguage::hold();
+    let failed = || Unchanged::Failed("the server didn't answer".to_string());
+    let said = [
+        (
+            Lang::English,
+            [
+                (Unchanged::Offline, "Your automatic replies weren't changed: you are working offline."),
+                (
+                    Unchanged::NeedsPermission,
+                    "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again).",
+                ),
+                (Unchanged::Denied, "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."),
+                (Unchanged::NotAllowed, "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."),
+                (Unchanged::SignInToRead, "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."),
+                (Unchanged::SignInOver, "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."),
+                (failed(), "Your automatic replies weren't changed: the server didn't answer"),
+                (Unchanged::Unknown, "Your automatic replies weren't changed"),
+            ],
+        ),
+        (
+            Lang::Dutch,
+            [
+                (Unchanged::Offline, "Uw automatische antwoorden zijn niet gewijzigd: u werkt offline."),
+                (
+                    Unchanged::NeedsPermission,
+                    "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Opnieuw vragen).",
+                ),
+                (Unchanged::Denied, "Uw automatische antwoorden zijn niet gewijzigd: uw organisatie staat MailCraft niet toe ze te wijzigen."),
+                (Unchanged::NotAllowed, "Uw automatische antwoorden zijn niet gewijzigd: MailCraft mocht ze niet wijzigen."),
+                (
+                    Unchanged::SignInToRead,
+                    "Uw automatische antwoorden zijn niet gewijzigd: meld u opnieuw aan zodat MailCraft ze kan lezen (Bestand › Info).",
+                ),
+                (Unchanged::SignInOver, "Uw automatische antwoorden zijn niet gewijzigd: Microsoft accepteert uw aanmelding niet meer."),
+                (failed(), "Uw automatische antwoorden zijn niet gewijzigd: the server didn't answer"),
+                (Unchanged::Unknown, "Uw automatische antwoorden zijn niet gewijzigd"),
+            ],
+        ),
+    ];
+    for (lang, texts) in said {
+        set_current(lang);
+        for (why, text) in texts {
+            assert_eq!(why.said(), text, "{lang:?} {why:?}");
+        }
+    }
+    // A reason with braces in it is said as it came, not filled in again.
+    set_current(Lang::English);
+    assert_eq!(Unchanged::Failed("{heading}".to_string()).said(), "Your automatic replies weren't changed: {heading}");
 }
