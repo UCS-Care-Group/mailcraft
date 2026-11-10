@@ -11,10 +11,12 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod ber;
 mod calendar;
 pub mod confusables;
 mod contact;
 pub mod dav;
+pub mod digital_signature;
 mod ews_server;
 pub mod gmail;
 mod jmap_server;
@@ -30,6 +32,7 @@ pub mod pictures;
 pub mod pop;
 pub mod protected;
 pub mod provider;
+pub mod public_keys;
 pub mod remote;
 pub mod remote_rules;
 pub mod remote_tasks;
@@ -53,7 +56,7 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, Labeled, PostalAddress};
+pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use jmap_server::JmapServer;
@@ -159,6 +162,8 @@ mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
 #[cfg(test)]
+mod contact_key_tests;
+#[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]
 mod hidden_text_tests;
@@ -174,6 +179,8 @@ mod original_tests;
 mod pictures_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod public_keys_tests;
 #[cfg(test)]
 mod recurrence_tests;
 #[cfg(test)]

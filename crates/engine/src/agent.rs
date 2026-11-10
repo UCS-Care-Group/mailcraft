@@ -167,6 +167,8 @@ const SAFE: &[&str] = &[
     "mail.viewSource",
     // Downloads a signed or encrypted message's own bytes again from its own server (#30).
     "mail.checkAgain",
+    // What checking a message's Digital signature found, read only (#30 R23).
+    "mail.digitalSignature",
     "mail.new",
     "mail.reply",
     "mail.replyAll",

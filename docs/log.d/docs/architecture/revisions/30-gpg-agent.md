@@ -1,0 +1,1 @@
+| 2026-11-09 | minor | #30: `assuan`, L3: an Assuan client and gpg-agent's operations over any stream, with a bounded canonical S-expression reader and Assuan's socket files; the desktop program finds the agent through `gpgconf`; 21 crates |
