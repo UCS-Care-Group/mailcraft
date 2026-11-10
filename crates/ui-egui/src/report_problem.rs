@@ -1,18 +1,16 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Help › Report a Problem, and its button in the title bar beside Copy Diagnostics: the owner
-//! says what went wrong and MailCraft starts the report for them, two ways.
+//! says what went wrong and MailCraft starts the report for them on GitHub.
 //!
-//! - **MailCraft posts nothing itself.** On GitHub (public, needs a GitHub account) the
-//!   repository's new-issue page is opened in the system's browser, filled in through its
-//!   address with the problem form's fields (`.github/ISSUE_TEMPLATE/problem.yml`), and the
-//!   owner reads it and submits it there. By email (private, from the owner's own account) a new
-//!   message to the maintainers is started in MailCraft's own composer, and nothing goes until
-//!   the owner presses Send. No token, no request, no other program.
+//! - **MailCraft posts nothing itself.** The repository's new-issue page (public, needs a GitHub
+//!   account) is opened in the system's browser, filled in through its address with the problem
+//!   form's fields (`.github/ISSUE_TEMPLATE/problem.yml`), and the owner reads it and submits it
+//!   there. No token, no request, no other program. (Reports by email went in #956: they would
+//!   arrive where nobody can triage them.)
 //! - **The address carries the title, what was typed, the version and the platform, and nothing
 //!   else.** Never the diagnostics: they are saved to a file the owner chooses (downloaded, in
-//!   the browser) and attached on the page by drag and drop; by email they are attached to the
-//!   message from memory. The address never exceeds [`URL_MAX`]: the window cuts what is typed
+//!   the browser) and attached on the page by drag and drop. The address never exceeds [`URL_MAX`]: the window cuts what is typed
 //!   to fit and says so ([`clamp`]); a script's text that doesn't fit is refused, never cut.
 //! - The diagnostics are [`diagnostics`], the very text Copy Diagnostics copies, and the window
 //!   shows all of it before anything is opened.
@@ -30,9 +28,6 @@ pub(crate) const URL_MAX: usize = 8_000;
 /// Where problems are reported (the repository's own new-issue page, with its problem form).
 const NEW_ISSUE: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues/new");
 const TEMPLATE: &str = "problem.yml";
-/// The maintainers' address, read from `funding.json` when this was built (`build.rs`); empty
-/// when it couldn't be.
-pub(crate) const MAINTAINERS: &str = env!("MAILCRAFT_MAINTAINER_EMAIL");
 /// The most of each box that is kept (a paste of a whole log is not a description).
 const TITLE_CHARS: usize = 200;
 const TEXT_CHARS: usize = 6_000;
@@ -160,28 +155,6 @@ pub(crate) fn file_name(app: &MailApp) -> String {
     format!("mailcraft-diagnostics-{}.txt", app.session.today().iso())
 }
 
-/// The account a report by email is written from: the one in view when it sends mail, else
-/// the first that does (never a shared mailbox, which sends only with a permission of its own).
-fn sender(app: &MailApp) -> Option<mailcraft_model::Id> {
-    let mb = &app.session.mailbox;
-    let sends = |a: &&mailcraft_model::Account| a.kind.sends_mail() && !a.is_shared();
-    let in_view = mb.folder(app.session.view.folder).and_then(|f| mb.account(f.account)).filter(sends);
-    in_view.or_else(|| mb.accounts.iter().find(sends)).map(|a| a.id)
-}
-
-/// Why a report can't go by email now; `None` when it can.
-pub(crate) fn email_refused(app: &MailApp) -> Option<String> {
-    if MAINTAINERS.is_empty() {
-        Some(tl!("This copy of MailCraft has no address to send reports to.").to_string())
-    } else if sender(app).is_none() {
-        Some(tl!("Add an account that sends mail first (File › Add Account).").to_string())
-    } else if app.session.compose.is_some() {
-        Some(tl!("Finish or close the message you're writing first.").to_string())
-    } else {
-        None
-    }
-}
-
 /// `ui.reportProblem` (for scripts and the window's buttons; by hand without `what`, the window
 /// opens instead: [`crate::dialogs::input_dialog`]).
 pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
@@ -200,8 +173,7 @@ fn report(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let open = p.get("open").and_then(Value::as_bool).unwrap_or(true);
     match p.get("via").and_then(Value::as_str).unwrap_or("github") {
         "github" => on_github(app, &typed, with_diagnostics, p.get("path").and_then(Value::as_str), open),
-        "email" => by_email(app, &typed, with_diagnostics, open),
-        _ => Err("`via` is github or email".into()),
+        _ => Err("`via` is github".into()),
     }
 }
 
@@ -255,50 +227,6 @@ fn save(path: &str, text: &str) -> Result<(), String> {
 #[cfg(target_arch = "wasm32")]
 fn save(_path: &str, _text: &str) -> Result<(), String> {
     Err(tl!("File dialogs aren't available here").to_string())
-}
-
-/// The body of a report by email: what happened, what was expected, the version and the platform.
-pub(crate) fn email_body(typed: &Typed, attached: bool, version: &str, platform: &str) -> String {
-    let mut body = typed.what.clone();
-    if !typed.expected.is_empty() {
-        body.push_str(&format!("\n\nWhat I expected:\n{}", typed.expected));
-    }
-    body.push_str(&format!("\n\nMailCraft version: {version}\nPlatform: {platform}\n"));
-    if attached {
-        body.push_str("The diagnostics are attached.\n");
-    }
-    body
-}
-
-fn by_email(app: &mut MailApp, typed: &Typed, with_diagnostics: bool, open: bool) -> Result<Value, String> {
-    if let Some(why) = email_refused(app) {
-        return Err(why);
-    }
-    let text = diagnostics(app);
-    let (version, platform) = version_platform(&text);
-    let subject = if typed.title.is_empty() { "MailCraft problem report".to_string() } else { typed.title.clone() };
-    let body = email_body(typed, with_diagnostics, &version, &platform);
-    let name = file_name(app);
-    let mut answer = json!({"via": "email", "to": MAINTAINERS, "subject": subject});
-    if !open {
-        if with_diagnostics {
-            answer["attached"] = json!(name);
-        }
-        return Ok(answer);
-    }
-    let account = sender(app);
-    app.execute("mail.new", json!({"to": MAINTAINERS, "subject": subject, "body": body, "account": account}))?;
-    if with_diagnostics {
-        let attached = app.execute("compose.attach", json!({"name": name, "data": base64_lite::encode(text.as_bytes()), "mime": "text/plain"}));
-        if let Err(e) = attached {
-            // A message without the file it says it has is not left behind.
-            let _ = app.execute("compose.close", json!({}));
-            return Err(e);
-        }
-        answer["attached"] = json!(name);
-    }
-    app.status(tl!("Your report is ready in a new message: check it, then press Send."));
-    Ok(answer)
 }
 
 /// What the Report a Problem window holds while it is open.
@@ -367,13 +295,9 @@ impl Draft {
                 let shown = ui.add(egui::TextEdit::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
                 crate::text_menu::read_only(shown);
             });
-            ui.label(dim(tl!(
-                "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."
-            )));
+            ui.label(dim(tl!("They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link.")));
         }
-        ui.label(dim(tl!(
-            "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
-        )));
+        ui.label(dim(tl!("GitHub is public and needs a GitHub account.")));
         if !self.error.is_empty() {
             ui.label(egui::RichText::new(self.error.as_str()).color(t.red));
         }
@@ -386,29 +310,17 @@ impl Draft {
             ui.label(dim(tl!("Choose where to save the diagnostics: GitHub's page opens once they are saved.")));
         }
         let ready = !self.typed.what.trim().is_empty() && !self.waiting;
-        let email_no = email_refused(app);
         let mut via = None;
         let mut cancel = false;
         ui.add_space(4.0);
         crate::dialogs::button_row(ui, |ui| {
             cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked();
-            let mail = ui.add_enabled(ready && email_no.is_none(), egui::Button::new(tl!("Send by Email")).min_size(vec2(96.0, 26.0)));
-            let mail = match &email_no {
-                Some(why) => mail.on_disabled_hover_text(why.as_str()),
-                None => mail.on_hover_text(tl!("A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send.")),
-            };
-            if mail.clicked() {
-                via = Some("email");
-            }
             let github = primary_button(ui, tl!("Open on GitHub"), ready)
                 .on_hover_text(tl!("Opens GitHub's page in your browser, filled in: you check it and submit it there."));
             if github.clicked() && ready {
                 via = Some("github");
             }
         });
-        if let Some(why) = email_no.filter(|_| ready) {
-            ui.label(dim(&why));
-        }
         let Some(via) = via else { return cancel };
         match app.run("ui.reportProblem", self.params(via)) {
             Ok(v) if v.get("pending").is_some() => {

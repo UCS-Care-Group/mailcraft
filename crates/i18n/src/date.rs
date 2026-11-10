@@ -57,8 +57,9 @@ const HOURS: (&str, &str) = ("{n} hour", "{n} hours");
 const DAYS: (&str, &str) = ("{n} day", "{n} days");
 
 /// What a language writes dates and times by that isn't a word: the default clock and first day
-/// of the week (an owner who never chose their own gets these), and whether numbers in a date are
-/// padded to two digits.
+/// of the week (an owner who never chose their own gets these), whether numbers in a date are
+/// padded to two digits, and (for English, whose one catalogue is the US's) whether the day comes
+/// before the month.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Conventions {
     /// `3:05 PM` rather than `15:05`.
@@ -67,18 +68,57 @@ pub struct Conventions {
     pub week_start: u8,
     /// `03/10/2026` rather than `3/10/2026`.
     pub pad_numeric: bool,
+    /// `11 Oct 2026` rather than `Oct 11, 2026`. Read for English only ([`Dated`]): another
+    /// language's catalogue gives its own order.
+    pub day_first: bool,
 }
 
+/// The US's: `Oct 11, 2026`, `10/11/2026`, `3:05 PM`, weeks from Sunday.
+const US: Conventions = Conventions { twelve_hour: true, week_start: 6, pad_numeric: false, day_first: false };
+
 impl Lang {
-    /// How this language writes dates: English's (the program's until now) for English and pseudo.
+    /// How this language writes dates, wherever it is spoken: English's are the US's.
     pub fn conventions(self) -> Conventions {
+        self.conventions_in(None)
+    }
+
+    /// How this language writes dates in `region` (`GB`, `001`: [`region_of`] a tag). English
+    /// varies by region: the US's for none, the US, the Philippines and Canada; else the day
+    /// first (`11 Oct 2026`, `11/10/2026`), on a 24-hour clock from Monday, but a 12-hour one in
+    /// Australia, New Zealand and India, and weeks from Sunday in India. The other languages
+    /// write dates their own way everywhere.
+    // ponytail: a short table, not CLDR; CLDR's data is the way up if more regions or languages
+    // need their own.
+    pub fn conventions_in(self, region: Option<&str>) -> Conventions {
         match self {
-            Lang::English | Lang::Pseudo => Conventions { twelve_hour: true, week_start: 6, pad_numeric: false },
+            Lang::Pseudo => US,
+            Lang::English => {
+                let Some(region) = region.map(str::to_ascii_uppercase) else { return US };
+                let (twelve_hour, week_start) = match region.as_str() {
+                    "US" | "PH" | "CA" => return US,
+                    "AU" | "NZ" => (true, 0),
+                    "IN" => (true, 6),
+                    _ => (false, 0),
+                };
+                Conventions { twelve_hour, week_start, pad_numeric: true, day_first: true }
+            }
             Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch => {
-                Conventions { twelve_hour: false, week_start: 0, pad_numeric: true }
+                Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
         }
     }
+}
+
+/// The region of a language tag (`GB` in `en-GB` and `en-Latn-GB`, `001` in `en-001`): the first
+/// subtag after the language of two letters or three digits. `None` when there is none, or the
+/// tag is not one (`C`, `english`).
+pub fn region_of(tag: &str) -> Option<&str> {
+    let mut parts = tag.split(['-', '_']);
+    let language = parts.next()?;
+    if !(2..=3).contains(&language.len()) || !language.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return None;
+    }
+    parts.find(|p| (p.len() == 2 && p.bytes().all(|b| b.is_ascii_alphabetic())) || (p.len() == 3 && p.bytes().all(|b| b.is_ascii_digit())))
 }
 
 /// What dates are said in: a language, or (in tests) a catalogue of one's own.
@@ -99,6 +139,45 @@ impl Words for Lang {
     }
     fn conventions(&self) -> Conventions {
         Lang::conventions(*self)
+    }
+}
+
+/// A language with the conventions of the region it is read in ([`Lang::conventions_in`]):
+/// English with the day first writes `11 Oct 2026` where its catalogue (the US's) says
+/// `Oct 11, 2026`. Every other word is the language's own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dated {
+    pub lang: Lang,
+    pub conventions: Conventions,
+}
+
+impl Dated {
+    /// `lang` as it is written in `region`.
+    pub fn new(lang: Lang, region: Option<&str>) -> Dated {
+        Dated { lang, conventions: lang.conventions_in(region) }
+    }
+}
+
+impl Words for Dated {
+    fn t<'a>(&'a self, s: &'a str) -> &'a str {
+        if self.lang == Lang::English && self.conventions.day_first {
+            match s {
+                LONG => return "{weekday} {day} {month} {year}",
+                MEDIUM => return "{day} {month} {year}",
+                NUMERIC => return "{day}/{month}/{year}",
+                MONTH_DAY => return "{day} {month}",
+                WEEKDAY_MONTH_DAY => return "{weekday} {day} {month}",
+                WEEKDAY_MEDIUM => return "{weekday} {date}",
+                _ => {}
+            }
+        }
+        self.lang.t(s)
+    }
+    fn tn<'a>(&'a self, n: u64, one: &'a str, other: &'a str) -> &'a str {
+        self.lang.tn(n, one, other)
+    }
+    fn conventions(&self) -> Conventions {
+        self.conventions
     }
 }
 
@@ -366,12 +445,50 @@ mod tests {
 
     #[test]
     fn each_language_has_its_own_clock_and_week() {
-        assert_eq!(Lang::English.conventions(), Conventions { twelve_hour: true, week_start: 6, pad_numeric: false });
+        assert_eq!(Lang::English.conventions(), Conventions { twelve_hour: true, week_start: 6, pad_numeric: false, day_first: false });
         assert_eq!(Lang::Pseudo.conventions(), Lang::English.conventions());
         for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch] {
             let c = lang.conventions();
             assert_eq!((c.twelve_hour, c.week_start, c.pad_numeric), (false, 0, true), "{lang:?}");
         }
+    }
+
+    /// English outside the US, Canada and the Philippines writes the day first (#978).
+    #[test]
+    fn english_follows_the_region() {
+        let gb = Dated::new(Lang::English, region_of("en-GB"));
+        assert_eq!(long(&gb, SUN), "Sunday 11 October 2026");
+        assert_eq!(medium(&gb, SUN), "11 Oct 2026");
+        assert_eq!(weekday_medium(&gb, SUN), "Sun 11 Oct 2026");
+        assert_eq!(long_without_weekday(&gb, SUN), "11 October 2026");
+        assert_eq!(numeric(&gb, OLD), "03/10/2025");
+        assert_eq!(month_day(&gb, 10, 3), "3 Oct");
+        assert_eq!(month_day_long(&gb, 3, 14), "14 March");
+        assert_eq!(weekday_month_day(&gb, SUN), "Sun 11 Oct");
+        assert_eq!(weekday_month_day_long(&gb, SUN), "Sunday 11 October");
+        assert_eq!(month_year(&gb, 2026, 10), "October 2026");
+        assert_eq!(list_label(&gb, OLD, 15, 5, 400, false, false), "03/10/2025");
+        assert_eq!(header_label(&gb, SUN, 9, 30, false), "Sun 11/10/2026 09:30");
+        assert_eq!(duration(&gb, 90), "1.5 hours");
+        let c = |tag: &str| {
+            let c = Lang::English.conventions_in(region_of(tag));
+            (c.day_first, c.twelve_hour, c.week_start)
+        };
+        for tag in ["en-GB", "en_IE", "en-ZA", "en-001", "en-Latn-GB", "en-gb"] {
+            assert_eq!(c(tag), (true, false, 0), "{tag}");
+        }
+        assert_eq!((c("en-AU"), c("en-NZ"), c("en-IN")), ((true, true, 0), (true, true, 0), (true, true, 6)));
+        for tag in ["en-US", "en-CA", "en-PH", "en", "", "C", "english", "en-", "en-G", "en-GBR", "e\u{e9}-GB"] {
+            assert_eq!(c(tag), (false, true, 6), "{tag:?}");
+            assert_eq!(long(&Dated::new(Lang::English, region_of(tag)), SUN), "Sunday, October 11, 2026");
+        }
+        // Another language writes its own way wherever it is read.
+        let fr = Dated::new(Lang::French, region_of("en-GB"));
+        assert_eq!((long(&fr, SUN), numeric(&fr, OLD)), (long(&Lang::French, SUN), numeric(&Lang::French, OLD)));
+        assert_eq!(Lang::French.conventions_in(Some("US")), Lang::French.conventions());
+        assert_eq!(long(&Dated::new(Lang::Pseudo, Some("GB")), SUN), long(&Lang::Pseudo, SUN));
+        assert_eq!(region_of("en-US-posix"), Some("US"));
+        assert_eq!(region_of("zh-Hant-TW"), Some("TW"));
     }
 
     /// The shipped catalogues: each language's own order, names and numeric form.

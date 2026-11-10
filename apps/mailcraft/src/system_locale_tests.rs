@@ -66,3 +66,15 @@ fn the_c_locale_set_first_wins_and_names_nothing() {
     assert_eq!(from_environment(e), None);
     assert_eq!(from_environment(env(&[])), None);
 }
+
+/// Dates follow `LC_TIME`, not `LC_MESSAGES` (#978): English text with British dates.
+#[test]
+fn the_regional_format_is_lc_time_s() {
+    let e = env(&[("LC_MESSAGES", "en_US.UTF-8"), ("LC_TIME", "en_GB.UTF-8"), ("LANG", "en_US.UTF-8")]);
+    assert_eq!(from_environment(&e).as_deref(), Some("en-US"));
+    assert_eq!(time_from_environment(&e).as_deref(), Some("en-GB"));
+    let all = env(&[("LC_ALL", "en_AU"), ("LC_TIME", "en_GB")]);
+    assert_eq!(time_from_environment(all).as_deref(), Some("en-AU"));
+    assert_eq!(time_from_environment(env(&[("LANG", "en_IE.UTF-8")])).as_deref(), Some("en-IE"));
+    assert_eq!(time_from_environment(env(&[("LC_TIME", "../..")])), None);
+}

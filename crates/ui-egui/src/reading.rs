@@ -39,6 +39,9 @@ mod select;
 mod sharing;
 #[cfg(test)]
 mod sharing_tests;
+mod signature;
+#[cfg(test)]
+mod signature_tests;
 #[cfg(test)]
 mod tests;
 mod view;
@@ -57,6 +60,7 @@ pub(crate) use invitation::{list_marks, options as invitation_options, question 
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
 pub(crate) use select::{inspect as selection_inspect, select_all_params};
+pub(crate) use signature::row_seal as signature_seal;
 pub(crate) use view::char_at;
 pub(crate) use warnings::row_mark as warning_mark;
 
@@ -324,29 +328,67 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
 
 /// The carried original as a message to show: the original's sender, date and place (what its
 /// pictures are allowed by), with the quote's HTML for a body and the pictures the quote takes
-/// along. Kept from frame to frame while the quote stays the same.
+/// along. Kept from frame to frame while the quote stays the same, for each message being
+/// written (the windows of several share the context), and let go of with it.
 fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let c = app.session.compose.as_ref()?;
     let quote = c.quote.as_ref()?;
-    let key = egui::Id::unique("mailcraft-compose-quote");
-    let kept: Option<Arc<Message>> = ctx.data(|d| d.get_temp(key));
+    let key = quotes_key();
+    let mut kept: Vec<(u64, Arc<Message>)> = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
-    let pictures = if quote.pictures.is_empty() { &c.attachments } else { &quote.pictures };
-    let same = |m: &Arc<Message>| {
-        m.body.html.as_deref() == Some(quote.html.as_str()) && m.id == source.map_or(0, |s| s.id) && m.attachments.len() == pictures.len()
+    // The quote's own pictures (those the original showed, for an answer; those written into it,
+    // #602), and, but for an answer, the message's attachments: a forward carries the original's
+    // itself, its pictures among them, and so does one opened again as a draft (a picture its
+    // HTML calls by a Content-ID written otherwise, `cid:logo%40…`, stays among them).
+    let answer = matches!(c.mode, mailcraft_engine::ComposeMode::Reply | mailcraft_engine::ComposeMode::ReplyAll);
+    let forward = !answer || quote.pictures.is_empty();
+    let attached: &[mailcraft_model::Attachment] = if forward { &c.attachments } else { &[] };
+    let pictures = || quote.pictures.iter().chain(attached);
+    // The same pictures: the same parts, by their ids and their very bytes, in the same order.
+    let same_part = |a: &mailcraft_model::Attachment, b: &mailcraft_model::Attachment| {
+        a.content_id == b.content_id && a.name == b.name && Arc::ptr_eq(&a.data, &b.data)
     };
-    if let Some(m) = kept.filter(same) {
-        return Some(m);
+    let same = |m: &Arc<Message>| {
+        m.body.html.as_deref() == Some(quote.html.as_str())
+            && m.id == source.map_or(0, |s| s.id)
+            && m.attachments.len() == quote.pictures.len().saturating_add(attached.len())
+            && m.attachments.iter().zip(pictures()).all(|(a, b)| same_part(a, b))
+    };
+    if let Some((_, m)) = kept.iter().find(|(id, m)| *id == c.id && same(m)) {
+        return Some(m.clone());
     }
     let mut m = source.map(|s| (**s).clone()).unwrap_or_default();
     m.body = mailcraft_model::Body { text: quote.text.clone(), html: Some(quote.html.clone()) };
-    // A forward carries the original's attachments itself, its pictures among them.
-    m.attachments = pictures.clone();
+    m.attachments = pictures().cloned().collect();
     // Its body is the quote's, whole: nothing of it waits on disk.
     m.kept = None;
     let m = Arc::new(m);
-    ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+    // This one's old quote goes (what is kept for a message no longer being written went at the
+    // start of the frame, [`let_go_of_quotes`]).
+    kept.retain(|(id, _)| *id != c.id);
+    kept.push((c.id, m.clone()));
+    ctx.data_mut(|d| d.insert_temp(key, kept));
     Some(m)
+}
+
+/// Where the carried originals are kept, in the context the windows share.
+fn quotes_key() -> egui::Id {
+    egui::Id::unique("mailcraft-compose-quote")
+}
+
+/// The carried originals of messages no longer being written go, with their pictures' bytes:
+/// once a frame, so a window that closes lets go of its own even when no other is open.
+fn let_go_of_quotes(app: &MailApp, ctx: &egui::Context) {
+    let key = quotes_key();
+    ctx.data_mut(|d| {
+        let Some(kept) = d.get_temp::<Vec<(u64, Arc<Message>)>>(key) else { return };
+        let left: Vec<(u64, Arc<Message>)> = kept.into_iter().filter(|(id, _)| app.session.all_composing().any(|open| open.id == *id)).collect();
+        if left.is_empty() {
+            d.remove::<Vec<(u64, Arc<Message>)>>(key);
+        } else {
+            d.insert_temp(key, left);
+        }
+    });
 }
 
 /// `m` shown read-only through the display blocks, as at `place` ([`Place::Preview`]): its own
@@ -355,8 +397,10 @@ pub(crate) fn show_plain_view(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, 
     view::show(app, ui, m, place, Access::Blocked);
 }
 
-/// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]).
+/// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]), and the
+/// quoted originals of messages no longer being written are let go of.
 pub(crate) fn tick(app: &mut MailApp, ctx: &egui::Context) {
+    let_go_of_quotes(app, ctx);
     remote::tick(app, ctx);
 }
 
@@ -403,6 +447,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // What checking its Digital signature found (#30).
+        signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
         ui.horizontal(|ui| {
             let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
@@ -600,8 +646,11 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
+    // The signature part of a message whose signature was checked (that very part, by its bytes)
+    // is what its bar says; it is reached from the bar's Details (#30).
+    let signature = app.session.digital_signature_known(m.id).and_then(|_| app.session.digital_signature_part(m.id));
     let files: Vec<(usize, &mailcraft_model::Attachment)> =
-        m.listed_attachments().filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index)).collect();
+        m.listed_attachments().filter(|(index, _)| !invitation::stands_for(meeting.as_deref(), *index) && Some(*index) != signature).collect();
     if files.is_empty() {
         return;
     }
@@ -682,7 +731,7 @@ pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
 
 /// An attachment's menu, the same from a right-click on its chip and from the chip's `▾` (#785).
 /// Each entry is greyed when its command can't run, and the command keeps its own refusals.
-fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
+pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
     crate::widgets::mi(ui, app, "Open", "mail.openAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": id}));

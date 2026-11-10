@@ -28,6 +28,7 @@ mod crypt;
 mod error;
 mod header;
 mod heap;
+mod list_stream;
 mod ltp;
 mod named;
 mod ndb;
@@ -60,6 +61,7 @@ pub use crc::crc32;
 pub use crypt::Encryption;
 pub use error::{Cap, Damage, Error, Limits, MAX_DAMAGE, Result};
 pub use header::Format;
+pub use list_stream::{ListMember, ListStream, MAX_LIST_ENTRY, list_stream};
 pub use named::{NamedMap, NamedProperty, PS_MAPI, PS_PUBLIC_STRINGS, PropName};
 pub use prop::{PropValue, Properties, Property, types};
 pub use pst::{
