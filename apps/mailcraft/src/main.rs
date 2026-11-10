@@ -1874,6 +1874,13 @@ fn services(
         development_build: build_sha() == "dev",
         // A copy that updates itself downloads a newer release, checked by its signature.
         update_download: updates.map(|updates| update_download(&download_ctx, updates.clone())),
+        // Any of the project's packages: its file in a release, for Download update (#876). A
+        // build that isn't one doesn't know which it is, and the release's page is opened.
+        release_file: (build_sha() != "dev").then(|| {
+            let package = install::package();
+            Box::new(move |version: &mailcraft_model::update::Version| package.file_name(version, std::env::consts::ARCH))
+                as Box<dyn Fn(&mailcraft_model::update::Version) -> Option<String>>
+        }),
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
         // The system's language, for an interface language left on Automatic.
         system_locale: system_locale::system_locale(),
@@ -1884,13 +1891,14 @@ fn services(
 /// The download of a newer release, for a copy that updates itself (the `.msi`, the macOS app,
 /// an AppImage) and is one of the project's packages, into the data folder's `updates/`, on a
 /// background thread; checked by the release's own signature there (`mailcraft_net`). What was
-/// checked, and the SHA-256 its signed list gives, is noted for installing it at exit.
+/// checked, and the SHA-256 its signed list gives, is noted for installing it at exit. How far it
+/// has come goes to `progress`, whose Cancel stops it.
 fn update_download(
     ctx: &egui::Context,
     updates: HostUpdates,
-) -> Box<dyn Fn(mailcraft_model::update::Release) -> std::sync::mpsc::Receiver<Result<PathBuf, String>>> {
+) -> Box<dyn Fn(mailcraft_model::update::Release, mailcraft_ui_egui::updates::Progress) -> std::sync::mpsc::Receiver<Result<PathBuf, String>>> {
     let ctx = ctx.clone();
-    Box::new(move |release: mailcraft_model::update::Release| {
+    Box::new(move |release: mailcraft_model::update::Release, progress: mailcraft_ui_egui::updates::Progress| {
         let updates = updates.clone();
         background(&ctx, "update download", move || {
             if wipe::begun() {
@@ -1899,7 +1907,8 @@ fn update_download(
             let dir = updates.folders.updates();
             // The SHA-256 noted is the signed list's, not the file's read back: what is
             // installed is checked against what the release signed.
-            let verified = updater::download(&release, updates.install, &dir, mailcraft_net::update_download::download)?;
+            let watch = |done: u64, total: u64| progress.note(done, total);
+            let verified = updater::download(&release, updates.install, &dir, &watch, mailcraft_net::update_download::download_watched)?;
             let got = verified.path.clone();
             *updates.verified.lock().unwrap_or_else(|e| e.into_inner()) = Some(verified);
             Ok(got)

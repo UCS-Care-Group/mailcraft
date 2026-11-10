@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use mailcraft_model::update::Release;
-use mailcraft_net::update_download::{DownloadError, Downloaded};
+use mailcraft_net::update_download::{DownloadError, Downloaded, Watch};
 
 use crate::install::Install;
 use crate::self_update::Verified;
@@ -47,18 +47,20 @@ pub fn turned_off_by_organisation() -> bool {
 }
 
 /// Download `release`'s file for `install` into `dir`, checked, with `fetch` doing the
-/// downloading (`mailcraft_net::update_download::download`, or a stand-in in the tests). Where
-/// the file is and the SHA-256 the release's signed list gives for it (never one worked out
-/// from the file again, which may have been changed since it was checked), or why there is none
-/// in words that name no address.
+/// downloading (`mailcraft_net::update_download::download_watched`, or a stand-in in the tests),
+/// which tells `watch` how far it has come and stops when it says so. Where the file is and the
+/// SHA-256 the release's signed list gives for it (never one worked out from the file again,
+/// which may have been changed since it was checked), or why there is none in words that name
+/// no address.
 pub fn download(
     release: &Release,
     install: Install,
     dir: &Path,
-    fetch: impl Fn(&Release, &str, &Path) -> Result<Downloaded, DownloadError>,
+    watch: Watch<'_>,
+    fetch: impl Fn(&Release, &str, &Path, Watch<'_>) -> Result<Downloaded, DownloadError>,
 ) -> Result<Verified, String> {
     let name = install.file_name(&release.version, std::env::consts::ARCH).ok_or_else(|| "this copy has no file in a release".to_string())?;
-    let got = fetch(release, &name, dir).map_err(|e| e.to_string())?;
+    let got = fetch(release, &name, dir, watch).map_err(|e| e.to_string())?;
     Ok(Verified { version: release.version.clone(), path: got.path, sha256: got.sha256 })
 }
 

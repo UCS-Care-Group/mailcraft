@@ -909,6 +909,11 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Another download is still on its way. Try again in a moment."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Another mailbox was opened: the import stopped."
 msgstr ""
@@ -1695,7 +1700,7 @@ msgid "Calibri"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/updates.rs
 msgid "Cancel"
 msgstr ""
 
@@ -1741,9 +1746,19 @@ msgstr ""
 msgid "Cancel This Meeting?"
 msgstr ""
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Cancel Update Download"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Cancelled"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Cancelling…"
 msgstr ""
 
 #. interface, name
@@ -2939,6 +2954,16 @@ msgid "Download the bytes this message came as again, to check its Digital signa
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Download the new version, check it by MailCraft's release signature, then restart to update. Nothing is installed until you do or quit."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Download update"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Downloaded pictures and opened attachments can't be told apart by account: File › Info › Remove MailCraft's data from this computer clears them."
 msgstr ""
@@ -2954,6 +2979,16 @@ msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
 msgstr[0] ""
 msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Downloading MailCraft {version}…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Downloading MailCraft {version}… {percent}%"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -5354,6 +5389,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+msgid "MailCraft {version} couldn't be downloaded: {why}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
 msgid "MailCraft {version} didn't start."
 msgstr ""
 
@@ -5365,6 +5405,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "MailCraft {version} is available and fixes a security problem"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "MailCraft {version} is downloaded and checked: restart to update."
 msgstr ""
 
 #. interface
@@ -6322,7 +6367,17 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+msgid "No new version is being downloaded."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
 msgid "No new version is ready to install."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "No newer version of MailCraft is known."
 msgstr ""
 
 #. interface
@@ -6975,6 +7030,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "Open this calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Open this version's file for your computer in the browser (its page when no single file fits)."
 msgstr ""
 
 #. interface
@@ -10346,6 +10406,11 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+msgid "The download of MailCraft {version} was cancelled."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The draft stays in Drafts. {why}"
 msgstr ""
@@ -12009,6 +12074,16 @@ msgstr ""
 #. name
 #: crates/time/src/lib.rs
 msgid "Upcoming"
+msgstr ""
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
+msgid "Update"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Update is the owner's click."
 msgstr ""
 
 #. what a command says

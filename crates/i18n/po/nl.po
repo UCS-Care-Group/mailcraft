@@ -1096,6 +1096,12 @@ msgstr[0] "En nog {n} dergelijke koppeling."
 msgstr[1] "En nog {n} dergelijke koppelingen."
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Another download is still on its way. Try again in a moment."
+msgstr "Er is nog een andere download bezig. Probeer het zo meteen opnieuw."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Another mailbox was opened: the import stopped."
@@ -2041,7 +2047,7 @@ msgid "Calibri"
 msgstr "Calibri"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuleren"
@@ -2098,11 +2104,23 @@ msgstr "Aanmelden annuleren"
 msgid "Cancel This Meeting?"
 msgstr "Deze vergadering annuleren?"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Cancel Update Download"
+msgstr "Downloaden van update annuleren"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Cancelled"
 msgstr "Geannuleerd"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Cancelling…"
+msgstr "Bezig met annuleren…"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -3545,6 +3563,18 @@ msgid "Download the bytes this message came as again, to check its Digital signa
 msgstr "Download de bytes zoals dit bericht binnenkwam opnieuw, om de digitale ondertekening te controleren"
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Download the new version, check it by MailCraft's release signature, then restart to update. Nothing is installed until you do or quit."
+msgstr "De nieuwe versie downloaden, controleren met de releasehandtekening van MailCraft en dan opnieuw starten om bij te werken. Er wordt pas dan of bij afsluiten iets geïnstalleerd."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Download update"
+msgstr "Update downloaden"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Downloaded pictures and opened attachments can't be told apart by account: File › Info › Remove MailCraft's data from this computer clears them."
@@ -3563,6 +3593,18 @@ msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
 msgstr[0] "{n} bijlage gedownload"
 msgstr[1] "{n} bijlagen gedownload"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Downloading MailCraft {version}…"
+msgstr "MailCraft {version} wordt gedownload…"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Downloading MailCraft {version}… {percent}%"
+msgstr "MailCraft {version} wordt gedownload… {percent}%"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -6462,6 +6504,12 @@ msgstr "MailCraft maakt één afspraak met de naam „MailCraft connection check
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
+msgid "MailCraft {version} couldn't be downloaded: {why}."
+msgstr "MailCraft {version} kon niet worden gedownload: {why}."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft {version} didn't start."
 msgstr "MailCraft {version} is niet gestart."
 
@@ -6476,6 +6524,12 @@ msgstr "MailCraft {version} is beschikbaar"
 #, fuzzy
 msgid "MailCraft {version} is available and fixes a security problem"
 msgstr "MailCraft {version} is beschikbaar en verhelpt een beveiligingsprobleem"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} is downloaded and checked: restart to update."
+msgstr "MailCraft {version} is gedownload en gecontroleerd: start opnieuw om bij te werken."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -7644,8 +7698,20 @@ msgstr "Er wordt daar geen bericht gelezen"
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
+msgid "No new version is being downloaded."
+msgstr "Er wordt geen nieuwe versie gedownload."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "No new version is ready to install."
 msgstr "Er staat geen nieuwe versie klaar om te installeren."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "No newer version of MailCraft is known."
+msgstr "Er is geen nieuwere versie van MailCraft bekend."
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -8430,6 +8496,12 @@ msgstr "De pagina opnieuw openen"
 #, fuzzy
 msgid "Open this calendar"
 msgstr "Deze agenda openen"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Open this version's file for your computer in the browser (its page when no single file fits)."
+msgstr "Het bestand van deze versie voor uw computer in de browser openen (de pagina als geen enkel bestand past)."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -12512,6 +12584,12 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr "De diagnosegegevens zijn niet opgeslagen, dus de pagina van GitHub is niet geopend. Probeer het opnieuw, of vink Diagnose opnemen uit."
 
 #. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "The download of MailCraft {version} was cancelled."
+msgstr "Het downloaden van MailCraft {version} is geannuleerd."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The draft stays in Drafts. {why}"
@@ -14525,6 +14603,18 @@ msgstr "Actueel"
 #, fuzzy
 msgid "Upcoming"
 msgstr "Aankomend"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Update"
+msgstr "Bijwerken"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Update is the owner's click."
+msgstr "Bijwerken is de klik van de eigenaar."
 
 #. what a command says
 #: crates/model/src/sync/progress.rs

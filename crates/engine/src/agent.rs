@@ -579,6 +579,9 @@ const NEVER: &[&str] = &[
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
     "ui.goBackVersion",
+    // Downloading a new version, opening its file, or stopping that: only the owner's click.
+    "ui.downloadUpdate",
+    "ui.cancelUpdateDownload",
     // The owner's own answer to sending the tasks that exist only here to an account's To Do
     // (#632): an agent never gives it, asked or not.
     "tasks.sendLocal",
