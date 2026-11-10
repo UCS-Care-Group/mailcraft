@@ -216,6 +216,13 @@ fn cal(s: &mut Session, view: CalView) -> CmdResult {
     s.view.module = Module::Calendar;
     if view == CalView::List {
         reveal(s);
+        // A row is the whole series: what was selected in a grid is the series now, not one day
+        // of it, and an occurrence changed on its own is its series' row.
+        s.sel.event_day = None;
+        let series = s.sel.event.and_then(|id| s.mailbox.event(id)).and_then(|e| super::calendar_list::series_of(s, e));
+        if let Some(series) = series {
+            s.sel.event = Some(series);
+        }
     }
     Ok(json!({"view": view, "range": range_json(s)}))
 }

@@ -4,10 +4,11 @@
 //! click on a heading, a double click on a series, the keys, and the columns giving way.
 
 use egui::Key;
-use mailcraft_engine::{CalView, ListColumn};
+use mailcraft_engine::cmd::calendar_list::{Group, sections};
+use mailcraft_engine::{CalView, ListArrange, ListColumn, Session};
 use serde_json::json;
 
-use super::{Col, fit};
+use super::{Col, LINE_H, fit, lines, selected_line};
 use crate::calendar_view::tests::{CTRL, NOW, Rig};
 
 /// Ctrl with Alt (Command with Ctrl on a Mac): what the calendar's views are chosen with.
@@ -115,4 +116,81 @@ fn the_columns_give_way_and_subject_and_start_stay() {
     for width in [0.0, f32::NAN, -5.0, f32::INFINITY] {
         assert_eq!(fit(width).len(), 2, "{width}");
     }
+}
+
+#[test]
+fn how_the_list_is_sorted_and_arranged_comes_back_after_a_restart() {
+    let mut rig = listed();
+    rig.run("calendar.listSort", json!({"by": "subject", "descending": true}));
+    rig.run("calendar.listArrange", json!({"by": "categories"}));
+    let saved = serde_json::to_value(rig.app.prefs()).unwrap();
+    let restart = |saved: serde_json::Value| {
+        let mut again = crate::MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
+        again.apply_prefs(serde_json::from_value(saved).unwrap());
+        let v = &again.session.view;
+        (v.calendar, v.list_sort, v.list_descending, v.list_arrange)
+    };
+    assert_eq!(restart(saved.clone()), (CalView::List, ListColumn::Subject, true, ListArrange::Categories));
+    // Settings from before the List view start on its own order; a column that doesn't sort isn't
+    // sorted by.
+    let mut older = saved.clone();
+    for key in ["listSort", "listDescending", "listArrange"] {
+        older["view"].as_object_mut().unwrap().remove(key);
+    }
+    assert_eq!(restart(older), (CalView::List, ListColumn::Start, false, ListArrange::Recurrence));
+    let mut odd = saved;
+    odd["view"]["listSort"] = json!("categories");
+    assert_eq!(restart(odd).1, ListColumn::Start);
+}
+
+#[test]
+fn switching_to_the_list_asks_nothing_about_the_day_that_was_selected() {
+    let mut rig = Rig::sample();
+    let standup = rig.event("Team stand-up").id;
+    let day = rig.event("Team stand-up").start.date.add_days(7);
+    rig.run("calendar.select", json!({"id": standup, "day": day.iso()}));
+    rig.chord(views_key(), Key::Num5);
+    assert_eq!(rig.selected(), (Some(standup), None));
+    // Delete is about the series: nobody is asked about one day of it, and the series goes.
+    rig.key(Key::Delete);
+    if let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &rig.app.dialog {
+        panic!("asked: {}", ask.title);
+    }
+    assert!(rig.app.session.mailbox.event(standup).is_none());
+}
+
+#[test]
+fn of_an_event_under_two_categories_the_row_clicked_is_the_one_selected() {
+    let mut mailbox = mailcraft_model::Mailbox::with_local_account("Ada", "ada@example.org");
+    mailbox.events.clear();
+    let day = mailcraft_time::Date::new(2026, 10, 14).unwrap();
+    for (n, (title, categories)) in [("Both", &["Errands", "Garden"][..]), ("Errand", &["Errands"]), ("Garden", &["Garden"])].into_iter().enumerate()
+    {
+        let start = mailcraft_time::DateTime::new(day.add_days(n as i64), 9, 0, 0).unwrap();
+        let categories = categories.iter().map(|c| c.to_string()).collect();
+        mailbox
+            .add_event(mailcraft_model::Event { title: title.into(), start, end: start.add_minutes(30), categories, ..Default::default() })
+            .unwrap();
+    }
+    let mut rig = Rig::new(mailbox);
+    rig.run("view.list", json!({}));
+    rig.run("calendar.listArrange", json!({"by": "categories"}));
+    // Errands: Both, Errand; Garden: Both, Garden. Garden's Both is two lines under Errand.
+    let second = row(&rig, "Errand").translate(egui::vec2(0.0, 2.0 * LINE_H));
+    rig.click(second.center(), 1);
+    let both = rig.event("Both").id;
+    assert_eq!(rig.selected(), (Some(both), None));
+    // Only that row is the one selected; chosen by a script, it is the first.
+    let all = sections(&rig.app.session);
+    let at = lines(&all);
+    let garden = (both, Group::Category(Some("Garden".into())));
+    assert_eq!(selected_line(&all, &at, Some(both), Some(&garden)), Some(4));
+    assert_eq!(selected_line(&all, &at, Some(both), None), Some(1));
+    assert_eq!(selected_line(&all, &at, Some(both), Some(&(rig.event("Garden").id, garden.1.clone()))), Some(1));
+    // Down goes on from it, within Garden.
+    rig.key(Key::ArrowDown);
+    assert_eq!(rig.selected().0, Some(rig.event("Garden").id));
+    rig.key(Key::ArrowUp);
+    rig.key(Key::ArrowUp);
+    assert_eq!(rig.selected().0, Some(rig.event("Errand").id));
 }

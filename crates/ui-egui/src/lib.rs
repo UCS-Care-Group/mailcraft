@@ -1990,9 +1990,14 @@ impl MailApp {
         let v = &mut self.session.view;
         (v.sort, v.sort_descending, v.conversations, v.reading_pane, v.folder_pane, v.calendar, v.task_filter) =
             (saved.sort, saved.sort_descending, saved.conversations, saved.reading_pane, saved.folder_pane, saved.calendar, saved.task_filter);
-        // How People and Tasks are arranged, likewise.
+        // How People, Tasks and the calendar's List view are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        (v.list_sort, v.list_descending, v.list_arrange) = (saved.list_sort, saved.list_descending, saved.list_arrange);
+        // (A file written by hand can name a column that doesn't sort.)
+        if !v.list_sort.sorts() {
+            v.list_sort = mailcraft_engine::ListColumn::Start;
+        }
         // One account's tasks and contacts only in the mailbox they were chosen in: in another,
         // the same id is somebody else's account, or none, and the list starts on All accounts.
         let mailbox = &self.session.mailbox;

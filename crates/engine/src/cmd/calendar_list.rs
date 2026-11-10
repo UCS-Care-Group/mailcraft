@@ -8,6 +8,7 @@
 //! they are sorted and grouped by is what is shown of them, so their order says nothing more.
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 use mailcraft_model::{Event, Freq, Id, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime};
@@ -152,16 +153,58 @@ pub struct Section {
     pub rows: Vec<Row>,
 }
 
-/// Every event of the calendars that are shown, one row each, in no order.
+/// Every event of the calendars that are shown, one row each, in no order. An occurrence that
+/// was changed on its own is an event of its own; while its series is listed it is a part of the
+/// series' row, not a row beside it ([`series_key`]).
 pub fn rows(s: &Session) -> Vec<Row> {
     let shown: Vec<(Id, &str, bool)> =
         s.mailbox.calendars.iter().filter(|c| c.visible).map(|c| (c.id, c.name.as_str(), c.rights == Rights::FreeBusy)).collect();
+    let listed = |e: &Event| shown.iter().find(|(id, ..)| *id == e.calendar).copied();
+    let series: HashSet<SeriesKey> =
+        s.mailbox.events.values().filter(|e| e.recurrence.is_some() && listed(e).is_some()).flat_map(|e| own_keys(e)).collect();
     s.mailbox
         .events
         .values()
-        .filter_map(|e| shown.iter().find(|(id, ..)| *id == e.calendar).map(|(_, name, free_busy)| Row::of(e, name, *free_busy)))
+        .filter(|e| series_key(e).is_none_or(|key| !series.contains(&key)))
+        .filter_map(|e| listed(e).map(|(_, name, free_busy)| Row::of(e, name, free_busy)))
         .take(MAX_EVENTS)
         .collect()
+}
+
+/// What ties a changed occurrence to its series: on a server, the account and the server's name
+/// for the series; read from iCalendar, the series' `UID` in its calendar.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum SeriesKey<'a> {
+    Server(Id, &'a str),
+    Uid(Id, &'a str),
+}
+
+/// The keys a series is found by.
+fn own_keys(e: &Event) -> impl Iterator<Item = SeriesKey<'_>> {
+    let server = (!e.origin.id.is_empty()).then(|| SeriesKey::Server(e.origin.account, &e.origin.id));
+    let uid = (!e.uid.is_empty()).then(|| SeriesKey::Uid(e.calendar, &e.uid));
+    server.into_iter().chain(uid)
+}
+
+/// For an occurrence that was changed on its own, the key of the series it stands in for: a
+/// server says which series and which day (`origin`); iCalendar names it `<uid>#<recurrence-id>`.
+/// An occurrence changed in a mailbox of this computer's own is an event that keeps no tie to its
+/// series, and is a row of its own.
+fn series_key(e: &Event) -> Option<SeriesKey<'_>> {
+    if e.recurrence.is_some() {
+        return None;
+    }
+    if !e.origin.series.is_empty() && e.origin.occurrence.is_some() {
+        return Some(SeriesKey::Server(e.origin.account, &e.origin.series));
+    }
+    e.uid.rsplit_once('#').filter(|(uid, day)| !uid.is_empty() && !day.is_empty()).map(|(uid, _)| SeriesKey::Uid(e.calendar, uid))
+}
+
+/// The series an occurrence changed on its own stands in for, when the mailbox has it: the row
+/// the List view has it under.
+pub fn series_of(s: &Session, e: &Event) -> Option<Id> {
+    let key = series_key(e)?;
+    s.mailbox.events.values().find(|series| series.recurrence.is_some() && own_keys(series).any(|k| k == key)).map(|series| series.id)
 }
 
 /// Text in order, without regard to case; empty text last whichever way round.
@@ -226,12 +269,15 @@ pub fn sections(s: &Session) -> Vec<Section> {
     group(all, s.view.list_arrange)
 }
 
-/// The place of the first row, counted through the groups in order, that starts on `day` or
-/// later: where the list scrolls to when a day is chosen. The last row when none does.
+/// The place (counted through the groups in order) of the row the list scrolls to when a day is
+/// chosen, whatever it is sorted by: of the rows that start on `day` or later, the one that starts
+/// the earliest; of those that start the same, the first in the list. When none starts that late,
+/// the one that starts the latest. Sorted by Start, the earliest first, that is the first row
+/// from the day on.
 pub fn first_from(sections: &[Section], day: Date) -> Option<usize> {
-    let mut all = sections.iter().flat_map(|section| section.rows.iter());
-    let count = sections.iter().map(|section| section.rows.len()).sum::<usize>();
-    all.position(|row| row.start.date >= day).or(count.checked_sub(1))
+    let all = sections.iter().flat_map(|section| section.rows.iter()).enumerate();
+    let from = all.clone().filter(|(_, row)| row.start.date >= day).min_by_key(|(at, row)| (row.start, *at));
+    from.or_else(|| all.max_by_key(|(at, row)| (row.start, std::cmp::Reverse(*at)))).map(|(at, _)| at)
 }
 
 fn sort_command(s: &mut Session, v: &Value) -> CmdResult {
