@@ -1267,6 +1267,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "cryptoki"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "625cf4599c43d69a16996ce2573fc80745a0b0300c962f0bfa11d55b6cab2b2d"
+dependencies = [
+ "bitflags 2.13.2",
+ "cryptoki-sys",
+ "libloading",
+ "log",
+ "secrecy",
+]
+
+[[package]]
+name = "cryptoki-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1fd850498411e4057f1cba79e6e2bc7cbe960544c1046ab46d4685c403a1121"
+dependencies = [
+ "libloading",
+]
+
+[[package]]
 name = "ctr"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3050,7 +3072,9 @@ version = "0.11.1"
 dependencies = [
  "apple-native-keyring-store",
  "arboard",
+ "base64 0.23.1",
  "block2 0.6.2",
+ "cryptoki",
  "dispatch2",
  "eframe",
  "egui",
@@ -3066,6 +3090,7 @@ dependencies = [
  "mailcraft-jmap",
  "mailcraft-link",
  "mailcraft-model",
+ "mailcraft-names",
  "mailcraft-net",
  "mailcraft-proto",
  "mailcraft-time",
@@ -3075,16 +3100,23 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "objc2-user-notifications 0.3.2",
+ "p256 0.14.0",
+ "p384 0.14.0",
  "rfd",
  "ring",
+ "rsa 0.10.0",
+ "security-framework",
  "serde_json",
+ "sha2 0.11.1",
  "windows",
  "windows-native-keyring-store",
  "winit",
  "winreg",
  "winresource",
+ "x509-cert",
  "zbus",
  "zbus-secret-service-keyring-store",
+ "zeroize",
 ]
 
 [[package]]
@@ -5349,6 +5381,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secrecy"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
+dependencies = [
+ "zeroize",
+]
+
+[[package]]
 name = "secret-service"
 version = "5.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6034,6 +6075,27 @@ dependencies = [
  "arrayref",
  "bytemuck",
  "strict-num",
+]
+
+[[package]]
+name = "tls_codec"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0de2e01245e2bb89d6f05801c564fa27624dbd7b1846859876c7dad82e90bf6b"
+dependencies = [
+ "tls_codec_derive",
+ "zeroize",
+]
+
+[[package]]
+name = "tls_codec_derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d2e76690929402faae40aebdda620a2c0e25dd6d3b9afe48867dfd95991f4bd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -7166,6 +7228,7 @@ dependencies = [
  "const-oid 0.10.2",
  "der 0.8.3",
  "spki 0.8.1",
+ "tls_codec",
 ]
 
 [[package]]

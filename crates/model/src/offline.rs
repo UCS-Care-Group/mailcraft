@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_time::{DateTime, Timestamp};
 use serde::{Deserialize, Serialize};
 
-use crate::{AccountKind, FolderKind, Id, Mailbox, Message};
+use crate::{FolderKind, Id, Mailbox, Message};
 
 /// Outlook's steps, shortest first. Mail received within it is kept in full on this computer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -150,7 +150,7 @@ impl OfflineWindow {
         let since = mb
             .accounts
             .iter()
-            .filter(|a| a.kind == AccountKind::Microsoft)
+            .filter(|a| a.kind.has_offline_window())
             .filter_map(|a| mb.keep_offline_of(a.id).since(now).map(|t| (a.id, t)))
             .collect();
         OfflineWindow::with(mb, since)
@@ -162,7 +162,7 @@ impl OfflineWindow {
         let since = mb
             .accounts
             .iter()
-            .filter(|a| a.kind == AccountKind::Microsoft)
+            .filter(|a| a.kind.has_offline_window())
             .filter_map(|a| {
                 let mine = a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account);
                 let k = if mine { keep } else { mb.keep_offline_of(a.id) };
@@ -217,7 +217,7 @@ impl Mailbox {
 mod tests {
     use super::*;
     use crate::sync::ServerMessage;
-    use crate::{Account, Folder, ServerFolder};
+    use crate::{Account, AccountKind, Folder, ServerFolder};
 
     const NOW: Timestamp = 1_792_000_000; // 2026-10-15
 

@@ -13,16 +13,16 @@ use serde_json::{Value, json};
 use super::compose::QUOTE_MARK;
 use crate::{BodyFormat, Compose, Session, sample};
 
-fn session() -> Session {
+pub(super) fn session() -> Session {
     let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
     Session::at(sample::mailbox(now, 0), now, 0)
 }
 
-fn run(s: &mut Session, id: &str, params: Value) -> Value {
+pub(super) fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.run(id, &params).unwrap_or_else(|e| panic!("{id} {params}: {e}"))
 }
 
-fn compose(s: &Session) -> &Compose {
+pub(super) fn compose(s: &Session) -> &Compose {
     s.compose.as_ref().unwrap()
 }
 

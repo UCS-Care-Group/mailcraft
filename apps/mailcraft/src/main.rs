@@ -67,6 +67,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod key_holders;
 mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
@@ -1882,6 +1883,8 @@ fn services(
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
         // The system's language, for an interface language left on Automatic.
         system_locale: system_locale::system_locale(),
+        // And its regional format, whose region English dates are written for (#978).
+        system_time_locale: system_locale::system_time_locale(),
         ..Default::default()
     }
 }

@@ -826,6 +826,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             resync(&mut layout, app);
             let Some((sel, plain)) = now(app, which) else { break };
             let asked = match event {
+                // (A space may start a list, #973: the engine looks at the paragraph.)
+                Event::Text(text) if text == " " => ask("compose.type", json!({"text": text, "autoList": true})),
                 Event::Text(text) if !text.is_empty() => ask("compose.type", json!({"text": text})),
                 Event::Ime(egui::ImeEvent::Commit(text)) => {
                     st.preedit.clear();

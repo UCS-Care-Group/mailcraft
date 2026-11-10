@@ -494,6 +494,10 @@ pub struct Services {
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
+    /// The system's regional format for dates and times (`en-GB`: `LC_TIME` on Unix, the
+    /// browser's language in the browser build), whose region English dates are written for
+    /// (#978). `None` (the tests, scripts): the language's own way.
+    pub system_time_locale: Option<String>,
     /// Web: told the interface language's code (`en`) whenever it changes, for the page's
     /// `<html lang>`.
     pub on_language: Option<Box<dyn Fn(&str)>>,
@@ -1208,7 +1212,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.keepOffline",
         "Mail to Keep Offline",
         "File › Info",
-        r#"{"account": number (a Microsoft account, not a shared mailbox), "keepOffline": "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all", "confirmed"?: true} — the slider's: how far back the account's mail (and its shared mailboxes') is kept in full on this computer. Shorter asks first, saying how much space it frees (`account.offlineSize`), unless "confirmed"; then the mail now outside goes back to its headers and preview at once (`account.thinOffline`, a few hundred messages a frame) and its files leave the disk with the next save. It stays on the server. Longer fetches the newly covered mail in the background, newest first. Answers {"account", "keepOffline", "changed": bool}"#,
+        r#"{"account": number (a Microsoft or Exchange server account, not a shared mailbox), "keepOffline": "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all", "confirmed"?: true} — the slider's: how far back the account's mail (and its shared mailboxes') is kept in full on this computer. Shorter asks first, saying how much space it frees (`account.offlineSize`), unless "confirmed"; then the mail now outside goes back to its headers and preview at once (`account.thinOffline`, a few hundred messages a frame) and its files leave the disk with the next save. It stays on the server. Longer fetches the newly covered mail in the background, newest first. Answers {"account", "keepOffline", "changed": bool}"#,
     ),
     (
         "ui.connectMicrosoft",
@@ -1379,7 +1383,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.reportProblem",
         "Report a Problem",
         "Help",
-        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github"|"email" (default github), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. email: starts a new message to MailCraft's maintainers from an account that sends mail, with the diagnostics attached when asked; nothing is sent until Send is pressed. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url"?, "length"?, "saved"?, "attached"?}"#,
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default and only way; email went in #956), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
@@ -4471,12 +4475,18 @@ impl MailApp {
     }
 
     /// Put the interface language in force: the window's text, the engine's, and the host's
-    /// (`<html lang>` in the browser) when it changed.
+    /// (`<html lang>` in the browser) when it changed; its dates written the way of the system's
+    /// region, and the clock and first day of the week the owner never chose theirs (#978).
     fn apply_language(&mut self) {
         let lang = self.language();
+        let region = self.services.system_time_locale.as_deref().and_then(mailcraft_i18n::date::region_of);
         i18n::set_current(lang);
+        i18n::set_region(region);
         self.session.interface_language = lang;
-        self.session.prefs.follow_language(lang);
+        if self.session.date_region.as_deref() != region {
+            self.session.date_region = region.map(str::to_string);
+        }
+        self.session.prefs.follow_conventions(lang.conventions_in(region));
         if self.applied_language != Some(lang) {
             self.applied_language = Some(lang);
             if let Some(tell) = &self.services.on_language {
@@ -4619,6 +4629,8 @@ impl MailApp {
             self.auto_replies_tick(ctx);
         }
         reminders::tick(self, ctx);
+        // What was done in the Reminders window, which has passes of its own (#771).
+        reminders::carry_out(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
             self.dialog = dialogs::Dialog::open("account", self, &json!({}));
         }
