@@ -752,11 +752,16 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
     }
     // What waits to be moved or deleted on the server is there still: known, so that it doesn't
-    // come down again.
+    // come down again. The account's folders by the mailbox they follow, the first of each,
+    // looked up once for each change rather than searched (#991).
+    let mut by_remote: HashMap<&str, Id> = HashMap::new();
+    for f in s.mailbox.folders.iter().filter(|f| f.account == account) {
+        by_remote.entry(f.remote.as_str()).or_insert(f.id);
+    }
     for p in s.mailbox.pending.iter().filter(|p| p.account() == account) {
         let (from, uid) = p.source();
-        if let Some(f) = s.mailbox.folders.iter().find(|f| uid != 0 && f.account == account && f.remote == from) {
-            known.entry(f.id).or_default().push(uid);
+        if let Some(id) = by_remote.get(from).copied().filter(|_| uid != 0) {
+            known.entry(id).or_default().push(uid);
         }
     }
     let mut again = super::imap_again::wanted(&s.mailbox, account, s.now());
@@ -1905,16 +1910,23 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
 /// except one at the top whose place in the tree is now known (folders moved here are not moved
 /// on the server yet, so the server's tree is the one that holds).
 fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed: &[mailcraft_model::sync::ListedFolder]) {
+    let listed = listed.get(..listed.len().min(mailcraft_model::sync::MAX_LISTED_FOLDERS)).unwrap_or_default();
+    // Each folder's parent by the folder's path, the first listed of a path being the one: one
+    // pass, not a search of the whole list at every step up (#991).
+    let mut parents: HashMap<&str, &str> = HashMap::with_capacity(listed.len());
+    for f in listed {
+        parents.entry(f.remote.as_str()).or_insert(f.parent.as_str());
+    }
     // Parents before their children, however the server ordered them.
     let depth = |f: &mailcraft_model::sync::ListedFolder| {
         let (mut above, mut n) = (f.parent.as_str(), 0);
         while !above.is_empty() && n < 32 {
-            above = listed.iter().find(|p| p.remote == above).map_or("", |p| p.parent.as_str());
+            above = parents.get(above).copied().unwrap_or_default();
             n += 1;
         }
         n
     };
-    let mut order: Vec<&mailcraft_model::sync::ListedFolder> = listed.iter().take(2000).filter(|f| !f.remote.is_empty()).collect();
+    let mut order: Vec<&mailcraft_model::sync::ListedFolder> = listed.iter().filter(|f| !f.remote.is_empty()).collect();
     order.sort_by_cached_key(|f| depth(f));
     for f in order {
         let parent = on_server.by_remote.get(&f.parent).copied().filter(|_| !f.parent.is_empty());

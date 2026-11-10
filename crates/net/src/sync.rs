@@ -12,7 +12,7 @@
 //! with nobody left to take its pieces in) loses nothing: [`FolderSync::run`] says how a
 //! mailbox's pieces keep count.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -30,8 +30,9 @@ use crate::send::{Envelope, dated, deliver, open_smtp_with};
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, kinds, not_signed_in, scrub};
 
-/// Most mailboxes read in one run.
-const MAX_FOLDERS: usize = 2_000;
+/// Most mailboxes read in one run (#991): as many as a listing of a Microsoft account's folders
+/// holds.
+const MAX_FOLDERS: usize = mailcraft_model::sync::MAX_LISTED_FOLDERS;
 /// Most message bytes downloaded in one run whose answer is kept whole ([`sync`]); the rest
 /// comes with the next one.
 const MAX_RUN_BYTES: usize = 256 * 1024 * 1024;
@@ -553,8 +554,9 @@ fn turn(kind: FolderKind) -> u8 {
 fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft: bool) -> Vec<(&'a Mailbox, FolderKind)> {
     let mut plan = kinds::plan(mailboxes, tied);
     if is_exchange(mailboxes, microsoft) {
+        let followed: HashSet<&str> = tied.iter().map(|(remote, _)| *remote).collect();
         plan.retain(|(mailbox, _)| {
-            let keep = !not_mail(mailbox) || tied.iter().any(|(remote, _)| *remote == kinds::remote_name(mailbox));
+            let keep = !not_mail(mailbox) || followed.contains(kinds::remote_name(mailbox).as_str());
             if !keep {
                 log::debug!("a folder that is not a folder of mail is left out");
             }
@@ -567,25 +569,40 @@ fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft:
 
 /// The folders of mail a run will read, as a tree: each with the path of the folder it lies in
 /// (where the server names its parts apart and that folder is one of them).
+///
+/// Each folder's parent is found by its name in an index made in one pass over the folders read
+/// (#991), the first of a name being the one: searching them all for each folder would be a
+/// hundred million comparisons at 10,000 folders.
 fn listed(plan: &[(&Mailbox, FolderKind)]) -> Vec<mailcraft_model::sync::ListedFolder> {
-    let mut out = Vec::new();
-    for (mailbox, kind) in plan.iter().take(MAX_FOLDERS) {
+    let read = plan.get(..plan.len().min(MAX_FOLDERS)).unwrap_or_default();
+    // Where each name first comes, and where the first Inbox under any spelling does.
+    let mut by_name: HashMap<&str, usize> = HashMap::with_capacity(read.len());
+    let mut first_inbox = None;
+    for (at, (mailbox, _)) in read.iter().enumerate() {
+        let name = mailbox.name.trim();
+        by_name.entry(name).or_insert(at);
+        if first_inbox.is_none() && name.eq_ignore_ascii_case("inbox") {
+            first_inbox = Some(at);
+        }
+    }
+    let mut out = Vec::with_capacity(read.len());
+    for (mailbox, kind) in read {
         let remote = kinds::remote_name(mailbox);
         if remote.is_empty() {
             continue;
         }
         let name = mailbox.name.trim();
         let (above, leaf) = mailbox.delimiter.and_then(|d| name.rsplit_once(d)).map_or(("", name), |(above, leaf)| (above.trim(), leaf.trim()));
-        // The folder it lies in, when that is one of those read too (the Inbox under any spelling).
-        let parent = plan
-            .iter()
-            .map(|(other, _)| other)
-            .find(|other| {
-                !above.is_empty()
-                    && (other.name.trim() == above || (above.eq_ignore_ascii_case("inbox") && other.name.trim().eq_ignore_ascii_case("inbox")))
-            })
-            .map(|other| kinds::remote_name(other))
-            .unwrap_or_default();
+        // The folder it lies in, when that is one of those read too (the Inbox under any
+        // spelling: the first so spelt comes no later than one named exactly as `above`).
+        let at = if above.is_empty() {
+            None
+        } else if above.eq_ignore_ascii_case("inbox") {
+            first_inbox
+        } else {
+            by_name.get(above).copied()
+        };
+        let parent = at.and_then(|at| read.get(at)).map(|(other, _)| kinds::remote_name(other)).unwrap_or_default();
         let name = if leaf.is_empty() || (parent.is_empty() && !above.is_empty()) { name } else { leaf };
         out.push(mailcraft_model::sync::ListedFolder { remote, kind: *kind, parent, name: name.to_string() });
     }
@@ -627,7 +644,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     let tied: Vec<(&str, FolderKind)> = request.folders.iter().filter(|f| !f.remote.is_empty()).map(|f| (f.remote.as_str(), f.kind)).collect();
     let plan = planned(&mailboxes, &tied, host.microsoft);
     if plan.len() > MAX_FOLDERS {
-        run.out.errors.push(format!("The server has {} folders; only the first {MAX_FOLDERS} were read", plan.len()));
+        run.out.errors.push(left_out(&plan));
     }
     // The whole tree first: the folders are there to see before their mail is.
     run.out.listed = listed(&plan);
@@ -660,6 +677,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     imap.get_mut().watch(Some(run.cancel));
     // A local folder takes the news of one server mailbox only.
     let mut claimed: HashSet<Id> = HashSet::new();
+    let states = States::of(request);
     let count = plan.len().min(MAX_FOLDERS);
     for (at, (mailbox, kind)) in plan.into_iter().take(MAX_FOLDERS).enumerate() {
         if run.cancelled() {
@@ -670,7 +688,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         if remote.is_empty() {
             continue;
         }
-        let state = state_for(request, &remote, kind).filter(|state| claimed.insert(state.id));
+        let state = states.get(&remote, kind).filter(|state| claimed.insert(state.id));
         let arrived = arrived.get(&remote).map_or(&[][..], Vec::as_slice);
         let gmail = host.gmail && kind == FolderKind::Inbox;
         let folder = FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count), gmail };
@@ -772,9 +790,47 @@ fn megabytes(bytes: u64) -> String {
 
 /// The request's folder for a server mailbox: the one already tied to that name, else, for a
 /// standard kind, the local folder of that kind that isn't tied to a mailbox yet.
+#[cfg(test)]
 fn state_for<'a>(request: &'a SyncRequest, remote: &str, kind: FolderKind) -> Option<&'a FolderState> {
-    let by_name = request.folders.iter().find(|f| !f.remote.is_empty() && f.remote == remote);
-    by_name.or_else(|| request.folders.iter().find(|f| kind != FolderKind::Custom && f.remote.is_empty() && f.kind == kind))
+    States::of(request).get(remote, kind)
+}
+
+/// The request's folders, found by the mailbox each follows, or, for one that follows none yet,
+/// by its kind: indexed once for a run, so that finding the folder of each of thousands of
+/// mailboxes doesn't read them all every time (#991).
+struct States<'a> {
+    by_remote: HashMap<&'a str, &'a FolderState>,
+    by_kind: HashMap<FolderKind, &'a FolderState>,
+}
+
+impl<'a> States<'a> {
+    fn of(request: &'a SyncRequest) -> States<'a> {
+        let mut states = States { by_remote: HashMap::new(), by_kind: HashMap::new() };
+        // The first of each is the one, as a search from the start would find.
+        for f in &request.folders {
+            if f.remote.is_empty() {
+                states.by_kind.entry(f.kind).or_insert(f);
+            } else {
+                states.by_remote.entry(f.remote.as_str()).or_insert(f);
+            }
+        }
+        states
+    }
+
+    /// The folder that follows `remote` already, else a standard one of `kind` that follows none.
+    fn get(&self, remote: &str, kind: FolderKind) -> Option<&'a FolderState> {
+        let by_name = self.by_remote.get(remote).copied();
+        by_name.or_else(|| if kind == FolderKind::Custom { None } else { self.by_kind.get(&kind).copied() })
+    }
+}
+
+/// What a run says when the server has more folders of mail than one run reads (#991): how
+/// many there are, how many were left out, and the name of the first of those.
+fn left_out(plan: &[(&Mailbox, FolderKind)]) -> String {
+    let total = plan.len();
+    let left = total.saturating_sub(MAX_FOLDERS);
+    let first = plan.get(MAX_FOLDERS).map(|(mailbox, _)| label(&kinds::remote_name(mailbox))).unwrap_or_default();
+    format!("The server has {total} folders: one run reads the first {MAX_FOLDERS}, and leaves out the other {left}, from \"{first}\" on")
 }
 
 fn has(flags: &[String], flag: &str) -> bool {
@@ -1232,6 +1288,10 @@ pub(crate) fn internal_date(text: &str) -> Option<Timestamp> {
 #[cfg(test)]
 #[path = "sync_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "sync_many_folders_tests.rs"]
+mod many_folders_tests;
 
 #[cfg(test)]
 mod tests {

@@ -28,8 +28,14 @@ use crate::{MAX_LINE, MAX_LITERAL, ProtoError, Secrets, for_trace, tidy, xoauth2
 const MAX_RESPONSES: usize = 250_000;
 /// Most text (everything outside literals) the server may send in answer to one command.
 const MAX_COMMAND_TEXT: usize = 32 << 20;
-/// Most mailboxes one LIST keeps; the ones after are read and dropped.
-const MAX_MAILBOXES: usize = 4_000;
+/// Most mailboxes one LIST keeps; the ones after are read and dropped. More than a run reads
+/// (10,000, #991), since some of those listed are never read (views, folders that can't be
+/// opened). What is kept is bounded in bytes too ([`MAX_LIST_BYTES`]).
+const MAX_MAILBOXES: usize = 12_000;
+/// Most bytes of names and flags one LIST keeps, literals included (which
+/// [`MAX_COMMAND_TEXT`] doesn't count): 12,000 mailboxes as most servers list them take a
+/// megabyte or two; past this the ones after are read and dropped.
+const MAX_LIST_BYTES: usize = 16 << 20;
 /// Longest mailbox name kept (as the server wrote it); a mailbox with a longer one is left out,
 /// since a name cut short would name another mailbox or none.
 const MAX_MAILBOX_NAME: usize = 1_024;
@@ -694,12 +700,17 @@ impl<S: Read + Write> Imap<S> {
     pub fn list(&mut self) -> Result<Vec<Mailbox>, ProtoError> {
         let mut out: Vec<Mailbox> = Vec::new();
         let mut seen = HashSet::new();
+        let mut kept = 0usize;
         self.run(Command::new("LIST").arg("\"\"").arg("\"*\""), &mut |values| {
-            // A mailbox the server names twice is listed once; past the cap, nothing is kept.
+            // A mailbox the server names twice is listed once; past either cap, nothing is kept.
             if out.len() < MAX_MAILBOXES
+                && kept < MAX_LIST_BYTES
                 && let Some(mailbox) = mailbox_from(values)
                 && seen.insert(mailbox.raw.clone())
             {
+                // The name twice (as written, decoded) and once more in `seen`, and the flags.
+                let size = mailbox.raw.len().saturating_mul(2).saturating_add(mailbox.name.len());
+                kept = mailbox.flags.iter().fold(kept.saturating_add(size), |kept, flag| kept.saturating_add(flag.len()));
                 out.push(mailbox);
             }
         })?;

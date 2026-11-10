@@ -53,6 +53,20 @@ fn a_list_keeps_a_capped_number_of_mailboxes() {
     assert_eq!(got.first().map(|m| m.raw.as_str()), Some("f0"));
 }
 
+/// #991: a list keeps a bounded number of bytes too, however many mailboxes that is.
+#[test]
+fn a_list_keeps_a_capped_number_of_bytes() {
+    let flags: Vec<String> = (0..MAX_FLAGS).map(|n| format!("\\F{n}{}", "x".repeat(MAX_FLAG_LEN - 8))).collect();
+    let flags = flags.join(" ");
+    let server = flood(1_500, |n| format!("* LIST ({flags}) \"/\" f{n}\r\n")) + "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let got = opened(&mut s, 0, 0).list().unwrap();
+    let kept: usize = got.iter().map(|m| m.raw.len() * 2 + m.name.len() + m.flags.iter().map(String::len).sum::<usize>()).sum();
+    assert!(!got.is_empty() && got.len() < 1_500, "{}", got.len());
+    // The last one kept may take it over by one mailbox's worth, never more.
+    assert!(kept < MAX_LIST_BYTES + MAX_LINE, "{kept}");
+}
+
 #[test]
 fn names_and_flags_are_kept_short() {
     let long_flag = "é".repeat(400);
