@@ -52,3 +52,11 @@ fn a_sample_or_empty_start_is_a_look_around() {
         assert!(!is_ephemeral(q), "{q}");
     }
 }
+
+#[test]
+fn only_georgian_has_a_face_to_fetch() {
+    assert_eq!(face_for("ka"), Some("NotoSansGeorgian-Regular.ttf"));
+    for code in ["en", "de", "nl", "pseudo", "ka-GE", ""] {
+        assert_eq!(face_for(code), None);
+    }
+}

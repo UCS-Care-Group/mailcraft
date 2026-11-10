@@ -8,6 +8,7 @@ static site in `mailcraft-web-<version>/`:
 | `index.html` | The page. It loads everything through relative URLs. |
 | `mailcraft-web-<hash>.js` | wasm-bindgen glue (generated, ES module) |
 | `mailcraft-web-<hash>_bg.wasm` | The app, about 13 MB, or 5 MB with compression |
+| `NotoSansGeorgian-Regular.ttf` | Georgian letters, about 35 KB; the page fetches it only when the interface language is Georgian |
 | `_headers`, `.htaccess` | Sample header rules for Netlify/Cloudflare Pages and Apache |
 
 There is no server-side code. Upload the folder's contents anywhere that serves static files.

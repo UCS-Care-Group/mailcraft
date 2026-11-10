@@ -229,6 +229,7 @@ fn open_links(ctx: &egui::Context) {
 }
 
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
+    let language_ctx = ctx.clone();
     // What the picker delivers comes in apart from what is dropped: it is for what the picker
     // was opened for, and a dropped file never is.
     let picked = Inbox::default();
@@ -297,14 +298,63 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         system_locale: web_sys::window().and_then(|w| w.navigator().language()),
         // The same language's region (`en-GB`) is the one English dates are written for (#978).
         system_time_locale: web_sys::window().and_then(|w| w.navigator().language()),
-        on_language: Some(Box::new(|code: &str| {
+        on_language: Some(Box::new(move |code: &str| {
             let root = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element());
             if let Some(root) = root {
                 let _ = root.set_attribute("lang", code);
             }
+            if let Some(file) = page::face_for(code) {
+                load_face(&language_ctx, file);
+            }
         })),
         ..Default::default()
     }
+}
+
+/// Fetch the face `file` (next to the page) once, and put it behind the window's fonts: for the
+/// script of an interface language the browser has no system face for (`page::face_for`, #1010).
+/// Nothing is fetched for any other language, so the page stays as small as it was. Until it
+/// arrives, the text is drawn with empty boxes for the letters it lacks; a failure is logged and
+/// tried again the next time the language is put in force.
+fn load_face(ctx: &egui::Context, file: &'static str) {
+    thread_local!(static REQUESTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) });
+    if REQUESTED.replace(true) {
+        return;
+    }
+    let ctx = ctx.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        match fetch_face(file).await {
+            Ok(bytes) => {
+                let fonts = ctx.fonts(|f| f.definitions().clone());
+                match mailcraft_ui_egui::theme::with_extra_face(fonts, "NotoSansGeorgian", bytes) {
+                    Some(fonts) => {
+                        ctx.set_fonts(fonts);
+                        ctx.request_repaint();
+                    }
+                    None => {
+                        log::error!("{file} is not a font");
+                        REQUESTED.set(false);
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("couldn't fetch {file}: {e}");
+                REQUESTED.set(false);
+            }
+        }
+    });
+}
+
+async fn fetch_face(file: &str) -> Result<Vec<u8>, String> {
+    let js = |e: wasm_bindgen::JsValue| format!("{e:?}");
+    let window = web_sys::window().ok_or("no window")?;
+    let response: web_sys::Response =
+        wasm_bindgen_futures::JsFuture::from(window.fetch_with_str(file)).await.map_err(js)?.dyn_into().map_err(|_| "not a response")?;
+    if !response.ok() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+    let buffer = wasm_bindgen_futures::JsFuture::from(response.array_buffer().map_err(js)?).await.map_err(js)?;
+    Ok(js_sys::Uint8Array::new(&buffer).to_vec())
 }
 
 /// A picked file's bytes, as the browser gives them: a read that fails (the file moved or changed
