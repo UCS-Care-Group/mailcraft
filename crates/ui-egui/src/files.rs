@@ -52,6 +52,8 @@ impl FileDialogRequest {
 pub struct PendingDialog {
     rx: Receiver<Option<Vec<String>>>,
     after: AfterPick,
+    /// The extension of the name a Save dialog suggested, put back on a name typed without one.
+    ext: Option<String>,
 }
 
 /// Commands that write a file, and the name they suggest.
@@ -188,9 +190,25 @@ fn ask(app: &mut MailApp, req: FileDialogRequest, after: AfterPick) -> Result<Va
         app.status(msg.clone());
         return Err(msg);
     };
-    app.file_dialog = Some(PendingDialog { rx: show(req), after });
+    let ext = match &req {
+        FileDialogRequest::Save { name } => std::path::Path::new(name).extension().map(|e| e.to_string_lossy().into_owned()),
+        _ => None,
+    };
+    app.file_dialog = Some(PendingDialog { rx: show(req), after, ext });
     // A host that answered at once is handled right away.
     poll(app).unwrap_or(Ok(json!({"pending": "fileDialog"})))
+}
+
+/// `path` with `.ext` added when its name has no extension (a Linux save dialog keeps a name
+/// typed over the suggestion as it is), unless a file of that name is already there: the dialog
+/// asked about overwriting the name typed, not that one.
+pub(crate) fn with_extension(path: String, ext: &str) -> String {
+    let p = std::path::Path::new(&path);
+    if p.extension().is_some() || p.file_name().is_none() {
+        return path;
+    }
+    let added = format!("{path}.{ext}");
+    if std::path::Path::new(&added).exists() { path } else { added }
 }
 
 /// Pick up the answer of an open file dialog, if it has arrived (every frame, from `logic`), and
@@ -214,7 +232,10 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     }
     // A dialog for one file answers with one; anything more is not taken.
     picked.truncate(1);
-    let Some(path) = picked.pop() else { return Some(Ok(json!({"cancelled": true}))) };
+    let Some(mut path) = picked.pop() else { return Some(Ok(json!({"cancelled": true}))) };
+    if let Some(ext) = &d.ext {
+        path = with_extension(path, ext);
+    }
     let r = match d.after {
         AfterPick::Open(purpose, asking) => opened_path(app, &purpose, &path, asking),
         AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),

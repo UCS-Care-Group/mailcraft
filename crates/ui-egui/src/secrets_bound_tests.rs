@@ -95,11 +95,11 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
     a.secrets_asked = None;
     crate::secret_read_tests::settle(&mut a);
     a.passwords.insert(id, "pw".into());
-    assert_eq!(a.remembered("password", "avery@mail.example").as_deref(), Some("pw"));
+    assert_eq!(a.remembered("password", a.account_at("avery@mail.example").map_or(0, |x| x.id)).as_deref(), Some("pw"));
 
     a.execute("account.edit", json!({"id": id, "incoming": {"host": "imap.attacker.example", "port": 993}})).unwrap();
 
-    assert_eq!(a.remembered("password", "avery@mail.example"), None);
+    assert_eq!(a.remembered("password", a.account_at("avery@mail.example").map_or(0, |x| x.id)), None);
     assert!(store.get(OLD).is_none() && store.get(NEW).is_none());
     assert!(!a.passwords.contains_key(&id));
 }
@@ -352,7 +352,7 @@ fn google_sign_in_without_remembering_is_memory_only_and_switching_off_forgets_i
     a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
     a.adopt_tokens(first, google_tokens("one@example.org", "access-in-memory", "refresh-in-memory"));
     assert!(a.tokens.contains_key(&first) && store.get(&key).is_none());
-    assert!(a.remembered("refresh", "one@example.org").is_none());
+    assert!(a.remembered("refresh", a.account_at("one@example.org").map_or(0, |x| x.id)).is_none());
 
     a.execute("ui.rememberSignIn", json!({"value": true})).unwrap();
     a.adopt_tokens(first, google_tokens("one@example.org", "access-replaced", "refresh-remembered"));

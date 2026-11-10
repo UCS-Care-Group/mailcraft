@@ -32,6 +32,8 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = imap.list();
     let _ = imap.select("INBOX", true);
     let _ = imap.uid_fetch_flags("1:*");
+    let _ = imap.uid_fetch_flags_gmail("1:*");
+    let _ = imap.uid_search_gmail("1:500", "category:social");
     let _ = imap.uid_fetch_sizes("1:*");
     let _ = imap.uid_fetch_message(1);
     let _ = imap.uid_fetch_header(1);

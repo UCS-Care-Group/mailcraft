@@ -222,7 +222,7 @@ pub(super) fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<Fo
     }
     for queued in mb.queued.iter().filter(|q| q.account() == account) {
         match queued {
-            Queued::DeleteFolder { id, .. } => note(&|| FolderChange::Delete { id: id.clone() }),
+            Queued::DeleteFolder { id, shown, .. } => note(&|| FolderChange::Delete { id: id.clone(), shown: shown.clone() }),
             // Changes of messages: sent with the message changes (R3.3.2).
             Queued::CopyMessage { .. } | Queued::DeleteMessage { .. } | Queued::PlaceMessage { .. } => {}
         }
@@ -345,7 +345,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let mut taken = Taken::default();
     let mut errors = result.errors.clone();
     for done in &result.changes {
-        if let Some(said) = change_done(&mut s.mailbox, account, &done.change, &done.outcome, &mut taken) {
+        if let Some(said) = change_done(&mut s.mailbox, account, &done.change, &done.outcome, s.interface_language, &mut taken) {
             errors.push(said);
         }
     }
@@ -393,6 +393,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_said.extend(refused);
     if let Some(listing) = &result.listing {
         take_listing(&mut s.mailbox, account, listing, &mut taken);
+        errors.extend(graph_down::gone_with_folders(s, account, listing));
         if listing.complete {
             s.graph_listed_short.remove(&account);
         } else {
@@ -449,7 +450,10 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     // (The Inbox pass is never the end of the account's part of the run.)
     let last = !result.partial && !result.inbox_pass;
     if last {
+        // What nothing will answer any more is let go of (#30).
+        super::mail::check_again::settle(&mut s.mailbox);
         errors.extend(super::graph_place::unreadable_waiting(s, account));
+        errors.extend(super::graph_place::held_for_this_computer(s, account));
     }
     let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last, stopped: result.stopped, timings: Some(&result.timings) };
     s.sync_progress.take(account, piece);
@@ -511,17 +515,36 @@ fn shown(name: &str) -> String {
 }
 
 /// Take in what became of one change. Answers what to tell the owner, when there is something.
-pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &ChangeOutcome, taken: &mut Taken) -> Option<String> {
+pub(super) fn change_done(
+    mb: &mut Mailbox,
+    account: Id,
+    change: &FolderChange,
+    outcome: &ChangeOutcome,
+    lang: mailcraft_i18n::Lang,
+    taken: &mut Taken,
+) -> Option<String> {
     let mine = |mb: &Mailbox, id: Id| mb.folder(id).is_some_and(|f| f.account == account);
     match (change, outcome) {
-        (FolderChange::Delete { id }, ChangeOutcome::Done { .. } | ChangeOutcome::Gone) => {
-            mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id: queued } if *a == account && queued == id));
+        (FolderChange::Delete { id, shown: what }, ChangeOutcome::NotShown { items }) => {
+            // The server holds there what the owner hadn't seen (AU3-H7): it wasn't asked to delete
+            // it, and the listing brings the folder back here with it. Deleting it again asks again.
+            mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id: queued, .. } if *a == account && queued == id));
+            let name = if what.name.trim().is_empty() { lang.t("(no name)").to_string() } else { shown(&what.name) };
+            let line = lang.tn(
+                u64::from(*items),
+                "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone.",
+                "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone.",
+            );
+            Some(mailcraft_i18n::fmt(line, &[("name", &name), ("n", &items.to_string())]))
+        }
+        (FolderChange::Delete { id, .. }, ChangeOutcome::Done { .. } | ChangeOutcome::Gone) => {
+            mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id: queued, .. } if *a == account && queued == id));
             taken.pushed += 1;
             None
         }
-        (FolderChange::Delete { id }, ChangeOutcome::Refused { why }) => {
+        (FolderChange::Delete { id, .. }, ChangeOutcome::Refused { why }) => {
             // The server keeps it: the listing brings it back here.
-            mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id: queued } if *a == account && queued == id));
+            mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id: queued, .. } if *a == account && queued == id));
             Some(format!("Couldn't delete a folder on the server: {why}"))
         }
         (FolderChange::Create { folder, name, .. }, ChangeOutcome::Done { folder: there }) => {
@@ -584,15 +607,16 @@ pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, 
             taken.updated += 1;
             Some(said)
         }
-        // Gone from the server: the listing takes it away here.
-        (_, ChangeOutcome::Gone) => None,
+        // Gone from the server: the listing takes it away here. (Only a deletion is answered
+        // `NotShown`.)
+        (_, ChangeOutcome::Gone | ChangeOutcome::NotShown { .. }) => None,
     }
 }
 
 /// Drops the deletions queued of `account`'s folders whose server ids are in `own`, the server's
 /// own folders (#756, #779): the server keeps them, and would be asked every run.
 pub(super) fn drop_own_deletes(mb: &mut Mailbox, account: Id, own: &HashSet<String>) {
-    mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id } if *a == account && own.contains(id)));
+    mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id, .. } if *a == account && own.contains(id)));
 }
 
 /// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
@@ -770,6 +794,10 @@ mod tests;
 #[cfg(test)]
 #[path = "graph_well_known_tests.rs"]
 mod well_known_tests;
+
+#[cfg(test)]
+#[path = "graph_delete_shown_tests.rs"]
+mod delete_shown_tests;
 
 #[cfg(test)]
 #[path = "graph_sweep_tests.rs"]

@@ -1397,6 +1397,11 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         let cancel = change.kind == EventChangeKind::Delete
             && change.send
             && if change.of_occurrence() { series().is_some_and(|series| invited(series)) } else { change.base.as_deref().is_some_and(invited) };
+        // Whether people are invited to it, before the change or after, whoever organizes it: a
+        // server may write to them for any change of it (AU3-V2).
+        let meeting = event.is_some_and(|event| !event.attendees.is_empty())
+            || change.base.as_deref().is_some_and(|base| !base.attendees.is_empty())
+            || (change.of_occurrence() && series().is_some_and(|series| !series.attendees.is_empty()));
         let forwards = change.kind == EventChangeKind::Forward;
         let said = cancel || change.kind == EventChangeKind::Respond || forwards;
         // Another time is proposed with an answer that is sent, and only with one that isn't a yes.
@@ -1416,6 +1421,7 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
             comment: if said { change.comment.clone() } else { String::new() },
             proposed: change.proposed.filter(|_| proposes),
             to: if forwards && change.send { change.to.clone() } else { Vec::new() },
+            meeting,
         });
     }
     // (The zone the calendar is shown in: whole days are days there, and a series without a
