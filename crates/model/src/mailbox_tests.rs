@@ -401,6 +401,30 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
 }
 
 #[test]
+fn mail_moved_into_a_resend_account_is_kept_here_as_on_this_computer() {
+    let (mut mb, account, a) = synced_mailbox();
+    mb.accounts[0].kind = AccountKind::Imap;
+    let resend = crate::provider::resend();
+    let other = mb.add_account(Account {
+        email: "avery@lumen.example".into(),
+        kind: AccountKind::Imap,
+        incoming: Some(resend.incoming),
+        outgoing: Some(resend.outgoing),
+        ..Default::default()
+    });
+    let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
+    assert!(mb.account(other).unwrap().is_resend() && !mb.puts_on_server(other) && mb.takes_over(account, other));
+    // Resend keeps nothing put into it: nothing waits to go there, and the original goes from
+    // its own server once the message is safe here.
+    mb.move_message(a, other_inbox).unwrap();
+    assert_eq!(mb.message(a).map(|m| m.account), Some(other));
+    assert!(!mb.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { .. })));
+    assert!(mb.pending.iter().any(|p| matches!(p, Pending::Move { account: owner, message, .. } if *owner == account && *message == a)));
+    assert!(mb.repair().is_empty());
+}
+
+#[test]
 fn mail_moved_to_another_imap_account_waits_to_be_put_on_its_server_and_its_original_with_it() {
     let (mut mb, account, a) = synced_mailbox();
     mb.accounts[0].kind = AccountKind::Imap;

@@ -1,11 +1,15 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::*;
-use mailcraft_model::sync::FolderState;
+use mailcraft_model::sync::{FolderState, SyncResult};
+use serde_json::json;
+
+/// Long after every message of the tests came: all of them have settled.
+const LATER: i64 = 2_000_000_000;
 
 fn listed(id: &str, created: &str) -> Listed {
     let (secs, millis) = instant(created).unwrap();
-    Listed { id: id.into(), secs, millis }
+    Listed { id: id.into(), secs, millis, said: json!({"id": id, "created_at": created, "subject": id}) }
 }
 
 #[test]
@@ -17,8 +21,8 @@ fn a_page_of_resends_list_is_read_and_what_isnt_usable_left_out() {
         {"created_at":"2026-10-09T14:37:40Z"}]}"#;
     let (page, more) = read_page(body).unwrap();
     assert!(more);
-    assert_eq!(page, vec![listed("a39999a6-88e3-48b1-888b-beaabcde1b33", "2026-10-09T14:37:40.951Z")]);
-    assert_eq!(page[0].millis, 951);
+    assert_eq!(page.len(), 1);
+    assert_eq!((page[0].id.as_str(), page[0].millis, page[0].said["subject"].as_str()), ("a39999a6-88e3-48b1-888b-beaabcde1b33", 951, Some("Hello")));
     for junk in [&b""[..], b"[]", b"{\"data\":7}", b"\xff"] {
         assert!(read_page(junk).is_none());
     }
@@ -61,39 +65,79 @@ fn the_key_goes_to_resends_api_alone_and_the_bytes_come_from_resend() {
     }
     assert!(is_id("4ef9a417-02e9-4d39-ad75-9611e0fcc33c") && !is_id("a/b") && !is_id("") && !is_id(&"a".repeat(65)));
     // A key that can't be one is never sent.
-    assert!(matches!(get("", "/emails/receiving"), Err(NetError::Proto(ProtoError::Auth(_)))));
-    assert!(matches!(get("re_a b", "/emails/receiving"), Err(NetError::Proto(ProtoError::Auth(_)))));
+    let calm = AtomicBool::new(false);
+    assert!(matches!(get("", "/emails/receiving", &calm), Err(NetError::Proto(ProtoError::Auth(_)))));
+    assert!(matches!(get("re_a b", "/emails/receiving", &calm), Err(NetError::Proto(ProtoError::Auth(_)))));
 }
 
-/// `bring` as a run does it, with `fetch` standing in for Resend: the pieces it hands over, taken
-/// in one after the other.
-fn brought(request: &SyncRequest, listed: Vec<Listed>, fetch: &mut dyn FnMut(&str) -> Result<Got, NetError>) -> mailcraft_model::sync::SyncResult {
-    let cancel = std::sync::atomic::AtomicBool::new(false);
-    let mut whole = mailcraft_model::sync::SyncResult::default();
+#[test]
+fn a_call_off_stops_a_wait_for_resend_at_once() {
+    let stopped = AtomicBool::new(true);
+    let started = Instant::now();
+    let e = pause(Duration::from_secs(10), &stopped).unwrap_err();
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert!(matches!(e, NetError::Proto(ProtoError::Io(why)) if why == transport::STOPPED));
+    // Nothing is asked of Resend once the run is called off, the key checked first.
+    assert!(matches!(get("re_key", "/emails/receiving", &stopped), Err(NetError::Proto(ProtoError::Io(_)))));
+}
+
+/// `bring` as a run does it, at `now`, as far as `limits` go, with `fetch` standing in for Resend:
+/// the pieces it hands over, taken in one after the other.
+fn brought_within(
+    request: &SyncRequest,
+    listed: Vec<Listed>,
+    now: i64,
+    limits: super::super::Limits,
+    fetch: &mut dyn FnMut(&str) -> Result<Got, NetError>,
+) -> SyncResult {
+    let cancel = AtomicBool::new(false);
+    let mut whole = SyncResult::default();
     let mut emit = |piece| whole.absorb(piece);
     let mut run = Run {
         request,
-        limits: super::super::Limits::in_pieces(),
+        limits,
         cancel: &cancel,
         emit: &mut emit,
         out: super::super::blank(request),
         stopped: false,
-        handed_over: std::time::Instant::now(),
+        handed_over: Instant::now(),
         phase: mailcraft_model::sync::SyncPhase::Sending,
         asked: 0,
         counted: 0,
     };
-    bring(&mut run, listed, fetch);
+    bring(&mut run, listed, now, fetch);
     run.finish();
     whole
+}
+
+fn brought(request: &SyncRequest, listed: Vec<Listed>, fetch: &mut dyn FnMut(&str) -> Result<Got, NetError>) -> SyncResult {
+    brought_within(request, listed, LATER, super::super::Limits::in_pieces(), fetch)
 }
 
 fn mail(subject: &str) -> Got {
     Got::Whole(format!("From: noor@example.org\r\nTo: avery@lumen.example\r\nSubject: {subject}\r\n\r\nHello\r\n").into_bytes())
 }
 
+fn subjects(result: &SyncResult) -> Vec<&str> {
+    result.folders.iter().flat_map(|f| &f.new).map(|m| m.subject.as_str()).collect()
+}
+
+fn read_to(uid: u32) -> SyncRequest {
+    SyncRequest {
+        folders: vec![FolderState {
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 1,
+            uid_seen: uid,
+            known_uids: vec![uid],
+            ..Default::default()
+        }],
+        ..Default::default()
+    }
+}
+
 #[test]
-fn a_message_that_cant_be_had_holds_the_count_back_for_the_next_run() {
+fn a_message_that_cant_be_had_for_now_holds_the_count_back_for_the_next_run() {
     let request = SyncRequest::default();
     let list = || vec![listed("a", "2026-10-09T14:37:40Z"), listed("b", "2026-10-09T14:37:41Z"), listed("c", "2026-10-09T14:37:42Z")];
     let uids: Vec<u32> = numbered(list()).iter().map(|(uid, _)| *uid).collect();
@@ -104,36 +148,43 @@ fn a_message_that_cant_be_had_holds_the_count_back_for_the_next_run() {
     let result = brought(&request, list(), &mut fetch);
     let inbox = &result.folders[0];
     // Only "a" came; "b" and "c" stay above the count, to be asked for again.
-    assert_eq!(inbox.new.iter().map(|m| m.subject.as_str()).collect::<Vec<_>>(), ["a"]);
+    assert_eq!(subjects(&result), ["a"]);
     assert_eq!((inbox.uid_seen, inbox.complete, inbox.remote.as_str()), (uids[0], false, "INBOX"));
     assert_eq!(result.errors.len(), 1);
 
     // The next run starts there and brings the rest.
-    let mut request = request;
-    request.folders = vec![FolderState {
-        remote: "INBOX".into(),
-        kind: FolderKind::Inbox,
-        uid_validity: 1,
-        uid_seen: uids[0],
-        known_uids: vec![uids[0]],
-        ..Default::default()
-    }];
-    let result = brought(&request, list(), &mut |id: &str| Ok(mail(id)));
-    let inbox = &result.folders[0];
-    assert_eq!(inbox.new.iter().map(|m| m.subject.as_str()).collect::<Vec<_>>(), ["b", "c"]);
-    assert_eq!((inbox.uid_seen, inbox.complete), (uids[2], true));
+    let result = brought(&read_to(uids[0]), list(), &mut |id: &str| Ok(mail(id)));
+    assert_eq!(subjects(&result), ["b", "c"]);
+    assert_eq!((result.folders[0].uid_seen, result.folders[0].complete), (uids[2], true));
+}
+
+#[test]
+fn a_message_resend_cant_give_is_kept_as_its_header_and_holds_nothing_back() {
+    let request = SyncRequest::default();
+    let list = vec![listed("a", "2026-10-09T14:37:40Z"), listed("gone", "2026-10-09T14:37:41Z"), listed("c", "2026-10-09T14:37:42Z")];
+    let mut fetch = |id: &str| match id {
+        "gone" => Err(NetError::Proto(ProtoError::Rejected("Resend answered with status 404".into()))),
+        _ => Ok(mail(id)),
+    };
+    let result = brought(&request, list, &mut fetch);
+    assert_eq!(subjects(&result), ["a", "gone", "c"]);
+    let gone = &result.folders[0].new[1];
+    assert!(gone.body.text.contains("couldn't download this message from Resend") && gone.body.text.contains("404"), "{}", gone.body.text);
+    assert!(result.folders[0].complete);
+    assert!(result.errors.iter().any(|e| e.contains("kept as its header")), "{:?}", result.errors);
 }
 
 #[test]
 fn a_message_too_large_is_kept_as_its_header_and_a_ninth_in_one_second_is_said() {
     let request = SyncRequest::default();
-    let said = serde_json::json!({
+    let mut big = listed("big", "2026-10-09T14:37:40Z");
+    big.said = json!({
         "from": "Noor <noor@example.org>\r\nBcc: evil@example.org", "to": ["avery@lumen.example"], "subject": "Big",
         "created_at": "2026-10-09T14:37:40Z", "attachments": [{"size": 40_000_000u64}]
     });
     let mut list: Vec<Listed> = (0..10).map(|n| listed(&format!("m{n}"), &format!("2026-10-09T14:37:41.{n:03}Z"))).collect();
-    list.push(listed("big", "2026-10-09T14:37:40Z"));
-    let mut fetch = |id: &str| if id == "big" { Ok(Got::TooLarge(said.clone())) } else { Ok(mail(id)) };
+    list.push(big);
+    let mut fetch = |id: &str| if id == "big" { Ok(Got::TooLarge) } else { Ok(mail(id)) };
     let result = brought(&request, list, &mut fetch);
     let inbox = &result.folders[0];
     // The big one, then eight of the ten that came in one second.
@@ -146,4 +197,48 @@ fn a_message_too_large_is_kept_as_its_header_and_a_ninth_in_one_second_is_said()
     let uids: std::collections::HashSet<u32> = inbox.new.iter().map(|m| m.uid).collect();
     assert_eq!(uids.len(), 9);
     assert!(result.errors.iter().any(|e| e.contains("2 of them weren't brought")), "{:?}", result.errors);
+}
+
+#[test]
+fn a_second_that_hasnt_settled_waits_so_that_one_listed_late_takes_no_ones_uid() {
+    let now = instant("2026-10-09T14:38:00Z").unwrap().0;
+    // At 14:38:00, "a" of 14:37:40 is still too new: nothing of its second is numbered yet.
+    let result = brought_within(
+        &SyncRequest::default(),
+        vec![listed("a", "2026-10-09T14:37:40.900Z")],
+        now,
+        super::super::Limits::in_pieces(),
+        &mut |id: &str| Ok(mail(id)),
+    );
+    assert_eq!(subjects(&result), Vec::<&str>::new());
+    assert_eq!(result.folders[0].uid_seen, 0);
+    // A minute on, "b" of the same second but earlier in it has been listed too: both come, each with its own UID.
+    let later = vec![listed("a", "2026-10-09T14:37:40.900Z"), listed("b", "2026-10-09T14:37:40.100Z")];
+    let result = brought_within(&SyncRequest::default(), later, now + SETTLE, super::super::Limits::in_pieces(), &mut |id: &str| Ok(mail(id)));
+    assert_eq!(subjects(&result), ["b", "a"]);
+}
+
+#[test]
+fn a_run_goes_as_far_as_its_limits_and_hands_mail_over_in_pieces() {
+    let list: Vec<Listed> = (0..5).map(|n| listed(&format!("m{n}"), &format!("2026-10-09T14:37:4{n}Z"))).collect();
+    let uids: Vec<u32> = numbered(list.clone()).iter().map(|(uid, _)| *uid).collect();
+    let mut limits = super::super::Limits::in_pieces();
+    (limits.messages, limits.batch_messages) = (3, 2);
+    let mut pieces = 0;
+    let result = brought_within(&SyncRequest::default(), list, LATER, limits, &mut |id: &str| {
+        pieces += 1;
+        Ok(mail(id))
+    });
+    // Three of five, the count after the third: the other two come with the next run.
+    assert_eq!((pieces, subjects(&result).len()), (3, 3));
+    assert_eq!((result.folders[0].uid_seen, result.folders[0].complete), (uids[2], false));
+}
+
+#[test]
+fn what_is_asked_again_or_put_into_the_account_is_settled_and_said() {
+    let mut request = read_to(5);
+    request.folders[0].again = vec![5];
+    let result = brought(&request, Vec::new(), &mut |id: &str| Ok(mail(id)));
+    assert_eq!(result.folders[0].refetch_done, [5]);
+    assert!(result.errors.iter().any(|e| e.contains("can't send a message it received again")));
 }

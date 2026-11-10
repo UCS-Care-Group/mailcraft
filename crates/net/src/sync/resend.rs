@@ -4,29 +4,32 @@
 //! What is sent goes through Resend's SMTP server like any other account's ([`super::send_outbox`]).
 //!
 //! An account at Resend names [`RESEND_API_HOST`] as its incoming server and its API key as its
-//! password. The key goes to that host alone, over TLS, as `Authorization: Bearer` ([`may_go_to`]),
-//! and never in an address, an error or a log line. Two requests are made of it, as Resend's API
-//! reference has them: `GET /emails/receiving` lists what came, newest first, a hundred at a time,
-//! and `GET /emails/receiving/{id}` says where the message's bytes are; those are then fetched
-//! from the signed address Resend gives (on a host under `resend.com`, over TLS), with nothing
-//! of the owner's sent along.
+//! password ([`mailcraft_model::Account::is_resend`]). The key goes to that host alone, over TLS,
+//! as `Authorization: Bearer` ([`may_go_to`]), and never in an address, an error or a log line.
+//! Two requests are made of it, as Resend's API reference has them: `GET /emails/receiving` lists
+//! what came, newest first, a hundred at a time, and `GET /emails/receiving/{id}` says where the
+//! message's bytes are; those are then fetched from the signed address Resend gives (on a host
+//! under `resend.com`, over TLS, as are the redirects followed from it), with nothing of the
+//! owner's sent along. The calls are paced ([`PACE`]): Resend's limit is the whole team's.
 //!
 //! The account has one folder there, its Inbox ([`INBOX`]). Resend knows no flags, moves or
 //! folders: what the owner changes here stays here, and the run says the change is done so that
 //! it isn't asked again. Each message is given a UID made from when it came ([`numbered`]), so
 //! that a run brings only what is newer than what the folder has.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
 use mailcraft_model::provider::RESEND_API_HOST;
 use mailcraft_model::sync::{Deleted, FlagsPushed, FolderDelta, FolderState, ListedFolder, Moved, RemoteOp, SyncRequest, SyncStage, SyncStep};
-use mailcraft_model::{Account, FolderKind, Message};
+use mailcraft_model::{Body, FolderKind, Message};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::Fetched;
 use serde_json::Value;
-use std::time::Duration;
 
-use super::{BATCH_MESSAGES, Run, state_for, too_large};
-use crate::NetError;
+use super::{Run, state_for, too_large};
 use crate::http::{self, MAX_LONG_URL, Request, Url};
+use crate::{NetError, transport};
 
 /// The one folder an account at Resend has on the server, as its path is kept.
 const INBOX: &str = "INBOX";
@@ -39,8 +42,16 @@ const BASE: i64 = 1_704_067_200;
 /// share the eighth's UID, so it isn't brought and the run says so ([`bring`]); give the folder a
 /// new `UIDVALIDITY` and a later base, or more steps, when that is too little.
 const SLOTS: i64 = 8;
-/// Most messages listed in one run (100 a page): the newest, on a first run.
-const MAX_PAGES: usize = 50;
+/// How long a second has to settle before its messages are numbered: Resend takes mail in on its
+/// own time, and one that turned up in the list after another of its second, but earlier in it,
+/// would take that one's UID. shortcut: mail shows a minute late, and one that takes Resend longer
+/// than that to list, or a clock here that is far ahead, can still do so.
+const SETTLE: i64 = 60;
+/// Most messages listed in a first run (100 a page): the newest.
+const FIRST_PAGES: usize = 50;
+/// Most listed in a later one, to reach where the folder was read to; what came before that, when
+/// more came since, isn't brought, and the run says so.
+const MAX_PAGES: usize = 200;
 /// How long Resend's API has to be reached and to answer one request.
 const TIMEOUT: Duration = Duration::from_secs(30);
 /// The largest list or message description read.
@@ -50,15 +61,14 @@ const MAX_KEY: usize = 1024;
 /// The wait before each call to Resend's API. Resend lets a team make 10 calls a second, all of
 /// its keys together: at 4 a second, the owner's own programs that send through Resend keep the rest.
 const PACE: Duration = Duration::from_millis(250);
-
-/// Whether the account's mail is read from Resend's API rather than IMAP.
-pub(crate) fn is_resend(account: &Account) -> bool {
-    account.incoming.as_ref().is_some_and(|server| mailcraft_model::provider::is_resend_host(&server.host))
-}
+/// The longest wait for Resend after it said "not now" (429), before asking once more.
+const MAX_RETRY_AFTER: u64 = 10;
+/// Most redirects followed from the address of a message's bytes.
+const MAX_REDIRECTS: usize = 3;
 
 /// Check that Resend takes the API key and lets it read received mail: one list of one message.
 pub(crate) fn check(key: &str) -> Result<(), NetError> {
-    get(key, "/emails/receiving?limit=1").map(|_| ())
+    get(key, "/emails/receiving?limit=1", &AtomicBool::new(false)).map(|_| ())
 }
 
 /// The changes made here are said done (Resend has nothing to change), then what came since the
@@ -71,16 +81,23 @@ pub(super) fn exchange(run: &mut Run) {
     }
     run.hand_over(SyncStep::new(SyncStage::Connecting, "", 0, 0));
     run.out.listed = vec![ListedFolder { remote: INBOX.into(), kind: FolderKind::Inbox, parent: String::new(), name: "Inbox".into() }];
-    let key = request.secret();
-    let listed = match list_since(key, inbox(request).1) {
+    let (key, cancel) = (request.secret(), run.cancel);
+    let (listed, reached) = match list_since(key, inbox(request).1, cancel) {
         Ok(listed) => listed,
         Err(e) => {
             run.failed("Couldn't check for new mail", &e);
             return;
         }
     };
+    if !reached {
+        run.out.errors.push(format!(
+            "More mail came to Resend since the last Send/Receive than MailCraft lists in one ({} messages): the oldest of it wasn't brought; read it on Resend",
+            MAX_PAGES * 100
+        ));
+    }
     let largest = run.limits.largest;
-    bring(run, listed, &mut |id| fetch(key, id, largest));
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
+    bring(run, listed, now, &mut |id| fetch(key, id, largest, cancel));
 }
 
 /// The Inbox as the mailbox knows it, and the highest UID it has of it (0 for none, or for UIDs
@@ -93,19 +110,23 @@ fn inbox(request: &SyncRequest) -> (Option<&FolderState>, u32) {
 /// What a message's bytes came to ([`fetch`]).
 pub(super) enum Got {
     Whole(Vec<u8>),
-    /// Larger than is downloaded: what Resend said of it, for its header.
-    TooLarge(Value),
+    /// Larger than is downloaded.
+    TooLarge,
 }
 
-/// Bring down what of `listed` the Inbox doesn't have yet, oldest first, through `fetch`. The
-/// folder's count (`uid_seen`) only moves past a message once it is here, or is settled without
-/// its bytes; a message that couldn't be had stops the run there, and it and what came after it
-/// are asked for by the next run.
-pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, fetch: &mut dyn FnMut(&str) -> Result<Got, NetError>) {
+/// Bring down what of `listed` the Inbox doesn't have yet, oldest first, through `fetch`, as far
+/// as the run's limits go; the seconds of the last [`SETTLE`] before `now` wait for the next run.
+/// The folder's count (`uid_seen`) only moves past a message once it is here, whole or as its
+/// header: one that couldn't be had for now (Resend busy, the connection lost) stops the run
+/// there, and it and what came after it are asked for by the next run; one Resend can't give
+/// (it says nothing of where its bytes are, or refuses them) is kept as its header and a note,
+/// so that it doesn't hold back what comes after it.
+pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dyn FnMut(&str) -> Result<Got, NetError>) {
     let request = run.request;
     let (state, seen) = inbox(request);
     let known: std::collections::HashSet<u32> = state.map(|s| s.known_uids.iter().copied().collect()).unwrap_or_default();
-    let mut new: Vec<(u32, Listed)> = numbered(listed).into_iter().filter(|(uid, _)| *uid > seen && !known.contains(uid)).collect();
+    let settled: Vec<Listed> = listed.into_iter().filter(|l| l.secs <= now.saturating_sub(SETTLE)).collect();
+    let mut new: Vec<(u32, Listed)> = numbered(settled).into_iter().filter(|(uid, _)| *uid > seen && !known.contains(uid)).collect();
     // A UID two messages would share ([`SLOTS`]) is the first's.
     let before = new.len();
     new.dedup_by_key(|(uid, _)| *uid);
@@ -120,6 +141,7 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, fetch: &mut dyn FnMut(&s
     if most > 0 && new.len() > most {
         new.drain(..new.len() - most);
     }
+    settle_again(run, state);
     let total = new.len();
     let blank = FolderDelta {
         id: state.map(|s| s.id),
@@ -129,19 +151,29 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, fetch: &mut dyn FnMut(&s
         uid_seen: seen,
         ..Default::default()
     };
+    let limits = &run.limits;
+    let (most_bytes, most_messages, batch_messages, batch_bytes, batch_wait) =
+        (limits.bytes, limits.messages, limits.batch_messages, limits.batch_bytes, limits.batch_wait);
     let mut delta = blank.clone();
-    let mut whole = true;
+    let (mut whole, mut run_bytes, mut batch, mut batch_started) = (true, 0usize, 0usize, Instant::now());
     for (done, (uid, listed)) in new.into_iter().enumerate() {
-        if run.cancelled() {
+        // What doesn't fit in this run comes with the next.
+        if run.cancelled() || done >= most_messages || run_bytes >= most_bytes {
             whole = false;
             break;
         }
         run.asked = run.asked.saturating_add(2);
         let mut message = match fetch(&listed.id) {
-            Ok(Got::Whole(bytes)) => mailcraft_mime::parse_fetched(&bytes),
-            Ok(Got::TooLarge(said)) => header_only(&said, run.limits.largest),
+            Ok(Got::Whole(bytes)) => {
+                (run_bytes, batch) = (run_bytes.saturating_add(bytes.len()), batch.saturating_add(bytes.len()));
+                mailcraft_mime::parse_fetched(&bytes)
+            }
+            Ok(Got::TooLarge) => header_only(&listed.said, None, run.limits.largest),
+            Err(e) if is_for_good(&e) => {
+                run.out.errors.push(format!("A message Resend received couldn't be downloaded, and is kept as its header: {e}"));
+                header_only(&listed.said, Some(&e.to_string()), run.limits.largest)
+            }
             Err(e) => {
-                // What came after it waits for the next run, with it.
                 run.failed("Couldn't download a message Resend received", &e);
                 whole = false;
                 break;
@@ -151,20 +183,39 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, fetch: &mut dyn FnMut(&s
         message.received = listed.secs;
         delta.new.push(message);
         delta.uid_seen = uid;
-        if delta.new.len() >= BATCH_MESSAGES {
+        if delta.new.len() >= batch_messages || batch >= batch_bytes || batch_started.elapsed() >= batch_wait {
             let next = FolderDelta { uid_seen: delta.uid_seen, ..blank.clone() };
             run.out.folders.push(std::mem::replace(&mut delta, next));
             run.hand_over(SyncStep::new(SyncStage::Reading, "Inbox", done + 1, total));
+            (batch, batch_started) = (0, Instant::now());
         }
     }
     delta.complete = whole;
     run.out.folders.push(delta);
 }
 
-/// A message too large to download, as the IMAP side keeps one ([`too_large`]): who sent it, to
-/// whom, when and about what, from what Resend said of it, and a note in place of its text. Its
-/// size is what its attachments come to, and more than `largest` in any case.
-fn header_only(said: &Value, largest: u64) -> Message {
+/// Messages the mailbox wants downloaded again ([`FolderState::again`]) are settled as they are:
+/// Resend can't be asked for one by its UID here.
+fn settle_again(run: &mut Run, state: Option<&FolderState>) {
+    let Some(again) = state.map(|s| &s.again).filter(|again| !again.is_empty()) else { return };
+    let mut done =
+        FolderDelta { id: state.map(|s| s.id), remote: INBOX.into(), kind: FolderKind::Inbox, uid_validity: UID_VALIDITY, ..Default::default() };
+    done.refetch_done.clone_from(again);
+    run.out.folders.push(done);
+    run.out.errors.push("Resend can't send a message it received again: it is kept as it came".into());
+}
+
+/// Whether Resend's answer for a message will be the same however often it is asked: an address
+/// that isn't one, or a refusal. Not "not now", a lost connection or a refused key.
+fn is_for_good(error: &NetError) -> bool {
+    matches!(error, NetError::Config(_) | NetError::Proto(ProtoError::Rejected(_)))
+}
+
+/// A message whose bytes aren't here, as the IMAP side keeps one ([`too_large`]): who sent it,
+/// to whom, when and about what, from what Resend's list said of it, and a note in place of its
+/// text: that it is larger than `largest` (`failed` none; its size is what its attachments come
+/// to, and more than `largest` in any case), or why it couldn't be downloaded.
+fn header_only(said: &Value, failed: Option<&str>, largest: u64) -> Message {
     // What Resend says goes into a header: one line, no NUL, not too long.
     let line = |text: &str| text.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).take(900).collect::<String>();
     let text = |name: &str| said.get(name).and_then(Value::as_str).map(line).unwrap_or_default();
@@ -182,23 +233,40 @@ fn header_only(said: &Value, largest: u64) -> Message {
         }
     }
     head.push_str("\r\n");
-    let attached: u64 = said
-        .get("attachments")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .take(1_000)
-        .filter_map(|a| a.get("size").and_then(Value::as_u64))
-        .fold(0, u64::saturating_add);
-    let mut message = too_large(Fetched { body: Some(head.into_bytes()), ..Default::default() }, attached.max(largest.saturating_add(1)), largest);
+    let mut message = match failed {
+        None => {
+            let attached: u64 = said
+                .get("attachments")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .take(1_000)
+                .filter_map(|a| a.get("size").and_then(Value::as_u64))
+                .fold(0, u64::saturating_add);
+            let header = Fetched { body: Some(head.into_bytes()), ..Default::default() };
+            too_large(header, attached.max(largest.saturating_add(1)), largest)
+        }
+        Some(why) => {
+            let mut message = mailcraft_mime::parse_fetched(head.as_bytes());
+            let why: String = why.chars().take(300).collect();
+            message.body = Body {
+                text: format!(
+                    "MailCraft couldn't download this message from Resend ({why}).\n\nWhat is here comes from Resend's list alone: who sent it, when, and what it is about. Read the message itself on Resend.\n"
+                ),
+                html: None,
+            };
+            message
+        }
+    };
     if let Some((secs, _)) = said.get("created_at").and_then(Value::as_str).and_then(instant) {
         message.date = secs;
     }
     message
 }
 
-/// Resend keeps no flags or folders: a change made here is done once it is made here. A message
-/// put in the account from elsewhere can't go to Resend, and stays where it is.
+/// Resend keeps no flags or folders: a change made here is done once it is made here. Nothing is
+/// put into the account from elsewhere ([`mailcraft_model::Mailbox::puts_on_server`]); should a
+/// mailbox from before ask for it, the message goes back where it came from.
 fn settle_changes(run: &mut Run) {
     let request = run.request;
     for op in &request.ops {
@@ -214,38 +282,42 @@ fn settle_changes(run: &mut Run) {
     }
     if !request.places.is_empty() {
         run.out.unplaced.extend(request.places.iter().map(|place| place.message.id));
-        run.out.errors.push("Resend only keeps the mail it received: what was put in the account stays on this computer".into());
+        run.out.errors.push("Resend only keeps the mail it received: what was put in the account goes back where it came from".into());
     }
 }
 
-/// One message of Resend's list: its id, and when it came (seconds since 1970, and the
-/// thousandths of that second).
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// One message of Resend's list: its id, when it came (seconds since 1970, and the thousandths of
+/// that second), and what the list said of it (for its header, when its bytes can't be had).
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct Listed {
     pub(super) id: String,
     pub(super) secs: i64,
     pub(super) millis: u32,
+    pub(super) said: Value,
 }
 
-/// What Resend received from the second the UID `seen` was made from on (everything, for 0), as
-/// far as [`MAX_PAGES`] go: the whole of that second, so that its messages are numbered as before.
-fn list_since(key: &str, seen: u32) -> Result<Vec<Listed>, NetError> {
+/// What Resend received from the second the UID `seen` was made from on (the newest, for 0), and
+/// whether the list reached that second: the whole of it, so that its messages are numbered as
+/// before.
+fn list_since(key: &str, seen: u32, cancel: &AtomicBool) -> Result<(Vec<Listed>, bool), NetError> {
     let from = BASE.saturating_add(i64::from(seen) / SLOTS);
+    let pages = if seen == 0 { FIRST_PAGES } else { MAX_PAGES };
     let mut out: Vec<Listed> = Vec::new();
-    for _ in 0..MAX_PAGES {
+    for _ in 0..pages {
         let path = match out.last() {
             Some(last) => format!("/emails/receiving?limit=100&after={}", http::encode(&last.id)),
             None => "/emails/receiving?limit=100".into(),
         };
-        let (page, more) =
-            read_page(&get(key, &path)?).ok_or_else(|| NetError::Proto(ProtoError::Rejected("Resend's list of mail made no sense".into())))?;
+        let (page, more) = read_page(&get(key, &path, cancel)?)
+            .ok_or_else(|| NetError::Proto(ProtoError::Rejected("Resend's list of mail made no sense".into())))?;
         let ended = page.is_empty() || page.iter().any(|listed| listed.secs < from);
         out.extend(page);
         if ended || !more {
-            break;
+            return Ok((out, true));
         }
     }
-    Ok(out)
+    // A first run takes the newest so many by design.
+    Ok((out, seen == 0))
 }
 
 /// One page of `GET /emails/receiving`: its messages (those without a usable id or date left
@@ -261,7 +333,7 @@ pub(super) fn read_page(body: &[u8]) -> Option<(Vec<Listed>, bool)> {
         .filter_map(|entry| {
             let id = entry.get("id").and_then(Value::as_str).filter(|id| is_id(id))?;
             let (secs, millis) = instant(entry.get("created_at").and_then(Value::as_str)?)?;
-            Some(Listed { id: id.to_string(), secs, millis })
+            Some(Listed { id: id.to_string(), secs, millis, said: entry.clone() })
         })
         .collect();
     Some((page, more))
@@ -303,31 +375,38 @@ pub(super) fn is_id(id: &str) -> bool {
 }
 
 /// The bytes of the message Resend knows as `id`: where they are, then the bytes themselves, of
-/// at most `largest`.
-fn fetch(key: &str, id: &str, largest: u64) -> Result<Got, NetError> {
+/// at most `largest`, following a redirect that stays with Resend.
+fn fetch(key: &str, id: &str, largest: u64, cancel: &AtomicBool) -> Result<Got, NetError> {
     if !is_id(id) {
         return Err(NetError::Config("Resend named a message by an id that isn't one".into()));
     }
-    let said: Value = serde_json::from_slice(&get(key, &format!("/emails/receiving/{id}"))?)
+    let said: Value = serde_json::from_slice(&get(key, &format!("/emails/receiving/{id}"), cancel)?)
         .map_err(|_| NetError::Proto(ProtoError::Rejected("Resend's word on a message made no sense".into())))?;
-    let address = said.pointer("/raw/download_url").and_then(Value::as_str).unwrap_or_default();
-    let url = Url::parse_within(address, MAX_LONG_URL)?;
-    raw_may_come_from(&url)?;
+    let mut address = said.pointer("/raw/download_url").and_then(Value::as_str).unwrap_or_default().to_string();
     let max_body = usize::try_from(largest).unwrap_or(usize::MAX).min(http::MAX_LARGE_BODY);
-    // A signed address: nothing of the owner's goes with it, the key least of all.
-    let reply = match crate::kept::request(&url, &Request { method: "GET", headers: &[], body: None, patience: TIMEOUT, max_body }, true) {
-        Ok(reply) => reply,
-        Err(e) if http::is_too_long(&e) => return Ok(Got::TooLarge(said)),
-        Err(e) => return Err(e),
-    };
-    match reply.status {
-        200 => Ok(Got::Whole(reply.body)),
-        status => Err(refusal(status)),
+    for _ in 0..=MAX_REDIRECTS {
+        let url = Url::parse_within(&address, MAX_LONG_URL)?;
+        raw_may_come_from(&url)?;
+        stop_if(cancel)?;
+        // A signed address: nothing of the owner's goes with it, the key least of all.
+        let request = Request { method: "GET", headers: &[], body: None, patience: TIMEOUT, max_body };
+        let reply = match crate::kept::request(&url, &request, true) {
+            Ok(reply) => reply,
+            Err(e) if http::is_too_long(&e) => return Ok(Got::TooLarge),
+            Err(e) => return Err(e),
+        };
+        match (reply.status, reply.location) {
+            (200, _) => return Ok(Got::Whole(reply.body)),
+            (301 | 302 | 303 | 307 | 308, Some(next)) => address = next,
+            (status, _) => return Err(refusal(status)),
+        }
     }
+    Err(NetError::Proto(ProtoError::Rejected("Resend sent a message's bytes on too many redirects".into())))
 }
 
-/// GET `path` of Resend's API with the key, and the answer's body when it is a yes.
-fn get(key: &str, path: &str) -> Result<Vec<u8>, NetError> {
+/// GET `path` of Resend's API with the key, and the answer's body when it is a yes. After a "not
+/// now" (429), asked once more after the wait Resend asked for (at most [`MAX_RETRY_AFTER`]).
+fn get(key: &str, path: &str, cancel: &AtomicBool) -> Result<Vec<u8>, NetError> {
     // A key that isn't one is not sent anywhere; it is also what a header can't carry.
     if key.is_empty() || key.len() > MAX_KEY || !key.bytes().all(|b| b.is_ascii_graphic()) {
         return Err(NetError::Proto(ProtoError::Auth("type the Resend API key as the account's password".into())));
@@ -336,17 +415,45 @@ fn get(key: &str, path: &str) -> Result<Vec<u8>, NetError> {
     may_go_to(&url)?;
     let bearer = format!("Bearer {key}");
     let headers = [("Authorization", bearer.as_str()), ("Accept", "application/json")];
-    std::thread::sleep(PACE);
-    // (A read: asked again on a new connection when one that waited turns out closed.)
-    let reply = crate::kept::request(&url, &Request { method: "GET", headers: &headers, body: None, patience: TIMEOUT, max_body: MAX_ANSWER }, true)
-        .map_err(|e| e.without(key))?;
-    match reply.status {
-        200 => Ok(reply.body),
-        401 | 403 => {
-            Err(NetError::Proto(ProtoError::Auth("Resend didn't take the API key (reading received mail needs a key with full access)".into())))
+    let request = Request { method: "GET", headers: &headers, body: None, patience: TIMEOUT, max_body: MAX_ANSWER };
+    let mut wait = PACE;
+    for asked in 0..2 {
+        pause(wait, cancel)?;
+        // (A read: asked again on a new connection when one that waited turns out closed.)
+        let reply = crate::kept::request(&url, &request, true).map_err(|e| e.without(key))?;
+        match reply.status {
+            200 => return Ok(reply.body),
+            401 | 403 => {
+                return Err(NetError::Proto(ProtoError::Auth(
+                    "Resend didn't take the API key (reading received mail needs a key with full access)".into(),
+                )));
+            }
+            429 if asked == 0 => {
+                let said = reply.retry_after.as_deref().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(1);
+                wait = Duration::from_secs(said.clamp(1, MAX_RETRY_AFTER));
+            }
+            status => return Err(refusal(status)),
         }
-        status => Err(refusal(status)),
     }
+    Err(refusal(429))
+}
+
+/// Wait `wait`, a little at a time, and stop when the run is called off.
+fn pause(wait: Duration, cancel: &AtomicBool) -> Result<(), NetError> {
+    let until = Instant::now() + wait;
+    loop {
+        stop_if(cancel)?;
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Ok(());
+        }
+        std::thread::sleep(left.min(PACE));
+    }
+}
+
+/// The error of a run called off ([`transport::STOPPED`]), when it was.
+fn stop_if(cancel: &AtomicBool) -> Result<(), NetError> {
+    if cancel.load(Ordering::Relaxed) { Err(NetError::Proto(ProtoError::Io(transport::STOPPED.into()))) } else { Ok(()) }
 }
 
 /// What a status other than a yes says.

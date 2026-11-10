@@ -2363,9 +2363,10 @@ impl Mailbox {
     }
 
     /// Whether mail moved or copied into `account` from another account is put on its server
-    /// (#451): a Microsoft account's or an IMAP account's.
+    /// (#451): a Microsoft account's or an IMAP account's, but not Resend's, which only keeps the
+    /// mail it received ([`Account::is_resend`]).
     pub fn puts_on_server(&self, account: Id) -> bool {
-        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Imap))
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Imap) && !a.is_resend())
     }
 
     /// Whether mail that goes from the account `from` into the account `to` is made on `to`'s
@@ -2384,10 +2385,11 @@ impl Mailbox {
 
     /// Whether a message moved from the account `from` into the account `to` is kept by `to`, so
     /// that its original goes from `from`'s server once it is safe there (#451): `to`'s server
-    /// is given a copy of it ([`Mailbox::placed_into`]), or `to` is on this computer, where the
-    /// message is kept in the mailbox file.
+    /// is given a copy of it ([`Mailbox::placed_into`]), or `to` is on this computer (or is a
+    /// Resend account, whose server keeps nothing put into it), where the message is kept in the
+    /// mailbox file.
     pub fn takes_over(&self, from: Id, to: Id) -> bool {
-        self.placed_into(from, to) || (from != to && self.account(to).is_some_and(|a| a.kind == AccountKind::Local))
+        self.placed_into(from, to) || (from != to && self.account(to).is_some_and(|a| a.kind == AccountKind::Local || a.is_resend()))
     }
 
     /// Whether the original of `id` is on a server it is being moved out of, to go from there

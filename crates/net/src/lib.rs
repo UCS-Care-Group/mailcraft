@@ -264,7 +264,7 @@ mod native {
         if account.incoming.is_none() && account.outgoing.is_none() {
             return Err(NetError::Config(said!("the account has no mail servers to check")));
         }
-        if crate::sync::resend::is_resend(account) {
+        if account.is_resend() {
             crate::sync::resend::check(secret).map_err(|e| e.without(secret))?;
         } else if account.incoming.is_some() {
             let imap = crate::sync::open_imap(account, secret).map_err(|e| e.without(secret))?;

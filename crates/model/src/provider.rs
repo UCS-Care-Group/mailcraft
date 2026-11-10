@@ -73,6 +73,14 @@ pub fn is_resend_host(host: &str) -> bool {
     host.trim().trim_end_matches('.').eq_ignore_ascii_case(RESEND_API_HOST)
 }
 
+impl crate::Account {
+    /// Whether the account's mail is read from Resend's API ([`resend`]), not from an IMAP server:
+    /// it keeps no flags, folders or mail put into it, so what the owner does with it stays here.
+    pub fn is_resend(&self) -> bool {
+        self.incoming.as_ref().is_some_and(|server| is_resend_host(&server.host))
+    }
+}
+
 /// Resend, a service that sends and receives the mail of the owner's own domain: mail is read
 /// from its API ([`RESEND_API_HOST`]) and sent through its SMTP server, both with an API key.
 pub fn resend() -> Preset {
