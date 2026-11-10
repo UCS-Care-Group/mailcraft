@@ -789,7 +789,9 @@ pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
 pub fn is_own_calendar(mailbox: &Mailbox, calendar: &Calendar) -> bool {
     match keeper(mailbox, &calendar.origin) {
         None => true,
-        Some(account) => !account.is_shared() && calendar.rights != Rights::FreeBusy && !super::calendar_settings::is_shared_with(account, calendar),
+        Some(account) => {
+            !account.is_shared() && calendar.rights != Rights::FreeBusy && !super::calendar_settings::is_shared_with(mailbox, account, calendar)
+        }
     }
 }
 

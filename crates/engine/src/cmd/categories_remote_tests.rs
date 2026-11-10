@@ -1791,6 +1791,33 @@ fn the_owners_own_calendar_named_as_theirs_by_graph_follows_a_rename_and_the_old
     waits_then_deletes(&mut s, a, |s| event_answer(s, a));
 }
 
+/// The account's main calendar, which its server says `address` owns.
+fn main_calendar_owned_by(s: &mut Session, account: Id, address: &str) {
+    let id = s.mailbox.alloc_id();
+    let origin = Origin { account, ..Default::default() };
+    let owner = Some(mailcraft_model::CalendarOwner { address: address.into(), name: "A".into() });
+    s.mailbox.calendars.push(Calendar { id, name: "Calendar".into(), visible: true, origin, owner, ..Default::default() });
+}
+
+#[test]
+fn an_account_added_by_an_alias_has_its_other_calendars_follow_a_rename_and_a_colleagues_not() {
+    // Its server names the mailbox's main address as the owner of its calendars, the main
+    // calendar's owner too, and not the alias it was added with (#661).
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    main_calendar_owned_by(&mut s, a, "Primary@example.org");
+    let mine = server_event(&mut s, a, &["Old"]);
+    owned_by(&mut s, mine, "primary@example.org");
+    let theirs = server_event(&mut s, a, &["Old"]);
+    owned_by(&mut s, theirs, "colleague@example.org");
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.event(mine).unwrap().categories, ["New"], "the owner's other calendar is the owner's own");
+    assert_eq!(s.mailbox.event(theirs).unwrap().categories, ["Old"], "a colleague's is left alone");
+    let told: Vec<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
+    assert_eq!(told, [mine], "and only its server is told");
+    // "Old" is deleted in Outlook only once the event there has "New".
+    waits_then_deletes(&mut s, a, |s| event_answer(s, a));
+}
+
 #[test]
 fn a_rename_or_a_removal_is_told_to_the_calendar_and_the_old_name_waits_for_it() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);

@@ -3382,7 +3382,8 @@ impl Mailbox {
         // (On the list the rest share, kept on no server, a shared mailbox's items follow it as
         // everybody's do.)
         let shared: HashSet<Id> = self.accounts.iter().filter(|a| a.is_shared() && list.is_some()).map(|a| a.id).collect();
-        let calendars: HashMap<Id, (Id, bool)> = self.calendars.iter().map(|c| (c.id, (c.origin.account, self.is_others_calendar(c)))).collect();
+        let others = self.others_calendars();
+        let calendars: HashMap<Id, (Id, bool)> = self.calendars.iter().map(|c| (c.id, (c.origin.account, others.contains(&c.id)))).collect();
         let uses = |account: Id| !shared.contains(&account) && lists.get(&account).copied() == list;
         let uses_calendar = |calendar: Id| match calendars.get(&calendar) {
             Some((account, others)) => !others && uses(*account),
@@ -3402,11 +3403,37 @@ impl Mailbox {
         }
     }
 
-    /// Whether `calendar` is somebody else's that its account's server lists, shared with the
-    /// account or opened by address ([`Calendar::is_shared_with`]): not one of the account's own,
-    /// whose owner its server says is the account (#661).
-    fn is_others_calendar(&self, calendar: &Calendar) -> bool {
-        self.account(calendar.origin.account).is_some_and(|a| calendar.is_shared_with(&a.email))
+    /// The address `account`'s server names as the owner of its main calendar, once a list of its
+    /// calendars has said (#661): the account's own address as its server has it, which the
+    /// address it was added with (an alias, a sign-in name) need not be.
+    pub fn main_calendar_owner(&self, account: Id) -> Option<&str> {
+        self.calendars
+            .iter()
+            .find(|c| c.origin.account == account && c.origin.id.is_empty())
+            .and_then(|c| c.owner.as_ref())
+            .map(|o| o.address.as_str())
+    }
+
+    /// The calendars that are somebody else's that their account's server lists, shared with the
+    /// account or opened by address ([`Calendar::is_shared_with`]): not the account's own, whose
+    /// owner its server says is the account by either of its addresses (#661). Worked out once
+    /// for them all.
+    fn others_calendars(&self) -> HashSet<Id> {
+        let mut mains: HashMap<Id, &str> = HashMap::new();
+        for c in self.calendars.iter().filter(|c| c.origin.id.is_empty()) {
+            if let Some(owner) = c.owner.as_ref() {
+                mains.entry(c.origin.account).or_insert(owner.address.as_str());
+            }
+        }
+        let addresses: HashMap<Id, &str> = self.accounts.iter().map(|a| (a.id, a.email.as_str())).collect();
+        self.calendars
+            .iter()
+            .filter(|c| {
+                let account = c.origin.account;
+                addresses.get(&account).is_some_and(|email| c.is_shared_with(&[email, mains.get(&account).copied().unwrap_or_default()]))
+            })
+            .map(|c| c.id)
+            .collect()
     }
 
     /// What `owner`'s server is to be told of its list of categories (#661): the difference
@@ -3486,8 +3513,9 @@ impl Mailbox {
                     && keeps_tasks(t.origin.account)
             })
         };
-        let own_calendar = |e: &Event| self.calendar(e.calendar).is_some_and(|c| !self.is_others_calendar(c));
         let events = || {
+            let others = self.others_calendars();
+            let own_calendar = |e: &Event| self.calendar(e.calendar).is_some() && !others.contains(&e.calendar);
             self.event_changes.iter().any(|c| {
                 uses(c.account)
                     && c.base.as_ref().is_some_and(|b| carries(&b.categories))

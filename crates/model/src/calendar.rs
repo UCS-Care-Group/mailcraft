@@ -216,14 +216,16 @@ impl Calendar {
         self.own_color.unwrap_or(self.color)
     }
 
-    /// Whether this calendar, one that the account whose own address is `address` has from its
-    /// server, is somebody else's, shared with the account: its owner is a person other than that
-    /// address. Never the account's own calendars (its server names the account as their owner
-    /// too), and never one whose owner the server didn't say.
-    pub fn is_shared_with(&self, address: &str) -> bool {
-        let own = address.trim();
-        let Some(owner) = self.owner.as_ref() else { return false };
-        !self.origin.id.is_empty() && !own.is_empty() && !owner.address.is_empty() && !owner.address.eq_ignore_ascii_case(own)
+    /// Whether this calendar, one that an account has from its server, is somebody else's, shared
+    /// with the account: its owner is a person other than the account. `own` are the account's
+    /// addresses: the one it was added with, and the one its server names as the owner of its main
+    /// calendar ([`crate::Mailbox::main_calendar_owner`]), which an alias or a sign-in name given
+    /// as the address is not (#661). Never the account's own calendars (its server names the
+    /// account as their owner too), and never one whose owner the server didn't say.
+    pub fn is_shared_with(&self, own: &[&str]) -> bool {
+        let Some(owner) = self.owner.as_ref().map(|o| o.address.as_str()).filter(|a| !a.is_empty()) else { return false };
+        let mut own = own.iter().map(|a| a.trim()).filter(|a| !a.is_empty()).peekable();
+        !self.origin.id.is_empty() && own.peek().is_some() && !own.any(|a| owner.eq_ignore_ascii_case(a))
     }
 }
 
