@@ -1572,6 +1572,11 @@ msgid "Automatic Replies for {address}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic bulleted and numbered lists"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Automatic replies are being sent for {address}"
 msgstr ""
@@ -13598,6 +13603,11 @@ msgstr "Digitare il proprio indirizzo. MailCraft trova i server di posta e il mo
 #, fuzzy
 msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Outlook.com, Google and other providers, or a mailbox on this device only"
 msgstr "Digitare il proprio indirizzo di posta elettronica e MailCraft trova il resto: Microsoft 365, Outlook.com, Google e altri provider, oppure una cassetta postale solo su questo dispositivo"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

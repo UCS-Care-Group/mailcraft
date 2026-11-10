@@ -625,6 +625,16 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if ui.checkbox(&mut quote, tl!("Include the original message when replying")).changed() {
         set(app, json!({"quoteOnReply": quote}));
     }
+    let mut lists = prefs.auto_lists;
+    if ui
+        .checkbox(&mut lists, tl!("Automatic bulleted and numbered lists"))
+        .on_hover_text(tl!(
+            "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+        ))
+        .changed()
+    {
+        set(app, json!({"autoLists": lists}));
+    }
     let mut in_window = app.ui.replies_in_window;
     let switch = ui
         .checkbox(&mut in_window, tl!("Open new messages, replies and forwards in a new window"))
