@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-04 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-07 · **Change:** minor · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -56,7 +56,7 @@ WordCraft does.
 | Platform | Artifacts | Signing |
 |---|---|---|
 | macOS | universal `MailCraft.app` in a `.dmg`, universal CLI zip | Developer ID + notarization (`APPLE_*` secrets) |
-| Windows | x64, x86 and arm64 `.msi` + portable `.zip` | Azure Trusted Signing (`AZURE_*` secrets) or a certificate (`WINDOWS_CERTIFICATE*`) |
+| Windows | x64, x86 and arm64 `.msi` + portable `.zip` | Azure Artifact Signing (`AZURE_*` secrets, OIDC sign-in) or a certificate (`WINDOWS_CERTIFICATE*`) |
 | Linux | x86_64 and aarch64 `.AppImage` (+ `.zsync` for AppImageUpdate), `.flatpak` bundle, `.deb`, `.rpm`, `.tar.gz` | checksums |
 | FreeBSD | x86_64 `.tar.gz` (built in a FreeBSD VM; on a tag always, on a dry run only when asked for) | checksums |
 | Web | `mailcraft-web-<version>.zip` (static site: `index.html`, wasm, glue) | none |
@@ -80,15 +80,30 @@ merge commit of a pull request that was up to date with `main` (as the release's
 is) can be tagged as soon as it is merged: it holds the very tree the pull request's `ci-ok`
 passed on, and that check stands for it, so the release doesn't wait for CI to run again on
 `main`. Any other commit is tagged once CI on `main` is green (a documentation-only commit runs
-no `ci-ok` and can't be tagged). The Windows and macOS jobs compile in a step of their own with no signing
-secret in the environment (`package.ps1 -BuildOnly`, `package.sh --build-only`) and sign in a
-later one (`-SkipBuild`, `--skip-build`); the job that signs the checksums builds `xtask` first
-and runs the finished binary with the key (`MAILCRAFT_XTASK`), so no build script or macro of a
-dependency ever runs with a signing secret in its environment. Release builds use no build cache
-(`Swatinem/rust-cache` is for CI only).
+no `ci-ok` and can't be tagged). Building and signing are separate jobs. The Windows and macOS
+programs are compiled in jobs that hold no signing secret and name no environment
+(`package.ps1 -BuildOnly`, `package.sh --build-only`); each hands its binaries on as an artifact
+with a list of their SHA-256 and gives that list's digest as a job output
+(`packaging/ci/handoff.sh`). The jobs that sign check out the scripts afresh, check what they
+downloaded against that digest, and sign and package it (`-SkipBuild -NoRun`,
+`--skip-build --no-run`) with the systems' own signing tools and the pinned Artifact Signing
+client; they never run cargo, rustup or a program built here. The programs are run (the CLI,
+the window's `--version`, the MSI installed and removed) in check jobs that hold no secret. Every
+release file comes with the digest of the job that made it, and the job that makes the draft
+checks them all before it makes `SHA256SUMS.txt`, which it signs with the runner's OpenSSL, not
+with anything compiled from this repository. `cargo xtask workflows` (part of `cargo xtask ci`)
+fails when a job with a signing secret, an Azure sign-in, a keychain import or the `release`
+environment runs cargo, rustup or a built program. Release builds use no build cache
+(`Swatinem/rust-cache` is for CI only). The Google desktop client (`MAILCRAFT_GOOGLE_CLIENT_ID`,
+`MAILCRAFT_GOOGLE_CLIENT_SECRET`) is read by the build jobs, which name no environment, so it is
+a secret of the repository, not of the `release` environment.
 
 Signing secrets (`APPLE_*`, `WINDOWS_CERTIFICATE*` and `AZURE_*`) are secrets of the `release`
-environment, not of the repository. That environment accepts version tags (`v*`) only and waits
+environment, not of the repository. Windows signing with Azure Artifact Signing has no client
+secret: the job signs in with GitHub's OIDC token (`azure/login`), which the app registration's
+federated credential accepts only from the `release` environment; its secrets are
+`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT` and
+`AZURE_CERT_PROFILE`. That environment accepts version tags (`v*`) only and waits
 for a maintainer's approval; the Windows and macOS jobs that sign, and the job that makes the
 draft, run in it, and only for a pushed version tag. Without the secrets the builds are unsigned
 (ad-hoc on macOS) and the scripts say so, so forks still build. None is set yet, so every
@@ -178,10 +193,15 @@ nothing; the `.msi`, installed by Windows Installer, isn't affected.
   (Settings › Environments › release › Environment secrets, or
   `gh secret set MAILCRAFT_RELEASE_KEY --env release < mailcraft-release-key-in-use.pkcs8.b64`),
   and nowhere else. The public keys go into `RELEASE_KEYS`; they are not secret.
-- **Signing:** `packaging/sign-sums.sh <folder>` runs `cargo xtask release-key sign
-  <folder>/SHA256SUMS.txt` with the key from the environment (xtask is built from the checkout
-  with the locked crates in an earlier step that has no key, and the script runs that binary; no
-  tool is downloaded). The key is never printed; the step names the public key
+- **Signing:** `packaging/sign-sums.sh <folder>` signs `<folder>/SHA256SUMS.txt` with the key
+  from the environment, using OpenSSL 3 (`openssl pkeyutl -sign -rawin`, the same signature
+  `cargo xtask release-key sign` makes). In the workflow it is the runner's OpenSSL, checked
+  against its package's file list (`dpkg --verify`) before the key is handed to it; nothing is
+  compiled or downloaded in that job, and no program built from this repository runs with the
+  key. Locally, without OpenSSL 3, the script falls back to `cargo xtask release-key sign`.
+  The dry run makes a throwaway key with `cargo xtask release-key new` and checks that the
+  script's signature is byte for byte the one `cargo xtask release-key sign` makes with it (that
+  job holds no secret, so it may build). The key is never printed or written to a file; the step names the public key
   it signed with. Without the secret (a fork, a dry run) it says "unsigned" and the run goes on:
   such a release has no `.sig`, and no copy of MailCraft installs it by itself.
 - **Checking by hand:** the signature is a plain ed25519 signature over the bytes of
@@ -216,7 +236,7 @@ What the build fetches is pinned: every action by full commit SHA (Dependabot mo
 after their release), the shared workflows of `storytold/craft-common-actions` by full commit SHA
 (moved by hand), and every tool downloaded by URL by exact version and
 sha256, checked before it is used: nfpm (`package.yml`), appimagetool and the AppImage runtime
-(`packaging/linux/package.sh`), the Trusted Signing client (`packaging/windows/sign.ps1`),
+(`packaging/linux/package.sh`), the Artifact Signing client (`packaging/windows/sign.ps1`),
 rustup-init on FreeBSD and wasm-opt (`package.yml`). WiX 5.0.2 and its two extensions are NuGet
 packages: `package.yml` downloads each by exact version and checks its sha256 before installing
 the tool from the checked file (the extensions are fetched by `wix extension add`, after their
@@ -227,8 +247,10 @@ its version and its sha256 together, taken from the file itself.
 
 Dry run: `gh workflow run release.yml --ref <branch>` builds everything on any branch, unsigned,
 and keeps the files as workflow artifacts (FreeBSD only when asked for: it is slow), and their
-`SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). A dry run names no
-environment, is given no secrets and publishes nothing.
+`SHA256SUMS.txt` as `dry-run-sums` (the signing step says "unsigned"). It goes through the same
+jobs as a tag's run (build, then package, then check), checks every file against the digest of
+the job that made it, and checks that OpenSSL and xtask sign alike with a throwaway key. A dry run names
+no environment, is given no secrets and publishes nothing.
 
 
 Each release also carries `mailcraft-<version>.intoto.jsonl`: the build provenance GitHub attests
@@ -348,6 +370,11 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-07 | AU3-04: release programs are built in jobs without signing material and handed on by digest; the jobs that sign never run cargo or a built program, the programs are run in check jobs without secrets, the checksums are signed with OpenSSL, and `cargo xtask workflows` checks the shape |
+| 2026-11-06 | Pull requests leave status lines alone; the release pull request sets each one from the rows it joins in |
+| 2026-11-04 | The rows of the documents' revision histories and of the progress log are fragments, `docs/log.d/<document>/{revisions,progress}/<name>.md`, joined into their tables by `cargo xtask docs-log --write` in the release's pull request, beside the release notes' |
+| 2026-11-04 | #232: require a matching release registration pair, retain only a public client-ID option, and check primary-address and alias behavior |
+| 2026-11-03 | #232: reconcile Google desktop setup, explicit conversion, credential boundaries and verified acceptance scope with current main; retain public release requirements |
 | 2026-11-02 | The merge commit of an up-to-date pull request is tagged at once, on its pull request's `ci-ok`, without waiting for CI on `main` |
 | 2026-11-01 | The dead link to the shared release playbook is gone: this file is the recipe |
 | 2026-10-31 | The launcher's icon row: MailCraft's own icon, rendered from `assets/app-icon/source/mailcraft.svg` |

@@ -524,6 +524,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
+    // Gmail's categories, when they are tabs above a Gmail Inbox's list (#911).
+    crate::gmail_tabs::row(app, ui);
     let rows = app.session.rows();
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
@@ -998,12 +1000,21 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     if warned {
         app.hit.add("messageWarning", row.id, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)));
     }
+    // What checking its Digital signature found (#30): its seal, after the warning.
+    let seal = crate::reading::signature_seal(app, &m);
+    if seal.is_some() {
+        let at = if warned { x - 15.0 } else { x };
+        app.hit.add("messageSignature", row.id, Rect::from_center_size(pos2(at - 6.0, line1), vec2(12.0, 12.0)));
+    }
     let mut marker = |icon: &str, color: Color32| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
         x -= 15.0;
     };
     if warned {
         marker("warning", t.icon);
+    }
+    if let Some(seal) = seal {
+        marker(seal, t.icon);
     }
     // A meeting that came by mail wears its mark; its calendar part is not one of its files.
     let (meeting, files) = crate::reading::list_marks(&m);
@@ -1212,6 +1223,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
                 });
             });
         });
+        // Gmail's categories, for mail of a Gmail Inbox, where moves between them are on (#911).
+        crate::gmail_move::menu(app, ui);
         mi(ui, app, "Archive", "mail.archive", json!({}));
         ui.menu_button(tl!("Junk"), |ui| crate::ribbon::junk_menu(ui, app));
         mi(ui, app, "Delete", "mail.delete", json!({}));

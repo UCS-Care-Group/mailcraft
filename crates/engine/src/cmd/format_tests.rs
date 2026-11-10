@@ -386,7 +386,8 @@ fn a_received_message_quoted_in_a_reply_is_still_read_by_the_reading_rule() {
     run(&mut s, "compose.close", json!({}));
     run(&mut s, "mail.editDraft", json!({"id": draft}));
     let quote = compose(&s).quote.clone().unwrap();
-    let links: Vec<String> = mailcraft_html::parse(&quote.html).iter().flat_map(|b| b.spans.iter()).filter_map(|sp| sp.link.clone()).collect();
+    let links: Vec<String> =
+        mailcraft_html::parse(&quote.html).iter().flat_map(|b| b.spans.iter()).filter_map(|sp| sp.link.as_deref().map(str::to_string)).collect();
     assert_eq!(links, vec!["https://example.org/".to_string()], "{}", quote.html);
     assert!(!compose(&s).body.text().paragraphs().iter().flat_map(|p| p.runs.iter()).any(|r| r.style.link.is_some()));
 }

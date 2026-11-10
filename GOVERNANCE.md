@@ -58,6 +58,7 @@ lost.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-04 | minor | A pull request's revision rows are fragments, `docs/log.d/`, joined in at release |
 | 2026-10-23 | minor | A bug fix comes with its report, no claim |
 | 2026-10-20 | minor | How changes are reviewed |
 | 2026-10-20 | major | First version: roles, how decisions are made, continuity |
