@@ -71,22 +71,31 @@ fn regex_conditions() {
     };
     let r = |c: Condition| Rule { enabled: true, conditions: vec![c], actions: vec![Action::MarkRead], ..Default::default() };
     // Somewhere in the subject, in letters of either case.
-    assert!(r(Condition::SubjectMatches(r"order #\d+".to_string())).matches(&m));
-    assert!(r(Condition::SubjectMatches(r"ORDER #\d+".to_string())).matches(&m));
-    assert!(!r(Condition::SubjectMatches("order #9999".to_string())).matches(&m));
-    assert!(!r(Condition::SubjectMatches("shipped.*order".to_string())).matches(&m));
+    assert!(r(Condition::SubjectMatches(Pattern::new(r"order #\d+".to_string()).unwrap())).matches(&m));
+    assert!(r(Condition::SubjectMatches(Pattern::new(r"ORDER #\d+".to_string()).unwrap())).matches(&m));
+    assert!(!r(Condition::SubjectMatches(Pattern::new("order #9999".to_string()).unwrap())).matches(&m));
+    assert!(!r(Condition::SubjectMatches(Pattern::new("shipped.*order".to_string()).unwrap())).matches(&m));
     // In the body, and in the text a sender hid.
     let mut b = m.clone();
     b.body.text = "your order 2026-4411 is on its way".into();
     b.hidden_text = "order 2026-4411 also hidden".into();
-    assert!(r(Condition::BodyMatches(r"order \d{4}-\d{4}".to_string())).matches(&b));
+    assert!(r(Condition::BodyMatches(Pattern::new(r"order \d{4}-\d{4}".to_string()).unwrap())).matches(&b));
     // A pattern a reader doesn't take matches nothing, and says so in words.
-    assert!(!r(Condition::SubjectMatches("order #d".to_string())).matches(&m));
-    assert!(!r(Condition::BodyMatches("(unbalanced".to_string())).matches(&m));
-    assert_eq!(r(Condition::SubjectMatches("order".to_string())).describe(), "When the subject matches a pattern: mark it as read");
-    assert_eq!(r(Condition::BodyMatches("invoice".to_string())).describe(), "When the body matches a pattern: mark it as read");
-    // A pattern a message carries is no pattern at all.
-    let evil = r(Condition::SubjectMatches("a{100000}".to_string()));
+    assert!(!r(Condition::SubjectMatches(Pattern::new("order #d".to_string()).unwrap())).matches(&m));
+    // Use a pattern that's truly invalid - unmatched group
+    assert!(Pattern::new("(".to_string()).is_none());
+    assert_eq!(
+        r(Condition::SubjectMatches(Pattern::new("order".to_string()).unwrap())).describe(),
+        "When the subject matches a pattern: mark it as read"
+    );
+    assert_eq!(
+        r(Condition::BodyMatches(Pattern::new("invoice".to_string()).unwrap())).describe(),
+        "When the body matches a pattern: mark it as read"
+    );
+    // A pattern over 1000 chars is refused.
+    assert!(Pattern::new("a".repeat(1001)).is_none());
+    // A pattern a message carries that's valid but won't match.
+    let evil = r(Condition::SubjectMatches(Pattern::new("zzzzzzzzzz".to_string()).unwrap()));
     assert!(!evil.matches(&m) || !evil.matches(&Message { subject: "aaaa".into(), ..m }));
 }
 

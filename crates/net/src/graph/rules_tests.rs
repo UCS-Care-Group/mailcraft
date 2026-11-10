@@ -7,7 +7,7 @@
 use std::sync::{Arc, Mutex};
 
 use mailcraft_model::remote_rules::{RemoteRule, RuleOp, RuleOpKind, RuleResult, RulesUpload};
-use mailcraft_model::{Action, Condition, Importance};
+use mailcraft_model::{Action, Condition, Importance, Pattern};
 use serde_json::{Value, json};
 
 use super::rules::{push_rules_at, rule_body, rule_of, rules_at};
@@ -282,7 +282,7 @@ fn a_rule_the_server_cannot_keep_is_not_sent() {
     assert!(rule_body(&two).is_err());
     // A pattern is no part of a server's rules.
     let mut pattern = news_rule();
-    pattern.conditions.push(Condition::SubjectMatches("invoice #2[0-9]{4}".into()));
+    pattern.conditions.push(Condition::SubjectMatches(Pattern::new("invoice #2[0-9]{4}".into()).unwrap()));
     assert!(rule_body(&pattern).is_err());
 
     let s = state(Vec::new());

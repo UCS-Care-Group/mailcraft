@@ -6269,9 +6269,12 @@ pub(crate) mod rules {
                 if !c.kind.takes_text() {
                     return true;
                 }
-                if c.text.trim().is_empty() {
+                if c.text.is_empty() {
                     return false;
                 }
+                // A pattern's text is not trimmed: a long alternation like a@x.example|b@...|ca...
+                // must be refused whole if over 1000 chars, not cut to something that might still
+                // compile but match differently.
                 c.op != Op::Matches || mailcraft_model::regex_is_ok(&c.text)
             });
             let acts = self.acts.iter().all(|a| match a.kind {

@@ -1,0 +1,3 @@
+- Patterns in rule conditions are compiled once and cached, and patterns over 1000 characters are refused to prevent hangs on malicious mail. An older MailCraft that opens a mailbox with these rules will refuse the whole file (nothing is lost, but going back a version is blocked).
+- Graph has no *StartsWith conditions, so that arm in rule_of never runs, and the addresses_only branches for starts-with never run either, since those rules are never kept on the server.
+- A pattern that matches everything (.*) is NOT refused - it's a valid regex that matches all messages.

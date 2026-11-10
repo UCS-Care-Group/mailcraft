@@ -20,6 +20,74 @@ use std::sync::Arc;
 
 use crate::{Id, Importance, Message, contains_ci, starts_with_ci};
 
+/// Maximum length of a regex pattern that can be used in a rule.
+pub const MAX_PATTERN_LENGTH: usize = 1000;
+
+/// A regex pattern that has been compiled and is ready to match.
+#[derive(Clone, Debug)]
+pub struct Pattern {
+    /// The original pattern string, kept untrimmed for accurate error messages.
+    pub pattern: String,
+    /// The compiled regex, cached so it doesn't need to be recompiled for every message.
+    regex: Arc<regex::Regex>,
+}
+
+impl Pattern {
+    /// Try to compile a pattern, refusing if it's too long or invalid.
+    pub fn new(pattern: String) -> Option<Pattern> {
+        if pattern.len() > MAX_PATTERN_LENGTH {
+            return None;
+        }
+        let regex = regex::RegexBuilder::new(&pattern).case_insensitive(true).size_limit(1 << 20).build().ok()?;
+        Some(Pattern { pattern, regex: Arc::new(regex) })
+    }
+
+    /// Check if the pattern is valid (can be compiled) and not too long.
+    pub fn is_valid(pattern: &str) -> bool {
+        if pattern.len() > MAX_PATTERN_LENGTH {
+            return false;
+        }
+        regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build().is_ok()
+    }
+
+    /// Match the pattern against text.
+    pub fn is_match(&self, text: &str) -> bool {
+        self.regex.is_match(text)
+    }
+
+    /// Create a Pattern from a pattern string (recompiles the regex).
+    pub fn from_string(pattern: String) -> Option<Pattern> {
+        Self::new(pattern)
+    }
+}
+
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern == other.pattern
+    }
+}
+
+impl Eq for Pattern {}
+
+impl Serialize for Pattern {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.pattern)
+    }
+}
+
+impl<'de> Deserialize<'de> for Pattern {
+    fn deserialize<D>(deserializer: D) -> Result<Pattern, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Pattern::new(s).ok_or_else(|| serde::de::Error::custom("pattern is too long or invalid"))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type", content = "value")]
 pub enum Condition {
@@ -43,10 +111,10 @@ pub enum Condition {
     BodyStartsWith(String),
     /// The subject is read as a regular expression (case-insensitive) and matches somewhere.
     /// A rule with a regex condition is kept on this computer: a server has no such rule.
-    SubjectMatches(String),
+    SubjectMatches(Pattern),
     /// The body is read as a regular expression (case-insensitive) and matches somewhere.
     /// A rule with a regex condition is kept on this computer: a server has no such rule.
-    BodyMatches(String),
+    BodyMatches(Pattern),
     HasAttachment,
     Importance(Importance),
 }
@@ -80,8 +148,8 @@ impl Condition {
             Condition::BodyStartsWith(t) => starts_with_ci(&m.body.text, t) || starts_with_ci(&m.hidden_text, t),
             // A pattern the owner wrote is the rule's, not the message's: a message with a bad
             // pattern in its text does nothing here (the pattern is what it is, or is not).
-            Condition::SubjectMatches(p) => regex_ci(p).is_some_and(|re| re.is_match(&m.subject)),
-            Condition::BodyMatches(p) => regex_ci(p).is_some_and(|re| re.is_match(&m.body.text) || re.is_match(&m.hidden_text)),
+            Condition::SubjectMatches(p) => p.is_match(&m.subject),
+            Condition::BodyMatches(p) => p.is_match(&m.body.text) || p.is_match(&m.hidden_text),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
         }
@@ -128,19 +196,10 @@ pub enum Action {
     Delete,
 }
 
-/// Read `pattern` as a case-insensitive regular expression, bounded so that a hostile or
-/// careless one can't hang the window: the engine caps what it can grow to. A pattern it
-/// doesn't read (a bad escape, an unbalanced bracket) matches nothing, and is left for the
-/// window to say is wrong.
-fn regex_ci(pattern: &str) -> Option<Arc<regex::Regex>> {
-    let r = regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build().ok()?;
-    Some(Arc::new(r))
-}
-
 /// Whether `pattern` reads as a regular expression (and so would match): what the rule window
 /// checks before Add, so that a pattern that would never match is not made.
 pub fn regex_is_ok(pattern: &str) -> bool {
-    regex_ci(pattern).is_some()
+    Pattern::is_valid(pattern)
 }
 
 impl Action {

@@ -169,20 +169,19 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
 }
 
 fn text(v: &Value) -> Result<String, CmdError> {
-    let t: String = p::str(v, "value").unwrap_or("").trim().chars().take(200).collect();
+    let t: String = p::str(v, "value").unwrap_or("").to_string();
     if t.is_empty() { Err(bad("a condition needs a `value`")) } else { Ok(t) }
 }
 
 fn condition(v: &Value) -> Result<Condition, CmdError> {
-    // A pattern that doesn't compile would match nothing, and the rule would never act on a
-    // message, so it is refused where the rule is made: the window's own check doesn't run for a
-    // direct call. The same bounded compile the matcher uses.
+    // A pattern that doesn't compile or is too long would match nothing, and the rule would never
+    // act on a message, so it is refused where the rule is made: the window's own check doesn't
+    // run for a direct call. The same bounded compile the matcher uses.
     let pattern = |which: &str| {
         let value = text(v)?;
-        if !mailcraft_model::regex_is_ok(&value) {
-            return Err(bad(format!("the {which} pattern is not a regular expression")));
-        }
-        Ok(value)
+        mailcraft_model::Pattern::new(value).ok_or_else(|| {
+            bad(format!("the {which} pattern is too long or not a regular expression"))
+        })
     };
     Ok(match p::req_str(v, "type")? {
         "fromContains" => Condition::FromContains(text(v)?),
