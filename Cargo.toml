@@ -23,7 +23,10 @@ mailcraft-mime = { path = "crates/mime" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
+mailcraft-openpgp = { path = "crates/openpgp" }
+mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }
+mailcraft-assuan = { path = "crates/assuan" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
 mailcraft-ews = { path = "crates/ews" }
@@ -62,6 +65,10 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 # trust what the system trusts (and may fetch a missing intermediate themselves); Linux and
 # FreeBSD read the system's certificate store. No default features: rustls with `ring`, as above.
 rustls-platform-verifier = { version = "0.7.1", default-features = false }
+# The certification authorities Windows trusts for secure mail, read from its certificate store
+# with the uses Windows keeps for each, for checking S/MIME Digital signatures (#30,
+# `mailcraft-net`'s `system_trust_anchors`). MIT; already in the tree on Windows (rustls's).
+schannel = "0.1.30"
 # SHA-256 and random bytes for the OAuth sign-in (already in the tree: rustls runs on it).
 ring = "0.17"
 # The flag that opens a file without waiting (`O_NONBLOCK`), so that a pipe put where a file was
@@ -86,6 +93,34 @@ quick-xml = { version = "0.42", default-features = false }
 md4 = { version = "0.11", default-features = false }
 md-5 = { version = "0.11", default-features = false }
 hmac = { version = "0.13", default-features = false }
+
+# S/MIME Digital signatures checked (#30, `mailcraft-smime` only): CMS (RFC 5652) and X.509
+# (RFC 5280) read with RustCrypto's DER types, and RSA (PKCS #1 v1.5, PSS) and ECDSA (P-256,
+# P-384) signatures over SHA-2 checked with its implementations. Apache-2.0 OR MIT, pure Rust,
+# builds for the browser; nothing random and no private key is used (checking only). `cms` has
+# no release past 0.3.0-rc.2 for this generation of `der` and `x509-cert`, so it is pinned exactly.
+cms = { version = "=0.3.0-rc.2", default-features = false }
+x509-cert = { version = "0.3", default-features = false }
+der = { version = "0.8", default-features = false, features = ["alloc", "oid"] }
+spki = { version = "0.8", default-features = false, features = ["alloc"] }
+const-oid = { version = "0.10", default-features = false, features = ["db"] }
+rsa = { version = "0.10", default-features = false, features = ["encoding", "pkcs1v15"] }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc"] }
+p384 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc"] }
+sha2 = { version = "0.11", default-features = false, features = ["oid"] }
+# OpenPGP (RFC 9580): checking Digital signatures and reading Public keys (#30), in
+# `mailcraft-openpgp` only. rPGP, MIT OR Apache-2.0, Rust throughout, builds for the browser
+# (`wasm` there, for the random numbers its dependencies ask for). Pinned: a new version is read
+# and its fixed vectors run before it comes in. No default features: bzip2 compression isn't
+# needed to check a signature.
+pgp = { version = "=0.21.0", default-features = false }
+# The hashes rPGP itself uses (RustCrypto, MIT OR Apache-2.0, in the tree through it), named so
+# that `mailcraft-openpgp` hashes what was signed once for all the keys it tries (`sha2` 0.10 and,
+# for a test, `rsa` 0.9 are declared in that crate: rPGP's generation, older than S/MIME's below). The test
+# vector built without rPGP signs with Ed25519 and SHA-1 fingerprints (tests only).
+sha3 = { version = "0.10", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+ed25519-dalek = { version = "2", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO
