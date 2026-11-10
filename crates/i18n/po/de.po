@@ -2899,7 +2899,7 @@ msgstr "„{name}“ konnte nicht gelesen werden: Der Server hat keine seiner {c
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "Couldn't read Gmail's categories of \"{name}\""
-msgstr ""
+msgstr "Die Gmail-Kategorien von \"{name}\" konnten nicht gelesen werden"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -16556,7 +16556,7 @@ msgstr "der Server wollte „{subject}“ nicht vollständig senden, daher kann 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server's answer was longer than {kb} KB"
-msgstr ""
+msgstr "die Antwort des Servers war länger als {kb} KB"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/smtp.rs
