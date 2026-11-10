@@ -1554,7 +1554,7 @@ msgstr "Automatische Antworten für {address}"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Automatic bulleted and numbered lists"
-msgstr ""
+msgstr "Automatische Listen mit Aufzählungszeichen und Nummern"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4145,7 +4145,7 @@ msgstr "Schriftgrad"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
-msgstr ""
+msgstr "Für IMAP-Konten. Bei Microsoft- und Exchange-Server-Konten legen Sie unter Datei › Informationen mit „E-Mails für Offlineverwendung“ fest, welche E-Mails offline verfügbar bleiben."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -13507,7 +13507,7 @@ msgstr "Geben Sie Ihre E-Mail-Adresse ein, und MailCraft findet den Rest: Micros
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
-msgstr ""
+msgstr "Wenn Sie am Zeilenanfang * oder - gefolgt von einem Leerzeichen eingeben, beginnt eine Aufzählungsliste; mit 1. oder 1) eine nummerierte Liste. Mit Rückgängig wird Ihre Eingabe wiederhergestellt."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -15144,7 +15144,7 @@ msgstr "kein Microsoft-Konto wird über IMAP synchronisiert"
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
 msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr ""
+msgstr "kein Microsoft- oder Exchange-Server-Konto hält E-Mails offline verfügbar"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -16802,7 +16802,7 @@ msgstr "{name} ist kein über IMAP synchronisiertes Microsoft-Konto"
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
 msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr ""
+msgstr "{name} ist kein Microsoft- oder Exchange-Server-Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
