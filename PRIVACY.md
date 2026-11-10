@@ -14,7 +14,9 @@ you.
 
 - **Your mailbox** (messages, calendar, contacts, tasks, settings) is kept in files on your
   computer, in MailCraft's settings folder, and on the servers of the mail provider you connect
-  to, as with any mail program.
+  to, as with any mail program. Those files are protected as your other files are, by your
+  operating system's user account (and its disk encryption, where you have that on). Mail travels
+  between your computer and your provider only over encrypted connections.
 - **Passwords and sign-in tokens** are kept in memory while the program runs. When you let the
   program remember a sign-in, the password or the refresh token goes to your operating system's
   credential store (Windows Credential Manager, the macOS keychain, or on Linux and FreeBSD the
@@ -145,7 +147,12 @@ server of its own, so nothing of your Google data is sent to the project, to any
 it, or to anybody else. Nobody at the project can read it, it is not used for advertising, it is
 not sold, and it is not used to develop, improve or train any AI or machine-learning model.
 Scripts and AI agents (below) can read it only on your own computer, when you start the program
-with them and they act for you.
+with them and they act for you. MailCraft itself sends none of it to any AI service. An agent you
+connect is a program you chose, under its own terms: what it does with what it reads is up to it
+and to you, and MailCraft never asks it to send your mail anywhere.
+
+Your mail is kept on your computer until you delete it, remove the account, or use
+File › Info › Remove MailCraft's data from this computer.
 
 MailCraft's use and transfer to any other app of information received from Google APIs will
 adhere to the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),

@@ -66,7 +66,7 @@ pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
     FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_CATEGORIES, MAX_FOLDER_DEPTH, MAX_RULES, MAX_SHARED,
-    MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server,
+    MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, PALETTE, Pending, Queued, Security, Server,
     ServerFavorites, ServerFolder, categories_read_only_text, category_key,
 };
 pub use mailcraft_time as time;
@@ -155,6 +155,8 @@ pub(crate) mod b64 {
 
 #[cfg(test)]
 mod account_categories_tests;
+#[cfg(test)]
+mod account_color_tests;
 #[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
