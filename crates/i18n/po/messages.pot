@@ -2913,9 +2913,19 @@ msgstr ""
 msgid "Download Pictures"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Download Pictures in All Mail"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Download Pictures in Mail Automatically"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Download in all mail"
 msgstr ""
 
 #. interface
@@ -2926,6 +2936,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Download pictures"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Download pictures in all mail"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
 msgstr ""
 
 #. interface
@@ -5181,6 +5201,11 @@ msgid "Mail from the shared mailbox waits: {error}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr ""
@@ -7345,6 +7370,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
 msgstr ""
 
 #. interface
