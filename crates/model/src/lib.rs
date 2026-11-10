@@ -60,6 +60,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use dav::DavServer;
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};

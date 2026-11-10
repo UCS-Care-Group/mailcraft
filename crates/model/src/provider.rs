@@ -9,7 +9,7 @@
 //! domain names for Autodiscover tell an Exchange server from an IMAP one the same way
 //! ([`by_autodiscover`]).
 
-use crate::{OAuthProvider, Security, Server};
+use crate::{DavServer, OAuthProvider, Security, Server};
 
 /// What an account at a provider usually takes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,6 +20,9 @@ pub struct Preset {
     pub oauth: Option<OAuthProvider>,
     pub incoming: Server,
     pub outgoing: Server,
+    /// Where the provider keeps calendars and contacts when that is not IMAP and SMTP (its
+    /// CalDAV and CardDAV services, found through the well-known addresses).
+    pub dav: Option<DavServer>,
     /// Something the owner should know before connecting; may be empty.
     pub note: &'static str,
 }
@@ -32,7 +35,7 @@ fn server(host: &str, port: u16, security: Security) -> Server {
 }
 
 fn with_password(service: &'static str, imap: &str, smtp: (&str, u16, Security), note: &'static str) -> Preset {
-    Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), note }
+    Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), dav: None, note }
 }
 
 /// Outlook.com (`consumer`) or Microsoft 365 work and school mail.
@@ -44,6 +47,7 @@ pub fn microsoft(consumer: bool) -> Preset {
         oauth: Some(OAuthProvider::Microsoft),
         incoming: server("outlook.office365.com", 993, Security::Tls),
         outgoing: server(smtp, 587, Security::StartTls),
+        dav: None,
         note: MICROSOFT,
     }
 }
@@ -58,6 +62,7 @@ pub fn google(consumer: bool) -> Preset {
         oauth: Some(OAuthProvider::Google),
         incoming: server("imap.gmail.com", 993, Security::Tls),
         outgoing: server("smtp.gmail.com", 465, Security::Tls),
+        dav: None,
         note: "Google sign-in opens the provider's page; MailCraft does not ask for your Google password.",
     }
 }
@@ -280,6 +285,22 @@ pub fn by_autodiscover(hosts: &[String]) -> Autodiscover {
     if hosts.iter().any(exchange) { Autodiscover::Exchange } else { Autodiscover::Nothing }
 }
 
+/// A mail server at `host` that publishes CalDAV and CardDAV services beside its mail, as the
+/// well-known addresses told the wizard. The owner confirms the rest, and the services the
+/// server named replace the usual roots.
+pub fn dav(host: &str) -> Option<Preset> {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let dav = DavServer::for_host(&host)?;
+    Some(Preset {
+        service: "",
+        oauth: None,
+        incoming: server(&host, 993, Security::Tls),
+        outgoing: server(&host, 587, Security::StartTls),
+        dav: Some(dav),
+        note: "",
+    })
+}
+
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
 /// `outlook.com`, `google`, `yahoo`, `icloud`, `fastmail`).
 pub fn by_name(name: &str) -> Option<Preset> {
@@ -377,6 +398,7 @@ pub fn guess(domain: &str) -> Preset {
         oauth: None,
         incoming: server(&format!("imap.{domain}"), 993, Security::Tls),
         outgoing: server(&format!("smtp.{domain}"), 587, Security::StartTls),
+        dav: None,
         note: "",
     }
 }
@@ -424,6 +446,17 @@ mod tests {
         for host in ["evilgoogle.com", "mail.protection.outlook.com.evil.example", "mx.lumen.example", "", "a b", "x/../mx.microsoft"] {
             assert_eq!(by_mx(host), None, "{host}");
         }
+    }
+
+    #[test]
+    fn a_dav_server_is_named_by_its_host() {
+        let found = dav("Mail.Example.org.").unwrap();
+        assert_eq!((found.service, found.oauth), ("", None));
+        assert_eq!((found.incoming.host.as_str(), found.incoming.port), ("mail.example.org", 993));
+        assert_eq!((found.outgoing.host.as_str(), found.outgoing.port), ("mail.example.org", 587));
+        let services = found.dav.unwrap();
+        assert_eq!((services.caldav.as_str(), services.carddav.as_str()), ("https://mail.example.org/caldav/", "https://mail.example.org/carddav/"));
+        assert_eq!(dav("not a host"), None);
     }
 
     #[test]

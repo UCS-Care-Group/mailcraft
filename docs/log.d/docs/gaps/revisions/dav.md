@@ -1,0 +1,1 @@
+| 2026-11-01 | minor | Gap 5: an account whose mail goes over IMAP and SMTP keeps its calendars (shared ones too) and address books (shared books and the organization directory) in step over CalDAV and CardDAV, found from the domain's mail exchangers' well-known addresses |

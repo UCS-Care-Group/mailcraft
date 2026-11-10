@@ -33,6 +33,8 @@ mod cert;
 #[cfg(not(target_arch = "wasm32"))]
 mod discover;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod dav;
+#[cfg(not(target_arch = "wasm32"))]
 mod dns;
 #[cfg(not(target_arch = "wasm32"))]
 mod dns_srv;
@@ -50,6 +52,7 @@ pub mod https;
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
 mod kinds;
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(not(target_arch = "wasm32"))]
 pub mod oauth;
 #[cfg(not(target_arch = "wasm32"))]
@@ -107,6 +110,7 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
+    pub use crate::dav::{DavSync, Endpoints, probe as probe_dav, sync as sync_dav, upload_events as upload_dav_events};
     pub use crate::discover::{discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{

@@ -27,7 +27,7 @@ use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
 use mailcraft_model::provider::{Discovered, Via};
-use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, is_within, provider};
+use mailcraft_model::{Account, AccountKind, DavServer, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, is_within, provider};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;
@@ -371,6 +371,8 @@ pub struct Preset {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// The account's CalDAV and CardDAV roots, when discovery found them.
+    dav: Option<DavServer>,
     /// Something the owner should know before connecting; may be empty.
     note: String,
     /// Where the servers of a domain nobody knows came from (#1063): the domain's own records
@@ -389,6 +391,11 @@ impl Preset {
         let via = |k: &str| v.get(k).and_then(|server| server.get("via")).and_then(Value::as_str).unwrap_or_default();
         let known = v.get("known").and_then(Value::as_bool).unwrap_or(false);
         let found = if known { None } else { v.get("via").and_then(Value::as_str).and_then(Via::parse) };
+        let dav = v.get("dav").and_then(Value::as_object).and_then(|dav| {
+            let caldav = line(dav.get("caldav").and_then(Value::as_str).unwrap_or_default(), 2048);
+            let carddav = line(dav.get("carddav").and_then(Value::as_str).unwrap_or_default(), 2048);
+            (DavServer::check_url(&caldav).is_ok() && DavServer::check_url(&carddav).is_ok()).then_some(DavServer { caldav, carddav })
+        });
         Preset {
             known,
             service: text("service", 60),
@@ -396,6 +403,7 @@ impl Preset {
             username: text("username", LINE),
             incoming: ServerFields::read(v.get("incoming")),
             outgoing: ServerFields::read(v.get("outgoing")),
+            dav,
             note: text("note", 300),
             found,
             guessed: if found.is_some() { (Via::parse(via("incoming")).is_none(), Via::parse(via("outgoing")).is_none()) } else { (false, false) },
@@ -465,6 +473,8 @@ pub struct AccountSetup {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// CalDAV and CardDAV, for an account whose calendars and address books are kept there.
+    dav: Option<DavServer>,
     /// The servers are shown on the password page.
     settings_open: bool,
     /// The servers are a guess made from the domain: the page says so.
@@ -492,6 +502,10 @@ pub struct AccountSetup {
     /// What the lookup found when it named no provider this program knows: kept while the
     /// Autodiscover answer is awaited, and for IMAP when the owner says it isn't Exchange.
     discovered: Option<Discovered>,
+    /// The mail exchangers asked for CalDAV and CardDAV services, once the host knows.
+    probe: Option<Receiver<Result<Option<DavServer>, String>>>,
+    /// The exchangers the probe is about.
+    probing: Vec<String>,
     /// Whether the servers took the password, once the host knows.
     check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
@@ -616,6 +630,7 @@ impl AccountSetup {
             username: String::new(),
             incoming: ServerFields::default(),
             outgoing: ServerFields::default(),
+            dav: None,
             settings_open: false,
             guessed: false,
             found: None,
@@ -629,6 +644,8 @@ impl AccountSetup {
             lookup: None,
             autodiscover: None,
             discovered: None,
+            probe: None,
+            probing: Vec::new(),
             check: None,
             waiting: false,
             reconnecting_google: false,
@@ -704,6 +721,7 @@ impl AccountSetup {
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
+        w.dav = a.dav.clone();
         if let Some(oauth) = &a.oauth {
             w.client_id = line(&oauth.client_id, 200);
             w.tenant = line(&oauth.tenant, 64);
@@ -789,6 +807,9 @@ impl AccountSetup {
                 m.insert(key.into(), v);
             }
         }
+        if let Some(dav) = &self.dav {
+            m.insert("dav".into(), json!({"caldav": dav.caldav, "carddav": dav.carddav}));
+        }
         match &self.oauth {
             Some(oauth) => {
                 m.insert("auth".into(), json!("oauth2"));
@@ -847,6 +868,7 @@ impl AccountSetup {
             outgoing: self.outgoing.server(),
             username: self.login(email),
             oauth: self.oauth.clone(),
+            dav: self.dav.clone(),
             ..Default::default()
         })
     }
@@ -871,6 +893,9 @@ impl AccountSetup {
         if self.oauth.is_some() {
             m.insert("clientId".into(), json!(self.client_id.trim()));
             m.insert("tenant".into(), json!(self.tenant.trim()));
+        }
+        if self.dav.is_some() {
+            m.insert("dav".into(), json!(self.dav.as_ref().map(|dav| json!({"caldav": dav.caldav, "carddav": dav.carddav}))));
         }
         m
     }
@@ -910,6 +935,11 @@ impl AccountSetup {
                 _ => {}
             }
         }
+        if let Some(dav) = &self.dav
+            && let Some(why) = dav.problem()
+        {
+            return Some(fmt(tl!("The calendar and address-book address {why}"), &[("why", why)]));
+        }
         None
     }
 
@@ -943,6 +973,7 @@ impl AccountSetup {
         self.username = preset.username;
         self.incoming = preset.incoming;
         self.outgoing = preset.outgoing;
+        self.dav = preset.dav;
         self.settings_open = false;
         self.guessed = false;
         self.found = None;
@@ -979,6 +1010,7 @@ impl AccountSetup {
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
                 (self.lookup, self.autodiscover) = (None, None);
+                self.probe = None;
                 self.go(Page::Address);
             }
             (Page::Choose, Action::Pick(kind)) => self.pick(app, kind),
@@ -1567,6 +1599,8 @@ impl AccountSetup {
             Err(_) if app.services.sync.is_none() => Outcome::Offline,
             Err(_) => Outcome::Later,
         };
+        // A DAV account's calendars and address books come right after its first mail.
+        app.dav_sync_soon(id);
         self.go(Page::Done);
     }
 
@@ -1632,7 +1666,12 @@ impl AccountSetup {
     /// Take in what came back since the last frame.
     fn poll(&mut self, app: &mut MailApp) {
         match self.page {
-            Page::Detecting => self.poll_lookup(app),
+            Page::Detecting => {
+                self.poll_lookup(app);
+                if self.page == Page::Detecting && self.probe.is_some() {
+                    self.poll_probe(app);
+                }
+            }
             Page::SignIn if self.waiting => self.poll_sign_in(app),
             // (A sign-in may still be waiting behind the approval page: the owner may sign in
             // with an administrator's account on Microsoft's page after all.)
@@ -1695,7 +1734,8 @@ impl AccountSetup {
 
     /// IMAP at a domain whose exchangers name no provider this program knows: the servers its
     /// own records name (#1063), with a guess for what they don't, for the owner to check, with
-    /// where they came from said; else the guess made from the domain.
+    /// where they came from said; else the guess made from the domain. Then the exchangers are
+    /// asked whether they publish CalDAV and CardDAV services beside the mail.
     pub(super) fn imap_from_discovered(&mut self, app: &mut MailApp) {
         let preset = self
             .preset_command(self.discovered.as_ref(), None)
@@ -1713,7 +1753,50 @@ impl AccountSetup {
             }
             None => {}
         }
+        // No provider MailCraft knows takes the domain's mail: ask each exchanger whether it
+        // publishes CalDAV and CardDAV services beside its mail.
+        let mail_hosts = self.discovered.as_ref().map(|found| found.exchangers.clone()).unwrap_or_default();
+        if !mail_hosts.is_empty()
+            && let Some(probe) = app.services.probe_dav.as_ref().filter(|_| !app.offline())
+        {
+            self.probing = mail_hosts;
+            self.probe = Some(probe(self.probing.clone()));
+            return;
+        }
         self.go(Page::Password);
+    }
+
+    /// What the exchangers answered when asked for CalDAV and CardDAV services: the server that
+    /// answered names the rest of the account's settings, and the account keeps its mail where
+    /// it already was.
+    fn poll_probe(&mut self, app: &mut MailApp) {
+        let answer = match self.probe.as_ref().map(Receiver::try_recv) {
+            Some(Err(TryRecvError::Empty)) => return,
+            Some(Ok(answer)) => answer,
+            Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
+        };
+        self.probe = None;
+        let endpoints = answer.ok().flatten();
+        let Some(endpoints) = endpoints else {
+            self.go(Page::Password);
+            return;
+        };
+        // The exchanger that answered names the server the rest of the settings come from.
+        let host = DavServer::host(&endpoints.caldav).map(str::to_string);
+        let found = host
+            .map(|host| Discovered::from_exchangers(vec![host]))
+            .and_then(|found| self.preset_command(Some(&found), Some("dav")))
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v))
+            .filter(|preset| preset.known);
+        if let Some(mut preset) = found {
+            // Whatever path the service answered on is the one that is used.
+            preset.dav = Some(DavServer { caldav: endpoints.caldav.clone(), carddav: endpoints.carddav.clone() });
+            self.take(preset);
+            self.proceed(app);
+        } else {
+            self.go(Page::Password);
+        }
     }
 
     /// The domain's Autodiscover is Microsoft's: the mail is in Microsoft 365, whoever takes it
@@ -2778,6 +2861,44 @@ mod tests {
             rx
         }));
         asked
+    }
+
+    /// What a host that asks a mail exchanger for its DAV services was asked, and what it answers.
+    fn dav_probes(app: &mut MailApp, answer: Option<Result<Option<DavServer>, &str>>) -> Log<Vec<String>> {
+        let asked: Log<Vec<String>> = Default::default();
+        let log = asked.clone();
+        let answer = answer.map(|a| a.map_err(str::to_string));
+        let silent: Log<mpsc::Sender<Result<Option<DavServer>, String>>> = Default::default();
+        app.services.probe_dav = Some(Box::new(move |hosts: Vec<String>| {
+            log.lock().unwrap().push(hosts);
+            let (tx, rx) = mpsc::channel();
+            match &answer {
+                Some(answer) => tx.send(answer.clone()).unwrap(),
+                None => silent.lock().unwrap().push(tx),
+            }
+            rx
+        }));
+        asked
+    }
+
+    /// A domain whose mail exchanger publishes CalDAV and CardDAV: the account is set up with
+    /// IMAP and SMTP for mail and those services for the calendar and address books, and its
+    /// own password signs it in.
+    #[test]
+    fn a_dav_server_at_the_mail_exchanger_is_found() {
+        let dav = DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() };
+        let mut a = app(false);
+        lookups(&mut a, Some(Ok(vec!["mail.example.org"])));
+        let asked = dav_probes(&mut a, Some(Ok(Some(dav.clone()))));
+        let mut h = open(a, json!({}));
+        connect(&mut h, "noor@example.org");
+        assert_eq!(page(&h), Some(Page::Password));
+        assert_eq!(asked.lock().unwrap().as_slice(), [vec!["mail.example.org".to_string()]]);
+        let w = wizard(&h).unwrap();
+        assert_eq!((w.service.as_str(), w.incoming.host.as_str(), w.outgoing.host.as_str()), ("", "mail.example.org", "mail.example.org"));
+        assert_eq!(w.dav, Some(dav));
+        let (command, params) = w.add_command("").unwrap();
+        assert_eq!((command, params["dav"]["caldav"].as_str()), ("account.add", Some("https://mail.example.org/caldav/")));
     }
 
     /// What a sign-in was asked for: the address, the application ID, and the flag that stops it.

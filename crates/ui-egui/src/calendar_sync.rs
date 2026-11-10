@@ -102,6 +102,8 @@ impl MailApp {
     /// are asked for in the job that follows the round, the days on screen at least.
     pub(crate) fn calendar_after_round(&mut self, account: Id) {
         self.session.driver.calendar.after_round(account);
+        // A DAV account's calendars and address books are read after the mail (#276).
+        self.dav_sync_soon(account);
     }
 
     /// The accounts whose calendar a Microsoft server keeps.
