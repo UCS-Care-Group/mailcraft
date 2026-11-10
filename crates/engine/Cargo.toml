@@ -17,6 +17,8 @@ mailcraft-names = { workspace = true }
 mailcraft-html = { workspace = true }
 # Format characters made visible in View Source (`cmd::source`).
 mailcraft-mime = { workspace = true }
+# S/MIME Digital signatures checked where a message is read (#30).
+mailcraft-smime = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
 serde = { workspace = true }

@@ -53,6 +53,11 @@ mod favorites_flow;
 mod favorites_organisation_flow;
 mod file_dialogs;
 mod file_launcher;
+// OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
+#[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
+mod gpg_agent;
+#[cfg(test)]
+mod gpg_agent_tests;
 #[cfg(test)]
 mod graph_folders_flow;
 #[cfg(test)]
@@ -62,6 +67,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod key_holders;
 mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
@@ -2154,6 +2160,9 @@ fn main() -> eframe::Result {
             // the mailbox is there (`build`).
             let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
             let reading = progress.clone();
+            // The certification authorities this computer trusts, for checking Digital
+            // signatures (#30): read from the system's store while the mailbox is read.
+            let anchors = trust_anchors();
             let wake = cc.egui_ctx.clone();
             let arriving = launch::start(move || launch::first_mailbox(sample, mailbox_path, &reading), move || wake.request_repaint());
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
@@ -2177,6 +2186,7 @@ fn main() -> eframe::Result {
                 services.claim_mailbox =
                     claimer.map(|c| Box::new(move |path: &std::path::Path| c.claim(path)) as Box<dyn Fn(&std::path::Path) -> bool>);
                 let mut app = MailApp::new(session, services);
+                app.trust_anchors_arriving = Some(anchors);
                 // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
                 app.autosave = kept;
                 if let Some(path) = &app.session.path {
@@ -2277,4 +2287,28 @@ fn main() -> eframe::Result {
             )))
         }),
     )
+}
+
+/// The system's certification authorities for mail, read on a thread of their own (#30): the
+/// answer comes on the channel, and the window takes it when it comes, never waiting. A read
+/// that finds none, or stops on a panic, is tried once more a little later; a panic is a store
+/// that couldn't be read, said as that.
+fn trust_anchors() -> std::sync::mpsc::Receiver<Vec<Vec<u8>>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let read = move || {
+        let once = || std::panic::catch_unwind(mailcraft_net::system_trust_anchors).unwrap_or_default();
+        let mut found = once();
+        if found.is_empty() {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            found = once();
+        }
+        if found.is_empty() {
+            log::warn!("no certification authorities for mail could be read: Digital signatures are checked without them");
+        }
+        let _ = tx.send(found);
+    };
+    if let Err(e) = std::thread::Builder::new().name("trust anchors".into()).spawn(read) {
+        log::warn!("the system's certification authorities couldn't be read for checking Digital signatures: {e}");
+    }
+    rx
 }

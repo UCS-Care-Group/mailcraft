@@ -95,16 +95,19 @@ pub enum AlertTrouble {
 }
 
 impl AlertTrouble {
-    /// What the owner is told, under the switches.
-    pub fn notice(self) -> &'static str {
-        match self {
-            AlertTrouble::NotInstalled => {
-                tl!("Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it.")
-            }
-            AlertTrouble::OutsideApp => tl!("Desktop alerts can't be shown: this copy doesn't run from the MailCraft app."),
-            AlertTrouble::TurnedOff => tl!("Desktop alerts are turned off for MailCraft in System Settings."),
-            AlertTrouble::NoService => tl!("Desktop alerts can't be shown: no notification service answers on this desktop."),
-        }
+    /// What the owner is told, under the switches: "Desktop alerts can't be shown" and then why,
+    /// each translated once ([`crate::i18n::with_reason`]).
+    pub fn notice(self) -> String {
+        let reason = match self {
+            AlertTrouble::NotInstalled => tlc!(
+                "why desktop alerts can't be shown",
+                "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
+            ),
+            AlertTrouble::OutsideApp => tlc!("why desktop alerts can't be shown", "this copy doesn't run from the MailCraft app."),
+            AlertTrouble::TurnedOff => return tl!("Desktop alerts are turned off for MailCraft in System Settings.").to_string(),
+            AlertTrouble::NoService => tlc!("why desktop alerts can't be shown", "no notification service answers on this desktop."),
+        };
+        crate::i18n::with_reason(tl!("Desktop alerts can't be shown"), reason)
     }
 
     pub fn code(self) -> &'static str {
