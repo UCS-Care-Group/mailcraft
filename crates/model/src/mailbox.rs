@@ -1102,6 +1102,15 @@ pub struct Mailbox {
     pub messages: Messages,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
+    /// The address books the accounts' servers list, each with the URL a contact is sent to
+    /// ([`crate::ContactBook`]). Empty for accounts whose contacts are one list and for a
+    /// mailbox from before there were any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_books: Vec<crate::ContactBook>,
+    /// Changes to contacts that an account's CardDAV server is yet to receive, oldest first
+    /// ([`crate::remote::ContactChange`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_changes: Vec<crate::remote::ContactChange>,
     pub calendars: Vec<Calendar>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
@@ -1219,6 +1228,8 @@ impl Default for Mailbox {
             folders: Vec::new(),
             messages: Messages::new(),
             contacts: BTreeMap::new(),
+            contact_books: Vec::new(),
+            contact_changes: Vec::new(),
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),

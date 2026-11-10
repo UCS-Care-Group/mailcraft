@@ -10,7 +10,7 @@ use std::sync::Arc;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
-use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox};
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox, Rights};
 use mailcraft_time::Date;
 use serde_json::json;
 
@@ -538,7 +538,8 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Group>) {
     }
     // Only a new press that is the main window's: not the repeats of an Enter that closed a dialog
     // (#406).
-    if app.session.sel.contact.is_some() && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
+    let editable = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|contact| contact_writable(app, contact));
+    if editable && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
         let _ = app.run("people.edit", json!({}));
     }
 }
@@ -679,7 +680,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         app.people_picked.clear();
         let _ = app.run("people.select", json!({"id": id}));
     }
-    if resp.double_clicked() && !command {
+    if resp.double_clicked() && !command && contact_writable(app, &c) {
         let _ = app.execute("people.select", json!({"id": id}));
         let _ = app.run("people.edit", json!({}));
     }
@@ -689,6 +690,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         let _ = app.execute("people.select", json!({"id": id}));
     }
     let (favorite, has_email) = (c.favorite, c.address().is_some());
+    let writable = contact_writable(app, &c);
     let several = picked && app.people_picked.len() >= 2;
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
@@ -707,7 +709,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
             let _ = app.run("people.email", json!({"id": id}));
             ui.close();
         }
-        mi(ui, app, "Edit", "people.edit", json!({}));
+        if writable {
+            mi(ui, app, "Edit", "people.edit", json!({}));
+        }
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
         ui.menu_button(tl!("Categorize"), |ui| {
@@ -725,7 +729,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         });
         ui.separator();
         mi(ui, app, "Export…", "file.exportContacts", json!({"ids": [id]}));
-        mi(ui, app, "Delete", "people.delete", json!({"id": id}));
+        if writable {
+            mi(ui, app, "Delete", "people.delete", json!({"id": id}));
+        }
     });
 }
 
@@ -824,22 +830,51 @@ pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[Strin
     });
 }
 
+/// Whether the contact's address book lets this account change it. A contact kept here, or one
+/// from a server that did not name its book, is left to the command (and then the server) to
+/// decide.
+pub(crate) fn contact_writable(app: &MailApp, c: &Contact) -> bool {
+    if c.origin.account == 0 {
+        return true;
+    }
+    if c.book_id.is_empty() {
+        // A contact a server keeps outside an address book (Microsoft Graph) is still read only.
+        return false;
+    }
+    // A book the server no longer lists is not one to write into: the contact would not reach
+    // the server, and the next read would take the change away. The card says so.
+    app.session
+        .mailbox
+        .contact_books
+        .iter()
+        .find(|book| book.account == c.origin.account && book.id == c.book_id)
+        .is_some_and(|book| book.rights == Rights::Edit)
+}
+
+/// Whether the address book a contact came from is no longer in the account's list.
+fn book_unavailable(app: &MailApp, c: &Contact) -> bool {
+    c.origin.account != 0
+        && !c.book_id.is_empty()
+        && !app.session.mailbox.contact_books.iter().any(|book| book.account == c.origin.account && book.id == c.book_id)
+}
+
 fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let id = c.id;
+    let writable = contact_writable(app, c);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
         if c.address().is_some() && widgets::primary_button(ui, tl!("Email"), true).clicked() {
             let _ = app.run("people.email", json!({"id": id}));
         }
         // The card shows the selected contact, so Edit opens its form.
-        if widgets::icon_text_button(ui, "edit", tl!("Edit"), true).clicked() {
+        if widgets::icon_text_button(ui, "edit", tl!("Edit"), writable).clicked() {
             let _ = app.run("people.edit", json!({}));
         }
         let tip = if c.favorite { tl!("Remove from Favorites") } else { tl!("Add to Favorites") };
         if widgets::icon_text_button(ui, if c.favorite { "starOn" } else { "star" }, tl!("Favorite"), true).on_hover_text(tip).clicked() {
             let _ = app.run("people.favorite", json!({"id": id}));
         }
-        if widgets::icon_text_button(ui, "delete", tl!("Delete"), true).clicked() {
+        if widgets::icon_text_button(ui, "delete", tl!("Delete"), writable).clicked() {
             let _ = app.run("people.delete", json!({"id": id}));
         }
     });
@@ -894,7 +929,11 @@ fn read_only_here(app: &MailApp, c: &Contact) -> bool {
 fn card_account(app: &MailApp, ui: &mut Ui, c: &Contact) {
     if let Some(place) = kept_in(app, c) {
         section(ui, tl!("Account"));
-        if read_only_here(app, c) {
+        if book_unavailable(app, c) {
+            field(ui, "account", &place, tl!("Unavailable"), false).on_hover_text(tl!(
+                "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+            ));
+        } else if read_only_here(app, c) {
             field(ui, "account", &place, tl!("Read-only"), false).on_hover_text(tl!(
                 "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
             ));
