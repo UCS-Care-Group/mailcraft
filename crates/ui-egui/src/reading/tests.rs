@@ -4499,3 +4499,85 @@ fn cellspacing_is_the_gap_between_cells() {
         assert!((apart("cellspacing='10'") - 10.0).abs() < 0.5);
     });
 }
+
+/// "Download pictures in all mail" in the bar above a message (#910): it turns on the switch of
+/// File › Options, but only once the owner has read what that means and said yes; it is not
+/// offered in Junk E-mail, whose mail still never downloads by itself; and it is kept with the
+/// settings. Off from File › Options asks nothing.
+#[test]
+fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "news@shop.example", "First", &web_pictures("a.shop.example", 2)),
+        web_message(1, "other@elsewhere.example", "Second", &web_pictures("b.elsewhere.example", 2)),
+        web_message(2, "news@shop.example", "In the junk", &web_pictures("c.shop.example", 2)),
+    ]);
+    let (first, second, junk) = (ids[0], ids[1], ids[2]);
+    app.execute("mail.junk", json!({"ids": [junk]})).unwrap();
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesAutomatically");
+
+    // Off unless the owner turns it on; the bar offers it, and not in Junk E-mail.
+    assert!(!harness.state().ui.download_pictures);
+    select(&mut harness, junk);
+    assert!(harness.state().hit.rect("downloadPictures", junk).is_some());
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", junk).is_none());
+    select(&mut harness, first);
+    assert!(says(&harness, "Download pictures in all mail"));
+    let all = harness.state().hit.rect("downloadPicturesInAllMail", first).unwrap();
+
+    // It asks first, saying what it means; Cancel leaves it off and asks no server.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    assert!(says(&harness, "Each sender's server then learns when you opened the message and from which internet address"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(6);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    assert_eq!((shown(&harness, first), host.asked().len()), ((0, 2, 2), 0));
+
+    // Yes turns it on: this message's pictures come, and the next one's without a word.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    harness.get_by_label("Download in all mail").click();
+    harness.run_steps(8);
+    assert!(harness.state().dialog.is_none());
+    assert!(harness.state().ui.download_pictures);
+    assert_eq!(shown(&harness, first), (2, 0, 0));
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_none());
+    select(&mut harness, second);
+    assert_eq!(shown(&harness, second), (2, 0, 0));
+    // Junk E-mail's still don't.
+    select(&mut harness, junk);
+    assert_eq!(shown(&harness, junk), (0, 2, 2));
+    assert!(host.asked().iter().all(|url| !url.contains("c.shop")), "{:?}", host.asked());
+
+    // It is kept with the settings, and comes back with them.
+    let saved = serde_json::to_value(harness.state().prefs()).unwrap();
+    assert_eq!(saved["downloadPictures"], json!(true));
+    let restored: crate::UiState = serde_json::from_value(saved).unwrap();
+    assert!(restored.download_pictures);
+
+    // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    // On again there asks the same question; Cancel leaves it off.
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
+    select(&mut harness, second);
+    select(&mut harness, first);
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_some());
+    // A script or an agent is never asked: the command does what it is told.
+    assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
+    assert!(harness.state().dialog.is_none());
+}

@@ -101,7 +101,6 @@ crates/ui-egui/src/credits.rs
 crates/ui-egui/src/dates.rs
 crates/ui-egui/src/dialogs.rs
 crates/ui-egui/src/files.rs
-crates/ui-egui/src/forms.rs
 crates/ui-egui/src/graph_fetch.rs
 crates/ui-egui/src/i18n.rs
 crates/ui-egui/src/keep_offline.rs

@@ -224,3 +224,22 @@ fn each_send_the_answer_accounts_for_loses_its_mark() {
     }
     assert!(s.mailbox.message(untold).unwrap().sending, "one the answer doesn't name keeps its mark");
 }
+
+/// What the server put in the Outbox and an answer names anyway (`sync.holdSends` holds all that
+/// waits in a shared mailbox's Outbox) is not taken for the owner's (#738): it gets no marker, so
+/// Send Again doesn't make it one to send.
+#[test]
+fn a_held_answer_for_the_servers_own_mail_doesnt_make_it_the_owners() {
+    let (mut s, account, outbox) = setup();
+    let theirs = queued(&mut s, account, outbox, "Theirs", delivered());
+    // Only what a fetch gave it: no marker, nothing pending.
+    s.mailbox.message_mut(theirs).unwrap().server_draft = Some(ServerDraft::default());
+    let done =
+        SendDone { message: theirs, outcome: SendOutcome::Held { lost: false, why: "declined".into() }, draft: None, draft_left: String::new() };
+    let mut said = Vec::new();
+    send_done(&mut s.mailbox, account, &done, mailcraft_i18n::Lang::default(), &mut said);
+    assert!(s.mailbox.message(theirs).unwrap().server_draft.as_ref().unwrap().marker.is_empty());
+    s.run("mail.sendAgain", &json!({"id": theirs})).unwrap();
+    assert!(subjects(&s, account).is_empty());
+    assert!(from_server(s.mailbox.message(theirs).unwrap()));
+}
