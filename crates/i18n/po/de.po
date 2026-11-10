@@ -1014,7 +1014,7 @@ msgstr "Bei einem als privat gekennzeichneten Termin wird nur angezeigt, dass Si
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
-msgstr ""
+msgstr "Eine Zertifizierungsstelle auf dem Weg zu einer vertrauenswürdigen Stelle erlaubt nicht, das Zertifikat auf diese Weise zu verwenden."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -2069,7 +2069,7 @@ msgstr "Namen, Anmeldung und offline verfügbare E-Mails dieses Kontos ändern"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Changed after it was signed"
-msgstr ""
+msgstr "Nach der Signatur geändert"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3085,37 +3085,37 @@ msgstr "Diagramm"
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Digital Signature"
-msgstr ""
+msgstr "Digitale Signatur"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digital signature can't be checked"
-msgstr ""
+msgstr "Digitale Signatur kann nicht überprüft werden"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed and verified"
-msgstr ""
+msgstr "Digital signiert und verifiziert"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed by {signer}, and verified."
-msgstr ""
+msgstr "Digital signiert von {signer} und verifiziert."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed by {signer}, but the signer isn't verified."
-msgstr ""
+msgstr "Digital signiert von {signer}, aber der Unterzeichner ist nicht verifiziert."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed, but the signer isn't verified."
-msgstr ""
+msgstr "Digital signiert, aber der Unterzeichner ist nicht verifiziert."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed, signer not verified"
-msgstr ""
+msgstr "Digital signiert, Unterzeichner nicht verifiziert"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -3315,7 +3315,7 @@ msgstr "Bilder in E-Mails automatisch herunterladen"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Download the bytes this message came as again, to check its Digital signature"
-msgstr ""
+msgstr "Laden Sie die ursprünglichen Nachrichtendaten erneut herunter, um ihre digitale Signatur zu überprüfen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4672,7 +4672,7 @@ msgstr "Doppelt aufgeführten Kalender ausblenden"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Hide Details"
-msgstr ""
+msgstr "Details ausblenden"
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -5175,7 +5175,7 @@ msgstr "Ausgestellt von"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Issued by:"
-msgstr ""
+msgstr "Ausgestellt von:"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5255,12 +5255,12 @@ msgstr "Sie läuft dort, ob MailCraft geöffnet ist oder nicht, und erscheint in
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "It uses an algorithm MailCraft doesn't know."
-msgstr ""
+msgstr "Es verwendet einen Algorithmus, den MailCraft nicht kennt."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "It uses an algorithm that's no longer safe."
-msgstr ""
+msgstr "Es verwendet einen Algorithmus, der nicht mehr sicher ist."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7019,7 +7019,7 @@ msgstr "Keine Kategorie"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
-msgstr ""
+msgstr "Auf diesem Computer konnten keine Zertifizierungsstellen für E-Mails ausgelesen werden. Daher kann hier kein Unterzeichner verifiziert werden."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -7662,7 +7662,7 @@ msgstr "Nur auf diesem Computer: {why}"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
-msgstr ""
+msgstr "Nur ein Teil dieser Nachricht wurde signiert, und die hier angezeigte Darstellung umfasst mehr als diesen Teil: Was außerhalb davon liegt, könnte beliebige Inhalte enthalten."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -7812,7 +7812,7 @@ msgstr "Auf GitHub öffnen"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Open or save the Digital signature"
-msgstr ""
+msgstr "Digitale Signatur öffnen oder speichern"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8104,7 +8104,7 @@ msgstr "Ein Teil der Postfachdatei ist beschädigt und wurde ausgelassen, daher 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Part of this message is Digitally signed by {signer}, and verified; the rest isn't signed."
-msgstr ""
+msgstr "Ein Teil dieser Nachricht wurde von {signer} digital signiert und verifiziert; der Rest ist nicht signiert."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -9114,12 +9114,12 @@ msgstr "Zertifikat überprüfen…"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Revocation not checked."
-msgstr ""
+msgstr "Widerruf nicht geprüft."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Revocation:"
-msgstr ""
+msgstr "Widerruf:"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
@@ -10621,7 +10621,7 @@ msgstr "Signatur"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Signature file:"
-msgstr ""
+msgstr "Signaturdatei:"
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
@@ -10644,12 +10644,12 @@ msgstr "Signaturen…"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Signed at:"
-msgstr ""
+msgstr "Signiert am:"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Signed by:"
-msgstr ""
+msgstr "Signiert von:"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11368,7 +11368,7 @@ msgstr "Die PST-Datei enthält {what} zum Importieren; es wurde nichts importier
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The Digital signature can't be read."
-msgstr ""
+msgstr "Die digitale Signatur kann nicht gelesen werden."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -11588,17 +11588,17 @@ msgstr "Die Kategorien konnten nicht übernommen werden: {error}"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate is for another address than the sender's."
-msgstr ""
+msgstr "Das Zertifikat gilt für eine andere Adresse als die des Absenders."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate is out of date."
-msgstr ""
+msgstr "Das Zertifikat ist abgelaufen."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate isn't for signing mail."
-msgstr ""
+msgstr "Das Zertifikat ist nicht zum Signieren von E-Mails vorgesehen."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -11608,7 +11608,7 @@ msgstr "Sie müssen dem Zertifikat des Servers von {name} zustimmen."
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate signed itself, and this computer doesn't trust it."
-msgstr ""
+msgstr "Das Zertifikat ist selbstsigniert und wird von diesem Computer nicht als vertrauenswürdig eingestuft."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11618,7 +11618,7 @@ msgstr "Das vom Server unter {host} vorgelegte Zertifikat ist nicht das, dem Sie
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
-msgstr ""
+msgstr "Das Zertifikat wurde nicht von einer Zertifizierungsstelle ausgestellt, der dieser Computer vertraut."
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -11809,7 +11809,7 @@ msgstr "Die Besprechung, für die diese Vorschläge gelten, ist nicht in Ihrem K
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
-msgstr ""
+msgstr "Der zusammengeführte Kontakt hätte mehr Zertifikate und Schlüssel, als ein Kontakt enthalten darf (höchstens {max}; der beibehaltene Kontakt hat {had}). Daher werden die Kontakte nicht zusammengeführt."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -11836,8 +11836,9 @@ msgstr "Die Nachricht ist nicht mehr vorhanden"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
-msgstr ""
+msgstr "Die Nachricht wurde heruntergeladen, bevor MailCraft ihre ursprünglichen Datenbytes gespeichert hat. Mit „Erneut prüfen“ werden diese heruntergeladen."
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
@@ -12159,12 +12160,12 @@ msgstr "Die Signatur wird dann als der hier angezeigte vereinfachte Text gesende
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The signer's certificate isn't in the message."
-msgstr ""
+msgstr "Das Zertifikat des Unterzeichners ist nicht in der Nachricht enthalten."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The signer's key hasn't been marked verified."
-msgstr ""
+msgstr "Der Schlüssel des Unterzeichners wurde nicht als verifiziert gekennzeichnet."
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
@@ -12303,7 +12304,7 @@ msgstr "Dieses Konto gibt es nicht"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "There's more in this Digital signature than MailCraft checks for one message."
-msgstr ""
+msgstr "Diese digitale Signatur enthält mehr, als MailCraft für eine einzelne Nachricht überprüft."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -12375,7 +12376,7 @@ msgstr "Sie werden auch vom Mailserver entfernt."
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
-msgstr ""
+msgstr "Sie werden in einer Datei Ihrer Wahl gespeichert, die Sie dem Issue auf GitHub anhängen. Sie werden niemals in den Link aufgenommen."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -12591,7 +12592,7 @@ msgstr "Diesem Computer ist das vom Server unter {host} vorgelegte Zertifikat ni
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
-msgstr ""
+msgstr "Die Zertifizierungsstellen dieses Computers wurden noch nicht ausgelesen: Die Signatur wird erneut geprüft, sobald dies geschehen ist."
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -12960,7 +12961,7 @@ msgstr "Diese Nachricht ist möglicherweise nicht das, was sie zu sein scheint."
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "This message was changed after it was signed."
-msgstr ""
+msgstr "Diese Nachricht wurde nach der Signatur geändert."
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -12983,7 +12984,7 @@ msgstr "Diese Nachricht wird endgültig gelöscht."
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "This message's Digital signature can't be checked."
-msgstr ""
+msgstr "Die digitale Signatur dieser Nachricht kann nicht überprüft werden."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -13677,7 +13678,7 @@ msgstr "Gültig"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Valid:"
-msgstr ""
+msgstr "Gültig:"
 
 #. name
 #: crates/model/src/rich.rs
@@ -13857,7 +13858,7 @@ msgstr "Was Sie erwartet haben (optional)"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "What you see isn't what was signed: treat it with care."
-msgstr ""
+msgstr "Was Sie sehen, ist nicht das, was signiert wurde: Seien Sie vorsichtig damit."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -13927,7 +13928,7 @@ msgstr "Wer eingeladen ist, entscheidet der Organisator."
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Who signed this message, and the certificate"
-msgstr ""
+msgstr "Wer diese Nachricht signiert hat und das Zertifikat"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16258,37 +16259,37 @@ msgstr "die seine E-Mails sendet: Senden Sie diese Nachricht von einem anderen K
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
+msgstr "MailCraft benötigt zunächst Ihre Zustimmung (Datei › Informationen › Erneut fragen)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft wasn't allowed to change them."
-msgstr ""
+msgstr "MailCraft durfte sie nicht ändern."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
 msgid "Microsoft no longer takes your sign-in."
-msgstr ""
+msgstr "Microsoft akzeptiert Ihre Anmeldung nicht mehr."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
 msgid "sign in again to let MailCraft read them (File › Info)."
-msgstr ""
+msgstr "melden Sie sich erneut an, damit MailCraft sie lesen kann (Datei › Informationen)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
 msgid "you are working offline."
-msgstr ""
+msgstr "Sie arbeiten offline."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
 msgid "your organisation doesn't let MailCraft change them."
-msgstr ""
+msgstr "Ihre Organisation erlaubt MailCraft nicht, sie zu ändern."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -16527,7 +16528,7 @@ msgstr "{folder}: {done} von {total}"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "{from} to {until}"
-msgstr ""
+msgstr "{from} bis {until}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
