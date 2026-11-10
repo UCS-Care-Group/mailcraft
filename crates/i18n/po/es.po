@@ -9,6 +9,18 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "\"{address}\" can't be used as an address"
+msgstr "«{address}» no se puede usar como dirección"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "\"{address}\" isn't an address mail can be sent to"
+msgstr "«{address}» no es una dirección a la que se pueda enviar correo"
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -20,6 +32,36 @@ msgstr "«{address}» no es una dirección de correo electrónico"
 #, fuzzy
 msgid "\"{address}\" on the {what} line isn't an e-mail address"
 msgstr "«{address}» en la línea {what} no es una dirección de correo electrónico"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{date}\" is not a date and time IMAP can carry"
+msgstr "«{date}» no es una fecha y hora que IMAP pueda transmitir"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{field}\" is not the name of a header field"
+msgstr "«{field}» no es el nombre de un campo de encabezado"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{flag}\" can't be used as a flag"
+msgstr "«{flag}» no se puede usar como marca"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{line}\" is not an IMAP response"
+msgstr "«{line}» no es una respuesta IMAP"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "\"{line}\" is not an SMTP reply"
+msgstr "«{line}» no es una respuesta SMTP"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -43,6 +85,18 @@ msgstr "«{name}» forma parte de una serie. ¿Se refiere solo a la del {day} o 
 #, fuzzy
 msgid "\"{name}\" will be permanently deleted."
 msgstr "«{name}» se eliminará de forma definitiva."
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{set}\" doesn't name the messages to change"
+msgstr "«{set}» no indica los mensajes que se deben cambiar"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{set}\" is not a set of messages"
+msgstr "«{set}» no es un conjunto de mensajes"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -84,8 +138,8 @@ msgstr "(sin nombre)"
 msgid "(no recipients)"
 msgstr "(sin destinatarios)"
 
-#. interface, what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#. interface, what a command says, why a mail server couldn't be used
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(sin asunto)"
@@ -2713,21 +2767,164 @@ msgstr "Copiar a carpeta"
 msgid "Could not open Google sign-in"
 msgstr "No se pudo abrir la página de inicio de sesión de Google"
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring \"{name}\" up to date"
+msgstr "No se pudo actualizar «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring \"{name}\" up to date: the folder is not on the server"
+msgstr "No se pudo actualizar «{name}»: la carpeta no está en el servidor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring the server up to date"
+msgstr "No se pudo actualizar el servidor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't change flags in \"{name}\""
+msgstr "No se pudieron cambiar las marcas en «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't check for new mail"
+msgstr "No se pudo comprobar si hay correo nuevo"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't delete messages from \"{name}\""
+msgstr "No se pudieron eliminar mensajes de «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't download a message from \"{name}\""
+msgstr "No se pudo descargar un mensaje de «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't download a message from \"{name}\" again"
+msgstr "No se pudo volver a descargar un mensaje de «{name}»"
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Couldn't find out whether a new version is out: {why}."
 msgstr "No se pudo averiguar si hay una nueva versión: {why}."
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't keep a copy of \"{subject}\" on the server: {error}"
+msgstr "No se pudo guardar una copia de «{subject}» en el servidor: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't look for \"{subject}\" in \"{folder}\" on the server"
+msgstr "No se pudo buscar «{subject}» en «{folder}» en el servidor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make a folder inside \"{name}\": the server keeps no folders inside others"
+msgstr "No se pudo crear una carpeta dentro de «{name}»: el servidor no admite carpetas dentro de otras"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make a folder on the server: it has no usable name"
+msgstr "No se pudo crear una carpeta en el servidor: no tiene un nombre utilizable"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make the folder \"{name}\" on the server"
+msgstr "No se pudo crear la carpeta «{name}» en el servidor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make the folder \"{name}\" on the server: it has another folder of that name"
+msgstr "No se pudo crear la carpeta «{name}» en el servidor: ya tiene otra carpeta con ese nombre"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't move messages from \"{name}\" to \"{to}\""
+msgstr "No se pudieron mover mensajes de «{name}» a «{to}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't move messages to \"{name}\": the folder is no longer on the server"
+msgstr "No se pudieron mover mensajes a «{name}»: la carpeta ya no está en el servidor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\""
+msgstr "No se pudo abrir «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\" to bring it up to date"
+msgstr "No se pudo abrir «{name}» para actualizarlo"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\" to permanently delete messages"
+msgstr "No se pudo abrir «{name}» para eliminar mensajes definitivamente"
+
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Couldn't open {name}: {error}"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't put \"{subject}\" in \"{folder}\" on the server"
+msgstr "No se pudo poner «{subject}» en «{folder}» en el servidor"
+
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "Couldn't reach Microsoft to open the calendar of {address}. Try again in a moment."
 msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read \"{name}\""
+msgstr "No se pudo leer «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read \"{name}\": the server listed none of its {count} messages"
+msgstr "No se pudo leer «{name}»: el servidor no mostró ninguno de sus {count} mensajes"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't read Gmail's categories of \"{name}\""
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read the list of folders"
+msgstr "No se pudo leer la lista de carpetas"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -2741,11 +2938,29 @@ msgstr "No se pudo guardar el borrador «{subject}» en el servidor: el servidor
 msgid "Couldn't save the mailbox: {error}"
 msgstr "No se pudo guardar el buzón: {error}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": {error}"
+msgstr "No se pudo enviar «{subject}»: {error}"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "Couldn't send '{subject}': {why}. It is held in the Outbox."
 msgstr "No se pudo enviar «{subject}»: {why}. Se conserva en la Bandeja de salida."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send mail"
+msgstr "No se pudo enviar el correo"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send mail: the account has no outgoing server"
+msgstr "No se pudo enviar el correo: la cuenta no tiene servidor de salida"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4601,6 +4816,12 @@ msgstr "ID de aplicación de escritorio de Google"
 msgid "Google Desktop application ID"
 msgstr "ID de aplicación de escritorio de Google"
 
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers"
+msgstr "Los tokens de acceso OAuth de Google solo se pueden enviar a los servidores IMAP y SMTP de Gmail"
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google blocked access to MailCraft"
@@ -6394,6 +6615,12 @@ msgstr "Mensajes (.eml, .mbox), calendarios (.ics) y contactos (.vcf)"
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "Los mensajes se muestran sin ejecutar nada de lo que contienen, y las imágenes que un mensaje tiene en la web solo se descargan cuando usted lo pide. Las contraseñas solo se guardan en memoria mientras la aplicación está abierta."
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages deleted from \"{name}\" are still in \"{trash}\""
+msgstr "Los mensajes eliminados de «{name}» siguen en «{trash}»"
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Messages from Sender"
@@ -6422,6 +6649,12 @@ msgstr "Mensajes de la propia carpeta"
 #, fuzzy
 msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
 msgstr "Los mensajes conservan los colores que eligieron sus remitentes, sobre una página blanca, mientras el resto de la ventana sigue oscuro."
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
+msgstr "Los mensajes movidos de «{name}» a «{to}» también siguen en «{name}»"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -8239,6 +8472,12 @@ msgstr "Vencida: vencía {when}"
 #, fuzzy
 msgid "Overlay"
 msgstr "Superponer"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "PLAIN needs a user name and password without NUL characters"
+msgstr "PLAIN necesita un nombre de usuario y una contraseña sin caracteres NUL"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -12192,6 +12431,18 @@ msgstr ""
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over 1 message of \"{name}\""
+msgstr "El servidor no entregó 1 mensaje de «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over {count} messages of \"{name}\""
+msgstr "El servidor no entregó {count} mensajes de «{name}»"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -12209,6 +12460,12 @@ msgstr "El servidor no ha enviado los mensajes. Vuelva a intentarlo dentro de un
 #, fuzzy
 msgid "The server doesn't let this rule be changed"
 msgstr "El servidor no permite cambiar esta regla"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server has {count} folders; only the first {max} were read"
+msgstr "El servidor tiene {count} carpetas; solo se leyeron las primeras {max}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14670,6 +14927,12 @@ msgstr ""
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
+msgstr "un inicio de sesión de Microsoft solo se usa con los servidores de correo de Microsoft: esta cuenta indica otro servidor"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -14732,6 +14995,12 @@ msgstr ""
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "a message that isn't on the server has no flags there"
+msgstr "un mensaje que no está en el servidor no tiene marcas allí"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14951,17 +15220,47 @@ msgstr "cierre primero una conversación: cada una de las 1.000 abiertas tiene u
 msgid "comes once Google has reviewed MailCraft"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "connection problem: {reason}"
+msgstr "problema de conexión: {reason}"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "contact"
 msgstr "contacto"
 
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "couldn't make a secure connection to {host}: {reason}"
+msgstr "no se pudo establecer una conexión segura con {host}: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "couldn't reach {host}: {reason}"
+msgstr "no se pudo contactar con {host}: {reason}"
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
 msgid "day"
 msgstr "día"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a password to sign in"
+msgstr "escriba una contraseña para iniciar sesión"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a user name to sign in"
+msgstr "escriba un nombre de usuario para iniciar sesión"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -15231,6 +15530,12 @@ msgstr "tardó demasiado"
 msgid "it writes to other people or reaches out to the web"
 msgstr "escribe a otras personas o se conecta a la web"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "its name isn't one a certificate can be checked against"
+msgstr "su nombre no es uno con el que se pueda comprobar un certificado"
+
 #. interface
 #: crates/ui-egui/src/opened_message.rs
 msgid "larger than {mb} MB: bring it in with File › Import"
@@ -15334,6 +15639,12 @@ msgstr ""
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "no hay ninguna cuenta con el id. {id}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "no address was found for the name"
+msgstr "no se encontró ninguna dirección para el nombre"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -15496,6 +15807,12 @@ msgstr "no hay carpeta {folder}"
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "nobody else is invited to this appointment"
 msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "not a set of messages"
+msgstr "no es un conjunto de mensajes"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15704,11 +16021,23 @@ msgstr "los buzones compartidos se abren con una cuenta sincronizada a través d
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
 #, fuzzy
-msgid "sign-in failed: the server doesn't take a password on this connection"
-msgstr "error al iniciar sesión: el servidor no acepta una contraseña en esta conexión"
+msgid "sign in to the account first"
+msgstr "inicie sesión primero en la cuenta"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "sign in to {who} first"
+msgstr "inicie sesión primero en {who}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "sign-in failed: {reason}"
+msgstr "error al iniciar sesión: {reason}"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -15796,11 +16125,47 @@ msgstr ""
 msgid "the Inbox of this account hasn't been read yet"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the account has no incoming server"
+msgstr "la cuenta no tiene servidor de entrada"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "the account has no mail servers to check"
+msgstr "la cuenta no tiene servidores de correo que comprobar"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "the account has no outgoing server"
+msgstr "la cuenta no tiene servidor de salida"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "the account has no usable e-mail address to send from"
+msgstr "la cuenta no tiene una dirección de correo utilizable para enviar"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "the account has no user name or e-mail address to sign in with"
+msgstr "la cuenta no tiene nombre de usuario ni dirección de correo para iniciar sesión"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "la cuenta ya no existe"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the account's server has no usable name"
+msgstr "el servidor de la cuenta no tiene un nombre utilizable"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -15834,6 +16199,18 @@ msgstr "el calendario ya no existe"
 #, fuzzy
 msgid "the check stopped unexpectedly"
 msgstr "la comprobación se detuvo de forma inesperada"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the command was refused"
+msgstr "se rechazó el comando"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the connection couldn't be set up"
+msgstr "no se pudo establecer la conexión"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
@@ -15989,6 +16366,18 @@ msgstr "el mensaje no tiene el dato adjunto {index}"
 msgid "the message has no attachments to save"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the message has no recipients"
+msgstr "el mensaje no tiene destinatarios"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the message has too many recipients"
+msgstr "el mensaje tiene demasiados destinatarios"
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -16000,6 +16389,18 @@ msgstr "el mensaje es de texto sin formato; cámbielo primero a HTML"
 #, fuzzy
 msgid "the messages to forward are larger than {mb} MB together"
 msgstr "los mensajes que se van a reenviar ocupan juntos más de {mb} MB"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the name couldn't be looked up"
+msgstr "no se pudo resolver el nombre"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the network couldn't get there"
+msgstr "la red no pudo llegar hasta allí"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -16062,11 +16463,47 @@ msgstr "el remitente no tiene ninguna dirección de correo electrónico utilizab
 msgid "the series doesn't happen on {date}"
 msgstr "la serie no tiene lugar el {date}"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server accepted a password that was not sent"
+msgstr "el servidor aceptó una contraseña que no se envió"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server answered a command that wasn't sent"
+msgstr "el servidor respondió a un comando que no se envió"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server answered {status}"
 msgstr "el servidor respondió {status}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server asked for more than a sign-in has"
+msgstr "el servidor pidió más de lo que tiene un inicio de sesión"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server asked for more than a user name and access token"
+msgstr "el servidor pidió más que un nombre de usuario y un token de acceso"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server asked for more than a user name and password"
+msgstr "el servidor pidió más que un nombre de usuario y una contraseña"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server asked for more than the command had"
+msgstr "el servidor pidió más de lo que tenía el comando"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -16074,11 +16511,41 @@ msgstr "el servidor respondió {status}"
 msgid "the server can't flag mail"
 msgstr "el servidor no puede marcar el correo"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
+msgstr "el servidor no puede quitar mensajes sueltos (no ofrece UIDPLUS)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs crates/proto/src/line.rs
+#, fuzzy
+msgid "the server closed the connection"
+msgstr "el servidor cerró la conexión"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server continued a cancelled password authentication"
+msgstr "el servidor continuó una autenticación por contraseña cancelada"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "no se pudo conectar con el servidor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server didn't answer"
+msgstr "el servidor no respondió"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server didn't greet like an IMAP server"
+msgstr "el servidor no saludó como un servidor IMAP"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16098,11 +16565,83 @@ msgstr "el servidor no permite mover la regla contigua"
 msgid "the server doesn't let this rule be changed"
 msgstr "el servidor no permite cambiar esta regla"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "the server doesn't offer STARTTLS"
+msgstr "el servidor no ofrece STARTTLS"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server doesn't take a password on this connection"
+msgstr "el servidor no acepta una contraseña en esta conexión"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server ended the command early"
+msgstr "el servidor terminó el comando antes de tiempo"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server ended the session: {reason}"
+msgstr "el servidor terminó la sesión: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server greeted with a refusal: {reason}"
+msgstr "el servidor saludó con un rechazo: {reason}"
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr "el servidor conserva esta carpeta: no se puede cambiar de nombre, mover ni eliminar"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server offers no way to sign in with a password"
+msgstr "el servidor no ofrece ninguna forma de iniciar sesión con contraseña"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server offers no way to sign in with an access token"
+msgstr "el servidor no ofrece ninguna forma de iniciar sesión con un token de acceso"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server refused the connection"
+msgstr "el servidor rechazó la conexión"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server reported more messages than the mailbox holds"
+msgstr "el servidor informó de más mensajes de los que tiene el buzón"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server requested more than one PLAIN response"
+msgstr "el servidor pidió más de una respuesta PLAIN"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the server said: {reason}"
+msgstr "el servidor dijo: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent a line longer than {kb} KB"
+msgstr "el servidor envió una línea de más de {kb} KB"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -16110,17 +16649,88 @@ msgstr "el servidor conserva esta carpeta: no se puede cambiar de nombre, mover 
 msgid "the server sent a web page instead of a picture"
 msgstr "el servidor envió una página web en lugar de una imagen"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server sent data before the secure connection started"
+msgstr "el servidor envió datos antes de que empezara la conexión segura"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
 msgid "the server sent nothing"
 msgstr "el servidor no envió nada"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent too many responses to one command"
+msgstr "el servidor envió demasiadas respuestas a un comando"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent too much in answer to one command"
+msgstr "el servidor envió demasiado en respuesta a un comando"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent {claimed} bytes in one piece, more than the {mb} MB MailCraft accepts"
+msgstr "el servidor envió {claimed} bytes de una vez, más de los {mb} MB que acepta MailCraft"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent {n} bytes in one piece, more than MailCraft accepts"
+msgstr "el servidor envió {n} bytes de una vez, más de lo que acepta MailCraft"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server took too long"
+msgstr "el servidor tardó demasiado"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server took too long to answer"
+msgstr "el servidor tardó demasiado en responder"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "el servidor no quiso enviar «{subject}» completo, así que no se puede reenviar como datos adjuntos"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "the server's answer was longer than {kb} KB"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server's reply has too many lines"
+msgstr "la respuesta del servidor tiene demasiadas líneas"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server's response has too many parts"
+msgstr "la respuesta del servidor tiene demasiadas partes"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/parse.rs
+#, fuzzy
+msgid "the server's response is nested too deeply"
+msgstr "la respuesta del servidor está anidada a demasiada profundidad"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server's response is too long"
+msgstr "la respuesta del servidor es demasiado larga"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
@@ -16145,6 +16755,18 @@ msgstr ""
 msgid "the task is gone"
 msgstr "la tarea ya no existe"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the text can't be looked for on the server"
+msgstr "el texto no se puede buscar en el servidor"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the text has a character that can't be sent"
+msgstr "el texto tiene un carácter que no se puede enviar"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -16156,6 +16778,30 @@ msgstr "el texto de «{subject}» no se puede leer en este equipo, así que no s
 #, fuzzy
 msgid "the top level"
 msgstr "el nivel superior"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the user name or access token has a character that can't be sent"
+msgstr "el nombre de usuario o el token de acceso tiene un carácter que no se puede enviar"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the user name or access token is too long to be sent"
+msgstr "el nombre de usuario o el token de acceso es demasiado largo para enviarse"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the user name or password has a character that can't be sent"
+msgstr "el nombre de usuario o la contraseña tiene un carácter que no se puede enviar"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the user name or password is too long"
+msgstr "el nombre de usuario o la contraseña es demasiado largo"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -16198,6 +16844,12 @@ msgstr "hay demasiadas firmas"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "ya hay una firma llamada «{to}»"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "there is no access token to sign in with"
+msgstr "no hay ningún token de acceso para iniciar sesión"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -16398,10 +17050,22 @@ msgstr ""
 msgid "too many files of one name"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "too many flags for one command"
+msgstr "demasiadas marcas para un solo comando"
+
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
 msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "unexpected server response: {reason}"
+msgstr "respuesta inesperada del servidor: {reason}"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -16755,6 +17419,12 @@ msgstr "{host} (sin cifrar)"
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
 msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} está configurado sin cifrado, lo que mostraría la contraseña a cualquiera en la red; elija TLS o STARTTLS"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -17897,6 +18567,10 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "sign-in failed: the server doesn't take a password on this connection"
+#~ msgstr "error al iniciar sesión: el servidor no acepta una contraseña en esta conexión"
 
 #~ msgid "Google Desktop Registration Secret"
 #~ msgstr "Secreto del registro de escritorio de Google"
