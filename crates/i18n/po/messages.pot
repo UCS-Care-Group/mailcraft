@@ -5481,6 +5481,11 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."
 msgstr ""
@@ -10889,7 +10894,17 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
-msgid "The server has {count} folders; only the first {max} were read"
+msgid "The server has at least {total} folders: one run reads the first {max}, and leaves out the rest, from \"{first}\" on"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has at least {total} folders: their list was too long to read whole, and the folders after them were left out"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
 msgstr ""
 
 #. interface
@@ -14761,6 +14776,11 @@ msgstr ""
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
 msgid "there is no search"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is nothing to take in"
 msgstr ""
 
 #. what a command says
