@@ -900,5 +900,9 @@ fn check_again_on_a_copy_whose_bytes_its_microsoft_server_refused_says_they_are_
     crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
     let why = s.run("mail.checkAgain", &json!({"id": copy})).unwrap_err().to_string();
     assert!(why.contains("asked for already"), "{why}");
+    // A part of it removed here meanwhile: that is what is said.
+    s.mailbox.message_mut(copy).unwrap().parts_removed = true;
+    let why = s.run("mail.checkAgain", &json!({"id": copy})).unwrap_err().to_string();
+    assert!(why.contains("a part was removed"), "{why}");
     let _ = std::fs::remove_dir_all(dir);
 }

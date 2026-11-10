@@ -23,11 +23,8 @@ pub(crate) fn why_not(mb: &Mailbox, m: &Message) -> Option<&'static str> {
         return None;
     }
     // (Asked for alone only where the bytes it names can't be read: a copy waiting for those of
-    // the message it was made of, from a server that said no this session, say.)
-    if m.original_wanted && !stale(mb, m) {
-        return Some("the bytes it came as are asked for already");
-    }
-    if m.has_original() {
+    // the message it was made of, from a server that said no this session, say. Said below.)
+    if m.has_original() && !(m.original_wanted && !stale(mb, m)) {
         return Some("the message has the bytes it came as already");
     }
     if m.draft {
