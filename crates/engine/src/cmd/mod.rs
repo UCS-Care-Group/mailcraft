@@ -31,6 +31,7 @@ mod conversation_thread_tests;
 pub mod edit;
 mod ews_down;
 pub mod ews_mail;
+mod ews_signature;
 mod ews_up;
 #[cfg(test)]
 mod favorites_tests;

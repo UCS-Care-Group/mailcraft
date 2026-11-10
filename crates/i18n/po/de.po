@@ -10814,9 +10814,8 @@ msgstr "Signaturen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
-#, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Signaturen werden auf diesem Computer gespeichert. Sie können nicht mit Outlook abgeglichen werden: Richten Sie sie auf einem anderen Gerät dort ein, oder fügen Sie eine aus Outlook im Web ein (Einstellungen › Signaturen)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -17881,6 +17880,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Signaturen werden auf diesem Computer gespeichert. Sie können nicht mit Outlook abgeglichen werden: Richten Sie sie auf einem anderen Gerät dort ein, oder fügen Sie eine aus Outlook im Web ein (Einstellungen › Signaturen)."
 
 #~ msgid "Google Desktop Registration Secret"
 #~ msgstr "Google Desktop-Registrierungsgeheimnis"

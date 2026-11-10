@@ -4,7 +4,9 @@
 //! may hold.
 //!
 //! A signature is kept in the mailbox on this computer only; nothing keeps it in step with
-//! Outlook, which offers no way to. Its pictures are kept with it, checked by their own bytes
+//! Outlook, which offers no way to. (The one place that is read is an Exchange server account's:
+//! the signature saved in Outlook on the web's options is taken in as one of these, named for the
+//! account, and only ever read: `mailcraft-engine`'s `ews_signature`, #484.) Its pictures are kept with it, checked by their own bytes
 //! (PNG, JPEG or GIF) and capped by size ([`MAX_PICTURE_BYTES`] each, [`MAX_PICTURES_BYTES`]
 //! together, [`MAX_PICTURES`] in all), so every message it goes into stays light. A picture
 //! stands in the text as a picture run ([`crate::rich::Run::picture`]); the bytes, the width it is

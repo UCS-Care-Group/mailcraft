@@ -11416,9 +11416,8 @@ msgstr "Handtekeningen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
-#, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Handtekeningen worden op deze computer bewaard. Ze kunnen niet met Outlook worden bijgehouden: stel ze op een ander apparaat daar in, of plak er een uit Outlook op het web (Instellingen › Handtekeningen)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -18930,6 +18929,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Handtekeningen worden op deze computer bewaard. Ze kunnen niet met Outlook worden bijgehouden: stel ze op een ander apparaat daar in, of plak er een uit Outlook op het web (Instellingen › Handtekeningen)."
 
 #, fuzzy
 #~ msgid "Google sign-in is not configured for this build"

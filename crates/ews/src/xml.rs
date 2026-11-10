@@ -48,6 +48,10 @@ pub const MAX_MIME_TEXT: usize = 16 * 1024 * 1024;
 /// has, which grows with the folder (a compressed list of the items it has told of): a large
 /// folder's runs to some tens of kilobytes.
 pub const MAX_SYNC_STATE: usize = 1024 * 1024;
+/// Longest text kept of a `Value` inside a `DictionaryValue` (bytes): a user configuration's entry,
+/// among them the HTML signature of Outlook on the web, which the reader of it holds to its own
+/// size ([`mailcraft_model::sync::MAX_SIGNATURE_HTML`], with room for what XML escapes add).
+pub const MAX_DICTIONARY_TEXT: usize = 96 * 1024;
 /// What an element costs besides its name, attributes and text: the size of a node and the
 /// allocator's share of the block that holds it in its parent's `children`. (The vectors of a
 /// node are shrunk to fit when it is closed, so that a vector's spare room is no further cost.)
@@ -287,10 +291,12 @@ impl Walk {
 
     fn text(&mut self, text: &str) -> Result<(), Malformed> {
         let text = clean(text);
+        let in_dictionary = self.stack.iter().rev().nth(1).is_some_and(|parent| parent.node.name == "DictionaryValue");
         let Some(open) = self.stack.last_mut() else { return Ok(()) };
         let cap = match open.node.name.as_str() {
             "MimeContent" => MAX_MIME_TEXT,
             "SyncState" => MAX_SYNC_STATE,
+            "Value" if in_dictionary => MAX_DICTIONARY_TEXT,
             _ => MAX_TEXT,
         };
         if open.node.text.len().saturating_add(text.len()) > cap {

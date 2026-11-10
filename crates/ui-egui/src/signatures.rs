@@ -22,7 +22,7 @@ pub(crate) fn page(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.label(egui::RichText::new(tl!("Signatures")).font(semibold(22.0)).color(t.text));
     ui.label(
         egui::RichText::new(tl!(
-            "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+            "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
         ))
         .font(regular(11.5))
         .color(t.text_dim),

@@ -30,8 +30,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
-    GraphFolder, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, EwsSignature, FolderChange, GraphFetchResult,
+    GraphFetched, GraphFolder, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -42,6 +42,7 @@ use crate::http::{HttpExchange, TransportError};
 use crate::items::{GetItemConversations, GetItemMime, MAX_CONVERSATIONS, Shape, SyncFolderItems};
 use crate::reply::Reply;
 use crate::soap::Element;
+use crate::userconfig::GetUserOptions;
 
 /// How many changes one page of a folder asks for: enough that a large folder is a few hundred
 /// requests, few enough that a page is quick to take in.
@@ -426,6 +427,12 @@ pub async fn sync_mail<E: HttpExchange>(
     } else {
         run.conversations(&request.threads, &mut out).await
     };
+    // And the signature the server keeps for the owner (#484), on the same terms: never worth failing the run for.
+    let signature = if request.signature && !request.inbox_pass && !out.stopped && out.busy_for.is_none() && !out.auth_refused {
+        run.signature().await
+    } else {
+        None
+    };
     if !out.blocked.is_empty() {
         // (Once a run, and no id: the engine names the folders by what the owner calls them.)
         log::warn!("ews mail: {} folders hold a change that can't be taken in; they are left where they were", out.blocked.len());
@@ -440,11 +447,29 @@ pub async fn sync_mail<E: HttpExchange>(
         auth_refused: out.auth_refused,
         blocked: out.blocked,
         threads,
+        signature,
         ..base(request)
     });
 }
 
 impl<E: HttpExchange> Run<'_, E> {
+    /// The signature the server keeps in the owner's options ([`GetUserOptions`]), or none: the
+    /// server has none, refuses to say, or was not asked for now. Whatever goes wrong is told in
+    /// the log alone; a signature is a convenience.
+    async fn signature(&mut self) -> Option<EwsSignature> {
+        let op = GetUserOptions;
+        match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+            Ok(found) => {
+                log::info!("ews mail: the server {} a signature", if found.is_some() { "has" } else { "has no" });
+                found
+            }
+            Err(_) => {
+                log::info!("ews mail: the signature wasn't read now; a later run asks again");
+                None
+            }
+        }
+    }
+
     /// The conversation of each of the items `ids` ([`GetItemConversations`]), a hundred to a
     /// request, at most [`MAX_THREAD_ASKS`]: what the server answered for, until it doesn't. A busy
     /// server is said in `outcome`; a request it refused is each of its items refused.
