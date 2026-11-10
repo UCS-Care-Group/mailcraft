@@ -121,7 +121,7 @@ fn folders_made_renamed_moved_and_deleted_here_are_so_there() {
         FolderChange::Rename { folder: 43, id: old.clone(), name: "New name".into() },
         FolderChange::Move { folder: 44, id: wanders.clone(), parent: inbox.clone() },
         FolderChange::Move { folder: 45, id: going.clone(), parent: deleted.clone() },
-        FolderChange::Delete { id: gone_for_good.clone() },
+        FolderChange::Delete { id: gone_for_good.clone(), shown: Default::default() },
     ];
     let result = run(&server, changes);
     assert!(result.errors.is_empty(), "{:?}", result.errors);
@@ -180,7 +180,7 @@ fn what_the_server_refuses_or_no_longer_has_is_said() {
             FolderChange::Rename { folder: 41, id: inbox.clone(), name: "Mail".into() },
             FolderChange::Rename { folder: 43, id: kept, name: "Renamed".into() },
             FolderChange::Rename { folder: 42, id: ghost.clone(), name: "Anything".into() },
-            FolderChange::Delete { id: ghost },
+            FolderChange::Delete { id: ghost, shown: Default::default() },
         ],
     );
     assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("server's own")), "{:?}", result.changes);

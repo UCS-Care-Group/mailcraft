@@ -113,12 +113,26 @@ struct Known {
 /// What the app keeps of people's free and busy times.
 #[derive(Default)]
 pub(crate) struct Store {
-    /// The question in flight, and the answer to come.
-    rx: Option<(Key, Receiver<FreeBusyResult>)>,
+    /// The question in flight, the mailbox opening it was asked under, and the answer to come.
+    rx: Option<(Key, u64, Receiver<FreeBusyResult>)>,
     /// What was found out, the newest last.
     known: Vec<Known>,
     /// How many questions went to the host so far.
     pub(crate) asked: u64,
+}
+
+impl Store {
+    /// Whether a question is out.
+    pub(crate) fn busy(&self) -> bool {
+        self.rx.is_some()
+    }
+
+    /// Another mailbox took the place of the open one: the question out is let go of, and what
+    /// was found out goes with the accounts it was for.
+    pub(crate) fn forget(&mut self) {
+        self.rx = None;
+        self.known.clear();
+    }
 }
 
 /// What Find a Time gets when it looks.
@@ -223,7 +237,7 @@ impl MailApp {
         let known = self.free_busy.known.iter().find(|known| known.key == key);
         let mut look = Look {
             people: known.map(|known| known.people.clone()).unwrap_or_default(),
-            pending: self.free_busy.rx.as_ref().is_some_and(|(asking, _)| *asking == key),
+            pending: self.free_busy.rx.as_ref().is_some_and(|(asking, ..)| *asking == key),
             note: known.map(|known| known.error.clone()).unwrap_or_default(),
         };
         let account = match account {
@@ -246,7 +260,7 @@ impl MailApp {
         let Some(oauth) = account.oauth.clone() else { return look };
         let access = self.graph_tokens.get(&account.id).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone()).unwrap_or_default();
         let kept = self.tokens.get(&account.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &account.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", account.id)).unwrap_or_default();
         let (from, to) = stretch(day);
         // The engine says what to ask.
         let ask = self
@@ -262,7 +276,7 @@ impl MailApp {
         let started = match (failed.is_none(), ask, &self.services.free_busy) {
             (true, Ok(ask), Some(host)) => {
                 let request = FreeBusyRequest { account: account.clone(), oauth: self.effective_oauth(oauth), refresh, access, ask };
-                self.free_busy.rx = Some((key.clone(), host(request)));
+                self.free_busy.rx = Some((key.clone(), self.session.openings(), host(request)));
                 self.free_busy.asked = self.free_busy.asked.saturating_add(1);
                 true
             }
@@ -289,7 +303,13 @@ impl MailApp {
     /// The host answered about people's time: keep its token, and take the answer in through
     /// `calendar.freeBusy`. Called every frame; it does nothing while no question is out.
     pub(crate) fn poll_free_busy(&mut self) {
-        let Some((key, rx)) = &self.free_busy.rx else { return };
+        let Some((key, opening, rx)) = &self.free_busy.rx else { return };
+        // For a mailbox that has been closed since: its accounts are other accounts (AU3-V8).
+        if *opening != self.session.openings() {
+            log::info!("free/busy: the answer is for a mailbox that is no longer open; let go of");
+            self.free_busy.forget();
+            return;
+        }
         let result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -309,9 +329,8 @@ impl MailApp {
             && !self.signed_in_as_other(account, &tokens)
         {
             // The newest refresh token is the account's, for mail and the calendar alike.
-            let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", account, &tokens.refresh);
                 if let Some(mail) = self.tokens.get_mut(&account) {
                     mail.refresh = tokens.refresh.clone();
                 }
@@ -365,7 +384,7 @@ impl MailApp {
         let people = self.digest_free_busy(&key, &schedule)?;
         let said = people.iter().filter(|(_, day)| day.unknown.is_empty()).count();
         // (A question that is out for the same people is overtaken by this.)
-        if self.free_busy.rx.as_ref().is_some_and(|(asking, _)| *asking == key) {
+        if self.free_busy.rx.as_ref().is_some_and(|(asking, ..)| *asking == key) {
             self.free_busy.rx = None;
         }
         self.note_free_busy(key, now_ms(), Some(people), String::new());
