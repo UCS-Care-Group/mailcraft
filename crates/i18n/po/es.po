@@ -12574,9 +12574,18 @@ msgstr "El servidor no permite cambiar esta regla"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
-#, fuzzy
-msgid "The server has {count} folders; only the first {max} were read"
-msgstr "El servidor tiene {count} carpetas; solo se leyeron las primeras {max}"
+msgid "The server has at least {total} folders: one run reads the first {max}, and leaves out the rest, from \"{first}\" on"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has at least {total} folders: their list was too long to read whole, and the folders after them were left out"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -16952,6 +16961,11 @@ msgid "there is no search"
 msgstr "no hay ninguna búsqueda"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is nothing to take in"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
@@ -18692,6 +18706,10 @@ msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenv
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Esta cuenta no guarda sus reglas en su servidor"
+
+#, fuzzy
+#~ msgid "The server has {count} folders; only the first {max} were read"
+#~ msgstr "El servidor tiene {count} carpetas; solo se leyeron las primeras {max}"
 
 #, fuzzy
 #~ msgid "sign-in failed: the server doesn't take a password on this connection"

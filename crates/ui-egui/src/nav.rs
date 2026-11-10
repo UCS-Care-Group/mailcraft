@@ -90,9 +90,11 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
 }
 
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox
-/// may come from anywhere, and the pane is laid out again every frame.
+/// may come from anywhere, and the pane is laid out again every frame. As many rows as a mailbox
+/// holds folders (#991: an IMAP account alone may have 10,000), so that none is left out; only
+/// the rows in sight are drawn.
 const MAX_DEPTH: usize = 32;
-const MAX_ROWS: usize = 4000;
+const MAX_ROWS: usize = mailcraft_model::MAX_FOLDERS;
 
 /// The folders of `account` as the pane lists them, depth first, skipping what is under a folded
 /// one: each with its depth and whether it has subfolders.
@@ -830,6 +832,15 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     // A Gmail account's Inbox has Gmail's categories under it, folded with it,
                     // unless they are tabs above its list.
                     let gmail = !gmail_tabs && f.kind == FolderKind::Inbox && mailcraft_engine::gmail::listed_under(&mut app.session, f.id);
+                    // A row out of sight takes its place and is not drawn (#991: thousands of
+                    // folders), but is still known where it is.
+                    let top = ui.cursor().min.y;
+                    let clip = ui.clip_rect();
+                    if !gmail && (top > clip.max.y || top + ROW_H < clip.min.y) {
+                        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+                        app.hit.add("folder", f.id, r);
+                        continue;
+                    }
                     folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !favorite_selected && f.id == current);
                     if gmail && !app.ui.collapsed_folders.contains(&f.id) {
                         for category in GmailCategory::ALL {

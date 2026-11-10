@@ -51,6 +51,30 @@ fn a_list_keeps_a_capped_number_of_mailboxes() {
     let got = opened(&mut s, 0, 0).list().unwrap();
     assert_eq!(got.len(), MAX_MAILBOXES);
     assert_eq!(got.first().map(|m| m.raw.as_str()), Some("f0"));
+    // #991: and how many were dropped is said; none, for a list kept whole.
+    let server = flood(MAX_MAILBOXES + 500, |n| format!("* LIST () \"/\" f{n}\r\n")) + "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    assert_eq!(opened(&mut s, 0, 0).list_counted().unwrap().1, 500);
+    let mut s = Script::new("* LIST () \"/\" a\r\n* LIST () \"/\" a\r\nA0001 OK done\r\n");
+    assert_eq!(
+        opened(&mut s, 0, 0).list_counted().unwrap(),
+        (vec![Mailbox { name: "a".into(), raw: "a".into(), delimiter: Some('/'), flags: Vec::new() }], 0)
+    );
+}
+
+/// #991: a list keeps a bounded number of bytes too, however many mailboxes that is.
+#[test]
+fn a_list_keeps_a_capped_number_of_bytes() {
+    let flags: Vec<String> = (0..MAX_FLAGS).map(|n| format!("\\F{n}{}", "x".repeat(MAX_FLAG_LEN - 8))).collect();
+    let flags = flags.join(" ");
+    let server = flood(1_500, |n| format!("* LIST ({flags}) \"/\" f{n}\r\n")) + "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let (got, dropped) = opened(&mut s, 0, 0).list_counted().unwrap();
+    assert_eq!(got.len() + dropped, 1_500);
+    let kept: usize = got.iter().map(|m| m.raw.len() * 2 + m.name.len() + m.flags.iter().map(String::len).sum::<usize>()).sum();
+    assert!(!got.is_empty() && got.len() < 1_500, "{}", got.len());
+    // The last one kept may take it over by one mailbox's worth, never more.
+    assert!(kept < MAX_LIST_BYTES + MAX_LINE, "{kept}");
 }
 
 #[test]
