@@ -928,7 +928,11 @@ fn a_dav_account_keeps_its_calendars_and_address_books_beside_its_mail() {
     assert_eq!((account.kind, account.is_dav()), (AccountKind::Imap, true));
     assert_eq!(
         account.dav,
-        Some(DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() })
+        Some(DavServer {
+            caldav: "https://mail.example.org/caldav/".into(),
+            carddav: "https://mail.example.org/carddav/".into(),
+            ..Default::default()
+        })
     );
     // What is not an https service root is refused, and changes nothing.
     for bad in [
@@ -939,6 +943,82 @@ fn a_dav_account_keeps_its_calendars_and_address_books_beside_its_mail() {
         assert!(s.run("account.edit", &bad).is_err(), "{bad}");
     }
     assert!(s.mailbox.account(id).unwrap().is_dav());
+}
+
+#[test]
+fn a_caldav_and_carddav_account_keeps_calendars_and_address_books_without_mail() {
+    use mailcraft_model::{AccountKind, DavServer};
+    let mut s = session();
+    let id = run(
+        &mut s,
+        "account.add",
+        json!({
+            "email": "ada@calendar.example",
+            "displayName": "Ada",
+            "kind": "dav",
+            "dav": {
+                "caldav": "https://cloud.example.org/remote.php/dav/",
+                "carddav": "https://cloud.example.org/remote.php/dav/",
+                "username": "ada@calendar.example"
+            }
+        }),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let account = s.mailbox.account(id).unwrap().clone();
+    assert_eq!(account.kind, AccountKind::Dav);
+    assert!(account.incoming.is_none() && account.outgoing.is_none());
+    assert!(account.is_dav());
+    assert!(!account.kind.has_server(), "there is no mail server to send or receive with");
+    assert!(!account.kind.sends_mail());
+    assert!(s.mailbox.folder_of_kind(id, FolderKind::Inbox).is_none(), "a calendar account has no mail folders");
+    assert_eq!(account.dav_login(), "ada@calendar.example");
+    assert_eq!(
+        account.dav,
+        Some(DavServer {
+            caldav: "https://cloud.example.org/remote.php/dav/".into(),
+            carddav: "https://cloud.example.org/remote.php/dav/".into(),
+            username: "ada@calendar.example".into(),
+        })
+    );
+    // It is listed with its services and no mail servers.
+    let list = run(&mut s, "account.list", json!({}));
+    let shown = list["accounts"].as_array().unwrap().iter().find(|a| a["id"].as_u64() == Some(id)).unwrap();
+    assert_eq!(shown["kind"].as_str(), Some("dav"));
+    assert_eq!(shown["dav"]["username"].as_str(), Some("ada@calendar.example"));
+
+    // A kind that says CalDAV and CardDAV without their addresses is refused, and nothing is added.
+    let before = s.mailbox.accounts.len();
+    assert!(s.run("account.add", &json!({"email": "bo@calendar.example", "kind": "dav"})).is_err());
+    assert_eq!(s.mailbox.accounts.len(), before);
+    // A user name with a control character is not one.
+    assert!(s.run("account.edit", &json!({"id": id, "dav": {"username": "ada\ncalendar"}})).is_err(), "a control character is refused");
+    assert_eq!(s.mailbox.account(id).unwrap().dav_login(), "ada@calendar.example");
+}
+
+#[test]
+fn a_caldav_and_carddav_account_may_be_named_by_something_that_is_not_an_email_address() {
+    use mailcraft_model::AccountKind;
+    let mut s = session();
+    let dav = json!({
+        "caldav": "https://cloud.example.org/remote.php/dav/",
+        "carddav": "https://cloud.example.org/remote.php/dav/",
+    });
+    let name = "Ada's Nextcloud";
+    let id = run(&mut s, "account.add", json!({"email": name, "kind": "dav", "dav": dav.clone()}))["id"].as_u64().unwrap();
+    let account = s.mailbox.account(id).unwrap();
+    assert_eq!((account.email.as_str(), account.kind), (name, AccountKind::Dav));
+    // A name that isn't an e-mail address still has no mail servers to name.
+    assert!(account.incoming.is_none() && account.outgoing.is_none());
+
+    // An account with mail is still named by its address.
+    let before = s.mailbox.accounts.len();
+    assert!(s.run("account.add", &json!({"email": name, "incoming": {"host": "imap.example.org", "port": 993}})).is_err());
+    assert_eq!(s.mailbox.accounts.len(), before);
+    // And a calendar account's name is neither empty nor a line that holds a control character.
+    for bad in ["", "   ", "Ada\u{0}", "Ada\u{7}"] {
+        assert!(s.run("account.add", &json!({"email": bad, "kind": "dav", "dav": dav})).is_err(), "{bad:?}");
+    }
 }
 
 #[test]

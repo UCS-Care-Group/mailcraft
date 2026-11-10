@@ -44,7 +44,28 @@ fn the_settings_keep_their_addresses_out_of_debug_output() {
     let dav = DavServer::for_host("mail.example.org").unwrap();
     let json = serde_json::to_string(&dav).unwrap();
     assert!(json.contains("\"caldav\":\"https://mail.example.org/caldav/\""));
+    assert!(!json.contains("username"), "the account's own name is used unless one is given");
     assert_eq!(serde_json::from_str::<DavServer>(&json).unwrap(), dav);
     let shown = format!("{dav:?}");
     assert!(!shown.contains("example.org") && shown.contains("caldav: true"), "{shown}");
+}
+
+#[test]
+fn the_calendars_may_know_the_owner_by_another_name() {
+    let dav = DavServer { username: "ada-cloud".into(), ..DavServer::for_host("cloud.example.org").unwrap() };
+    assert_eq!(dav.problem(), None);
+    let json = serde_json::to_string(&dav).unwrap();
+    assert!(json.contains("\"username\":\"ada-cloud\""), "{json}");
+    assert_eq!(serde_json::from_str::<DavServer>(&json).unwrap(), dav);
+    assert!(format!("{dav:?}").contains("username: true"), "whether a name is given, never the name");
+
+    for (bad, why) in [("\u{0}", "has a control character in it"), ("ada\ncloud", "has a control character in it")] {
+        assert_eq!(DavServer::check_username(bad), Err(why), "{bad:?}");
+    }
+    let long = "a".repeat(DavServer::MAX_USERNAME + 1);
+    assert_eq!(DavServer::check_username(&long), Err("is longer than 254 characters"));
+    assert_eq!(DavServer::check_username(""), Ok(()), "empty means the account's own login");
+    let mut broken = dav;
+    broken.username = "ada\ncloud".into();
+    assert_eq!(broken.problem(), Some("has a control character in it"));
 }

@@ -335,6 +335,32 @@ fn a_login_without_the_domain_names_the_main_calendar_too() {
 }
 
 #[test]
+fn a_calendar_and_address_book_login_is_tried_at_both_roots() {
+    // Both services take the same name and secret, each at its own root.
+    let server = FakeHttp::answering(b"HTTP/1.1 207 Multi-Status\r\nContent-Length: 0\r\n\r\n".to_vec());
+    check(&server.url("/caldav/"), &server.url("/carddav/"), "ada@example.org", "correct horse battery staple").unwrap();
+    assert_eq!(server.asked(), 2);
+    for (n, path) in ["/caldav/", "/carddav/"].into_iter().enumerate() {
+        let request = server.request(n);
+        assert!(request.starts_with(&format!("PROPFIND {path} HTTP/1.1\r\n")), "{request}");
+        assert!(request.to_ascii_lowercase().contains("authorization: basic "), "{request}");
+    }
+
+    // A server that won't take them says so, and the secret is never in what it says.
+    let refused =
+        FakeHttp::answering(b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"example\"\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let err = check(&refused.url("/caldav/"), &refused.url("/carddav/"), "ada@example.org", "a secret never said").unwrap_err().to_string();
+    assert!(err.contains("didn't take that user name and password"), "{err}");
+    assert!(!err.contains("a secret never said"), "{err}");
+}
+
+#[test]
+fn a_calendar_login_is_never_sent_to_a_plain_web_site() {
+    let err = check("http://calendar.example.org/caldav/", "https://calendar.example.org/carddav/", "ada@example.org", "secret");
+    assert!(matches!(err, Err(NetError::Config(_))), "{err:?}");
+}
+
+#[test]
 fn a_redirect_is_followed_but_never_to_another_server() {
     let server = FakeHttp::start(|n, _| {
         if n == 0 {

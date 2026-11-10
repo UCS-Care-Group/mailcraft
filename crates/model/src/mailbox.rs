@@ -293,6 +293,11 @@ pub enum AccountKind {
     /// Its server is [`Account::ews`]; the password is given by whoever holds the connection and
     /// is never written anywhere.
     Exchange,
+    /// Calendars and address books alone, kept in step over CalDAV and CardDAV, without mail
+    /// (mail from another provider is its own account, or the same account's IMAP and SMTP
+    /// servers). Its services are [`Account::dav`]; the secret is given by whoever holds the
+    /// connection and is never written anywhere.
+    Dav,
     /// A kind this version doesn't know: an account that a newer MailCraft added, in a file that
     /// one wrote (or one whose kind can't be read at all). Only what says which account it is
     /// is read of it; the whole of it is kept as the file had it and written back so
@@ -303,9 +308,10 @@ pub enum AccountKind {
 }
 
 impl AccountKind {
-    /// Whether the account is kept in step with a server (by IMAP, by Microsoft Graph or by JMAP).
-    /// Not an account of a kind this version doesn't know: whatever server it has, this version
-    /// can't use it.
+    /// Whether the account is kept in step with a mail server (by IMAP, by Microsoft Graph, by
+    /// JMAP or by Exchange Web Services). Not an account of a kind this version doesn't know:
+    /// whatever server it has, this version can't use it. A CalDAV and CardDAV account keeps
+    /// calendars and address books in step and has no mail, so it is not one.
     pub fn has_server(self) -> bool {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
@@ -725,9 +731,17 @@ impl Account {
     }
 
     /// Whether the account keeps its calendars and address books over CalDAV and CardDAV
-    /// ([`Account::dav`]); its mail goes over IMAP and SMTP as any other account's does.
+    /// ([`Account::dav`]). Its mail may go over IMAP and SMTP as any other account's, or it may
+    /// have no mail at all ([`AccountKind::Dav`]).
     pub fn is_dav(&self) -> bool {
-        self.kind == AccountKind::Imap && self.dav.is_some()
+        matches!(self.kind, AccountKind::Imap | AccountKind::Dav) && self.dav.is_some()
+    }
+
+    /// The name the CalDAV and CardDAV services know the owner by: the one given for them, else
+    /// the account's own login (mail and calendars usually share one).
+    pub fn dav_login(&self) -> &str {
+        let user = self.dav.as_ref().map(|dav| dav.username.trim()).unwrap_or_default();
+        if user.is_empty() { self.login() } else { user }
     }
 
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
@@ -1387,16 +1401,20 @@ impl Mailbox {
             account.name = account.name_by_default();
         }
         self.accounts.push(account);
-        for kind in FolderKind::STANDARD {
-            let fid = self.alloc_id();
-            self.folders.push(Folder {
-                id: fid,
-                account: id,
-                name: kind.default_name().into(),
-                kind,
-                favorite: kind == FolderKind::Inbox,
-                ..Default::default()
-            });
+        // Calendars and address books alone have no mail folders: their account is reached from
+        // the calendar and the contacts, not from the folder pane's mail.
+        if self.account(id).is_some_and(|a| a.kind != AccountKind::Dav) {
+            for kind in FolderKind::STANDARD {
+                let fid = self.alloc_id();
+                self.folders.push(Folder {
+                    id: fid,
+                    account: id,
+                    name: kind.default_name().into(),
+                    kind,
+                    favorite: kind == FolderKind::Inbox,
+                    ..Default::default()
+                });
+            }
         }
         if self.calendars.is_empty() {
             let cid = self.alloc_id();

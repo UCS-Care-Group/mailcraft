@@ -17,7 +17,11 @@ fn app() -> (MailApp, Id) {
         kind: AccountKind::Imap,
         incoming: Some(Server { host: "mail.example.org".into(), port: 993, security: Security::Tls }),
         outgoing: Some(Server { host: "mail.example.org".into(), port: 587, security: Security::StartTls }),
-        dav: Some(DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() }),
+        dav: Some(DavServer {
+            caldav: "https://mail.example.org/caldav/".into(),
+            carddav: "https://mail.example.org/carddav/".into(),
+            ..Default::default()
+        }),
         ..Default::default()
     });
     (MailApp::new(Session::at(mailbox, 1_800_000_000, 0), crate::Services::default()), id)
@@ -121,6 +125,81 @@ fn the_calendars_and_every_shared_address_book_are_taken_in() {
     assert!(app.session.mailbox.events.values().any(|e| e.title == "Team event" && e.calendar == team));
     let contact = app.session.mailbox.contacts.values().find(|c| c.display_name == "Ada Lovelace").unwrap();
     assert_eq!(contact.book, "Suppliers");
+}
+
+/// An account with calendars and address books alone, on another provider than any mail.
+fn calendar_app() -> (MailApp, Id) {
+    let mut mailbox = Mailbox::with_local_account("", "");
+    let id = mailbox.add_account(Account {
+        email: "ada@example.org".into(),
+        display_name: "Ada".into(),
+        kind: AccountKind::Dav,
+        dav: Some(DavServer {
+            caldav: "https://cloud.example.org/remote.php/dav/".into(),
+            carddav: "https://cloud.example.org/remote.php/dav/".into(),
+            username: "ada-cloud".into(),
+        }),
+        ..Default::default()
+    });
+    (MailApp::new(Session::at(mailbox, 1_800_000_000, 0), crate::Services::default()), id)
+}
+
+#[test]
+fn a_calendar_only_account_signs_in_with_its_own_name_and_password() {
+    let (mut app, account) = calendar_app();
+    app.passwords.insert(account, "mail password".into());
+    app.adopt_dav_password(account, "calendar password".into());
+    app.auto_sync = true;
+    app.services.dav = Some(Box::new(move |job: DavJob| {
+        assert_eq!(job.username, "ada-cloud");
+        assert_eq!(job.password, "calendar password");
+        let (tx, rx) = mpsc::channel();
+        tx.send(DavResult { account: job.account.id, ..Default::default() }).unwrap();
+        rx
+    }));
+    assert!(app.dav_tick_at(1_800_000_000_000.0), "a calendar-only account is read too");
+}
+
+#[test]
+fn calendars_at_another_provider_never_get_the_mail_password() {
+    let (mut app, account) = app();
+    app.session.mailbox.account_mut(account).unwrap().dav = Some(DavServer {
+        caldav: "https://cloud.example.org/caldav/".into(),
+        carddav: "https://cloud.example.org/carddav/".into(),
+        ..Default::default()
+    });
+    app.adopt_password(account, "the mail account's password".into());
+    app.auto_sync = true;
+    let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let count = asked.clone();
+    app.services.dav = Some(Box::new(move |job: DavJob| {
+        count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let (tx, rx) = mpsc::channel();
+        tx.send(DavResult { account: job.account.id, ..Default::default() }).unwrap();
+        rx
+    }));
+    // Another host gets a sign-in of its own or nothing: the mail password is never sent there.
+    assert!(!app.dav_tick_at(1_800_000_000_000.0));
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 0);
+    // With the calendars' own password, the read goes ahead.
+    app.adopt_dav_password(account, "the calendars' password".into());
+    assert!(app.dav_tick_at(1_800_000_000_100.0));
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_mail_account_whose_calendars_share_its_sign_in_uses_its_password() {
+    let (mut app, account) = app();
+    app.adopt_password(account, "the account's password".into());
+    app.auto_sync = true;
+    app.services.dav = Some(Box::new(move |job: DavJob| {
+        assert_eq!(job.username, "ada@example.org");
+        assert_eq!(job.password, "the account's password");
+        let (tx, rx) = mpsc::channel();
+        tx.send(DavResult { account: job.account.id, ..Default::default() }).unwrap();
+        rx
+    }));
+    assert!(app.dav_tick_at(1_800_000_000_000.0));
 }
 
 #[test]
