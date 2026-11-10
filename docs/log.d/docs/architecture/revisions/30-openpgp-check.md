@@ -1,0 +1,1 @@
+| 2026-11-09 | minor | #30 part 3: `openpgp`, L2: checking OpenPGP Digital signatures (PGP/MIME, cleartext) and reading attached keys and `Autocrypt:` headers on rPGP, capped and without I/O; an `openpgp` fuzz target; 21 crates |
