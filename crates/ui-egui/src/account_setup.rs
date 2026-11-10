@@ -394,6 +394,20 @@ struct Editing {
     baseline: Map<String, Value>,
 }
 
+/// The two switches of a Gmail account's settings (#911), each as it was and as its box has it now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GmailSwitches {
+    show: (bool, bool),
+    primary_only: (bool, bool),
+}
+
+impl GmailSwitches {
+    /// Whether either was changed.
+    fn changed(self) -> bool {
+        self.show.0 != self.show.1 || self.primary_only.0 != self.primary_only.1
+    }
+}
+
 /// The Add Account wizard, and Account Settings for an account that exists.
 pub struct AccountSetup {
     page: Page,
@@ -471,6 +485,10 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of a Gmail account: whether Gmail's categories are shown under its Inbox,
+    /// and whether desktop alerts are for Primary alone (#911), each as it was and as its box has
+    /// it now.
+    gmail: Option<GmailSwitches>,
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
@@ -578,6 +596,7 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            gmail: None,
             graph: false,
             newer: false,
             ctx: None,
@@ -644,6 +663,10 @@ impl AccountSetup {
         // (A shared mailbox asks as its owner does.)
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
+        }
+        if a.is_gmail() {
+            let (show, primary) = (!a.hide_gmail_categories, a.alert_primary_only);
+            w.gmail = Some(GmailSwitches { show: (show, show), primary_only: (primary, primary) });
         }
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
@@ -1417,6 +1440,14 @@ impl AccountSetup {
             }
             self.ask_conversation = Some((ask, ask));
         }
+        if let Some(gmail) = self.gmail.filter(|g| g.changed()) {
+            let params = json!({"id": id, "showGmailCategories": gmail.show.1, "alertPrimaryOnly": gmail.primary_only.1});
+            if let Err(e) = app.execute("account.edit", params) {
+                self.error = e;
+                return false;
+            }
+            self.gmail = Some(GmailSwitches { show: (gmail.show.1, gmail.show.1), primary_only: (gmail.primary_only.1, gmail.primary_only.1) });
+        }
         // A window of mail kept offline: a shorter one asks first, in a question of its own (#143).
         if let Some(keep) = self.keep_offline.filter(|(was, keep)| was != keep).map(|(_, keep)| keep) {
             self.keep_offline = Some((keep, keep));
@@ -2047,6 +2078,13 @@ impl AccountSetup {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
+            if let Some(gmail) = self.gmail.as_mut() {
+                caption(ui, tl!("Gmail categories"), &t);
+                ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
+                    .on_hover_text(tl!("Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."));
+                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary"))
+                    .on_hover_text(tl!("New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."));
             }
         });
         problem(ui, &self.error);

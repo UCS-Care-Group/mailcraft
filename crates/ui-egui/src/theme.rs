@@ -943,13 +943,69 @@ pub(crate) fn read_face(path: &std::path::Path, cap: u64, index: u32) -> Option<
     let mut bytes = Vec::with_capacity(usize::try_from(len).ok()?);
     // The cap again: the file may have grown since it was measured.
     file.take(cap.saturating_add(1)).read_to_end(&mut bytes).ok()?;
-    (bytes.len() as u64 <= cap && is_face(&bytes, index)).then_some(bytes)
+    if bytes.len() as u64 > cap || !is_face(&bytes, index) {
+        return None;
+    }
+    hide_bitmap_strikes(&mut bytes, index);
+    Some(bytes)
 }
 
-/// Whether `bytes` are laid out as one TrueType or OpenType face with the tables text needs, all of
-/// them inside the file, or as a collection of faces (`ttcf`) whose first face is; and that the
-/// font reader egui uses opens its first face. egui panics on font data it cannot open, so
-/// nothing read from a disk goes to it unchecked.
+/// The tables of a face's embedded black-and-white bitmaps (`EBDT`, its index `EBLC` and its
+/// scaling `EBSC`): Calibri, Cambria and SimSun have them for small sizes beside their outlines.
+#[cfg(not(target_arch = "wasm32"))]
+const BITMAP_TABLES: [&[u8; 4]; 3] = [b"EBDT", b"EBLC", b"EBSC"];
+
+/// Hide the embedded black-and-white bitmaps of the face `index` (#889): egui draws a glyph that
+/// has one as a colour glyph, in its own colour (white) instead of the text's, so on a light page
+/// it can't be seen. The face's outlines draw every glyph instead. The tables are renamed in the
+/// face's directory (to lower case, which no reader knows), which is then sorted again, as readers
+/// look tables up by name in order; nothing else of the file changes. Colour glyphs (`CBDT`,
+/// `sbix`, `COLR`) are left alone: those are emoji.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn hide_bitmap_strikes(bytes: &mut [u8], index: u32) {
+    let Some(start) = face_start(bytes, index) else { return };
+    let Some(tables) = start.checked_add(4).and_then(|at| bytes.get(at..at.checked_add(2)?)).and_then(|b| <[u8; 2]>::try_from(b).ok()) else {
+        return;
+    };
+    let directory = start.saturating_add(12);
+    let end = usize::from(u16::from_be_bytes(tables)).checked_mul(16).and_then(|len| directory.checked_add(len));
+    let Some(records) = end.and_then(|end| bytes.get_mut(directory..end)) else { return };
+    let (records, _) = records.as_chunks_mut::<16>();
+    let mut hidden = false;
+    for record in records.iter_mut() {
+        let Some(tag) = record.first_chunk_mut::<4>() else { continue };
+        if BITMAP_TABLES.contains(&&*tag) {
+            tag.make_ascii_lowercase();
+            hidden = true;
+        }
+    }
+    if hidden {
+        records.sort_by_key(|[a, b, c, d, ..]| [*a, *b, *c, *d]);
+    }
+}
+
+/// Where the directory of the face `index` begins: 0 for a font of one face; in a collection
+/// (its tag, a version, how many faces it has and where each begins, every one of those places
+/// inside the file) the place its header gives for the face asked for.
+#[cfg(not(target_arch = "wasm32"))]
+fn face_start(bytes: &[u8], index: u32) -> Option<usize> {
+    let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
+    if u32_at(0) != Some(0x7474_6366) {
+        return (index == 0).then_some(0);
+    }
+    let faces = u32_at(8).and_then(|n| usize::try_from(n).ok()).filter(|n| *n >= 1)?;
+    let header_end = faces.checked_mul(4).and_then(|places| places.checked_add(12))?;
+    if header_end > bytes.len() {
+        return None;
+    }
+    let place = usize::try_from(index).ok().filter(|i| *i < faces).and_then(|i| i.checked_mul(4)).and_then(|at| at.checked_add(12))?;
+    u32_at(place).and_then(|at| usize::try_from(at).ok())
+}
+
+/// Whether `bytes` are laid out as one TrueType or OpenType face with the tables text needs, its
+/// outlines or colour bitmaps among them, all of them inside the file, or as a collection of
+/// faces (`ttcf`) whose first face is; and that the font reader egui uses opens its first face.
+/// egui panics on font data it cannot open, so nothing read from a disk goes to it unchecked.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 fn is_font(bytes: &[u8]) -> bool {
     is_face(bytes, 0)
@@ -961,26 +1017,7 @@ fn is_font(bytes: &[u8]) -> bool {
 pub(crate) fn is_face(bytes: &[u8], index: u32) -> bool {
     let u16_at = |at: usize| bytes.get(at..at.checked_add(2)?).and_then(|b| <[u8; 2]>::try_from(b).ok()).map(u16::from_be_bytes);
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
-    // A collection: its tag, a version, how many faces it has and where each begins, every one of
-    // those places inside the file. The face asked for is the one used.
-    let start = if u32_at(0) == Some(0x7474_6366) {
-        let Some(faces) = u32_at(8).and_then(|n| usize::try_from(n).ok()).filter(|n| *n >= 1) else { return false };
-        let header_end = faces.checked_mul(4).and_then(|places| places.checked_add(12));
-        if header_end.is_none_or(|end| end > bytes.len()) {
-            return false;
-        }
-        let Some(place) = usize::try_from(index).ok().filter(|i| *i < faces).and_then(|i| i.checked_mul(4)).and_then(|at| at.checked_add(12)) else {
-            return false;
-        };
-        match u32_at(place).and_then(|at| usize::try_from(at).ok()) {
-            Some(first) => first,
-            None => return false,
-        }
-    } else if index == 0 {
-        0
-    } else {
-        return false;
-    };
+    let Some(start) = face_start(bytes, index) else { return false };
     // What egui does with the bytes (`FontData::index`); it refuses what is cut off or misnamed.
     if skrifa::FontRef::from_index(bytes, index).is_err() {
         return false;
@@ -992,6 +1029,11 @@ pub(crate) fn is_face(bytes: &[u8], index: u32) -> bool {
     let Some(tables) = start.checked_add(4).and_then(u16_at) else { return false };
     const NEEDED: [&[u8; 4]; 5] = [b"cmap", b"head", b"hhea", b"hmtx", b"maxp"];
     let mut found = [false; NEEDED.len()];
+    // Something to draw with: outlines (TrueType or CFF), or colour bitmaps (`CBDT`, `sbix`: the
+    // emoji faces of Linux and macOS have no outlines). A face of black-and-white bitmaps alone
+    // draws nothing once they are hidden ([`hide_bitmap_strikes`]), so its text is drawn in
+    // another font instead.
+    let mut drawable = false;
     for i in 0..usize::from(tables) {
         // The directory: twelve bytes, then sixteen for each table (tag, checksum, offset, length).
         // In a collection too, a table's offset is from the start of the file.
@@ -1006,8 +1048,9 @@ pub(crate) fn is_face(bytes: &[u8], index: u32) -> bool {
         for (seen, needed) in found.iter_mut().zip(NEEDED) {
             *seen |= tag == needed.as_slice();
         }
+        drawable |= matches!(tag, b"glyf" | b"CFF " | b"CFF2" | b"CBDT" | b"sbix");
     }
-    found.iter().all(|seen| *seen)
+    drawable && found.iter().all(|seen| *seen)
 }
 
 /// Install the interface fonts: the system's own where there is one ([`SystemFont`]), then the
@@ -1340,6 +1383,10 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
 #[cfg(test)]
 #[path = "theme_contrast_tests.rs"]
 mod theme_contrast_tests;
+
+#[cfg(test)]
+#[path = "theme_bitmap_tests.rs"]
+mod theme_bitmap_tests;
 
 #[cfg(test)]
 #[path = "theme_emoji_tests.rs"]

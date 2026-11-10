@@ -556,7 +556,15 @@ impl<'a> Push<'a> {
                         // Put there before: it is the message's copy, with the flags it has there
                         // (what changed here since goes up next).
                         self.arrived.entry(destination.remote.clone()).or_default().push((*uid_validity, uid));
-                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags });
+                        // (What it was written from then isn't known: not said to be the bytes it came as, #30.)
+                        result.placed.push(Placed {
+                            message: message.id,
+                            to_folder: *to_folder,
+                            uid,
+                            uid_validity: *uid_validity,
+                            flags,
+                            original: false,
+                        });
                         continue;
                     }
                     Ok(None) => {}
@@ -578,10 +586,22 @@ impl<'a> Push<'a> {
             // Without who got a blind copy: the copy is for anyone else who can open the mailbox
             // to see too.
             let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-            let written = match marker {
-                Some(marker) => mailcraft_mime::write_placed(message, &options, marker),
-                None => mailcraft_mime::write(message, &options),
+            // A protected message with a part sent as `binary` (#30) goes written from its parts:
+            // its bytes aren't the lines an APPEND carries (RFC 3501; the BINARY extension's
+            // literals, RFC 3516, aren't sent), and a server may refuse or change them. Its
+            // Digital signature doesn't check on that copy; the one kept here, and the copy it
+            // came from, stay as they came.
+            let parts;
+            let message = if message.original_bytes().is_some_and(mailcraft_mime::has_binary) {
+                log::info!("message {}: a part of it is binary, so the copy put on the server is written from its parts", message.id);
+                parts = mailcraft_model::Message { original: None, ..message.clone() };
+                &parts
+            } else {
+                message
             };
+            let written = mailcraft_mime::write_placed(message, &options, marker.unwrap_or_default());
+            // Written from the bytes it came as (#30): what it was moved out of may go then.
+            let original = mailcraft_mime::writes_original(message);
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
@@ -604,7 +624,7 @@ impl<'a> Push<'a> {
                     if uid != 0 {
                         self.arrived.entry(destination.remote.clone()).or_default().push((uid_validity, uid));
                     }
-                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given });
+                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given, original });
                 }
                 Err(e) => {
                     let e = NetError::from(e);
