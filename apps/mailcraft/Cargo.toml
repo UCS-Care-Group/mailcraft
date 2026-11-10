@@ -23,6 +23,8 @@ mailcraft-control-key = { workspace = true }
 mailcraft-net = { workspace = true }
 # Exchange server accounts (#252): the requests and the readers of the answers; the HTTPS is `mailcraft-net`'s.
 mailcraft-ews = { workspace = true }
+# OpenPGP keys kept in GnuPG (#30): the conversation with gpg-agent; finding and opening its socket is `gpg_agent.rs`.
+mailcraft-assuan = { workspace = true }
 # `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
 # we turn the defaults off); without it nothing is copied, on any platform.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }

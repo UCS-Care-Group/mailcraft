@@ -97,6 +97,12 @@ pub mod forms;
 mod forms_date_tests;
 #[cfg(test)]
 mod frame_bench_tests;
+mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
+mod gmail_tabs;
+#[cfg(test)]
+mod gmail_tabs_tests;
 #[cfg(test)]
 #[path = "google_credential_security_tests.rs"]
 mod google_credential_security_tests;
@@ -343,6 +349,10 @@ pub struct Services {
     /// Desktop registration supplied by the host's build or process environment. Kept in
     /// memory, never in UI preferences; not an owner access or refresh token.
     pub google_client_secret: String,
+    /// While Google reviews the project's registration (Testing mode), only the testers added to
+    /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
+    /// a new Gmail account starts on an app password, Google sign-in second with how to join.
+    pub google_testers_only: bool,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -1421,6 +1431,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 /// The application.
 pub struct MailApp {
     pub session: Session,
+    /// The system's certification authorities for mail, read off the window's thread by the host
+    /// (#30): handed to the session when they come, and the window never waits for them.
+    pub trust_anchors_arriving: Option<std::sync::mpsc::Receiver<Vec<Vec<u8>>>>,
+    /// How many rows of the list may still have their Digital signature checked this frame, and
+    /// whether one was left for the next (#30: the list never checks many in one frame).
+    pub(crate) row_checks_left: u32,
+    pub(crate) row_checks_wanted: bool,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
@@ -1780,6 +1797,9 @@ impl MailApp {
         let own_mailbox = session.path.as_ref().map(|p| unconfirmed::kept_path(&p.to_string_lossy()));
         MailApp {
             session,
+            trust_anchors_arriving: None,
+            row_checks_left: 1,
+            row_checks_wanted: false,
             ui: UiState::default(),
             services,
             dialog: None,
@@ -1998,6 +2018,8 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        // Gmail's categories as folders or as tabs (#911).
+        v.gmail_tabs = saved.gmail_tabs;
         // One account's tasks and contacts only in the mailbox they were chosen in: in another,
         // the same id is somebody else's account, or none, and the list starts on All accounts.
         let mailbox = &self.session.mailbox;
@@ -4451,6 +4473,23 @@ impl MailApp {
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
         self.apply_language();
+        // The system's authorities for mail, once the host has read them: what was checked
+        // without them is checked again (#30).
+        if let Some(rx) = &self.trust_anchors_arriving {
+            match rx.try_recv() {
+                Ok(ders) => {
+                    self.session.set_trust_anchors(&ders);
+                    self.trust_anchors_arriving = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.trust_anchors_arriving = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        // One row's Digital signature a frame (#30); one left over asks for the next frame.
+        self.row_checks_left = 1;
+        if std::mem::take(&mut self.row_checks_wanted) {
+            ctx.request_repaint();
+        }
         // A .pst import whose window went while it read (closed, or another dialog put in its
         // place) has stopped: what came in is one step to undo, and Undo is free again.
         if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {

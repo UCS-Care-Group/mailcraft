@@ -24,6 +24,8 @@
 pub const AVAILABLE: bool = false;
 
 #[cfg(not(target_arch = "wasm32"))]
+mod anchors;
+#[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
 mod dns;
@@ -31,6 +33,8 @@ mod dns;
 mod dns_srv;
 #[cfg(not(target_arch = "wasm32"))]
 mod favorite_paths;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod gmail;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod graph;
 #[cfg(not(target_arch = "wasm32"))]
@@ -91,6 +95,7 @@ pub(crate) fn google_destination(account: &mailcraft_model::Account, host: &str,
 mod native {
     use mailcraft_model::Account;
 
+    pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
@@ -239,3 +244,7 @@ mod tls_test_support;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod verifier_tests;
+
+#[cfg(test)]
+#[cfg(all(unix, not(target_os = "macos")))]
+mod anchors_tests;
