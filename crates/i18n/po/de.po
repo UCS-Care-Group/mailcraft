@@ -3082,29 +3082,17 @@ msgstr "Desktopbenachrichtigungen"
 msgid "Desktop alerts"
 msgstr "Desktopbenachrichtigungen"
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Desktop alerts are turned off for MailCraft in System Settings."
 msgstr "Desktopbenachrichtigungen sind für MailCraft in den Systemeinstellungen ausgeschaltet."
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
-msgid "Desktop alerts can't be shown: no notification service answers on this desktop."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Auf diesem Desktop antwortet kein Benachrichtigungsdienst."
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-#, fuzzy
-msgid "Desktop alerts can't be shown: this copy doesn't run from the MailCraft app."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie läuft nicht aus der MailCraft-App."
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-#, fuzzy
-msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
-msgstr "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
+msgid "Desktop alerts can't be shown"
+msgstr "Desktopbenachrichtigungen können nicht angezeigt werden"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -14343,41 +14331,6 @@ msgid "Your automatic replies weren't changed"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: you are working offline."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-msgid "Your automatic replies weren't changed: {error}"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Your calendar: {day}"
@@ -16389,6 +16342,13 @@ msgid "week"
 msgstr "Woche"
 
 #. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgctxt "what didn't happen, then why"
+msgid "{heading}: {reason}"
+msgstr "{heading}: {reason}"
+
+#. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
 msgid "what the server sent is not a picture"
@@ -16423,6 +16383,63 @@ msgstr "die seine E-Mails sendet: Beantworten Sie die Einladung dort, oder hier,
 #, fuzzy
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "die seine E-Mails sendet: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf, um sie aus dieser Version zu senden"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft needs your permission first (File › Info › Ask again)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft wasn't allowed to change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "Microsoft no longer takes your sign-in."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "sign in again to let MailCraft read them (File › Info)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "you are working offline."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgctxt "why automatic replies weren't changed"
+msgid "your organisation doesn't let MailCraft change them."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "no notification service answers on this desktop."
+msgstr "Auf diesem Desktop antwortet kein Benachrichtigungsdienst."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy doesn't run from the MailCraft app."
+msgstr "Diese Kopie läuft nicht aus der MailCraft-App."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
+msgstr "Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
 
 #. name
 #: crates/model/src/calendar.rs
