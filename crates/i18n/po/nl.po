@@ -4876,12 +4876,6 @@ msgstr "Aanmelden met Google gebruikt Microsoft's toestemmingsprocedure voor beh
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Google sign-in is not configured for this build"
-msgstr "Aanmelden met Google is niet geconfigureerd voor deze build"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Google sign-in is not configured for this build."
 msgstr "Aanmelden met Google is niet geconfigureerd voor deze build."
 
@@ -18875,6 +18869,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Google sign-in is not configured for this build"
+#~ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build"
 
 #, fuzzy
 #~ msgid "A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send."

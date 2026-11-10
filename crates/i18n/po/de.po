@@ -4541,11 +4541,6 @@ msgstr "Bei der Google-Anmeldung wird nicht der Administrator-Zustimmungsprozess
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is not configured for this build"
-msgstr "Die Google-Anmeldung ist in diesem Build nicht eingerichtet"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is not configured for this build."
 msgstr "Die Google-Anmeldung ist in diesem Build nicht eingerichtet."
 
