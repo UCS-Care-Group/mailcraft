@@ -18,7 +18,7 @@ fn add(w: &mut Harness<'_, MailApp>, email: &str) -> Id {
 
 fn from_server(w: &mut Harness<'_, MailApp>, account: Id, email: &str, name: &str) -> Id {
     let contact = RemoteContact { id: "w1".into(), display_name: name.into(), ..Default::default() };
-    let download = ContactsDownload { account, email: email.into(), complete: true, contacts: vec![contact] };
+    let download = ContactsDownload { account, email: email.into(), complete: true, books: Vec::new(), contacts: vec![contact] };
     mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
     w.state().session.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().id
 }

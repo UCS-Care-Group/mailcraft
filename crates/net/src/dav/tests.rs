@@ -58,19 +58,6 @@ fn a_multistatus_names_its_collections() {
 }
 
 #[test]
-fn a_team_calendar_is_owned_by_its_group() {
-    let body = br#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-      <D:response><D:href>/caldav/workgroup/7/Rota/</D:href><D:propstat><D:prop>
-        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
-        <D:owner><D:href>/caldav/workgroup/7/</D:href></D:owner>
-      </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
-    </D:multistatus>"#;
-    let responses = multistatus(body).unwrap();
-    let owner = calendar_owner(&responses[0]).expect("the group owns it");
-    assert_eq!((owner.address.as_str(), owner.name.as_str()), ("workgroup-7", "Workgroup"));
-}
-
-#[test]
 fn an_absolute_address_must_be_on_the_service_and_never_keeps_a_fragment() {
     let base = "https://mail.example.org/caldav/";
     assert_eq!(
@@ -81,6 +68,42 @@ fn an_absolute_address_must_be_on_the_service_and_never_keeps_a_fragment() {
     assert_eq!(resolve(base, "http://mail.example.org/caldav/x.ics"), None);
     assert_eq!(request_url(base, "/caldav/ada/x.ics#day").as_deref(), Some("https://mail.example.org/caldav/ada/x.ics"));
     assert_eq!(request_url(base, "https://elsewhere.example/x.ics"), None);
+}
+
+#[test]
+fn the_accounts_own_calendar_is_the_main_one_not_the_first_listed() {
+    fn answer(body: &str) -> Vec<u8> {
+        format!("HTTP/1.1 207 Multi-Status\r\nContent-Type: application/xml; charset=utf-8\r\nContent-Length: {}\r\n\r\n{body}", body.len())
+            .into_bytes()
+    }
+    let discovery = r#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+      <D:response><D:href>/caldav/</D:href><D:propstat><D:prop>
+        <C:calendar-home-set><D:href>/caldav/ada@example.org/</D:href></C:calendar-home-set>
+      </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+    </D:multistatus>"#;
+    let listing = r#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+      <D:response><D:href>/caldav/ada@example.org/team/</D:href><D:propstat><D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+        <D:displayname>Team</D:displayname><D:owner><D:href>/caldav/workgroup/7/</D:href></D:owner>
+      </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+      <D:response><D:href>/caldav/ada@example.org/calendar/</D:href><D:propstat><D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+        <D:displayname>Calendar</D:displayname><D:owner><D:href>/caldav/ada@example.org/</D:href></D:owner>
+      </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+    </D:multistatus>"#;
+    let empty = r#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:"/>"#;
+    let server = FakeHttp::start(move |n, _| match n {
+        0 => answer(discovery),
+        1 => answer(listing),
+        _ => answer(empty),
+    });
+    let (calendars, events, errors) = calendars(&server.url("/caldav/"), "Basic aW52ZW50ZWQ=", "ada@example.org", 0, 0).unwrap();
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(
+        calendars.calendars.iter().map(|calendar| (calendar.name.as_str(), calendar.main)).collect::<Vec<_>>(),
+        [("Team", false), ("Calendar", true)]
+    );
+    assert_eq!(events.len(), 2, "each calendar is read");
 }
 
 #[test]
@@ -130,6 +153,19 @@ fn hostile_xml_gives_nothing_and_never_panics() {
         let _ = multistatus(body);
         let _ = parse_xml(body);
     }
+}
+
+#[test]
+fn a_team_calendar_is_owned_by_its_group() {
+    let body = br#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+      <D:response><D:href>/caldav/workgroup/7/Rota/</D:href><D:propstat><D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+        <D:owner><D:href>/caldav/workgroup/7/</D:href></D:owner>
+      </D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+    </D:multistatus>"#;
+    let responses = multistatus(body).unwrap();
+    let owner = calendar_owner(&responses[0]).expect("the group owns it");
+    assert_eq!((owner.address.as_str(), owner.name.as_str()), ("workgroup-7", "Workgroup"));
 }
 
 #[test]
@@ -192,13 +228,108 @@ fn a_delete_of_an_event_named_by_its_path_is_conditional_on_the_version_read() {
 }
 
 #[test]
+fn a_new_contact_goes_to_the_book_it_was_given() {
+    let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let book = server.url("/carddav/ada@example.org/contacts/personal/");
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Create,
+            contact: 7,
+            book: book.clone(),
+            remote: String::new(),
+            uid: "one-uid".into(),
+            card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one-uid\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n".into(),
+            etag: String::new(),
+            token: String::new(),
+        }],
+    };
+    let out = upload_contacts("", "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Done);
+    assert_eq!(out.outcomes[0].remote, "/carddav/ada@example.org/contacts/personal/one-uid.vcf");
+    let request = server.request(0);
+    assert!(request.starts_with("PUT /carddav/ada@example.org/contacts/personal/one-uid.vcf HTTP/1.1\r\n"), "{request}");
+    assert!(request.contains("Content-Type: text/vcard; charset=utf-8\r\n"), "{request}");
+    assert!(request.contains("If-None-Match: *\r\n"), "{request}");
+    assert!(request.contains("UID:one-uid\r\n") && request.contains("FN:Ada Lovelace\r\n"), "{request}");
+}
+
+#[test]
+fn cards_changed_or_deleted_here_are_conditional_on_the_versions_read() {
+    let card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n";
+    let server = FakeHttp::start(move |n, _| match n {
+        0 | 2 => format!("HTTP/1.1 200 OK\r\nETag: \"v{n}\"\r\nContent-Length: {}\r\n\r\n{}", card.len(), card).into_bytes(),
+        _ => b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec(),
+    });
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![
+            ContactOp {
+                kind: ContactChangeKind::Update,
+                contact: 7,
+                remote: "/carddav/ada@example.org/contacts/personal/one.vcf".into(),
+                uid: "one".into(),
+                card: "BEGIN:VCARD\r\nVERSION:3.0\r\nN:;;;;\r\nFN:Ada Lovelace\r\nUID:one\r\nEND:VCARD\r\n".into(),
+                ..Default::default()
+            },
+            ContactOp {
+                kind: ContactChangeKind::Delete,
+                contact: 0,
+                remote: "/carddav/ada@example.org/contacts/personal/two.vcf".into(),
+                ..Default::default()
+            },
+        ],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(
+        out.outcomes.iter().map(|o| (o.result, o.error.as_str())).collect::<Vec<_>>(),
+        [(EventResult::Done, ""), (EventResult::Done, "")],
+        "requests: {:?}",
+        (0..server.asked()).map(|n| server.request(n)).collect::<Vec<_>>()
+    );
+    assert!(server.request(1).starts_with("PUT /carddav/ada@example.org/contacts/personal/one.vcf HTTP/1.1\r\n"));
+    assert!(server.request(1).contains("If-Match: \"v0\"\r\n") && server.request(1).contains("FN:Ada Lovelace\r\n"));
+    assert!(server.request(3).starts_with("DELETE /carddav/ada@example.org/contacts/personal/two.vcf HTTP/1.1\r\n"));
+    assert!(server.request(3).contains("If-Match: \"v2\"\r\n"));
+}
+
+#[test]
+fn a_refused_card_change_still_names_the_card() {
+    let card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:two\r\nFN:Two\r\nEND:VCARD\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v1\"\r\nContent-Length: {}\r\n\r\n{}", card.len(), card).into_bytes()
+        } else {
+            b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Delete,
+            remote: "/carddav/ada@example.org/contacts/~book-7/two.vcf".into(),
+            ..Default::default()
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Denied);
+    assert_eq!(out.outcomes[0].remote, "/carddav/ada@example.org/contacts/~book-7/two.vcf");
+}
+
+#[test]
 fn a_card_says_which_book_it_came_from() {
     let card = mailcraft_vcard::parse("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n")
         .into_iter()
         .next()
         .unwrap();
-    let remote = remote_contact(card, "/carddav/ada/contacts/~book-7/one.vcf".into(), "\"1\"".into(), "Suppliers");
-    assert_eq!((remote.book.as_str(), remote.uid.as_str(), remote.display_name.as_str()), ("Suppliers", "one", "Ada Lovelace"));
+    let remote = remote_contact(card, "/carddav/ada/contacts/~book-7/one.vcf".into(), "\"1\"".into(), "Suppliers", "/carddav/ada/contacts/~book-7/");
+    assert_eq!(
+        (remote.book.as_str(), remote.book_id.as_str(), remote.uid.as_str(), remote.display_name.as_str()),
+        ("Suppliers", "/carddav/ada/contacts/~book-7/", "one", "Ada Lovelace")
+    );
 }
 
 #[test]
@@ -324,6 +455,70 @@ fn apply_fields_keeps_a_recurring_events_zone() {
         &EventFields { time: Some(EventTime { start: 1_800_000_000, end: 1_800_003_600, all_day: false }), ..Default::default() },
     );
     assert_eq!((event.start_zone.as_str(), event.end_zone.as_str()), ("Europe/Stockholm", "Europe/Stockholm"));
+}
+
+#[test]
+fn a_card_edit_keeps_unknown_card_bytes_and_a_vcard_4_is_refused() {
+    let card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nN:Old;;;;\r\nFN:Ada Old\r\nX-PRIVATE:keep\r\nPHOTO;ENCODING=b:abc\r\nEND:VCARD\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v1\"\r\nContent-Length: {}\r\n\r\n{}", card.len(), card).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let after = "BEGIN:VCARD\r\nVERSION:3.0\r\nN:New;;;;\r\nFN:Ada New\r\nUID:one\r\nEND:VCARD\r\n";
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Update,
+            contact: 7,
+            remote: "/carddav/ada@example.org/contacts/personal/one.vcf".into(),
+            uid: "one".into(),
+            card: after.into(),
+            ..Default::default()
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Done);
+    let put = server.request(1);
+    assert!(put.contains("FN:Ada New\r\n") && put.contains("X-PRIVATE:keep\r\n") && put.contains("PHOTO;ENCODING=b:abc"), "{put}");
+    assert!(put.contains("If-Match: \"v1\"\r\n"), "{put}");
+
+    let source4 = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:one\r\nFN:Ada Old\r\nEND:VCARD\r\n";
+    let server = FakeHttp::start(move |n, _| {
+        if n == 0 {
+            format!("HTTP/1.1 200 OK\r\nETag: \"v1\"\r\nContent-Length: {}\r\n\r\n{}", source4.len(), source4).into_bytes()
+        } else {
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec()
+        }
+    });
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Update,
+            contact: 7,
+            remote: "/carddav/ada@example.org/contacts/personal/one.vcf".into(),
+            uid: "one".into(),
+            card: "BEGIN:VCARD\r\nVERSION:3.0\r\nN:;;;;\r\nFN:Ada New\r\nUID:one\r\nEND:VCARD\r\n".into(),
+            ..Default::default()
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Refused);
+    assert_eq!(server.asked(), 1, "a 4.0 card is not overwritten by a 3.0 writer");
+}
+
+#[test]
+fn a_listing_with_a_document_missing_is_not_complete() {
+    let body = r#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
+      <D:response><D:href>/carddav/ada/contacts/personal/a.vcf</D:href><D:propstat><D:prop><D:getetag>"v1"</D:getetag></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+    </D:multistatus>"#;
+    let server = FakeHttp::answering(format!("HTTP/1.1 207 Multi-Status\r\nContent-Length: {}\r\n\r\n{body}", body.len()).into_bytes());
+    let (cards, complete) = cards(&server.url("/carddav/ada/contacts/personal/"), "", "My contacts", "auth").unwrap();
+    assert!(cards.is_empty() && !complete);
 }
 
 #[test]

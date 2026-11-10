@@ -3502,6 +3502,12 @@ mod contact {
     pub struct ContactForm {
         /// The contact being edited; `None` for a new one.
         id: Option<Id>,
+        /// The address book a new contact is saved in (its URL on the server); empty for this
+        /// computer.
+        address_book: String,
+        /// The account that address book belongs to; 0 when it was not named (the book's id
+        /// alone is then used).
+        address_book_account: Id,
         first: String,
         last: String,
         display: String,
@@ -3565,6 +3571,8 @@ mod contact {
             // What OK sends is what differs from an empty form.
             f.baseline = f.fields();
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+            f.address_book = text("addressBook");
+            f.address_book_account = p.get("addressBookAccount").and_then(Value::as_u64).unwrap_or(0);
             (f.first, f.last, f.display, f.company, f.title, f.department) =
                 (text("first"), text("last"), text("displayName"), text("company"), text("title"), text("department"));
             if let Some(e) = f.emails.first_mut() {
@@ -3641,7 +3649,7 @@ mod contact {
                 rows.iter().filter(|r| !r.value.trim().is_empty()).map(|r| json!({"label": r.label, "value": r.value})).collect::<Vec<_>>()
             };
             let a = &self.address;
-            object(json!({
+            let mut fields = object(json!({
                 "first": self.first,
                 "last": self.last,
                 "displayName": self.display,
@@ -3660,7 +3668,14 @@ mod contact {
                     CardKey::Had(i, _) => json!({"keep": i}),
                     CardKey::Added { data, .. } => json!({"data": data}),
                 }).collect::<Vec<_>>(),
-            }))
+            }));
+            if self.id.is_none() && !self.address_book.is_empty() {
+                fields.insert("addressBook".into(), json!(self.address_book));
+                if self.address_book_account != 0 {
+                    fields.insert("addressBookAccount".into(), json!(self.address_book_account));
+                }
+            }
+            fields
         }
 
         /// The command OK runs, with its params: the fields that were filled in for a new
@@ -3687,8 +3702,50 @@ mod contact {
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut add_key = false;
+            // A new contact can go into any address book its account's server lets it write to;
+            // one being edited keeps the book it is already in.
+            let many_accounts = app.session.mailbox.accounts.iter().filter(|account| account.is_dav()).count() > 1;
+            let books: Vec<(String, String, Id)> = if self.id.is_none() {
+                app.session
+                    .mailbox
+                    .contact_books
+                    .iter()
+                    .filter(|book| book.rights == mailcraft_model::Rights::Edit)
+                    .filter_map(|book| {
+                        let account = app.session.mailbox.account(book.account)?;
+                        let label = if many_accounts && !account.email.trim().is_empty() {
+                            format!("{} ({})", book.name, account.email)
+                        } else {
+                            book.name.clone()
+                        };
+                        Some((book.id.clone(), label, book.account))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            // A book that has gone from the account's list is not silently swapped for this
+            // computer: Save waits until it comes back, so the contact is not saved where nobody
+            // would look for it.
+            let book_gone = self.id.is_none() && !self.address_book.is_empty() && !books.iter().any(|(id, _, _)| *id == self.address_book);
+            let current_book = if book_gone {
+                tl!("Address book unavailable").to_string()
+            } else {
+                books
+                    .iter()
+                    .find(|(id, _, _)| *id == self.address_book)
+                    .map(|(_, label, _)| label.clone())
+                    .unwrap_or_else(|| tl!("On this computer").to_string())
+            };
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
-            let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
+            // The account the contact belongs to is the selected book's, not just the contact's:
+            // its categories are the ones the form offers.
+            let account = self
+                .id
+                .and_then(|id| app.session.mailbox.contact(id))
+                .map(|c| c.origin.account)
+                .or_else(|| app.session.mailbox.contact_books.iter().find(|book| book.id == self.address_book).map(|book| book.account))
+                .unwrap_or(0);
             let categories = app.session.mailbox.categories_of(account).to_vec();
             body(ui, |ui| {
                 row(ui, tl!("First name"), |ui| {
@@ -3712,6 +3769,23 @@ mod contact {
                 row(ui, tl!("Department"), |ui| {
                     pass.text(ui, "department", &mut self.department, f32::INFINITY, "");
                 });
+                if self.id.is_none() && !books.is_empty() {
+                    row(ui, tl!("Address Book"), |ui| {
+                        egui::ComboBox::from_id_salt("contact_address_book").width(220.0).selected_text(current_book.clone()).truncate().show_ui(
+                            ui,
+                            |ui| {
+                                if ui.selectable_value(&mut self.address_book, String::new(), tl!("On this computer")).clicked() {
+                                    self.address_book_account = 0;
+                                }
+                                for (id, label, account) in &books {
+                                    if ui.selectable_value(&mut self.address_book, id.clone(), label).clicked() {
+                                        self.address_book_account = *account;
+                                    }
+                                }
+                            },
+                        );
+                    });
+                }
                 labeled_rows(ui, &mut pass, tl!("E-mail"), "email", &mut self.emails, &EMAIL_LABELS, tl!("Add another e-mail address"));
                 labeled_rows(ui, &mut pass, tl!("Phone"), "phone", &mut self.phones, &PHONE_LABELS, tl!("Add another phone number"));
                 row(ui, tl!("Address"), |ui| label_combo(ui, "address_label", &mut self.address.label, &ADDRESS_LABELS));
@@ -3769,8 +3843,13 @@ mod contact {
                         .clicked();
                 });
             });
-            error(ui, &self.error);
-            let ready = self.ready();
+            let complaint = if book_gone {
+                tl!("The address book chosen is no longer available. Send/Receive may bring it back, and the contact can be saved then.").to_string()
+            } else {
+                self.error.clone()
+            };
+            error(ui, &complaint);
+            let ready = self.ready() && !book_gone;
             let clicked = footer(ui, tl!("Save"), ready, self.id.is_some());
             if clicked.cancel {
                 return true;

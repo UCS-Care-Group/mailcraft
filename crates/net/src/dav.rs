@@ -25,10 +25,11 @@ use mailcraft_charset::base64::STANDARD as BASE64;
 use mailcraft_dav::document::{Component, patch};
 use mailcraft_model::dav::DavServer;
 use mailcraft_model::remote::{
-    CalendarsDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventsUpload, EventsUploaded,
-    RemoteCalendar, RemoteContact, RemoteEvent, RemoteEventKind,
+    CalendarsDownload, ContactChangeKind, ContactOp, ContactOutcome, ContactsDownload, ContactsUpload, ContactsUploaded, EventChangeKind,
+    EventFields, EventOp, EventOutcome, EventResult, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteCalendar, RemoteContact, RemoteEvent,
+    RemoteEventKind,
 };
-use mailcraft_model::{CalendarOwner, Event, Rgb, Rights};
+use mailcraft_model::{CalendarOwner, Contact, Event, Rgb, Rights};
 use mailcraft_time::{DateTime, Timestamp, Zone};
 use quick_xml::Reader;
 use quick_xml::escape::resolve_xml_entity;
@@ -40,6 +41,7 @@ use crate::http::{self, Request as HttpRequest, Url};
 /// The bodies sent with the requests.
 const XML: &str = "application/xml; charset=utf-8";
 const CALENDAR: &str = "text/calendar; charset=utf-8";
+const VCARD: &str = "text/vcard; charset=utf-8";
 
 /// How long one DAV request may take: the server is usually close, and an answer is a page of XML.
 const PATIENCE: Duration = Duration::from_secs(30);
@@ -457,8 +459,12 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
             continue;
         };
         let name = response.prop_text("displayname").filter(|name| !name.trim().is_empty()).unwrap_or_else(|| slug(&href));
-        match cards(&href, &name, auth) {
-            Ok(mut cards) => out.contacts.append(&mut cards),
+        out.books.push(RemoteAddressBook { id: href.clone(), name: name.clone(), rights: response.rights() });
+        match cards(&href, &href, &name, auth) {
+            Ok((mut cards, complete)) => {
+                out.complete &= complete;
+                out.contacts.append(&mut cards);
+            }
             Err(_) => out.complete = false,
         }
     }
@@ -474,7 +480,7 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
 }
 
 /// Every card of one address book.
-fn cards(book: &str, name: &str, auth: &str) -> Result<Vec<RemoteContact>, NetError> {
+fn cards(book: &str, book_id: &str, name: &str, auth: &str) -> Result<(Vec<RemoteContact>, bool), NetError> {
     let body = r#"<?xml version="1.0" encoding="utf-8"?><C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav"><D:prop><D:getetag/><C:address-data/></D:prop></C:addressbook-query>"#;
     let reply = send(book, "REPORT", Some("1"), Some(body), auth, XML, MAX_BODY)?;
     if reply.status != 207 {
@@ -482,17 +488,24 @@ fn cards(book: &str, name: &str, auth: &str) -> Result<Vec<RemoteContact>, NetEr
     }
     let responses = multistatus(&reply.body)?;
     let mut out = Vec::new();
+    let mut complete = responses.len() <= MAX_OBJECTS;
     for response in responses.iter().take(MAX_OBJECTS) {
-        let Some(text) = response.prop_text("address-data") else { continue };
+        let Some(text) = response.prop_text("address-data") else {
+            complete = false;
+            continue;
+        };
         let etag = response.prop_text("getetag").unwrap_or_default();
-        let Some(card) = mailcraft_vcard::parse(&text).into_iter().next() else { continue };
-        out.push(remote_contact(card, response.href.clone(), etag, name));
+        let Some(card) = mailcraft_vcard::parse(&text).into_iter().next() else {
+            complete = false;
+            continue;
+        };
+        out.push(remote_contact(card, response.href.clone(), etag, name, book_id));
     }
-    Ok(out)
+    Ok((out, complete))
 }
 
 /// A parsed vCard as a server's contact.
-fn remote_contact(card: mailcraft_model::Contact, id: String, etag: String, book: &str) -> RemoteContact {
+fn remote_contact(card: mailcraft_model::Contact, id: String, etag: String, book: &str, book_id: &str) -> RemoteContact {
     RemoteContact {
         id,
         change_key: etag,
@@ -512,6 +525,7 @@ fn remote_contact(card: mailcraft_model::Contact, id: String, etag: String, book
         birthday: card.birthday,
         notes: card.notes,
         book: book.to_string(),
+        book_id: book_id.to_string(),
         modified: 0,
     }
 }
@@ -683,6 +697,12 @@ struct FetchedEvent {
     raw: String,
     etag: String,
     event: Event,
+}
+
+struct FetchedCard {
+    raw: String,
+    etag: String,
+    card: Contact,
 }
 
 fn event_text(event: &Event) -> String {
@@ -900,6 +920,26 @@ fn fetch_event(url: &str, auth: &str) -> Result<Option<FetchedEvent>, NetError> 
     }
 }
 
+/// The card a resource holds now, for a change to be merged into it.
+fn fetch_card(url: &str, auth: &str) -> Result<Option<FetchedCard>, NetError> {
+    if url.trim().is_empty() {
+        return Ok(None);
+    }
+    let reply = send(url.trim(), "GET", None, None, auth, XML, MAX_BODY)?;
+    match reply.status {
+        200 => {
+            let raw = String::from_utf8_lossy(&reply.body).into_owned();
+            let card = mailcraft_vcard::parse(&raw)
+                .into_iter()
+                .next()
+                .ok_or_else(|| NetError::Proto(mailcraft_proto::ProtoError::Protocol("the server's card isn't a vCard document".into())))?;
+            Ok(Some(FetchedCard { raw, etag: reply.etag.unwrap_or_default(), card }))
+        }
+        404 | 410 => Ok(None),
+        status => Err(NetError::Forbidden(format!("the server answered {status} for the card"))),
+    }
+}
+
 /// What a change says of an event, applied to the event as it is.
 fn apply_fields(event: &mut Event, fields: &EventFields) {
     if let Some(title) = &fields.title {
@@ -952,6 +992,170 @@ fn apply_fields(event: &mut Event, fields: &EventFields) {
     if let Some(importance) = fields.importance {
         event.importance = importance;
     }
+}
+
+/// Put the contacts made here into the address books chosen for them.
+///
+/// A contact is new, so its URL on the server is the one its `UID` makes in that book: a second
+/// run of an upload whose answer was lost writes the same card again rather than a second one.
+///
+/// This blocks; a host calls it on a background thread.
+pub fn upload_contacts(carddav: &str, username: &str, password: &str, upload: &ContactsUpload) -> ContactsUploaded {
+    let auth = basic(username, password);
+    let mut out = ContactsUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
+    for op in upload.ops.iter().take(mailcraft_model::remote::MAX_CONTACT_OPS) {
+        out.outcomes.push(one_contact(&auth, op, carddav));
+    }
+    out
+}
+
+/// One contact change, as the server made of it.
+fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
+    let mut outcome = ContactOutcome { op: op.clone(), ..Default::default() };
+    if op.kind == ContactChangeKind::Delete {
+        if op.remote.trim().is_empty() {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the contact has no address on the server".into();
+            return outcome;
+        }
+        let Some(url) = request_url(carddav, &op.remote) else {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the contact's address can't be used".into();
+            return outcome;
+        };
+        outcome.remote = resource_path(&url);
+        let fetched = match fetch_card(&url, auth) {
+            Ok(Some(fetched)) => fetched,
+            Ok(None) => {
+                outcome.result = EventResult::Gone;
+                return outcome;
+            }
+            Err(e) => {
+                outcome.result = EventResult::Failed;
+                outcome.error = e.to_string();
+                return outcome;
+            }
+        };
+        if !op.etag.trim().is_empty() && !fetched.etag.is_empty() && op.etag.trim() != fetched.etag {
+            outcome.result = EventResult::Refused;
+            outcome.error = "the contact changed on the server since it was read here".into();
+            return outcome;
+        }
+        let write_condition = condition(&fetched.etag, false);
+        match send_following(&url, "DELETE", None, None, auth, XML, &write_condition, 64 * 1024) {
+            Ok((reply, _)) if matches!(reply.status, 200 | 204) => {
+                outcome.result = EventResult::Done;
+                outcome.status = reply.status;
+            }
+            Ok((reply, _)) if reply.status == 404 || reply.status == 410 => {
+                outcome.result = EventResult::Gone;
+                outcome.status = reply.status;
+            }
+            Ok((reply, _)) if reply.status == 403 => {
+                outcome.result = EventResult::Denied;
+                outcome.status = reply.status;
+            }
+            Ok((reply, _)) if reply.status == 412 => {
+                outcome.result = EventResult::Refused;
+                outcome.error = "the contact changed on the server since it was read here".into();
+            }
+            Ok((reply, _)) => {
+                outcome.result = EventResult::Failed;
+                outcome.status = reply.status;
+            }
+            Err(e) => {
+                outcome.result = EventResult::Failed;
+                outcome.error = e.to_string();
+            }
+        }
+        return outcome;
+    }
+
+    let book = op.book.trim();
+    if op.uid.trim().is_empty() {
+        outcome.result = EventResult::Failed;
+        outcome.error = "the contact has no UID to be saved under".into();
+        return outcome;
+    }
+    let mut expected = op.etag.trim().to_string();
+    let mut original = None;
+    let url = if op.kind == ContactChangeKind::Update && !op.remote.trim().is_empty() {
+        let Some(url) = request_url(carddav, &op.remote) else {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the contact's address can't be used".into();
+            return outcome;
+        };
+        match fetch_card(&url, auth) {
+            Ok(Some(fetched)) => {
+                if !expected.is_empty() && !fetched.etag.is_empty() && expected != fetched.etag {
+                    outcome.result = EventResult::Refused;
+                    outcome.error = "the contact changed on the server since it was read here".into();
+                    return outcome;
+                }
+                original = Some((fetched.raw, fetched.card));
+                if expected.is_empty() {
+                    expected = fetched.etag;
+                }
+                url
+            }
+            Ok(None) => {
+                outcome.result = EventResult::Gone;
+                return outcome;
+            }
+            Err(e) => {
+                outcome.result = EventResult::Failed;
+                outcome.error = e.to_string();
+                return outcome;
+            }
+        }
+    } else {
+        if book.is_empty() {
+            outcome.result = EventResult::Failed;
+            outcome.error = "the address book is not known yet".into();
+            return outcome;
+        }
+        let base = if book.ends_with('/') { book.to_string() } else { format!("{book}/") };
+        format!("{base}{}.vcf", http::encode(op.uid.trim()))
+    };
+    let text = match original {
+        Some((raw, before)) => {
+            let before = mailcraft_vcard::write(&[&before]);
+            match patch(&raw, &before, &op.card, Component::Card) {
+                Ok(text) => text,
+                Err(_) => {
+                    outcome.result = EventResult::Refused;
+                    outcome.error = "this contact can't be changed without losing information".into();
+                    return outcome;
+                }
+            }
+        }
+        None => op.card.clone(),
+    };
+    outcome.remote = resource_path(&url);
+    let write_condition = condition(&expected, op.kind == ContactChangeKind::Create);
+    match send_following(&url, "PUT", None, Some(&text), auth, VCARD, &write_condition, 64 * 1024) {
+        Ok((reply, _)) if matches!(reply.status, 200 | 201 | 204) => {
+            outcome.result = EventResult::Done;
+            outcome.status = reply.status;
+        }
+        Ok((reply, _)) => {
+            outcome.result = match reply.status {
+                403 => EventResult::Denied,
+                404 | 410 => EventResult::Gone,
+                412 => EventResult::Refused,
+                _ => EventResult::Failed,
+            };
+            if reply.status == 412 {
+                outcome.error = "the contact changed on the server since it was read here".into();
+            }
+            outcome.status = reply.status;
+        }
+        Err(e) => {
+            outcome.result = EventResult::Failed;
+            outcome.error = e.to_string();
+        }
+    }
+    outcome
 }
 
 // --- the multistatus document -------------------------------------------------------------

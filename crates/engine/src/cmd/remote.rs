@@ -76,15 +76,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use mailcraft_model::remote::EventZones;
 use mailcraft_model::remote::{
-    CalendarsDownload, CategoriesDownload, ContactsDownload, EventChange, EventChangeKind, EventCheck, EventFields, EventOp, EventOutcome,
-    EventReminder, EventRepeat, EventResult, EventTime, EventWall, EventsDownload, EventsUpload, EventsUploaded, FavoritesDownload, FavoritesOutcome,
-    MAX_CHECK_AGE, MAX_CHECK_TRIES, MAX_CONTACTS, MAX_EVENT_CHANGES, MAX_EVENT_CHECKS, MAX_EVENT_OPS, MAX_EVENTS, MAX_FAVORITE_DEPTH, MAX_KEY,
-    RemoteContact, RemoteEvent, RemoteEventKind, RemoteFavorite, clean_key, id_tag,
+    CalendarsDownload, CategoriesDownload, ContactChange, ContactChangeKind, ContactOp, ContactsDownload, ContactsUpload, ContactsUploaded,
+    EventChange, EventChangeKind, EventCheck, EventFields, EventOp, EventOutcome, EventReminder, EventRepeat, EventResult, EventTime, EventWall,
+    EventsDownload, EventsUpload, EventsUploaded, FavoritesDownload, FavoritesOutcome, MAX_CHECK_AGE, MAX_CHECK_TRIES, MAX_CONTACT_CHANGES,
+    MAX_CONTACTS, MAX_EVENT_CHANGES, MAX_EVENT_CHECKS, MAX_EVENT_OPS, MAX_EVENTS, MAX_FAVORITE_DEPTH, MAX_KEY, RemoteContact, RemoteEvent,
+    RemoteEventKind, RemoteFavorite, clean_key, id_tag,
 };
 use mailcraft_model::sync::same_category;
 use mailcraft_model::zoned;
 use mailcraft_model::{
-    Account, Attendee, Calendar, Contact, Event, FolderKind, Id, Importance, Mailbox, OnlineMeeting, Origin, Proposal, Response, Rights,
+    Account, Attendee, Calendar, Contact, ContactBook, Event, FolderKind, Id, Importance, Mailbox, OnlineMeeting, Origin, Proposal, Response, Rights,
 };
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde_json::{Value, json};
@@ -737,6 +738,7 @@ pub fn contact_from_remote(remote: &RemoteContact) -> Contact {
         notes: remote.notes.clone(),
         uid: remote.uid.clone(),
         book: remote.book.clone(),
+        book_id: remote.book_id.clone(),
         origin: Origin { account: 0, id: remote.id.clone(), change_key: remote.change_key.clone(), ..Default::default() },
         ..Default::default()
     }
@@ -838,7 +840,7 @@ pub(crate) fn room_for_change(mailbox: &Mailbox) -> Result<(), CmdError> {
 
 /// A mark for a new event ([`EventChange::token`]), in the shape of a GUID: no two the same,
 /// whenever and wherever they were made.
-fn new_token(event: Id, salt: u64) -> String {
+pub(crate) fn new_token(event: Id, salt: u64) -> String {
     static MADE: AtomicU64 = AtomicU64::new(0);
     let mix = |mut x: u64| {
         x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -3115,14 +3117,19 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
     }
     // Everything from outside is cut to size first, and the series are told from the rest.
     let mut seen: HashSet<String> = HashSet::new();
+    // The maps are keyed by the resource's path; what the server wrote is kept for the event's
+    // own origin, so a file's ids are not rewritten just because one answer was absolute.
+    let mut raw_ids: HashMap<String, String> = HashMap::new();
     let (mut series, mut rest): (Vec<RemoteEvent>, Vec<RemoteEvent>) = (Vec::new(), Vec::new());
     for remote in download.events.iter().take(MAX_EVENTS) {
         let mut remote = remote.clone();
         remote.tidy();
         // A server may name one resource by its whole address in one answer and by its path in
         // the next. Both are the same event; keep the one spelling the maps use.
-        let id = resource_key(&remote.id).to_string();
+        let raw_id = remote.id.clone();
+        let id = resource_key(&raw_id).to_string();
         let series_key = resource_key(&remote.series).to_string();
+        raw_ids.entry(id.clone()).or_insert(raw_id);
         (remote.id, remote.series) = (id, series_key);
         if remote.id.is_empty() || !seen.insert(remote.id.clone()) {
             merged.skipped += 1;
@@ -3172,6 +3179,7 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
                 let mut fresh = series_from_remote(master, &email, offset_at);
                 fresh.calendar = calendar;
                 fresh.origin.account = account;
+                fresh.origin.id = raw_ids.get(&master.id).cloned().unwrap_or_else(|| master.id.clone());
                 shapes.insert(master.id.clone(), fresh);
             }
         }
@@ -3248,6 +3256,7 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
         let mut fresh = event_from_remote(remote, &email, offset_at);
         fresh.calendar = calendar;
         fresh.origin.account = account;
+        fresh.origin.id = raw_ids.get(&remote.id).cloned().unwrap_or_else(|| remote.id.clone());
         fresh.origin.occurrence = stands_for;
         match known.get(&remote.id).and_then(|id| mailbox.event(*id)).cloned() {
             Some(old) => {
@@ -3478,6 +3487,25 @@ fn adopt(mailbox: &mut Mailbox, account: Id, id: Id, mut fresh: Event, token: &s
 pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Result<Merged, CmdError> {
     let account = owner(mailbox, download.account, &download.email)?.id;
     let mut merged = Merged::default();
+    // A card made here and the server's copy of it are the same contact even when their URLs
+    // differ: a server may list a resource by a path while the answer to a PUT named the whole
+    // address, and the answer that would have given the contact its URL may have been lost. Its
+    // vCard UID is the identity the format gives it.
+    let by_uid: HashMap<(String, String), Id> = mailbox
+        .contacts
+        .values()
+        .filter(|contact| contact.origin.account == account && !contact.uid.is_empty())
+        .map(|contact| ((contact.book_id.clone(), contact.uid.clone()), contact.id))
+        .collect();
+    // A change waiting to be sent is what this contact is from here on. A download that still
+    // shows the server's older copy must not put it back over the edit, or make a deleted one
+    // reappear.
+    let pending: HashMap<String, ContactChangeKind> = mailbox
+        .contact_changes
+        .iter()
+        .filter(|change| change.account == account)
+        .map(|change| (resource_key(&change.remote).to_string(), change.kind))
+        .collect();
     let mut known: HashMap<String, Id> = HashMap::new();
     let mut extra: Vec<Id> = Vec::new();
     for contact in mailbox.contacts.values().filter(|contact| contact.origin.account == account && !contact.origin.id.is_empty()) {
@@ -3488,14 +3516,31 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
         let mut remote = remote.clone();
         remote.tidy();
         remote.id = resource_key(&remote.id).to_string();
+        // Somebody with no name, company or address would be an empty line in the list. The
+        // seen set is filled before a pending change is skipped so a complete list does not
+        // take the edited (or already deleted) contact for one the server no longer has.
+        if remote.id.is_empty() || !seen.insert(remote.id.clone()) {
+            merged.skipped += 1;
+            continue;
+        }
+        if pending.contains_key(resource_key(&remote.id)) {
+            continue;
+        }
         let mut fresh = contact_from_remote(&remote);
-        // Somebody with no name, company or address would be an empty line in the list.
-        if remote.id.is_empty() || fresh.name().is_empty() || !seen.insert(remote.id.clone()) {
+        if fresh.name().is_empty() {
             merged.skipped += 1;
             continue;
         }
         fresh.origin.account = account;
-        match known.get(&remote.id).and_then(|id| mailbox.contact(*id)) {
+        // A UID is only a fallback within its own address book: two books may hold the same
+        // UID, and one must not take the other's contact. A book either side does not name is
+        // compatible with one that does.
+        let same = known.get(&remote.id).copied().or_else(|| {
+            by_uid.get(&(remote.book_id.clone(), fresh.uid.clone())).copied().or_else(|| {
+                by_uid.iter().find(|((book, uid), _)| uid == &fresh.uid && (book.is_empty() || remote.book_id.is_empty())).map(|(_, id)| *id)
+            })
+        });
+        match same.and_then(|id| mailbox.contact(id)) {
             Some(old) => {
                 fresh.id = old.id;
                 // What is only kept here stays as it is here; a server's own vCard UID and book
@@ -3507,6 +3552,9 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                 }
                 if fresh.book.is_empty() {
                     fresh.book = old.book.clone();
+                }
+                if fresh.book_id.is_empty() {
+                    fresh.book_id = old.book_id.clone();
                 }
                 if *old == fresh {
                     merged.unchanged += 1;
@@ -3521,8 +3569,26 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
             }
         }
     }
+    if !download.books.is_empty() || download.complete {
+        mailbox.contact_books.retain(|book| book.account != account);
+        for book in &download.books {
+            mailbox.contact_books.push(ContactBook {
+                account,
+                id: book.id.clone(),
+                name: book.name.chars().take(mailcraft_model::MAX_NAME).collect(),
+                rights: book.rights,
+            });
+        }
+    }
     if download.complete && download.contacts.len() <= MAX_CONTACTS {
-        let gone: Vec<Id> = known.iter().filter(|(remote, _)| !seen.contains(*remote)).map(|(_, id)| *id).chain(extra).collect();
+        // A contact whose URL this download changed (matched by UID) is not gone just because
+        // the URL it had before the loop is missing from the download.
+        let gone: Vec<Id> = known
+            .iter()
+            .filter(|(remote, id)| !seen.contains(*remote) && mailbox.contact(**id).is_some_and(|contact| contact.origin.id == **remote))
+            .map(|(_, id)| *id)
+            .chain(extra)
+            .collect();
         for id in gone {
             if mailbox.remove_contact(id).is_ok() {
                 merged.removed += 1;
@@ -3571,11 +3637,224 @@ pub fn take_in_events(s: &mut Session, download: &EventsDownload) -> Result<Merg
 
 /// Take in the contacts a host downloaded ([`merge_contacts`]). Not an undo step, as [`apply_events`].
 pub fn apply_contacts(s: &mut Session, download: &ContactsDownload) -> CmdResult {
+    let books = s.mailbox.contact_books.clone();
     let merged = merge_contacts(&mut s.mailbox, download)?;
-    if merged.changed() {
+    if merged.changed() || s.mailbox.contact_books != books {
         s.mailbox_changed();
     }
     Ok(merged.json(download.complete))
+}
+
+/// The contacts made here that `account`'s CardDAV server is yet to receive: those given an
+/// address book, which no download has given a URL of their own yet. None when there are none.
+pub fn contact_upload(s: &Session, account: Id) -> Option<ContactsUpload> {
+    let found = s.mailbox.account(account)?;
+    let mut ops: Vec<ContactOp> = s
+        .mailbox
+        .contact_changes
+        .iter()
+        .filter(|change| change.account == account)
+        .take(mailcraft_model::remote::MAX_CONTACT_OPS)
+        .map(|change| ContactOp {
+            kind: change.kind,
+            contact: change.contact,
+            book: change.book.clone(),
+            remote: change.remote.clone(),
+            uid: change.uid.clone(),
+            card: change.card.clone(),
+            etag: change.etag.clone(),
+            token: change.token.clone(),
+        })
+        .collect();
+    for contact in s
+        .mailbox
+        .contacts
+        .values()
+        .filter(|contact| contact.origin.account == account && contact.origin.id.is_empty() && !contact.book_id.is_empty())
+        .take(mailcraft_model::remote::MAX_CONTACT_OPS.saturating_sub(ops.len()))
+    {
+        let mut card = contact.as_ref().clone();
+        let uid = if card.uid.trim().is_empty() {
+            new_token(card.id, s.rev() ^ s.now().unsigned_abs().rotate_left(48))
+        } else {
+            card.uid.trim().to_string()
+        };
+        card.uid.clone_from(&uid);
+        let text = mailcraft_vcard::write(&[&card]);
+        ops.push(ContactOp {
+            kind: ContactChangeKind::Create,
+            contact: card.id,
+            book: card.book_id.clone(),
+            remote: String::new(),
+            uid: uid.clone(),
+            card: text,
+            etag: String::new(),
+            token: uid,
+        });
+    }
+    (!ops.is_empty()).then(|| ContactsUpload { account, email: found.email.trim().to_string(), ops })
+}
+
+/// Note a change to `contact` for its server. A pending change to the same resource is replaced,
+/// so editing twice before a sync sends the latest copy once. A creation that has not got a URL
+/// yet needs no note: the contact itself is what [`contact_upload`] sends.
+pub fn note_contact_changed(mailbox: &mut Mailbox, contact: &Contact, kind: ContactChangeKind) {
+    let account = contact.origin.account;
+    // A creation with no URL yet needs no note: the contact itself is what the upload sends,
+    // and deleting it before then simply removes that pending creation.
+    if account == 0 || contact.origin.id.is_empty() {
+        return;
+    }
+    let key = resource_key(&contact.origin.id);
+    // One change per resource: editing twice before a sync sends the latest copy once, and a
+    // deletion replaces an edit that has not gone out. Each is a generation of its own, so an
+    // answer to the older one settles nothing that has been made since.
+    mailbox.contact_changes.retain(|change| !(change.account == account && resource_key(&change.remote) == key));
+    let token = new_token(contact.id, mailbox.contact_changes.len() as u64 ^ contact.id);
+    if kind == ContactChangeKind::Delete {
+        mailbox.contact_changes.push(ContactChange {
+            account,
+            kind,
+            contact: 0,
+            book: contact.book_id.clone(),
+            remote: contact.origin.id.clone(),
+            uid: contact.uid.clone(),
+            card: String::new(),
+            etag: contact.origin.change_key.clone(),
+            name: contact.name(),
+            token,
+        });
+    } else {
+        let mut card = contact.clone();
+        if card.uid.trim().is_empty() {
+            card.uid = new_token(card.id, mailbox.event_changes.len() as u64 ^ card.id);
+        }
+        let card_text = mailcraft_vcard::write(&[&card]);
+        mailbox.contact_changes.push(ContactChange {
+            account,
+            kind,
+            contact: contact.id,
+            book: contact.book_id.clone(),
+            remote: contact.origin.id.clone(),
+            uid: card.uid.clone(),
+            card: card_text,
+            etag: contact.origin.change_key.clone(),
+            name: contact.name(),
+            token,
+        });
+    }
+    if mailbox.contact_changes.len() > MAX_CONTACT_CHANGES {
+        let extra = mailbox.contact_changes.len() - MAX_CONTACT_CHANGES;
+        mailbox.contact_changes.drain(0..extra);
+    }
+}
+
+/// Take in what a server made of the contacts made here: the URL of each it accepted, so the
+/// next download knows it for the same contact.
+pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> CmdResult {
+    let mut saved = 0usize;
+    // An answer settles the generation it names. An answer that names none (one written by an
+    // older version) settles the resource as before; a newer change made since is left alone.
+    let settles = |change: &ContactChange, token: &str| change.token.is_empty() || token.is_empty() || change.token == token;
+    for outcome in uploaded.outcomes.iter().take(MAX_OUTCOMES) {
+        // Older or partial answers may not carry the address; the change itself does.
+        let address = if outcome.remote.trim().is_empty() { &outcome.op.remote } else { &outcome.remote };
+        let remote = resource_key(address);
+        // Done and Gone are settled. A refusal is settled too: asking again would meet the same
+        // permission, and dropping the note lets the next read put back what the server has.
+        let settled = matches!(outcome.result, EventResult::Done | EventResult::Gone | EventResult::Denied | EventResult::Refused);
+        match outcome.op.kind {
+            ContactChangeKind::Delete if settled => {
+                s.mailbox.contact_changes.retain(|change| {
+                    !(change.account == uploaded.account
+                        && change.kind == ContactChangeKind::Delete
+                        && resource_key(&change.remote) == remote
+                        && settles(change, &outcome.op.token))
+                });
+                saved += usize::from(!matches!(outcome.result, EventResult::Denied | EventResult::Refused));
+            }
+            ContactChangeKind::Update if settled => {
+                s.mailbox.contact_changes.retain(|change| {
+                    !(change.account == uploaded.account
+                        && change.kind == ContactChangeKind::Update
+                        && resource_key(&change.remote) == remote
+                        && settles(change, &outcome.op.token))
+                });
+                if outcome.result != EventResult::Done {
+                    continue;
+                }
+                if let Ok(contact) = s.mailbox.contact_mut(outcome.op.contact) {
+                    contact.origin.account = uploaded.account;
+                    contact.origin.id = address.to_string();
+                    contact.origin.change_key.clear();
+                    if contact.uid.trim().is_empty() {
+                        contact.uid = outcome.op.uid.clone();
+                    }
+                }
+                saved += 1;
+            }
+            ContactChangeKind::Create if outcome.result == EventResult::Done && !outcome.remote.trim().is_empty() => {
+                let made = s.mailbox.contact_mut(outcome.op.contact).ok().map(|contact| {
+                    contact.origin.account = uploaded.account;
+                    contact.origin.id = address.to_string();
+                    contact.origin.change_key.clear();
+                    if contact.uid.trim().is_empty() {
+                        contact.uid = outcome.op.uid.clone();
+                    }
+                    if contact.book_id.is_empty() {
+                        contact.book_id = outcome.op.book.clone();
+                    }
+                    (mailcraft_vcard::write(&[&*contact]), contact.name(), contact.book_id.clone(), contact.uid.clone())
+                });
+                match made {
+                    // The contact changed while its creation was on its way: send the newer card
+                    // as an edit of the one the server has just made.
+                    Some((card, name, book, uid)) if card != outcome.op.card => {
+                        s.mailbox.contact_changes.push(ContactChange {
+                            account: uploaded.account,
+                            kind: ContactChangeKind::Update,
+                            contact: outcome.op.contact,
+                            book,
+                            remote: address.to_string(),
+                            uid,
+                            card,
+                            etag: String::new(),
+                            name,
+                            token: new_token(outcome.op.contact, s.rev() ^ s.now().unsigned_abs().rotate_left(56)),
+                        });
+                        saved += 1;
+                    }
+                    Some(_) => saved += 1,
+                    // The contact was deleted while its creation was on its way: the server now
+                    // has a card this computer no longer does, so ask for its deletion there.
+                    None => {
+                        if !s.mailbox.contact_changes.iter().any(|change| {
+                            change.account == uploaded.account && change.kind == ContactChangeKind::Delete && resource_key(&change.remote) == remote
+                        }) {
+                            s.mailbox.contact_changes.push(ContactChange {
+                                account: uploaded.account,
+                                kind: ContactChangeKind::Delete,
+                                contact: 0,
+                                book: outcome.op.book.clone(),
+                                remote: address.to_string(),
+                                uid: outcome.op.uid.clone(),
+                                card: String::new(),
+                                etag: String::new(),
+                                name: String::new(),
+                                token: new_token(outcome.op.contact, s.rev() ^ s.now().unsigned_abs().rotate_left(48)),
+                            });
+                            saved += 1;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if saved > 0 {
+        s.mailbox_changed();
+    }
+    Ok(json!({"saved": saved}))
 }
 
 /// Remove everything that came from the server of `account`: its events, its contacts and the
@@ -3608,6 +3887,8 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     for id in &contacts {
         let _ = mailbox.remove_contact(*id);
     }
+    mailbox.contact_books.retain(|book| book.account != account);
+    mailbox.contact_changes.retain(|change| change.account != account);
     // And its to-dos (the server isn't told: it is no longer followed), with the deletions that
     // waited. A to-do the server has no id for yet was made here, as an event above: it stays.
     let (tasks_made_here, tasks): (Vec<(Id, bool)>, Vec<(Id, bool)>) = mailbox

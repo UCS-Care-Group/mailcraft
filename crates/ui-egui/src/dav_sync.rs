@@ -17,7 +17,9 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_engine::cmd::remote;
-use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, EventsUpload, EventsUploaded};
+use mailcraft_model::remote::{
+    CalendarsDownload, ContactsDownload, ContactsUpload, ContactsUploaded, EventResult, EventsDownload, EventsUpload, EventsUploaded,
+};
 use mailcraft_model::{Account, DavServer, Id};
 use mailcraft_time::Timestamp;
 use std::sync::mpsc::Receiver;
@@ -51,6 +53,8 @@ pub struct DavJob {
     pub to: Timestamp,
     /// What was made, changed or deleted here, to tell the server before reading it again.
     pub changes: Option<EventsUpload>,
+    /// Contacts made here that are to be put in an address book the server lists.
+    pub contact_changes: Option<ContactsUpload>,
     /// The calendar an event that names none belongs in (the account's main one), once it has
     /// been listed.
     pub main_calendar: String,
@@ -66,6 +70,8 @@ pub struct DavResult {
     pub contacts: Option<ContactsDownload>,
     /// What the server made of the changes that were sent.
     pub uploaded: Option<EventsUploaded>,
+    /// What the server made of the contacts that were sent.
+    pub uploaded_contacts: Option<ContactsUploaded>,
     /// What one part couldn't do, in words for the owner.
     pub errors: Vec<String>,
 }
@@ -159,7 +165,8 @@ impl MailApp {
                     upload
                 })
                 .filter(|upload| !upload.ops.is_empty());
-            let job = DavJob { username, password, from, to, account: found, changes, main_calendar };
+            let contact_changes = remote::contact_upload(&self.session, account);
+            let job = DavJob { username, password, from, to, account: found, changes, contact_changes, main_calendar };
             let Some(dav) = &self.services.dav else { return false };
             self.dav.checked.insert(account, now);
             self.dav.shown.insert(account, window);
@@ -232,6 +239,20 @@ impl MailApp {
             contacts.email = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
             if let Err(e) = remote::apply_contacts(&mut self.session, &contacts) {
                 errors.push(crate::i18n::fmt(tl!("The contacts couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+            }
+        }
+        // After the list, never before: the list was read before the contact was sent, so it
+        // cannot know the URL the send has just given it. Applying the URL first would make the
+        // empty list take the new contact for one the server no longer has.
+        if let Some(uploaded) = &result.uploaded_contacts {
+            if let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded) {
+                errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
+            }
+            // A refused or vanished card is settled by dropping its queued change. Read the
+            // server again at once so its copy replaces a local edit, or comes back after a
+            // deletion the server did not make.
+            if uploaded.outcomes.iter().any(|outcome| matches!(outcome.result, EventResult::Denied | EventResult::Gone | EventResult::Refused)) {
+                self.dav.requested.insert(account);
             }
         }
         if self.session.mailbox.account(account).is_some() {
