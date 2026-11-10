@@ -2818,7 +2818,9 @@ impl Mailbox {
 
     /// The copies of `source` on their way to another account's server ([`Mailbox::copy_waits_for`])
     /// that were made without the bytes it came as (#30), at the mailbox's cap on them
-    /// ([`Mailbox::add_message`]): given them, as `source` goes for good here (#566).
+    /// ([`Mailbox::add_message`]): given them, as `source` goes for good here (#566), within that
+    /// cap as any copy is. `source`, counted still, goes right after: the first takes over its
+    /// share, and another has them only where there is room besides.
     fn originals_to_copies(&mut self, source: Id) {
         let Some(original) = self.message(source).and_then(|m| m.original.clone()) else { return };
         let copies: Vec<Id> = self
@@ -2830,10 +2832,14 @@ impl Mailbox {
             })
             .collect();
         for copy in copies {
-            if let Ok(m) = self.message_mut(copy)
-                && m.original.is_none()
-                && !m.parts_removed
-            {
+            if !self.message(copy).is_some_and(|m| m.original.is_none() && !m.parts_removed) {
+                continue;
+            }
+            // (What is kept now, `source`'s share counted, is what is kept once it has gone.)
+            if !self.room_for_original(0) {
+                break;
+            }
+            if let Ok(m) = self.message_mut(copy) {
                 m.original = Some(original.clone());
             }
         }

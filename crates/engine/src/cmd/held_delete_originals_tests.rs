@@ -726,3 +726,23 @@ fn many_deletes_for_good_keep_the_background_fetch_quick() {
     let took = started.elapsed();
     assert!(took.as_millis() < 200, "{took:?}");
 }
+
+/// Two copies made at the cap: deleted for good, the message gives the bytes it came as to the
+/// first, whose share it lets go of, and not to the second, for which there is no room besides.
+#[test]
+fn at_the_cap_only_one_of_two_copies_of_a_signed_message_deleted_for_good_gets_its_bytes() {
+    let (mut s, from, to, id) = two_imap();
+    let third = imap_account(&mut s, "home@mail.example", vec![]);
+    let used = s.mailbox.messages.originals_size();
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    let rest = mailcraft_model::ContentRef { sha256: [7; 32], len: mailcraft_model::MAX_ORIGINALS - used };
+    let original = Some(mailcraft_model::Original { data: std::sync::Arc::default(), kept: Some(rest) });
+    s.mailbox.add_message(Message { folder: inbox, subject: "Other".into(), original, ..Default::default() }).unwrap();
+    let (b, c) = (s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(third, FolderKind::Inbox).unwrap());
+    let copy_b = s.run("mail.copy", &json!({"ids": [id], "folder": b})).unwrap()["copies"][0].as_u64().unwrap();
+    let copy_c = s.run("mail.copy", &json!({"ids": [id], "folder": c})).unwrap()["copies"][0].as_u64().unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    let has = |copy: Id| s.mailbox.message(copy).unwrap().original.is_some();
+    assert_eq!((has(copy_b), has(copy_c)), (true, false));
+    assert!(s.mailbox.messages.originals_size() <= mailcraft_model::MAX_ORIGINALS);
+}
