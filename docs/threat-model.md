@@ -369,6 +369,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   body budget allows at a kilobyte each is refused before it uses the memory. Loading keeps at most
   1,000 accounts, 50,000 folders and 1,000 categories, cleans their names, and repairs in time
   linear in the file (`Mailbox::repair`).
+- A `.pst` file's distribution list that keeps its members in a stream of their own
+  ([MS-OXOCNTC] 2.2.2.2.4, `crates/pst/src/list_stream.rs`) is read within the import's caps: at
+  most 4 MB of stream, 4,000 entries looked at and 1,000 members kept, each entry at most 16 KB;
+  a count of members the bytes can't hold refuses the stream before anything is read, nothing is
+  allocated by what the stream says, a length that runs past the end stops the reading there
+  (the members before it are kept and the rest named in the report), and a stream that can't be
+  believed is named and left aside. It has its property tests and is fed by the `pst` fuzz
+  target.
 
 ### Other programs and users on the same computer
 
