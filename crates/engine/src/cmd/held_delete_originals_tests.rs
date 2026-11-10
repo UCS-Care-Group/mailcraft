@@ -887,3 +887,18 @@ fn a_page_leaving_out_many_deletes_for_good_is_taken_quickly() {
     };
     assert!(s.mailbox.queued.iter().all(gone));
 }
+
+/// The Microsoft server refused the bytes the copy waits for: it is asked again at the next
+/// start, and Check again says they are asked for, not that the copy has them.
+#[test]
+fn check_again_on_a_copy_whose_bytes_its_microsoft_server_refused_says_they_are_asked_for() {
+    use mailcraft_model::sync::GraphFetchResult;
+    let dir = folder("ms-refused");
+    let path = dir.join("mailbox.mailcraft");
+    let (mut s, ms, _, copy) = copy_asking_microsoft(&path);
+    let result = GraphFetchResult { account: ms, email: "owner@example.org".into(), failed: vec!["AAkA7".into()], ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
+    let why = s.run("mail.checkAgain", &json!({"id": copy})).unwrap_err().to_string();
+    assert!(why.contains("asked for already"), "{why}");
+    let _ = std::fs::remove_dir_all(dir);
+}
