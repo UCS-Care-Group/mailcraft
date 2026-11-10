@@ -1216,10 +1216,42 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
     let pattern =
         json!({"account": account, "conditions": [{"type": "subjectMatches", "value": "invoice #2[0-9]{4}"}], "actions": [{"type": "markRead"}]});
     assert_eq!(super::rules::server_cannot_draft(&s, &pattern), Some(super::rules::NotOnServer::Pattern));
+    // So is a starts-with condition, whichever of the four kinds it is.
+    for kind in ["fromStartsWith", "toStartsWith", "subjectStartsWith", "bodyStartsWith"] {
+        let sw = json!({"account": account, "conditions": [{"type": kind, "value": "digest"}], "actions": [{"type": "markRead"}]});
+        assert_eq!(super::rules::server_cannot_draft(&s, &sw), Some(super::rules::NotOnServer::StartsWith), "{kind}");
+    }
     assert_eq!(
         super::rules::server_cannot_draft(&s, &json!({"account": local, "actions": [{"type": "markRead"}]})),
         Some(super::rules::NotOnServer::NoServer)
     );
     assert_eq!(super::rules::server_cannot_draft(&s, &json!({"account": 9_999})), None);
     assert_eq!(super::rules::server_cannot_draft(&s, &json!("junk")), None);
+}
+
+#[test]
+fn a_pattern_that_doesnt_compile_is_refused_and_changes_nothing() {
+    let (mut s, account, _, _) = session();
+    let count = s.mailbox.rules.len();
+    // A pattern that would never match is refused where the rule is made, saying which part is
+    // not a pattern: it would sit there otherwise and never act on a message. The same bounded
+    // compile the matcher uses, so a pattern a message could make is refused too.
+    for (kind, what) in [("subjectMatches", "subject"), ("bodyMatches", "body")] {
+        for value in ["(", "a{100000}", "\\q"] {
+            let params =
+                json!({"name": "Broken", "account": account, "conditions": [{"type": kind, "value": value}], "actions": [{"type": "markRead"}]});
+            let said = s.run("rules.add", &params).unwrap_err().to_string();
+            assert!(matches!(s.run("rules.add", &params), Err(crate::CmdError::Params(_))), "{kind} {value}: {said}");
+            assert!(said.contains(what), "{kind} {value}: {said}");
+        }
+    }
+    // A good pattern is made and runs, as before.
+    let id = add(&mut s, account, "Invoices", json!([{"type": "subjectMatches", "value": r"invoice #2[0-9]{4}"}]), json!([{"type": "markRead"}]));
+    assert_eq!(rule(&s, id).keep, Keep::Here);
+    let m = arriving(&mut s, account, "billing@example.org", "invoice #21234");
+    assert_eq!(s.mailbox.apply_rules(m), ["Invoices"]);
+    // What the refused patterns left behind: nothing.
+    let names: Vec<&str> = s.mailbox.rules.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["Invoices"]);
+    assert_eq!(s.mailbox.rules.len(), count + 1);
 }

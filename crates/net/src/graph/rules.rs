@@ -175,15 +175,17 @@ pub(super) fn rule_of(entry: &Value) -> Option<RemoteRule> {
     let empty = Map::new();
     let conditions = entry.get("conditions").and_then(Value::as_object).unwrap_or(&empty);
     for (name, value) in conditions.iter().filter(|(name, value)| !name.starts_with('@') && said(value)) {
+        // Starts-with conditions are kept on this computer: a rule here can't be rewritten with
+        // them, so a rule from the server that has them is only switched, moved and deleted.
+        if matches!(name.as_str(), "senderStartsWith" | "recipientStartsWith" | "subjectStartsWith" | "bodyStartsWith") {
+            rule.unknown.push(name.clone());
+            continue;
+        }
         let condition = match name.as_str() {
             "senderContains" => one_word(value).map(Condition::FromContains),
             "recipientContains" => one_word(value).map(Condition::ToContains),
             "subjectContains" => one_word(value).map(Condition::SubjectContains),
             "bodyContains" => one_word(value).map(Condition::BodyContains),
-            "senderStartsWith" => one_word(value).map(Condition::FromStartsWith),
-            "recipientStartsWith" => one_word(value).map(Condition::ToStartsWith),
-            "subjectStartsWith" => one_word(value).map(Condition::SubjectStartsWith),
-            "bodyStartsWith" => one_word(value).map(Condition::BodyStartsWith),
             "hasAttachments" if value.as_bool() == Some(true) => Some(Condition::HasAttachment),
             "importance" => value.as_str().and_then(Importance::parse).map(Condition::Importance),
             _ => None,
@@ -265,15 +267,17 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
             Condition::ToContains(t) => ("recipientContains", json!([t])),
             Condition::SubjectContains(t) => ("subjectContains", json!([t])),
             Condition::BodyContains(t) => ("bodyContains", json!([t])),
-            Condition::FromStartsWith(t) => ("senderStartsWith", json!([t])),
-            Condition::ToStartsWith(t) => ("recipientStartsWith", json!([t])),
-            Condition::SubjectStartsWith(t) => ("subjectStartsWith", json!([t])),
-            Condition::BodyStartsWith(t) => ("bodyStartsWith", json!([t])),
             Condition::HasAttachment => ("hasAttachments", json!(true)),
             Condition::Importance(i) => ("importance", json!(i.code())),
-            // A server's rules read no pattern: a rule with one is not made there.
-            Condition::SubjectMatches(_) | Condition::BodyMatches(_) => {
-                return Err("a server's rules read no pattern");
+            // A server's rules read no pattern and have no starts-with condition: a rule with
+            // either is not made there.
+            Condition::SubjectMatches(_)
+            | Condition::BodyMatches(_)
+            | Condition::FromStartsWith(_)
+            | Condition::ToStartsWith(_)
+            | Condition::SubjectStartsWith(_)
+            | Condition::BodyStartsWith(_) => {
+                return Err("a server's rules read no pattern and have no starts-with condition");
             }
         };
         if conditions.insert(name.into(), value).is_some() {

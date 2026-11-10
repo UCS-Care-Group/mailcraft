@@ -239,7 +239,7 @@ fn a_rule_made_here_is_sent_whole_and_comes_back_with_its_id() {
 }
 
 #[test]
-fn a_rule_starts_with_conditions_are_sent_and_read_whole() {
+fn a_rule_starts_with_conditions_are_kept_here_and_not_sent() {
     let mut rule = news_rule();
     rule.conditions = vec![
         Condition::FromStartsWith("news@".into()),
@@ -247,23 +247,20 @@ fn a_rule_starts_with_conditions_are_sent_and_read_whole() {
         Condition::BodyStartsWith("Amount due".into()),
         Condition::ToStartsWith("me@".into()),
     ];
-    let body = rule_body(&rule).unwrap();
-    assert_eq!(
-        body["conditions"],
-        json!({
-            "senderStartsWith": ["news@"],
-            "subjectStartsWith": ["Order"],
-            "bodyStartsWith": ["Amount due"],
-            "recipientStartsWith": ["me@"],
-        })
-    );
-    // And they read back as they were sent (with the id the server gives the rule).
-    let mut as_server = body.clone();
-    as_server["id"] = json!("A1");
-    let back = rule_of(&as_server).unwrap();
-    assert!(rule.conditions.iter().all(|c| back.conditions.contains(c)));
-    assert_eq!(back.conditions.len(), 4);
-    assert!(back.unknown.is_empty(), "{:?}", back.unknown);
+    // A server's rules have no starts-with condition: one with them is not made there.
+    assert!(rule_body(&rule).is_err());
+
+    // A rule from the server that has them is only switched, moved and deleted: the parts are
+    // named as unknown.
+    let back = rule_of(&json!({
+        "id": "A1", "displayName": "Starts", "sequence": 1, "isEnabled": true,
+        "conditions": {"senderStartsWith": ["news@"], "subjectStartsWith": ["Order"]},
+        "actions": {"markAsRead": true}
+    }))
+    .unwrap();
+    assert!(back.conditions.is_empty(), "{:?}", back.conditions);
+    assert!(back.unknown.iter().any(|u| u == "senderStartsWith"), "{:?}", back.unknown);
+    assert!(back.unknown.iter().any(|u| u == "subjectStartsWith"), "{:?}", back.unknown);
 }
 
 #[test]

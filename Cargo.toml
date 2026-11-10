@@ -58,7 +58,7 @@ unicode-segmentation = "1.13"
 # Regular expressions for rules (Subject Matches, Body Matches): the Rust regex engine,
 # bounded by a `size_limit` so that a hostile pattern can't hang the app. Already in the tree
 # (egui runs on it). MIT OR Apache-2.0, pure Rust, builds for the browser.
-regex = { version = "1", default-features = false, features = ["std", "unicode-case"] }
+regex = { version = "1", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
 
 # network (desktop and CLI only; the browser can't open sockets)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
