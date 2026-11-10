@@ -10,7 +10,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "\"{address}\" isn't an e-mail address"
 msgstr "„{address}” is geen e-mailadres"
@@ -15557,8 +15557,8 @@ msgstr "een account wordt een Exchange-serveraccount, of houdt op dat te zijn, a
 msgid "an account can't be put before itself"
 msgstr "een account kan niet vóór zichzelf worden gezet"
 
-#. what a command says
-#: crates/engine/src/cmd/senders.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "an account has {max} sender addresses at most"
 msgstr "een account heeft hoogstens {max} afzenderadressen"
@@ -16151,8 +16151,8 @@ msgstr "er is geen handtekening geopend"
 msgid "no signature named \"{from}\""
 msgstr "geen handtekening met de naam „{from}”"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "no signature named \"{name}\""
 msgstr "geen handtekening met de naam „{name}”"

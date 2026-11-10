@@ -59,3 +59,27 @@ fn an_address_that_isnt_one_keeps_the_page_open_and_saves_nothing() {
     assert!(w.act(&mut a, Action::Back));
     assert!(a.session.mailbox.account(imap).unwrap().sender_addresses.is_empty());
 }
+
+#[test]
+fn a_refused_sender_address_leaves_the_server_settings_unsaved() {
+    // Save checks the addresses before `account.edit`: nothing of the page is half saved.
+    let (mut a, imap, _) = app();
+    let host = |a: &MailApp| a.session.mailbox.account(imap).unwrap().incoming.as_ref().unwrap().host.clone();
+    let mut w = AccountSetup::open(&a, &json!({"id": imap})).unwrap();
+    w.incoming.host = "imap.other.example".into();
+    w.senders.as_mut().unwrap().rows = vec![row("support at product", "")];
+    assert!(!w.act(&mut a, Action::Go));
+    assert!(w.error.contains("support at product"), "{}", w.error);
+    assert_eq!(host(&a), "imap.company.example");
+    // A signature that isn't there (any more) is refused the same way.
+    w.senders.as_mut().unwrap().rows = vec![Row { email: "support@product.example".into(), name: String::new(), signature: "Gone".into() }];
+    assert!(!w.act(&mut a, Action::Go));
+    assert!(w.error.contains("Gone"), "{}", w.error);
+    assert_eq!(host(&a), "imap.company.example");
+    assert!(a.session.mailbox.account(imap).unwrap().sender_addresses.is_empty());
+    // Put right, both are saved.
+    w.senders.as_mut().unwrap().rows = vec![row("support@product.example", "")];
+    assert!(w.act(&mut a, Action::Go));
+    assert_eq!(host(&a), "imap.other.example");
+    assert_eq!(a.session.mailbox.account(imap).unwrap().sender_addresses.len(), 1);
+}

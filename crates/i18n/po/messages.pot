@@ -9,7 +9,7 @@ msgstr ""
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 msgid "\"{address}\" isn't an e-mail address"
 msgstr ""
 
@@ -12909,8 +12909,8 @@ msgstr ""
 msgid "an account can't be put before itself"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/senders.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
 msgid "an account has {max} sender addresses at most"
 msgstr ""
 
@@ -13413,8 +13413,8 @@ msgstr ""
 msgid "no signature named \"{from}\""
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 msgid "no signature named \"{name}\""
 msgstr ""
 

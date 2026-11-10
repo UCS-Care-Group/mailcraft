@@ -10,7 +10,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "\"{address}\" isn't an e-mail address"
 msgstr "«{address}» non è un indirizzo di posta elettronica"
@@ -14758,8 +14758,8 @@ msgstr ""
 msgid "an account can't be put before itself"
 msgstr "un account non può essere messo prima di sé stesso"
 
-#. what a command says
-#: crates/engine/src/cmd/senders.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "an account has {max} sender addresses at most"
 msgstr "un account ha al massimo {max} indirizzi mittente"
@@ -15331,8 +15331,8 @@ msgstr "nessuna firma è aperta"
 msgid "no signature named \"{from}\""
 msgstr "nessuna firma denominata «{from}»"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
 #, fuzzy
 msgid "no signature named \"{name}\""
 msgstr "nessuna firma denominata «{name}»"

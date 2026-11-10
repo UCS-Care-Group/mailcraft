@@ -5,10 +5,12 @@
 //! Saved by `account.setSenderAddresses`, which checks them.
 
 use egui::{RichText, TextEdit, Ui};
-use mailcraft_model::{Account, Id, MAX_ADDRESS, MAX_NAME, MAX_SENDER_ADDRESSES};
+use mailcraft_model::{Account, Id, MAX_ADDRESS, MAX_NAME, MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 use serde_json::{Value, json};
 
 use super::{FIELD_MARGIN, caption, field_id};
+use crate::forms::kit::shown;
+use crate::i18n::fmt;
 use crate::theme::Tokens;
 
 /// One address as the page has it.
@@ -51,6 +53,39 @@ impl Senders {
         }
         let list: Vec<Value> = now.iter().map(|r| json!({"email": r.email.trim(), "displayName": r.name.trim(), "signature": r.signature})).collect();
         Some(("account.setSenderAddresses", json!({"id": id, "addresses": list})))
+    }
+
+    /// Whether the page changed them since they were opened or last saved.
+    pub(crate) fn changed(&self) -> bool {
+        self.command(0).is_some()
+    }
+
+    /// Why `account.setSenderAddresses` would refuse what the page has, checked before Save
+    /// changes anything else, so that a refusal leaves the account as it was. `main` is the
+    /// account's own address; `signatures` the names of the signatures there are.
+    pub(crate) fn problem(&self, main: &str, signatures: &[String]) -> Option<String> {
+        if !self.changed() {
+            return None;
+        }
+        let typed: Vec<SenderAddress> = self
+            .filled()
+            .iter()
+            .map(|r| SenderAddress { email: r.email.clone(), display_name: r.name.clone(), signature: r.signature.clone() })
+            .collect();
+        let kept = match clean_sender_addresses(main, &typed) {
+            Ok(kept) => kept,
+            Err(SenderProblem::NotAnAddress(address)) => {
+                return Some(fmt(tl!("\"{address}\" isn't an e-mail address"), &[("address", &shown(&address, 80))]));
+            }
+            Err(SenderProblem::TooMany) => {
+                return Some(fmt(tl!("an account has {max} sender addresses at most"), &[("max", &MAX_SENDER_ADDRESSES.to_string())]));
+            }
+        };
+        // (A signature removed since the page was opened.)
+        kept.iter()
+            .map(|x| x.signature.trim())
+            .find(|name| !name.is_empty() && !signatures.iter().any(|s| s.eq_ignore_ascii_case(name)))
+            .map(|name| fmt(tl!("no signature named \"{name}\""), &[("name", &shown(name, 80))]))
     }
 
     /// Saved: what the page has is what the account has.
