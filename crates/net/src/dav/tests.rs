@@ -43,6 +43,16 @@ fn a_host_is_only_a_host() {
 }
 
 #[test]
+fn a_linchange_challenge_names_the_service() {
+    let server = FakeHttp::answering(
+        b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"linchange caldav\", charset=\"UTF-8\"\r\nContent-Length: 0\r\n\r\n".to_vec(),
+    );
+    let (answer, _) = send_following(&server.url("/caldav/"), "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024).unwrap();
+    assert!(names_linchange(&answer, "caldav"));
+    assert!(!names_linchange(&answer, "carddav"), "another service's realm is not this one");
+}
+
+#[test]
 fn a_multistatus_names_its_collections() {
     let body = br#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
       <D:response><D:href>/caldav/ada@example.org/</D:href><D:propstat><D:prop>

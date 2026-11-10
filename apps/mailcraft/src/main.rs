@@ -1716,8 +1716,8 @@ fn services(
     let alert_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
-    let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, probe_ctx, dav_ctx, test_ctx) =
-        (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
+    let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, probe_ctx, dav_ctx, linchange_ctx, test_ctx) =
+        (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
     Services {
@@ -1778,18 +1778,37 @@ fn services(
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
         })),
         // Which of the domain's exchangers publishes CalDAV and CardDAV, if one does: asked
-        // without a password, and only when the owner pressed Connect.
+        // without a password, and only when the owner pressed Connect. A Linchange server says
+        // so in its realm, and its application password comes from its own page.
         probe_dav: Some(Box::new(move |hosts| {
             background(&probe_ctx, "caldav and carddav", move || {
                 let mut last = None;
                 for host in hosts.into_iter().take(20) {
-                    match mailcraft_net::probe_dav(&host) {
-                        Ok(Some(found)) => return Ok(Some(mailcraft_model::DavServer { caldav: found.caldav, carddav: found.carddav })),
+                    match mailcraft_net::probe_linchange(&host) {
+                        Ok(Some(found)) => {
+                            return Ok(Some(mailcraft_ui_egui::DavFound {
+                                services: mailcraft_model::DavServer { caldav: found.caldav, carddav: found.carddav },
+                                linchange: found.linchange,
+                            }));
+                        }
                         Ok(None) => {}
                         Err(e) => last = Some(e.to_string()),
                     }
                 }
                 if let Some(e) = last { Err(e) } else { Ok(None) }
+            })
+        })),
+        // A Linchange account signs in on its own server's page in the browser and receives an
+        // application password named for this computer. The account password is never asked for
+        // here, and a second factor is handled by that page.
+        linchange_sign_in: Some(Box::new(move |request: mailcraft_ui_egui::LinchangeSignInRequest| {
+            background(&linchange_ctx, "linchange sign-in", move || {
+                let grant = mailcraft_net::start_linchange_app_token(&request.server, &request.description).map_err(|e| e.to_string())?;
+                if !open_in_browser(&grant.verification_url) {
+                    request.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return Err(mailcraft_ui_egui::approval::NO_BROWSER.to_string());
+                }
+                mailcraft_net::finish_linchange_app_token(&request.server, &grant, &request.cancel).map_err(|e| e.to_string())
             })
         })),
         test_account: Some(Box::new(move |account, secret| {

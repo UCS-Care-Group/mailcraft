@@ -60,6 +60,9 @@ const MAX_OBJECTS: usize = 20_000;
 pub struct Endpoints {
     pub caldav: String,
     pub carddav: String,
+    /// Whether the server answered in Linchange's own realm: its calendars and address books
+    /// take the application password its browser page hands out.
+    pub linchange: bool,
 }
 
 /// What one run of [`sync`] brought.
@@ -87,7 +90,41 @@ pub fn probe(host: &str) -> Result<Option<Endpoints>, NetError> {
     let Some(origin) = origin(host) else { return Ok(None) };
     let Some(caldav) = discover_service(&origin, "caldav")? else { return Ok(None) };
     let Some(carddav) = discover_service(&origin, "carddav")? else { return Ok(None) };
-    Ok(Some(Endpoints { caldav, carddav }))
+    Ok(Some(Endpoints { caldav, carddav, linchange: false }))
+}
+
+/// [`probe`] for the wizard, which must also recognise a Linchange server: one that answers its
+/// services in its own realm, or that keeps them at `/caldav/` and `/carddav/` when it publishes
+/// no well-known address at all. Everything else is [`probe`].
+///
+/// This blocks; a host calls it on a background thread.
+pub fn probe_linchange(host: &str) -> Result<Option<Endpoints>, NetError> {
+    let Some(origin) = origin(host) else { return Ok(None) };
+    let Some(usual) = DavServer::for_host(host) else { return Ok(None) };
+    let Some(caldav) = discover_linchange(&origin, &usual.caldav, "caldav")? else { return Ok(None) };
+    let Some(carddav) = discover_linchange(&origin, &usual.carddav, "carddav")? else { return Ok(None) };
+    Ok(Some(Endpoints { caldav, carddav, linchange: true }))
+}
+
+/// Ask the RFC 6764 well-known address first, then the service root the server publishes, and
+/// take the service root only when the challenge names Linchange. A redirect from either is
+/// followed; the address the challenge came from is the service root.
+fn discover_linchange(origin: &str, base: &str, service: &str) -> Result<Option<String>, NetError> {
+    let well_known = format!("{origin}.well-known/{service}");
+    if let Ok((answer, final_url)) = send_following(&well_known, "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024)
+        && names_linchange(&answer, service)
+        && !final_url.to_ascii_lowercase().contains("/.well-known/")
+    {
+        return Ok(Some(service_url(&final_url)));
+    }
+    let (answer, final_url) = send_following(base, "PROPFIND", Some("0"), None, "", XML, &[], 16 * 1024)?;
+    Ok(names_linchange(&answer, service).then(|| service_url(&final_url)))
+}
+
+/// Whether an unauthenticated DAV answer asks for a sign-in in Linchange's own realm.
+fn names_linchange(answer: &http::Reply, service: &str) -> bool {
+    answer.status == 401
+        && answer.challenges.iter().take(16).any(|line| line.to_ascii_lowercase().contains(&format!("linchange {service}").to_ascii_lowercase()))
 }
 
 /// Ask a service's RFC 6764 well-known address. A server answers it with its service root
@@ -133,7 +170,7 @@ pub fn sync(caldav: &str, carddav: &str, username: &str, password: &str, from: T
     let servers = DavServer { caldav: caldav.trim().to_string(), carddav: carddav.trim().to_string() };
     if let Some(why) = servers.problem() {
         let word = if DavServer::check_url(&servers.caldav).is_err() { "caldav" } else { "carddav" };
-        return Err(NetError::Config(format!("the {word} address {why}")));
+        return Err(NetError::Config(format!("the {word} address {why}").into()));
     }
     let auth = basic(username, password);
     let mut out = DavSync::default();

@@ -27,6 +27,7 @@ pub struct Preset {
 
 const APP_PASSWORD: &str = "This provider wants an app password (made in the account's security settings), not the everyday one.";
 const MICROSOFT: &str = "Microsoft accounts sign in on Microsoft's own page; no password is typed here.";
+const LINCHANGE: &str = "MailCraft found a Linchange server: mail uses IMAP and SMTP, and the calendar and address books use CalDAV and CardDAV.";
 
 fn server(host: &str, port: u16, security: Security) -> Server {
     Server { host: host.to_string(), port, security }
@@ -269,6 +270,33 @@ pub fn dav(host: &str) -> Option<Preset> {
     })
 }
 
+/// A Linchange server at `host`: its mail exchangers are its own host name, and its web
+/// application serves CalDAV and CardDAV on the same listener. The host says which it is by
+/// answering in its own realm, never by its name alone.
+pub fn linchange(host: &str) -> Option<Preset> {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let dav = DavServer::for_host(&host)?;
+    Some(Preset {
+        service: "Linchange",
+        oauth: None,
+        incoming: server(&host, 993, Security::Tls),
+        outgoing: server(&host, 587, Security::StartTls),
+        dav: Some(dav),
+        note: LINCHANGE,
+    })
+}
+
+/// A Linchange server at the usual address for `domain` (`mail.example.org`), for an owner who
+/// picked Linchange by hand before anything was looked up. The host may be right; a detection
+/// that found the server replaces it with the mail exchanger's own name.
+pub fn linchange_for_domain(domain: &str) -> Option<Preset> {
+    let domain = domain.trim().to_ascii_lowercase();
+    if !is_domain(&domain) {
+        return None;
+    }
+    linchange(&format!("mail.{domain}"))
+}
+
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
 /// `outlook.com`, `google`, `yahoo`, `icloud`, `fastmail`).
 pub fn by_name(name: &str) -> Option<Preset> {
@@ -353,6 +381,20 @@ mod tests {
         let services = found.dav.unwrap();
         assert_eq!((services.caldav.as_str(), services.carddav.as_str()), ("https://mail.example.org/caldav/", "https://mail.example.org/carddav/"));
         assert_eq!(dav("not a host"), None);
+    }
+
+    #[test]
+    fn a_linchange_server_is_named_by_its_mail_exchanger() {
+        let found = linchange("Mail.Example.org.").unwrap();
+        assert_eq!((found.service, found.oauth), ("Linchange", None));
+        assert_eq!((found.incoming.host.as_str(), found.incoming.port), ("mail.example.org", 993));
+        assert_eq!((found.outgoing.host.as_str(), found.outgoing.port), ("mail.example.org", 587));
+        let services = found.dav.unwrap();
+        assert_eq!((services.caldav.as_str(), services.carddav.as_str()), ("https://mail.example.org/caldav/", "https://mail.example.org/carddav/"));
+        let by_hand = linchange_for_domain("Example.org").unwrap();
+        assert_eq!(by_hand.incoming.host, "mail.example.org");
+        assert_eq!(linchange_for_domain("not a domain"), None);
+        assert_eq!(linchange("not a host"), None);
     }
 
     #[test]

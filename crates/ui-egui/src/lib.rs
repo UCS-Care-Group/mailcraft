@@ -346,9 +346,15 @@ pub struct Services {
     /// the domain is given, never the mailbox name.
     pub lookup_mx: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
     /// Desktop: ask a domain's mail exchangers, in turn, whether one publishes CalDAV and
-    /// CardDAV services (it answers its RFC 6764 well-known addresses). Nothing of the owner's is
-    /// sent: only the exchanger names are given. The service roots are answered when one is.
-    pub probe_dav: Option<Box<dyn Fn(Vec<String>) -> Receiver<Result<Option<mailcraft_model::DavServer>, String>>>>,
+    /// CardDAV services (it answers its RFC 6764 well-known addresses, or its own in Linchange's
+    /// realm). Nothing of the owner's is sent: only the exchanger names are given. The service
+    /// roots are answered when one is.
+    pub probe_dav: Option<Box<dyn Fn(Vec<String>) -> Receiver<Result<Option<DavFound>, String>>>>,
+    /// Desktop: obtain a Linchange application password through the server's own browser page.
+    /// The account password and second factor are typed there, never here; the host opens the
+    /// page and waits for the person to allow it. The result is the password a Linchange account
+    /// uses for IMAP, SMTP, CalDAV and CardDAV, named for this computer.
+    pub linchange_sign_in: Option<Box<dyn Fn(LinchangeSignInRequest) -> Receiver<Result<String, String>>>>,
     /// Desktop: read an account's calendars and address books over CalDAV and CardDAV on a
     /// background thread ([`dav_sync`]): the calendars it may read (shared ones too), their
     /// events in the stretch asked for, and every card of every address book it may read. The
@@ -675,6 +681,24 @@ pub trait PictureCache {
     fn forget(&self, url: &str);
     /// Forget them all.
     fn clear(&self) -> Result<(), String>;
+}
+
+/// Which DAV services a domain's mail exchanger answered, and whether they are a Linchange
+/// server's: its application password comes from its own page in the browser.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DavFound {
+    pub services: mailcraft_model::DavServer,
+    pub linchange: bool,
+}
+
+/// What the host needs to obtain a Linchange application password ([`Services::linchange_sign_in`]).
+pub struct LinchangeSignInRequest {
+    /// The Linchange web origin (`https://mail.example.org`).
+    pub server: String,
+    /// What the account page shows for this credential (`MailCraft on the laptop`).
+    pub description: String,
+    /// Set when the owner gives up waiting, for the host to stop polling.
+    pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// What the host needs to sign an account's owner in ([`Services::sign_in`]). A sign-in on the
@@ -1690,6 +1714,10 @@ pub struct MailApp {
     mail_only_next: bool,
     /// A sign-in the host is waiting on (the owner is in the browser).
     signing_in: Option<SigningIn>,
+    /// Account setup on a Linchange server: the application password the browser approval
+    /// brought, and the flag that stops the wait.
+    setup_linchange_sign_in: Option<Receiver<Result<String, String>>>,
+    setup_linchange_cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// What a sign-in for an account that is being set up came to, until its dialog takes it.
     setup_sign_in: Option<Result<Tokens, String>>,
     /// An administrator's approval the host is waiting on, and what the last came to ([`approval`]).
@@ -1967,6 +1995,8 @@ impl MailApp {
             shared_check_next: None,
             mail_only_next: false,
             signing_in: None,
+            setup_linchange_sign_in: None,
+            setup_linchange_cancel: None,
             setup_sign_in: None,
             approvals: Default::default(),
             sync_rx: None,
@@ -3326,6 +3356,48 @@ impl MailApp {
     /// Account setup: what the sign-in started with `begin_setup_sign_in` came to, once it has.
     pub(crate) fn take_setup_sign_in(&mut self) -> Option<Result<Tokens, String>> {
         self.setup_sign_in.take()
+    }
+
+    /// Account setup on a Linchange server: ask the host to obtain an application password
+    /// through the server's browser page. The account password and second factor stay there.
+    pub(crate) fn begin_linchange_sign_in(
+        &mut self,
+        server: String,
+        description: String,
+    ) -> Result<std::sync::Arc<std::sync::atomic::AtomicBool>, String> {
+        self.setup_linchange_sign_in = None;
+        // Work Offline: the approval would reach a server and open the browser for it.
+        if self.offline() {
+            return Err(crate::send_receive::said());
+        }
+        let Some(sign_in) = self.services.linchange_sign_in.as_ref() else {
+            return Err(tl!("This build can't sign in to Linchange").to_string());
+        };
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let request = LinchangeSignInRequest { server, description, cancel: cancel.clone() };
+        self.setup_linchange_cancel = Some(cancel.clone());
+        self.setup_linchange_sign_in = Some(sign_in(request));
+        Ok(cancel)
+    }
+
+    /// Account setup: whether the Linchange browser approval has answered, without taking the
+    /// answer out until there is one.
+    pub(crate) fn poll_linchange_sign_in(&mut self) -> Option<Result<String, String>> {
+        let answer = match self.setup_linchange_sign_in.as_ref()?.try_recv() {
+            Ok(answer) => answer,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("The Linchange sign-in stopped unexpectedly").to_string()),
+        };
+        self.setup_linchange_sign_in = None;
+        Some(answer)
+    }
+
+    /// Give up the Linchange approval this wizard is waiting for, if it is.
+    pub(crate) fn cancel_linchange_sign_in(&mut self) {
+        if let Some(cancel) = self.setup_linchange_cancel.take() {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.setup_linchange_sign_in = None;
     }
 
     /// Account setup: the account exists now; keep what signing in brought back for it.

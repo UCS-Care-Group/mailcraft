@@ -1,0 +1,1 @@
+| 2026-11-01 | minor | Gap 5: a Linchange server is recognised from the domain's mail exchangers; its account signs in through the server's own page in the browser and stores an application password named for this computer, so the account password and second factor never reach MailCraft |

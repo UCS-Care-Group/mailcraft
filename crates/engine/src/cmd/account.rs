@@ -34,7 +34,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho"|"dav", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho"|"dav"|"linchange", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -149,13 +149,24 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     // mail exchanger that answered (its well-known addresses were asked), so its address comes
     // from there.
     let named = match p::str(v, "service").map(|name| name.trim().to_ascii_lowercase()) {
+        Some(name) if name == "linchange" => {
+            // Linchange is self-hosted: the address comes from the exchanger that answered,
+            // else from the usual name.
+            let found = exchangers
+                .iter()
+                .take(20)
+                .filter_map(Value::as_str)
+                .find_map(provider::linchange)
+                .or_else(|| provider::linchange_for_domain(&domain));
+            Some(found.ok_or_else(|| bad("`mx` names no Linchange server"))?)
+        }
         Some(name) if name == "dav" => {
             let found = exchangers.iter().take(20).filter_map(Value::as_str).find_map(provider::dav);
             Some(found.ok_or_else(|| bad("`mx` names no DAV server"))?)
         }
         Some(name) => Some(
             provider::by_name(&name)
-                .ok_or_else(|| bad("`service` is microsoft365, outlook.com, google, yahoo, icloud, fastmail, aol, zoho or dav"))?,
+                .ok_or_else(|| bad("`service` is microsoft365, outlook.com, google, yahoo, icloud, fastmail, aol, zoho, dav or linchange"))?,
         ),
         None => None,
     };

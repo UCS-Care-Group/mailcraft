@@ -1168,6 +1168,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.line(&[(10.0, y + 2.5), (14.0, y + 2.5)]);
             }
         }
+        // Linchange: its own mark, drawn here (a rounded square, an L and a small envelope).
+        "linchange" => {
+            pen.rect(2.5, 2.5, 17.5, 17.5, c);
+            pen.line(&[(6.0, 5.5), (6.0, 14.5), (11.5, 14.5)]);
+            pen.rect(11.0, 5.5, 16.0, 10.0, a);
+            pen.line_c(&[(11.5, 6.5), (13.5, 8.25), (15.5, 6.5)], a);
+        }
         "device" => {
             pen.rect(2.5, 3.5, 17.5, 13.5, c);
             pen.line(&[(10.0, 13.5), (10.0, 16.5)]);
@@ -1458,6 +1465,7 @@ pub const NAMES: &[&str] = &[
     "work",
     "server",
     "device",
+    "linchange",
     "tick",
     "bold",
     "italic",
