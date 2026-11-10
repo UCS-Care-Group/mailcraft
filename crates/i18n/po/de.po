@@ -4202,7 +4202,7 @@ msgstr "Vorname"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
-msgstr "Speichere zuerst die standardmäßigen IMAP- und SMTP-Einstellungen von Google sowie einen passenden E-Mail-Benutzernamen, bevor du die Anmeldemethode wechselst."
+msgstr "Speichern Sie zuerst die standardmäßigen IMAP- und SMTP-Einstellungen von Google sowie einen passenden E-Mail-Benutzernamen, bevor Sie die Anmeldemethode wechseln."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -4626,7 +4626,7 @@ msgstr "Die GitHub-Seite ist geöffnet: Hängen Sie dort die Diagnosedatei an un
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
-msgstr "Die GitHub-Seite ist geöffnet: Überprüfe Sie Ihren Beitrag und senden Sie ihn anschließend ab. MailCraft hat nichts gesendet."
+msgstr "Die GitHub-Seite ist geöffnet: Überprüfen Sie Ihren Beitrag und senden Sie ihn anschließend ab. MailCraft hat nichts gesendet."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4756,7 +4756,7 @@ msgstr "Google hat den Zugriff auf MailCraft blockiert"
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google did not authorize MailCraft. Your mailbox was not changed. You can retry or choose an app password."
-msgstr "Google hat MailCraft nicht autorisiert. Dein Postfach wurde nicht verändert. Du kannst es erneut versuchen oder ein App-Passwort verwenden."
+msgstr "Google hat MailCraft nicht autorisiert. Ihr Postfach wurde nicht verändert. Sie können es erneut versuchen oder ein App-Passwort verwenden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4771,7 +4771,7 @@ msgstr "Google hat das unveränderte Konto nicht bestätigt. Die bisherige Anmel
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
-msgstr "Google hat nicht zu MailCraft zurückgeleitet. Wenn du den Fehler 403 oder den Hinweis „Zugriff blockiert“ gesehen hast, weil sich die App im Testmodus befindet, bitte den Entwickler, dich als Testnutzer hinzuzufügen. Wenn deine Organisation den Zugriff blockiert hat, wende dich an den System-Administrator. Andernfalls versuche es erneut. E-Mails und Einstellungen sind unverändert."
+msgstr "Google hat nicht zu MailCraft zurückgeleitet. Wenn Sie den Fehler 403 oder den Hinweis „Zugriff blockiert“ gesehen haben, weil sich die App im Testmodus befindet, bitten Sie den Entwickler, Sie als Testnutzer hinzuzufügen. Wenn Ihre Organisation den Zugriff blockiert hat, wenden Sie sich an den System-Administrator. Andernfalls versuchen Sie es erneut. E-Mails und Einstellungen sind unverändert."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7890,7 +7890,7 @@ msgstr "Onlinebesprechung"
 #. interface
 #: crates/ui-egui/src/windows.rs
 msgid "Only a meeting you organize has Find a Time"
-msgstr "Nur bei Besprechungen, die Sie organisiersen, ist „Zeit finden“ verfügbar."
+msgstr "Nur bei Besprechungen, die Sie organisieren, ist „Zeit finden“ verfügbar."
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
@@ -8153,7 +8153,7 @@ msgstr "Öffnen einer E-Mail-Anlage"
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Opening your mailbox…"
-msgstr "Dein Postfach wird geöffnet…"
+msgstr "Ihr Postfach wird geöffnet…"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -8388,7 +8388,7 @@ msgstr "Ein Teil dieser Nachricht wurde von {signer} digital signiert und verifi
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "Part of your mailbox is damaged"
-msgstr "Ein Teil deines Postfachs ist beschädigt"
+msgstr "Ein Teil Ihres Postfachs ist beschädigt"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10777,7 +10777,7 @@ msgstr "Erneut anmelden"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Sign in again and choose {typed}, or change the email address to start a separate account setup. No account has been added."
-msgstr "Melde Sie sich erneut an und wählen Sie {typed} aus oder änderen Sie die E-Mail-Adresse, um eine separate Kontoeinrichtung zu starten. Es wurde kein Konto hinzugefügt."
+msgstr "Melden Sie sich erneut an und wählen Sie {typed} aus oder ändern Sie die E-Mail-Adresse, um eine separate Kontoeinrichtung zu starten. Es wurde kein Konto hinzugefügt."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10800,7 +10800,7 @@ msgstr "Erneut anmelden, sobald ein Administrator genehmigt hat"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Sign in again: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
-msgstr "Melde Sie sich erneut an: Die Microsoft-Seite wird in Ihrem Browser geöffnet. E-Mails und Kalender funktionieren währenddessen wie gewohnt."
+msgstr "Melden Sie sich erneut an: Die Microsoft-Seite wird in Ihrem Browser geöffnet. E-Mails und Kalender funktionieren währenddessen wie gewohnt."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11065,7 +11065,7 @@ msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Progra
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
-msgstr "Einige Daten sind noch vorhanden, wie oben aufgeführt. MailCraft wird beendet, sobald du dieses Fenster schließt."
+msgstr "Einige Daten sind noch vorhanden, wie oben aufgeführt. MailCraft wird beendet, sobald Sie dieses Fenster schließen."
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -11375,13 +11375,11 @@ msgstr "Synchronisierung"
 
 #. name
 #: crates/model/src/rich.rs
-#, fuzzy
 msgid "System"
 msgstr "System"
 
 #. interface, ribbon
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Table"
 msgstr "Tabelle"
 
@@ -11392,7 +11390,6 @@ msgstr "Tabellen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Tags"
 msgstr "Kategorien"
 
@@ -11409,7 +11406,6 @@ msgstr "Die abgesagte Besprechung aus Ihrem Kalender entfernen. Niemand wird ang
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Task"
 msgstr "Aufgabe"
 
@@ -11425,7 +11421,6 @@ msgstr "Aufgabe:"
 
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
-#, fuzzy
 msgid "Tasks"
 msgstr "Aufgaben"
 
@@ -11834,7 +11829,7 @@ msgstr "Der Kalender von {address} und die auf diesem Computer gespeicherten Ter
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "The calendar of {address} is in the list of calendars already: it was shared with you and accepted."
-msgstr "Der Kalender von {address} ist bereits in der Kalenderliste enthalten: Er wurde für dich freigegeben und von dir angenommen."
+msgstr "Der Kalender von {address} ist bereits in der Kalenderliste enthalten: Er wurde für Sie freigegeben und von Ihnen angenommen."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -12355,7 +12350,7 @@ msgstr "Der Server hat die Anmeldung für dieses Konto abgelehnt. Melden Sie sic
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "The server turned down the sign-in for {name}: sign in again"
-msgstr "Der Server hat die Anmeldung für {name} abgelehnt: Melde Sie sich erneut an"
+msgstr "Der Server hat die Anmeldung für {name} abgelehnt: Melden Sie sich erneut an"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12897,7 +12892,7 @@ msgstr "Dieser Kalender ist noch nicht mit Ihrem Konto verbunden. Änderungen an
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
-msgstr "Diesem Computer ist das vom Server unter {host} vorgelegte Zertifikat nicht bekannt. Wenn es sich um den Server deiner Organisation handelt, können Sie diesem Zertifikat für dieses Konto vertrauen."
+msgstr "Diesem Computer ist das vom Server unter {host} vorgelegte Zertifikat nicht bekannt. Wenn es sich um den Server Ihrer Organisation handelt, können Sie diesem Zertifikat für dieses Konto vertrauen."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -16043,7 +16038,7 @@ msgstr "Die automatischen Antworten wurden noch nicht vom Server gelesen: Lesen 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "the browser can't keep a copy of the mailbox beside it: switch in the desktop app"
-msgstr "der Browser kann keine Kopie des Postfachs neben dieses ablegen: Wechseln Sie in die Desktop-App"
+msgstr "der Browser kann keine Kopie des Postfachs neben sich speichern: Wechseln Sie in die Desktop-App"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -16136,7 +16131,7 @@ msgstr "der Ordner, in den sie E-Mails verschiebt, ist in einem anderen Konto"
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "the folder it moves mail to is on this computer"
-msgstr "der Ordner, in den diese E-Mails verschiebt, ist auf diesem Computer"
+msgstr "der Ordner, in den die E-Mails verschoben werden, befindet sich auf diesem Computer"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
