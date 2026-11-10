@@ -1166,6 +1166,10 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The Public keys of the people mail came from, by address (#30 R9): certificates
+    /// collected from Digitally signed mail, contact or not.
+    #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
+    pub public_keys: crate::public_keys::PublicKeys,
     next_id: Id,
 }
 
@@ -1208,6 +1212,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            public_keys: Default::default(),
             next_id: 1,
         }
     }

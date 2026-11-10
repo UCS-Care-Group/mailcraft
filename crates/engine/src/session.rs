@@ -1148,6 +1148,9 @@ pub struct Session {
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
+    /// The Digital signatures checked, and the certificates they are checked against
+    /// ([`Session::digital_signature`], #30). Never saved.
+    pub(crate) signatures: crate::digital_signature::SignatureChecks,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -1296,6 +1299,7 @@ impl Session {
             list_builds: 0,
             opened: None,
             sender_checks: Default::default(),
+            signatures: Default::default(),
             content_source: None,
             loads: 0,
             unsearched: 0,
@@ -1315,6 +1319,7 @@ impl Session {
         };
         s.view.date = s.today();
         s.normalize();
+        s.find_opaque_to_read_again();
         s
     }
 
@@ -2914,6 +2919,8 @@ impl Session {
         if let Ok(told) = self.told_held.get_mut() {
             told.clear();
         }
+        // (The trust anchors stay: they are this computer's, not the mailbox's.)
+        self.signatures.forget_messages();
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();
@@ -2937,6 +2944,7 @@ impl Session {
         self.dirty = false;
         self.rev += 1;
         self.normalize();
+        self.find_opaque_to_read_again();
     }
 
     // ---- undo ----
@@ -3064,6 +3072,9 @@ impl Session {
         let counted = (self.rev, now.messages.len());
         let changes: Vec<(Id, Option<Arc<Message>>, Option<Arc<Message>>)> =
             self.mailbox.messages.changes(&now.messages).into_iter().map(|(id, a, b)| (id, a.cloned(), b.cloned())).collect();
+        // A message put back as an older build read it (from before it was read again) is read
+        // again at the next command.
+        self.note_to_read_again(changes.iter().map(|(id, _, _)| *id));
         let after = (self.rev + 1, self.mailbox.messages.len());
         self.counts_cache = self
             .counts_cache
@@ -3378,6 +3389,13 @@ impl Session {
     /// [`Session::run`] on the message being written that is current now.
     pub(crate) fn run_here(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         self.ask_for_lost_originals();
+        // (Before the outermost command, as its own change: a command that only reads changes
+        // nothing, and one run inside another would put them in its step, or let them go with
+        // it when it fails.)
+        if !self.in_command() {
+            self.keep_found_certificates();
+            self.read_opaque_again();
+        }
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
         // Work Offline: nothing that would go to a server is asked for (a host, a script, an agent).
@@ -3560,6 +3578,9 @@ impl Session {
                     let changes: Vec<(Id, Option<Arc<Message>>, Option<Arc<Message>>)> =
                         self.mailbox.messages.changes(&before.mailbox.messages).into_iter().map(|(id, a, b)| (id, a.cloned(), b.cloned())).collect();
                     self.hold_replaced(&changes);
+                    // One an older build read whose bytes it came as just arrived (Check Again,
+                    // a move's source copy) is read again at the next command.
+                    self.note_to_read_again(changes.iter().map(|(id, _, _)| *id));
                     // Read marks alone: the list and the counts stand, put right ([`Session::list_stands`]).
                     let read_marks = self.list_stands(&before.mailbox, &changes);
                     let rev_before = self.rev;
