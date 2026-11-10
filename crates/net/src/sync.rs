@@ -632,7 +632,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
             return None;
         }
     };
-    let mailboxes = match imap.list() {
+    let (mailboxes, dropped) = match imap.list_counted() {
         Ok(list) => list,
         Err(e) => {
             let alive = run.failed("Couldn't read the list of folders", &e.into());
@@ -643,8 +643,8 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     // Folders that already follow a server mailbox keep their job.
     let tied: Vec<(&str, FolderKind)> = request.folders.iter().filter(|f| !f.remote.is_empty()).map(|f| (f.remote.as_str(), f.kind)).collect();
     let plan = planned(&mailboxes, &tied, host.microsoft);
-    if plan.len() > MAX_FOLDERS {
-        run.out.errors.push(left_out(&plan));
+    if let Some(said) = left_out(&plan, dropped > 0) {
+        run.out.errors.push(said);
     }
     // The whole tree first: the folders are there to see before their mail is.
     run.out.listed = listed(&plan);
@@ -825,12 +825,28 @@ impl<'a> States<'a> {
 }
 
 /// What a run says when the server has more folders of mail than one run reads (#991): how
-/// many there are, how many were left out, and the name of the first of those.
-fn left_out(plan: &[(&Mailbox, FolderKind)]) -> String {
+/// many there are, how many were left out, and the name of the first of those. When the
+/// server's list was too long to keep whole (`cut`), there are only known to be at least as many
+/// as were kept, and the ones left out are past them, whether or not as many as a run reads
+/// were kept. `None`: nothing was left out.
+fn left_out(plan: &[(&Mailbox, FolderKind)], cut: bool) -> Option<String> {
     let total = plan.len();
-    let left = total.saturating_sub(MAX_FOLDERS);
-    let first = plan.get(MAX_FOLDERS).map(|(mailbox, _)| label(&kinds::remote_name(mailbox))).unwrap_or_default();
-    format!("The server has {total} folders: one run reads the first {MAX_FOLDERS}, and leaves out the other {left}, from \"{first}\" on")
+    let first = plan.get(MAX_FOLDERS).map(|(mailbox, _)| label(&kinds::remote_name(mailbox)));
+    match (first, cut) {
+        (None, false) => None,
+        (Some(first), false) => {
+            let left = total.saturating_sub(MAX_FOLDERS);
+            Some(format!(
+                "The server has {total} folders: one run reads the first {MAX_FOLDERS}, and leaves out the other {left}, from \"{first}\" on"
+            ))
+        }
+        (Some(first), true) => Some(format!(
+            "The server has at least {total} folders: one run reads the first {MAX_FOLDERS}, and leaves out the rest, from \"{first}\" on"
+        )),
+        (None, true) => {
+            Some(format!("The server has at least {total} folders: their list was too long to read whole, and the folders after them were left out"))
+        }
+    }
 }
 
 fn has(flags: &[String], flag: &str) -> bool {

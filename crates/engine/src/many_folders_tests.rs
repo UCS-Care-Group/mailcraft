@@ -66,3 +66,38 @@ fn ten_thousand_listed_folders_are_all_here_in_their_tree() {
     cmd::account::apply_sync(&mut s, SyncResult { account: a, listed: tree, partial: true, ..Default::default() }).unwrap();
     assert_eq!(s.mailbox.folders, folders);
 }
+
+/// A run over 10,000 folders hands over a piece for each, and a host takes the waiting ones in
+/// together: the whole account is read once for each batch, not once for each piece (#991).
+#[test]
+fn ten_thousand_pieces_of_one_run_are_taken_in_quickly() {
+    use mailcraft_model::sync::FolderDelta;
+
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    let added = s.run("account.add", &json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    let a = added["id"].as_u64().unwrap();
+    let remotes: Vec<String> = (0..MAX_LISTED_FOLDERS).map(|n| format!("Box {n:05}")).collect();
+    let tree: Vec<ListedFolder> = remotes.iter().map(|r| listed(r, "", r)).collect();
+    // The tree first, then each folder read in a piece of its own, the last one ending the run.
+    let mut pieces = vec![SyncResult { account: a, listed: tree, partial: true, ..Default::default() }];
+    pieces.extend(remotes.iter().enumerate().map(|(n, remote)| SyncResult {
+        account: a,
+        folders: vec![FolderDelta { remote: remote.clone(), uid_validity: 7, uid_seen: 1, complete: true, ..Default::default() }],
+        partial: n + 1 < MAX_LISTED_FOLDERS,
+        ..Default::default()
+    }));
+    let started = Instant::now();
+    let mut run = cmd::account::SyncTotals::default();
+    let mut pieces = pieces.into_iter().peekable();
+    while pieces.peek().is_some() {
+        let batch: Vec<SyncResult> = pieces.by_ref().take(cmd::account::MAX_PIECES_TOGETHER).collect();
+        cmd::account::apply_sync_parts(&mut s, &mut run, batch).unwrap();
+    }
+    let took = started.elapsed();
+    assert!(run.finished && run.errors.is_empty(), "{run:?}");
+    let read = s.mailbox.folders.iter().filter(|f| f.account == a && f.remote.starts_with("Box ") && f.uid_validity == 7).count();
+    assert_eq!(read, MAX_LISTED_FOLDERS);
+    assert!(took < Duration::from_secs(10), "{took:?}");
+    // Nothing to take in is no piece.
+    assert!(cmd::account::apply_sync_parts(&mut s, &mut run, Vec::new()).is_err());
+}

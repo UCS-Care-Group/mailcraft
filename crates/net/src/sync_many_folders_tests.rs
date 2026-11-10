@@ -138,5 +138,39 @@ fn the_first_of_a_name_is_the_parent_and_only_one_that_is_read() {
     assert_eq!(tree.len(), MAX_FOLDERS);
     let child = tree.iter().find(|f| f.remote == "Late/child").map(|f| (f.parent.as_str(), f.name.as_str()));
     assert_eq!(child, Some(("", "Late/child")));
-    assert!(left_out(&plan).ends_with("leaves out the other 2, from \"F9999\" on"), "{}", left_out(&plan));
+    let said = left_out(&plan, false).unwrap_or_default();
+    assert!(said.ends_with("leaves out the other 2, from \"F9999\" on"), "{said}");
+    // Nothing left out, nothing said.
+    assert_eq!(left_out(plan.get(..MAX_FOLDERS).unwrap(), false), None);
+}
+
+/// A server whose list of folders is too long to keep whole has the run say that there are at
+/// least as many as were kept, past a run's 10,000 (#991) and short of it, when the names and
+/// flags fill what one list keeps.
+#[test]
+fn a_list_cut_short_is_said_too() {
+    let imap = Fake::imap(world(12_001));
+    let result = sync(&request(&imap));
+    assert_eq!((result.listed.len(), result.folders.len()), (MAX_FOLDERS, MAX_FOLDERS));
+    let first = imap.world().mailboxes.get(MAX_FOLDERS).map(|m| m.raw.clone()).unwrap_or_default();
+    assert_eq!(
+        result.errors,
+        [format!("The server has at least 12000 folders: one run reads the first 10000, and leaves out the rest, from \"{first}\" on")]
+    );
+
+    // 1,500 folders, each listed with 64 long flags: the list is full long before.
+    let mut world = world(1_500);
+    let flags: Vec<String> = (0..64).map(|n| format!("\\F{n}{}", "x".repeat(248))).collect();
+    let flags = flags.join(" ");
+    for mailbox in world.mailboxes.iter_mut().skip(2) {
+        mailbox.flags = flags.clone();
+    }
+    let imap = Fake::imap(world);
+    let result = sync(&request(&imap));
+    assert!(result.listed.len() < 1_500 && result.listed.len() > 2, "{}", result.listed.len());
+    let kept = result.listed.len();
+    assert_eq!(
+        result.errors,
+        [format!("The server has at least {kept} folders: their list was too long to read whole, and the folders after them were left out")]
+    );
 }

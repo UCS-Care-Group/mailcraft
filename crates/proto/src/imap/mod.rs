@@ -698,23 +698,30 @@ impl<S: Read + Write> Imap<S> {
 
     /// LIST "" "*".
     pub fn list(&mut self) -> Result<Vec<Mailbox>, ProtoError> {
+        self.list_counted().map(|(list, _)| list)
+    }
+
+    /// [`list`](Self::list), and how many more mailboxes the server listed that were read and
+    /// dropped because the list was full ([`MAX_MAILBOXES`], [`MAX_LIST_BYTES`]): 0 when it
+    /// was kept whole.
+    pub fn list_counted(&mut self) -> Result<(Vec<Mailbox>, usize), ProtoError> {
         let mut out: Vec<Mailbox> = Vec::new();
         let mut seen = HashSet::new();
-        let mut kept = 0usize;
+        let (mut kept, mut dropped) = (0usize, 0usize);
         self.run(Command::new("LIST").arg("\"\"").arg("\"*\""), &mut |values| {
+            let full = out.len() >= MAX_MAILBOXES || kept >= MAX_LIST_BYTES;
             // A mailbox the server names twice is listed once; past either cap, nothing is kept.
-            if out.len() < MAX_MAILBOXES
-                && kept < MAX_LIST_BYTES
-                && let Some(mailbox) = mailbox_from(values)
-                && seen.insert(mailbox.raw.clone())
-            {
+            let Some(mailbox) = mailbox_from(values) else { return };
+            if full {
+                dropped = dropped.saturating_add(1);
+            } else if seen.insert(mailbox.raw.clone()) {
                 // The name twice (as written, decoded) and once more in `seen`, and the flags.
                 let size = mailbox.raw.len().saturating_mul(2).saturating_add(mailbox.name.len());
                 kept = mailbox.flags.iter().fold(kept.saturating_add(size), |kept, flag| kept.saturating_add(flag.len()));
                 out.push(mailbox);
             }
         })?;
-        Ok(out)
+        Ok((out, dropped))
     }
 
     /// EXAMINE (read-only) or SELECT.

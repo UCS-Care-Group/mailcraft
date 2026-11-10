@@ -14219,6 +14219,11 @@ msgid "there is no search"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is nothing to take in"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "these messages were for another account, not for {name}"
 msgstr ""

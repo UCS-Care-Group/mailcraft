@@ -1064,6 +1064,10 @@ fn fresh_options() -> mailcraft_engine::Prefs {
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
 const SAVING_SHOWN_AFTER_MS: u64 = 700;
 
+/// How long one frame goes on taking in the pieces of a Send/Receive that are waiting
+/// ([`MailApp::poll_sync`]): once at least, then again while this lasts.
+const SYNC_FRAME_BUDGET: std::time::Duration = std::time::Duration::from_millis(8);
+
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
 pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
@@ -4269,8 +4273,12 @@ impl MailApp {
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
     pub fn poll_sync(&mut self) {
-        // A few pieces a frame: each one redraws the lists, and the window should stay quick.
-        for _ in 0..4 {
+        // What is waiting, taken in together, for as long as a frame can spare (#991): each time
+        // reads the whole account and has the lists made again, whatever the pieces bring, and a
+        // run with thousands of folders hands over a piece or more for each.
+        let started = std::time::Instant::now();
+        let mut first = true;
+        while std::mem::take(&mut first) || started.elapsed() < SYNC_FRAME_BUDGET {
             // (A JMAP account's run has pieces of its own: [`jmap_mail`].)
             if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
                 return self.poll_jmap();
@@ -4299,10 +4307,19 @@ impl MailApp {
                     return;
                 }
             };
-            let (account, last) = (piece.account, !piece.partial);
-            let downloading = !piece.folders.is_empty();
-            let signed_in = piece.step.as_ref().is_some_and(|step| step.stage.signed_in());
-            let refused = piece.errors.iter().any(|e| {
+            // And the pieces that came after it, up to the last.
+            let mut pieces = vec![piece];
+            while pieces.len() < mailcraft_engine::cmd::account::MAX_PIECES_TOGETHER
+                && pieces.last().is_some_and(|piece| piece.partial)
+                && let Ok(piece) = rx.try_recv()
+            {
+                pieces.push(piece);
+            }
+            let account = pieces.first().map_or(*whose, |piece| piece.account);
+            let last = pieces.last().is_some_and(|piece| !piece.partial);
+            let downloading = pieces.iter().any(|piece| !piece.folders.is_empty());
+            let signed_in = pieces.iter().any(|piece| piece.step.as_ref().is_some_and(|step| step.stage.signed_in()));
+            let refused = pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
                 let e = e.to_lowercase();
                 // Microsoft's word for a token that ran out during the run.
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
@@ -4311,8 +4328,10 @@ impl MailApp {
             if signed_in {
                 self.keep_accepted_password(account);
             }
-            self.note_sync_problems(account, &piece.errors, false);
-            match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
+            for piece in &pieces {
+                self.note_sync_problems(account, &piece.errors, false);
+            }
+            match mailcraft_engine::cmd::account::apply_sync_parts(&mut self.session, &mut self.sync_totals, pieces) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
