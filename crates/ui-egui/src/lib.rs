@@ -1067,6 +1067,8 @@ const SAVING_SHOWN_AFTER_MS: u64 = 700;
 /// How long one frame goes on taking in the pieces of a Send/Receive that are waiting
 /// ([`MailApp::poll_sync`]): once at least, then again while this lasts.
 const SYNC_FRAME_BUDGET: std::time::Duration = std::time::Duration::from_millis(8);
+/// Most new messages in the pieces taken in together: a batch stops growing once it has these.
+const SYNC_BATCH_MESSAGES: usize = 500;
 
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
@@ -4307,12 +4309,16 @@ impl MailApp {
                     return;
                 }
             };
-            // And the pieces that came after it, up to the last.
+            // And the pieces that came after it, up to the last, while they bring little mail:
+            // taking in what came is what takes the time.
+            let mut new = piece.new_count();
             let mut pieces = vec![piece];
             while pieces.len() < mailcraft_engine::cmd::account::MAX_PIECES_TOGETHER
+                && new < SYNC_BATCH_MESSAGES
                 && pieces.last().is_some_and(|piece| piece.partial)
                 && let Ok(piece) = rx.try_recv()
             {
+                new = new.saturating_add(piece.new_count());
                 pieces.push(piece);
             }
             let account = pieces.first().map_or(*whose, |piece| piece.account);

@@ -101,3 +101,51 @@ fn ten_thousand_pieces_of_one_run_are_taken_in_quickly() {
     // Nothing to take in is no piece.
     assert!(cmd::account::apply_sync_parts(&mut s, &mut run, Vec::new()).is_err());
 }
+
+/// A folder whose reading comes in two pieces, the messages read again with the last (as a run
+/// hands them over): taken in together, the mailbox is as it is when they are taken in one after
+/// the other, and what was read again is taken in (#991).
+#[test]
+fn pieces_taken_in_together_are_pieces_taken_in_one_by_one() {
+    use mailcraft_model::sync::FolderDelta;
+    use mailcraft_model::{Address, Message};
+
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    let added = s.run("account.add", &json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    let a = added["id"].as_u64().unwrap();
+    let mail = |uid: u32, subject: &str| Message {
+        uid,
+        subject: subject.into(),
+        from: Address::new("Bob", "bob@example.org"),
+        date: 100 + i64::from(uid),
+        message_id: format!("<{uid}@example.org>"),
+        ..Default::default()
+    };
+    let inbox =
+        |new: Vec<Message>| FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 2, new, ..Default::default() };
+    let first = SyncResult { account: a, folders: vec![inbox(vec![mail(1, "Garbled \u{FFFD}"), mail(2, "Two")])], ..Default::default() };
+    cmd::account::apply_sync(&mut s, first).unwrap();
+    // Both marked to be read again.
+    let ids: Vec<Id> = s.mailbox.messages.values().filter(|m| m.account == a).map(|m| m.id).collect();
+    assert_eq!(ids.len(), 2);
+    for id in ids {
+        s.mailbox.message_mut(id).unwrap().refetch = true;
+    }
+    let again = FolderDelta { uid_seen: 3, refetched: vec![mail(1, "Readable")], refetch_done: vec![2], complete: true, ..inbox(Vec::new()) };
+    let pieces = vec![
+        SyncResult { account: a, folders: vec![FolderDelta { uid_seen: 3, ..inbox(vec![mail(3, "Three")]) }], partial: true, ..Default::default() },
+        SyncResult { account: a, folders: vec![again], ..Default::default() },
+    ];
+    let mut one_by_one = Session::at(s.mailbox.clone(), now(), 0);
+    let mut run = cmd::account::SyncTotals::default();
+    for piece in pieces.clone() {
+        cmd::account::apply_sync_part(&mut one_by_one, &mut run, piece).unwrap();
+    }
+    let mut together = Session::at(s.mailbox.clone(), now(), 0);
+    cmd::account::apply_sync_parts(&mut together, &mut cmd::account::SyncTotals::default(), pieces).unwrap();
+    assert!(together.mailbox == one_by_one.mailbox);
+    let mine: Vec<&Message> = together.mailbox.messages.values().map(|m| m.as_ref()).filter(|m| m.account == a).collect();
+    assert_eq!(mine.iter().find(|m| m.uid == 1).map(|m| m.subject.as_str()), Some("Readable"));
+    assert!(mine.iter().filter(|m| m.uid != 3).all(|m| !m.refetch && m.refetched));
+    assert_eq!(mine.len(), 3);
+}
