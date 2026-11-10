@@ -1185,7 +1185,7 @@ impl AccountSetup {
         } else if !google_conversion_ready(existing) {
             self.error = tl!("First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods.")
                 .to_string();
-        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+        } else if !self.unchanged() {
             // A switch must not silently save unrelated edits or drop a newly typed password.
             self.error = tl!("Save or discard changes to this account before switching to Google sign-in.").to_string();
         } else if !app.google_registration_ready() {
@@ -1210,7 +1210,7 @@ impl AccountSetup {
         };
         if !app.google_registration_ready() {
             self.error = tl!("Google sign-in is not configured for this build").to_string();
-        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+        } else if !self.unchanged() {
             self.error = tl!("Save or discard changes to this account before reconnecting with Google.").to_string();
         } else {
             self.oauth = Some(oauth);
@@ -1424,6 +1424,15 @@ impl AccountSetup {
             Err(_) => Outcome::Later,
         };
         self.go(Page::Done);
+    }
+
+    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
+    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
+    /// until this holds.
+    fn unchanged(&self) -> bool {
+        self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
+            && self.password.0.is_empty()
+            && self.color.is_none_or(|(was, color)| was == color)
     }
 
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
@@ -2000,7 +2009,7 @@ impl AccountSetup {
         let can_reconnect =
             self.edit.is_some() && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) && app.services.sign_in.is_some();
         let compatible = saved_google.is_some_and(google_conversion_ready);
-        let unchanged = self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline) && self.password.0.is_empty();
+        let unchanged = self.unchanged();
         let configured = app.google_registration_ready();
         let how = match &self.oauth {
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),

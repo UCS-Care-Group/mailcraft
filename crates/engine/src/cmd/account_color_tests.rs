@@ -69,12 +69,15 @@ fn the_account_on_this_computer_takes_a_colour() {
     assert!(s.run("account.edit", &json!({"id": here, "displayName": "Here"})).is_err());
 }
 
-/// A shared mailbox has a colour of its own, as it has a heading of its own in the folder pane.
+/// A shared mailbox has a colour of its own, as it has a heading of its own in the folder pane:
+/// one no other account has when it is opened, and another when changed.
 #[test]
 fn a_shared_mailbox_keeps_a_colour_of_its_own() {
     let mut s = Session::empty();
     let work = add(&mut s, json!({"email": "me@work.example", "kind": "microsoft"}));
     let team = s.mailbox.add_shared_mailbox(work, "team@work.example").unwrap();
+    assert_eq!(s.mailbox.account(team).unwrap().color, Some(PALETTE[1]));
+    assert_eq!(listed_color(&mut s, team), json!(PALETTE[1].hex()));
     s.run("account.edit", &json!({"id": team, "color": "#C24E9A"})).unwrap();
     assert_eq!(s.mailbox.account(team).unwrap().color, Some(Rgb(0xC2, 0x4E, 0x9A)));
     assert_eq!(s.mailbox.account(work).unwrap().color, Some(PALETTE[0]));
