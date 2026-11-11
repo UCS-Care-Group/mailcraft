@@ -1557,6 +1557,18 @@ msgstr "Opnieuw vragen voordat afbeeldingen van deze afzender worden gedownload"
 #. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
+msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
+msgstr "Toestemming vragen om uw automatische antwoorden gelijk te houden met Outlook: de pagina van Microsoft wordt in uw browser geopend. Zonder toestemming worden uw automatische antwoorden niet gewijzigd."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
+msgstr "Toestemming vragen om uw regels, automatische antwoorden en categorieën gelijk te houden met Outlook: de pagina van Microsoft wordt in uw browser geopend. Zonder toestemming blijven regels op deze computer en kunnen de categorieën hier niet worden gewijzigd."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
 msgstr "Toestemming vragen om uw taken en automatische antwoorden gelijk te houden met Outlook: de pagina van Microsoft wordt in uw browser geopend. Zonder toestemming blijven taken op deze computer."
 
@@ -4908,6 +4920,12 @@ msgstr "Voor een account dat zich aanmeldt met Microsoft: de mappen die u onder 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
+msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Voorlopig blijven regels op deze computer, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën hier niet worden gewijzigd: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
 msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
 msgstr "Voorlopig blijven taken en regels op deze computer, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën hier niet worden gewijzigd: {error}"
 
@@ -4916,6 +4934,12 @@ msgstr "Voorlopig blijven taken en regels op deze computer, worden uw automatisc
 #, fuzzy
 msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
 msgstr "Voorlopig blijven taken op deze computer en worden uw automatische antwoorden niet gewijzigd: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, your automatic replies aren't changed: {error}"
+msgstr "Voorlopig worden uw automatische antwoorden niet gewijzigd: {error}"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -15244,6 +15268,30 @@ msgstr ""
 "Om vergaderingen te beantwoorden of te verzenden vanuit {address}, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
 "\n"
 "Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, your automatic replies aren't changed."
+msgstr ""
+"Om de automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"\n"
+"Tot u het toestaat, worden uw automatische antwoorden niet gewijzigd."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+msgstr ""
+"Om de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+"\n"
+"Tot u het toestaat, blijven regels op deze computer en wordt er niets van naar Microsoft verzonden, en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

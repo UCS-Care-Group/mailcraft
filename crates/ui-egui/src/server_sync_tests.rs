@@ -229,6 +229,33 @@ fn a_microsoft_account_still_on_imap_is_asked_only_for_its_to_dos_and_automatic_
     assert!(!said.contains("rules") && !said.contains("categories"), "{said}");
 }
 
+/// An owner whose to-dos are kept in step already (their permission given by itself, as an older
+/// version asked it) is asked only for the rest: neither the question, File › Info's tip nor the
+/// status bar says that the to-dos stay on this computer.
+#[test]
+fn to_dos_kept_in_step_already_are_left_out_of_the_question() {
+    let (mut app, owner, _, answer) = window();
+    *answer.lock().unwrap() = Err(crate::approval::NO_BROWSER.into());
+    app.tasks.perm.insert(owner, Permission::Given);
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    app.categories_tick_at(1.0);
+    let Some(Dialog::Confirm { command, ask, .. }) = &app.dialog else { panic!("asked") };
+    assert_eq!(command, "ui.allowSync");
+    let tip = app.sync_tip(owner);
+    for said in [ask.text.as_str(), tip] {
+        assert!(said.contains("rules, automatic replies and categories"), "{said}");
+        assert!(!said.contains("tasks") && !said.contains("To Do"), "{said}");
+    }
+    app.dialog = None;
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let (said, _) = app.status_msg.clone().unwrap();
+    assert!(said.contains("rules stay on this computer") && said.contains(crate::approval::NO_BROWSER), "{said}");
+    assert!(!said.contains("tasks"), "{said}");
+    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Given));
+}
+
 /// An organisation whose administrator has to approve first: File › Info's tip and the Categories
 /// window say the reason whole, with where to go next, not cut before it.
 #[test]

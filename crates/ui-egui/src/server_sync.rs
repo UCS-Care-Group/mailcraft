@@ -82,29 +82,46 @@ impl MailApp {
         self.session.mailbox.keeps_rules(account)
     }
 
+    /// Whether `account`'s to-dos are kept in step with Microsoft To Do already (their permission
+    /// was given by itself, as an older version asked it): the question and its texts then say
+    /// nothing of them.
+    fn sync_tasks_kept(&self, account: Id) -> bool {
+        self.tasks.perm.get(&account) == Some(&crate::task_sync::Permission::Given)
+    }
+
     /// File › Info's tip for Ask again, saying only what `account` keeps in step.
     pub(crate) fn sync_tip(&self, account: Id) -> &'static str {
-        if self.sync_covers_lists(account) {
-            tl!(
+        match (self.sync_covers_lists(account), self.sync_tasks_kept(account)) {
+            (true, false) => tl!(
                 "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
-            )
-        } else {
-            tl!(
+            ),
+            (true, true) => tl!(
+                "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
+            ),
+            (false, false) => tl!(
                 "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
-            )
+            ),
+            (false, true) => tl!(
+                "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
+            ),
         }
     }
 
     fn put_sync_question(&mut self, account: Id) -> bool {
         let Some(address) = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()) else { return false };
-        let text = if self.sync_covers_lists(account) {
-            tl!(
+        let text = match (self.sync_covers_lists(account), self.sync_tasks_kept(account)) {
+            (true, false) => tl!(
                 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
-            )
-        } else {
-            tl!(
+            ),
+            (true, true) => tl!(
+                "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+            ),
+            (false, false) => tl!(
                 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
-            )
+            ),
+            (false, true) => tl!(
+                "To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, your automatic replies aren't changed."
+            ),
         };
         let text = crate::i18n::fmt(text, &[("address", &address)]);
         let ask = Question {
@@ -206,14 +223,19 @@ impl MailApp {
                 Some(tl!("Your organisation doesn't let MailCraft keep this mailbox in step with Outlook").to_string())
             }
             Err(e) if e == NO_BROWSER => {
-                self.sync_not_now(account);
-                let said = if self.sync_covers_lists(account) {
-                    tl!(
+                let said = match (self.sync_covers_lists(account), self.sync_tasks_kept(account)) {
+                    (true, false) => tl!(
                         "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-                    )
-                } else {
-                    tl!("For now, tasks stay on this computer and your automatic replies aren't changed: {error}")
+                    ),
+                    (true, true) => {
+                        tl!(
+                            "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+                        )
+                    }
+                    (false, false) => tl!("For now, tasks stay on this computer and your automatic replies aren't changed: {error}"),
+                    (false, true) => tl!("For now, your automatic replies aren't changed: {error}"),
                 };
+                self.sync_not_now(account);
                 self.status(crate::i18n::fmt(said, &[("error", &e)]));
                 None
             }
