@@ -391,3 +391,15 @@ fn the_renames_a_list_waits_on_go_with_its_account_and_a_stray_one_with_the_file
     mb.repair();
     assert!(mb.category_renames.keys().eq([&a]));
 }
+
+#[test]
+fn a_file_with_long_lists_of_categories_opens_in_time() {
+    // A hostile file: one account's list and what its server had, long and with no name in common.
+    let mut mb = Mailbox::default();
+    mb.account_categories.insert(1, (0..20_000).map(|i| tagged(&format!("Here {i}"), RED)).collect());
+    mb.synced_categories.insert(1, (0..20_000).map(|i| tagged(&format!("There {i}"), RED)).collect());
+    let mut opened = crate::load_limit::from_json(&serde_json::to_vec(&mb).unwrap(), 4_000_000).unwrap();
+    let started = std::time::Instant::now();
+    opened.repair();
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+}

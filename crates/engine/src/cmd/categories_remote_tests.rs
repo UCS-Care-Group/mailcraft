@@ -619,6 +619,22 @@ fn a_file_from_an_older_build_takes_no_name_the_list_lacked_for_deleted() {
 }
 
 #[test]
+fn a_file_from_an_older_build_with_a_name_in_two_spellings_sends_nothing_for_it() {
+    // An older build compared names in ASCII only, so its list could hold both (#788).
+    let (mut s, a) = rig(vec![tag("проект", GREEN)], true);
+    s.mailbox.account_categories.insert(a, vec![tag("Проект", RED), tag("проект", GREEN)]);
+    let mut file = serde_json::to_value(&s.mailbox).unwrap();
+    for field in ["syncedCategories", "localCategories", "categoryWrites"] {
+        file.as_object_mut().unwrap().remove(field);
+    }
+    file["serverCategories"] = json!({a.to_string(): ["проект"]});
+    let mut opened = crate::io::read_mailbox(&serde_json::to_vec(&file).unwrap()).unwrap();
+    opened.category_writes.insert(a);
+    assert_eq!(opened.categories_of(a), [tag("проект", GREEN)], "the server's spelling and colour");
+    assert!(opened.category_upload(a).is_empty(), "{:?}", opened.category_upload(a));
+}
+
+#[test]
 fn a_read_never_takes_a_name_kept_here_alone_off_the_list_for_a_deletion() {
     // However it came to be kept here alone without being on the list.
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);

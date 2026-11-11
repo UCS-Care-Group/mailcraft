@@ -3859,7 +3859,11 @@ impl Mailbox {
                 .filter(|name| on_categories(&list, name))
                 .map(|name| Category {
                     name: name.clone(),
-                    color: list.iter().find(|c| same_category(&c.name, name)).map_or(GREY_CATEGORY, |c| c.color),
+                    color: list
+                        .iter()
+                        .find(|c| c.name == **name)
+                        .or_else(|| list.iter().find(|c| same_category(&c.name, name)))
+                        .map_or(GREY_CATEGORY, |c| c.color),
                 })
                 .collect();
             let only_here: Vec<String> = list.iter().filter(|c| !on_list(&names, &c.name)).map(|c| c.name.clone()).collect();
@@ -3868,8 +3872,20 @@ impl Mailbox {
             }
             self.synced_categories.insert(owner, synced);
         }
-        // Lists hold one name once (a file of an older build compared names in ASCII only).
-        for list in self.account_categories.values_mut().chain(self.synced_categories.values_mut()) {
+        // Lists hold one name once (a file of an older build compared names in ASCII only). Of a
+        // name in two spellings, the one its server has stays: nothing is deleted or made there
+        // for the other (#661).
+        let empty = Vec::new();
+        for (owner, list) in self.account_categories.iter_mut() {
+            let theirs: HashSet<&str> = self.server_categories.get(owner).unwrap_or(&empty).iter().map(String::as_str).collect();
+            let servers: HashSet<String> = list.iter().filter(|c| theirs.contains(c.name.as_str())).map(|c| category_key(&c.name)).collect();
+            let mut seen = HashSet::new();
+            list.retain(|c| {
+                let key = category_key(&c.name);
+                (theirs.contains(c.name.as_str()) || !servers.contains(&key)) && seen.insert(key)
+            });
+        }
+        for list in self.synced_categories.values_mut() {
             let mut seen = HashSet::new();
             list.retain(|c| seen.insert(category_key(&c.name)));
         }
@@ -4079,10 +4095,11 @@ impl Mailbox {
         if self.accounts.len() > MAX_ACCOUNTS || self.folders.len() > MAX_FOLDERS || self.categories.len() > MAX_CATEGORIES || crowded {
             // A name cut from a list kept in step with its server is not known there any more
             // either: it is no deletion to send.
+            // (By the names' keys, once each: a hostile file's lists may be long, #661.)
             for (account, list) in &self.account_categories {
-                let cut = list.get(MAX_CATEGORIES..).unwrap_or_default();
+                let cut: HashSet<String> = list.get(MAX_CATEGORIES..).unwrap_or_default().iter().map(|c| category_key(&c.name)).collect();
                 if let Some(synced) = self.synced_categories.get_mut(account).filter(|_| !cut.is_empty()) {
-                    synced.retain(|c| !cut.iter().any(|gone| same_category(&gone.name, &c.name)));
+                    synced.retain(|c| !cut.contains(&category_key(&c.name)));
                 }
             }
             self.accounts.truncate(MAX_ACCOUNTS);
