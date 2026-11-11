@@ -342,3 +342,42 @@ fn a_list_kept_in_step_with_outlook_offers_outlooks_colours() {
     assert_eq!(params["color"], json!(OUTLOOK_COLORS[12].hex()), "{params}");
     assert_eq!(super::categories::palette_of(&s.mailbox, 0), &super::categories::PALETTE[..]);
 }
+
+/// A list that comes to be kept in step with Outlook while the dialog is open (Outlook's list is
+/// read for the first time meanwhile) gives a new category one of Outlook's colours, so Add still
+/// adds it (#661).
+#[test]
+fn a_list_that_comes_in_step_with_outlook_while_the_dialog_is_open_adds_in_outlooks_colours() {
+    use mailcraft_model::outlook_colors::outlook_preset;
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let a = s.run("account.add", &json!({"email": "a@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    // Its own list from before Outlook's was read (#633), in seven of the program's colours, so
+    // the one a new category is offered is not one of Outlook's.
+    let own: Vec<Category> = mailcraft_model::PALETTE[..7].iter().enumerate().map(|(i, c)| Category { name: format!("C{i}"), color: *c }).collect();
+    s.mailbox.account_categories.insert(a, own.clone());
+    let mut app = MailApp::new(s, Services::default());
+    app.autosave = false;
+    let form = CategoriesForm::new(&app.session, &json!({"account": a})).unwrap();
+    let offered = Rgb::parse(form.add_command().1["color"].as_str().unwrap()).unwrap();
+    assert!(outlook_preset(offered).is_none(), "{offered:?}");
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(600.0, 600.0)).build_ui_state(
+        |ui, (app, form): &mut (MailApp, CategoriesForm)| {
+            form.show(app, ui);
+        },
+        (app, form),
+    );
+    h.run_steps(2);
+    {
+        let (app, _) = h.state_mut();
+        let download = CategoriesDownload { account: a, email: "a@example.org".into(), categories: own, complete: true };
+        remote::apply_categories(&mut app.session, &download).unwrap();
+        app.session.run("sync.categoryWrites", &json!({"account": a, "allowed": true})).unwrap();
+        assert!(app.session.mailbox.synced_list_owner(a).is_some());
+    }
+    h.run_steps(2);
+    let (app, form) = h.state_mut();
+    form.new_name = "Travel".into();
+    let (command, params) = form.add_command();
+    app.execute(command, params).unwrap();
+    assert!(app.session.mailbox.category_of(a, "Travel").is_some());
+}

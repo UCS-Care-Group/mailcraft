@@ -4259,6 +4259,11 @@ mod categories {
             }
             let list = app.session.mailbox.categories_of(self.account).to_vec();
             let palette = palette_of(&app.session.mailbox, self.account);
+            // The list may have come to be kept in step with Outlook, or stopped, since the colour
+            // for a new category was chosen: it takes one of the colours the list now offers.
+            if !palette.contains(&self.new_color) {
+                self.new_color = free_in(palette, &list);
+            }
             // A Microsoft account's list is kept in step with Outlook's (#661): those kept on this
             // computer only say so, and can be added there. Any other list, once Outlook's was
             // read, says which aren't on it (R3 spec S18).
