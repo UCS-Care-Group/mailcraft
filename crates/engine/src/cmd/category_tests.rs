@@ -1069,3 +1069,42 @@ fn many_copies_of_a_long_name_and_its_beginning_are_quick() {
     assert_eq!(carried_by(&s, "calendar.edit", event), [start.as_str(), long.as_str()]);
     assert_eq!(names(&s, a), [start.as_str()]);
 }
+
+/// A note and a journal entry (#1051), kept on this computer, with `categories`.
+fn note_and_entry(s: &mut Session, categories: &[&str]) -> (Id, Id) {
+    let categories: Vec<String> = categories.iter().map(|c| c.to_string()).collect();
+    let note = s.mailbox.add_note(mailcraft_model::Note { text: "Call back".into(), categories: categories.clone(), ..Default::default() });
+    let entry = s.mailbox.add_journal(mailcraft_model::JournalEntry { subject: "Call".into(), categories, ..Default::default() });
+    (note, entry)
+}
+
+fn of_note_and_entry(s: &Session, (note, entry): (Id, Id)) -> (Vec<String>, Vec<String>) {
+    (s.mailbox.notes[&note].categories.clone(), s.mailbox.journal[&entry].categories.clone())
+}
+
+/// A rename on the list the accounts share reaches notes and journal entries, as it reaches mail
+/// and the rest; one on an account's own list leaves them, which are this computer's.
+#[test]
+fn a_rename_reaches_notes_and_journal_entries_on_the_list_they_use() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    s.mailbox.categories = vec![tag("Old", RED)];
+    let items = note_and_entry(&mut s, &["Old", "Other"]);
+    s.run("category.rename", &json!({"from": "old", "to": "New"})).unwrap();
+    let renamed = vec!["New".to_string(), "Other".to_string()];
+    assert_eq!(of_note_and_entry(&s, items), (renamed.clone(), renamed));
+    let (mut s, a) = one_account();
+    read(&mut s, a, vec![tag("Old", RED)]);
+    let items = note_and_entry(&mut s, &["Old"]);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    assert_eq!(of_note_and_entry(&s, items), (vec!["Old".to_string()], vec!["Old".to_string()]));
+}
+
+/// A deletion on the list the accounts share takes the name off notes and journal entries too.
+#[test]
+fn a_deletion_clears_notes_and_journal_entries_on_the_list_they_use() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    s.mailbox.categories = vec![tag("Old", RED)];
+    let items = note_and_entry(&mut s, &["Other", "OLD"]);
+    s.run("category.remove", &json!({"name": "Old"})).unwrap();
+    assert_eq!(of_note_and_entry(&s, items), (vec!["Other".to_string()], vec!["Other".to_string()]));
+}

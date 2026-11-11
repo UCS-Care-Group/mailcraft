@@ -3440,6 +3440,16 @@ impl Mailbox {
         for t in self.tasks.values_mut().filter(|t| !t.categories.is_empty() && uses(t.origin.account)) {
             f(&mut Arc::make_mut(t).categories);
         }
+        // Notes and journal entries (#1051) are this computer's own: they use the list the
+        // accounts share.
+        if uses(0) {
+            for n in self.notes.values_mut().filter(|n| !n.categories.is_empty()) {
+                f(&mut Arc::make_mut(n).categories);
+            }
+            for j in self.journal.values_mut().filter(|j| !j.categories.is_empty()) {
+                f(&mut Arc::make_mut(j).categories);
+            }
+        }
     }
 
     /// The address `account`'s server names as the owner of its main calendar, once a list of its
