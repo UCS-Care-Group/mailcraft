@@ -106,7 +106,8 @@ computer, for you, and for nothing else:
   signing in for mail never waits on them. An account that signed in before is asked by the
   program, in one question for both ("Keep in Step with Outlook"), and then on one page of
   Microsoft's; a question you close is not put again by itself while MailCraft stays open (it comes
-  back the next time MailCraft starts, or when you open another mailbox), and File › Info has one line
+  back when you change your automatic replies or press Allow in the Categories window, the next time
+  MailCraft starts, or when you open another mailbox), and File › Info has one line
   for each Microsoft account (Sync with Outlook: on, partly on or off) with Ask again. Until they are
   given, nothing of your tasks and rules is sent and they stay on this computer, a change of your
   automatic replies waits for your answer (a no, or the question closed, drops it and says so), the rules already on the server are read with

@@ -8633,6 +8633,12 @@ msgid "Not now: it is installed when you quit MailCraft."
 msgstr "Niet nu: het wordt geïnstalleerd wanneer u MailCraft afsluit."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to Outlook, where it has no colour"
+msgstr "Niet in de lijst van Outlook: e-mail, afspraken en taken die u deze categorie geeft, brengen de naam toch naar Outlook, waar ze geen kleur heeft"
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Not saved"
