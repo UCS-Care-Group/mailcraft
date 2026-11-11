@@ -115,6 +115,9 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
         assert!(s.run("rules.add", &params).is_err(), "{params}");
     }
     assert_eq!(serde_json::to_value(&s.mailbox).unwrap(), before);
+    // A copy into an Outbox is refused as a copy.
+    let said = s.run("rules.add", &rule(conditions, json!([]), json!([{"type": "copyTo", "value": outbox}]))).unwrap_err().to_string();
+    assert!(said.contains("move or copy mail to an Outbox"), "{said}");
 }
 
 #[test]

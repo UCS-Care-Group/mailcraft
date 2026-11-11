@@ -1284,7 +1284,7 @@ fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
         (Rule { actions: vec![Action::CopyTo(news), Action::CopyTo(news)], ..base.clone() }, NotOnServer::TwoCopies),
         (Rule { actions: vec![Action::ClearCategories], ..base.clone() }, NotOnServer::ClearCategories),
         (Rule { actions: vec![Action::FlagFor(FollowUp::Today)], ..base.clone() }, NotOnServer::Flag),
-        (Rule { actions: vec![Action::ClearFlag], ..base.clone() }, NotOnServer::Flag),
+        (Rule { actions: vec![Action::ClearFlag], ..base.clone() }, NotOnServer::ClearFlag),
         (Rule { actions: vec![Action::DeleteForGood], ..base.clone() }, NotOnServer::DeleteForGood),
         (
             Rule { exceptions: vec![Condition::Importance(Importance::Low), Condition::Importance(Importance::High)], ..base.clone() },

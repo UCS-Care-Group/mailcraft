@@ -71,6 +71,8 @@ pub enum NotOnServer {
     CopyNotThere,
     TwoCopies,
     ClearCategories,
+    /// It clears a flag, and doesn't set one.
+    ClearFlag,
     /// It looks at the day mail came.
     Days,
     /// It shows a desktop alert.
@@ -102,6 +104,7 @@ impl NotOnServer {
             NotOnServer::CopyNotThere => "the folder it copies mail to isn't on the server",
             NotOnServer::TwoCopies => "it copies mail to more than one folder",
             NotOnServer::ClearCategories => "the server can't clear categories",
+            NotOnServer::ClearFlag => "the server can't clear a flag",
             NotOnServer::Days => "the server can't look at the day mail came",
             NotOnServer::Alert => "the server can't show a desktop alert",
             NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
@@ -140,7 +143,8 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     let mut importance: Option<Importance> = None;
     for action in &rule.actions {
         match action {
-            Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Some(NotOnServer::Flag),
+            Action::Flag | Action::FlagFor(_) => return Some(NotOnServer::Flag),
+            Action::ClearFlag => return Some(NotOnServer::ClearFlag),
             Action::ClearCategories => return Some(NotOnServer::ClearCategories),
             Action::MoveTo(folder) | Action::CopyTo(folder) => {
                 let copy = matches!(action, Action::CopyTo(_));
@@ -342,7 +346,7 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
 
 /// A rule never moves or copies mail into an Outbox: the next Send/Receive would send it.
 fn refuse_send_queue(s: &Session, folder: Id) -> Result<(), CmdError> {
-    if s.mailbox.is_send_queue(folder) { Err(fail("a rule can't move mail to an Outbox: that would send it")) } else { Ok(()) }
+    if s.mailbox.is_send_queue(folder) { Err(fail("a rule can't move or copy mail to an Outbox: that would send it")) } else { Ok(()) }
 }
 
 /// The account whose own mail a folder's is: a shared mailbox's is its owner's (rules leave a
