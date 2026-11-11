@@ -6321,18 +6321,18 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "De berichten, bijlagen, instellingen en de onthouden aanmelding gaan mee, en ook de agenda, contactpersonen, taken en werktijden die van de server kwamen."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "De regel gaat ook mee; als de server hem bewaart, blijft hij daar."
+msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "De tekst ervan is vervangen"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
-msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -20850,6 +20850,12 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
+#~ msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
 
 #, fuzzy
 #~ msgid "a rule can't move mail to an Outbox: that would send it"

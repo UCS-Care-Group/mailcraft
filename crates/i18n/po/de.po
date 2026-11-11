@@ -5997,18 +5997,18 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "Seine Regel wird ebenfalls entfernt; hat sein Server sie, bleibt sie dort."
+msgstr[1] "Seine {n} Regeln werden ebenfalls entfernt; die, die sein Server hat, bleiben dort."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "Ihr Text wird ersetzt"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Seine {n} Regel wird ebenfalls entfernt; hat sein Server sie, bleibt sie dort."
-msgstr[1] "Seine {n} Regeln werden ebenfalls entfernt; die, die sein Server hat, bleiben dort."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -19812,6 +19812,12 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "Seine {n} Regel wird ebenfalls entfernt; hat sein Server sie, bleibt sie dort."
+#~ msgstr[1] "Seine {n} Regeln werden ebenfalls entfernt; die, die sein Server hat, bleiben dort."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"
