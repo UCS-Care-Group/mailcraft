@@ -20,6 +20,7 @@ use std::time::Duration;
 use mailcraft_model::report::{Field, NotSent, ProblemReport};
 use serde_json::Value;
 
+use crate::NetError;
 use crate::http::{self, Request, Url};
 
 /// How long connecting may take, and so may the answer. The relay files an issue on GitHub
@@ -38,7 +39,7 @@ pub fn relay() -> Option<&'static str> {
 }
 
 /// Whether `url` will do as the relay: an `https://` address.
-fn is_relay(url: &str) -> bool {
+pub(crate) fn is_relay(url: &str) -> bool {
     url.get(..8).is_some_and(|s| s.eq_ignore_ascii_case("https://")) && Url::parse(url).is_ok()
 }
 
@@ -71,9 +72,9 @@ pub(crate) fn send_within(url: &str, report: &ProblemReport, patience: Duration)
             got
         }
         Err(e) if http::is_too_slow(&e) => Err(NotSent::TooSlow),
-        Err(e) if http::is_too_long(&e) => Err(NotSent::Garbled),
-        Err(e) if http::is_closed(&e) => Err(NotSent::Garbled),
-        Err(e) if e.is_unreachable() => Err(NotSent::Unreachable),
+        // No connection was made (the name, the address, TLS): nothing went.
+        Err(NetError::Connect { .. } | NetError::Tls { .. } | NetError::Certificate(_) | NetError::Config(_)) => Err(NotSent::Unreachable),
+        // Anything after the connection was made: the report may have gone, and that is said.
         Err(_) => Err(NotSent::Garbled),
     }
 }

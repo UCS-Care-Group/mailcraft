@@ -3,7 +3,7 @@
 //! Report a Problem: what goes into GitHub's address (and what never does), the file of
 //! diagnostics, and the window.
 
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use mailcraft_engine::Session;
 
 use super::*;
@@ -129,8 +129,13 @@ fn email_is_not_a_way_any_more() {
 
 /// The whole window, kept for clicking.
 fn window(a: MailApp) -> egui_kittest::Harness<'static, MailApp> {
+    window_of(a, 800.0)
+}
+
+/// [`window`], `height` high.
+fn window_of(a: MailApp, height: f32) -> egui_kittest::Harness<'static, MailApp> {
     let mut h =
-        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, height)).build_ui_state(
             |ui, app: &mut MailApp| {
                 let ctx = ui.ctx().clone();
                 app.logic(&ctx);
@@ -255,7 +260,8 @@ fn draft<'h>(h: &'h mut egui_kittest::Harness<'static, MailApp>) -> &'h mut Draf
 }
 
 fn open_window(a: MailApp) -> egui_kittest::Harness<'static, MailApp> {
-    let mut h = window(a);
+    // (Tall enough for the window's buttons below a long text.)
+    let mut h = window_of(a, 1400.0);
     h.get_by_label("Report a Problem").click();
     h.run_steps(3);
     let d = draft(&mut h);
@@ -347,16 +353,120 @@ fn a_report_the_relay_would_refuse_sends_nothing() {
     h.get_by_label("Send report").click();
     h.run_steps(3);
     assert!(asked.lock().unwrap().is_empty());
-    assert_eq!(draft(&mut h).not_sent, Some(NotSent::Refused(Field::Username)));
+    // Said as found here (nothing went), and the button is still Send report, not Try again.
+    let d = draft(&mut h);
+    assert_eq!((d.not_sent, d.error.as_str()), (None, why_not_sendable(Field::Username)));
     // No title: said, and nothing sent.
     let d = draft(&mut h);
     d.username.clear();
     d.typed.title.clear();
     h.run_steps(1);
-    h.get_by_label("Try again").click();
+    h.get_by_label("Send report").click();
     h.run_steps(3);
     assert!(asked.lock().unwrap().is_empty());
-    assert_eq!(draft(&mut h).not_sent, Some(NotSent::Refused(Field::Title)));
+    assert_eq!(draft(&mut h).error, why_not_sendable(Field::Title));
+    // Too long altogether: what happened and what was expected count together, and that is shown.
+    let d = draft(&mut h);
+    d.typed.title = "t".into();
+    d.typed.what = "a".repeat(TEXT_CHARS);
+    d.typed.expected = "b".repeat(10);
+    h.run_steps(2);
+    assert!(h.query_by_label_contains("characters together").is_some());
+    // (Sent as the button does, the boxes being too tall for the button to be on screen.)
+    let Some(crate::dialogs::Dialog::ReportProblem(mut d)) = h.state_mut().dialog.take() else { panic!("not the window") };
+    d.send(h.state());
+    assert!(asked.lock().unwrap().is_empty());
+    assert_eq!(d.error, why_not_sendable(Field::Text));
+}
+
+/// A host that sends reports and never answers: the report stays on its way.
+fn with_silent_relay(a: &mut MailApp) -> Asked {
+    let asked: Asked = Default::default();
+    let kept = asked.clone();
+    let held: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<Result<u64, NotSent>>>>> = Default::default();
+    a.services.report_send = Some(Box::new(move |report| {
+        kept.lock().unwrap().push(report);
+        let (tx, rx) = std::sync::mpsc::channel();
+        held.lock().unwrap().push(tx);
+        rx
+    }));
+    asked
+}
+
+#[test]
+fn a_report_on_its_way_keeps_the_window_and_nothing_takes_its_place() {
+    let mut a = app();
+    let asked = with_silent_relay(&mut a);
+    let mut h = open_window(a);
+    h.get_by_label("Send report").click();
+    h.run_steps(3);
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    assert!(draft(&mut h).sending.is_some());
+    // Escape and Cancel don't close it: its answer is waited for, and said.
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    assert!(h.get_by_label("Cancel").accesskit_node().is_disabled());
+    h.get_by_label("Cancel").click();
+    h.run_steps(2);
+    assert!(draft(&mut h).sending.is_some(), "the window stayed");
+    // A script can't put another report in its place, by either way.
+    assert!(h.state_mut().execute("ui.reportProblem", json!({"what": "other", "via": "send"})).is_err());
+    assert!(h.state_mut().execute("ui.dialog", json!({"name": "reportProblem", "what": "other"})).is_err());
+    assert_eq!(draft(&mut h).typed.what, "It stopped");
+}
+
+#[test]
+fn a_click_the_control_channel_makes_on_send_report_sends_nothing() {
+    let mut a = app();
+    let asked = with_relay(&mut a, vec![Ok(1)]);
+    let mut h = open_window(a);
+    let at = h.get_by_label("Send report").rect().center();
+    // As `ui.click` queues it, and as the window takes it in, frame by frame (`raw_input_hook`).
+    let synthetic = &mut h.state_mut().synthetic;
+    synthetic.push(egui::Event::PointerMoved(at));
+    for pressed in [true, false] {
+        synthetic.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+    }
+    for _ in 0..6 {
+        let mut raw = egui::RawInput::default();
+        h.state_mut().raw_input_hook(&mut raw);
+        h.input_mut().events.extend(raw.events);
+        h.step();
+    }
+    assert!(h.state().synthetic.is_empty(), "the click was taken in");
+    assert!(asked.lock().unwrap().is_empty(), "only the owner's own click sends");
+    // The owner's own click, at the same place, does.
+    h.get_by_label("Send report").click();
+    h.run_steps(3);
+    assert_eq!(asked.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn with_diagnostics_too_open_on_github_keeps_what_didnt_fit() {
+    let mut a = app();
+    let _asked = with_relay(&mut a, vec![Ok(1)]);
+    let (answers_tx, answers) = std::sync::mpsc::channel::<std::sync::mpsc::Sender<Option<Vec<String>>>>();
+    a.services.file_dialog = Some(Box::new(move |_| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _ = answers_tx.send(tx);
+        rx
+    }));
+    let mut h = open_window(a);
+    let long = "€".repeat(1_000);
+    draft(&mut h).typed.what = long.clone();
+    // (The window settles at its new height first.)
+    h.run_steps(6);
+    h.get_by_label("Open on GitHub").click();
+    h.step();
+    let path = std::env::temp_dir().join(format!("mailcraft-report-kept-{}.txt", std::process::id()));
+    answers.try_recv().unwrap().send(Some(vec![path.to_string_lossy().to_string()])).unwrap();
+    h.step();
+    assert!(opened(&h).first().is_some_and(|u| u.len() <= URL_MAX));
+    h.run_steps(3);
+    let d = draft(&mut h);
+    assert!(d.cut && !d.waiting && d.error.is_empty(), "{}", d.error);
+    assert_eq!(d.typed.what, long);
+    let _ = std::fs::remove_file(&path);
 }
 
 #[test]
@@ -369,6 +479,15 @@ fn a_script_or_an_agent_fills_the_window_and_never_sends() {
     assert_eq!(r["sent"], false);
     let Some(crate::dialogs::Dialog::ReportProblem(d)) = a.dialog.as_ref() else { panic!("no window") };
     assert_eq!((d.typed.title.as_str(), d.typed.what.as_str(), d.username.as_str()), ("From a script", "It stopped", "octocat"));
+    // Never over a window that is open: what the owner may be writing stays.
+    assert!(report(&mut a, json!({"what": "Something else", "via": "send"})).is_err());
+    let Some(crate::dialogs::Dialog::ReportProblem(d)) = a.dialog.as_ref() else { panic!("no window") };
+    assert_eq!(d.typed.what, "It stopped");
+    // What a script fills in is held to what the boxes hold.
+    a.dialog = None;
+    a.execute("ui.dialog", json!({"name": "reportProblem", "what": "x", "expected": "y".repeat(TEXT_CHARS * 2)})).unwrap();
+    let Some(crate::dialogs::Dialog::ReportProblem(d)) = a.dialog.as_ref() else { panic!("no window") };
+    assert_eq!(d.typed.expected.chars().count(), TEXT_CHARS);
     // From an agent the owner let send: the same, and still nothing sent.
     a.dialog = None;
     let (req, _rx) = crate::ControlRequest::new("engine.execute", json!({"command": "ui.reportProblem", "params": {"what": "x", "via": "send"}}));

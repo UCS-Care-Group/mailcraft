@@ -102,6 +102,12 @@ Want to use it rather than build it? Sign up with the
 Found something wrong? Use the
 [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml).
 
+A build from this repository sends Help › Report a Problem › Send report to the project's real
+report relay (`MAILCRAFT_REPORT_URL` in `.cargo/config.toml`), where every report becomes an
+issue the maintainers read. Don't press it to try the window out: build with
+`MAILCRAFT_REPORT_URL=` (empty) to have Open on GitHub alone, and use the tests' stand-in relay
+(`crates/net/src/report_tests.rs`) for the sending.
+
 ## Revision history
 
 | Date | Change | Summary |

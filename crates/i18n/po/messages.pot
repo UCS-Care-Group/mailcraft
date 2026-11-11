@@ -979,6 +979,11 @@ msgid "Another time was proposed to {name}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Another window is open: the report wasn't filled in."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "Answer the invitation in your calendar. The organizer can't be written to from this account."
 msgstr ""
@@ -10281,7 +10286,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
-msgid "Thank you. Give this reference if you write to us about it."
+msgid "Thank you. The MailCraft team has it under this reference."
 msgstr ""
 
 #. interface
@@ -11920,6 +11925,11 @@ msgid "This removes everything MailCraft keeps on this computer: every account's
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "This report is too long to send: shorten what you wrote, or untick Include diagnostics."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr ""
@@ -12584,6 +12594,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "What happened"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What happened and what you expected come to {n} characters together: a report takes {max}."
 msgstr ""
 
 #. interface

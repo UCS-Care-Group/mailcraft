@@ -38,6 +38,9 @@ fn what_the_window_holds_is_tidied_as_the_relay_reads_it_and_never_cut() {
     assert_eq!(r.username.as_deref(), Some("octocat"));
     assert_eq!(r.diagnostics.as_deref(), Some("log\n"));
     assert_eq!(r.check(), Ok(()));
+    // A byte-order mark alone is nothing, as the relay trims it.
+    assert_eq!(ProblemReport::new("\u{feff}", "x", "1", "p", "", None).check(), Err(Field::Title));
+    assert_eq!(ProblemReport::new("t", " \u{feff} ", "1", "p", "", None).check(), Err(Field::Text));
     let long = "x".repeat(MAX_TEXT + 1);
     let r = ProblemReport::new("t", &long, "1", "p", "", None);
     assert_eq!(r.text.len(), MAX_TEXT + 1);
@@ -134,5 +137,16 @@ proptest! {
         }
         let fitted = fit_diagnostics(diag.as_deref().unwrap_or_default());
         prop_assert!(fitted.len() <= MAX_DIAGNOSTICS);
+    }
+
+    #[test]
+    fn long_diagnostics_fit_the_room_in_json_and_keep_their_head(lines in proptest::collection::vec("[^\n]{0,400}", 0..400)) {
+        let head = "### MailCraft diagnostics\n\n- Version: 0.9.0\n- Platform: linux x86_64\n";
+        let text = format!("{head}{}", lines.join("\n"));
+        let fitted = fit_diagnostics(&text);
+        // (Written in JSON, less its two quotes.)
+        let in_json = serde_json::to_string(&fitted).unwrap().len() - 2;
+        prop_assert!(in_json <= DIAGNOSTICS_ROOM, "{}", in_json);
+        prop_assert!(fitted.starts_with(head));
     }
 }

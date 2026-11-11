@@ -110,9 +110,14 @@ fn without_controls(text: &str) -> String {
     text.chars().filter(|c| !refused_control(*c)).collect()
 }
 
+/// `text` without white space at either end, nor a byte-order mark (which the relay trims too).
+fn trim(text: &str) -> &str {
+    text.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+}
+
 /// `text` on one line: line breaks and control characters become spaces, then trimmed.
 fn one_line(text: &str) -> String {
-    text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect::<String>().trim().to_string()
+    trim(&text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect::<String>()).to_string()
 }
 
 /// How the relay counts a length: UTF-16 code units.
@@ -138,11 +143,11 @@ impl ProblemReport {
     /// the title, version and platform on one line, invisible control characters left out, the
     /// username without its `@` (none when empty) and empty diagnostics none. Nothing is cut.
     pub fn new(title: &str, text: &str, version: &str, platform: &str, username: &str, diagnostics: Option<&str>) -> ProblemReport {
-        let username = username.trim();
-        let username = username.strip_prefix('@').unwrap_or(username).trim();
+        let username = trim(username);
+        let username = trim(username.strip_prefix('@').unwrap_or(username));
         ProblemReport {
             title: one_line(title),
-            text: without_controls(text).trim().to_string(),
+            text: trim(&without_controls(text)).to_string(),
             version: one_line(version),
             platform: one_line(platform),
             username: (!username.is_empty()).then(|| username.to_string()),
@@ -153,11 +158,11 @@ impl ProblemReport {
     /// The first part the relay would refuse, by its rules (the whole request's size apart:
     /// [`ProblemReport::json`]).
     pub fn check(&self) -> Result<(), Field> {
-        let line = |v: &str, max: usize| !v.trim().is_empty() && units(v) <= max && !v.chars().any(|c| c == '\r' || c == '\n' || refused_control(c));
+        let line = |v: &str, max: usize| !trim(v).is_empty() && units(v) <= max && !v.chars().any(|c| c == '\r' || c == '\n' || refused_control(c));
         if !line(&self.title, MAX_TITLE) {
             return Err(Field::Title);
         }
-        if self.text.trim().is_empty() || units(self.text.trim()) > MAX_TEXT || self.text.chars().any(refused_control) {
+        if trim(&self.text).is_empty() || units(trim(&self.text)) > MAX_TEXT || self.text.chars().any(refused_control) {
             return Err(Field::Text);
         }
         if !line(&self.version, MAX_LINE) {

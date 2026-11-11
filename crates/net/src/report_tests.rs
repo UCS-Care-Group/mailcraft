@@ -119,10 +119,52 @@ fn only_https_leaves_this_machine_and_a_bad_report_sends_nothing() {
 }
 
 #[test]
-fn the_build_names_an_https_relay_or_none() {
-    if let Some(url) = relay() {
-        assert!(url.starts_with("https://"), "{url}");
+fn a_relay_that_hangs_up_after_the_report_may_have_it() {
+    // The report went; no answer came back: said as "may have arrived", never "couldn't be reached".
+    let fake = FakeHttp::answering(Vec::new());
+    assert_eq!(send(&fake), Err(NotSent::Garbled));
+    assert_eq!(fake.asked(), 1);
+}
+
+#[test]
+fn a_relay_whose_certificate_isnt_trusted_is_sent_nothing() {
+    use std::io::Read as _;
+    let config = crate::tls_test_support::Authority::new("Untrusted Test Authority").server(&["localhost"]);
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let kept = got.clone();
+    std::thread::spawn(move || {
+        if let Ok((tcp, _)) = listener.accept() {
+            let conn = rustls::ServerConnection::new(config).unwrap();
+            let mut tls = rustls::StreamOwned::new(conn, tcp);
+            let mut buf = [0u8; 1024];
+            if let Ok(n) = tls.read(&mut buf) {
+                kept.lock().unwrap().extend_from_slice(&buf[..n]);
+            }
+        }
+    });
+    assert_eq!(send_to(&format!("https://localhost:{port}/api/report"), &report()), Err(NotSent::Unreachable));
+    assert!(got.lock().unwrap().is_empty(), "not a byte of the report went");
+}
+
+#[test]
+fn only_an_https_address_will_do_as_the_relay() {
+    assert!(is_relay("https://mailcraft.work/api/report"));
+    assert!(is_relay("HTTPS://relay.example/api/report"));
+    for bad in [
+        "http://mailcraft.work/api/report",
+        "http://127.0.0.1:8080/api/report",
+        "",
+        "mailcraft.work",
+        "https://",
+        "https://a b/",
+        "https://user@relay.example/",
+    ] {
+        assert!(!is_relay(bad), "{bad}");
     }
+    // And the one this build names, when it names one, is such an address.
+    assert!(relay().is_none_or(is_relay));
 }
 
 proptest! {

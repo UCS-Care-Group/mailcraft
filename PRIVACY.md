@@ -171,10 +171,13 @@ links, ids and quoted text taken out), which you can untick. Nothing is sent unt
 report, and a script or an AI agent can fill the window but never send it.
 
 - **What the relay sees.** The report, and your IP address, which it needs to limit how many
-  reports come from one place (10 a day). The address is never logged or kept: it is counted
-  only as a keyed hash whose key changes every day, and the day's counts are deleted when the
-  next day's first report comes in. The relay runs on Microsoft Azure; its log holds one line for
-  each report it took, with the report's number and nothing of what was in it.
+  reports come from one place (10 a day). The relay never logs or keeps the address: it counts
+  it only as a keyed hash whose key changes every day, and the day's counts are deleted when the
+  next day's first report comes in. The relay runs on Microsoft Azure, whose monitoring
+  (Application Insights) works out a rough location (country and region) from the address of
+  each request and then keeps the address only as `0.0.0.0`. The relay's log holds one line for
+  each report it took, with the report's number, and a line when one couldn't be filed, saying
+  why; nothing of what was in the report.
 - **Where reports go.** The relay files each report as an issue in a private repository of the
   project on GitHub, which only the project's maintainers can read. GitHub keeps it under its own
   terms, as it keeps the project's public issues.
