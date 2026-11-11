@@ -2090,7 +2090,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::ImportPst(dialog) => {
             let mut done = false;
-            let open = window(ctx, tl!("Import a .pst File (preview)"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, tl!("Import a .pst File"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
             // (Closed, or Escape, while it reads: the reading stops, and what was read goes in and
             // the report is shown first.)
             let asked = close || !open;

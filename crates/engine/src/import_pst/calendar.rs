@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Appointments, meetings and tasks of a .pst file ([MS-OXOCAL], [MS-OXOTASK]) as events and
-//! to-dos of the mailbox (#815). Nothing is ever sent for them: attendees and their answers are
+//! Appointments, meetings, tasks, notes and journal entries of a .pst file ([MS-OXOCAL],
+//! [MS-OXOTASK], [MS-OXONOTE], [MS-OXOJRNL]) as items of the mailbox (#815). Nothing is ever sent for them: attendees and their answers are
 //! kept as data. What the file holds is hostile: lengths are capped and a series that can't be
 //! read comes in as its first occurrence, named.
 
 use std::collections::HashMap;
 use std::io::{Read, Seek};
 
-use mailcraft_model::{Address, Attendee, Event, Freq, Importance, Recurrence, Response, ShowAs, Task};
+use mailcraft_model::{Address, Attendee, Event, Freq, Importance, JournalEntry, Note, Recurrence, Response, ShowAs, Task};
 use mailcraft_pst::{Error as PstError, NamedMap, PropName, PropValue, Pst, Recur, recur};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 
@@ -17,6 +17,8 @@ use super::item::{self, Named, PSETID_TASK, Text, filetime};
 
 pub const PSETID_APPOINTMENT: [u8; 16] = [0x02, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46];
 pub const PSETID_COMMON: [u8; 16] = [0x08, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46];
+pub const PSETID_NOTE: [u8; 16] = [0x0E, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46];
+pub const PSETID_LOG: [u8; 16] = [0x0A, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46];
 pub const PSETID_MEETING: [u8; 16] = [0x90, 0xDA, 0xD8, 0x6E, 0x0B, 0x45, 0x1B, 0x10, 0x98, 0xDA, 0x00, 0xAA, 0x00, 0x3F, 0x13, 0x05];
 
 const BUSY_STATUS: u32 = 0x8205;
@@ -41,8 +43,13 @@ const TASK_DONE_ON: u32 = 0x810F;
 const TASK_RECURS: u32 = 0x8126;
 const TASK_COMPLETE: u32 = 0x811C;
 const REMINDER_TIME: u32 = 0x8502;
+const NOTE_COLOR: u32 = 0x8B00;
+const LOG_TYPE: u32 = 0x8700;
+const LOG_START: u32 = 0x8706;
+const LOG_DURATION: u32 = 0x8707;
+const LOG_END: u32 = 0x8708;
 
-const WANTED: [([u8; 16], u32); 19] = [
+const WANTED: [([u8; 16], u32); 24] = [
     (PSETID_APPOINTMENT, BUSY_STATUS),
     (PSETID_APPOINTMENT, LOCATION),
     (PSETID_APPOINTMENT, START_WHOLE),
@@ -62,6 +69,11 @@ const WANTED: [([u8; 16], u32); 19] = [
     (PSETID_MEETING, GLOBAL_ID),
     (PSETID_TASK, TASK_START),
     (PSETID_TASK, TASK_DUE),
+    (PSETID_NOTE, NOTE_COLOR),
+    (PSETID_LOG, LOG_TYPE),
+    (PSETID_LOG, LOG_START),
+    (PSETID_LOG, LOG_DURATION),
+    (PSETID_LOG, LOG_END),
 ];
 const WANTED_TASK: [u32; 3] = [TASK_DONE_ON, TASK_RECURS, TASK_COMPLETE];
 
@@ -124,6 +136,8 @@ impl CalendarIds {
 pub enum Kind {
     Appointment,
     Task,
+    Note,
+    Journal,
 }
 
 pub fn kind(class: &str) -> Option<Kind> {
@@ -133,6 +147,10 @@ pub fn kind(class: &str) -> Option<Kind> {
         Some(Kind::Appointment)
     } else if family("ipm.task") {
         Some(Kind::Task)
+    } else if family("ipm.stickynote") {
+        Some(Kind::Note)
+    } else if family("ipm.activity") {
+        Some(Kind::Journal)
     } else {
         None
     }
@@ -624,4 +642,90 @@ pub fn build_task<R: Read + Seek>(
         return Ok(Err(PAST_BUDGET));
     }
     Ok(Ok((task, notes)))
+}
+
+/// Why a note or a journal entry past what one import may keep is left out.
+const PAST_KEPT: &str = "as many notes and journal entries have come in as a mailbox or one import may keep";
+
+fn charge_kept(named: &Named, cost: usize) -> bool {
+    let (cost, room) = ((cost as u64).saturating_add(256), named.kept_room.get());
+    named.kept_room.set(room.saturating_sub(cost));
+    cost <= room
+}
+
+fn files_left_out(m: &mailcraft_pst::Message, kind: &str, notes: &mut Vec<String>) {
+    let files = m.attachments.iter().filter(|a| !a.properties.bool(0x7FFE).unwrap_or(false)).count();
+    if files > 0 {
+        notes.push(format!("{files} attached files are left out: {kind} here don't keep files"));
+    }
+}
+
+/// A sticky note. Its text is its body; the subject Outlook keeps is only its first line.
+pub fn build_note<R: Read + Seek>(
+    pst: &mut Pst<R>,
+    m: &mailcraft_pst::Message,
+    named: &Named,
+) -> Result<Result<(Note, Vec<String>), &'static str>, PstError> {
+    let p = &m.properties;
+    let text = Text::of(p, named.charset);
+    let (mut body, mut notes) = item::plain_body(pst, m, named, MAX_NOTES)?;
+    left_out_notes(m, &mut notes);
+    files_left_out(m, "notes", &mut notes);
+    if body.trim().is_empty() {
+        body = text.short(p, 0x0037).map(short).unwrap_or_default();
+    }
+    let color = match named.calendar.id(NOTE_COLOR).and_then(|id| p.int(id)) {
+        Some(0) => "blue",
+        Some(1) => "green",
+        Some(2) => "pink",
+        Some(4) => "white",
+        _ => "yellow",
+    };
+    let note = Note {
+        text: body,
+        color: color.to_string(),
+        categories: item::own_categories(p, named, &text),
+        created: p.time(0x3007).and_then(moment).unwrap_or(0),
+        modified: p.time(0x3008).and_then(moment).unwrap_or(0),
+        ..Default::default()
+    };
+    if !charge_kept(named, note.text.len().saturating_add(categories_held(&note.categories))) {
+        return Ok(Err(PAST_KEPT));
+    }
+    Ok(Ok((note, notes)))
+}
+
+/// A journal entry.
+pub fn build_journal<R: Read + Seek>(
+    pst: &mut Pst<R>,
+    m: &mailcraft_pst::Message,
+    named: &Named,
+) -> Result<Result<(JournalEntry, Vec<String>), &'static str>, PstError> {
+    let p = &m.properties;
+    let ids = &named.calendar;
+    let text = Text::of(p, named.charset);
+    let time = |lid: u32| ids.id(lid).and_then(|id| p.time(id)).and_then(moment);
+    let (body, mut notes) = item::plain_body(pst, m, named, MAX_NOTES)?;
+    left_out_notes(m, &mut notes);
+    files_left_out(m, "journal entries", &mut notes);
+    let start = time(LOG_START).or_else(|| time(COMMON_START)).unwrap_or(0);
+    let people: Vec<Address> =
+        m.recipients.iter().filter_map(|r| item::person(&text, &r.properties, [0x3001, 0x39FE, 0x3003])).take(MAX_ATTENDEES).collect();
+    let entry = JournalEntry {
+        subject: text.short(p, 0x0037).map(short).unwrap_or_default(),
+        activity: ids.id(LOG_TYPE).and_then(|id| text.short(p, id)).map(short).unwrap_or_default(),
+        start,
+        end: time(LOG_END).or_else(|| time(COMMON_END)).unwrap_or(start).max(start),
+        minutes: ids.id(LOG_DURATION).and_then(|id| p.int(id)).and_then(|d| u32::try_from(d).ok()).unwrap_or(0),
+        text: body,
+        categories: item::own_categories(p, named, &text),
+        people,
+        ..Default::default()
+    };
+    let people_held = entry.people.iter().map(|a| a.name.len().saturating_add(a.email.len()).saturating_add(64)).fold(0usize, usize::saturating_add);
+    let cost = entry.subject.len().saturating_add(entry.activity.len()).saturating_add(entry.text.len()).saturating_add(people_held);
+    if !charge_kept(named, cost.saturating_add(categories_held(&entry.categories))) {
+        return Ok(Err(PAST_KEPT));
+    }
+    Ok(Ok((entry, notes)))
 }
