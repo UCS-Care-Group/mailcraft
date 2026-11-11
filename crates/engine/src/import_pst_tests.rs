@@ -2095,3 +2095,11 @@ fn a_streamed_list_with_long_notes_shares_the_room_with_its_members() {
     let c = s.mailbox.contacts.values().next().unwrap();
     assert!(c.notes.ends_with("Member 9 <m9@example.org>"), "{}", &c.notes[c.notes.len() - 200..]);
 }
+
+/// A file's list that has a name twice in other letters keeps it once, in any alphabet (#788).
+#[test]
+fn the_files_list_keeps_a_name_in_other_letters_once() {
+    let xml = r#"<categories><category name="Ärger" color="1"/><category name="ärger" color="2"/><category name="Red"/><category name="red"/></categories>"#;
+    let names: Vec<String> = categories(xml).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["Ärger", "Red"]);
+}

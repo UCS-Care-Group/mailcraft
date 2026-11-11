@@ -288,7 +288,7 @@ fn tidy_rule(mut rule: Recurrence) -> Recurrence {
 fn names(list: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for name in list.iter().map(|name| line(name, MAX_NAME)).filter(|name| !name.is_empty()) {
-        if out.len() < MAX_ENTRIES && !out.iter().any(|have| have.eq_ignore_ascii_case(&name)) {
+        if out.len() < MAX_ENTRIES && !out.iter().any(|have| crate::sync::same_category(have, &name)) {
             out.push(name);
         }
     }

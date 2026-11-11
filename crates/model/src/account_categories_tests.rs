@@ -421,3 +421,12 @@ fn a_file_that_says_a_list_is_kept_in_step_without_the_servers_list_sends_nothin
     // (Even before a repair, nothing goes for a list whose server's wasn't read.)
     assert!(mb.category_upload(a).is_empty() && mb.categories_to_write(a).is_empty());
 }
+
+/// An event a server gives a name twice in other letters keeps it once, in any alphabet (#788).
+#[test]
+fn a_servers_event_keeps_a_name_in_other_letters_once() {
+    let mut event =
+        crate::remote::RemoteEvent { categories: vec!["Ärger".into(), "ärger".into(), "Red".into(), "red".into()], ..Default::default() };
+    event.tidy();
+    assert_eq!(event.categories, ["Ärger", "Red"]);
+}
