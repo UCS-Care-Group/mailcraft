@@ -1,14 +1,16 @@
 # MailCraft privacy statement
 
-MailCraft is a mail, calendar, contacts and tasks program that runs on your own computer. The
-project runs no service of its own: there is no MailCraft account, no MailCraft server, and
-nothing in the program reports to the project or to anybody who works on it.
+MailCraft is a mail, calendar, contacts and tasks program that runs on your own computer. There
+is no MailCraft account and no MailCraft mail server. The project runs one service, the report
+relay, which takes a problem report you send yourself (below). Nothing is sent to the project
+unless you press Send in Report a Problem, and then only what that window showed you.
 
 ## What the project collects
 
-Nothing. MailCraft has no telemetry, no analytics, no crash reporting and no advertising. It
-checks for new versions only if you turn that on (see below), and that check sends nothing about
-you.
+Nothing by itself. MailCraft has no telemetry, no analytics, no crash reporting and no
+advertising. It checks for new versions only if you turn that on (see below), and that check
+sends nothing about you. The one thing the project receives is a problem report you chose to
+send ([Problem reports](#problem-reports)).
 
 ## Where your data is
 
@@ -37,6 +39,13 @@ you.
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how
   many and clears them.
+- **Attachment previews** are off until you enable them in File › Options. Previewing passes a
+  temporary copy of the selected attachment and rendering arguments to a local executable, which
+  runs with your operating system permissions. For PDFs or images respectively, MailCraft uses
+  the path in `MAILCRAFT_PDFCRAFT_CLI` or `MAILCRAFT_PHOTOCRAFT_CLI` if set. Otherwise it looks
+  for the expected CLI name in the usual Windows or macOS installation location and then on
+  `PATH`. It selects the file by path and name without verifying the program's publisher or
+  identity. In Junk E-mail and its subfolders, choose Preview Attachment from the attachment menu.
 - **A downloaded new version** (only for a copy that updates itself) is kept in the `updates`
   folder of MailCraft's settings folder until it is installed (when you press Restart to update,
   or when you quit), and is deleted when it doesn't pass MailCraft's release signature or when a
@@ -70,6 +79,7 @@ MailCraft connects only to these, over encrypted connections:
 | The certificate authority that issued a server's certificate, on Windows and macOS | When a server MailCraft connects to leaves out the intermediate certificate its own was issued by: the system fetches it from the address the certificate names, as it does for other programs (and may ask whether the certificate was revoked) | Nothing of yours: the authority learns only which of its certificates a server on the way uses |
 | GitHub's API (`api.github.com`), to see whether a new version is out | Off unless you turn it on (the program asks once, and the switch in File › About changes it): then at most once a day; and whenever you press Check for Updates in File › About | One request for the newest release of MailCraft's repository (`GET /repos/UCS-Care-Group/mailcraft/releases/latest`), with nothing about you, your accounts, your mail or this computer in it, not even the version you run |
 | GitHub's release downloads (`github.com`, and `objects.githubusercontent.com` or `release-assets.githubusercontent.com`, where GitHub sends those), to download a new version | Only for a copy installed from the Windows `.msi`, the macOS app or a Linux AppImage, while the daily check is on and File › About › Install updates automatically is on (as it is unless you, or your organisation, turn it off); when a check finds a newer release | Requests for three files of that release: its list of checksums, the signature over it, and the package for your kind of computer. Nothing about you, your accounts, your mail or the version you run. The package is kept in the program's own folder, installed only when MailCraft's release signature says it is the project's own (when you press Restart to update, or when you quit), and deleted otherwise. Installing it connects to nothing |
+| The project's report relay (`mailcraft.work/api/report`), in the desktop app | Only when you press Send report (or Try again) in Help › Report a Problem; never by itself, never again by itself, and never for a script or an agent | One request, over HTTPS, with what the window showed you: the title, what you wrote, MailCraft's version and your platform, the GitHub username if you gave one, and the diagnostics if you left them ticked. No account, address, mailbox name, computer name or identifier, no cookie, no sign-in. The relay sees your IP address, as any web server does ([Problem reports](#problem-reports)) |
 
 Nothing in a message runs, and nothing in a message is fetched unless you ask for its pictures. A message's own style sheet is read for how the message looks (colours, sizes, spacing, what the sender hid), but nothing in it is ever fetched: a sheet's `@import`, its fonts and its pictures are ignored, and a link it styles is never shown as visited. Its `@media` rules are tested against two things on your own computer and nothing else: how wide the message is laid out in the reading pane, and whether your window is dark; the program sends neither to anyone. One consequence to know: once you allow pictures, a message can show a different picture in a dark window, or at each of several widths, and the picture for the look on screen is fetched, so its server can tell from which address was asked for that your window is dark and how wide the message is laid out, to within a few pixels (it is told nothing else, and nothing is fetched until you allow pictures). What a sender hid in a message (a line of preview text, the other copy of a desktop and mobile pair) is not shown to you and is not quoted in your replies, but it is kept with the message on your computer, so that your search and your rules can find it, and it is what an agent you have allowed to read your mail is given as the message's text. The one other thing fetched for your mail is a sender's picture, and only once you turn sender images on.
 
@@ -138,9 +148,10 @@ for. MailCraft asks for three things, and uses each on your computer, for you, a
 - keeping you signed in (a refresh token, stored as described above).
 
 MailCraft does not ask for your Google Calendar, Contacts, Drive or anything else of your Google
-account. The mail goes from Google's servers to your computer and stays there: MailCraft has no
-server of its own, so nothing of your Google data is sent to the project, to anybody who works on
-it, or to anybody else. Nobody at the project can read it, it is not used for advertising, it is
+account. The mail goes from Google's servers to your computer and stays there: nothing of your
+Google data is sent to the project, to anybody who works on it, or to anybody else. (The project's
+one service, the report relay, receives only a problem report you write and send yourself, and
+its diagnostics hold no message, address or sign-in.) Nobody at the project can read it, it is not used for advertising, it is
 not sold, and it is not used to develop, improve or train any AI or machine-learning model.
 Scripts and AI agents (below) can read it only on your own computer, when you start the program
 with them and they act for you. MailCraft itself sends none of it to any AI service. An agent you
@@ -157,6 +168,33 @@ including the Limited Use requirements.
 You can take the permissions back at any time at <https://myaccount.google.com/permissions>;
 MailCraft then asks you to sign in again the next time it needs them. File › Info › Remove
 MailCraft's data from this computer removes your mail and every stored sign-in from your computer.
+
+## Problem reports
+
+Help › Report a Problem shows you everything a report holds before anything goes: the title and
+the text you type, the version and platform, an optional GitHub username, and the diagnostics
+(the version, the platform and the end of the program's log with addresses, names, paths, hosts,
+links, ids and quoted text taken out), which you can untick. Nothing is sent until you press Send
+report, and a script or an AI agent can fill the window but never send it.
+
+- **What the relay sees.** The report, and your IP address, which it needs to limit how many
+  reports come from one place (10 a day). The relay never logs or keeps the address: it counts
+  it only as a keyed hash whose key changes every day, and the day's counts are deleted when the
+  next day's first report comes in. The relay runs on Microsoft Azure, whose monitoring
+  (Application Insights) works out a rough location (country and region) from the address of
+  each request and then keeps the address only as `0.0.0.0`. The relay's log holds one line for
+  each report it took, with the report's number, and a line when one couldn't be filed, saying
+  why; nothing of what was in the report.
+- **Where reports go.** The relay files each report as an issue in a private repository of the
+  project on GitHub, which only the project's maintainers can read. GitHub keeps it under its own
+  terms, as it keeps the project's public issues.
+- **Made public only as a copy.** When a report is a real problem, a maintainer may copy it into
+  the project's public issues on GitHub, with what you wrote and the diagnostics, after taking out
+  anything personal they find, and mention your GitHub username there if you gave one. That is
+  why the window asks you to leave out anything private. A report that isn't copied stays private
+  and notifies nobody.
+- **Open on GitHub** sends nothing through MailCraft: it opens GitHub's own page in your browser,
+  filled in, for you to read and submit there, publicly, under your GitHub account.
 
 ## Scripts and agents
 

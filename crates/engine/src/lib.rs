@@ -49,7 +49,15 @@ mod mark_tests;
 pub mod opening;
 #[cfg(test)]
 mod opening_tests;
+#[cfg(test)]
+mod openpgp_signature_tests;
 mod picture_fit;
+pub mod private_keys;
+#[cfg(test)]
+#[allow(dead_code)]
+mod private_keys_fixtures_tests;
+#[cfg(test)]
+mod private_keys_tests;
 pub mod sample;
 pub mod sender_warnings;
 mod session;
@@ -420,6 +428,8 @@ mod ews_account_tests;
 mod focus_stays_tests;
 #[cfg(test)]
 mod gmail_tests;
+#[cfg(test)]
+mod import_pst_calendar_tests;
 #[cfg(test)]
 mod import_pst_memory_tests;
 #[cfg(test)]
