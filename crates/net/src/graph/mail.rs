@@ -38,7 +38,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_model::sync::{
     ChangeOutcome, FolderChange, FolderChangeDone, FolderListing, GraphFolder, GraphMailRequest, GraphMailResult, MAX_FOLDER_CHANGES,
-    MAX_LISTED_FOLDERS, SyncPhase,
+    MAX_LISTED_FOLDERS, OWN_FOLDER_CODES, SyncPhase,
 };
 use mailcraft_model::{FolderKind, clean_name};
 use serde_json::{Value, json};
@@ -867,7 +867,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                     None => refused("the server has a folder of that name there"),
                 })),
                 404 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, &body),
+                _ => outcome_of(graph, &reply, &body, false),
             }
         }
         FolderChange::Rename { folder: _, id, name } => {
@@ -881,7 +881,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                 200 | 201 => Ok(Some(done_in_place(known, &reply)?)),
                 409 => Ok(Some(refused("the server has a folder of that name there"))),
                 404 | 410 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, &body),
+                _ => outcome_of(graph, &reply, &body, false),
             }
         }
         FolderChange::Move { folder: _, id, parent } => {
@@ -895,7 +895,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                 200 | 201 => Ok(Some(done(known, &reply, &to)?)),
                 409 => Ok(Some(refused("the server has a folder of that name there"))),
                 404 | 410 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, &body),
+                _ => outcome_of(graph, &reply, &body, true),
             }
         }
         FolderChange::Delete { id, shown } => {
@@ -914,7 +914,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
             match reply.status {
                 200..=299 => Ok(Some(ChangeOutcome::Done { folder: GraphFolder { id, ..Default::default() } })),
                 404 | 410 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, ""),
+                _ => outcome_of(graph, &reply, "", true),
             }
         }
     }
@@ -961,16 +961,34 @@ fn done_in_place(known: &Known, reply: &Reply) -> Result<ChangeOutcome, NetError
 /// In a shared mailbox (#70) a refusal never puts back what the owner changed: one that is by
 /// Graph's code no access (or no mailbox) stops the run's changes as [`NetError::SharedRefused`],
 /// and any other 403 stops them too, the change waiting here for the next run.
-fn outcome_of(graph: &Graph<'_>, reply: &Reply, sent: &str) -> Result<Option<ChangeOutcome>, NetError> {
+///
+/// A folder the server answers is one of its own is [`ChangeOutcome::OwnFolder`] (#1069): put
+/// back here and never offered for it again. That is an answer with one of [`OWN_FOLDER_CODES`],
+/// whatever its status; or, for a move or a deletion (`moving`) in the owner's own mailbox, a 403:
+/// the owner may move and delete every folder of his that the server lets go of. Any other answer
+/// that is the server's last word on a change (a 400, a 405, a 422) is a refusal, so that the
+/// folder is put back rather than the run stopping on it every time.
+fn outcome_of(graph: &Graph<'_>, reply: &Reply, sent: &str, moving: bool) -> Result<Option<ChangeOutcome>, NetError> {
     refusing(graph, reply)?;
+    let body = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    let code = body.get("error").map_or("", |error| text(error, "code"));
+    if OWN_FOLDER_CODES.iter().any(|own| own.eq_ignore_ascii_case(code)) {
+        return Ok(Some(own_folder()));
+    }
     if graph.shared() && reply.status == 403 {
         return Err(graph.refusal(Doing::Folders, reply, sent));
     }
     match reply.status {
-        400 => Ok(Some(refused("the server says the change isn't one it can make"))),
+        403 if moving => Ok(Some(own_folder())),
+        400 | 405 | 422 => Ok(Some(refused("the server says the change isn't one it can make"))),
         403 => Ok(Some(refused("the server says this account may not make that change"))),
         _ => Err(graph.refusal(Doing::Folders, reply, sent)),
     }
+}
+
+/// One of the server's own folders, which stays where it is (#1069).
+fn own_folder() -> ChangeOutcome {
+    ChangeOutcome::OwnFolder { why: "the server keeps this folder and doesn't let it be moved or deleted".to_string() }
 }
 
 /// The folder called `name` (in any case) in `parent` (a server id; empty: the top).

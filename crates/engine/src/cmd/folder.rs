@@ -168,6 +168,17 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
+/// [`target`], refused with the menu's reason when it is one of the server's own folders (#756;
+/// RSS Feeds and the like once the server has said so, #1069): an agent or a script that asks
+/// anyway is told why, and nothing changes.
+fn not_servers(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let id = target(s, v)?;
+    if s.mailbox.folder(id).is_some_and(|f| f.server_owned()) {
+        return Err(fail("the server keeps this folder: it can't be renamed, moved or deleted"));
+    }
+    Ok(id)
+}
+
 /// A folder by `Inbox/Projects/Apollo` (case-insensitive), in `account` or any account.
 pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
     let want = path.trim().trim_matches('/').to_lowercase();
@@ -292,13 +303,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     s.mailbox.rename_folder(id, p::req_str(v, "name")?)?;
     Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
 }
 
 fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     let parent = match v.get("parent") {
         Some(Value::Null) => None,
         Some(_) => Some(p::req_id(v, "parent")?),
@@ -309,7 +320,7 @@ fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     let parent = s.mailbox.folder(id).and_then(|f| f.parent);
     let account = s.mailbox.folder(id).map(|f| f.account);
     let permanently = s.mailbox.delete_folder(id)?;

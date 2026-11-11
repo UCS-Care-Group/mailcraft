@@ -17448,7 +17448,7 @@ msgstr "Der Server hat die Sitzung beendet: {reason}"
 msgid "the server greeted with a refusal: {reason}"
 msgstr "Der Server hat mit einer Ablehnung gegrüßt: {reason}"
 
-#. why a command can't run
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
