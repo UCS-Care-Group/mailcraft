@@ -605,3 +605,31 @@ fn a_key_or_a_value_a_part_doesnt_take_is_refused() {
         assert!(s.run("rules.add", &v).is_ok(), "{v}");
     }
 }
+
+/// A category name longer than a category keeps (120 characters; a Microsoft account's mail
+/// carries up to 255) is refused, not cut: an exception for it would never hold, and a rule that
+/// deletes for good would take the message it was to leave alone (#566).
+#[test]
+fn a_long_category_exception_is_refused_not_cut() {
+    let (mut s, account, inbox, _) = session();
+    let long = format!("Project {}", "x".repeat(130));
+    let rule = json!({
+        "name": "Clean up", "account": account,
+        "conditions": [{"type": "subjectContains", "value": "report"}],
+        "exceptions": [{"type": "category", "value": long}],
+        "actions": [{"type": "deleteForGood"}],
+    });
+    let made = s.run("rules.add", &rule);
+    let m = arriving(&mut s, inbox, "ada@example.org", "Report");
+    s.mailbox.message_mut(m).unwrap().categories = vec![long.clone()];
+    if made.is_ok() {
+        let kept = s.mailbox.rules.last().map(|r| r.exceptions.clone());
+        s.run("rules.run", &json!({"folder": inbox})).unwrap();
+        assert!(s.mailbox.message(m).is_some(), "deleted for good past its exception; the rule kept {kept:?}");
+    }
+    assert!(made.is_err());
+    // Nor is a category a rule gives cut to another name; one of 120 characters is taken.
+    let categorize = |name: &str| json!({"name": "Tag", "account": account, "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "categorize", "value": name}]});
+    assert!(s.run("rules.add", &categorize(&long)).is_err());
+    assert!(s.run("rules.add", &categorize(&"y".repeat(120))).is_ok());
+}

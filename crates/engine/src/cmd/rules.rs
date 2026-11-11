@@ -9,7 +9,9 @@
 //! run: those of its server first, then those of this computer; Move Up and Move Down move a rule
 //! within its list.
 
-use mailcraft_model::{Action, Condition, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, clean_name};
+use mailcraft_model::{
+    Action, Condition, FollowUp, Id, Importance, Keep, MAX_NAME, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, clean_name,
+};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_message};
@@ -282,7 +284,8 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
         "from" => Condition::From(people(v)?),
         "sentTo" => Condition::SentTo(people(v)?),
         "category" => {
-            let names: Vec<String> = words(v, "categories")?.iter().filter_map(|c| clean_name(c)).collect();
+            // (A name longer than a category's is refused, not cut: an exception for it would never hold.)
+            let names: Vec<String> = words(v, "categories")?.iter().map(|c| category_name(c)).collect::<Result<_, _>>()?;
             if names.is_empty() {
                 return Err(bad("category needs a category name"));
             }
@@ -336,7 +339,7 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
     Ok(match kind {
         "moveTo" => Action::MoveTo(folder()?),
         "copyTo" => Action::CopyTo(folder()?),
-        "categorize" => Action::Categorize(clean_name(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("categorize needs a category name"))?),
+        "categorize" => Action::Categorize(category_name(p::str(v, "value").unwrap_or(""))?),
         "flag" => alone(v, kind, Action::Flag)?,
         "flagFor" => {
             Action::FlagFor(FollowUp::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("flagFor is today, tomorrow, thisWeek or nextWeek"))?)
@@ -351,6 +354,15 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
         "deleteForGood" => alone(v, kind, Action::DeleteForGood)?,
         other => return Err(bad(format!("unknown action type \"{other}\""))),
     })
+}
+
+/// A category's name as a rule keeps it: one longer than a name can be is refused, not cut, as a
+/// category of that name would be another (#566).
+fn category_name(name: &str) -> Result<String, CmdError> {
+    if name.trim().chars().filter(|c| !c.is_control()).count() > MAX_NAME {
+        return Err(bad(format!("a category's name is at most {MAX_NAME} characters")));
+    }
+    clean_name(name).ok_or_else(|| bad("a category needs a name"))
 }
 
 /// A condition or an action that is a yes or no, which takes no `value`: one given `false` (or a
