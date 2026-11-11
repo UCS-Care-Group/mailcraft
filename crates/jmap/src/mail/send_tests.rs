@@ -1,0 +1,857 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The Outbox going out: what is asked of the server for a message and in which order, what its answers are
+//! taken for, what is never asked twice, and what a hostile answer makes of it. Over the stand-in and over
+//! scripted servers; every message and address is invented, and nothing leaves the process.
+
+use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use mailcraft_model::sync::{JmapChange, MAX_SENDS, SendDone, SendOutcome, SendUp};
+use mailcraft_model::{Address, Body, Message};
+use proptest::prelude::*;
+use serde_json::json;
+
+use super::changes_tests::{
+    Answer, FAKE_SESSION, FAKE_TOKEN, Fake, ME, Reply, api_reply, asks, changes_of, is_upload, json_reply, last, read_on, reading, run_fake,
+    run_over, run_stand_in, run_unchecked, sent_of, session_reply, status_reply,
+};
+use super::send::{
+    BAD_RECIPIENT, BAD_SENDER, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOTHING, Settled, TOO_LARGE, TOO_MANY,
+    filing_of, identity_of, is_address, recipients, settled, written,
+};
+use super::*;
+use crate::connection::tests::any_json;
+use crate::standin::{SESSION, StandIn, TOKEN};
+use crate::{CAPABILITY_CORE as CORE, CAPABILITY_MAIL as MAIL, CAPABILITY_SUBMISSION as SUBMISSION, HttpRequest, HttpResponse, Method};
+
+/// Wednesday 2026-10-14 16:00 UTC.
+const THEN: i64 = 1_791_993_600;
+
+fn people(list: &[&str]) -> Vec<Address> {
+    list.iter().map(|email| Address { name: String::new(), email: email.to_string() }).collect()
+}
+
+/// A message of the account's, as the composer leaves one in the Outbox.
+fn message(to: &[&str], cc: &[&str], bcc: &[&str]) -> Message {
+    Message {
+        id: 41,
+        from: Address::new("Ada", ME),
+        to: people(to),
+        cc: people(cc),
+        bcc: people(bcc),
+        subject: "Lunch".into(),
+        message_id: "lunch-1@example.org".into(),
+        date: THEN,
+        body: Body { text: "Shall we?".into(), html: None },
+        ..Default::default()
+    }
+}
+
+fn outbox(id: u64, message: Message) -> SendUp {
+    SendUp { message: id, draft: None, mime: Some(Box::new(message)) }
+}
+
+/// A message to one person, waiting in the Outbox as the message `id`.
+fn simple(id: u64) -> SendUp {
+    outbox(id, message(&["bob@example.org"], &[], &[]))
+}
+
+fn held(why: &str) -> SendOutcome {
+    SendOutcome::Held { lost: false, why: why.into() }
+}
+
+fn lost() -> SendOutcome {
+    SendOutcome::Held { lost: true, why: String::new() }
+}
+
+fn is(message: u64, outcome: SendOutcome) -> SendDone {
+    SendDone { message, outcome, draft: None, draft_left: String::new() }
+}
+
+/// What a server that sends answers to the calls of a send (and to the others as [`reading`] does).
+fn sending(name: &str, args: &Value) -> Answer {
+    match name {
+        "Identity/get" => Answer::Is(json!({"accountId": "A1", "state": "1", "notFound": [], "list": [{"id": "I1", "email": ME}]})),
+        "Email/import" => Answer::Is(json!({"accountId": "A1", "created": {"m": {"id": "E50", "blobId": "B7", "threadId": "T1", "size": 1}}})),
+        "EmailSubmission/set" => Answer::Is(json!({"accountId": "A1", "created": {"s": {"id": "S1", "undoStatus": "final"}}})),
+        "Email/set" => Answer::Is(json!({"accountId": "A1", "destroyed": args["destroy"].clone()})),
+        _ => reading(name, args),
+    }
+}
+
+fn uploaded() -> Reply {
+    json_reply(201, &json!({"accountId": "A1", "blobId": "B7", "type": "message/rfc822", "size": 1}))
+}
+
+/// A scripted server that sends: the session, an upload taken, and each call answered by `f`, or as
+/// [`sending`] answers it when `f` has nothing to say.
+fn sender(f: impl Fn(&str, &Value) -> Option<Answer> + 'static) -> Fake {
+    sender_but(move |req, _| {
+        (!is_upload(req) && req.method() == Method::Post).then(|| api_reply(req, |name, args| f(name, args).unwrap_or_else(|| sending(name, args))))
+    })
+}
+
+/// A scripted server that sends, but for the requests `f` answers itself (given the request and how many
+/// came before it: the session is the first, then the identities, the roles, the upload and the submission).
+fn sender_but(f: impl Fn(&HttpRequest, usize) -> Option<Reply> + 'static) -> Fake {
+    Fake::new(move |req, n| {
+        if let Some(reply) = f(req, n) {
+            return reply;
+        }
+        match req.method() {
+            Method::Get => session_reply(json!({"maxCallsInRequest": 16}), true),
+            _ if is_upload(req) => uploaded(),
+            _ => api_reply(req, sending),
+        }
+    })
+}
+
+fn send_fake(fake: &Fake, sends: Vec<SendUp>) -> Vec<JmapMailResult> {
+    run_fake(fake, &JmapMailRequest { sends, ..asks(FAKE_SESSION) })
+}
+
+struct Ids {
+    inbox: String,
+    sent: String,
+    drafts: String,
+}
+
+/// A stand-in with an Inbox, a Sent and a Drafts, that sends as the account's address.
+fn world() -> (StandIn, Ids) {
+    let stand_in = StandIn::new();
+    let ids = stand_in.with(|d| {
+        d.identity(ME);
+        Ids {
+            inbox: d.mailbox("Inbox", None, Some("inbox")),
+            sent: d.mailbox("Sent", None, Some("sent")),
+            drafts: d.mailbox("Drafts", None, Some("drafts")),
+        }
+    });
+    (stand_in, ids)
+}
+
+fn send(stand_in: &StandIn, sends: Vec<SendUp>) -> Vec<JmapMailResult> {
+    run_stand_in(stand_in, &JmapMailRequest { sends, ..asks(SESSION) })
+}
+
+/// The paths of the uploads the stand-in was sent.
+fn uploads(stand_in: &StandIn) -> usize {
+    stand_in.seen().iter().filter(|seen| seen.path.starts_with("/jmap/upload/")).count()
+}
+
+#[test]
+fn a_message_is_uploaded_imported_into_sent_and_submitted_with_its_envelope_in_one_request() {
+    let fake = sender(|_, _| None);
+    let mail =
+        message(&["bob@example.org", "carol@example.org"], &["carol@example.org", "dan@example.org"], &["erin@example.org", "bob@EXAMPLE.org", " "]);
+    let pieces = send_fake(&fake, vec![outbox(41, mail)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)]);
+    let end = last(&pieces);
+    assert!(end.whole && end.errors.is_empty(), "{end:?}");
+
+    // In order: the identities, the roles, the upload, one request that imports and submits; then the reading.
+    let posts = fake.posts();
+    assert_eq!(
+        posts[..5],
+        [vec!["Identity/get"], vec!["Mailbox/get"], vec!["upload"], vec!["Email/import", "EmailSubmission/set"], vec!["Mailbox/get"]]
+    );
+    assert_eq!(fake.args_of("Identity/get"), [json!({"accountId": "A1", "properties": ["id", "email"]})]);
+    assert_eq!(fake.args_of("Mailbox/get")[0], json!({"accountId": "A1", "properties": ["id", "role"]}));
+
+    // The upload: a POST of the message to the session's upload address, as a message.
+    let uploads = fake.uploads();
+    assert_eq!(uploads.len(), 1);
+    let upload = &uploads[0];
+    assert_eq!((upload.method(), upload.url()), (Method::Post, "https://jmap.example.org/jmap/upload/A1/"));
+    let fields: Vec<(&str, &str)> = upload.fields().collect();
+    assert!(fields.contains(&("Content-Type", "message/rfc822")) && fields.iter().any(|(name, _)| *name == "Authorization"));
+    let text = String::from_utf8_lossy(upload.body()).to_string();
+    let read = mailcraft_mime::parse(upload.body());
+    assert_eq!(
+        (read.subject.as_str(), read.from.email.as_str(), read.to.len(), read.cc.len(), read.body.text.trim()),
+        ("Lunch", ME, 2, 2, "Shall we?")
+    );
+    // Who is in Bcc is in the envelope only.
+    assert!(read.bcc.is_empty() && !text.contains("erin@example.org") && !text.to_ascii_lowercase().contains("bcc"), "{text}");
+
+    // The import: the blob the upload made, into the mailbox whose role is `sent`, read and a draft still.
+    assert_eq!(
+        fake.args_of("Email/import"),
+        [json!({"accountId": "A1", "emails": {"m": {"blobId": "B7", "mailboxIds": {"M2": true}, "keywords": {"$seen": true, "$draft": true}}}})]
+    );
+    // The submission: the import by its creation id, the identity, and everybody once (To, Cc, Bcc).
+    let rcpt = |email: &str| json!({"email": email, "parameters": null});
+    assert_eq!(
+        fake.args_of("EmailSubmission/set"),
+        [json!({
+            "accountId": "A1",
+            "create": {"s": {
+                "emailId": "#m",
+                "identityId": "I1",
+                "envelope": {
+                    "mailFrom": {"email": ME, "parameters": null},
+                    "rcptTo": [rcpt("bob@example.org"), rcpt("carol@example.org"), rcpt("dan@example.org"), rcpt("erin@example.org")],
+                },
+            }},
+            "onSuccessUpdateEmail": {"#s": {"keywords/$draft": null}},
+        })]
+    );
+    let sent = fake.sent.borrow();
+    let request: Value = serde_json::from_slice(sent[4].body()).unwrap();
+    assert_eq!(request["using"], json!([CORE, MAIL, SUBMISSION]));
+    let identities: Value = serde_json::from_slice(sent[1].body()).unwrap();
+    assert_eq!(identities["using"], json!([CORE, MAIL, SUBMISSION]));
+}
+
+#[test]
+fn what_is_sent_lies_in_sent_without_its_draft_mark_and_the_window_read_after_shows_it() {
+    let (stand_in, ids) = world();
+    let mail = message(&["bob@example.org"], &[], &["erin@example.org"]);
+    let pieces = send(&stand_in, vec![outbox(41, mail), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent), is(42, SendOutcome::Sent)]);
+    // A piece for each, before the list.
+    assert_eq!(pieces.iter().take_while(|piece| piece.listing.is_none()).map(|piece| piece.sent.len()).collect::<Vec<_>>(), [1, 1]);
+    stand_in.with(|d| {
+        assert_eq!(d.submitted.len(), 2);
+        let first = &d.submitted[0];
+        assert_eq!((first.mail_from.as_str(), first.rcpt_to.clone()), (ME, vec!["bob@example.org".to_string(), "erin@example.org".to_string()]));
+        let email = d.email(&first.email).expect("the email submitted is the one imported");
+        assert_eq!(email.mailboxes.iter().collect::<Vec<_>>(), [&ids.sent]);
+        assert_eq!(email.keywords.iter().map(String::as_str).collect::<Vec<_>>(), ["$seen"], "the draft mark is off again");
+        assert!(!String::from_utf8_lossy(&first.raw).contains("erin@example.org"));
+        assert_eq!(d.identities.iter().find(|identity| identity.id == first.identity).map(|identity| identity.email.as_str()), Some(ME));
+    });
+    // The window of Sent, read afterwards, has both.
+    let sent = pieces.iter().flat_map(|p| p.pages.iter()).find(|page| page.folder == ids.sent).unwrap();
+    assert_eq!(sent.messages.len(), 2);
+    assert!(sent.messages.iter().all(|m| m.subject == "Lunch" && m.draft == Some(false) && m.server.read));
+    assert!(last(&pieces).whole);
+    // The identities and the roles once, then for each message an upload and one request.
+    let calls = stand_in.calls();
+    assert_eq!(
+        calls[..7],
+        ["Identity/get", "Mailbox/get", "Email/import", "EmailSubmission/set", "Email/import", "EmailSubmission/set", "Mailbox/get"]
+    );
+    assert_eq!(uploads(&stand_in), 2);
+    assert!(stand_in.with(|d| d.mailbox_named("Inbox") == Some(ids.inbox.as_str())));
+}
+
+#[test]
+fn a_server_without_a_sent_mailbox_files_it_in_drafts_and_one_with_neither_holds_it() {
+    let stand_in = StandIn::new();
+    let drafts = stand_in.with(|d| {
+        d.identity(ME);
+        d.mailbox("Inbox", None, Some("inbox"));
+        d.mailbox("Drafts", None, Some("DRAFTS"))
+    });
+    let pieces = send(&stand_in, vec![simple(41)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)]);
+    stand_in.with(|d| {
+        let email = d.email(&d.submitted[0].email).unwrap();
+        assert!(email.mailboxes.contains(&drafts) && !email.keywords.contains("$draft"));
+    });
+
+    let bare = StandIn::new();
+    bare.with(|d| {
+        d.identity(ME);
+        d.mailbox("Inbox", None, Some("inbox"));
+    });
+    let pieces = send(&bare, vec![simple(41), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, held(NO_MAILBOX)), is(42, held(NO_MAILBOX))]);
+    assert_eq!((uploads(&bare), bare.with(|d| d.submitted.len())), (0, 0));
+    assert!(last(&pieces).whole, "a message held is told with the message, and is nothing wrong with the run");
+
+    // Read from a hostile list: the first of the role, by an id that is one.
+    let list = json!({"list": [7, {"id": "a b", "role": "sent"}, {"id": "M5", "role": 9}, {"id": "M6", "role": "drafts"}, {"id": "M7", "role": "Sent"}, {"id": "M8", "role": "sent"}]});
+    assert_eq!(filing_of(&list), Some("M7".into()));
+    assert_eq!(filing_of(&json!({"list": [{"id": "M6", "role": "drafts"}, {"id": "M1", "role": "inbox"}]})), Some("M6".into()));
+    for none in [json!({}), json!({"list": {}}), json!({"list": [{"id": "M1", "role": "inbox"}, {"role": "sent"}]}), json!(null)] {
+        assert_eq!(filing_of(&none), None, "{none}");
+    }
+}
+
+#[test]
+fn a_server_that_takes_one_call_to_a_request_is_asked_for_the_import_and_then_the_submission() {
+    let (stand_in, ids) = world();
+    stand_in.with(|d| d.max_calls = 1);
+    let pieces = send(&stand_in, vec![simple(41)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)]);
+    let requests: Vec<Vec<String>> = stand_in.seen().into_iter().map(|seen| seen.calls).filter(|calls| !calls.is_empty()).take(4).collect();
+    assert_eq!(requests, [vec!["Identity/get"], vec!["Mailbox/get"], vec!["Email/import"], vec!["EmailSubmission/set"]]);
+    stand_in.with(|d| {
+        let email = d.email(&d.submitted[0].email).unwrap();
+        assert!(email.mailboxes.contains(&ids.sent) && !email.keywords.contains("$draft"));
+        assert_eq!(d.emails.len(), 1);
+    });
+    assert!(ids.drafts != ids.sent);
+}
+
+#[test]
+fn without_the_capability_of_sending_every_message_is_held_and_nothing_is_asked_for_it() {
+    let (stand_in, _) = world();
+    stand_in.with(|d| d.submission = false);
+    let pieces = send(&stand_in, vec![simple(41), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, held(NO_SUBMISSION)), is(42, held(NO_SUBMISSION))]);
+    assert_eq!(uploads(&stand_in), 0);
+    assert_eq!(stand_in.calls()[0], "Mailbox/get", "the run goes straight on to read");
+    assert!(last(&pieces).whole && read_on(&pieces));
+}
+
+#[test]
+fn the_identity_is_the_accounts_own_or_one_for_its_whole_domain_and_without_one_the_message_is_held() {
+    // The stand-in's own identity is another address.
+    let stand_in = StandIn::new();
+    stand_in.with(|d| {
+        d.mailbox("Inbox", None, Some("inbox"));
+        d.mailbox("Sent", None, Some("sent"));
+    });
+    let pieces = send(&stand_in, vec![simple(41)]);
+    assert_eq!(sent_of(&pieces), [is(41, held(NO_IDENTITY))]);
+    assert_eq!((uploads(&stand_in), stand_in.with(|d| d.submitted.len())), (0, 0));
+    assert_eq!(stand_in.calls()[..2], ["Identity/get", "Mailbox/get"], "the roles are not asked for: the next call is the list");
+    assert!(last(&pieces).whole);
+
+    // One for the whole domain will do.
+    let whole = stand_in.with(|d| d.identity("*@Example.ORG"));
+    let pieces = send(&stand_in, vec![simple(41)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)]);
+    assert_eq!(stand_in.with(|d| d.submitted[0].identity.clone()), whole);
+    // The account's own is taken before it, letters compared without regard to case.
+    let own = stand_in.with(|d| d.identity("ADA@Example.org"));
+    send(&stand_in, vec![simple(42)]);
+    assert_eq!(stand_in.with(|d| d.submitted[1].identity.clone()), own);
+
+    // Read from a hostile list.
+    let list = json!({"list": [
+        null, 7, {"id": "I1"}, {"email": ME}, {"id": "a b", "email": ME}, {"id": 5, "email": ME}, {"id": "I2", "email": 5},
+        {"id": "I3", "email": "*@example.org"}, {"id": "I4", "email": "*@example.org"}, {"id": "I5", "email": "x*@example.org"},
+        {"id": "I6", "email": "ada@example.org.evil.example"}, {"id": "I7", "email": "Ada@EXAMPLE.org"},
+    ]});
+    assert_eq!(identity_of(&list, ME), Some("I7".into()));
+    assert_eq!(identity_of(&list, "zoe@example.org"), Some("I3".into()));
+    assert_eq!(identity_of(&list, "zoe@example.net"), None);
+    let thousands: Vec<Value> = (0..5_000).map(|n| json!({"id": format!("I{n}"), "email": format!("p{n}@example.org")})).collect();
+    assert_eq!(identity_of(&json!({"list": thousands}), ME), None);
+    for none in [json!(null), json!({}), json!({"list": "I1"}), json!({"list": {"I1": {"id": "I1", "email": ME}}})] {
+        assert_eq!(identity_of(&none, ME), None, "{none}");
+    }
+}
+
+#[test]
+fn a_message_larger_than_the_server_takes_is_held_before_anything_is_uploaded() {
+    let (stand_in, _) = world();
+    stand_in.with(|d| d.max_upload = 600);
+    let mut big = message(&["bob@example.org"], &[], &[]);
+    big.body.text = "All work and no play. ".repeat(40);
+    let pieces = send(&stand_in, vec![outbox(41, big), simple(42)]);
+    // The big one is held; the small one, after it, goes.
+    assert_eq!(sent_of(&pieces), [is(41, held(TOO_LARGE)), is(42, SendOutcome::Sent)]);
+    assert_eq!(uploads(&stand_in), 1, "only the small one was uploaded");
+    assert!(last(&pieces).whole);
+}
+
+#[test]
+fn an_upload_the_server_refuses_holds_the_message_and_one_it_could_not_take_now_leaves_it_waiting() {
+    // Refused for good: held, with why, and the next message is tried.
+    for (status, why) in [(400, "the server would not take the message: "), (413, TOO_LARGE), (404, "the server would not take the message: ")] {
+        let (stand_in, _) = world();
+        stand_in.with(|d| d.refuse_next_upload.push_back((status, None)));
+        let pieces = send(&stand_in, vec![simple(41), simple(42)]);
+        let sent = sent_of(&pieces);
+        assert!(
+            matches!(&sent[0], SendDone { message: 41, outcome: SendOutcome::Held { lost: false, why: said }, .. } if said.starts_with(why)),
+            "{status}: {sent:?}"
+        );
+        assert_eq!(sent[1], is(42, SendOutcome::Sent), "{status}");
+        assert_eq!(stand_in.with(|d| d.submitted.len()), 1, "{status}");
+        assert!(last(&pieces).whole, "{status}");
+    }
+    // The sign-in refused, the server busy: the run ends, and the message is not reported, so it waits.
+    let (stand_in, _) = world();
+    stand_in.with(|d| d.refuse_next_upload.push_back((401, None)));
+    let pieces = send(&stand_in, vec![simple(41), simple(42)]);
+    assert!(sent_of(&pieces).is_empty() && last(&pieces).auth_refused && !read_on(&pieces));
+    for (status, retry_after, seconds) in [(429, Some(60), 60), (503, None, 30)] {
+        let (stand_in, _) = world();
+        stand_in.with(|d| d.refuse_next_upload.push_back((status, retry_after)));
+        let pieces = send(&stand_in, vec![simple(41), simple(42)]);
+        assert!(sent_of(&pieces).is_empty() && !read_on(&pieces), "{status}");
+        assert_eq!((last(&pieces).busy_for, uploads(&stand_in), stand_in.with(|d| d.submitted.len())), (Some(seconds), 1, 0), "{status}");
+    }
+    // No connection, a server error, an answer that names no blob (or one that is no id): nothing was sent,
+    // the Outbox waits (the second message is not tried), a line says so, and the run goes on to read.
+    let answers: Vec<(&str, Rc<dyn Fn() -> Reply>)> = vec![
+        ("no connection", Rc::new(|| Err(TransportError::Unreachable))),
+        ("timed out", Rc::new(|| Err(TransportError::TimedOut))),
+        ("a server error", Rc::new(|| status_reply(500, None))),
+        ("no blob", Rc::new(|| json_reply(201, &json!({"accountId": "A1"})))),
+        ("a blob that is no id", Rc::new(|| json_reply(201, &json!({"blobId": "B 7/../x"})))),
+        ("no JSON", Rc::new(|| json_reply(201, &json!("B7")))),
+    ];
+    for (what, answer) in answers {
+        let fake = sender_but(move |req, _| is_upload(req).then(|| answer()));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        assert!(sent_of(&pieces).is_empty(), "{what}");
+        assert_eq!(fake.uploads().len(), 1, "{what}");
+        assert!(fake.args_of("EmailSubmission/set").is_empty(), "{what}");
+        let end = last(&pieces);
+        assert!(!end.whole && end.errors.len() == 1 && end.errors[0].starts_with("Couldn't send what waits in the Outbox: "), "{what}: {end:?}");
+        assert!(read_on(&pieces), "{what}");
+    }
+}
+
+#[test]
+fn a_submission_the_server_refuses_holds_the_message_with_why_and_takes_the_copy_away_again() {
+    let leaky = format!("zoe@example.org is not {ME}; token {TOKEN}; see {SESSION}");
+    let cases = [
+        ("forbiddenFrom", "the server does not let this account send with that From address"),
+        ("forbiddenMailFrom", "the server does not let this account send from its address"),
+        ("forbiddenToSend", "the server does not let this account send mail"),
+        ("tooManyRecipients", "the message has more recipients than the server takes"),
+        ("invalidRecipients", "the server says a recipient's address is not valid"),
+        ("noRecipients", NO_RECIPIENTS),
+        ("tooLarge", TOO_LARGE),
+        ("overQuota", "the account is over its quota on the server"),
+        ("invalidEmail", "the server says the message is not one it can send"),
+    ];
+    for (kind, why) in cases {
+        let (stand_in, _) = world();
+        stand_in.with(|d| d.refuse_submission = Some((kind.into(), leaky.clone())));
+        let pieces = send(&stand_in, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, held(why))], "{kind}");
+        // The email it imported is gone again, and nothing was submitted.
+        assert_eq!(stand_in.with(|d| (d.emails.len(), d.submitted.len())), (0, 0), "{kind}");
+        assert_eq!(stand_in.calls()[2..5], ["Email/import", "EmailSubmission/set", "Email/set"], "{kind}");
+        assert!(last(&pieces).whole && last(&pieces).errors.is_empty(), "{kind}");
+    }
+    // An error the standard does not name: the server's words, cleaned of every address and of the secret.
+    let (stand_in, _) = world();
+    stand_in.with(|d| d.refuse_submission = Some(("somethingElse".into(), leaky.clone())));
+    let pieces = send(&stand_in, vec![simple(41)]);
+    let sent = sent_of(&pieces);
+    let SendOutcome::Held { lost: false, why } = &sent[0].outcome else { panic!("not held: {sent:?}") };
+    for hidden in ["zoe@example.org", ME, TOKEN, SESSION, "example.org"] {
+        assert!(!why.contains(hidden), "{hidden} shows in {why:?}");
+    }
+    assert!(why.contains("is not") && why.chars().count() <= 200, "{why:?}");
+    // And with no words, its kind.
+    stand_in.with(|d| d.refuse_submission = Some(("somethingElse".into(), String::new())));
+    assert_eq!(sent_of(&send(&stand_in, vec![simple(41)])), [is(41, held("somethingElse"))]);
+
+    // The server's own rules: more recipients than it takes. The message after it goes all the same.
+    let (stand_in, _) = world();
+    stand_in.with(|d| d.max_recipients = 1);
+    let pieces = send(&stand_in, vec![outbox(41, message(&["bob@example.org", "carol@example.org"], &[], &[])), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, held("the message has more recipients than the server takes")), is(42, SendOutcome::Sent)]);
+    assert_eq!(stand_in.with(|d| (d.emails.len(), d.submitted.len())), (1, 1));
+}
+
+#[test]
+fn a_blob_the_server_will_not_import_holds_the_message_and_sends_nothing() {
+    let fake = sender(|name, _| match name {
+        "Email/import" => Some(Answer::Is(json!({"notCreated": {"m": {"type": "overQuota", "description": format!("no room for {ME}")}}}))),
+        "EmailSubmission/set" => Some(Answer::Is(json!({"notCreated": {"s": {"type": "invalidProperties", "properties": ["emailId"]}}}))),
+        _ => None,
+    });
+    let pieces = send_fake(&fake, vec![simple(41)]);
+    // (Why the import failed is why: the submission only failed for want of it.)
+    let sent = sent_of(&pieces);
+    let SendOutcome::Held { lost: false, why } = &sent[0].outcome else { panic!("not held: {sent:?}") };
+    assert!(why.starts_with("the server would not take the message: no room for") && !why.contains(ME), "{why:?}");
+    assert!(fake.args_of("Email/set").is_empty(), "nothing was imported, so nothing is taken away");
+
+    // The import fails as a call, and the submission that needed it with it.
+    let fake = sender(|name, _| match name {
+        "Email/import" => Some(Answer::Error("accountReadOnly", format!("{ME} may not write"))),
+        "EmailSubmission/set" => Some(Answer::Error("invalidResultReference", String::new())),
+        _ => None,
+    });
+    let pieces = send_fake(&fake, vec![simple(41)]);
+    let sent = sent_of(&pieces);
+    let SendOutcome::Held { lost: false, why } = &sent[0].outcome else { panic!("not held: {sent:?}") };
+    assert!(why.starts_with("the server would not take the message: ") && why.contains("accountReadOnly") && !why.contains(ME), "{why:?}");
+
+    // The server says to try later: the message waits (it is not reported), with a line.
+    for (call, taken_away) in [("Email/import", 0), ("EmailSubmission/set", 1)] {
+        let fake = sender(move |name, _| match name {
+            name if name == call => Some(Answer::Error("serverUnavailable", String::new())),
+            "EmailSubmission/set" => Some(Answer::Error("invalidResultReference", String::new())),
+            _ => None,
+        });
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        assert!(sent_of(&pieces).is_empty(), "{call}");
+        assert_eq!(fake.uploads().len(), 1, "{call}: the rest of the Outbox waits too");
+        assert!(last(&pieces).errors.len() == 1 && read_on(&pieces), "{call}");
+        // (The copy the import made of a message that did not go is taken away again.)
+        assert_eq!(fake.args_of("Email/set").len(), taken_away, "{call}");
+    }
+}
+
+#[test]
+fn a_submission_whose_answer_is_lost_is_held_as_one_that_may_have_gone_and_never_asked_again() {
+    // The request with the submission is the fifth (the session, the identities, the roles, the upload).
+    type Answering = Rc<dyn Fn(&HttpRequest) -> Reply>;
+    let answers: Vec<(&str, Answering)> = vec![
+        ("no answer in time", Rc::new(|_| Err(TransportError::TimedOut))),
+        ("the connection went", Rc::new(|_| Err(TransportError::Other))),
+        ("called off by the transport", Rc::new(|_| Err(TransportError::Aborted))),
+        ("an answer too large to read", Rc::new(|_| Err(TransportError::BodyTooLarge))),
+        ("a server error", Rc::new(|_| status_reply(500, None))),
+        ("a gateway that gave up", Rc::new(|_| status_reply(504, None))),
+        ("an answer that is no JSON", Rc::new(|_| Ok(HttpResponse::new(200, b"<html>".to_vec()).with_field("Content-Type", "application/json")))),
+        ("an answer that is no JMAP", Rc::new(|_| json_reply(200, &json!({"methodResponses": 7})))),
+    ];
+    for (what, answer) in answers {
+        let fake = sender_but(move |req, n| (n == 4).then(|| answer(req)));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        // Held as one that may have gone: not sent again by itself.
+        assert_eq!(sent_of(&pieces), [is(41, lost())], "{what}");
+        // Asked once, and nothing more of the Outbox in this run: not the second message either.
+        assert_eq!(fake.args_of("EmailSubmission/set").len(), 1, "{what}");
+        assert_eq!(fake.uploads().len(), 1, "{what}");
+        assert!(fake.args_of("Email/set").is_empty(), "{what}: nothing is taken away on a guess");
+        let end = last(&pieces);
+        assert!(read_on(&pieces) && !end.whole, "{what}");
+    }
+
+    // An answer that came, and says nothing of the submission: held the same way. The server is there, so
+    // the next message is tried; each is asked once.
+    let vague: Vec<(&str, Answering)> = vec![
+        ("an answer without the calls", Rc::new(|req| api_reply(req, |_, _| Answer::Missing))),
+        (
+            "an answer that says nothing of the submission",
+            Rc::new(|req| {
+                api_reply(req, |name, args| if name == "EmailSubmission/set" { Answer::Is(json!({"created": null})) } else { sending(name, args) })
+            }),
+        ),
+        (
+            "a submission that is not one",
+            Rc::new(|req| {
+                api_reply(
+                    req,
+                    |name, args| if name == "EmailSubmission/set" { Answer::Is(json!({"created": {"s": null}})) } else { sending(name, args) },
+                )
+            }),
+        ),
+    ];
+    for (what, answer) in vague {
+        let fake = sender_but(move |req, n| (n == 4).then(|| answer(req)));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        assert_eq!(sent_of(&pieces), [is(41, lost()), is(42, SendOutcome::Sent)], "{what}");
+        assert_eq!((fake.args_of("EmailSubmission/set").len(), fake.uploads().len()), (2, 2), "{what}");
+        assert!(fake.args_of("Email/set").is_empty(), "{what}: nothing is taken away on a guess");
+    }
+
+    // What says the request never reached the server's reading of it sends nothing: the message waits.
+    let not_taken: Vec<(&str, Rc<dyn Fn() -> Reply>)> = vec![
+        ("no connection", Rc::new(|| Err(TransportError::Unreachable))),
+        ("no secure connection", Rc::new(|| Err(TransportError::Tls))),
+        ("a redirect", Rc::new(|| Ok(HttpResponse::new(307, Vec::new()).with_field("Location", "/elsewhere")))),
+    ];
+    for (what, answer) in not_taken {
+        let fake = sender_but(move |_, n| (n == 4).then(|| answer()));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        assert!(sent_of(&pieces).is_empty(), "{what}");
+        assert_eq!((fake.args_of("EmailSubmission/set").len(), fake.uploads().len()), (1, 1), "{what}");
+        assert!(last(&pieces).errors.len() == 1 && read_on(&pieces), "{what}");
+    }
+    // A request the server would not read (400, with why) is a message held with that, and not a lost one.
+    let fake = sender_but(|_, n| {
+        (n == 4).then(|| json_reply(400, &json!({"type": "urn:ietf:params:jmap:error:notRequest", "status": 400, "detail": "no"})))
+    });
+    let pieces = send_fake(&fake, vec![simple(41)]);
+    let sent = sent_of(&pieces);
+    assert!(
+        matches!(&sent[0].outcome, SendOutcome::Held { lost: false, why } if why.starts_with("the server would not take the request to send it: ")),
+        "{sent:?}"
+    );
+}
+
+#[test]
+fn a_run_stopped_between_the_upload_and_the_submission_sends_nothing() {
+    let cancel = Rc::new(AtomicBool::new(false));
+    let stops = cancel.clone();
+    let fake = sender_but(move |req, _| {
+        if is_upload(req) {
+            stops.store(true, Ordering::Relaxed);
+        }
+        None
+    });
+    let pieces = run_over(fake.clone(), FAKE_TOKEN, &JmapMailRequest { sends: vec![simple(41), simple(42)], ..asks(FAKE_SESSION) }, &cancel);
+    assert!(sent_of(&pieces).is_empty() && last(&pieces).stopped && pieces.len() == 1);
+    assert_eq!(fake.posts(), [vec!["Identity/get"], vec!["Mailbox/get"], vec!["upload"]]);
+
+    // Stopped while the submission was on its way: nobody knows whether it went, and it is held so.
+    let cancel = Rc::new(AtomicBool::new(false));
+    let stops = cancel.clone();
+    let fake = sender_but(move |_, n| {
+        (n == 4).then(|| {
+            stops.store(true, Ordering::Relaxed);
+            Err(TransportError::Aborted)
+        })
+    });
+    let pieces = run_over(fake.clone(), FAKE_TOKEN, &JmapMailRequest { sends: vec![simple(41), simple(42)], ..asks(FAKE_SESSION) }, &cancel);
+    assert_eq!(sent_of(&pieces), [is(41, lost())]);
+    assert!(last(&pieces).stopped && !read_on(&pieces) && fake.uploads().len() == 1);
+
+    // Stopped before the run: nothing at all.
+    let fake = sender(|_, _| None);
+    let pieces = run_over(fake.clone(), FAKE_TOKEN, &JmapMailRequest { sends: vec![simple(41)], ..asks(FAKE_SESSION) }, &AtomicBool::new(true));
+    assert!(sent_of(&pieces).is_empty() && last(&pieces).stopped && fake.posts().is_empty());
+}
+
+#[test]
+fn a_refused_sign_in_and_a_busy_server_end_the_run_at_every_step_and_the_message_waits() {
+    // The requests of a send, after the session: the identities, the roles, the upload, the submission.
+    for (step, what) in [(1, "the identities"), (2, "the roles"), (3, "the upload"), (4, "the submission")] {
+        let fake = sender_but(move |_, n| (n == step).then(|| status_reply(401, None)));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        let end = last(&pieces);
+        assert!(sent_of(&pieces).is_empty() && end.auth_refused && !end.whole && end.errors.is_empty() && pieces.len() == 1, "{what}: {end:?}");
+        assert_eq!(fake.posts().len(), step, "{what}: nothing is asked after");
+
+        for (status, retry_after, seconds) in [(429, Some(90), 90), (503, None, 30)] {
+            let fake = sender_but(move |_, n| (n == step).then(|| status_reply(status, retry_after)));
+            let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+            let end = last(&pieces);
+            assert!(sent_of(&pieces).is_empty() && !end.whole && !end.auth_refused && pieces.len() == 1, "{what} {status}: {end:?}");
+            assert_eq!((end.busy_for, fake.posts().len()), (Some(seconds), step), "{what} {status}");
+        }
+    }
+    // After a message went, the next one's trouble leaves the first reported.
+    let fake = sender_but(|req, n| (n > 4 && is_upload(req)).then(|| status_reply(401, None)));
+    let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)]);
+    assert!(last(&pieces).auth_refused && pieces.len() == 2);
+
+    // The identities or the roles could not be had for another reason: a line, the Outbox waits, the run reads.
+    for (call, n) in [("Identity/get", 1), ("Mailbox/get", 2)] {
+        let fake = sender_but(move |req, at| (at == n).then(|| api_reply(req, |_, _| Answer::Error("serverFail", format!("{ME} broke it")))));
+        let pieces = send_fake(&fake, vec![simple(41)]);
+        let end = last(&pieces);
+        assert!(sent_of(&pieces).is_empty() && fake.uploads().is_empty() && read_on(&pieces), "{call}");
+        assert!(
+            end.errors.len() == 1 && end.errors[0].starts_with("Couldn't send what waits in the Outbox: ") && !end.errors[0].contains(ME),
+            "{call}: {end:?}"
+        );
+    }
+}
+
+#[test]
+fn an_address_that_could_end_a_line_or_begin_another_is_no_recipient_and_the_message_is_held() {
+    let hostile = [
+        "bob@example.org\r\nRCPT TO:<eve@example.org>",
+        "bob@example.org\nx",
+        "bob@example.org\0",
+        "bob smith@example.org",
+        "bob@exa mple.org",
+        "<bob@example.org>",
+        "bob@example.org>",
+        "bob",
+        "@example.org",
+        "bob@",
+        "bob@@example.org",
+        "bob@example.org,eve@example.org",
+        "\"bob\"@example.org",
+        "bob@example.org\t eve@example.org",
+    ];
+    for email in hostile {
+        assert!(!is_address(email), "{email:?}");
+        let fake = sender(|_, _| None);
+        // Among good ones, in any of the three fields.
+        for (to, cc, bcc) in
+            [(vec![email], vec![], vec![]), (vec!["dan@example.org"], vec![email], vec![]), (vec!["dan@example.org"], vec![], vec![email])]
+        {
+            let pieces = send_fake(&fake, vec![outbox(41, message(&to, &cc, &bcc))]);
+            assert_eq!(sent_of(&pieces), [is(41, held(BAD_RECIPIENT))], "{email:?}");
+        }
+        assert!(fake.uploads().is_empty() && fake.args_of("EmailSubmission/set").is_empty(), "{email:?}");
+    }
+    let long_local = format!("{}@example.org", "a".repeat(65));
+    let long = format!("a@{}.example.org", "b".repeat(250));
+    assert!(!is_address(&long_local) && !is_address(&long) && !is_address(""));
+    for good in ["bob@example.org", "bob.smith+tag@mail.example.org", "o'brien@example.org", "b\u{f6}b@b\u{fc}cher.example"] {
+        assert!(is_address(good), "{good}");
+    }
+
+    // Who a message goes to: everybody once, in order; blanks passed over; nobody is nobody.
+    let all = recipients(&message(
+        &["bob@example.org", "", "  dan@example.org "],
+        &["bob@example.org", "Bob@example.org"],
+        &["dan@EXAMPLE.ORG", "erin@example.org"],
+    ));
+    assert_eq!(all, Ok(vec!["bob@example.org".to_string(), "dan@example.org".into(), "Bob@example.org".into(), "erin@example.org".into()]));
+    assert_eq!(recipients(&message(&[], &[" "], &[""])), Err(NO_RECIPIENTS));
+    assert_eq!(recipients(&message(&["bob@example.org"], &[], &["x y@example.org"])), Err(BAD_RECIPIENT));
+    let crowd: Vec<String> = (0..=MAX_RECIPIENTS).map(|n| format!("p{n}@example.org")).collect();
+    let crowd: Vec<&str> = crowd.iter().map(String::as_str).collect();
+    assert_eq!(recipients(&message(&crowd, &[], &[])), Err(TOO_MANY));
+    assert_eq!(recipients(&message(&crowd[1..], &[], &[])).map(|all| all.len()), Ok(MAX_RECIPIENTS));
+
+    // A message with nobody to go to, with too many, and with nothing to send, are held without an upload.
+    let fake = sender(|_, _| None);
+    let nothing = SendUp { message: 43, draft: None, mime: None };
+    let pieces = send_fake(&fake, vec![outbox(41, message(&[], &[], &[])), outbox(42, message(&crowd, &[], &[])), nothing, simple(44)]);
+    assert_eq!(sent_of(&pieces), [is(41, held(NO_RECIPIENTS)), is(42, held(TOO_MANY)), is(43, held(NOTHING)), is(44, SendOutcome::Sent)]);
+    assert_eq!(fake.uploads().len(), 1);
+
+    // An account whose own address is none sends nothing.
+    let fake = sender(|_, _| None);
+    let mut request = JmapMailRequest { sends: vec![simple(41)], ..asks(FAKE_SESSION) };
+    request.email = "ada@example.org\r\nMAIL FROM:<eve@example.org>".into();
+    let pieces = run_unchecked(fake.clone(), FAKE_TOKEN, &request, &AtomicBool::new(false));
+    assert_eq!(sent_of(&pieces), [is(41, held(BAD_SENDER))]);
+    assert!(fake.uploads().is_empty() && fake.args_of("Identity/get").is_empty());
+}
+
+#[test]
+fn the_message_goes_without_its_bcc_field_and_dated() {
+    let mut mail = message(&["bob@example.org"], &["carol@example.org"], &["erin@example.org"]);
+    mail.subject = "Lunch\r\nBcc: eve@example.org".into();
+    let octets = written(&mail);
+    let text = String::from_utf8_lossy(&octets).to_string();
+    assert!(!text.contains("erin@example.org") && !text.lines().any(|line| line.to_ascii_lowercase().starts_with("bcc:")), "{text}");
+    assert!(text.contains("bob@example.org") && text.contains("carol@example.org"));
+    assert_eq!(mailcraft_mime::parse(&octets).date, THEN);
+    // One that was never dated is dated now.
+    mail.date = 0;
+    let dated = mailcraft_mime::parse(&written(&mail)).date;
+    assert!(dated > 1_700_000_000, "{dated}");
+}
+
+#[test]
+fn only_as_many_messages_as_a_run_sends_are_tried_and_the_rest_wait() {
+    let fake = sender(|_, _| None);
+    let many: Vec<SendUp> = (0..u64::try_from(MAX_SENDS).unwrap() + 3).map(|n| simple(100 + n)).collect();
+    let pieces = send_fake(&fake, many);
+    let sent = sent_of(&pieces);
+    assert_eq!((sent.len(), fake.uploads().len()), (MAX_SENDS, MAX_SENDS));
+    assert!(sent.iter().all(|done| done.outcome == SendOutcome::Sent));
+    assert_eq!(fake.args_of("Identity/get").len(), 1, "the identities are asked for once");
+    assert!(last(&pieces).whole);
+}
+
+#[test]
+fn the_changes_go_first_then_the_outbox_then_the_reading_each_in_pieces_of_its_own() {
+    let (stand_in, ids) = world();
+    let email = stand_in.with(|d| d.deliver(&ids.inbox, b"From: zoe@example.org\r\nSubject: hello\r\n\r\nHi.\r\n", &[], "2026-10-15T06:00:00Z"));
+    let request = JmapMailRequest {
+        changes: vec![JmapChange::Keywords { message: 9, id: email.clone(), read: Some(true), flagged: None, answered: None, forwarded: None }],
+        sends: vec![simple(41), simple(42)],
+        ..asks(SESSION)
+    };
+    let pieces = run_stand_in(&stand_in, &request);
+    let kinds: Vec<&str> = pieces
+        .iter()
+        .map(|piece| match piece {
+            piece if !piece.changes.is_empty() => "changes",
+            piece if !piece.sent.is_empty() => "sent",
+            piece if piece.listing.is_some() => "list",
+            piece if !piece.pages.is_empty() => "window",
+            _ => "end",
+        })
+        .collect();
+    assert_eq!(kinds, ["changes", "sent", "sent", "list", "window", "window", "window", "end"]);
+    assert_eq!((changes_of(&pieces).len(), sent_of(&pieces).len()), (1, 2));
+    assert!(last(&pieces).whole);
+    let calls = stand_in.calls();
+    assert_eq!(calls[..3], ["Email/set", "Identity/get", "Mailbox/get"]);
+    // Taken in at once, the pieces add up.
+    let mut whole = JmapMailResult::default();
+    pieces.into_iter().for_each(|piece| whole.absorb(piece));
+    assert_eq!((whole.changes.len(), whole.sent.len(), whole.pages.len(), whole.whole), (1, 2, 3, true));
+}
+
+#[test]
+fn the_answers_to_a_send_are_read_without_trusting_them() {
+    let secrets = Redactor::new();
+    let map = |value: Value| value.as_object().cloned().unwrap();
+    let made = || -> Result<Map<String, Value>, CallFailure> { Ok(map(json!({"created": {"m": {"id": "E50"}}}))) };
+    let says = |imported, submitted: Value| settled(&secrets, imported, Ok(map(submitted)));
+    // Sent only when the answer has the submission among those created.
+    assert_eq!(says(made(), json!({"created": {"s": {"id": "S1"}}})).outcome, Some(SendOutcome::Sent));
+    assert_eq!(says(made(), json!({"created": {"s": {}}})).outcome, Some(SendOutcome::Sent));
+    for vague in [
+        json!({}),
+        json!({"created": null}),
+        json!({"created": []}),
+        json!({"created": {"s": null}}),
+        json!({"created": {"s": "S1"}}),
+        json!({"created": {"t": {"id": "S1"}}}),
+        json!({"created": "s", "notCreated": ["s"]}),
+        json!({"updated": {"s": {}}}),
+    ] {
+        let said = says(made(), vague.clone());
+        assert_eq!(said, Settled { outcome: Some(lost()), orphan: None, later: None }, "{vague}");
+    }
+    // Refused: with why, and the email the import made is to be taken away.
+    let refused = says(made(), json!({"notCreated": {"s": {"type": "forbiddenToSend"}}}));
+    assert_eq!(refused, Settled { outcome: Some(held("the server does not let this account send mail")), orphan: Some("E50".into()), later: None });
+    // (Both at once: sent is what the answer says first, and nothing is taken away.)
+    let both = says(made(), json!({"created": {"s": {"id": "S1"}}, "notCreated": {"s": {"type": "forbiddenToSend"}}}));
+    assert_eq!(both, Settled { outcome: Some(SendOutcome::Sent), orphan: None, later: None });
+    // A refusal that is no object, and a huge one.
+    assert_eq!(says(made(), json!({"notCreated": {"s": 7}})).outcome, Some(held("the server refused it without saying why")));
+    let huge = says(made(), json!({"notCreated": {"s": {"type": "odd", "description": "no ".repeat(200_000)}}}));
+    assert!(matches!(&huge.outcome, Some(SendOutcome::Held { lost: false, why }) if why.chars().count() <= 200));
+    // An id of the import that is none is no email to take away.
+    let odd = settled(&secrets, Ok(map(json!({"created": {"m": {"id": "a/b"}}}))), Ok(map(json!({"notCreated": {"s": {"type": "tooLarge"}}}))));
+    assert_eq!(odd, Settled { outcome: Some(held(TOO_LARGE)), orphan: None, later: None });
+    // Neither call answered: nobody knows.
+    assert_eq!(settled(&secrets, Err(CallFailure::Missing), Err(CallFailure::Missing)).outcome, Some(lost()));
+    assert_eq!(settled(&secrets, Err(CallFailure::UnexpectedResponse), Err(CallFailure::UnexpectedResponse)).outcome, Some(lost()));
+    assert_eq!(settled(&secrets, made(), Err(CallFailure::Missing)), Settled { outcome: Some(lost()), orphan: None, later: None });
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    // Whatever a server answers the import and the submission with, the answers are read without a panic, a
+    // message is taken for sent only when the answer has its submission among those created, and a whole
+    // run over such a server ends with at most one word about the message.
+    #[test]
+    fn any_answer_to_a_submission_is_read_without_panicking(imported in any_json(), submitted in any_json(), under in proptest::sample::select(vec!["created", "notCreated", "updated"]), entry in any_json()) {
+        let secrets = Redactor::new();
+        let mut shaped = json!({});
+        shaped[under] = json!({"s": entry.clone(), "m": entry});
+        for (imported, submitted) in [(imported.clone(), submitted.clone()), (shaped.clone(), submitted), (imported, shaped.clone()), (shaped.clone(), shaped)] {
+            let created = submitted.get("created").and_then(|created| created.get("s")).is_some_and(Value::is_object);
+            let as_call = |value: &Value| value.as_object().cloned().ok_or(CallFailure::Missing);
+            let said = settled(&secrets, as_call(&imported), as_call(&submitted));
+            prop_assert_eq!(said.outcome == Some(SendOutcome::Sent), created && submitted.is_object());
+            if let Some(orphan) = &said.orphan {
+                prop_assert!(Id::new(orphan).is_ok());
+            }
+
+            let (import, submission) = (imported.clone(), submitted.clone());
+            let fake = sender(move |name, _| match name {
+                "Email/import" => Some(Answer::Is(import.clone())),
+                "EmailSubmission/set" => Some(Answer::Is(submission.clone())),
+                _ => None,
+            });
+            let pieces = send_fake(&fake, vec![simple(41)]);
+            let sent = sent_of(&pieces);
+            prop_assert!(sent.len() <= 1);
+            prop_assert_eq!(fake.args_of("EmailSubmission/set").len(), 1);
+            if sent.first().is_some_and(|done| done.outcome == SendOutcome::Sent) {
+                prop_assert!(created);
+            }
+        }
+    }
+
+    // Whatever a server lists as its identities and its mailboxes, and answers an upload with, a run ends.
+    #[test]
+    fn any_identities_mailboxes_and_upload_answers_end_the_run(identities in any_json(), mailboxes in any_json(), blob in any_json()) {
+        let _ = (identity_of(&identities, ME), filing_of(&mailboxes));
+        let fake = sender_but(move |req, n| match n {
+            1 => Some(api_reply(req, |_, _| Answer::Is(identities.clone()))),
+            2 => Some(api_reply(req, |_, _| Answer::Is(mailboxes.clone()))),
+            _ if is_upload(req) => Some(json_reply(201, &blob)),
+            _ => None,
+        });
+        let pieces = send_fake(&fake, vec![simple(41)]);
+        prop_assert!(sent_of(&pieces).len() <= 1);
+        prop_assert!(!last(&pieces).partial);
+    }
+}

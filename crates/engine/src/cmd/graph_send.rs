@@ -47,7 +47,10 @@ pub fn from_server(m: &mailcraft_model::Message) -> bool {
 pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
     let mb = &s.mailbox;
     let Some(outbox) = mb.folder_of_kind(account, FolderKind::Outbox) else { return Vec::new() };
-    let exchange = mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange);
+    let kind = mb.account(account).map(|a| a.kind);
+    let exchange = kind == Some(mailcraft_model::AccountKind::Exchange);
+    // A JMAP account's message always goes whole: its server keeps no draft of this program's.
+    let jmap = kind == Some(mailcraft_model::AccountKind::Jmap);
     let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).map(|m| m.id).collect();
     waiting.sort_unstable();
     waiting
@@ -68,8 +71,10 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
             Some(draft) if exchange => SendUp { message: m.id, draft: Some(draft), mime: Some(Box::new(m.as_ref().clone())) },
             // Sent as it is here, every field and attachment written over what the server has:
             // whatever was changed on the server meanwhile is the owner's to lose (AU2-14).
-            Some(draft) => SendUp { message: m.id, draft: Some(mailcraft_model::sync::DraftUp { change_key: String::new(), ..draft }), mime: None },
-            None => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())) },
+            Some(draft) if !jmap => {
+                SendUp { message: m.id, draft: Some(mailcraft_model::sync::DraftUp { change_key: String::new(), ..draft }), mime: None }
+            }
+            _ => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())) },
         })
         .collect()
 }
@@ -111,7 +116,7 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         changed = true;
     }
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
-    let server = if mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) { "the server" } else { "Microsoft" };
+    let server = if mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft) { "Microsoft" } else { "the server" };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
     let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
     let couldnt = |why: &str| {

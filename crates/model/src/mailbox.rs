@@ -309,11 +309,9 @@ impl AccountKind {
     }
 
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
-    /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
-    /// sending comes after its reading, and until then no mail is put in its Outbox, where it
-    /// would wait for ever.
+    /// through Microsoft Graph, through Exchange Web Services, or over JMAP).
     pub fn sends_mail(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Exchange)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
     /// Whether the account's folders and messages are known to its server by the ids the server
@@ -1251,11 +1249,6 @@ pub const COPY_INTO_OUTBOX: &str = "A copy can't go into this Outbox: the next S
 
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
 pub const IMPORTED: &str = "Imported";
-
-/// Why nothing is sent from a JMAP account ([`AccountKind::sends_mail`]): its sending comes after
-/// its reading. Until then nothing goes into its Outbox, where it would wait for ever, and nothing
-/// is filed as sent that wasn't.
-pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP account yet";
 
 /// Why mail a JMAP account's server has doesn't go into a folder that server hasn't got
 /// ([`Mailbox::stays_out_of`]): a move goes up as a move between two of the server's mailboxes, and

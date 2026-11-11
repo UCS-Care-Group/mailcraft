@@ -23,6 +23,8 @@ use crate::template::AddressTemplate;
 pub const CAPABILITY_CORE: &str = "urn:ietf:params:jmap:core";
 /// The mail capability (RFC 8621 §1.3.1).
 pub const CAPABILITY_MAIL: &str = "urn:ietf:params:jmap:mail";
+/// The capability of sending mail (RFC 8621 §1.3.2): identities and submissions.
+pub const CAPABILITY_SUBMISSION: &str = "urn:ietf:params:jmap:submission";
 
 /// The most accounts a session may list.
 pub const MAX_ACCOUNTS: usize = 1024;
