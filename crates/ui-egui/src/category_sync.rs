@@ -440,6 +440,10 @@ impl MailApp {
             None if self.services.graph_categories.is_some() && !self.offline() => {
                 (line(tl!("Categories from {address}'s server. Checking whether MailCraft may change them…")), false)
             }
+            // Offline: nothing is known yet, as File › Info says.
+            None if host => {
+                (line(tl!("Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them")), false)
+            }
             Some(Permission::Asking) => (line(tl!("Categories from {address}'s server. Asking for your permission to change them…")), false),
             Some(Permission::Refused(why)) => (
                 crate::i18n::fmt(

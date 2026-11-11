@@ -679,3 +679,12 @@ fn a_sign_in_refused_just_after_the_owner_allowed_it_waits_before_it_is_tried_ag
     let tried = jobs.lock().unwrap().len() - before;
     assert!(tried <= 2, "{tried} jobs in ten seconds");
 }
+
+#[test]
+fn offline_before_the_first_look_the_categories_window_says_it_waits_to_check_not_that_there_is_no_permission() {
+    let (mut app, owner, ..) = window();
+    app.session.prefs.offline = true;
+    let (line, allow) = app.categories_read_only_line(owner).unwrap();
+    assert!(line.contains("until MailCraft can check") && !line.contains("No permission"), "{line}");
+    assert!(!allow, "nothing to allow yet");
+}

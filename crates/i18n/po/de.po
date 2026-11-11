@@ -2166,6 +2166,12 @@ msgstr "Kategorien vom Server von {address}. Keine Erlaubnis, sie zu ändern"
 msgid "Categories from {address}'s server. No permission to change them ({why})"
 msgstr "Kategorien vom Server von {address}. Keine Erlaubnis, sie zu ändern ({why})"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
+msgstr "Kategorien vom Server von {address}. Hier schreibgeschützt, bis MailCraft prüfen kann, ob es sie ändern darf"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "Categories:"
