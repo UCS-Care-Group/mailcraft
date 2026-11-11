@@ -915,12 +915,34 @@ fn folder_onto_server(s: &Session, folder: Id, from: Option<Id>) -> Option<Id> {
     })
 }
 
-/// [`folder_onto_server`] of a rule's moves and copies.
+/// [`folder_onto_server`] of a rule's moves and copies: the first.
 fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) -> Option<Id> {
     r.actions.iter().find_map(|a| match a {
         mailcraft_model::Action::MoveTo(f) | mailcraft_model::Action::CopyTo(f) => folder_onto_server(s, *f, from),
         _ => None,
     })
+}
+
+/// [`folder_onto_server`] of a rule's moves and copies, every account once, added to `onto`.
+fn rule_onto_servers(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>, onto: &mut Vec<Id>) {
+    for a in &r.actions {
+        if let mailcraft_model::Action::MoveTo(f) | mailcraft_model::Action::CopyTo(f) = a
+            && let Some(to) = folder_onto_server(s, *f, from)
+            && !onto.contains(&to)
+        {
+            onto.push(to);
+        }
+    }
+}
+
+/// The servers of `accounts`, as a question names them: at most three, and how many more.
+fn servers_named(s: &Session, accounts: &[Id]) -> String {
+    let named: Vec<String> =
+        accounts.iter().take(3).map(|a| s.mailbox.account(*a).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80))).collect();
+    match accounts.len().saturating_sub(3) {
+        0 => named.join(", "),
+        more => format!("{} and {more} more", named.join(", ")),
+    }
 }
 
 /// Whether the rules this command makes, switches on or runs delete mail for good, which undo
@@ -979,27 +1001,37 @@ fn beside_for_good(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: boo
 }
 
 /// The rules switched on that copy or move mail onto another account's server and that a change
-/// to the rules of `account` reaches, with that account, as [`beside_for_good`] finds those that
+/// to the rules of `account` reaches, with those accounts, as [`beside_for_good`] finds those that
 /// delete for good: any change may let more mail reach them (#566).
-fn beside_onto_server(s: &Session, account: Id, rule: Id, on: bool) -> impl Iterator<Item = (&mailcraft_model::Rule, Id)> {
+fn beside_onto_server(s: &Session, account: Id, rule: Id, on: bool) -> impl Iterator<Item = (&mailcraft_model::Rule, Vec<Id>)> {
     s.mailbox
         .rules
         .iter()
         .filter(move |x| x.enabled && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
         // (Of a rule for every account's mail, what it does with the mail of `account`.)
-        .filter_map(move |x| rule_onto_server(s, x, one_account(x).or((account != 0).then_some(account))).map(|to| (x, to)))
+        .filter_map(move |x| {
+            let mut onto = Vec::new();
+            rule_onto_servers(s, x, one_account(x).or((account != 0).then_some(account)), &mut onto);
+            (!onto.is_empty()).then_some((x, onto))
+        })
 }
 
 /// What a question about a change to the rules adds for the rules beside it that delete mail for
 /// good ([`beside_for_good_said`]) or put it on another account's server.
 fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
     let mut said = beside_for_good_said(&s.mailbox, account, rule, on);
-    let onto: Vec<(String, Id)> = beside_onto_server(s, account, rule, on).map(|(r, to)| (quoted(&r.name), to)).collect();
-    if let Some((_, to)) = onto.first() {
+    let onto: Vec<(String, Vec<Id>)> = beside_onto_server(s, account, rule, on).map(|(r, to)| (quoted(&r.name), to)).collect();
+    if !onto.is_empty() {
         let more = onto.len().saturating_sub(5);
         let more = if more > 0 { format!(" and {more} more") } else { String::new() };
         let names: Vec<String> = onto.iter().take(5).map(|(n, _)| n.clone()).collect();
-        let server = s.mailbox.account(*to).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+        let mut servers: Vec<Id> = Vec::new();
+        for to in onto.iter().flat_map(|(_, to)| to) {
+            if !servers.contains(to) {
+                servers.push(*to);
+            }
+        }
+        let server = servers_named(s, &servers);
         let (rule, verb, them) = if onto.len() == 1 { ("rule", "puts", "it") } else { ("rules", "put", "them") };
         said.push_str(&format!(
             "; the {rule} {}{more}, switched on, {verb} mail onto the server of {server}, and a change to the rules may let more mail reach {them}",
@@ -1059,14 +1091,20 @@ pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
 }
 
 /// The accounts whose rules an undo or redo from the rules of `now` to those of `to` changes (0:
-/// every account's): of each rule made, changed, taken away or moved in the list, and of those it
-/// shifts. None when the rules stay as they are.
+/// every account's): of each rule made, changed or taken away, and of each one moved past another
+/// in the list; not of those that only take a place up or down as one is made or taken away. None
+/// when the rules stay as they are.
 fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
     if to.rules == now.rules {
         return Vec::new();
     }
     let differ = |a: &[mailcraft_model::Rule], b: &[mailcraft_model::Rule]| -> Vec<Id> {
-        a.iter().enumerate().filter(|(i, r)| b.get(*i) != Some(*r)).map(|(_, r)| r.account).collect()
+        // The rules both have, in each one's order: one at another place among them was moved.
+        let kept: Vec<&mailcraft_model::Rule> = a.iter().filter(|r| b.iter().any(|o| o.id == r.id)).collect();
+        let theirs: Vec<Id> = b.iter().filter(|o| a.iter().any(|r| r.id == o.id)).map(|o| o.id).collect();
+        let moved = kept.iter().enumerate().filter(|(i, r)| theirs.get(*i) != Some(&r.id)).map(|(_, r)| r.account);
+        let made_or_changed = a.iter().filter(|r| !b.iter().any(|o| o == *r)).map(|r| r.account);
+        made_or_changed.chain(moved).collect()
     };
     let mut changed = differ(&to.rules, &now.rules);
     changed.extend(differ(&now.rules, &to.rules));
@@ -1081,19 +1119,27 @@ fn reached(changed: &[Id], r: &mailcraft_model::Rule) -> bool {
     changed.iter().any(|a| *a == 0 || r.account == 0 || *a == r.account)
 }
 
-/// The account on whose server a rule files mail, when an undo or redo from the rules of the
-/// mailbox now to those of `to` changes them and leaves such a rule switched on (#566), as
-/// [`undo_rules_delete_for_good`] reads one that deletes: any change may let more mail reach it.
-pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Option<Id> {
+/// The accounts on whose servers rules file mail, when an undo or redo from the rules of the
+/// mailbox now to those of `to` changes them and leaves such rules switched on (#566), as
+/// [`undo_rules_delete_for_good`] reads one that deletes: any change may let more mail reach them.
+pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Vec<Id> {
     let changed = changed_accounts(&s.mailbox, to);
-    to.rules.iter().filter(|r| r.enabled && reached(&changed, r)).find_map(|r| match one_account(r) {
-        Some(a) => rule_onto_server(s, r, Some(a)),
-        // A rule for every account's mail: what it does with the mail of the accounts whose rules
-        // the step changes, as `beside_onto_server` reads it; every account's when it is changed
-        // itself.
-        None if changed.contains(&0) => rule_onto_server(s, r, None),
-        None => changed.iter().find_map(|a| rule_onto_server(s, r, Some(*a))),
-    })
+    let mut onto = Vec::new();
+    for r in to.rules.iter().filter(|r| r.enabled && reached(&changed, r)) {
+        match one_account(r) {
+            Some(a) => rule_onto_servers(s, r, Some(a), &mut onto),
+            // A rule for every account's mail: what it does with the mail of the accounts whose
+            // rules the step changes, as `beside_onto_server` reads it; every account's when it is
+            // changed itself.
+            None if changed.contains(&0) => rule_onto_servers(s, r, None, &mut onto),
+            None => {
+                for a in &changed {
+                    rule_onto_servers(s, r, Some(*a), &mut onto);
+                }
+            }
+        }
+    }
+    onto
 }
 
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
@@ -1674,10 +1720,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             // (Each of these works the undo out on a copy of the mailbox: once.)
             let (places, rule_onto) = (s.undo_places(redo), s.undo_rules_onto_server(redo));
-            let what = match s.undo_reverts_with(redo, || !places.is_empty() || rule_onto.is_some()) {
+            let what = match s.undo_reverts_with(redo, || !places.is_empty() || !rule_onto.is_empty()) {
                 Some(Class::Accounts) => Some("the accounts"),
                 // What a message or a rule put on its way onto a server is is said below.
-                Some(Class::Send) if !places.is_empty() || rule_onto.is_some() => None,
+                Some(Class::Send) if !places.is_empty() || !rule_onto.is_empty() => None,
                 Some(Class::Send) => {
                     Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
@@ -1686,15 +1732,14 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 _ => Some("the rules, signatures or Safe and Blocked Senders"),
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
-            let server = |a: Id| s.mailbox.account(a).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
             if !places.is_empty() {
                 // Send for a message (#566): it waits again to be made on another account's server.
-                let to: Vec<String> = places.iter().take(3).map(|a| server(*a)).collect();
-                does.push(format!("puts mail back on its way onto the server of {}", to.join(", ")));
+                does.push(format!("puts mail back on its way onto the server of {}", servers_named(s, &places)));
             }
-            if let Some(a) = rule_onto {
+            if !rule_onto.is_empty() {
                 // Send for the rules (#566): one that files mail onto another server is on after it.
-                does.push(format!("puts the rules back as they were, with one switched on that files mail onto the server of {}", server(a)));
+                let which = if rule_onto.len() == 1 { "one switched on that files" } else { "some switched on that file" };
+                does.push(format!("puts the rules back as they were, with {which} mail onto the server of {}", servers_named(s, &rule_onto)));
             }
             if s.undo_rules_delete_for_good(redo) {
                 // Delete for the rules (#566): one that deletes mail permanently is on after it.
@@ -1784,6 +1829,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 || "a folder".to_string(),
                 |f| match s.mailbox.account(f.account) {
                     Some(a) if !a.email.is_empty() => format!("{} of {}", quoted(&s.mailbox.folder_path(f.id)), clip(&a.email, 80)),
+                    // (An account with no address by its name, as the Rules dialog shows it.)
+                    Some(a) if !a.name.trim().is_empty() => format!("{} of {}", quoted(&s.mailbox.folder_path(f.id)), quoted(&clip(&a.name, 80))),
                     _ => quoted(&s.mailbox.folder_path(f.id)),
                 },
             );

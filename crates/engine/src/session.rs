@@ -3280,7 +3280,7 @@ impl Session {
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
-        self.undo_reverts_with(redo, || !self.undo_places(redo).is_empty() || self.undo_rules_onto_server(redo).is_some())
+        self.undo_reverts_with(redo, || !self.undo_places(redo).is_empty() || !self.undo_rules_onto_server(redo).is_empty())
     }
 
     /// [`Session::undo_reverts`], told by `onto` whether the step puts mail or a rule on its way
@@ -3345,11 +3345,11 @@ impl Session {
         onto
     }
 
-    /// The account on whose server a rule files mail, when undoing the last step (or redoing,
-    /// `redo`) changes the rules and leaves such a rule switched on (#566), as
+    /// The accounts on whose servers rules file mail, when undoing the last step (or redoing,
+    /// `redo`) changes the rules and leaves such rules switched on (#566), as
     /// [`Session::undo_rules_delete_for_good`] reads a rule that deletes.
-    pub fn undo_rules_onto_server(&self, redo: bool) -> Option<Id> {
-        let step = if redo { self.redo.last() } else { self.history.last() }?;
+    pub fn undo_rules_onto_server(&self, redo: bool) -> Vec<Id> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
         crate::agent::undo_rules_onto_another_server(self, &step.mailbox)
     }
 

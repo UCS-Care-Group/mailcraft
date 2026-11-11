@@ -71,6 +71,32 @@ fn a_rule_from_a_loaded_mailbox_does_not_fill_an_outbox() {
     assert_eq!(s.mailbox.message(m).unwrap().folder, archive);
 }
 
+/// The same for a rule's copy (#566).
+#[test]
+fn a_rule_from_a_loaded_mailbox_does_not_copy_into_an_outbox() {
+    let mut s = sample();
+    let out = folder_of(&s, FolderKind::Outbox);
+    let m = *s.mailbox.messages.keys().next().unwrap();
+    let subject = s.mailbox.message(m).unwrap().subject.clone();
+    s.mailbox.rules.push(Rule {
+        id: 9_999,
+        name: "hostile".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec![subject.clone()])],
+        actions: vec![Action::CopyTo(out)],
+        ..Default::default()
+    });
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(!s.mailbox.messages_in(out).any(|c| c.subject == subject), "a copy of it is in the Outbox");
+    // (The same rule into the Archive copies it.)
+    let archive = folder_of(&s, FolderKind::Archive);
+    if let Some(r) = s.mailbox.rules.iter_mut().find(|r| r.id == 9_999) {
+        r.actions = vec![Action::CopyTo(archive)];
+    }
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.messages_in(archive).any(|c| c.subject == subject));
+}
+
 #[test]
 fn the_question_about_a_rule_names_its_folder() {
     let s = sample();
