@@ -3165,6 +3165,7 @@ dependencies = [
  "sysinfo",
  "thiserror 2.0.21",
  "unicode-segmentation",
+ "zeroize",
 ]
 
 [[package]]

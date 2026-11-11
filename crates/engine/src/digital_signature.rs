@@ -118,12 +118,12 @@ impl ToReadAgain {
 
 /// What a check found of one message.
 #[derive(Clone, Default)]
-struct Found {
+pub(crate) struct Found {
     /// The result; `None`: the message isn't Digitally signed in a format checked here.
-    result: Option<Arc<DigitalSignature>>,
+    pub(crate) result: Option<Arc<DigitalSignature>>,
     /// Which of its attachments is the Digital signature itself (`smime.p7s`, or the
     /// `smime.p7m` an opaque signed message is): the very part that was checked, by its bytes.
-    part: Option<usize>,
+    pub(crate) part: Option<usize>,
 }
 
 /// What a result rests on: the bytes the message came as (their size and where they are kept),
@@ -399,6 +399,10 @@ impl Session {
     /// bytes were kept can't be checked ([`Why::NoOriginal`]: Check again downloads them).
     /// `None` for any other message.
     pub fn digital_signature(&mut self, id: Id) -> Option<Arc<DigitalSignature>> {
+        // An Encrypted message that was opened: the Digital signature inside it, when it has one.
+        if let Some(inside) = self.decrypted_signature(id) {
+            return Some(inside);
+        }
         self.found(id).result
     }
 
@@ -406,6 +410,10 @@ impl Session {
     /// out from, found by its bytes): shown in the result's Details rather than among the files.
     /// `None` when there is none, or none could be told.
     pub fn digital_signature_part(&mut self, id: Id) -> Option<usize> {
+        // (What is inside an Encrypted message isn't among its files.)
+        if self.decrypted_signature(id).is_some() {
+            return None;
+        }
         self.found(id).part
     }
 
@@ -441,7 +449,7 @@ impl Session {
     /// sender and the day are as they were): for the list, which never reads a message's bytes to
     /// draw a row.
     pub fn digital_signature_known(&self, id: Id) -> Option<Arc<DigitalSignature>> {
-        self.found_already(id).and_then(|f| f.result.clone())
+        self.decrypted_signature(id).or_else(|| self.found_already(id).and_then(|f| f.result.clone()))
     }
 
     /// Hand in the OpenPGP keys the owner's GnuPG keyring holds at full or ultimate validity, as
@@ -501,15 +509,31 @@ impl Session {
                 Found::default()
             };
         };
-        match mailcraft_mime::signed_parts(&bytes) {
+        self.check_signed_bytes(m, &bytes)
+    }
+
+    /// The Digital signature of the message `bytes` (as the From address and keys of `m` go),
+    /// S/MIME or OpenPGP. The bytes of a message are its own; they are also what an Encrypted
+    /// message opened to ([`Session::finish_decrypt`]), whose signature rests on the same keys.
+    pub(crate) fn check_signed_bytes(&mut self, m: &Message, bytes: &[u8]) -> Found {
+        match mailcraft_mime::signed_parts(bytes) {
             Some(parts) if parts.kind != mailcraft_mime::SignedKind::PgpDetached => self.check_smime(m, parts),
-            parts => self.check_openpgp(m, &bytes, parts.as_ref()),
+            parts => self.check_openpgp(m, bytes, parts.as_ref(), None),
         }
     }
 
     /// The OpenPGP Digital signature of `m`, whose bytes are `bytes` (PGP/MIME when `parts` says
     /// so, else perhaps inline).
-    fn check_openpgp(&mut self, m: &Message, bytes: &[u8], parts: Option<&mailcraft_mime::SignedParts>) -> Found {
+    ///
+    /// `inside` is the data an Encrypted message opened to and the signature packets that came
+    /// inside the encryption over it: those are checked, with the keys `bytes` brings.
+    pub(crate) fn check_openpgp(
+        &mut self,
+        m: &Message,
+        bytes: &[u8],
+        parts: Option<&mailcraft_mime::SignedParts>,
+        inside: Option<(&[u8], &[u8])>,
+    ) -> Found {
         let address = m.from.email.trim().to_lowercase();
         let from = one_from_field(bytes);
         let mut ring = pgp::KeyRing::new();
@@ -539,7 +563,10 @@ impl Session {
                 kept.of(at).iter().any(|k| k.format == SignatureFormat::OpenPgp && k.verified && k.fingerprint == shown)
                     || gnupg.contains(&(fp.to_hex(), at.to_string()))
             };
-            pgp::verify(bytes, &from, &ring, now, verified)
+            match inside {
+                Some((data, signatures)) => Some(pgp::verify_inside(signatures, data, &from, &ring, now, verified)),
+                None => pgp::verify(bytes, &from, &ring, now, verified),
+            }
         };
         // The keys were found, and what is kept is kept, by the From address the message was read
         // with; the check went by the one From field of its bytes. When the two aren't one

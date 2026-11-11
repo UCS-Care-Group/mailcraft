@@ -539,6 +539,8 @@ const SETTINGS: &[&str] = &[
 ];
 
 const NEVER: &[&str] = &[
+    // Opening an Encrypted message again may bring up the owner's PIN or passphrase prompt (#30 part 6).
+    "mail.decryptAgain",
     // Which key an account Digitally signs with, and whether always (#30): the owner's alone.
     "account.setSigning",
     // The host's side of a synchronisation: what came from a server is the host's to say.

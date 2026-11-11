@@ -31,6 +31,9 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+pub mod decrypt;
+#[cfg(test)]
+mod decrypt_tests;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
