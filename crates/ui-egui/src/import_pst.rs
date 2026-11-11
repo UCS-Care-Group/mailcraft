@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! File › Open & Export › Import a .pst File (#815, preview: mail only so far): the owner picks a
+//! File › Open & Export › Import a .pst File (#815, preview until notes and journal entries come across): the owner picks a
 //! file, gives its password when it has one and says where its mail goes (a new folder named after
 //! the file, or under a folder on this computer); the file is read off the window's thread and its
 //! mail comes in a batch at a time (`file.importPst` with `staged`), so that Cancel keeps what is in
@@ -58,6 +58,8 @@ pub struct ImportPst {
     wrong_password: bool,
     /// `None`: a new folder named after the file; else under this folder on this computer.
     under: Option<u64>,
+    /// `None`: a new calendar named after the file; else this calendar on this computer.
+    calendar: Option<u64>,
     phase: Phase,
     progress: Arc<Progress>,
     /// The mailbox this was opened over: another one opened since stops the import.
@@ -96,6 +98,7 @@ impl ImportPst {
             password: String::new(),
             wrong_password: false,
             under: None,
+            calendar: None,
             phase: Phase::Choose,
             progress: Arc::default(),
             opening: app.session.openings(),
@@ -125,10 +128,17 @@ impl ImportPst {
     }
 
     fn places(&self) -> Value {
-        match self.under {
-            Some(id) => json!({"mail": id}),
-            None => json!({"mail": "new"}),
-        }
+        let mail = self.under.map_or(json!("new"), |id| json!(id));
+        let calendar = self.calendar.map_or(json!("new"), |id| json!(id));
+        json!({"mail": mail, "calendar": calendar})
+    }
+
+    /// Calendars on this computer the file's calendar items can go into.
+    fn local_calendars(app: &MailApp) -> Vec<(u64, String)> {
+        let mut out: Vec<(u64, String)> =
+            app.session.mailbox.calendars.iter().filter(|c| c.origin.is_local()).map(|c| (c.id, c.name.clone())).take(LISTED).collect();
+        out.sort_by_key(|c| c.1.to_lowercase());
+        out
     }
 
     /// Folders on this computer the mail can go under (never an Outbox), by path.
@@ -336,9 +346,31 @@ impl ImportPst {
         ui.label(RichText::new(tl!("Put the contacts")).strong());
         ui.label(tl!("Into your contacts on this computer, each marked as imported from the file."));
         ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Put the calendar items")).strong());
+        let calendars = Self::local_calendars(app);
+        ui.radio_value(&mut self.calendar, None, tl!("In a new calendar named after the file on this computer"));
+        ui.horizontal(|ui| {
+            let mut picked = self.calendar.is_some();
+            if ui.add_enabled(!calendars.is_empty(), egui::RadioButton::new(picked, tl!("In this calendar:"))).clicked() && !picked {
+                picked = true;
+                self.calendar = calendars.first().map(|c| c.0);
+            }
+            ui.add_enabled_ui(picked && !calendars.is_empty(), |ui| {
+                let shown = self.calendar.and_then(|id| calendars.iter().find(|c| c.0 == id)).map_or(String::new(), |c| c.1.clone());
+                egui::ComboBox::from_id_salt("pstCalendar").width(240.0).selected_text(shown).show_ui(ui, |ui| {
+                    for (id, name) in &calendars {
+                        ui.selectable_value(&mut self.calendar, Some(*id), name.as_str());
+                    }
+                });
+            });
+        });
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Put the tasks")).strong());
+        ui.label(tl!("Into your to-do list on this computer. Nothing is sent to anybody."));
+        ui.add_space(6.0);
         ui.label(
             RichText::new(tl!(
-                "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+                "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
             ))
             .color(t.text_dim),
         );
@@ -425,6 +457,8 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
                 "{n} distribution lists, kept as contacts listing their members"
             ),
         ),
+        (n("events"), tln!(n("events"), "{n} calendar item", "{n} calendar items")),
+        (n("tasks"), tln!(n("tasks"), "{n} task", "{n} tasks")),
     ] {
         if count > 0 {
             ui.label(line);

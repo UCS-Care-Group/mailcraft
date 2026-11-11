@@ -247,9 +247,15 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
             let r = app.execute(&command, params);
             // (Report a Problem says itself where its file went and what to do with it.)
             if r.is_ok() && command == "ui.reportProblem" {
-                // The file is saved and GitHub's page open: now the window it came from closes.
-                if matches!(app.dialog, Some(crate::dialogs::Dialog::ReportProblem(_))) {
-                    app.dialog = None;
+                // The file is saved and GitHub's page open: now the window it came from closes,
+                // unless what went into the page was cut and the rest is still to be copied.
+                match &mut app.dialog {
+                    Some(crate::dialogs::Dialog::ReportProblem(d)) if d.keep_open => {
+                        d.waiting = false;
+                        d.cut = true;
+                    }
+                    Some(crate::dialogs::Dialog::ReportProblem(_)) => app.dialog = None,
+                    _ => {}
                 }
             } else if let (Ok(v), "mail.saveAllAttachments") = (&r, command.as_str()) {
                 let n = v.get("saved").and_then(Value::as_u64).unwrap_or(0) as usize;

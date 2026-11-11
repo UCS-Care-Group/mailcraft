@@ -1235,6 +1235,11 @@ msgid "Another time was proposed to {name}"
 msgstr "Er is een andere tijd voorgesteld aan {name}"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Another window is open: the report wasn't filled in."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Answer the invitation in your calendar. The organizer can't be written to from this account."
@@ -2663,7 +2668,7 @@ msgid "Clipboard"
 msgstr "Klembord"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Sluiten"
@@ -5059,6 +5064,16 @@ msgstr "GitHub-issues zijn openbaar: zet er geen e-mailadressen, namen of iets u
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+msgid "GitHub username (optional)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub's page has as much as a link can carry: copy the rest from here into it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "GitHub's page is open: attach the diagnostics file there, then submit. MailCraft sent nothing."
 msgstr "De pagina van GitHub is open: voeg daar het diagnosebestand toe en dien het daarna in. MailCraft heeft niets verzonden."
@@ -5068,6 +5083,11 @@ msgstr "De pagina van GitHub is open: voeg daar het diagnosebestand toe en dien 
 #, fuzzy
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. MailCraft heeft niets verzonden."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Give the report a title, on one line and in 200 characters at most."
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5805,6 +5825,11 @@ msgstr "Wordt uitgevoerd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "In a new calendar named after the file on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "In a new folder called {name} on this computer"
 msgstr "In een nieuwe map genaamd {name} op deze computer"
@@ -5844,6 +5869,11 @@ msgstr "In het bericht"
 #, fuzzy
 msgid "In the selection"
 msgstr "In de selectie"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "In this calendar:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -5994,6 +6024,11 @@ msgstr "Thema van de interface"
 #, fuzzy
 msgid "Into your contacts on this computer, each marked as imported from the file."
 msgstr "Naar uw contactpersonen op deze computer, elk gemarkeerd als geïmporteerd uit het bestand."
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Into your to-do list on this computer. Nothing is sent to anybody."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8796,6 +8831,11 @@ msgid "Only this certificate is trusted, and only for this account. If the serve
 msgstr "Alleen dit certificaat wordt vertrouwd, en alleen voor dit account. Als de server later een ander toont, wordt u opnieuw gevraagd."
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Only to mention you if we make the report public on GitHub."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Only when I ask"
@@ -9547,9 +9587,8 @@ msgstr "Voorbeeldregels in de berichtenlijst"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-#, fuzzy
-msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
-msgstr "Voorbeeld: alleen de e-mail en de contactpersonen worden nu binnengehaald. Agenda-items, taken en notities worden in het rapport geteld en voor een latere versie overgelaten. Een rapport wordt naast uw postvak geschreven."
+msgid "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -9682,6 +9721,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "Put the calendar items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Put the contacts"
 msgstr "De contactpersonen plaatsen"
@@ -9691,6 +9735,11 @@ msgstr "De contactpersonen plaatsen"
 #, fuzzy
 msgid "Put the mail"
 msgstr "De e-mail plaatsen"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the tasks"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -10820,6 +10869,11 @@ msgid "Say what happened (`what`)"
 msgstr "Geef op wat er gebeurde (`what`)"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Say what happened in 6,000 characters at most, what you expected included."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
@@ -10830,6 +10884,11 @@ msgstr "Zeg wat er moet worden geopend: `message` of `event` op het id, `compose
 #, fuzzy
 msgid "Say what went wrong. MailCraft sends nothing by itself: you check the report and send it."
 msgstr "Zeg wat er misging. MailCraft verzendt zelf niets: u controleert het rapport en verzendt het."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Say what went wrong. Nothing is sent until you press Send report, and then only what this window shows."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11185,6 +11244,16 @@ msgid "Send my sign-in"
 msgstr "Mijn aanmelding verzenden"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Send report"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Send report sends them as shown. Open on GitHub saves them to a file you attach there; they are never put in the link."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Send the Response Now"
@@ -11341,6 +11410,11 @@ msgid "Sending and receiving…"
 msgstr "Bezig met verzenden en ontvangen…"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sending the report…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Sending what is waiting for the server first; then {account} switches to Microsoft Graph."
@@ -11367,6 +11441,11 @@ msgid "Sending…"
 msgstr "Bezig met verzenden…"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sends the report to the MailCraft team, as this window shows it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Sent"
@@ -11390,11 +11469,21 @@ msgstr "Verzonden zoals geschreven, zonder iets dat wordt uitgevoerd of u volgt.
 msgid "Sent to"
 msgstr "Verzonden aan"
 
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sent to the MailCraft team privately. If it's a real problem we may make it public on GitHub, with what you wrote and the diagnostics, so we can track it. Leave out anything private."
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sent {done} of {total}"
 msgstr "{done} van {total} verzonden"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sent, reference R-{reference}."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -12704,6 +12793,11 @@ msgid "Text to look for"
 msgstr "Tekst om naar te zoeken"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Thank you. The MailCraft team has it under this reference."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
@@ -12772,6 +12866,11 @@ msgstr "Dat is het eigen adres van dit account: de eigen agenda staat er al."
 #, fuzzy
 msgid "That is too long for a report: shorten it"
 msgstr "Dat is te lang voor een rapport: maak het korter"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
@@ -13161,6 +13260,11 @@ msgstr "De dag van deze vergadering is geen dag waarover de agenda van het accou
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+msgid "The diagnostics are too long for a report. Untick Include diagnostics, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The diagnostics couldn't be saved: {error}"
 msgstr "De diagnosegegevens konden niet worden opgeslagen: {error}"
@@ -13501,6 +13605,46 @@ msgstr ""
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "Het voorgestelde einde moet na het voorgestelde begin liggen."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service couldn't be reached. Check that you're online and try again, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service couldn't file the report. Try again, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service didn't answer in time, so the report may have arrived. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service didn't take the report as it is. Shorten it and try again, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service has taken as many reports as it can for now. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service isn't taking reports just now. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service isn't working just now. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -14738,6 +14882,11 @@ msgid "This removes everything MailCraft keeps on this computer: every account's
 msgstr "Hiermee verwijdert u alles wat MailCraft op deze computer bewaart: de e-mail, bijlagen, contactpersonen, agenda en instellingen van elk account, de aanmeldingen die in de referentieopslag van het systeem zijn onthouden, gedownloade afbeeldingen, geopende bijlagen en logboeken."
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "This report is too long to send: shorten what you wrote, or untick Include diagnostics."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
@@ -15122,7 +15271,7 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
@@ -15583,6 +15732,11 @@ msgid "What happened"
 msgstr "Wat er gebeurde"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What happened and what you expected come to {n} characters together: a report takes {max}."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What happens to mail as it arrives"
@@ -15641,6 +15795,11 @@ msgstr "Wat u verwachtte (optioneel)"
 #, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
 msgstr "Wat u ziet, is niet wat werd ondertekend: ga er voorzichtig mee om."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What you wrote has been cleared from this window."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16360,6 +16519,11 @@ msgstr ""
 #, fuzzy
 msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
 msgstr "er wordt een .pst-bestand in dit postvak geïmporteerd: wacht tot het klaar is, en sla het daarna op een andere plaats op"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -17178,7 +17342,7 @@ msgid "no calendar was opened by address"
 msgstr "geen agenda is op adres geopend"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "geen agenda met id {id}"
@@ -17745,6 +17909,11 @@ msgstr "de browser kan mappen niet via een pad lezen"
 #, fuzzy
 msgid "the calendar is gone"
 msgstr "de agenda is verdwenen"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the calendar the .pst file was being imported into was removed: the import stopped"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
@@ -18426,6 +18595,11 @@ msgstr "er zijn te veel accounts"
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "er zijn te veel agenda's"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "there are too many calendars to make one for this file"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -19486,6 +19660,13 @@ msgstr[0] "{n} byte"
 msgstr[1] "{n} bytes"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} calendar item"
+msgid_plural "{n} calendar items"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} change made here hasn't reached the server and will be lost."
@@ -20017,7 +20198,7 @@ msgstr[0] "{n} blijft op deze computer"
 msgstr[1] "{n} blijven op deze computer"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} task"
 msgid_plural "{n} tasks"
@@ -20291,6 +20472,10 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #~ msgstr "Het certificaat van de ondertekenaar staat niet in het bericht."
 
 #, fuzzy
+#~ msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+#~ msgstr "Voorbeeld: alleen de e-mail en de contactpersonen worden nu binnengehaald. Agenda-items, taken en notities worden in het rapport geteld en voor een latere versie overgelaten. Een rapport wordt naast uw postvak geschreven."
+
+#, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"
 #~ msgstr "De server heeft {count} mappen; alleen de eerste {max} zijn gelezen"
 
@@ -20439,14 +20624,4 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "MailCraft wijzigt daarmee alleen de automatische antwoorden, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
 

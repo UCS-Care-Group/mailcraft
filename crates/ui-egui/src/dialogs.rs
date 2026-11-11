@@ -346,6 +346,8 @@ impl Dialog {
                 _ => Dialog::About(AboutTab::About),
             },
             "contributors" => Dialog::About(AboutTab::Contributors),
+            // (Never over a report being written or on its way.)
+            "reportProblem" if matches!(&app.dialog, Some(Dialog::ReportProblem(d)) if d.busy()) => return None,
             "reportProblem" => Dialog::ReportProblem(Box::new(crate::report_problem::Draft::new(app, params))),
             "testers" => Dialog::About(AboutTab::Testers),
             // An item that repeats is asked about before it opens: just this one, or the series?
@@ -2049,6 +2051,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut done = false;
             let open = window(ctx, tl!("Report a Problem"), crate::report_problem::WIDTH, |ui| done = draft.show(app, ui));
             close |= !open || done;
+            // A report on its way keeps the window until its answer is said (the reference, or why not).
+            close &= draft.sending.is_none();
         }
         // (Enter is nobody's in these: what they send, they send from a button.)
         Dialog::Meeting(dialog) => {

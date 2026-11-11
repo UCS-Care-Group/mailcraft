@@ -429,6 +429,8 @@ mod focus_stays_tests;
 #[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]
+mod import_pst_calendar_tests;
+#[cfg(test)]
 mod import_pst_memory_tests;
 #[cfg(test)]
 mod import_pst_review_tests;
