@@ -146,6 +146,7 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
 pub mod people_view;
@@ -180,6 +181,13 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+pub mod security;
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../engine/src/private_keys_fixtures_tests.rs"]
+mod security_fixtures_tests;
+#[cfg(test)]
+mod security_tests;
 mod send_receive;
 mod sender_images;
 mod sending;
@@ -343,6 +351,12 @@ pub struct Services {
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
     pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
+    /// Desktop: the owner's own certificates and keys (#30 R13; [`own_keys`]), on a background
+    /// thread: list them where the system keeps them (the Windows certificate store, the macOS
+    /// keychain, PKCS#11 tokens, GnuPG), read which OpenPGP keys GnuPG trusts fully, import a
+    /// `.p12` or an OpenPGP secret key. Public facts come back, never a key or a passphrase.
+    /// Absent in the browser and the tests: signing and decrypting need the desktop program.
+    pub own_keys: Option<Box<dyn Fn(own_keys::OwnKeysJob) -> Receiver<own_keys::OwnKeysAnswer>>>,
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
@@ -1008,6 +1022,9 @@ pub struct UiState {
     pub alert_reminders: bool,
     /// The filters Advanced Search's Add filters puts in its panel (#329).
     pub advanced_filters: advanced_search::Filters,
+    /// The public facts of the private keys imported in File › Options › Security (#30): never
+    /// a key or a passphrase, which the system's credential store holds ([`own_keys`]).
+    pub imported_keys: Vec<own_keys::ImportedKey>,
 }
 
 impl Default for UiState {
@@ -1059,6 +1076,7 @@ impl Default for UiState {
             update_install_told: false,
             alert_new_mail: true,
             alert_reminders: true,
+            imported_keys: Vec::new(),
         }
     }
 }
@@ -1286,6 +1304,42 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
+        "ui.importPrivateKey",
+        "Import Your Certificate or Key",
+        "File › Options › Security",
+        r#"{"format": "smime"|"openpgp"} — opens the file picker for a .p12/.pfx (S/MIME) or an OpenPGP secret key, then a dialog that asks for the .p12's passphrase in the window; the file and the passphrase go to the desktop program's key store and never through a command. Window only, never for an agent"#,
+    ),
+    (
+        "ui.removePrivateKey",
+        "Remove Your Imported Key",
+        "File › Options › Security",
+        r#"{"fingerprint": string, "confirmed"?: true} — deletes a key imported in File › Options › Security from the system's credential store; asks first. Window only, never for an agent"#,
+    ),
+    (
+        "ui.refreshOwnKeys",
+        "Refresh Your Certificates and Keys",
+        "File › Options › Security",
+        "{} — looks for the owner's certificates and keys again (and GnuPG's fully trusted keys). Window only, never for an agent",
+    ),
+    (
+        "ui.importPublicKey",
+        "Import a Public Key",
+        "File › Options › Security",
+        "{} — opens the file picker for a Public key (an X.509 certificate or an OpenPGP Public key), which `keys.import` keeps. Window only (an agent passes `data` to `keys.import`)",
+    ),
+    (
+        "ui.verifyKey",
+        "Verify a Public Key",
+        "File › Options › Security",
+        r#"{"address": string, "fingerprint": string} — the dialog that shows an OpenPGP key's whole fingerprint, to compare with the one its owner gives another way, and marks it Verified on the owner's word. Window only, never for an agent"#,
+    ),
+    (
+        "ui.markKeyVerified",
+        "Mark Key Verified",
+        "File › Options › Security",
+        r#"{"address": string, "fingerprint": string, "verified": bool} — the Verify dialog's buttons: refused unless that dialog is open for that very key. Window only, never for an agent"#,
+    ),
+    (
         "ui.desktopAlerts",
         "Desktop Alerts",
         "File › Options",
@@ -1453,6 +1507,8 @@ pub struct MailApp {
     /// whether one was left for the next (#30: the list never checks many in one frame).
     pub(crate) row_checks_left: u32,
     pub(crate) row_checks_wanted: bool,
+    /// The owner's own keys and the work on them under way (#30, File › Options › Security).
+    pub(crate) security: security::State,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
@@ -1816,6 +1872,7 @@ impl MailApp {
             trust_anchors_arriving: None,
             row_checks_left: 1,
             row_checks_wanted: false,
+            security: security::State::default(),
             ui: UiState::default(),
             services,
             dialog: None,
@@ -2153,6 +2210,11 @@ impl MailApp {
             updates::CHECK => self.check_for_updates(true),
             updates::RESTART => self.restart_to_update(),
             updates::GO_BACK => self.go_back_a_version(),
+            // Marking a key Verified and removing the owner's own key: the owner's press alone.
+            "ui.markKeyVerified" | "ui.removePrivateKey" => match security::owners_press(self, id, &params) {
+                Some(r) => r,
+                None => self.execute(id, params),
+            },
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => {
@@ -2401,6 +2463,9 @@ impl MailApp {
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
+        if let Some(r) = security::command(self, id, p) {
+            return Some(r);
+        }
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
             "ui.openDataFolder" => self.open_data_folder(),
@@ -4661,6 +4726,7 @@ impl MailApp {
             self.shared_check_tick();
         }
         self.check_secret_store();
+        security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
             // Whether a new version is out, when the owner wants that known ([`updates`]).
