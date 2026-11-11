@@ -39,16 +39,18 @@ const INBOX: &str = "INBOX";
 const UID_VALIDITY: u32 = 1;
 /// UIDs count from this instant (2024-01-01T00:00:00Z)...
 const BASE: i64 = 1_704_067_200;
-/// ...in this many steps a second: messages that came in the same second are told apart by when
-/// in it they came. shortcut: the UIDs last until 2041, and a ninth message in one second would
-/// share the eighth's UID, so it isn't brought and the run says so ([`bring`]); give the folder a
-/// new `UIDVALIDITY` and a later base, or more steps, when that is too little.
+/// ...in this many steps a second: a message takes the step of its quarter of the second, or the
+/// one after it when a message of the same quarter came first ([`numbered`]). shortcut: the UIDs
+/// last until 2041, and a message with no step left in its second isn't brought and the run says
+/// so ([`bring`]); give the folder a new `UIDVALIDITY` and a later base, or more steps, when that
+/// is too little.
 const SLOTS: i64 = 8;
-/// How long a second has to settle before its messages are numbered: Resend takes mail in on its
-/// own time, and one that turned up in the list after another of its second, but earlier in it,
-/// would take that one's UID. shortcut: mail shows a minute late, and one that takes Resend longer
-/// than that to list, or a clock here that is far ahead, can still do so.
-const SETTLE: i64 = 60;
+/// How long a second has to settle before the folder's count moves past it: Resend takes mail in
+/// on its own time, and one listed late, after a later one was counted, would never be asked for.
+/// Newer mail is brought all the same. shortcut: a message brought before its second settled and
+/// deleted here before then comes back with the next run, and one Resend takes longer than this to
+/// list, or a clock here that is far ahead, can still be missed.
+const SETTLE: i64 = 10;
 /// Most messages listed in a first run (100 a page): the newest.
 const FIRST_PAGES: usize = 50;
 /// Most listed in a later one, to reach where the folder was read to; what came before that, when
@@ -119,7 +121,8 @@ pub(super) enum Got {
 }
 
 /// Bring down what of `listed` the Inbox doesn't have yet, oldest first, through `fetch`, as far
-/// as the run's limits go; the seconds of the last [`SETTLE`] before `now` wait for the next run.
+/// as the run's limits go; the count stops short of the seconds of the last [`SETTLE`] before
+/// `now`, so that the next run looks at them again.
 /// The folder's count (`uid_seen`) only moves past a message once it is here, whole or as its
 /// header: one that couldn't be had for now (Resend busy, the connection lost) stops the run
 /// there, and it and what came after it are asked for by the next run; one Resend can't give
@@ -129,14 +132,15 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
     let request = run.request;
     let (state, seen) = inbox(request);
     let known: std::collections::HashSet<u32> = state.map(|s| s.known_uids.iter().copied().collect()).unwrap_or_default();
-    let settled: Vec<Listed> = listed.into_iter().filter(|l| l.secs <= now.saturating_sub(SETTLE)).collect();
-    let mut new: Vec<(u32, Listed)> = numbered(settled).into_iter().filter(|(uid, _)| *uid > seen && !known.contains(uid)).collect();
+    let settled_by = now.saturating_sub(SETTLE);
+    // Those here already stay in, for the count to move past them.
+    let mut new: Vec<(u32, Listed)> = numbered(listed).into_iter().filter(|(uid, _)| *uid > seen).collect();
     // A UID two messages would share ([`SLOTS`]) is the first's.
     let before = new.len();
     new.dedup_by_key(|(uid, _)| *uid);
     if new.len() < before {
         run.out.errors.push(format!(
-            "Resend received more than {SLOTS} messages in one second: {} of them weren't brought here; read them on Resend",
+            "Resend received too many messages in one second: {} of them weren't brought here; read them on Resend",
             before - new.len()
         ));
     }
@@ -146,7 +150,7 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
         new.drain(..new.len() - most);
     }
     settle_again(run, state);
-    let total = new.len();
+    let total = new.iter().filter(|(uid, _)| !known.contains(uid)).count();
     let blank = FolderDelta {
         id: state.map(|s| s.id),
         remote: INBOX.into(),
@@ -159,13 +163,22 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
     let (most_bytes, most_messages, batch_messages, batch_bytes, batch_wait) =
         (limits.bytes, limits.messages, limits.batch_messages, limits.batch_bytes, limits.batch_wait);
     let mut delta = blank.clone();
-    let (mut whole, mut run_bytes, mut batch, mut batch_started) = (true, 0usize, 0usize, Instant::now());
-    for (done, (uid, listed)) in new.into_iter().enumerate() {
+    let (mut whole, mut run_bytes, mut batch, mut batch_started, mut done) = (true, 0usize, 0usize, Instant::now(), 0usize);
+    for (uid, listed) in new {
+        let settled = listed.secs <= settled_by;
+        // Brought by an earlier run, before its second settled.
+        if known.contains(&uid) {
+            if settled {
+                delta.uid_seen = uid;
+            }
+            continue;
+        }
         // What doesn't fit in this run comes with the next.
         if run.cancelled() || done >= most_messages || run_bytes >= most_bytes {
             whole = false;
             break;
         }
+        done += 1;
         run.asked = run.asked.saturating_add(2);
         let mut message = match fetch(&listed.id) {
             Ok(Got::Whole(bytes)) => {
@@ -186,11 +199,13 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
         message.uid = uid;
         message.received = listed.secs;
         delta.new.push(message);
-        delta.uid_seen = uid;
+        if settled {
+            delta.uid_seen = uid;
+        }
         if delta.new.len() >= batch_messages || batch >= batch_bytes || batch_started.elapsed() >= batch_wait {
             let next = FolderDelta { uid_seen: delta.uid_seen, ..blank.clone() };
             run.out.folders.push(std::mem::replace(&mut delta, next));
-            run.hand_over(SyncStep::new(SyncStage::Reading, "Inbox", done + 1, total));
+            run.hand_over(SyncStep::new(SyncStage::Reading, "Inbox", done, total));
             (batch, batch_started) = (0, Instant::now());
         }
     }
@@ -357,16 +372,21 @@ pub(super) fn is_for(said: &Value, domain: &str) -> bool {
 }
 
 /// The messages oldest first, each with its UID: the steps of [`SLOTS`] since [`BASE`] to the
-/// second it came in, and which of that second's messages it is.
+/// second it came in, and its step in that second, from when in it it came, so that one listed
+/// late takes no other's.
 pub(super) fn numbered(mut listed: Vec<Listed>) -> Vec<(u32, Listed)> {
     listed.sort_by(|a, b| (a.secs, a.millis, &a.id).cmp(&(b.secs, b.millis, &b.id)));
     listed.dedup_by(|a, b| a.id == b.id);
     let mut out: Vec<(u32, Listed)> = Vec::with_capacity(listed.len());
-    let mut in_second = 0;
-    for (at, entry) in listed.into_iter().enumerate() {
-        let same = at > 0 && out.last().is_some_and(|(_, last)| last.secs == entry.secs);
-        in_second = if same { (in_second + 1).min(SLOTS - 1) } else { 0 };
-        let step = entry.secs.saturating_sub(BASE).max(0).saturating_mul(SLOTS).saturating_add(in_second);
+    for entry in listed {
+        let second = entry.secs.saturating_sub(BASE).max(0).saturating_mul(SLOTS);
+        // Every other step, by quarter of the second; the one between for a second of a quarter.
+        let mut step = second.saturating_add(i64::from(entry.millis.min(999)) * SLOTS / 2000 * 2);
+        if let Some((last, _)) = out.last()
+            && i64::from(*last) >= step
+        {
+            step = (i64::from(*last) + 1).min(second.saturating_add(SLOTS - 1));
+        }
         // Never 0, which says nothing was seen.
         let uid = u32::try_from(step).unwrap_or(u32::MAX).max(1);
         out.push((uid, entry));

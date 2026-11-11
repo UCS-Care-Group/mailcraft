@@ -208,9 +208,9 @@ fn a_message_too_large_is_kept_as_its_header_and_a_ninth_in_one_second_is_said()
 }
 
 #[test]
-fn a_second_that_hasnt_settled_waits_so_that_one_listed_late_takes_no_ones_uid() {
-    let now = instant("2026-10-09T14:38:00Z").unwrap().0;
-    // At 14:38:00, "a" of 14:37:40 is still too new: nothing of its second is numbered yet.
+fn new_mail_comes_at_once_and_one_listed_late_in_its_second_takes_no_ones_uid() {
+    let now = instant("2026-10-09T14:37:42Z").unwrap().0;
+    // Two seconds on, "a" comes, but the count stays short of its second.
     let result = brought_within(
         &SyncRequest::default(),
         vec![listed("a", "2026-10-09T14:37:40.900Z")],
@@ -218,12 +218,18 @@ fn a_second_that_hasnt_settled_waits_so_that_one_listed_late_takes_no_ones_uid()
         super::super::Limits::in_pieces(),
         &mut |id: &str| Ok(mail(id)),
     );
-    assert_eq!(subjects(&result), Vec::<&str>::new());
+    assert_eq!(subjects(&result), ["a"]);
+    let a = result.folders[0].new[0].uid;
     assert_eq!(result.folders[0].uid_seen, 0);
-    // A minute on, "b" of the same second but earlier in it has been listed too: both come, each with its own UID.
+    // Later, "b" of the same second but earlier in it has been listed too: it comes with a UID of
+    // its own, "a" isn't brought twice, and the count moves past both.
+    let mut request = read_to(0);
+    request.folders[0].known_uids = vec![a];
     let later = vec![listed("a", "2026-10-09T14:37:40.900Z"), listed("b", "2026-10-09T14:37:40.100Z")];
-    let result = brought_within(&SyncRequest::default(), later, now + SETTLE, super::super::Limits::in_pieces(), &mut |id: &str| Ok(mail(id)));
-    assert_eq!(subjects(&result), ["b", "a"]);
+    let result = brought_within(&request, later, now + SETTLE, super::super::Limits::in_pieces(), &mut |id: &str| Ok(mail(id)));
+    assert_eq!(subjects(&result), ["b"]);
+    assert!(result.folders[0].new[0].uid < a);
+    assert_eq!(result.folders[0].uid_seen, a);
 }
 
 #[test]
