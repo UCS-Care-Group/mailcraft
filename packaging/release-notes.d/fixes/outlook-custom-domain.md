@@ -1,0 +1,1 @@
+- Add Account recognises legacy Outlook.com custom domains from their Hotmail MX records and selects Microsoft sign-in instead of guessed IMAP and SMTP settings; owners can keep their custom-domain address after confirming that Microsoft's returned address is an alias of the same mailbox ([#1070](https://github.com/UCS-Care-Group/mailcraft/pull/1070)).

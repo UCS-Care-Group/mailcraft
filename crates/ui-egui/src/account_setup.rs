@@ -203,6 +203,8 @@ pub enum Action {
     NotNow,
     /// Set up the account that signed in, rather than the address that was typed.
     UseSignedIn,
+    /// Confirm that the entered custom-domain address is an alias of the signed-in mailbox.
+    KeepAlias,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -975,6 +977,7 @@ impl AccountSetup {
                 self.error = tl!("To add another Google address, go back and start a new account setup.").to_string();
             }
             (Page::SomeoneElse, Action::UseSignedIn) => self.use_signed_in(app),
+            (Page::SomeoneElse, Action::KeepAlias) => self.keep_alias(app),
             (Page::SomeoneElse, Action::GooglePassword) => {
                 self.someone_else = None;
                 self.oauth = None;
@@ -1347,13 +1350,18 @@ impl AccountSetup {
 
     /// Add the account the owner just signed in to, with the tokens that brought back. One that
     /// signed in as somebody other than the address typed is not added: the owner is asked
-    /// whether to sign in again or to set up the account that signed in (#103).
+    /// whether to sign in again, set up that account, or confirm a personal custom-domain alias.
     fn add_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
         if tokens.someone_else(self.email.trim(), "") {
             self.someone_else = Some(tokens);
             self.go(Page::SomeoneElse);
             return;
         }
+        self.add_confirmed_signed_in(app, tokens);
+    }
+
+    /// Add the identity already checked against the address, or explicitly confirmed as its alias.
+    fn add_confirmed_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
         // Which kind of Microsoft account it is: the directory the sign-in named says; without
         // that, whose servers the address was found to use (work or school mail, or Outlook.com).
         self.directory = match Directory::of_tenant(&tokens.tenant) {
@@ -1379,6 +1387,37 @@ impl AccountSetup {
             }
             Ok(None) => self.error = tl!("The account couldn't be added").to_string(),
             Err(e) => self.error = e,
+        }
+    }
+
+    /// Offer alias confirmation only for custom-domain Outlook.com setup and a personal Microsoft identity.
+    fn can_keep_alias(&self) -> bool {
+        self.edit.is_none()
+            && self.service == "Outlook.com"
+            && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Microsoft)
+            && address(&self.email).is_some_and(|(_, domain)| provider::by_domain(domain).is_none())
+            && self.someone_else.as_ref().is_some_and(|tokens| {
+                Directory::of_tenant(&tokens.tenant) == Directory::Personal
+                    && address(tokens.email.trim()).is_some()
+                    && tokens.someone_else(self.email.trim(), "")
+            })
+    }
+
+    /// Keep the entered sending address after explicit alias confirmation, using Microsoft's identity for authentication.
+    fn keep_alias(&mut self, app: &mut MailApp) {
+        if !self.can_keep_alias() {
+            return;
+        }
+        let Some(tokens) = self.someone_else.take() else { return };
+        let previous_username = std::mem::replace(&mut self.username, tokens.email.trim().to_string());
+        let kept = tokens.clone();
+        self.add_confirmed_signed_in(app, tokens);
+        if self.page != Page::Done {
+            let error = std::mem::take(&mut self.error);
+            self.username = previous_username;
+            self.someone_else = Some(kept);
+            self.go(Page::SomeoneElse);
+            self.error = error;
         }
     }
 
@@ -1893,12 +1932,13 @@ impl AccountSetup {
         }
     }
 
-    /// The owner signed in as somebody other than the address typed (#103): who, and the two
-    /// ways on. Nothing is added until they say.
+    /// Explain the identity mismatch and offer explicit choices; nothing is added until the owner chooses.
     fn someone_else_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let who = self.someone_else.as_ref().map(|tokens| line(&tokens.email, LINE)).unwrap_or_default();
         let typed = self.email.trim();
+        let can_keep_alias = self.can_keep_alias();
+        let mut keep_alias = false;
         page(ui, &t, |ui| {
             heading(ui, tl!("This isn't the account you typed"), &t);
             let said = fmt(tl!("You signed in as {signedIn}, not {typed}."), &[("signedIn", &shown(&who, 120)), ("typed", &shown(typed, 120))]);
@@ -1918,6 +1958,12 @@ impl AccountSetup {
                 )
             };
             note(ui, &next, t.text_dim);
+            if can_keep_alias {
+                ui.add_space(4.0);
+                note(ui, tl!("Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."), t.text_dim);
+                let label = fmt(tl!("Keep {address}"), &[("address", &shown(typed, 40))]);
+                keep_alias = button(ui, &label, false, true).clicked();
+            }
             ui.add_space(4.0);
         });
         problem(ui, &self.error);
@@ -1934,7 +1980,9 @@ impl AccountSetup {
                 take = button(ui, &use_label, false, usable).clicked();
             }
         });
-        if alternative {
+        if keep_alias {
+            Some(Action::KeepAlias)
+        } else if alternative {
             Some(Action::GooglePassword)
         } else if back {
             Some(Action::Back)
@@ -2445,6 +2493,8 @@ mod tests {
     mod google_signin_outcome_tests;
     /// What the wizard says about a sign-in on Microsoft's page, and the approval help (M4.4).
     mod help;
+    /// Explicit confirmation of personal Outlook.com custom-domain aliases.
+    mod legacy_alias;
     /// The password's eye (#438).
     mod reveal;
     /// An address at a domain nobody here knows (#761).

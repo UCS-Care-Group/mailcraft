@@ -6088,6 +6088,11 @@ msgstr "Diese Version behalten"
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Warten Sie weiter, dann erfolgt der Wechsel von selbst, sobald MailCraft den Server erreicht. Oder wechseln Sie ohne sie, falls der Server nicht mehr erreichbar ist (zum Beispiel, weil Ihre Organisation IMAP abgeschaltet hat):"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keep {address}"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -8404,6 +8409,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 msgid "Only confirm if you know these servers."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
 msgstr ""
 
 #. interface
