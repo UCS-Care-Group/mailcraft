@@ -141,6 +141,7 @@ pub(super) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> Gra
         preview: line(entry.get("preview").and_then(Value::as_str).unwrap_or_default(), MAX_PREVIEW),
         has_attachments: entry.get("hasAttachment").and_then(Value::as_bool).unwrap_or(false),
         draft: Some(marks.draft),
+        cut: fields.cut,
     }
 }
 
@@ -153,6 +154,8 @@ struct Fields {
     to: Vec<Address>,
     cc: Vec<Address>,
     date: Option<Timestamp>,
+    /// Recipients were left out past what is kept of them (#566).
+    cut: bool,
 }
 
 impl Fields {
@@ -162,6 +165,7 @@ impl Fields {
             return Fields::default();
         }
         let message = mailcraft_mime::parse(block.as_bytes());
+        let cut = message.headers_cut || message.to.len() > MAX_PEOPLE || message.cc.len() > MAX_PEOPLE;
         Fields {
             message_id: message.message_id.chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(MAX_TEXT).collect(),
             subject: line(&message.subject, MAX_TEXT),
@@ -170,6 +174,7 @@ impl Fields {
             cc: people(message.cc),
             // (0 is what the reader says of a date that is missing or makes no sense.)
             date: Some(message.date).filter(|date| *date != 0),
+            cut,
         }
     }
 }

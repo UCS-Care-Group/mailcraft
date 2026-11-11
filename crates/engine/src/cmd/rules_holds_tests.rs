@@ -463,7 +463,7 @@ fn a_listing_that_cut_its_recipients_isnt_deleted_for_good_past_an_exception_abo
             "exceptions": [{"type": "toOrCcMe"}], "actions": [{"type": "deleteForGood"}]}),
     );
     let mut m = listed("N1", "F-in", "To all 600 of us");
-    m.to = (0..500).map(|i| Address::new("", &format!("p{i}@example.org"))).collect();
+    m.to = (0..500).map(|i| Address::new("", format!("p{i}@example.org"))).collect();
     m.cut = true;
     let mut kept = listed("N2", "F-in", "To 500 of us");
     kept.to = m.to.clone();

@@ -2221,7 +2221,7 @@ fn a_run_rules_now_question_asked_as_settings_names_the_folder_its_account_and_t
 #[test]
 fn keeping_an_every_account_rule_on_one_server_lets_anothers_mail_reach_its_delete_for_good() {
     use crate::agent::{Access, Class, classify};
-    let (mut s, account, local, _) = session();
+    let (mut s, _, local, _) = session();
     // From before rules had accounts: for every account's mail, and it stops the rules after it.
     s.mailbox.rules.push(Rule {
         id: 900,
