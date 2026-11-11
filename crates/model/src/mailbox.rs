@@ -3523,7 +3523,8 @@ impl Mailbox {
     /// it for good last ([`Action::stage`]), unless not `for_good`; one deleted for good is noted
     /// in `going`, and goes when the run is done ([`Mailbox::rules_done`]). Whether the rule did
     /// anything: not when what it does was refused (a folder gone, a server that keeps the
-    /// message), so that Run Rules Now doesn't count it.
+    /// message) or changes nothing (a mark the message has already, a move into the folder it is
+    /// in), so that Run Rules Now doesn't count it.
     fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool, from_bin: bool, going: &mut Going) -> bool {
         let mut ordered: Vec<&Action> = actions.iter().collect();
         ordered.sort_by_key(|a| a.stage());
@@ -3550,7 +3551,8 @@ impl Mailbox {
                 // A rule pointing at a folder that is gone does nothing, and none puts mail into a
                 // send queue (the next Send/Receive would send it).
                 Action::MoveTo(folder) => {
-                    did |= !self.is_send_queue(*folder) && self.move_message(id, *folder).is_ok();
+                    let moves = self.message(id).is_some_and(|m| m.folder != *folder);
+                    did |= moves && !self.is_send_queue(*folder) && self.move_message(id, *folder).is_ok();
                 }
                 Action::CopyTo(folder) => {
                     let at = u64::try_from(clock.now).unwrap_or_default();
@@ -3581,7 +3583,8 @@ impl Mailbox {
                 Action::DeleteForGood => did |= gone(self, going),
                 change => {
                     let Ok(m) = self.message_mut(id) else { break };
-                    did = true;
+                    // Only what it changes counts: a mark it has already is no change.
+                    let was = (m.read, m.flag, m.flag_due, m.importance, m.categories.len());
                     match change {
                         Action::Categorize(c) if !m.has_category(c) => {
                             m.categories.push(c.clone());
@@ -3601,6 +3604,7 @@ impl Mailbox {
                         Action::SetImportance(i) => m.importance = *i,
                         _ => {}
                     }
+                    did |= was != (m.read, m.flag, m.flag_due, m.importance, m.categories.len());
                 }
             }
         }

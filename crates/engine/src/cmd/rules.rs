@@ -28,7 +28,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"account"?: number} — the rules (of that account and those for every account, in the order they run); each says where it is kept: "server", "waiting" (to go to the server), "here" (with why when it can't go there) or "everyAccount""#,
         ),
         CommandSpec::new("rules.run", "Run Rules Now", "Folder › Clean Up", run)
-            .params(r#"{"folder"?: number (default: the folder in view), "id"?: number (that rule alone)} — the enabled rules for the folder's account, those its server keeps too, over the mail in it (not a shared mailbox's folder: the rules leave its mail alone); answers {"matched"}"#),
+            .params(r#"{"folder"?: number (default: the folder in view), "id"?: number (that rule alone)} — the enabled rules for the folder's account, those its server keeps too, over the mail in it (not a shared mailbox's folder: the rules leave its mail alone); answers {"matched": how many messages the rules changed}"#),
         CommandSpec::new("rules.fromMessage", "Always Move Messages From", "Home › Move", from_message)
             .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once over the mail in the message's folder (not for a shared mailbox's message: its rules are its own); the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),

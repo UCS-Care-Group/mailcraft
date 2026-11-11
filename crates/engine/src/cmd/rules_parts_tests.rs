@@ -489,3 +489,31 @@ fn more_than_twenty_exceptions_are_refused() {
     s.run("rules.add", &rule(&exceptions[..20])).unwrap();
     assert_eq!(s.mailbox.rules[0].exceptions.len(), 20);
 }
+
+/// Run Rules Now counts the messages the rules changed: run again over mail the first run left as
+/// the rule would (read, with its category), and over a folder its rule moves mail to, nothing
+/// changes, and it says 0.
+#[test]
+fn run_rules_now_counts_only_the_messages_it_changed() {
+    let (mut s, account, inbox, kept) = session();
+    for n in 0..3 {
+        arriving(&mut s, inbox, "club@example.org", &format!("Club news {n}"));
+    }
+    let rule = json!({"name": "Club", "account": account, "conditions": [{"type": "subjectContains", "value": "club"}],
+        "actions": [{"type": "markRead"}, {"type": "categorize", "value": "Red category"}]});
+    s.run("rules.add", &rule).unwrap();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], 3, "the first run marks three read");
+    let before = serde_json::to_value(&s.mailbox.messages).unwrap();
+    let again = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].clone();
+    assert_eq!(serde_json::to_value(&s.mailbox.messages).unwrap(), before, "the second run changes no message");
+    assert_eq!(again, 0);
+    for n in 0..2 {
+        let m = arriving(&mut s, inbox, "news@example.org", &format!("Filed {n}"));
+        s.mailbox.move_message(m, kept).unwrap();
+    }
+    let file = json!({"name": "File", "account": account, "conditions": [{"type": "subjectContains", "value": "filed"}],
+        "actions": [{"type": "moveTo", "value": kept}]});
+    s.run("rules.add", &file).unwrap();
+    let id = s.mailbox.rules.iter().find(|r| r.name == "File").unwrap().id;
+    assert_eq!(s.run("rules.run", &json!({"folder": kept, "id": id})).unwrap()["matched"], 0, "nothing moved in Kept");
+}
