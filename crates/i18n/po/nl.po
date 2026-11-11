@@ -5610,6 +5610,11 @@ msgstr "Wordt uitgevoerd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "In a new calendar named after the file on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "In a new folder called {name} on this computer"
 msgstr "In een nieuwe map genaamd {name} op deze computer"
@@ -5649,6 +5654,11 @@ msgstr "In het bericht"
 #, fuzzy
 msgid "In the selection"
 msgstr "In de selectie"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "In this calendar:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -5799,6 +5809,11 @@ msgstr "Thema van de interface"
 #, fuzzy
 msgid "Into your contacts on this computer, each marked as imported from the file."
 msgstr "Naar uw contactpersonen op deze computer, elk gemarkeerd als geïmporteerd uit het bestand."
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Into your to-do list on this computer. Nothing is sent to anybody."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9267,9 +9282,8 @@ msgstr "Voorbeeldregels in de berichtenlijst"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-#, fuzzy
-msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
-msgstr "Voorbeeld: alleen de e-mail en de contactpersonen worden nu binnengehaald. Agenda-items, taken en notities worden in het rapport geteld en voor een latere versie overgelaten. Een rapport wordt naast uw postvak geschreven."
+msgid "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -9387,6 +9401,11 @@ msgstr "Voorgestelde tijd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "Put the calendar items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Put the contacts"
 msgstr "De contactpersonen plaatsen"
@@ -9396,6 +9415,11 @@ msgstr "De contactpersonen plaatsen"
 #, fuzzy
 msgid "Put the mail"
 msgstr "De e-mail plaatsen"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the tasks"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15799,6 +15823,11 @@ msgstr "er wordt een .pst-bestand in dit postvak geïmporteerd: wacht tot het kl
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
 msgstr "een .pst-bestand wordt alleen in een map op deze computer geïmporteerd, nooit in een account op een server of in de Outbox"
@@ -16579,7 +16608,7 @@ msgid "no calendar was opened by address"
 msgstr "geen agenda is op adres geopend"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "geen agenda met id {id}"
@@ -17141,6 +17170,11 @@ msgstr "de browser kan mappen niet via een pad lezen"
 #, fuzzy
 msgid "the calendar is gone"
 msgstr "de agenda is verdwenen"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the calendar the .pst file was being imported into was removed: the import stopped"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -17782,6 +17816,11 @@ msgstr "er zijn te veel accounts"
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "er zijn te veel agenda's"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "there are too many calendars to make one for this file"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -18820,6 +18859,13 @@ msgstr[0] "{n} byte"
 msgstr[1] "{n} bytes"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} calendar item"
+msgid_plural "{n} calendar items"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} change made here hasn't reached the server and will be lost."
@@ -19351,7 +19397,7 @@ msgstr[0] "{n} blijft op deze computer"
 msgstr[1] "{n} blijven op deze computer"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} task"
 msgid_plural "{n} tasks"
@@ -19619,6 +19665,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+#~ msgstr "Voorbeeld: alleen de e-mail en de contactpersonen worden nu binnengehaald. Agenda-items, taken en notities worden in het rapport geteld en voor een latere versie overgelaten. Een rapport wordt naast uw postvak geschreven."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

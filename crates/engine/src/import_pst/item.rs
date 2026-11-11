@@ -24,6 +24,8 @@ pub const MAX_BODY: u64 = 32 << 20;
 const MAX_RTF: usize = 64 << 20;
 /// Most bytes of text one import takes from bodies kept as rich text.
 pub const RTF_TEXT_BUDGET: u64 = if cfg!(test) { 40 << 20 } else { 256 << 20 };
+/// Most memory one import's events and to-dos may take: unlike mail, they aren't moved out of it.
+pub const PLAN_TEXT_BUDGET: u64 = if cfg!(test) { 8 << 20 } else { 512 << 20 };
 /// The name of the attachment that keeps a body's rich text.
 const RTF_FILE: &str = "message body.rtf";
 /// Most bytes of the transport headers kept.
@@ -111,6 +113,10 @@ pub struct Named {
     pub contact: super::contact::ContactIds,
     /// Bytes of text this import may still take from rich text.
     pub rtf_room: std::cell::Cell<u64>,
+    /// Bytes of memory this import's events and to-dos may still take.
+    pub plan_room: std::cell::Cell<u64>,
+    /// The ids of the named properties of calendar items and tasks.
+    pub calendar: super::calendar::CalendarIds,
 }
 
 /// PSETID_Task, as a .pst file keeps a property set (the first three fields little-endian).
@@ -414,7 +420,7 @@ fn cut_at(s: &str, max: usize) -> &str {
 
 /// A person from their name and addresses (`[name, SMTP address, address]`): the SMTP address,
 /// else the address when it is one (an Exchange address is a name in a directory, not one).
-fn person(text: &Text, p: &Properties, [name, smtp, address]: [u16; 3]) -> Option<Address> {
+pub(super) fn person(text: &Text, p: &Properties, [name, smtp, address]: [u16; 3]) -> Option<Address> {
     let name = text.short(p, name).unwrap_or_default();
     let email = text.short(p, smtp).filter(|e| e.contains('@')).or_else(|| text.short(p, address).filter(|e| e.contains('@'))).unwrap_or_default();
     (!name.is_empty() || !email.is_empty()).then(|| Address::new(name, email))
@@ -536,6 +542,54 @@ fn body<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, text: &Tex
     }
     out.body.html = html;
     Ok(())
+}
+
+/// The categories an item keeps (PidNameKeywords).
+pub(super) fn own_categories(p: &Properties, named: &Named, text: &Text) -> Vec<String> {
+    named.keywords.map_or_else(Vec::new, |id| text.list(p, id).iter().filter_map(|c| mailcraft_model::clean_name(c)).take(MAX_CATEGORIES).collect())
+}
+
+/// The text of an item that isn't mail (an appointment's notes, a task's): its plain text, else
+/// the text of its rich text, else of its HTML, within `max` characters; and what couldn't be.
+pub(super) fn plain_body<R: Read + Seek>(
+    pst: &mut Pst<R>,
+    m: &mailcraft_pst::Message,
+    named: &Named,
+    max: usize,
+) -> Result<(String, Vec<String>), PstError> {
+    let text = Text::of(&m.properties, named.charset);
+    let mut item = Item { named, left: MAX_BODY.saturating_mul(2), notes: Vec::new(), more_notes: 0 };
+    let mut out = body_value(pst, m, 0x1000, &mut item, "text")?
+        .and_then(|v| value_text(&v, &text))
+        .map(|t| t.trim_end_matches('\0').replace("\r\n", "\n"))
+        .unwrap_or_default();
+    if out.trim().is_empty()
+        && let Some(PropValue::Binary(stored)) = body_value(pst, m, 0x1009, &mut item, "rich text")?
+    {
+        let room = named.rtf_room.get();
+        let most = usize::try_from(room).unwrap_or(usize::MAX).min(max.saturating_add(8));
+        match mailcraft_pst::decompress_rtf(&stored, MAX_RTF).and_then(|raw| mailcraft_pst::rtf_text(&raw, most)) {
+            Ok((t, cut)) => {
+                named.rtf_room.set(room.saturating_sub(t.len() as u64));
+                out = t;
+                if cut && most <= max {
+                    item.note("its notes (rich text) are cut: this import has opened as much rich text as one import may".to_string());
+                }
+            }
+            Err(e) => item.note(format!("its notes (rich text) could not be read: {e}")),
+        }
+    }
+    if out.trim().is_empty()
+        && let Some(PropValue::Binary(b)) = body_value(pst, m, 0x1013, &mut item, "HTML")?
+    {
+        out = mailcraft_html::text_and_hidden(&mailcraft_charset::guess(&b)).0;
+    }
+    let kept = cut_at(&out, max);
+    if kept.len() < out.len() {
+        item.note("its notes were longer than the limit and are cut".to_string());
+    }
+    let kept = kept.to_string();
+    Ok((kept, item.notes))
 }
 
 /// A body kept as rich text alone ([MS-OXRTFCP]): its text becomes the body and the RTF is kept
@@ -685,7 +739,7 @@ fn attachment<R: Read + Seek>(
 }
 
 /// A part of an item the reader left out, for its note.
-fn part_name(part: &mailcraft_pst::Part) -> String {
+pub(super) fn part_name(part: &mailcraft_pst::Part) -> String {
     use mailcraft_pst::Part;
     match part {
         Part::Recipients { count } => format!("{count} recipients past the limit"),
@@ -701,16 +755,12 @@ fn part_name(part: &mailcraft_pst::Part) -> String {
 }
 
 /// What an item is, by its message class: `None` for mail (a message, a report, a post, a
-/// meeting request, a contact or a distribution list, which [`super::contact`] reads);
-/// otherwise the kind a later part brings in.
+/// meeting or task request), a contact or a list ([`super::contact`]), or an appointment or a
+/// task ([`super::calendar`]); otherwise the kind a later part brings in.
 pub fn later_kind(class: &str) -> Option<&'static str> {
     let c = class.to_ascii_lowercase();
     let family = |prefix: &str| c == prefix || c.strip_prefix(prefix).is_some_and(|rest| rest.starts_with('.'));
-    if family("ipm.appointment") {
-        Some("appointment")
-    } else if family("ipm.task") || family("ipm.taskrequest") {
-        Some("task")
-    } else if family("ipm.stickynote") {
+    if family("ipm.stickynote") {
         Some("note")
     } else if family("ipm.activity") {
         Some("journal entry")

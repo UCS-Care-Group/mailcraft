@@ -5305,6 +5305,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "In a new calendar named after the file on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
 msgid "In a new folder called {name} on this computer"
 msgstr ""
 
@@ -5340,6 +5345,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "In the selection"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "In this calendar:"
 msgstr ""
 
 #. interface
@@ -5483,6 +5493,11 @@ msgstr "Tema dell'interfaccia"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Into your contacts on this computer, each marked as imported from the file."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Into your to-do list on this computer. Nothing is sent to anybody."
 msgstr ""
 
 #. interface
@@ -8799,7 +8814,7 @@ msgstr "Righe di anteprima nell'elenco messaggi"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+msgid "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
 msgstr ""
 
 #. interface
@@ -8913,12 +8928,22 @@ msgstr "Orario proposto"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "Put the calendar items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
 msgid "Put the contacts"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Put the mail"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the tasks"
 msgstr ""
 
 #. interface
@@ -14931,6 +14956,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
 msgstr ""
 
@@ -15670,7 +15700,7 @@ msgid "no calendar was opened by address"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "nessun calendario con id {id}"
@@ -16205,6 +16235,11 @@ msgstr ""
 #, fuzzy
 msgid "the calendar is gone"
 msgstr "il calendario non c'è più"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the calendar the .pst file was being imported into was removed: the import stopped"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -16832,6 +16867,11 @@ msgstr "ci sono troppi account"
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "ci sono troppi calendari"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "there are too many calendars to make one for this file"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -17821,6 +17861,13 @@ msgstr[0] "{n} byte"
 msgstr[1] "{n} byte"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} calendar item"
+msgid_plural "{n} calendar items"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} change made here hasn't reached the server and will be lost."
@@ -18326,7 +18373,7 @@ msgstr[0] "{n} resta su questo computer"
 msgstr[1] "{n} restano su questo computer"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} task"
 msgid_plural "{n} tasks"
