@@ -1028,24 +1028,41 @@ fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, 
 }
 
 /// [`rules_make_in_outlook`] for one rule, giving the mail of `from` (every account's, `None`) its
-/// categories. Its actions are read in their order, as the rule runs: mail it moves first may be
-/// given what comes after in the account it was moved to, on that account's list, or, when the
-/// move is refused (a message not downloaded whole, say), where it was: both are named.
+/// categories. The mail may have been moved to another account by then, by this rule or by one
+/// that runs before it ([`Mailbox::run_rules`] runs the rules of the account the mail came to,
+/// in their order, wherever an earlier one moved it), or a move may have been refused (a message
+/// not downloaded whole, say): every list it may be on is named. A rule that moves mail to another
+/// account takes the categories the rules that run with it give there too.
 fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<Id>, out: &mut Vec<(String, Id)>) {
     let mut accounts: Vec<Id> = match from {
         Some(a) => vec![a],
         None => mb.accounts.iter().map(|a| a.id).collect(),
     };
-    for action in &r.actions {
-        if let mailcraft_model::Action::MoveTo(folder) = action {
-            // (A rule puts nothing into a send queue, nor into a folder that is gone.)
-            if let Some(f) = mb.folder(*folder).filter(|f| !mb.is_send_queue(f.id))
-                && !accounts.contains(&f.account)
-            {
-                accounts.push(f.account);
-            }
-            continue;
+    // (A rule puts nothing into a send queue, nor into a folder that is gone.)
+    let runs_with = |x: &mailcraft_model::Rule| from.is_none_or(|a| x.is_for(a));
+    let moved_to: Vec<Id> = mb
+        .rules
+        .iter()
+        .filter(|x| runs_with(x))
+        .chain(std::iter::once(r))
+        .flat_map(|x| x.actions.iter())
+        .filter_map(|action| match action {
+            mailcraft_model::Action::MoveTo(folder) => mb.folder(*folder).filter(|f| !mb.is_send_queue(f.id)).map(|f| f.account),
+            _ => None,
+        })
+        .collect();
+    let moves_away = r.actions.iter().any(|action| match action {
+        mailcraft_model::Action::MoveTo(folder) => mb.folder(*folder).is_some_and(|f| !mb.is_send_queue(f.id) && !accounts.contains(&f.account)),
+        _ => false,
+    });
+    for account in moved_to {
+        if !accounts.contains(&account) {
+            accounts.push(account);
         }
+    }
+    let others = mb.rules.iter().filter(|x| moves_away && x.id != r.id && x.enabled && runs_with(x));
+    let given = r.actions.iter().chain(others.flat_map(|x| x.actions.iter()));
+    for action in given {
         let mailcraft_model::Action::Categorize(name) = action else { continue };
         let Some(name) = mailcraft_model::clean_name(name) else { continue };
         for account in &accounts {

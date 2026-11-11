@@ -2560,6 +2560,45 @@ fn a_rule_that_moves_mail_before_it_categorises_it_names_the_list_the_mail_lands
     assert!(s.mailbox.category_of(b, "Zed").is_some() && s.mailbox.category_of(a, "Zed").is_some());
 }
 
+/// The rules run in one order on mail, those of the account it came to, wherever an earlier one
+/// moved it: a rule that only categorises, after one that moves mail to another account, puts the
+/// category on that account's list, and an agent is asked `send` for it, the list named (#661).
+#[test]
+fn a_category_given_after_another_rule_moved_the_mail_is_asked_for_on_the_list_it_lands_on() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Zed", RED)], true);
+    let b = s.run("account.add", &json!({"email": "b@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    read_as(&mut s, b, "b@example.org", vec![tag("Red category", RED)]);
+    s.run("sync.categoryWrites", &json!({"account": b, "allowed": true})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    s.mailbox.rules.push(Rule {
+        id: 900,
+        name: "Move".into(),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::SubjectContains("x".into())],
+        actions: vec![Action::MoveTo(theirs)],
+        ..Default::default()
+    });
+    let tag_it = json!({"name": "Tag", "account": a, "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "categorize", "value": "Zed"}], "server": false});
+    let asked = |s: &Session, command: &str, params: &serde_json::Value, allow: &[Class]| match check(s, command, params, allow) {
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("\u{201c}Zed\u{201d}") && text.contains("b@example.org"), "{text}"),
+        other => panic!("{command}: {other:?}"),
+    };
+    asked(&s, "rules.add", &tag_it, &[Class::Settings]);
+    s.run("rules.add", &tag_it).unwrap();
+    asked(&s, "rules.run", &json!({"folder": inbox}), &[]);
+    // Switching the move on, with the rule that categorises after it, names the category too.
+    let switch = |s: &mut Session, on: bool| s.mailbox.rules.iter_mut().filter(|r| r.id == 900).for_each(|r| r.enabled = on);
+    switch(&mut s, false);
+    asked(&s, "rules.enable", &json!({"id": 900, "value": true}), &[Class::Settings]);
+    switch(&mut s, true);
+    let m = s.mailbox.add_message(Message { folder: inbox, subject: "x".into(), ..Default::default() }).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.message(m).unwrap().account, b);
+    assert!(s.mailbox.category_of(b, "Zed").is_some());
+}
+
 #[test]
 fn an_agents_undo_or_redo_that_makes_a_category_in_outlook_again_asks_send_and_says_so() {
     let ask = |s: &Session, command: &str, allow: &[Class], what: &[&str]| match check(s, command, &json!({}), allow) {
