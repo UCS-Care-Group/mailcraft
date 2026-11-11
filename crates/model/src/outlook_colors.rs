@@ -42,9 +42,18 @@ pub fn preset_category_color(n: i64) -> Option<Rgb> {
     usize::try_from(n).ok().and_then(|n| OUTLOOK_COLORS.get(n).copied())
 }
 
-/// The colour a server gives as `name` (`preset7`, any case); grey for `none` or anything else.
+/// A category Outlook gives no colour (`none`): drawn grey, and written back as `none`, never as
+/// Outlook's Gray (`preset12`, [`crate::GREY_CATEGORY`]), so that a rename keeps it without one.
+pub const NO_COLOR: Rgb = Rgb(0x8A, 0x8A, 0x8B);
+
+/// The colour a server gives as `name` (`preset7`, any case); [`NO_COLOR`] for `none`, grey for
+/// anything else.
 pub fn outlook_color(name: &str) -> Rgb {
-    let number = name.trim().to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<i64>().ok());
+    let name = name.trim().to_ascii_lowercase();
+    if name == "none" {
+        return NO_COLOR;
+    }
+    let number = name.strip_prefix("preset").and_then(|n| n.parse::<i64>().ok());
     number.and_then(preset_category_color).unwrap_or(crate::GREY_CATEGORY)
 }
 
@@ -56,6 +65,9 @@ pub fn outlook_preset(color: Rgb) -> Option<usize> {
 /// The one of the 25 nearest to `color`: what a category of another colour becomes when it goes
 /// to a Microsoft account's server.
 pub fn nearest_outlook_color(color: Rgb) -> Rgb {
+    if color == NO_COLOR {
+        return NO_COLOR;
+    }
     let distance = |c: &Rgb| {
         let d = |a: u8, b: u8| (i32::from(a) - i32::from(b)).pow(2);
         d(c.0, color.0) + d(c.1, color.1) + d(c.2, color.2)

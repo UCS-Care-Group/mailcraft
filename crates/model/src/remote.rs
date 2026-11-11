@@ -1223,7 +1223,7 @@ impl CategoriesDownload {
     pub fn tidy(&mut self) {
         let mut kept: Vec<Category> = Vec::new();
         for category in std::mem::take(&mut self.categories) {
-            let name = line(&category.name, MAX_NAME);
+            let name = category_name(&category.name);
             if name.is_empty() || kept.iter().any(|have| crate::sync::same_category(&have.name, &name)) {
                 continue;
             }
@@ -1553,6 +1553,12 @@ pub(crate) fn key(text: &str) -> String {
 
 /// One line of text from outside: line breaks and control characters read as spaces, and it is
 /// at most `max` characters long.
+/// A category's name as a server lists it, as it is kept here: one line, cut to size. A change
+/// sent there finds the category by this too (#661).
+pub fn category_name(name: &str) -> String {
+    line(name, MAX_NAME)
+}
+
 pub(crate) fn line(text: &str, max: usize) -> String {
     let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let short: String = flat.trim().chars().take(max).collect();

@@ -14,7 +14,7 @@
 //! the list is capped and an entry that is no category is skipped.
 
 use mailcraft_model::Rgb;
-use mailcraft_model::outlook_colors::{nearest_outlook_color, outlook_preset};
+use mailcraft_model::outlook_colors::{NO_COLOR, nearest_outlook_color, outlook_preset};
 use mailcraft_model::remote::{
     CategoriesUpload, CategoriesUploaded, CategoryChangeKind, CategoryOutcome, CategoryResult, MAX_CATEGORY_CHANGES, MAX_REMOTE_CATEGORIES,
 };
@@ -46,9 +46,12 @@ pub fn push_categories(token: &str, upload: &CategoriesUpload) -> CategoriesUplo
     push_categories_at(&super::graph_base(), token, upload)
 }
 
-/// The name Graph has for one of its colours (`preset0` to `preset24`): the one a colour is, or
-/// else the nearest.
+/// The name Graph has for one of its colours (`preset0` to `preset24`, `none`): the one a colour
+/// is, or else the nearest.
 pub(super) fn color_name(color: Rgb) -> String {
+    if color == NO_COLOR {
+        return "none".into();
+    }
     let preset = outlook_preset(color).or_else(|| outlook_preset(nearest_outlook_color(color))).unwrap_or_default();
     format!("preset{preset}")
 }
@@ -72,9 +75,10 @@ pub(super) fn push_categories_at(base: &str, token: &str, upload: &CategoriesUpl
     // (As far as a read of the list goes, [`MAX_REMOTE_CATEGORIES`]: what lies past it isn't
     // known here, so nothing is sent for it.)
     let read = graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
-        let (id, name) = (text(entry, "id"), text(entry, "displayName").trim());
+        // (Its name as a read keeps it, which is the name a change here has for it.)
+        let (id, name) = (text(entry, "id"), mailcraft_model::remote::category_name(text(entry, "displayName")));
         if valid_id(id) && !name.is_empty() {
-            there.push(There { id: id.to_string(), name: name.to_string(), color: category_color(text(entry, "color")) });
+            there.push(There { id: id.to_string(), name, color: category_color(text(entry, "color")) });
         }
     });
     let whole = match read {

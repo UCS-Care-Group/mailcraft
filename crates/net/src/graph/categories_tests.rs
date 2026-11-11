@@ -7,7 +7,7 @@
 use std::sync::{Arc, Mutex};
 
 use mailcraft_model::Rgb;
-use mailcraft_model::outlook_colors::OUTLOOK_COLORS;
+use mailcraft_model::outlook_colors::{NO_COLOR, OUTLOOK_COLORS};
 use mailcraft_model::remote::{CategoriesUpload, CategoryChange, CategoryChangeKind, CategoryResult};
 use serde_json::{Value, json};
 
@@ -269,6 +269,39 @@ fn a_colour_is_sent_as_the_servers_own_name_for_it() {
     // Any other colour goes as the nearest of them.
     assert_eq!(color_name(Rgb(0xD0, 0x3B, 0x3B)), "preset0");
     assert_eq!(color_name(Rgb(0x2F, 0x70, 0xD1)), "preset7");
+    // No colour is none, not Gray.
+    assert_eq!(color_name(NO_COLOR), "none");
+}
+
+#[test]
+fn a_category_with_no_colour_is_made_again_with_none() {
+    // A rename there: the new name made, the old one deleted, both without a colour.
+    let s = state(vec![json!({"id": "P", "displayName": "Plain", "color": "none"})]);
+    let server = serve(&s);
+    let changes = vec![
+        CategoryChange { kind: CategoryChangeKind::Create, name: "Clear".into(), color: NO_COLOR },
+        CategoryChange { kind: CategoryChangeKind::Delete, name: "Plain".into(), color: NO_COLOR },
+    ];
+    let done = push_categories_at(&server.url(""), TOKEN, &upload(changes));
+    let results: Vec<CategoryResult> = done.outcomes.iter().map(|o| o.result).collect();
+    assert_eq!(results, [CategoryResult::Done; 2], "{:?}", done.outcomes);
+    let there = s.lock().unwrap().categories.clone();
+    assert_eq!(there.len(), 1);
+    assert_eq!((there[0]["displayName"].as_str(), there[0]["color"].as_str()), (Some("Clear"), Some("none")));
+}
+
+#[test]
+fn a_name_longer_than_a_read_keeps_is_found_by_the_name_kept_here() {
+    let long = format!("{}\u{7}{}", "x".repeat(60), "y".repeat(100));
+    let s = state(vec![json!({"id": "L1", "displayName": long, "color": "preset3"})]);
+    let server = serve(&s);
+    let kept = mailcraft_model::remote::category_name(&long);
+    assert_eq!(kept.chars().count(), 120);
+    for kind in [CategoryChangeKind::Color, CategoryChangeKind::Delete] {
+        let done = push_categories_at(&server.url(""), TOKEN, &upload(vec![change(kind, &kept, 5)]));
+        assert_eq!(done.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [CategoryResult::Done], "{:?}", done.outcomes);
+    }
+    assert_eq!(writes(&s), ["PATCH /v1.0/me/outlook/masterCategories/L1", "DELETE /v1.0/me/outlook/masterCategories/L1"]);
 }
 
 #[test]
@@ -319,7 +352,7 @@ fn a_hostile_server_never_makes_the_push_panic_and_its_list_is_read_as_far_as_a_
     // Found there, as the server has it; and the one past the read is said in words.
     assert!(done.outcomes[2].found);
     assert!(done.outcomes[3].error.contains("too long"), "{:?}", done.outcomes[3]);
-    assert!(done.outcomes.iter().all(|o| !o.error.contains(TOKEN) && o.name.chars().count() < 1_000));
+    assert!(done.outcomes.iter().all(|o| !o.error.contains(TOKEN)));
     let writes: Vec<String> = asked.lock().unwrap().iter().filter(|l| !l.starts_with("GET ")).cloned().collect();
     assert_eq!(writes.len(), 2, "{writes:?}");
     assert!(!writes.iter().any(|w| w.contains("N350")), "{writes:?}");

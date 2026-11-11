@@ -635,6 +635,18 @@ fn a_file_from_an_older_build_with_a_name_in_two_spellings_sends_nothing_for_it(
 }
 
 #[test]
+fn a_category_with_no_colour_in_outlook_keeps_none_and_can_be_made_gray() {
+    let none = mailcraft_model::outlook_colors::NO_COLOR;
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Plain", none)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Plain", "to": "Clear"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Clear", none)]);
+    // Outlook's Gray is a colour of its own.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Plain", none)], true);
+    s.run("category.set", &json!({"account": a, "name": "Plain", "color": GREY_CATEGORY.hex()})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Color, "Plain", GREY_CATEGORY)]);
+}
+
+#[test]
 fn a_read_never_takes_a_name_kept_here_alone_off_the_list_for_a_deletion() {
     // However it came to be kept here alone without being on the list.
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);
