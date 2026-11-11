@@ -3326,8 +3326,9 @@ impl Mailbox {
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
         let mut alert = false;
         // A rule that can't tell yet, which may apply after all (and stop the rest, or copy the
-        // message first): the rules after it run as they would if it didn't apply, but delete
-        // nothing for good, which can't be taken back (#566).
+        // message first), or one that waits to copy it out of its account: the rules after it run
+        // as they would if it didn't apply, but delete nothing for good, which can't be taken back
+        // (#566).
         let mut unsure = false;
         // New mail its server listed before it is fetched: what couldn't be told waits for it
         // to be here whole (#566).
@@ -3353,11 +3354,19 @@ impl Mailbox {
                 continue;
             }
             if now || !rule.on_server() {
+                // One that copies mail out of its account waits whole for the message: a copy in
+                // another mailbox is made of the whole message, which isn't here yet. It copies once
+                // the message is here, as Outlook's rule on the computer copies new mail into another
+                // account's folder; the deletes for good after it wait with it, as behind a rule
+                // that can't tell yet (#566).
+                let copies_out =
+                    waits && rule.actions.iter().any(|a| matches!(a, Action::CopyTo(f) if self.folder(*f).is_some_and(|f| f.account != account)));
                 // One that deletes for good while a rule before it can't tell yet waits whole, and
                 // acts once the message is here and that rule has had its say: its copy and its
                 // delete then go together, the delete held behind the copy until it is answered.
-                if waits && unsure && !copied && rule.actions.contains(&Action::DeleteForGood) {
+                if copies_out || (waits && unsure && !copied && rule.actions.contains(&Action::DeleteForGood)) {
                     waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
+                    unsure |= copies_out;
                 } else {
                     alert |= rule.alert && ruling == Ruling::Arriving;
                     // (Copied as it first arrived.)

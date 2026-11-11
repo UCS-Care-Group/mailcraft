@@ -310,3 +310,155 @@ fn a_delete_for_good_waits_for_an_earlier_copy_rule_that_cant_tell_yet() {
     assert!(matches!(changes.as_slice(), [MessageChange::Copy { .. }]), "the copy goes, the delete waits behind it: {changes:?}");
     assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1")));
 }
+
+/// An IMAP account beside the one under test, read once: its Inbox, which a rule of the other
+/// account copies Zoe's mail into, and the account.
+fn imap_inbox(s: &mut Session) -> (Id, Id) {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    let servers = json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}, "outgoing": {"host": "smtp.other.example"}});
+    let b = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let delta = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, ..Default::default() };
+    crate::cmd::account::apply_sync(s, SyncResult { account: b, folders: vec![delta], ..Default::default() }).unwrap();
+    (s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap(), b)
+}
+
+/// A rule of `account`'s, on this computer, that copies Zoe's mail into `to`.
+fn copy_out(s: &mut Session, account: Id, to: Id) {
+    let rule = json!({"name": "Zoe to Blake", "account": account, "server": false,
+        "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "copyTo", "value": to}]});
+    s.run("rules.add", &rule).unwrap();
+}
+
+/// The copies in `to`, and those waiting to be made on the server of `b`.
+fn copies(s: &Session, to: Id, b: Id) -> (usize, usize) {
+    let made = s.mailbox.messages.values().filter(|m| m.folder == to).count();
+    let placed = s.mailbox.queued.iter().filter(|q| matches!(q, mailcraft_model::Queued::PlaceMessage { account, .. } if *account == b)).count();
+    (made, placed)
+}
+
+/// New mail is listed before it is fetched, and a copy in another mailbox is made of the whole
+/// message: a rule on this computer that copies it into another account's folder waits for the
+/// download and copies it then, as Outlook's rule copies new mail into another account while it
+/// is open (#566). For a Microsoft account, an Exchange server account and a JMAP account's fetch.
+fn copies_once_fetched(s: &mut Session, account: Id, to: Id, b: Id, fetch: impl Fn(&mut Session, Vec<GraphFetched>)) {
+    assert_eq!(copies(s, to, b), (0, 0), "nothing is copied of mail not here yet");
+    assert!(here(s, account, "N1").rules_waiting.is_some());
+    fetch(s, vec![whole("N1", "Plan", "", "The plan.")]);
+    assert!(!here(s, account, "N1").unfetched && here(s, account, "N1").rules_waiting.is_none());
+    assert_eq!(copies(s, to, b), (1, 1), "copied once it is here whole");
+    // The original stays where it came.
+    assert_eq!(s.mailbox.folder(here(s, account, "N1").folder).map(|f| f.kind), Some(FolderKind::Inbox));
+}
+
+#[test]
+fn a_microsoft_rule_copying_new_mail_into_another_account_copies_it_once_it_is_fetched() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let (to, b) = imap_inbox(&mut s);
+    copy_out(&mut s, account, to);
+    arrives(&mut s, account, "Plan");
+    copies_once_fetched(&mut s, account, to, b, |s, fetched| {
+        graph_mail::apply_graph_fetch(s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    });
+}
+
+#[test]
+fn an_exchange_rule_copying_new_mail_into_another_account_copies_it_once_it_is_fetched() {
+    let mut s = Session::empty();
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+    let (to, b) = imap_inbox(&mut s);
+    copy_out(&mut s, account, to);
+    let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+    let inbox = vec![GraphFolder { id: "F1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let deltas = EwsFolderDeltas { changed: inbox, afresh: true, ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+    let first = EwsMessagePage { folder: "F1".into(), afresh: true, last: true, state: "S-1".into(), ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![first], ..piece() }).unwrap();
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+    let delta = EwsMessagePage {
+        folder: "F1".into(),
+        messages: vec![listed("N1", "F1", "Plan")],
+        last: true,
+        from: "S-1".into(),
+        state: "S-2".into(),
+        ..Default::default()
+    };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+    copies_once_fetched(&mut s, account, to, b, |s, fetched| {
+        ews_mail::apply_ews_fetch(s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    });
+}
+
+/// A JMAP account's runs don't put new mail through the rules as it arrives yet (as on main); run
+/// on what was listed, as they are on a Microsoft account's new mail, a copy into another account
+/// waits for the JMAP fetch and is made then.
+#[test]
+fn a_jmap_rule_copying_listed_mail_into_another_account_copies_it_once_it_is_fetched() {
+    let mut s = Session::empty();
+    let jmap = json!({"email": ME, "kind": "jmap", "jmap": {"session": "https://jmap.example.org/jmap/session", "bearer": true}});
+    let account = s.run("account.add", &jmap).unwrap()["id"].as_u64().unwrap();
+    let (to, b) = imap_inbox(&mut s);
+    copy_out(&mut s, account, to);
+    let folders = vec![GraphFolder { id: "M1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let piece = || JmapMailResult { account, email: ME.into(), partial: true, ..Default::default() };
+    let run = |s: &mut Session, messages: Vec<GraphMessage>, afresh: bool| {
+        let listing = Some(FolderListing { folders: folders.clone(), complete: true });
+        jmap_mail::apply_jmap_mail(s, JmapMailResult { listing, ..piece() }).unwrap();
+        let window = MessagePage { folder: "M1".into(), messages, afresh, ..Default::default() };
+        jmap_mail::apply_jmap_mail(s, JmapMailResult { pages: vec![window], ..piece() }).unwrap();
+        jmap_mail::apply_jmap_mail(s, JmapMailResult { whole: true, partial: false, ..piece() }).unwrap();
+    };
+    run(&mut s, vec![], true);
+    run(&mut s, vec![listed("N1", "M1", "Plan")], false);
+    let (id, clock) = (here(&s, account, "N1").id, s.rule_clock());
+    s.mailbox.apply_rules(id, &clock);
+    copies_once_fetched(&mut s, account, to, b, |s, fetched| {
+        jmap_mail::apply_jmap_fetch(s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    });
+}
+
+/// The download never comes: the server says it has no such message, then lists it as gone (it
+/// was deleted on a phone, say). Nothing was copied or deleted meanwhile, nothing waits in the
+/// queue for it, and a rule after the copy that deletes for good deleted nothing either: the
+/// message goes as the server says, and that is all.
+#[test]
+fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves_nothing_waiting() {
+    use mailcraft_model::Queued;
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let (to, b) = imap_inbox(&mut s);
+    copy_out(&mut s, account, to);
+    let gone = json!({"name": "Gone", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "Plan"}], "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &gone).unwrap();
+    arrives(&mut s, account, "Plan");
+    let id = here(&s, account, "N1").id;
+    let about = |s: &Session| {
+        s.mailbox.queued.iter().any(|q| match q {
+            Queued::PlaceMessage { message, source, .. } => *message == id || *source == Some(id),
+            Queued::DeleteMessage { account: a, .. } => *a == account,
+            _ => false,
+        })
+    };
+    // The delete for good waits with the copy: nothing is deleted before the download.
+    assert_eq!(here(&s, account, "N1").rules_waiting.as_ref().map(|w| w.rules.len()), Some(2));
+    assert!(!about(&s) && super::graph_up::message_changes(&s, account, 100).0.is_empty());
+    assert_eq!(copies(&s, to, b), (0, 0));
+    // The fetch says the server has no such message.
+    let missing = GraphFetchResult { account, email: ME.into(), missing: vec!["N1".into()], ..Default::default() };
+    graph_mail::apply_graph_fetch(&mut s, missing).unwrap();
+    assert!(!about(&s) && super::graph_up::message_changes(&s, account, 100).0.is_empty());
+    // Then its listing drops it.
+    let page = MessagePage { folder: "F-in".into(), removed: vec!["N1".into()], link: "L2".into(), caught_up: true, ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], whole: true, ..Default::default() })
+        .unwrap();
+    assert!(s.mailbox.message(id).is_none());
+    assert!(!about(&s) && super::graph_up::message_changes(&s, account, 100).0.is_empty());
+    assert_eq!(copies(&s, to, b), (0, 0));
+    assert!(s.mailbox.messages.values().all(|m| m.rules_waiting.is_none()));
+}
