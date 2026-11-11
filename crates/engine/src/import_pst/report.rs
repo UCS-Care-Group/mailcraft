@@ -94,6 +94,10 @@ pub struct Report {
     /// Contacts and distribution lists (kept as contacts) brought in, of the items added.
     pub contacts_added: usize,
     pub lists_added: usize,
+    /// Appointments and tasks found, brought in or not: a file of these alone makes no mail folder.
+    pub plans_seen: usize,
+    pub events_added: usize,
+    pub tasks_added: usize,
     /// What the file holds besides: mail items, and contacts (brought, already here or left out),
     /// as far as the run read them: a file of contacts alone makes no mail folder.
     pub mail_seen: usize,
@@ -198,9 +202,11 @@ impl Report {
             "format": self.format,
             "found": t.found,
             "added": t.added,
-            "messages": t.added.saturating_sub(self.contacts_added).saturating_sub(self.lists_added),
+            "messages": t.added.saturating_sub(self.contacts_added).saturating_sub(self.lists_added).saturating_sub(self.events_added).saturating_sub(self.tasks_added),
             "contacts": self.contacts_added,
             "lists": self.lists_added,
+            "events": self.events_added,
+            "tasks": self.tasks_added,
             "already": t.already,
             "leftOut": t.left_out,
             "later": t.later,
@@ -231,7 +237,7 @@ impl Report {
             out.push_str(&s);
             out.push('\n');
         };
-        line(format!("MailCraft: import of the .pst file {} (preview: mail and contacts so far)", short(&self.file)));
+        line(format!("MailCraft: import of the .pst file {} (preview: notes and journal entries are still to come)", short(&self.file)));
         line(format!("When: {when}"));
         if self.name.is_empty() {
             line("Into: your contacts on this computer".to_string());
@@ -253,6 +259,9 @@ impl Report {
         if !self.later.is_empty() {
             let kinds: Vec<String> = self.later.iter().map(|(k, n)| format!("{n} {k}")).collect();
             line(format!("Not yet brought in (a later version brings them): {}.", kinds.join(", ")));
+        }
+        if self.events_added > 0 || self.tasks_added > 0 {
+            line(format!("Calendar items brought in: {}; tasks brought in: {}.", self.events_added, self.tasks_added));
         }
         if self.contacts_added > 0 || self.lists_added > 0 {
             line(format!(

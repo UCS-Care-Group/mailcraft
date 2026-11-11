@@ -994,6 +994,20 @@ pub enum WordIndex {
     Complete,
 }
 
+/// The events and to-dos an import put in, and the calendar it made for them.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ImportedPlans {
+    pub events: Vec<Id>,
+    pub tasks: Vec<Id>,
+    pub calendar: Option<Id>,
+}
+
+impl ImportedPlans {
+    fn is_empty(&self) -> bool {
+        self.events.is_empty() && self.tasks.is_empty() && self.calendar.is_none()
+    }
+}
+
 /// The clock commands read; tests and scripts pin it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Clock {
@@ -2978,6 +2992,7 @@ impl Session {
     /// is without the messages `added`, without the folders `made` that are empty then, and with
     /// the categories as they were (#815). What the owner did meanwhile stays as it is: a folder
     /// of the import that holds mail or a folder of the owner's stays, with them in it.
+    #[cfg(test)]
     pub(crate) fn keep_import_step(
         &mut self,
         label: &'static str,
@@ -2986,7 +3001,20 @@ impl Session {
         made: &[Id],
         categories: Vec<mailcraft_model::Category>,
     ) {
-        if added.is_empty() && contacts.is_empty() && made.is_empty() && categories == self.mailbox.categories {
+        self.keep_import_step_with(label, added, contacts, &ImportedPlans::default(), made, categories);
+    }
+
+    /// As [`Session::keep_import_step`], for an import that brought events and to-dos too.
+    pub(crate) fn keep_import_step_with(
+        &mut self,
+        label: &'static str,
+        added: &[Id],
+        contacts: &[Id],
+        plans: &ImportedPlans,
+        made: &[Id],
+        categories: Vec<mailcraft_model::Category>,
+    ) {
+        if added.is_empty() && contacts.is_empty() && plans.is_empty() && made.is_empty() && categories == self.mailbox.categories {
             return;
         }
         let mut before = self.snapshot(label);
@@ -2996,6 +3024,18 @@ impl Session {
         // (Only the contacts the import put in: the owner's own, put in or changed since, stay.)
         for id in contacts {
             before.mailbox.contacts.remove(id);
+        }
+        for id in &plans.events {
+            before.mailbox.events.remove(id);
+        }
+        for id in &plans.tasks {
+            before.mailbox.tasks.remove(id);
+        }
+        // A calendar it made goes too, unless the owner has put something in it since.
+        if let Some(id) = plans.calendar
+            && !before.mailbox.events.values().any(|e| e.calendar == id)
+        {
+            before.mailbox.calendars.retain(|c| c.id != id);
         }
         // The folders it made, deepest first (each was made after its parent), that hold nothing
         // once its mail is out: not a message, not a folder.

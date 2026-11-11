@@ -232,7 +232,7 @@ fn day(ft: u64) -> Option<Date> {
 }
 
 /// A property read whole, on its own when it was too large to come with the rest, within `max`.
-fn value<R: Read + Seek>(
+pub(super) fn value<R: Read + Seek>(
     pst: &mut Pst<R>,
     m: &mailcraft_pst::Message,
     id: u16,

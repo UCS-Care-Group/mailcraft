@@ -462,6 +462,14 @@ pub struct Services {
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
     /// the copy then has the version and the platform only.
     pub diagnostics: Option<Box<dyn Fn() -> String>>,
+    /// Desktop, in a build that names the project's report relay (`MAILCRAFT_REPORT_URL`): send
+    /// a problem report on a background thread (`mailcraft_net::report::send`), one `POST` of
+    /// what the Report a Problem window showed, and nothing else. Run only by the owner's own
+    /// click on Send report ([`report_problem`]), never by a command, an agent or by itself. The
+    /// reference the relay filed it under, or why it wasn't sent, arrives through the channel
+    /// and the host wakes the UI. Absent in the browser, the tests and a fork's build: the window
+    /// then offers Open on GitHub alone.
+    pub report_send: Option<Box<dyn Fn(mailcraft_model::report::ProblemReport) -> Receiver<Result<u64, mailcraft_model::report::NotSent>>>>,
     /// Desktop: ask, on a background thread, which is the newest release of MailCraft
     /// ([`updates`]): GitHub alone is asked, about this build's repository, and is told nothing of
     /// the owner (`mailcraft_net::update::latest`). The argument says whether a pre-release will
@@ -1375,7 +1383,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.reportProblem",
         "Report a Problem",
         "Help",
-        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default and only way; email went in #956), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default) | "send", "username"?: string (send), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. send: the window, filled in with the title, what was typed and the GitHub username, for the owner to read and send with Send report; nothing is sent (only the owner's own click sends a report, never a script or an agent). Answers {"via": "send", "draft": true, "sent": false}. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
