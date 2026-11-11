@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-07 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -144,8 +144,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
-15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian and
-    Dutch previews, more languages, right-to-left layout (gap 14). Partly done: the five ship as previews.
+15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian,
+    Dutch and Turkish previews, more languages, right-to-left layout (gap 14). Partly done: the six ship as previews.
 16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)).
 17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
@@ -181,7 +181,7 @@ follows:
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
 | M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: five preview languages |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: six preview languages |
 
 ## Progress log
 
@@ -453,6 +453,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-11-11 | Turkish as a preview language: Türkçe (önizleme) in File › Options; Automatic follows `tr-TR`; after beta item 15 names six preview languages |
 | 2026-11-05 | #809: a To Do task's start and due dates on the owner's day, in the progress log |
 | 2026-11-05 | #779: an Exchange server account's own folders, in the progress log |
 | 2026-11-05 | #745: Gap 8: selecting, chunked messages and the conversations checked chunk by chunk, in the progress log |
