@@ -164,9 +164,12 @@ fn left_there(wanted: &HashSet<String>, there: &[String], here: &[String], found
     found.len() >= wanted.len()
 }
 
-/// What a change to a list of categories that is read-only here says (#661).
+/// What a change to a list of categories that is read-only here says (#661): whether MailCraft
+/// may change them there is not known yet (offline, or not looked at yet) or it may not.
 pub fn categories_read_only_text(address: &str) -> String {
-    format!("the categories of {address} come from its server, and MailCraft has no permission to change them there")
+    format!(
+        "the categories of {address} come from its server, and are read-only here until MailCraft may change them there (File › Info says whether it may)"
+    )
 }
 
 /// A folder as a Microsoft account's server knows it (ADR 0003): its server id, which stays the

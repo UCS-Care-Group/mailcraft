@@ -112,7 +112,7 @@ fn a_list_whose_server_may_not_be_changed_is_read_only_whichever_way_it_is_asked
         ("mail.categorize", json!({"id": m, "category": "Brand new"})),
     ] {
         let refused = s.run(command, &params).unwrap_err().to_string();
-        assert!(refused.contains("a@example.org") && refused.contains("no permission"), "{command}: {refused}");
+        assert!(refused.contains("a@example.org") && refused.contains("read-only here"), "{command}: {refused}");
     }
     assert_eq!(s.mailbox.categories_of(a), before);
     // A category of the list goes on an item as ever.
@@ -1221,7 +1221,7 @@ fn a_new_name_on_an_event_a_contact_or_a_todo_of_a_read_only_list_is_refused() {
     let before = s.mailbox.categories_of(a).to_vec();
     for (command, id) in items_of(&mut s, a) {
         let refused = s.run(command, &json!({"id": id, "category": "Brand new"})).unwrap_err().to_string();
-        assert!(refused.contains("a@example.org") && refused.contains("no permission"), "{command}: {refused}");
+        assert!(refused.contains("a@example.org") && refused.contains("read-only here"), "{command}: {refused}");
         // One of the list goes on as ever.
         s.run(command, &json!({"id": id, "category": "red category"})).unwrap();
     }
@@ -1475,7 +1475,7 @@ fn a_new_name_put_on_an_item_of_a_long_read_only_list_says_read_only() {
     let (mut s, a) = rig(long, false);
     let (command, id) = items_of(&mut s, a)[0];
     let refused = s.run(command, &json!({"id": id, "category": "Brand new"})).unwrap_err().to_string();
-    assert!(refused.contains("no permission"), "{command}: {refused}");
+    assert!(refused.contains("read-only here"), "{command}: {refused}");
 }
 
 #[test]
@@ -2273,7 +2273,13 @@ fn an_agent_is_refused_at_once_a_change_of_a_list_mailcraft_may_not_change_in_ou
     ] {
         match check(&s, command, &params, &[]) {
             Verdict::Refuse(text) => {
-                assert!(text.contains("no permission to change them there") && !text.contains("Outlook too"), "{command}: {text}")
+                // (Not "no permission": it may be that nobody looked yet.)
+                assert!(
+                    text.contains("read-only here until MailCraft may change them there")
+                        && !text.contains("no permission")
+                        && !text.contains("Outlook too"),
+                    "{command}: {text}"
+                )
             }
             other => panic!("{command}: {other:?}"),
         }
