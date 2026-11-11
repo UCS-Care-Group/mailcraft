@@ -343,7 +343,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   a rule stays on this computer, and what it deletes is deleted from the account's server too, as
   Shift+Delete does. A rule that can't yet tell whether it applies to new mail not downloaded
   waits until the message is here whole, and so does one that copies it into another account's
-  folder; the rules after it act meanwhile, but one that deletes for good waits with it. Nothing
+  folder; the rules after it act meanwhile, but one that deletes for good waits with it (after a
+  rule that copied the message as it arrived, it deletes nothing for good instead). Nothing
   is copied or deleted for good of mail its server had before it was read here (a first download,
   older mail, a mailbox the server numbered anew), nor deleted for good by Run Rules Now after a
   rule that can't tell (a Delete in Deleted Items included). An undo of a step that copied a
