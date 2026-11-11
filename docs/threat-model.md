@@ -340,8 +340,13 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   (`Mailbox::is_send_queue`). An agent is asked before a rule that deletes mail for good is made,
   switched on or run (class `delete`), and no server is given a rule that deletes for good: such
   a rule stays on this computer, and what it deletes is deleted from the account's server too, as
-  Shift+Delete does. A rule that can't yet tell whether it applies to mail not downloaded doesn't
-  act, and the rules after it delete nothing for good.
+  Shift+Delete does. A rule that can't yet tell whether it applies to new mail not downloaded
+  waits until the message is here whole; the rules after it act meanwhile, but one that deletes
+  for good waits with it. Nothing is deleted for good of mail its server had before it was read
+  here (a first download, older mail), nor by Run Rules Now after a rule that can't tell. The
+  rules leave a shared mailbox's mail alone, Run Rules Now too. On an IMAP account, the server's
+  original of a message a rule copied on this computer and deleted for good goes only once the
+  mailbox file holds the copy.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to
@@ -359,7 +364,9 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   what it would take away when asked: another step meanwhile, or a message or contact that came
   down since, and the yes is refused.
   An undo or redo that changes the rules and leaves one switched on that deletes mail
-  permanently asks `delete` too (#566).
+  permanently asks `delete` too (#566); one that puts a message on its way onto another account's
+  server again, or leaves a rule switched on that copies or moves mail there, asks `send` and
+  names that server.
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
