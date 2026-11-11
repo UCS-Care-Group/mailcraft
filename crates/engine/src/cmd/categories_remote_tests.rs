@@ -2592,6 +2592,10 @@ fn a_category_given_after_another_rule_moved_the_mail_is_asked_for_on_the_list_i
     let switch = |s: &mut Session, on: bool| s.mailbox.rules.iter_mut().filter(|r| r.id == 900).for_each(|r| r.enabled = on);
     switch(&mut s, false);
     asked(&s, "rules.enable", &json!({"id": 900, "value": true}), &[Class::Settings]);
+    // And so does one that moves every account's mail.
+    s.mailbox.rules.iter_mut().filter(|r| r.id == 900).for_each(|r| r.account = 0);
+    asked(&s, "rules.enable", &json!({"id": 900, "value": true}), &[Class::Settings]);
+    s.mailbox.rules.iter_mut().filter(|r| r.id == 900).for_each(|r| r.account = a);
     switch(&mut s, true);
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "x".into(), ..Default::default() }).unwrap();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();

@@ -1051,8 +1051,9 @@ fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<I
             _ => None,
         })
         .collect();
+    // (A rule for every account's mail moves some account's mail away wherever it moves it.)
     let moves_away = r.actions.iter().any(|action| match action {
-        mailcraft_model::Action::MoveTo(folder) => mb.folder(*folder).is_some_and(|f| !mb.is_send_queue(f.id) && !accounts.contains(&f.account)),
+        mailcraft_model::Action::MoveTo(folder) => mb.folder(*folder).is_some_and(|f| !mb.is_send_queue(f.id) && from.is_none_or(|a| f.account != a)),
         _ => false,
     });
     for account in moved_to {
