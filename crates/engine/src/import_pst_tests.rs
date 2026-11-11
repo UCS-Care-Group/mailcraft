@@ -1681,6 +1681,53 @@ fn compressed_rich_text_alone_is_read_and_broken_rich_text_is_kept_as_it_was() {
 }
 
 #[test]
+fn large_rich_text_damaged_in_the_file_is_named() {
+    // Too large to be read with the item: a damaged block shows only when it is read for itself.
+    let stored = uncompressed_rtf(&format!("{{\\rtf1 {}}}", "q".repeat(5 << 20)));
+    let mut m = note("Torn");
+    m.body = String::new();
+    m.extra = vec![(0x1009, w::binary(&stored))];
+    let mut bytes = w::build(&FileSpec {
+        layout: Layout::new(Format::Unicode, Encryption::None),
+        password: None,
+        password_ansi: false,
+        name: "Personal Folders".into(),
+        folders: vec![folder("Inbox", "IPF.Note", vec![m], vec![])],
+        named: vec![],
+        named_strings: vec![(PS_PUBLIC_STRINGS, "Keywords".into())],
+    });
+    let at = bytes.windows(64).position(|w| w.iter().all(|b| *b == b'q')).unwrap();
+    bytes[at + (2 << 20)] = b'z';
+    let dir = crate::import_pst_memory_tests::Temp::new("rich-text-torn");
+    let mut s = crate::import_pst_memory_tests::kept_session(&dir);
+    let pst = dir.pst(&bytes);
+    let answer = crate::import_pst_memory_tests::import(&mut s, &pst).unwrap();
+    adds_up(&answer);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("rich text is damaged")), "{answer}");
+}
+
+#[test]
+fn empty_rich_text_brings_no_attachment_and_no_note() {
+    let mut m = note("Stub");
+    m.body = "\r\n".into();
+    m.extra = vec![(0x1009, w::binary(&uncompressed_rtf("{\\rtf1\\ansi\\par}")))];
+    let mut pic = note("Picture");
+    pic.body = String::new();
+    pic.extra = vec![(0x1009, w::binary(&uncompressed_rtf("{\\rtf1{\\pict 00}}")))];
+    let mut s = session();
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m, pic], vec![])])), json!({})).unwrap();
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let by = |subject: &str| *inbox.iter().find(|m| m.subject == subject).unwrap();
+    assert!(by("Stub").attachments.is_empty(), "{:?}", by("Stub").attachments);
+    // A picture and no words is still something: kept, and said.
+    assert_eq!(by("Picture").attachments[0].name, "message body.rtf");
+    let why = texts(&answer, "notes", "why");
+    assert_eq!(why.len(), 1, "{why:?}");
+    assert!(why[0].contains("no text of its own"), "{why:?}");
+}
+
+#[test]
 fn a_small_file_of_rich_text_can_not_bring_more_than_the_cap() {
     // Megabytes that open out past what rich text may be: kept as they are, and said.
     let head = b"{\\rtf1 x\\par y ";
@@ -1696,7 +1743,8 @@ fn a_small_file_of_rich_text_can_not_bring_more_than_the_cap() {
     };
     let dir = crate::import_pst_memory_tests::Temp::new("rich-text-cap");
     let mut s = crate::import_pst_memory_tests::kept_session(&dir);
-    let items = vec![rich("Bomb", &bomb), rich("Long", &long)];
+    // ("Long" spends most of what one import may take; the one after it is kept as it is.)
+    let items = vec![rich("Bomb", &bomb), rich("Long", &long), rich("Long again", &long)];
     let pst = dir.pst(&w::build(&folder_list(vec![folder("Inbox", "IPF.Note", items, vec![])])));
     let answer = crate::import_pst_memory_tests::import(&mut s, &pst).unwrap();
     adds_up(&answer);
@@ -1708,6 +1756,10 @@ fn a_small_file_of_rich_text_can_not_bring_more_than_the_cap() {
     let why = texts(&answer, "notes", "why");
     assert!(why.iter().any(|w| w.contains("could not be read")), "{why:?}");
     assert!(why.iter().any(|w| w.contains("text is cut")), "{why:?}");
+    assert!(by("Long").attachments.iter().any(|a| a.name == "message body.rtf"));
+    // Together they stay within what one import may take from rich text.
+    let total: usize = inbox.iter().map(|m| m.body.text.len()).sum();
+    assert!(total as u64 <= crate::import_pst::item::RTF_TEXT_BUDGET + 4096, "{total}");
 }
 
 #[test]

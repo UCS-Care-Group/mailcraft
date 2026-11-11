@@ -734,11 +734,12 @@ fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, report
             due: map.find(&item::PSETID_TASK, &PropName::Id(0x8105)),
             charset,
             contact: contact::ContactIds::find(map),
+            rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET),
         }),
         Err(e) if ends_import(&e) => Err(pst_error(&e)),
         Err(e) => {
             report.damaged(format!("the file's named properties (categories, due dates): {e}"));
-            Ok(Named { charset, ..Named::default() })
+            Ok(Named { charset, rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET), ..Named::default() })
         }
     }
 }
