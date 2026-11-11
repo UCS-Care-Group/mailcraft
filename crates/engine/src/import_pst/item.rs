@@ -30,6 +30,10 @@ pub const PLAN_TEXT_BUDGET: u64 = if cfg!(test) { 8 << 20 } else { 512 << 20 };
 /// the mailbox at each save, not as items of their own: ponytail: fine for what a person writes;
 /// past this they are left out and named, and they would want records of their own.
 pub const KEPT_TEXT_BUDGET: u64 = if cfg!(test) { 2 << 20 } else { 32 << 20 };
+/// Most a mailbox may hold of them before an import, as they are written (JSON). One import then
+/// adds at most six times its budget (a control character is six bytes written): together they
+/// stay within the largest record a mailbox can save.
+pub const KEPT_TOTAL_BUDGET: u64 = if cfg!(test) { 4 << 20 } else { 192 << 20 };
 /// The name of the attachment that keeps a body's rich text.
 const RTF_FILE: &str = "message body.rtf";
 /// Most bytes of the transport headers kept.
@@ -627,9 +631,15 @@ fn rich_text(stored: Vec<u8>, item: &mut Item, out: &mut Message) -> Option<Stri
     if let Ok(Some((html, false))) = mailcraft_pst::rtf_html(&raw, usize::try_from(most).unwrap_or(usize::MAX))
         && !html.trim().is_empty()
     {
-        let room_left = most.saturating_sub(html.len() as u64);
-        let text = mailcraft_pst::rtf_text(&raw, usize::try_from(room_left).unwrap_or(usize::MAX)).map(|(t, _)| t).unwrap_or_default();
-        let size = (html.len() as u64).saturating_add(text.len() as u64);
+        // Its text and what it hides are the HTML's, as for any other's: the rich text's own
+        // text holds what the HTML hides and what only the rich text shows.
+        let (whole, hidden) = mailcraft_html::text_and_hidden(&html);
+        let text = cut_at(&whole, usize::try_from(most.saturating_sub(html.len() as u64)).unwrap_or(usize::MAX)).to_string();
+        if text.len() < whole.len() {
+            item.note("its rich text was longer than a body can be and its text is cut".to_string());
+        }
+        out.hidden_text = cut_at(&hidden, mailcraft_model::MAX_HIDDEN_TEXT).to_string();
+        let size = (html.len() as u64).saturating_add(text.len() as u64).saturating_add(out.hidden_text.len() as u64);
         item.left = item.left.saturating_add(raw.len() as u64).saturating_sub(size);
         item.named.rtf_room.set(room.saturating_sub(size));
         out.body.text = text;

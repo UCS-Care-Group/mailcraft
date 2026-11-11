@@ -708,6 +708,17 @@ fn notes_stay_within_what_one_import_may_keep() {
     assert!(why.contains("notes and journal entries"), "{why}");
 }
 
+#[test]
+fn a_mailbox_full_of_notes_takes_no_more_from_any_file() {
+    let dir = Temp::new("notes-total");
+    let mut s = kept_session(&dir);
+    let full = usize::try_from(crate::import_pst::item::KEPT_TOTAL_BUDGET).unwrap().saturating_sub(1000);
+    s.mailbox.add_note(mailcraft_model::Note { text: "n".repeat(full), ..Default::default() });
+    let answer = run(&mut s, &dir, &file(vec![folder("Notes", "IPF.StickyNote", vec![sticky(&"m".repeat(4000), 3)])]), json!({}));
+    adds_up(&answer);
+    assert_eq!((answer["stickyNotes"].as_u64(), answer["leftOut"].as_u64()), (Some(0), Some(1)), "{answer}");
+}
+
 proptest::proptest! {
     #![proptest_config(proptest::prelude::ProptestConfig::with_cases(64))]
     /// A damaged series never makes the import panic, and the item is accounted for.

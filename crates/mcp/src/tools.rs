@@ -365,7 +365,35 @@ pub fn exec(b: &mut dyn Backend, pol: &Policy, id: &str, params: Value) -> Resul
         files.write(&t, &bytes)?;
         return Ok(json!({"path": t.given, "bytes": bytes.len()}));
     }
-    Ok(if CONTENT.contains(&id) { frame(r) } else { r })
+    Ok(match id {
+        "file.importPst" => frame_report(r),
+        _ if CONTENT.contains(&id) => frame(r),
+        _ => r,
+    })
+}
+
+/// A `.pst` import's report names items and folders by what the file calls them: message text.
+fn frame_report(mut r: Value) -> Value {
+    if let Some(o) = r.as_object_mut() {
+        for key in ["file", "name", "folder", "folders", "leftOutItems", "notes", "notBrought", "damage"] {
+            if let Some(v) = o.get_mut(key) {
+                *v = frame_all(v.take());
+            }
+        }
+        o.insert("untrusted".into(), json!(true));
+        o.insert("untrustedNote".into(), json!(UNTRUSTED_NOTE));
+    }
+    r
+}
+
+/// Every string in `v`, whatever its key.
+fn frame_all(v: Value) -> Value {
+    match v {
+        Value::String(t) if !t.is_empty() => Value::String(wrap_text(&t)),
+        Value::Array(a) => Value::Array(a.into_iter().map(frame_all).collect()),
+        Value::Object(o) => Value::Object(o.into_iter().map(|(k, x)| (k, frame_all(x))).collect()),
+        x => x,
+    }
 }
 
 fn wrap(r: Result<Value, String>) -> ToolResult {

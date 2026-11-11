@@ -137,6 +137,8 @@ pub struct Job {
     pub known_contacts: HashSet<String>,
     /// The events and to-dos already brought in from .pst files.
     pub known_plans: HashSet<String>,
+    /// How much of its notes and journal entries this import may keep ([`kept_room`]).
+    pub kept_room: u64,
     /// The mailbox file the mail is going to, when it has one: the reader writes each batch's
     /// attachments to the content folder beside it before it hands the batch over (#815).
     pub keep_at: Option<std::path::PathBuf>,
@@ -436,7 +438,7 @@ pub fn read<R: Read + Seek>(
 
     let tree = pst.walk_folders().map_err(|e| pst_error(&e))?;
     let store_charset = store.properties.int(0x3FFD).and_then(item::code_page);
-    let named = named(&mut pst, store_charset, &mut report)?;
+    let named = named(&mut pst, store_charset, job.kept_room, &mut report)?;
 
     // Every item of the node tree, by its folder: what the folders' lists are checked against.
     // The one cut of the number of items: what is past it here is past it everywhere.
@@ -878,7 +880,7 @@ fn summary_text(v: &PropValue, named: &Named) -> String {
 }
 
 /// The ids the file gives the named properties the import reads.
-fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, report: &mut Report) -> Result<Named, CmdError> {
+fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, kept_room: u64, report: &mut Report) -> Result<Named, CmdError> {
     match pst.named_properties() {
         Ok(map) => Ok(Named {
             keywords: map.find(&PS_PUBLIC_STRINGS, &PropName::Name("Keywords".into())),
@@ -887,7 +889,7 @@ fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, report
             contact: contact::ContactIds::find(map),
             rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET),
             plan_room: std::cell::Cell::new(item::PLAN_TEXT_BUDGET),
-            kept_room: std::cell::Cell::new(item::KEPT_TEXT_BUDGET),
+            kept_room: std::cell::Cell::new(kept_room),
             calendar: calendar::CalendarIds::find(map),
         }),
         Err(e) if ends_import(&e) => Err(pst_error(&e)),
@@ -1062,6 +1064,16 @@ pub fn room(s: &Session, place: &Place) -> usize {
     }
 }
 
+/// What an import may keep of notes and journal entries: they are saved in one record with the
+/// rest of the mailbox, so what earlier imports kept counts, as it is written.
+fn kept_room(mb: &Mailbox) -> u64 {
+    let written = |j: serde_json::Result<String>| j.map_or(0, |j| j.len() as u64);
+    let notes = mb.notes.values().map(|n| written(serde_json::to_string(n)));
+    let journal = mb.journal.values().map(|e| written(serde_json::to_string(e)));
+    let held = notes.chain(journal).fold(0, u64::saturating_add);
+    item::KEPT_TOTAL_BUDGET.saturating_sub(held).min(item::KEPT_TEXT_BUDGET)
+}
+
 /// The job of importing `file` (its name or its path) with the place `v`'s `places` asks for.
 pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: &Value) -> Result<(Job, Place), CmdError> {
     let file = file.rsplit(['/', '\\']).next().unwrap_or(file);
@@ -1081,6 +1093,7 @@ pub fn job(s: &Session, file: &str, password: Option<String>, dry_run: bool, v: 
             room,
             known_contacts,
             known_plans,
+            kept_room: kept_room(&s.mailbox),
             keep_at: if cfg!(target_arch = "wasm32") { None } else { s.path.clone() },
             calendar,
             here: calendar::Here { offset: s.clock.offset, zone: s.zone() },

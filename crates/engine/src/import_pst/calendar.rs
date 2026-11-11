@@ -645,7 +645,7 @@ pub fn build_task<R: Read + Seek>(
 }
 
 /// Why a note or a journal entry past what one import may keep is left out.
-const PAST_KEPT: &str = "this import has brought as many notes and journal entries as one import may";
+const PAST_KEPT: &str = "as many notes and journal entries have come in as a mailbox or one import may keep";
 
 fn charge_kept(named: &Named, cost: usize) -> bool {
     let (cost, room) = ((cost as u64).saturating_add(256), named.kept_room.get());

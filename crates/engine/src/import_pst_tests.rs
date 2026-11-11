@@ -139,6 +139,7 @@ fn job(dry_run: bool) -> Job {
         room: 31,
         known_contacts: HashSet::new(),
         known_plans: HashSet::new(),
+        kept_room: crate::import_pst::item::KEPT_TEXT_BUDGET,
         keep_at: None,
         calendar: None,
         here: crate::import_pst::calendar::Here { offset: Some(0), zone: mailcraft_time::Zone::UTC },
@@ -1648,6 +1649,19 @@ fn html_kept_in_rich_text_comes_in_as_html() {
     let got = inbox.iter().find(|m| m.subject == "Encapsulated").unwrap();
     assert_eq!((got.body.html.as_deref(), got.body.text.as_str()), (Some("<p>Hello</p>"), "Hello"));
     assert!(got.attachments.is_empty(), "nothing of the rich text is left to keep");
+}
+
+#[test]
+fn what_html_in_rich_text_hides_is_kept_apart_from_its_text() {
+    let mut m = note("Hiding");
+    m.body = String::new();
+    let rtf = "{\\rtf1\\fromhtml1 {\\*\\htmltag <div style=\"display:none\">}Preheader{\\*\\htmltag </div>}\\htmlrtf Only in rich text\\htmlrtf0 {\\*\\htmltag <p>}Hello{\\*\\htmltag </p>}}";
+    m.extra = vec![(0x1009, w::binary(&uncompressed_rtf(rtf)))];
+    let mut s = session();
+    import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m], vec![])])), json!({})).unwrap();
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let got = inbox.iter().find(|m| m.subject == "Hiding").unwrap();
+    assert_eq!((got.body.text.trim(), got.hidden_text.trim()), ("Hello", "Preheader"));
 }
 
 #[test]
