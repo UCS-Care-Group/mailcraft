@@ -4305,8 +4305,12 @@ mod categories {
             if let Some(account) = picked {
                 self.show_list(&app.session.mailbox, account);
             }
-            if let Some(owner) = ask_sync {
-                app.ask_sync_again(owner);
+            // The question takes the window's place: one put while the window is open would be
+            // under it when it is put back, and taken for a no (#661).
+            if let Some(owner) = ask_sync
+                && app.ask_sync_again(owner)
+            {
+                return true;
             }
             if let Some((command, params)) = run {
                 match app.execute(command, params) {

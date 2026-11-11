@@ -283,3 +283,17 @@ fn an_item_carrying_a_name_of_the_list_in_other_letters_shows_one_chip() {
     super::kit::toggle_chip(&mut chosen, "Équipe");
     assert_eq!(chosen, ["RED", "Équipe"]);
 }
+
+#[test]
+fn allow_in_the_window_puts_the_question_and_waits_for_the_answer() {
+    let (mut app, a, _) = rig();
+    app.services.graph_categories = Some(Box::new(|_| std::sync::mpsc::channel().1));
+    app.stand_in_categories(false);
+    let mut h = dialog(app, json!({"account": a}));
+    h.get_by_label("Allow").click();
+    h.run_steps(3);
+    // The question is on screen, over everything, and nothing is taken for a no meanwhile.
+    let asked = matches!(&h.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.allowSync");
+    assert!(asked, "the owner is asked");
+    assert!(!h.state().sync_declined.contains(&a));
+}
