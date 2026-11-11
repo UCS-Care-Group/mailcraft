@@ -3301,7 +3301,7 @@ impl Mailbox {
 
     /// Whether `name` is on `owner`'s list for this computer alone ([`Mailbox::local_categories`]).
     pub fn category_is_local(&self, owner: Id, name: &str) -> bool {
-        self.local_categories.get(&owner).is_some_and(|names| on_list(names, name))
+        self.local_categories.get(&owner).is_some_and(|names| on_list(names, name.trim()))
     }
 
     /// Add a category to the list `account`'s items use, or recolour the one with that name. On a
@@ -3395,6 +3395,7 @@ impl Mailbox {
     /// (#661, Add to Outlook): from now on it is kept in step there, in the nearest of the
     /// server's colours. Whether it was such a category.
     pub fn send_category(&mut self, account: Id, name: &str) -> Result<bool, ModelError> {
+        let name = name.trim();
         let Some(owner) = self.synced_list_owner(account) else { return Ok(false) };
         if !self.category_is_local(owner, name) || self.category_of(account, name).is_none() {
             return Ok(false);
@@ -3403,7 +3404,7 @@ impl Mailbox {
         if let Some(names) = self.local_categories.get_mut(&owner) {
             names.retain(|n| !same_category(n, name));
         }
-        if let Some(c) = self.categories_of_mut(account).iter_mut().find(|c| same_category(&c.name, name.trim())) {
+        if let Some(c) = self.categories_of_mut(account).iter_mut().find(|c| same_category(&c.name, name)) {
             c.color = crate::outlook_colors::nearest_outlook_color(c.color);
         }
         Ok(true)

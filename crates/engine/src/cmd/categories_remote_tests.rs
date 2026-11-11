@@ -2568,3 +2568,17 @@ fn an_answer_about_a_category_with_no_name_is_left_out() {
         }
     }
 }
+
+/// A name an agent gives with spaces round it is the name the command reads: one kept on this
+/// computer only is renamed here alone, unasked, is deleted as it is without the spaces, and goes
+/// to Outlook when asked to.
+#[test]
+fn a_name_with_spaces_round_it_is_read_as_the_command_reads_it() {
+    let (mut s, a) = rig_with_local();
+    assert_eq!(check(&s, "category.rename", &json!({"account": a, "from": " Old local ", "to": "Mine"}), &[]), Verdict::Run);
+    let remove = |name: &str| check(&s, "category.remove", &json!({"account": a, "name": name}), &[]);
+    assert_eq!(remove(" Old local "), remove("Old local"));
+    s.run("category.addToOutlook", &json!({"account": a, "name": " Old local "})).unwrap();
+    assert!(!s.mailbox.category_is_local(a, "Old local"));
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Old local", s.mailbox.category_of(a, "Old local").unwrap().color)]);
+}
