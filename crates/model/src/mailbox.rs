@@ -3625,6 +3625,10 @@ impl Mailbox {
             .collect();
         for outcome in outcomes.iter().take(crate::remote::MAX_CATEGORY_CHANGES) {
             let name = outcome.name.trim();
+            // (An answer that names no category is about none of the list.)
+            if name.is_empty() {
+                continue;
+            }
             // The end of a line about a refusal: the server's reason, when it gave one, as the
             // rules and the to-dos say it.
             let why = match outcome.error.trim().trim_end_matches('.') {

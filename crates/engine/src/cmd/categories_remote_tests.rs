@@ -2552,3 +2552,19 @@ fn an_agents_undo_or_redo_that_makes_a_category_in_outlook_again_asks_send_and_s
     assert!(matches!(check(&s, "edit.undo", &json!({}), &[Class::Send]), Verdict::Ask(Class::Delete, _)));
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Send, Class::Delete]), Verdict::Run);
 }
+
+/// An answer from the host that names no category (an empty or blank name) changes nothing of
+/// what is known to be there, so nothing is deleted there for it with the next job.
+#[test]
+fn an_answer_about_a_category_with_no_name_is_left_out() {
+    for kind in [CategoryChangeKind::Create, CategoryChangeKind::Color, CategoryChangeKind::Delete] {
+        for result in [CategoryResult::Done, CategoryResult::Refused] {
+            let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+            let before = s.mailbox.synced_categories.get(&a).cloned();
+            answers(&mut s, a, vec![outcome(kind, " \n ", GREEN, result)]);
+            assert_eq!(s.mailbox.synced_categories.get(&a).cloned(), before, "{kind:?} {result:?}");
+            assert!(changes(&mut s, a).is_empty(), "{kind:?} {result:?}: {:?}", changes(&mut s, a));
+            assert!(s.mailbox.local_categories.get(&a).is_none_or(|names| names.is_empty()), "{kind:?} {result:?}");
+        }
+    }
+}
