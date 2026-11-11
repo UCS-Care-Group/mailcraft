@@ -1857,6 +1857,35 @@ fn server_event(s: &mut Session, account: Id, categories: &[&str]) -> Id {
     s.mailbox.add_event(Event { calendar, title: "Meeting".into(), categories, origin, ..Default::default() }).unwrap()
 }
 
+#[test]
+fn a_category_on_more_server_events_than_can_wait_is_refused_saying_so() {
+    let max = mailcraft_model::remote::MAX_EVENT_CHANGES;
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let calendar = s.mailbox.alloc_id();
+    let origin = Origin { account: a, id: "cal".into(), ..Default::default() };
+    s.mailbox.calendars.push(Calendar { id: calendar, name: "Calendar".into(), visible: true, origin, ..Default::default() });
+    let mut events = Vec::new();
+    for i in 0..=max {
+        let origin = Origin { account: a, id: format!("e-{i}"), ..Default::default() };
+        let event = Event { calendar, title: "Meeting".into(), categories: vec!["Old".into()], origin, ..Default::default() };
+        events.push(s.mailbox.add_event(event).unwrap());
+    }
+    let before = s.mailbox.clone();
+    for (command, params) in
+        [("category.rename", json!({"account": a, "from": "Old", "to": "New"})), ("category.remove", json!({"account": a, "name": "Old"}))]
+    {
+        // Waiting for Send/Receive would never make room for them all: it doesn't say to.
+        let refused = s.run(command, &params).unwrap_err().to_string();
+        assert!(refused.contains("than can wait to be sent at once") && !refused.contains("Send/Receive"), "{command}: {refused}");
+        assert!(s.mailbox.events == before.events && s.mailbox.event_changes.is_empty(), "{command}");
+        assert!(s.mailbox.account_categories == before.account_categories && s.mailbox.category_renames == before.category_renames, "{command}");
+    }
+    // As many as can wait: it is done, and each event goes to its server.
+    s.mailbox.remove_event(events[0]).unwrap();
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.event_changes.len(), max);
+}
+
 fn event_answer(s: &mut Session, account: Id) {
     let upload = remote::event_upload(s, account).unwrap();
     let [op] = upload.ops.as_slice() else { panic!("{:?}", upload.ops) };

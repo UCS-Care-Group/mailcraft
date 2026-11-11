@@ -190,11 +190,24 @@ fn tell_events(s: &mut Session, before: &[mailcraft_model::Event]) -> Result<(),
         if super::remote::writable(&s.mailbox, e.calendar).is_err() {
             continue;
         }
-        if s.mailbox.event(e.id).is_some_and(|now| now.categories != e.categories) {
-            super::remote::note_changed(&mut s.mailbox, e, &offset_at)?;
+        if s.mailbox.event(e.id).is_some_and(|now| now.categories != e.categories)
+            && let Err(full) = super::remote::note_changed(&mut s.mailbox, e, &offset_at)
+        {
+            return Err(more_than_can_wait(s, before).unwrap_or(full));
         }
     }
     Ok(())
+}
+
+/// The refusal of a rename or a deletion that changes more events of calendars kept on a server
+/// than can wait to be sent at once (#661): Send/Receive getting the changes waiting now through
+/// would never make room for them all. `None` when it would.
+fn more_than_can_wait(s: &Session, before: &[mailcraft_model::Event]) -> Option<CmdError> {
+    let mb = &s.mailbox;
+    let on_server = |e: &&mailcraft_model::Event| e.origin.is_remote() && !e.origin.id.is_empty() && super::remote::writable(mb, e.calendar).is_ok();
+    let changed = before.iter().filter(on_server).filter(|e| mb.event(e.id).is_some_and(|now| now.categories != e.categories)).count();
+    (changed > mailcraft_model::remote::MAX_EVENT_CHANGES)
+        .then(|| failed!("This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."))
 }
 
 fn add_to_outlook(s: &mut Session, v: &Value) -> CmdResult {
@@ -205,7 +218,7 @@ fn add_to_outlook(s: &mut Session, v: &Value) -> CmdResult {
         return Err(super::fail("this account's categories aren't kept in step with a server"));
     }
     if !s.mailbox.send_category(account, name)? {
-        return Err(super::fail(format!("\"{}\" isn't a category kept on this computer only", name.trim())));
+        return Err(failed!("\"{name}\" isn't a category kept on this computer only", name = name.trim()));
     }
     done()
 }
