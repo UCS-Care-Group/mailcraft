@@ -1773,8 +1773,8 @@ fn services(
         graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
             background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
         })),
-        lookup_mx: Some(Box::new(move |domain| {
-            background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
+        discover: Some(Box::new(move |domain| {
+            background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).

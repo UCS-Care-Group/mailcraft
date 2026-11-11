@@ -3612,7 +3612,7 @@ msgid "Don't ask again for this account"
 msgstr "No volver a preguntar para esta cuenta"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "Don't send"
 msgstr ""
 
@@ -5342,6 +5342,16 @@ msgstr "Si esa página indica que necesita la aprobación de un administrador"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If you don't, nothing is sent, and you can change the servers in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."
 msgstr ""
 
 #. interface
@@ -7345,6 +7355,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "Al moverlas pasan al calendario de su cuenta, donde también las tienen Outlook y sus otros dispositivos."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -8083,6 +8098,11 @@ msgstr "Sin conexión: el resto de este mensaje está en el servidor"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Not every layout checked."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
 msgstr ""
 
 #. interface
@@ -10792,7 +10812,7 @@ msgid "Send from a Shared Mailbox"
 msgstr "Enviar desde un buzón compartido"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "Send my sign-in"
 msgstr ""
 
@@ -10857,6 +10877,11 @@ msgstr "Enviar escribe a: {people}."
 #, fuzzy
 msgid "Send your answer to the organizer? You can write a note to go with it."
 msgstr "¿Enviar su respuesta al organizador? Puede escribir una nota que la acompañe."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Send your password to another server?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12370,6 +12395,11 @@ msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The Digital signature can't be read."
 msgstr ""
@@ -13256,6 +13286,21 @@ msgstr ""
 #, fuzzy
 msgid "The server's name"
 msgstr "El nombre del servidor"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
@@ -15123,6 +15168,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
 msgstr ""
 
 #. ribbon

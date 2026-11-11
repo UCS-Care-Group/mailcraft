@@ -3789,7 +3789,7 @@ msgid "Don't ask again for this account"
 msgstr "Niet meer vragen voor dit account"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Don't send"
 msgstr "Niet verzenden"
@@ -5631,6 +5631,16 @@ msgstr "Als die pagina zegt dat u goedkeuring van een beheerder nodig hebt"
 #, fuzzy
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
 msgstr "Als u dat niet doet, wordt er niets naartoe verzonden, en het zoeken gaat elders verder of stopt."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If you don't, nothing is sent, and you can change the servers in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7725,6 +7735,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "Door ze te verplaatsen komen ze in de agenda van uw account, waar Outlook en uw andere apparaten ze ook hebben."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -8487,6 +8502,11 @@ msgstr "Niet verbonden: de rest van dit bericht staat op de server"
 #, fuzzy
 msgid "Not every layout checked."
 msgstr "Niet elke weergave gecontroleerd."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11337,7 +11357,7 @@ msgid "Send from a Shared Mailbox"
 msgstr "Verzenden vanuit een gedeeld postvak"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Send my sign-in"
 msgstr "Mijn aanmelding verzenden"
@@ -11405,6 +11425,11 @@ msgstr "Verzenden schrijft aan: {people}."
 #, fuzzy
 msgid "Send your answer to the organizer? You can write a note to go with it."
 msgstr "Uw antwoord naar de organisator verzenden? U kunt er een notitie bij schrijven."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Send your password to another server?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -13007,6 +13032,11 @@ msgid "The .pst file has {what} to import; nothing was imported"
 msgstr "Het .pst-bestand heeft {what} om te importeren; er werd niets geïmporteerd"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The Digital signature can't be read."
@@ -13965,6 +13995,21 @@ msgstr "Het certificaat van de server is nog niet geldig, dus MailCraft maakt er
 #, fuzzy
 msgid "The server's name"
 msgstr "De naam van de server"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
@@ -15939,6 +15984,11 @@ msgstr ""
 #, fuzzy
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "Wat u schreef is te lang voor een koppeling naar GitHub: maak het korter en voeg de rest toe op GitHub"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs

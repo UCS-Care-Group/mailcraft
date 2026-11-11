@@ -767,6 +767,84 @@ fn accounts_that_sign_in_on_the_providers_page() {
         (mx["known"].as_bool(), mx["via"].as_str(), mx["incoming"]["host"].as_str()),
         (Some(false), Some("guess"), Some("imap.lumen.example"))
     );
+    // What the host found in the domain's own records (#1063): for the owner to confirm, so not
+    // "known"; the user name as the source's placeholders say; the usual names for what it lacks.
+    let found = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "mx": ["mx.lumen.example"], "found": {
+            "incoming": {"host": "Mail.Hosted.Example.", "port": 993, "security": "tls", "via": "srv"},
+            "outgoing": {"host": "smtp.hosted.example", "security": "starttls", "via": "autoconfig"},
+            "username": "%EMAILLOCALPART%"
+        }}),
+    );
+    assert_eq!((found["known"].as_bool(), found["via"].as_str(), found["username"].as_str()), (Some(false), Some("srv"), Some("Avery")));
+    assert_eq!(
+        (
+            found["incoming"]["host"].as_str(),
+            found["incoming"]["port"].as_u64(),
+            found["incoming"]["security"].as_str(),
+            found["incoming"]["via"].as_str()
+        ),
+        (Some("mail.hosted.example"), Some(993), Some("tls"), Some("srv"))
+    );
+    assert_eq!(
+        (
+            found["outgoing"]["host"].as_str(),
+            found["outgoing"]["port"].as_u64(),
+            found["outgoing"]["security"].as_str(),
+            found["outgoing"]["via"].as_str()
+        ),
+        (Some("smtp.hosted.example"), Some(587), Some("starttls"), Some("autoconfig"))
+    );
+    let half = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "found": {"outgoing": {"host": "smtp.lumen.example", "security": "tls", "via": "ispdb"}, "username": "%EMAILADDRESS%"}}),
+    );
+    assert_eq!(
+        (half["via"].as_str(), half["incoming"]["via"].as_str(), half["incoming"]["host"].as_str()),
+        (Some("ispdb"), Some("guess"), Some("imap.lumen.example"))
+    );
+    assert_eq!(
+        (half["outgoing"]["port"].as_u64(), half["outgoing"]["via"].as_str(), half["username"].as_str()),
+        (Some(465), Some("ispdb"), Some("avery@lumen.example"))
+    );
+    // A server without encryption, a host that isn't one, a source nobody knows, a bad port, a
+    // placeholder nobody knows: the usual names, and the address, stand in.
+    for (bad, why) in [
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "none", "via": "srv"}}), "plain"),
+        (json!({"incoming": {"host": "imap.hosted.example", "via": "srv"}}), "no security"),
+        (json!({"incoming": {"host": "imap.hosted.example/path", "security": "tls", "via": "srv"}}), "not a host"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "rumour"}}), "unknown source"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 0}}), "port 0"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 70000}}), "port too big"),
+        (json!({"incoming": "imap.hosted.example"}), "not an object"),
+        (json!([]), "a list"),
+    ] {
+        let preset = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": bad}));
+        assert_eq!(
+            (preset["via"].as_str(), preset["incoming"]["host"].as_str(), preset["incoming"]["security"].as_str()),
+            (Some("guess"), Some("imap.lumen.example"), Some("tls")),
+            "{why}"
+        );
+    }
+    let odd = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "found": {"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%@%NOBODY%"}}),
+    );
+    assert_eq!(odd["username"], "avery@lumen.example");
+    // A provider the domain or its exchangers name needs nothing found.
+    let known = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "mx": ["aspmx.l.google.com"], "found": {"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (known["via"].as_str(), known["incoming"]["host"].as_str(), known["incoming"]["via"].as_str()),
+        (Some("mx"), Some("imap.gmail.com"), Some("mx"))
+    );
     // Or the owner says whose it is.
     let named = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "Outlook.com"}));
     assert_eq!((named["via"].as_str(), named["outgoing"]["host"].as_str()), (Some("asked"), Some("smtp-mail.outlook.com")));
