@@ -10,7 +10,7 @@ use mailcraft_model::{Id, Mailbox};
 use serde_json::json;
 use zeroize::Zeroizing;
 
-use crate::decrypt::{Decryption, Failure, MAX_KEPT, Plain, inline_body};
+use crate::decrypt::{Decryption, Failure, MAX_KEPT, Plain};
 use crate::{Part, Session};
 
 const CA: &[u8] = include_bytes!("../../smime/testdata/ca.rsa.der");
@@ -55,6 +55,7 @@ fn plain(text: &str) -> Plain {
         data: Zeroizing::new(format!("Content-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n").into_bytes()),
         inline: false,
         signatures: Vec::new(),
+        authenticated: true,
     }
 }
 
@@ -152,7 +153,7 @@ fn a_digital_signature_inside_the_encryption_is_checked_like_any_other() {
     s.set_trust_anchors([CA]);
     let id = ids[0];
     assert!(s.digital_signature(id).is_none());
-    let inside = Plain { data: Zeroizing::new(DETACHED.to_vec()), inline: false, signatures: Vec::new() };
+    let inside = Plain { data: Zeroizing::new(DETACHED.to_vec()), inline: false, signatures: Vec::new(), authenticated: true };
     open(&mut s, id, inside);
     let d = s.digital_signature(id).expect("the signature inside");
     assert_eq!(d.verdict, Verdict::Verified, "{d:?}");
@@ -166,7 +167,7 @@ fn a_digital_signature_inside_the_encryption_is_checked_like_any_other() {
     // From another sender than the certificate's: not verified.
     let (mut s, ids) = session_with(&[&smime("mallory@example.org", "Signed minutes")]);
     s.set_trust_anchors([CA]);
-    open(&mut s, ids[0], Plain { data: Zeroizing::new(DETACHED.to_vec()), inline: false, signatures: Vec::new() });
+    open(&mut s, ids[0], Plain { data: Zeroizing::new(DETACHED.to_vec()), inline: false, signatures: Vec::new(), authenticated: true });
     assert_eq!(s.digital_signature(ids[0]).unwrap().verdict, Verdict::NotVerified);
 }
 
@@ -249,19 +250,138 @@ fn a_mailbox_taken_in_forgets_what_was_opened() {
     assert!(s.decrypted_message(ids[0]).is_none());
 }
 
+/// An inline OpenPGP message in the text of a mail: the packets are those of an encrypted message
+/// (a key packet for nobody in particular and a data packet of noise): the engine only tells it
+/// by its shape, the keys are the host's.
+fn inline_pgp(before: &str, after: &str, charset: &str) -> Vec<u8> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut packets = vec![0xC1, 0x0D, 3, 1, 2, 3, 4, 5, 6, 7, 8, 1, 0x00, 0x08, 0xFF];
+    packets.extend_from_slice(&[0xD2, 41, 1]);
+    packets.extend((0..40u8).map(|i| i.wrapping_mul(7)));
+    let mut text = String::new();
+    for chunk in packets.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, b)| acc | (u32::from(*b) << (16 - 8 * i)));
+        for i in 0..4 {
+            text.push(if i <= chunk.len() { char::from(TABLE[((n >> (18 - 6 * i)) & 63) as usize]) } else { '=' });
+        }
+    }
+    format!(
+        "From: alice@example.org\r\nTo: bob@smime.example\r\nSubject: Hi\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset={charset}\r\n\r\n{before}\r\n-----BEGIN PGP MESSAGE-----\r\n\r\n{text}\r\n-----END PGP MESSAGE-----\r\n{after}\r\n"
+    )
+    .into_bytes()
+}
+
+fn inline_plain(text: &[u8]) -> Plain {
+    Plain { data: Zeroizing::new(text.to_vec()), inline: true, signatures: Vec::new(), authenticated: true }
+}
+
 #[test]
-fn an_inline_pgp_block_is_replaced_by_what_it_opened_to_and_the_text_around_it_stays() {
-    let stored = mailcraft_model::Body {
-        text: "Hello Bob,\r\n\r\n-----BEGIN PGP MESSAGE-----\r\n\r\nabc\r\n-----END PGP MESSAGE-----\r\n\r\nAlice".into(),
-        html: Some("<p>x</p>".into()),
-    };
-    let opened = mailcraft_model::Body { text: "Secret words.\r\n".into(), html: None };
-    let body = inline_body(&stored, &opened);
-    assert_eq!(body.text, "Hello Bob,\r\n\r\nSecret words.\r\n\r\nAlice");
-    assert!(body.html.is_none());
-    // No block to replace (the text was read some other way): the opened text alone.
-    let plain_text = mailcraft_model::Body { text: "nothing here".into(), html: None };
-    assert_eq!(inline_body(&plain_text, &opened).text, "Secret words.\r\n");
+fn only_the_encrypted_block_of_an_inline_message_is_shown_and_the_text_around_it_is_said_not_to_be() {
+    // Somebody pastes a block they were sent into their own mail, with their own words around it.
+    let mail = inline_pgp("Please pay invoice 42 to IBAN XX00.", "Regards, Bob", "utf-8");
+    let (mut s, ids) = session_with(&[&mail]);
+    assert_eq!(s.encryption_of(ids[0]), Some(SignatureFormat::OpenPgp));
+    open(&mut s, ids[0], inline_plain(b"Secret words."));
+    let shown = s.decrypted_message(ids[0]).unwrap();
+    assert!(shown.body.text.contains("Secret words."));
+    assert!(!shown.body.text.contains("IBAN"), "the sender's own text is not shown as part of what was encrypted");
+    assert!(!shown.body.text.contains("Regards"));
+    assert!(s.decrypted_outside(ids[0]).text);
+    // Nothing around the block: nothing to say.
+    let (mut s, ids) = session_with(&[&inline_pgp("", "", "utf-8")]);
+    open(&mut s, ids[0], inline_plain(b"Secret words."));
+    assert!(!s.decrypted_outside(ids[0]).any());
+}
+
+#[test]
+fn an_inline_message_is_read_in_the_charset_its_mail_names() {
+    let mail = inline_pgp("", "", "iso-8859-1");
+    let (mut s, ids) = session_with(&[&mail]);
+    open(&mut s, ids[0], inline_plain(b"caf\xe9 au lait"));
+    assert!(s.decrypted_message(ids[0]).unwrap().body.text.contains("café au lait"));
+    // The header is read as the header says, never more.
+    use crate::decrypt::outer_charset;
+    assert_eq!(outer_charset(b"Content-Type: text/plain;\r\n charset=\"ISO-8859-2\"\r\n\r\nx").as_deref(), Some("ISO-8859-2"));
+    assert_eq!(outer_charset(b"Subject: charset=x\r\n\r\nContent-Type: text/plain; charset=y").as_deref(), None);
+    assert_eq!(outer_charset(b"Content-Type: text/plain; charset=\"u\x00\"\r\n\r\n"), None);
+    assert_eq!(outer_charset(b""), None);
+}
+
+#[test]
+fn text_and_files_beside_an_encrypted_part_are_counted_for_the_note() {
+    use crate::decrypt::outside_of;
+    let mut m = mailcraft_model::Message::default();
+    assert!(!outside_of(&m, false).any());
+    m.attachments.push(mailcraft_model::Attachment { name: "encrypted.asc".into(), mime: "application/octet-stream".into(), ..Default::default() });
+    m.attachments.push(mailcraft_model::Attachment { name: "smime.p7m".into(), mime: "application/pkcs7-mime".into(), ..Default::default() });
+    assert!(!outside_of(&m, false).any());
+    m.attachments.push(mailcraft_model::Attachment { name: "price list.pdf".into(), mime: "application/pdf".into(), ..Default::default() });
+    m.body.text = "Sent through the list".into();
+    let outside = outside_of(&m, false);
+    assert!(outside.text);
+    assert_eq!(outside.files, 1);
+}
+
+#[test]
+fn what_an_opened_message_shows_of_the_mailbox_stays_as_the_mailbox_has_it() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    open(&mut s, id, plain(SECRET));
+    assert_eq!(s.decrypted_message(id).unwrap().flag, mailcraft_model::FlagStatus::None);
+    // Flagged, or put in a category, after it was opened: the view says so.
+    s.run("mail.flag", &json!({"id": id})).unwrap();
+    assert_eq!(s.decrypted_message(id).unwrap().flag, mailcraft_model::FlagStatus::Flagged);
+    assert!(s.decrypted_message(id).unwrap().body.text.contains(SECRET));
+    assert!(s.is_decrypted_view(&s.decrypted_message(id).unwrap()));
+    // The same view while nothing changes (the window doesn't lay it out again).
+    let a = s.decrypted_message(id).unwrap();
+    let b = s.decrypted_message(id).unwrap();
+    assert!(std::sync::Arc::ptr_eq(&a, &b));
+}
+
+#[test]
+fn a_failure_is_for_the_bytes_it_was_for() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    s.begin_decrypt(id).unwrap();
+    s.finish_decrypt(id, Err(Failure::Failed));
+    assert_eq!(s.decryption(id), Decryption::Failed(SignatureFormat::Smime, Failure::Failed));
+    // The bytes came again (Check Again, a resync): asked again, not still "damaged".
+    let mut again = mailcraft_mime::parse_fetched(&smime("alice@smime.example", "Vault, resent"));
+    again.id = id;
+    again.folder = s.mailbox.message(id).unwrap().folder;
+    *s.mailbox.messages.get_mut(&id).unwrap() = std::sync::Arc::new(again);
+    assert_eq!(s.decryption(id), Decryption::Waiting(SignatureFormat::Smime));
+    assert!(s.begin_decrypt(id).is_some());
+}
+
+#[test]
+fn what_the_window_kept_of_an_opened_message_can_be_told_to_go() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    let before = s.decryptions_let_go();
+    open(&mut s, id, plain(SECRET));
+    let view = s.decrypted_message(id).unwrap();
+    assert!(!s.decrypted_view_gone(&view));
+    assert_eq!(s.decryptions_let_go(), before);
+    s.forget_decryption(id);
+    assert!(s.decryptions_let_go() > before);
+    // The view the window kept is now one of nothing: it drops it.
+    assert!(s.decrypted_view_gone(&view));
+    // The stored message is never taken for one.
+    assert!(!s.decrypted_view_gone(s.mailbox.message(id).unwrap()));
+}
+
+#[test]
+fn an_encryption_that_cant_detect_changes_says_so_to_the_window() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault"), &smime("alice@smime.example", "Vault 2")]);
+    let mut cbc = plain(SECRET);
+    cbc.authenticated = false;
+    open(&mut s, ids[0], cbc);
+    open(&mut s, ids[1], plain(SECRET));
+    assert_eq!(s.decrypted_authenticated(ids[0]), Some(false));
+    assert_eq!(s.decrypted_authenticated(ids[1]), Some(true));
+    assert_eq!(s.decrypted_authenticated(999), None);
 }
 
 #[test]
@@ -269,8 +389,8 @@ fn a_messages_with_hostile_plaintext_is_read_with_the_usual_caps_and_never_panic
     let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
     let nasty =
         "Content-Type: multipart/mixed; boundary=x\r\n\r\n".to_string() + &"--x\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n".repeat(2_000);
-    open(&mut s, ids[0], Plain { data: Zeroizing::new(nasty.into_bytes()), inline: false, signatures: vec![0xFF; 10] });
-    let junk = Plain { data: Zeroizing::new(vec![0xFF; 5_000]), inline: false, signatures: Vec::new() };
+    open(&mut s, ids[0], Plain { data: Zeroizing::new(nasty.into_bytes()), inline: false, signatures: vec![0xFF; 10], authenticated: true });
+    let junk = Plain { data: Zeroizing::new(vec![0xFF; 5_000]), inline: false, signatures: Vec::new(), authenticated: true };
     let (mut s2, ids2) = session_with(&[&pgp_mime("alice@example.org")]);
     open(&mut s2, ids2[0], junk);
     assert!(s2.decrypted_message(ids2[0]).is_some());

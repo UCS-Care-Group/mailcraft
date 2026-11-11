@@ -109,6 +109,10 @@ pub struct Decrypted {
     pub content: Zeroizing<Vec<u8>>,
     /// The index among the certificates handed in of the one whose key opened it.
     pub certificate: usize,
+    /// Whether the encryption detects changes (AES-GCM does; AES-CBC and 3DES don't, and a
+    /// message sent with them can be altered by someone who knows part of what it says, EFAIL):
+    /// what a message of the other kind opens to must not be allowed to fetch anything.
+    pub authenticated: bool,
 }
 
 impl std::fmt::Debug for Decrypted {
@@ -183,7 +187,8 @@ struct Encrypted<'a> {
     iv: &'a [u8],
     /// The authentication tag and the data it covers besides the content (AuthEnvelopedData).
     auth: Option<Auth<'a>>,
-    ciphertext: Vec<u8>,
+    /// The encrypted content, in one piece or in the pieces it came in: borrowed from the message.
+    ciphertext: Vec<&'a [u8]>,
 }
 
 struct Auth<'a> {
@@ -251,7 +256,7 @@ pub fn decrypt<E>(
     if cms.len() > MAX_CMS {
         return Err(DecryptError::Failed);
     }
-    let der = ber::to_der(cms).ok_or(DecryptError::NotEnveloped)?;
+    let der = ber::to_der_borrowed(cms).ok_or(DecryptError::NotEnveloped)?;
     let (kind, content) = content_info(&der).ok_or(DecryptError::NotEnveloped)?;
     if kind != ENVELOPED_DATA && kind != AUTH_ENVELOPED_DATA {
         return Err(DecryptError::NotEnveloped);
@@ -276,7 +281,7 @@ pub fn decrypt<E>(
                 Unwrapped::Refused => {}
                 Unwrapped::Key(key) => {
                     if let Some(content) = open(&envelope.encrypted, &key) {
-                        return Ok(Decrypted { content, certificate: index });
+                        return Ok(Decrypted { content, certificate: index, authenticated: envelope.encrypted.cipher.authenticated() });
                     }
                 }
             }
@@ -465,19 +470,29 @@ fn read_encrypted<'a>(info: &Tlv<'a>, auth: bool, rest: &mut impl Iterator<Item 
 
 /// An OCTET STRING's octets, in one piece or in pieces (as `encryptedContent [0] IMPLICIT` is,
 /// primitive or constructed).
-fn octets(tlv: &Tlv<'_>) -> Option<Vec<u8>> {
+fn octets<'a>(tlv: &Tlv<'a>) -> Option<Vec<&'a [u8]>> {
     if tlv.tag != 0x80 && tlv.tag != 0xa0 {
         return None;
     }
     if tlv.tag == 0x80 {
-        return Some(tlv.value.to_vec());
+        return Some(vec![tlv.value]);
     }
     let mut out = Vec::new();
     for piece in ber::children(tlv.value)? {
         (piece.tag == 0x04).then_some(())?;
-        out.extend_from_slice(piece.value);
+        out.push(piece.value);
     }
     Some(out)
+}
+
+/// The one buffer the content is decrypted in, in place: the only copy of the ciphertext made.
+fn buffer_of(encrypted: &Encrypted<'_>) -> Zeroizing<Vec<u8>> {
+    let total = encrypted.ciphertext.iter().fold(0usize, |n, p| n.saturating_add(p.len()));
+    let mut buffer = Zeroizing::new(Vec::with_capacity(total));
+    for piece in &encrypted.ciphertext {
+        buffer.extend_from_slice(piece);
+    }
+    buffer
 }
 
 /// The content decrypted with `key`; `None` for any fault at all.
@@ -503,7 +518,7 @@ where
     cbc::Decryptor<C>: KeyIvInit + BlockModeDecrypt,
 {
     let decryptor = cbc::Decryptor::<C>::new_from_slices(key, encrypted.iv).ok()?;
-    let mut buffer = Zeroizing::new(encrypted.ciphertext.clone());
+    let mut buffer = buffer_of(encrypted);
     // (A padding fault is an ordinary failure like every other: nothing says it was the padding.)
     let len = decryptor.decrypt_padded::<Pkcs7>(&mut buffer).ok()?.len();
     buffer.truncate(len);
@@ -522,7 +537,7 @@ where
     }
     let nonce = GenericArray::from_slice(encrypted.iv);
     let aad = auth.attributes.as_deref().unwrap_or_default();
-    let mut buffer = Zeroizing::new(encrypted.ciphertext.clone());
+    let mut buffer = buffer_of(encrypted);
     let ok = match auth.tag_len {
         12 => {
             let cipher = aes_gcm::AesGcm::<C, U12, U12>::new_from_slice(key).ok()?;

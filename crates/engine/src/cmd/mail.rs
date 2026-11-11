@@ -630,7 +630,7 @@ fn signature_for_agent(s: &mut Session, id: Id) -> Value {
     v
 }
 
-/// What checking message `id`'s Digital signature found (#30), as an agent is given it.
+/// Message `id`, an Encrypted one, is to be opened again with the owner's keys (#30 part 6).
 fn decrypt_again(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
@@ -643,6 +643,7 @@ fn decrypt_again(s: &mut Session, v: &Value) -> CmdResult {
     Ok(serde_json::json!({"id": id}))
 }
 
+/// What checking message `id`'s Digital signature found (#30), as an agent is given it.
 fn digital_signature(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {

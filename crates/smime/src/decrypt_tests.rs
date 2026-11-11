@@ -438,3 +438,25 @@ proptest! {
         let _ = open(&message, &ada);
     }
 }
+
+#[test]
+fn only_the_encryption_that_detects_changes_says_so() {
+    // AES-CBC and 3DES can be changed by someone who knows part of what a message says (EFAIL),
+    // and what they open to must not be allowed to fetch anything; AES-GCM can't be changed.
+    let ada = owner("ada@example.org");
+    let cek = [0x42u8; 32];
+    let wrapped = wrap(ada.key, KeyTransport::Pkcs1v15, &cek);
+    let recipient = ktri(rid_issuer_serial(&ada.cert), KeyTransport::Pkcs1v15, &wrapped);
+    let asked = Cell::new(0);
+    let cbc = enveloped(std::slice::from_ref(&recipient), AES256_CBC, &cek);
+    assert!(!decrypt(&cbc, &[&ada.cert], holder(&ada, &asked)).unwrap().authenticated);
+    let cek24 = [0x43u8; 24];
+    let wrapped = wrap(ada.key, KeyTransport::Pkcs1v15, &cek24);
+    let tdes = enveloped(&[ktri(rid_issuer_serial(&ada.cert), KeyTransport::Pkcs1v15, &wrapped)], TDES, &cek24);
+    assert!(!decrypt(&tdes, &[&ada.cert], holder(&ada, &asked)).unwrap().authenticated);
+    let cek = [0x33u8; 32];
+    let wrapped = wrap(ada.key, KeyTransport::Pkcs1v15, &cek);
+    let recipient = ktri(rid_issuer_serial(&ada.cert), KeyTransport::Pkcs1v15, &wrapped);
+    let gcm = auth_enveloped(&[recipient], &cek, 16, None, false);
+    assert!(decrypt(&gcm, &[&ada.cert], holder(&ada, &asked)).unwrap().authenticated);
+}

@@ -525,14 +525,14 @@ impl Session {
     /// The OpenPGP Digital signature of `m`, whose bytes are `bytes` (PGP/MIME when `parts` says
     /// so, else perhaps inline).
     ///
-    /// `inside` is the data an Encrypted message opened to and the signature packets that came
-    /// inside the encryption over it: those are checked, with the keys `bytes` brings.
+    /// `inside` is the data an Encrypted message opened to, the signature packets that came
+    /// inside the encryption over it, and whether they are all of the message: those are checked, with the keys `bytes` brings.
     pub(crate) fn check_openpgp(
         &mut self,
         m: &Message,
         bytes: &[u8],
         parts: Option<&mailcraft_mime::SignedParts>,
-        inside: Option<(&[u8], &[u8])>,
+        inside: Option<(&[u8], &[u8], bool)>,
     ) -> Found {
         let address = m.from.email.trim().to_lowercase();
         let from = one_from_field(bytes);
@@ -564,7 +564,7 @@ impl Session {
                     || gnupg.contains(&(fp.to_hex(), at.to_string()))
             };
             match inside {
-                Some((data, signatures)) => Some(pgp::verify_inside(signatures, data, &from, &ring, now, verified)),
+                Some((data, signatures, whole)) => Some(pgp::verify_inside(signatures, data, &from, &ring, now, whole, verified)),
                 None => pgp::verify(bytes, &from, &ring, now, verified),
             }
         };

@@ -310,31 +310,6 @@ fn a_compression_bomb_is_stopped_at_the_cap() {
 }
 
 #[test]
-fn a_secret_key_of_x25519_class_opens_a_message_in_process_and_others_are_refused() {
-    let mut key = make(KeyType::X25519, KeyVersion::V6, 41);
-    let password: Password = "correct horse".into();
-    key.primary_key.set_password(StdRng::seed_from_u64(3), &password).unwrap();
-    for sub in &mut key.secret_subkeys {
-        sub.key.set_password(StdRng::seed_from_u64(4), &password).unwrap();
-    }
-    let secret = key.to_armored_string(ArmorOptions::default()).unwrap();
-    let found = read(encrypt_binary(&key, TEXT, Build { v2: true, ..Build::default() }), false).unwrap();
-    let plain = crate::decrypt_with_secret_key(&found, secret.as_bytes(), "correct horse").unwrap();
-    assert_eq!(plain.data.as_slice(), TEXT);
-    // A wrong passphrase: nothing.
-    assert!(crate::decrypt_with_secret_key(&found, secret.as_bytes(), "wrong").is_none());
-    // An RSA key is never used in this process, even with the right passphrase.
-    let mut rsa = make(KeyType::Rsa(2048), KeyVersion::V4, 42);
-    rsa.primary_key.set_password(StdRng::seed_from_u64(3), &password).unwrap();
-    for sub in &mut rsa.secret_subkeys {
-        sub.key.set_password(StdRng::seed_from_u64(4), &password).unwrap();
-    }
-    let rsa_message = read(encrypt_binary(&rsa, TEXT, Build::default()), false).unwrap();
-    let rsa_secret = rsa.to_armored_string(ArmorOptions::default()).unwrap();
-    assert!(crate::decrypt_with_secret_key(&rsa_message, rsa_secret.as_bytes(), "correct horse").is_none());
-}
-
-#[test]
 fn what_is_not_an_encrypted_message_is_none() {
     let signed = b"From: a@example.org\r\nContent-Type: text/plain\r\n\r\nHello.\r\n";
     assert!(encrypted_message(signed).is_none());
@@ -420,4 +395,127 @@ fn open_with_ignoring_missing(found: &EncryptedMessage) -> Option<Plaintext> {
         }
     }
     None
+}
+
+#[test]
+fn the_ecdh_padding_must_be_all_of_it() {
+    use crate::decrypt::unpad;
+    assert_eq!(unpad(&[1, 2, 3, 4, 5, 3, 3, 3]), Some(&[1u8, 2, 3, 4, 5][..]));
+    assert_eq!(unpad(&[1, 2, 3, 4, 5, 6, 7, 1]), Some(&[1u8, 2, 3, 4, 5, 6, 7][..]));
+    // Only the last byte right.
+    assert_eq!(unpad(&[1, 2, 3, 4, 5, 9, 9, 3]), None);
+    assert_eq!(unpad(&[1, 2, 3, 4, 5, 2, 3, 3]), None);
+    // No padding, too much, none left of the message.
+    assert_eq!(unpad(&[1, 2, 3, 0]), None);
+    assert_eq!(unpad(&[1, 2, 3, 9]), None);
+    assert_eq!(unpad(&[2, 2]), None);
+    assert_eq!(unpad(&[]), None);
+}
+
+#[test]
+fn the_agents_padding_status_is_zero_or_absent_and_nothing_else() {
+    let message = pgp_mime(&armoured(&encrypt_binary(&RSA, TEXT, Build::default())));
+    let found = encrypted_message(&message).unwrap();
+    let recipient = found.recipients().first().unwrap();
+    let key = decryption_keys(&export(&RSA)).into_iter().find(DecryptionKey::is_rsa).unwrap();
+    let (value, _) = agent(&RSA, recipient, false);
+    // Padding already removed (`PADDING 0`): the message as it is.
+    assert!(session_key(recipient, &key, &value, Some(0)).is_some());
+    // Any other status isn't understood: nothing is made of the value.
+    for status in [1u32, 2, 255] {
+        assert!(session_key(recipient, &key, &value, Some(status)).is_none(), "{status}");
+    }
+    // No status: the value is a frame, and the bare message isn't one.
+    assert!(session_key(recipient, &key, &value, None).is_none());
+}
+
+/// A packet in the new format (RFC 9580 §4.2.1): its tag, then a one-, two- or five-octet length.
+fn packet(tag: u8, body: &[u8]) -> Vec<u8> {
+    let mut out = vec![0xC0 | tag];
+    match body.len() {
+        n if n < 192 => out.push(n as u8),
+        n if n < 8384 => out.extend_from_slice(&[(((n - 192) >> 8) + 192) as u8, ((n - 192) & 0xFF) as u8]),
+        n => {
+            out.push(255);
+            out.extend_from_slice(&(n as u32).to_be_bytes());
+        }
+    }
+    out.extend_from_slice(body);
+    out
+}
+
+/// The leading public-key encrypted session key packets (tag 1) of `binary`, as bytes.
+fn pkesk_packets(binary: &[u8]) -> Vec<u8> {
+    let mut at = 0;
+    while binary.get(at).is_some_and(|b| b & 0xC0 == 0xC0 && b & 0x3F == 1) {
+        let (len, head) = match binary[at + 1] {
+            n if n < 192 => (n as usize, 2),
+            n if n < 224 => ((((n as usize) - 192) << 8) + binary[at + 2] as usize + 192, 3),
+            255 => (u32::from_be_bytes(binary[at + 2..at + 6].try_into().unwrap()) as usize, 6),
+            _ => panic!("partial length"),
+        };
+        at += head + len;
+    }
+    binary[..at].to_vec()
+}
+
+#[test]
+fn old_symmetrically_encrypted_data_without_a_check_is_refused() {
+    // The old data packet (tag 9) has no integrity check at all; a session key for it must never open it.
+    let real = encrypt_binary(&CV25519, TEXT, Build::default());
+    let mut old = pkesk_packets(&real);
+    assert!(!old.is_empty());
+    old.extend(packet(9, &[0x55; 64]));
+    if let Some(found) = read(old, false) {
+        assert_eq!(open_with(&found, &CV25519, false).err(), Some(DecryptError::Failed));
+    }
+}
+
+#[test]
+fn a_message_with_a_password_packet_and_no_key_packet_is_not_opened_with_a_key() {
+    let real = encrypt_binary(&CV25519, TEXT, Build::default());
+    let data = &real[pkesk_packets(&real).len()..];
+    // A version 4 SKESK with AES-128 and a simple S2K (SHA-256), then the data packet.
+    let mut only = packet(3, &[4, 7, 0, 8]);
+    only.extend_from_slice(data);
+    if let Some(found) = read(only, false) {
+        assert!(found.recipients().is_empty());
+        assert_eq!(open_with(&found, &CV25519, false).err(), Some(DecryptError::Failed));
+    }
+}
+
+#[test]
+fn a_data_packet_whose_check_was_taken_off_or_changed_is_refused() {
+    let binary = encrypt_binary(&CV25519, TEXT, Build::default());
+    // The last 22 octets of a version 1 data packet are the check (a packet of 20 octets of hash).
+    let mut cut = binary.clone();
+    cut.truncate(binary.len() - 22);
+    if let Some(found) = read(cut, false) {
+        assert_eq!(open_with(&found, &CV25519, false).err(), Some(DecryptError::Failed));
+    }
+    for back in 1..=22usize {
+        let mut changed = binary.clone();
+        let at = changed.len() - back;
+        changed[at] ^= 0x01;
+        let found = read(changed, false).unwrap();
+        assert_eq!(open_with(&found, &CV25519, false).err(), Some(DecryptError::Failed), "{back}");
+    }
+}
+
+#[test]
+fn a_version_6_key_says_so() {
+    // (ECDH on one isn't opened: its KDF names a 32-octet fingerprint, and the program says so.)
+    assert!(decryption_keys(&export(&X25519)).iter().all(DecryptionKey::is_v6));
+    assert!(decryption_keys(&export(&CV25519)).iter().all(|k| !k.is_v6()));
+}
+
+#[test]
+fn what_is_read_out_of_an_unencrypted_message_never_panics() {
+    // A literal data packet (tag 11): format 'b', an empty file name, a date, then the data.
+    let mut body = vec![b'b', 0, 0, 0, 0, 0];
+    body.extend_from_slice(b"Hello.");
+    let plain = crate::read_opened(&packet(11, &body)).unwrap();
+    assert_eq!(plain.data.as_slice(), b"Hello.");
+    assert!(crate::read_opened(b"junk").is_none());
+    assert!(crate::read_opened(&[]).is_none());
 }

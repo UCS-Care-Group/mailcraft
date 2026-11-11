@@ -20,8 +20,8 @@
 //!   what is compressed (to at most [`MAX_PLAINTEXT`]), and hands back the literal data and any
 //!   Digital signature packets that were inside ([`Plaintext`]).
 //!
-//! A key MailCraft holds itself (imported in the window) is used in-process only when it is an
-//! X25519-class key ([`decrypt_with_secret_key`]); an RSA or NIST-curve key never is.
+//! No private key is used in this process at all: a key MailCraft holds itself opens nothing yet
+//! (a later part may, for an X25519-class key alone; an RSA or NIST-curve key never).
 //!
 //! The message is written by whoever sent it and is hostile. Sizes, counts and nesting are
 //! capped, rPGP's panics are caught, nothing here panics on any bytes, and every secret (the
@@ -37,12 +37,12 @@ use std::io::Read;
 use aes_kw::{KekAes128, KekAes192, KekAes256};
 use hkdf::Hkdf;
 use pgp::composed::PlainSessionKey;
-use pgp::composed::{Deserializable, Message, SignedSecretKey};
+use pgp::composed::{Deserializable, Message};
 use pgp::crypto::public_key::PublicKeyAlgorithm;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::packet::PublicKeyEncryptedSessionKey as Pkesk;
 use pgp::ser::Serialize;
-use pgp::types::{KeyDetails, KeyVersion, Password, PkeskBytes};
+use pgp::types::{KeyDetails, KeyVersion, PkeskBytes};
 use sha2::Digest;
 use zeroize::Zeroizing;
 
@@ -394,6 +394,12 @@ impl DecryptionKey {
         &self.primary
     }
 
+    /// Whether this is a version 6 key. (ECDH on one is not opened: its KDF names a 32-octet
+    /// fingerprint nothing here has been checked against, so it is said to be unsupported.)
+    pub fn is_v6(&self) -> bool {
+        self.version == KeyVersion::V6
+    }
+
     /// The addresses of the certificate (lower case).
     pub fn addresses(&self) -> &[String] {
         &self.addresses
@@ -552,7 +558,13 @@ fn material(algorithm: PublicKeyAlgorithm, fields: &[u8]) -> Option<Material> {
 pub fn session_key(recipient: &Recipient, key: &DecryptionKey, value: &[u8], padding: Option<u32>) -> Option<SessionKey> {
     match (&recipient.esk, &key.material) {
         (Esk::Rsa { .. }, Material::Rsa { .. }) => {
-            let message = if padding.is_some() { Zeroizing::new(value.to_vec()) } else { Zeroizing::new(unframe(value)?.to_vec()) };
+            // `PADDING 0`: the agent (or the card) removed the padding already; no status: the
+            // frame is as the key made it; any other value is not understood.
+            let message = match padding {
+                Some(0) => Zeroizing::new(value.to_vec()),
+                None => Zeroizing::new(unframe(value)?.to_vec()),
+                Some(_) => return None,
+            };
             from_checked_message(&message, recipient.v6)
         }
         (Esk::Ecdh { wrapped, .. }, Material::Ecdh { curve, oid, hash, kek, .. }) => {
@@ -578,11 +590,7 @@ pub fn session_key(recipient: &Recipient, key: &DecryptionKey, value: &[u8], pad
             let kek_bytes = derived.get(..kek_len)?;
             let unwrapped = Zeroizing::new(unwrap_key(kek_bytes, wrapped)?);
             // PKCS #5 padding to a multiple of 8 (RFC 9580 §11.5).
-            let n = usize::from(*unwrapped.last()?);
-            if n == 0 || n > 8 || n >= unwrapped.len() {
-                return None;
-            }
-            let message = Zeroizing::new(unwrapped.get(..unwrapped.len().checked_sub(n)?)?.to_vec());
+            let message = Zeroizing::new(unpad(&unwrapped)?.to_vec());
             from_checked_message(&message, recipient.v6)
         }
         (Esk::X25519 { ephemeral, wrapped, sym_alg }, Material::X25519 { q }) => {
@@ -606,6 +614,20 @@ pub fn session_key(recipient: &Recipient, key: &DecryptionKey, value: &[u8], pad
         }
         _ => None,
     }
+}
+
+/// `bytes` without their PKCS #5 padding: `n` bytes (1 to 8) that each say `n`, after at least one
+/// byte of message.
+pub(crate) fn unpad(bytes: &[u8]) -> Option<&[u8]> {
+    let n = usize::from(*bytes.last()?);
+    if n == 0 || n > 8 || n >= bytes.len() {
+        return None;
+    }
+    let at = bytes.len().checked_sub(n)?;
+    if bytes.get(at..)?.iter().any(|b| usize::from(*b) != n) {
+        return None;
+    }
+    bytes.get(..at)
 }
 
 /// The message of a PKCS #1 v1.5 frame as gpg-agent leaves it (the leading 0x00 omitted, or
@@ -740,34 +762,16 @@ fn read_plaintext(mut message: Message<'_>) -> Option<Plaintext> {
     Some(Plaintext { data, signatures })
 }
 
-/// Opens the message with a secret key MailCraft holds itself: only an X25519-class key (X25519,
-/// or ECDH on Curve25519: neither is RSA, nor a NIST curve, whose private-key operations never
-/// run in this process), protected by `passphrase`. `None` for any fault, all alike, and for a
-/// key that has an RSA part or isn't of that class for the recipient the message names.
-pub fn decrypt_with_secret_key(message: &EncryptedMessage, secret_key: &[u8], passphrase: &str) -> Option<Plaintext> {
-    let block = armour::blocks(secret_key, Kind::PrivateKey, 1, crate::keys::MAX_KEY_BYTES).into_iter().next();
-    let binary = block.as_deref().unwrap_or(secret_key);
+/// What an OpenPGP message that is not encrypted (its packets, binary or armoured) reads as: the
+/// literal data and signature packets, through the same compression and signature layers, caps and
+/// checks as a decrypted one. For the fuzz target, which can't make a session key and so can't
+/// otherwise reach this reader.
+#[doc(hidden)]
+pub fn read_opened(packets: &[u8]) -> Option<Plaintext> {
     crate::guard(|| {
-        let key = SignedSecretKey::from_bytes(binary).ok()?;
-        // Only keys of the class: the primary key and every subkey that holds secret material.
-        let class = |a: PublicKeyAlgorithm| {
-            matches!(a, PublicKeyAlgorithm::X25519 | PublicKeyAlgorithm::ECDH | PublicKeyAlgorithm::EdDSALegacy | PublicKeyAlgorithm::Ed25519)
-        };
-        let ecdh_ok = |params: &pgp::types::PublicParams| -> bool {
-            match params {
-                pgp::types::PublicParams::ECDH(p) => matches!(p, pgp::types::EcdhPublicParams::Curve25519Legacy { .. }),
-                _ => true,
-            }
-        };
-        if !class(key.primary_key.algorithm())
-            || !ecdh_ok(key.primary_key.public_params())
-            || key.secret_subkeys.iter().any(|s| !class(s.key.algorithm()) || !ecdh_ok(s.key.public_params()))
-        {
-            return None;
-        }
-        let parsed = Message::from_bytes(message.packets.as_slice()).ok()?;
-        let decrypted = parsed.decrypt(&Password::from(passphrase), &key).ok()?;
-        read_plaintext(decrypted)
+        let binary = armour::blocks(packets, Kind::Message, 1, MAX_PLAINTEXT).into_iter().next();
+        let message = Message::from_bytes(binary.as_deref().unwrap_or(packets)).ok()?;
+        read_plaintext(message)
     })
     .flatten()
 }
