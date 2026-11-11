@@ -333,7 +333,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
-msgstr "Eine Bedingung, oder die Ausnahmen einer Art zusammen, kann nach höchstens 20 Wörtern oder Adressen suchen."
+msgstr "Eine Bedingung oder die Ausnahmen einer Art zusammen können nach höchstens 20 Wörtern oder Adressen suchen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
