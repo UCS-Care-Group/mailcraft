@@ -228,19 +228,34 @@ fn touched_categories(before: &Mailbox, after: &Mailbox) -> BTreeMap<Id, Categor
         if was == is && was_local == is_local {
             continue;
         }
-        let find = |list: &[mailcraft_model::Category], k: &str| list.iter().find(|c| category_key(&c.name) == k).cloned();
-        let local = |names: &[String], k: &str| names.iter().any(|n| category_key(n) == k);
-        let keys: BTreeSet<String> =
-            was.iter().chain(is.iter()).map(|c| category_key(&c.name)).chain(was_local.iter().chain(is_local).map(|n| category_key(n))).collect();
-        let changed: BTreeSet<String> =
-            keys.into_iter().filter(|k| find(was, k) != find(is, k) || local(was_local, k) != local(is_local, k)).collect();
+        // (Each list keyed once: a full list compared name by name would be a million comparisons.)
+        let keys_of = |names: &[String]| names.iter().map(|n| category_key(n)).collect::<BTreeSet<String>>();
+        let (was_by, is_by, was_kept, is_kept) = (by_key(was), by_key(is), keys_of(was_local), keys_of(is_local));
+        let keys: BTreeSet<&String> = was_by.keys().chain(is_by.keys()).chain(&was_kept).chain(&is_kept).collect();
+        let changed: Vec<String> =
+            keys.into_iter().filter(|k| was_by.get(*k) != is_by.get(*k) || was_kept.contains(*k) != is_kept.contains(*k)).cloned().collect();
         if changed.is_empty() {
             continue;
         }
-        let left = changed.into_iter().map(|k| (k.clone(), find(is, &k).map(|c| (c, local(is_local, &k))))).collect();
+        let left = changed
+            .into_iter()
+            .map(|k| {
+                let now = is_by.get(&k).map(|c| ((*c).clone(), is_kept.contains(&k)));
+                (k, now)
+            })
+            .collect();
         out.insert(owner, CategoryStep { left, stamp: after.category_stamp });
     }
     out
+}
+
+/// `list` by [`category_key`], the first of two spellings of one name, as a search of it finds.
+fn by_key(list: &[mailcraft_model::Category]) -> BTreeMap<String, &mailcraft_model::Category> {
+    let mut keyed = BTreeMap::new();
+    for c in list {
+        keyed.entry(category_key(&c.name)).or_insert(c);
+    }
+    keyed
 }
 
 /// What an undo couldn't do, for saying it once.

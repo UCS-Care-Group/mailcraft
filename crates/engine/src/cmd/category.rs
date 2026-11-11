@@ -209,9 +209,13 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     done()
 }
 
-/// The events that carry a category, as they are before a change of the list.
+/// The events that carry a category and that a change of them is told to their server of
+/// ([`tell_events`]), as they are before a change of the list: only they are copied, however
+/// many are kept on this computer alone.
 fn categorized_events(s: &Session) -> Vec<mailcraft_model::Event> {
-    s.mailbox.events.values().filter(|e| !e.categories.is_empty()).map(|e| (**e).clone()).collect()
+    let mb = &s.mailbox;
+    let on_server = |e: &mailcraft_model::Event| !e.categories.is_empty() && e.origin.is_remote() && !e.origin.id.is_empty() && told(mb, e);
+    mb.events.values().filter(|e| on_server(e)).map(|e| (**e).clone()).collect()
 }
 
 /// The events whose categories a rename or a deletion changed (`before`: as they were) are told
