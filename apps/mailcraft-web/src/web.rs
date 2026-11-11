@@ -363,12 +363,23 @@ async fn fetch_face(file: &str) -> Result<Vec<u8>, String> {
     if declared.is_some_and(|n| !page::face_size_ok(n)) {
         return Err("larger than the face cap".into());
     }
-    let buffer = wasm_bindgen_futures::JsFuture::from(response.array_buffer().map_err(js)?).await.map_err(js)?;
-    let bytes = js_sys::Uint8Array::new(&buffer);
-    if !page::face_size_ok(u64::from(bytes.length())) {
-        return Err("larger than the face cap".into());
+    // Read in chunks and stop at the cap: a body without Content-Length is never held whole.
+    let reader: web_sys::ReadableStreamDefaultReader =
+        response.body().ok_or("no body")?.get_reader().dyn_into().map_err(|_| "not a stream reader")?;
+    let mut bytes = Vec::new();
+    loop {
+        let chunk = wasm_bindgen_futures::JsFuture::from(reader.read()).await.map_err(js)?;
+        if js_sys::Reflect::get(&chunk, &"done".into()).map_err(js)?.as_bool().unwrap_or(true) {
+            break;
+        }
+        let part: js_sys::Uint8Array = js_sys::Reflect::get(&chunk, &"value".into()).map_err(js)?.dyn_into().map_err(|_| "not bytes")?;
+        if !page::face_size_ok((bytes.len() + part.length() as usize) as u64) {
+            let _ = reader.cancel();
+            return Err("larger than the face cap".into());
+        }
+        bytes.extend_from_slice(&part.to_vec());
     }
-    Ok(bytes.to_vec())
+    Ok(bytes)
 }
 
 /// A picked file's bytes, as the browser gives them: a read that fails (the file moved or changed
