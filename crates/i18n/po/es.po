@@ -6556,7 +6556,7 @@ msgid "MailCraft doesn't know the settings for this address. The servers below a
 msgstr "MailCraft no conoce la configuración de esta dirección. Los servidores siguientes son solo una suposición hecha a partir de su dominio: compruébelos con su proveedor o su administrador antes de conectar."
 
 #. what a command says
-#: crates/model/src/mailbox.rs
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
 msgstr ""
 
