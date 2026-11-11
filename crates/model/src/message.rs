@@ -809,8 +809,10 @@ impl Message {
             || crate::protected::has_armour_within(self.body.text.as_bytes(), 64 * 1024)
     }
 
+    /// Whether the message carries the category `name`, compared as category names are
+    /// ([`crate::sync::same_category`]: in every script's case, so "BÜRO" is "Büro").
     pub fn has_category(&self, name: &str) -> bool {
-        self.categories.iter().any(|c| c.eq_ignore_ascii_case(name))
+        self.categories.iter().any(|c| crate::sync::same_category(c, name))
     }
 
     /// The value of a header MailCraft doesn't model ([`Message::headers`]), the first of its

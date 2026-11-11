@@ -228,6 +228,30 @@ fn the_new_parts_act_on_arriving_mail_and_on_mail_already_there() {
     assert!(!s.mailbox.messages_in(deleted).any(|m| m.subject.starts_with("Opt out")));
 }
 
+/// "Has the category" reads a category's name as category names are read everywhere (in any
+/// script's case): an exception for "Büro" leaves alone a message whose category the server
+/// wrote "BÜRO", and a rule that deletes for good doesn't take it.
+#[test]
+fn a_category_exception_holds_for_the_name_in_any_scripts_case() {
+    let (mut s, _, inbox, _) = session();
+    let rule = json!({
+        "name": "Clean up",
+        "conditions": [{"type": "subjectContains", "value": "report"}],
+        "exceptions": [{"type": "category", "value": "Büro"}],
+        "actions": [{"type": "deleteForGood"}],
+    });
+    s.run("rules.add", &rule).unwrap();
+    let same = arriving(&mut s, inbox, "ada@example.org", "Report one");
+    s.mailbox.message_mut(same).unwrap().categories = vec!["Büro".into()];
+    let capitals = arriving(&mut s, inbox, "ada@example.org", "Report two");
+    s.mailbox.message_mut(capitals).unwrap().categories = vec!["BÜRO".into()];
+    let other = arriving(&mut s, inbox, "ada@example.org", "Report three");
+    s.run("rules.run", &serde_json::json!({"folder": inbox})).unwrap();
+    assert!(s.mailbox.message(same).is_some(), "the exception holds for the same spelling");
+    assert!(s.mailbox.message(capitals).is_some(), "and for the name in capitals");
+    assert!(s.mailbox.message(other).is_none(), "the rule still acts on the rest");
+}
+
 #[test]
 fn always_move_messages_from_a_sender_without_a_whole_address_looks_for_its_words() {
     let (mut s, _, inbox, kept) = session();
