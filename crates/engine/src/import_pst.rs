@@ -1,15 +1,13 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Importing a .pst file (`file.importPst`, #815; a preview until every kind of item comes
-//! across): the mail of every folder the owner sees in it, Deleted Items and Junk E-mail too,
+//! Importing a .pst file (`file.importPst`, #815): the mail of every folder the owner sees in it, Deleted Items and Junk E-mail too,
 //! as ordinary folders on this computer, and a report that accounts for every item found.
 //!
 //! The file is read by `mailcraft-pst` from [MS-PST], over `Read + Seek`, never whole into
 //! memory; each item is read into a message from [MS-OXCMSG], [MS-OXPROPS] and [MS-OXOMSG]
 //! ([`item`]). Mail lands in local folders alone, never in an account on a server, and nothing
-//! of it leaves the computer. Contacts, calendar items and tasks come onto this computer too
-//! ([`contact`], [`calendar`]); notes and journal entries are counted and named "not yet brought
-//! in": a later part brings them.
+//! of it leaves the computer. Contacts, calendar items, tasks, notes and journal entries come
+//! onto this computer too ([`contact`], [`calendar`]).
 //!
 //! The work ([`read`]) takes no `Session`, so that a host runs it on a thread: it hands what it
 //! has read over in batches, which go into the mailbox as they come ([`apply`]); cancelling
@@ -37,7 +35,7 @@ use serde_json::{Value, json};
 use crate::cmd::{base64_decode, fail};
 use crate::import_tree::tidy_name;
 use crate::{CmdError, Session, p};
-use item::{Named, Text, ends_import, item_ref, later_kind};
+use item::{Named, Text, ends_import, item_ref};
 use report::{Report, Row};
 
 pub use mailcraft_mime::PST_ITEM_HEADER;
@@ -167,6 +165,8 @@ pub struct Batch {
     /// Calendar items, each with the calendar asked for (0: a new one, [`Batch::calendar_name`]).
     pub events: Vec<CalendarEvent>,
     pub tasks: Vec<Task>,
+    pub notes: Vec<mailcraft_model::Note>,
+    pub journal: Vec<mailcraft_model::JournalEntry>,
     /// The name of the calendar made for the file, when one is.
     pub calendar_name: String,
     /// The file's identity: a batch of another file starts an import of its own.
@@ -176,12 +176,24 @@ pub struct Batch {
 
 impl Batch {
     fn is_empty(&self) -> bool {
-        self.folders.is_empty() && self.messages.is_empty() && self.contacts.is_empty() && self.events.is_empty() && self.tasks.is_empty()
+        self.folders.is_empty()
+            && self.messages.is_empty()
+            && self.contacts.is_empty()
+            && self.events.is_empty()
+            && self.tasks.is_empty()
+            && self.notes.is_empty()
+            && self.journal.is_empty()
     }
 
     /// Items in it, for the size of a batch.
     fn items(&self) -> usize {
-        self.messages.len().saturating_add(self.contacts.len()).saturating_add(self.events.len()).saturating_add(self.tasks.len())
+        self.messages
+            .len()
+            .saturating_add(self.contacts.len())
+            .saturating_add(self.events.len())
+            .saturating_add(self.tasks.len())
+            .saturating_add(self.notes.len())
+            .saturating_add(self.journal.len())
     }
 }
 
@@ -193,6 +205,8 @@ pub struct Outcome {
 }
 
 /// What the window has waiting for `file.importPst` with `staged`.
+// (One at a time, moved once a batch: its size costs nothing.)
+#[allow(clippy::large_enum_variant)]
 pub enum Staged {
     Batch(Batch),
     Done(Box<Outcome>),
@@ -242,7 +256,9 @@ fn known_plans_and_people(mb: &Mailbox) -> impl Iterator<Item = String> + '_ {
     let contacts = mb.contacts.values().flat_map(|c| c.imported.split_whitespace().map(str::to_string));
     let events = mb.events.values().filter(|e| !e.imported.is_empty()).map(|e| e.imported.clone());
     let tasks = mb.tasks.values().filter(|t| !t.imported.is_empty()).map(|t| t.imported.clone());
-    contacts.chain(events).chain(tasks)
+    let notes = mb.notes.values().filter(|n| !n.imported.is_empty()).map(|n| n.imported.clone());
+    let journal = mb.journal.values().filter(|j| !j.imported.is_empty()).map(|j| j.imported.clone());
+    contacts.chain(events).chain(tasks).chain(notes).chain(journal)
 }
 
 /// The identity of a file: its provider's id (PidTagRecordKey), which every copy of it keeps.
@@ -587,11 +603,6 @@ pub fn read<R: Read + Seek>(
                 }
                 continue;
             }
-            if let Some(kind) = class.as_deref().and_then(later_kind) {
-                row.later = row.later.saturating_add(1);
-                report.count_later(kind);
-                continue;
-            }
             // (A dry run reads each item too, so that what it says would be brought in would be.)
             let m = match pst.message(&item_ref(nid)) {
                 Ok(m) => m,
@@ -599,17 +610,14 @@ pub fn read<R: Read + Seek>(
                 Err(e) => {
                     row.left_out = row.left_out.saturating_add(1);
                     report.leave_out(&what("item"), &b.shown, &e.to_string());
-                    if class.as_deref().and_then(contact::kind).is_none() {
+                    if class.as_deref().and_then(calendar::kind).is_some() {
+                        report.plans_seen = report.plans_seen.saturating_add(1);
+                    } else if class.as_deref().and_then(contact::kind).is_none() {
                         report.mail_seen = report.mail_seen.saturating_add(1);
                     }
                     continue;
                 }
             };
-            if let Some(kind) = m.class.as_deref().and_then(later_kind) {
-                row.later = row.later.saturating_add(1);
-                report.count_later(kind);
-                continue;
-            }
             // An appointment or a task. (Neither is brought back from Deleted Items.)
             if let Some(what_kind) = m.class.as_deref().and_then(calendar::kind) {
                 report.plans_seen = report.plans_seen.saturating_add(1);
@@ -676,6 +684,48 @@ pub fn read<R: Read + Seek>(
                         t.imported = k;
                         batch.bytes = batch.bytes.saturating_add(calendar::held_task(&t));
                         batch.tasks.push(t);
+                    }
+                    calendar::Kind::Note => {
+                        let (mut n, notes) = match calendar::build_note(&mut pst, &m, &named).map_err(|e| pst_error(&e))? {
+                            Ok(built) => built,
+                            Err(why) => {
+                                row.left_out = row.left_out.saturating_add(1);
+                                report.leave_out(&what("note"), &b.shown, why);
+                                continue;
+                            }
+                        };
+                        row.added = row.added.saturating_add(1);
+                        report.notes_added = report.notes_added.saturating_add(1);
+                        for why in &notes {
+                            report.note(&what("note"), &b.shown, why);
+                        }
+                        if job.dry_run {
+                            continue;
+                        }
+                        n.imported = k;
+                        batch.bytes = batch.bytes.saturating_add(n.text.len() as u64);
+                        batch.notes.push(n);
+                    }
+                    calendar::Kind::Journal => {
+                        let (mut j, notes) = match calendar::build_journal(&mut pst, &m, &named).map_err(|e| pst_error(&e))? {
+                            Ok(built) => built,
+                            Err(why) => {
+                                row.left_out = row.left_out.saturating_add(1);
+                                report.leave_out(&what("journal entry"), &b.shown, why);
+                                continue;
+                            }
+                        };
+                        row.added = row.added.saturating_add(1);
+                        report.journal_added = report.journal_added.saturating_add(1);
+                        for why in &notes {
+                            report.note(&what("journal entry"), &b.shown, why);
+                        }
+                        if job.dry_run {
+                            continue;
+                        }
+                        j.imported = k;
+                        batch.bytes = batch.bytes.saturating_add(j.text.len() as u64);
+                        batch.journal.push(j);
                     }
                 }
                 if batch.items() >= BATCH_MESSAGES || batch.bytes >= BATCH_BYTES {
@@ -837,6 +887,7 @@ fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, report
             contact: contact::ContactIds::find(map),
             rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET),
             plan_room: std::cell::Cell::new(item::PLAN_TEXT_BUDGET),
+            kept_room: std::cell::Cell::new(item::KEPT_TEXT_BUDGET),
             calendar: calendar::CalendarIds::find(map),
         }),
         Err(e) if ends_import(&e) => Err(pst_error(&e)),
@@ -1269,12 +1320,18 @@ impl Running {
         Ok(id)
     }
 
-    fn roll_back(&mut self, s: &mut Session, made: usize, added: usize, contacts: usize, plans: (usize, usize)) {
-        for id in self.plans.events.drain(plans.0.min(self.plans.events.len())..) {
+    fn roll_back(&mut self, s: &mut Session, made: usize, added: usize, contacts: usize, plans: [usize; 4]) {
+        for id in self.plans.events.drain(plans[0].min(self.plans.events.len())..) {
             s.mailbox.events.remove(&id);
         }
-        for id in self.plans.tasks.drain(plans.1.min(self.plans.tasks.len())..) {
+        for id in self.plans.tasks.drain(plans[1].min(self.plans.tasks.len())..) {
             s.mailbox.tasks.remove(&id);
+        }
+        for id in self.plans.notes.drain(plans[2].min(self.plans.notes.len())..) {
+            s.mailbox.notes.remove(&id);
+        }
+        for id in self.plans.journal.drain(plans[3].min(self.plans.journal.len())..) {
+            s.mailbox.journal.remove(&id);
         }
         if self.plans.events.is_empty()
             && let Some(id) = self.plans.calendar.take()
@@ -1336,7 +1393,7 @@ pub fn apply(s: &mut Session, place: &Place, batch: Batch) -> Result<usize, CmdE
         None => Running::start(s, place, &batch.identity)?,
     };
     let (made, added, contacts, resident) = (run.made.len(), run.added.len(), run.contacts.len(), run.resident);
-    let plans = (run.plans.events.len(), run.plans.tasks.len());
+    let plans = [run.plans.events.len(), run.plans.tasks.len(), run.plans.notes.len(), run.plans.journal.len()];
     let r = put(s, &mut run, batch);
     if r.is_err() {
         run.roll_back(s, made, added, contacts, plans);
@@ -1408,6 +1465,18 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
         t.origin = Default::default();
         let id = s.mailbox.add_task(t);
         run.plans.tasks.push(id);
+        n = n.saturating_add(1);
+    }
+    for mut note in batch.notes {
+        note.id = 0;
+        let id = s.mailbox.add_note(note);
+        run.plans.notes.push(id);
+        n = n.saturating_add(1);
+    }
+    for mut entry in batch.journal {
+        entry.id = 0;
+        let id = s.mailbox.add_journal(entry);
+        run.plans.journal.push(id);
         n = n.saturating_add(1);
     }
     Ok(n)

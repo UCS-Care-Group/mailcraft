@@ -478,6 +478,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Een poort is een getal van 1 tot en met 65535"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "A report is written beside your mailbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs a name, and something to look for."
@@ -4907,10 +4912,20 @@ msgid "Get Event"
 msgstr "Gebeurtenis ophalen"
 
 #. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "Get Journal Entry"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Get Message"
 msgstr "Bericht ophalen"
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "Get Note"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/help.rs
@@ -5514,17 +5529,11 @@ msgstr "Agendabestand importeren"
 msgid "Import Contacts"
 msgstr "Contactpersonen importeren"
 
-#. command label
-#: crates/engine/src/cmd/file.rs
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Import a .pst File"
 msgstr "Een .pst-bestand importeren"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Import a .pst File (preview)"
-msgstr "Een .pst-bestand importeren (voorbeeld)"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -6065,6 +6074,11 @@ msgstr "Deelnemen aan onlinevergadering"
 msgid "Join {service} Meeting"
 msgstr "Deelnemen aan {service}-vergadering"
 
+#. interface, ribbon location
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
+msgid "Journal"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -6154,6 +6168,11 @@ msgstr "Blijven wachten"
 #, fuzzy
 msgid "Keep on the server of {address}"
 msgstr "Op de server van {address} bewaren"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Keep the notes and journal entries"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6378,10 +6397,20 @@ msgid "List Folders"
 msgstr "Mappen opsommen"
 
 #. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "List Journal Entries"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "List Messages"
 msgstr "Berichten opsommen"
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "List Notes"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -8184,8 +8213,8 @@ msgstr "Niet nu: het wordt geïnstalleerd wanneer u MailCraft afsluit."
 msgid "Not saved"
 msgstr "Niet opgeslagen"
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#. interface, ribbon location
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Notes"
 msgstr "Notities"
@@ -8411,6 +8440,11 @@ msgstr "Voorlopig op deze computer"
 #, fuzzy
 msgid "On this computer, for the mail of every account"
 msgstr "Op deze computer, voor de e-mail van elk account"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "On this computer. They have no views of their own yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
@@ -9070,7 +9104,7 @@ msgid "Pattern"
 msgstr "Patroon"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pending development"
 msgstr "In ontwikkeling"
@@ -9304,11 +9338,6 @@ msgstr "Voorbeeld"
 #, fuzzy
 msgid "Preview lines in the message list"
 msgstr "Voorbeeldregels in de berichtenlijst"
-
-#. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -13000,16 +13029,15 @@ msgid "The logo is the signature's first picture: add one with Insert Picture."
 msgstr "Het logo is de eerste afbeelding van de handtekening: voeg er een toe met Afbeelding invoegen."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "The mail of a .pst file, into a folder on this computer"
-msgstr "De e-mail van een .pst-bestand, in een map op deze computer"
-
-#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "The mail of this account is then downloaded again from Microsoft. The newest messages show within minutes; the rest follows in the background."
 msgstr "De e-mail van dit account wordt dan opnieuw van Microsoft gedownload. De nieuwste berichten verschijnen binnen enkele minuten; de rest volgt op de achtergrond."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The mail, contacts, calendar, tasks and notes of a .pst file, onto this computer"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -16785,6 +16813,11 @@ msgid "no incoming server"
 msgstr "geen inkomende server"
 
 #. what a command says
+#: crates/engine/src/cmd/notes.rs
+msgid "no journal entry with that id"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/edit.rs
 #, fuzzy
 msgid "no look was copied: press Format Painter on the text to copy it from first"
@@ -16813,6 +16846,11 @@ msgstr "geen bericht met id {id}"
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "geen bericht met id {id} in {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/notes.rs
+msgid "no note with id {id}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -19151,14 +19189,6 @@ msgstr[0] "{n} item hier staat alleen op deze computer: niet in uw Outlook-agend
 msgstr[1] "{n} items hier staan alleen op deze computer: niet in uw Outlook-agenda. Een wijziging van een ervan blijft hier."
 
 #. interface
-#: crates/ui-egui/src/import_pst.rs
-#, fuzzy
-msgid "{n} item is left for a later version"
-msgid_plural "{n} items are left for a later version"
-msgstr[0] "{n} item wordt voor een latere versie overgelaten"
-msgstr[1] "{n} items worden voor een latere versie overgelaten"
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "{n} item is only on this computer, and not in your Outlook calendar."
@@ -19181,6 +19211,13 @@ msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "{n} item geselecteerd"
 msgstr[1] "{n} items geselecteerd"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} journal entry"
+msgid_plural "{n} journal entries"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -19394,6 +19431,13 @@ msgid "{n} not answered"
 msgid_plural "{n} not answered"
 msgstr[0] "{n} niet beantwoord"
 msgstr[1] "{n} niet beantwoord"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} note"
+msgid_plural "{n} notes"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19800,6 +19844,20 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Import a .pst File (preview)"
+#~ msgstr "Een .pst-bestand importeren (voorbeeld)"
+
+#, fuzzy
+#~ msgid "The mail of a .pst file, into a folder on this computer"
+#~ msgstr "De e-mail van een .pst-bestand, in een map op deze computer"
+
+#, fuzzy
+#~ msgid "{n} item is left for a later version"
+#~ msgid_plural "{n} items are left for a later version"
+#~ msgstr[0] "{n} item wordt voor een latere versie overgelaten"
+#~ msgstr[1] "{n} items worden voor een latere versie overgelaten"
 
 #, fuzzy
 #~ msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."

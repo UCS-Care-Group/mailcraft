@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! File › Open & Export › Import a .pst File (#815, preview until notes and journal entries come across): the owner picks a
+//! File › Open & Export › Import a .pst File (#815): the owner picks a
 //! file, gives its password when it has one and says where its mail goes (a new folder named after
 //! the file, or under a folder on this computer); the file is read off the window's thread and its
 //! mail comes in a batch at a time (`file.importPst` with `staged`), so that Cancel keeps what is in
@@ -368,12 +368,10 @@ impl ImportPst {
         ui.label(RichText::new(tl!("Put the tasks")).strong());
         ui.label(tl!("Into your to-do list on this computer. Nothing is sent to anybody."));
         ui.add_space(6.0);
-        ui.label(
-            RichText::new(tl!(
-                "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
-            ))
-            .color(t.text_dim),
-        );
+        ui.label(RichText::new(tl!("Keep the notes and journal entries")).strong());
+        ui.label(tl!("On this computer. They have no views of their own yet."));
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("A report is written beside your mailbox.")).color(t.text_dim));
         let can = ready && !(matches!(self.look, Ok((true, _))) && self.password.is_empty());
         let (ok, cancel) = buttons(ui, tl!("Import"), can);
         if cancel {
@@ -425,6 +423,7 @@ impl ImportPst {
 fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     let n = |k: &str| r.get(k).and_then(Value::as_u64).unwrap_or(0);
     let folder = r.get("name").and_then(Value::as_str).unwrap_or_default();
+    let only_mail = ["contacts", "lists", "events", "tasks", "stickyNotes", "journalEntries"].iter().all(|k| n(k) == 0);
     if r.get("cancelled").and_then(Value::as_bool) == Some(true) {
         ui.label(RichText::new(tl!("Stopped before the end. Import the file again to bring the rest.")).strong());
     }
@@ -432,14 +431,7 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
         RichText::new(crate::i18n::fmt(
             tl!("{added} brought in, of {found} found."),
             &[
-                (
-                    "added",
-                    &if n("contacts") + n("lists") == 0 {
-                        tln!(n("added"), "{n} message", "{n} messages")
-                    } else {
-                        tln!(n("added"), "{n} item", "{n} items")
-                    },
-                ),
+                ("added", &if only_mail { tln!(n("added"), "{n} message", "{n} messages") } else { tln!(n("added"), "{n} item", "{n} items") }),
                 ("found", &tln!(n("found"), "{n} item", "{n} items")),
             ],
         ))
@@ -447,7 +439,7 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     );
     // (With contacts among them, what the items are is said line by line.)
     for (count, line) in [
-        (if n("contacts") + n("lists") == 0 { 0 } else { n("messages") }, tln!(n("messages"), "{n} message", "{n} messages")),
+        (if only_mail { 0 } else { n("messages") }, tln!(n("messages"), "{n} message", "{n} messages")),
         (n("contacts"), tln!(n("contacts"), "{n} contact", "{n} contacts")),
         (
             n("lists"),
@@ -459,6 +451,8 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
         ),
         (n("events"), tln!(n("events"), "{n} calendar item", "{n} calendar items")),
         (n("tasks"), tln!(n("tasks"), "{n} task", "{n} tasks")),
+        (n("stickyNotes"), tln!(n("stickyNotes"), "{n} note", "{n} notes")),
+        (n("journalEntries"), tln!(n("journalEntries"), "{n} journal entry", "{n} journal entries")),
     ] {
         if count > 0 {
             ui.label(line);
@@ -469,7 +463,6 @@ fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     }
     for (count, line) in [
         (n("already"), tln!(n("already"), "{n} was here already", "{n} were here already")),
-        (n("later"), tln!(n("later"), "{n} item is left for a later version", "{n} items are left for a later version")),
         (n("leftOut"), tln!(n("leftOut"), "{n} item couldn't be read and is left out", "{n} items couldn't be read and are left out")),
     ] {
         if count > 0 {

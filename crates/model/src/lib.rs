@@ -27,6 +27,7 @@ mod message;
 pub mod messages;
 #[cfg(test)]
 mod messages_tests;
+mod note;
 mod offline;
 pub mod pictures;
 pub mod pop;
@@ -78,6 +79,7 @@ pub use message::{
     text_hash,
 };
 pub use messages::Messages;
+pub use note::{JournalEntry, Note};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};

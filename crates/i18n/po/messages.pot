@@ -399,6 +399,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "A report is written beside your mailbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "A rule needs a name, and something to look for."
 msgstr ""
@@ -4064,8 +4069,18 @@ msgid "Get Event"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "Get Journal Entry"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Get Message"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "Get Note"
 msgstr ""
 
 #. command label
@@ -4568,14 +4583,9 @@ msgstr ""
 msgid "Import Contacts"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/file.rs
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Import a .pst File"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
-msgid "Import a .pst File (preview)"
 msgstr ""
 
 #. command label, interface
@@ -5030,6 +5040,11 @@ msgstr ""
 msgid "Join {service} Meeting"
 msgstr ""
 
+#. interface, ribbon location
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
+msgid "Journal"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 msgid "Jul"
@@ -5103,6 +5118,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Keep on the server of {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Keep the notes and journal entries"
 msgstr ""
 
 #. interface
@@ -5291,8 +5311,18 @@ msgid "List Folders"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "List Journal Entries"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "List Messages"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "List Notes"
 msgstr ""
 
 #. command label
@@ -6780,8 +6810,8 @@ msgstr ""
 msgid "Not saved"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#. interface, ribbon location
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 msgid "Notes"
 msgstr ""
 
@@ -6968,6 +6998,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "On this computer, for the mail of every account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "On this computer. They have no views of their own yet."
 msgstr ""
 
 #. interface
@@ -7518,7 +7553,7 @@ msgid "Pattern"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 msgid "Pending development"
 msgstr ""
 
@@ -7709,11 +7744,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Preview lines in the message list"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "Preview: notes and journal entries are counted in the report and left for a later version. A report is written beside your mailbox."
 msgstr ""
 
 #. interface
@@ -10773,13 +10803,13 @@ msgid "The logo is the signature's first picture: add one with Insert Picture."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "The mail of a .pst file, into a folder on this computer"
+#: crates/ui-egui/src/graph_switch.rs
+msgid "The mail of this account is then downloaded again from Microsoft. The newest messages show within minutes; the rest follows in the background."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/graph_switch.rs
-msgid "The mail of this account is then downloaded again from Microsoft. The newest messages show within minutes; the rest follows in the background."
+#: crates/ui-egui/src/backstage.rs
+msgid "The mail, contacts, calendar, tasks and notes of a .pst file, onto this computer"
 msgstr ""
 
 #. interface
@@ -13924,6 +13954,11 @@ msgid "no incoming server"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/notes.rs
+msgid "no journal entry with that id"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/edit.rs
 msgid "no look was copied: press Format Painter on the text to copy it from first"
 msgstr ""
@@ -13946,6 +13981,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "no message with id {id} in {name}"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/notes.rs
+msgid "no note with id {id}"
 msgstr ""
 
 #. interface
@@ -15911,13 +15951,6 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "{n} item is left for a later version"
-msgid_plural "{n} items are left for a later version"
-msgstr[0] ""
-msgstr[1] ""
-
-#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "{n} item is only on this computer, and not in your Outlook calendar."
 msgid_plural "{n} items are only on this computer, and not in your Outlook calendar."
@@ -15935,6 +15968,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/reading.rs
 msgid "{n} item selected"
 msgid_plural "{n} items selected"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} journal entry"
+msgid_plural "{n} journal entries"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -16122,6 +16162,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "{n} not answered"
 msgid_plural "{n} not answered"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} note"
+msgid_plural "{n} notes"
 msgstr[0] ""
 msgstr[1] ""
 

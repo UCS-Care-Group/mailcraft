@@ -45,6 +45,8 @@ struct Fixture {
     joinable: Id,
     contact: Id,
     task: Id,
+    note: Id,
+    entry: Id,
 }
 
 fn fixture() -> Fixture {
@@ -161,7 +163,20 @@ fn fixture() -> Fixture {
         list: marked("list"),
         ..Default::default()
     });
-    Fixture { session: s, message, invitation, event, joinable, contact, task }
+    let note = s.mailbox.add_note(mailcraft_engine::model::Note {
+        text: marked("noteText"),
+        categories: vec![marked("noteCategory")],
+        ..Default::default()
+    });
+    let entry = s.mailbox.add_journal(mailcraft_engine::model::JournalEntry {
+        subject: marked("journalSubject"),
+        activity: marked("journalActivity"),
+        text: marked("journalText"),
+        people: vec![addr("journalPerson")],
+        categories: vec![marked("journalCategory")],
+        ..Default::default()
+    });
+    Fixture { session: s, message, invitation, event, joinable, contact, task, note, entry }
 }
 
 /// Where in an answer a marker stands outside a frame (or a frame holds one inside it).
@@ -208,6 +223,8 @@ fn params(f: &Fixture, id: &str) -> Value {
         "people.search" | "compose.suggest" => json!({"query": "Hostile"}),
         "view.searchSuggestions" => json!({"query": "from:Hostile"}),
         "tasks.get" => json!({"id": t}),
+        "notes.get" => json!({"id": f.note}),
+        "journal.get" => json!({"id": f.entry}),
         "tasks.list" => json!({"account": "all", "filter": "all"}),
         "edit.copy" | "edit.cut" => json!({"from": 0, "to": marked("composed").chars().count()}),
         _ => json!({}),

@@ -40,6 +40,10 @@ pub(crate) const CONTENT: &[&str] = &[
     "people.search",
     "tasks.get",
     "tasks.list",
+    "notes.list",
+    "notes.get",
+    "journal.list",
+    "journal.get",
     "view.reminders",
     "compose.suggest",
     // People's names and addresses, from mail.
