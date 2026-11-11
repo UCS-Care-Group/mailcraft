@@ -298,7 +298,13 @@ impl MailApp {
                     if !(matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) && why.trim().is_empty()) {
                         let by = match why {
                             REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT => why,
-                            _ => if self.directory(account) == Directory::Personal { REFUSED_FOR_ACCOUNT } else { NEEDS_APPROVAL },
+                            _ => {
+                                if self.directory(account) == Directory::Personal {
+                                    REFUSED_FOR_ACCOUNT
+                                } else {
+                                    NEEDS_APPROVAL
+                                }
+                            }
                         };
                         self.favorites_refused(account, by);
                     }
