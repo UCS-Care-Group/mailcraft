@@ -211,7 +211,7 @@ impl Condition {
 
     /// [`Condition::describe`] for a rule that reads addresses alone ([`Matching::addresses_only`]).
     pub fn describe_as(&self, addresses_only: bool) -> String {
-        let words = |w: &[String]| w.iter().map(|t| format!("\"{t}\"")).collect::<Vec<_>>().join(" or ");
+        let words = |w: &[String]| w.iter().map(|t| said(t)).collect::<Vec<_>>().join(" or ");
         match self {
             Condition::FromContains(t) if addresses_only => format!("sender's address contains {}", words(t)),
             Condition::ToContains(t) if addresses_only => format!("recipient's address contains {}", words(t)),
@@ -425,11 +425,18 @@ pub enum Action {
     ClearCategories,
 }
 
+/// A word or a name of a rule in its description, in double quotes, with a quote or a backslash in
+/// it escaped: one that holds `x" or from contains "boss` reads as that text, never as the end of
+/// the word and another part of the rule (#566).
+fn said(t: &str) -> String {
+    format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
 impl Action {
     pub fn describe(&self) -> String {
         match self {
             Action::MoveTo(_) => "move it to a folder".into(),
-            Action::Categorize(c) => format!("categorize it as \"{c}\""),
+            Action::Categorize(c) => format!("categorize it as {}", said(c)),
             Action::Flag => "flag it".into(),
             Action::MarkRead => "mark it as read".into(),
             Action::SetImportance(i) => format!("set importance to {}", i.code()),

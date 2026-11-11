@@ -260,3 +260,22 @@ fn run_rules_named_wrongly_is_said_as_that_not_as_the_folder_in_view() {
         assert!(!what.contains(&path) && !what.contains("permanently"), "{bad}: {what}");
     }
 }
+
+/// A word with a double quote in it doesn't read, in the owner's question, as the end of the word
+/// and more parts after it: a rule that spares the boss's mail and one whose one exception is the
+/// text `x" or from contains "boss`, which spares nearly nothing, are asked about in other words
+/// (#566).
+#[test]
+fn a_quote_in_a_word_doesnt_read_as_another_exception() {
+    let s = sample();
+    let account = s.mailbox.accounts.first().map(|a| a.id).unwrap();
+    let rule = |exceptions: Value| {
+        json!({"name": "Clean up", "account": account, "conditions": [{"type": "subjectContains", "value": "invoice"}],
+            "exceptions": exceptions, "actions": [{"type": "deleteForGood"}]})
+    };
+    let real = rule(json!([{"type": "subjectContains", "value": "x"}, {"type": "fromContains", "value": "boss"}]));
+    let forged = rule(json!([{"type": "subjectContains", "value": "x\" or from contains \"boss"}]));
+    let (real, forged) = (describe(&s, "rules.add", &real), describe(&s, "rules.add", &forged));
+    assert_ne!(real, forged, "the owner is asked the same about both: {real}");
+    assert!(forged.contains(r#"subject contains "x\" or from contains \"boss""#), "{forged}");
+}
