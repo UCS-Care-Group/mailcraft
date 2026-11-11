@@ -379,3 +379,70 @@ fn an_undo_after_the_server_made_the_copy_leaves_it_where_the_rule_put_it() {
     assert!(!moves.iter().any(|c| matches!(c, MessageChange::Move { .. })), "nothing moved on the server: {moves:?}");
     assert_eq!(graph_deletes(&s, account).len(), 1, "the original's delete still goes");
 }
+
+/// Run Rules Now over a Microsoft account's Inbox whose mail isn't downloaded: the first rule
+/// copies what holds "invoice" in its text, which can't be told yet; the second deletes what is
+/// about "Plan" for good. The delete for good is held, as a Delete in Deleted Items is above.
+#[test]
+fn run_rules_now_holds_a_delete_for_good_after_a_rule_that_cant_tell_yet() {
+    let (mut s, account, _) = microsoft_and_here();
+    let kept = s.mailbox.add_folder(account, None, "Invoices").unwrap();
+    s.mailbox.folder_mut(kept).unwrap().server = Some(ServerFolder { id: "F-inv".into(), ..Default::default() });
+    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
+    super::graph_mail::apply_graph_mail(
+        &mut s,
+        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
+    )
+    .unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Invoices", "account": account, "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}],
+            "actions": [{"type": "copyTo", "value": kept}]}),
+    );
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+            "actions": [{"type": "deleteForGood"}]}),
+    );
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    run(&mut s, "rules.run", json!({"folder": inbox}));
+    assert!(s.mailbox.messages_in(inbox).any(|m| m.subject == "Plan"), "deleted for good while the rule before it couldn't tell");
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert_eq!(graph_deletes(&s, account), []);
+}
+
+/// The same as new mail arrives on an IMAP account, for a message too large to download (its
+/// headers alone are here): the rule before can't read its text, so the delete for good is held.
+#[test]
+fn a_too_large_imap_message_isnt_deleted_for_good_after_a_rule_that_cant_tell_yet() {
+    let mut s = Session::empty();
+    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let imap = run(&mut s, "account.add", servers)["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    let kept = s.mailbox.add_folder(imap, None, "Invoices").unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Invoices", "account": imap, "conditions": [{"type": "bodyContains", "value": "invoice"}],
+            "actions": [{"type": "copyTo", "value": kept}]}),
+    );
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": imap, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+            "actions": [{"type": "deleteForGood"}]}),
+    );
+    let m = Message {
+        folder: inbox,
+        uid: 7,
+        from: Address::new("Zoe", "zoe@example.org"),
+        subject: "Plan".into(),
+        not_downloaded: 30_000_000,
+        ..Default::default()
+    };
+    let m = s.mailbox.add_message(m).unwrap();
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.message(m).is_some(), "deleted for good while the rule before it couldn't tell");
+}

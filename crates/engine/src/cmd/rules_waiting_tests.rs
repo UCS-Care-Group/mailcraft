@@ -537,3 +537,28 @@ fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete_for_goo
     }
     assert!(!s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. })));
 }
+
+/// A Microsoft delta gives no size (`graph/mail/down.rs`: size 0, "not
+/// said"), unlike [`listed`]'s 1,200. A size rule on such new mail waits for the download, and
+/// then acts.
+#[test]
+fn a_size_rule_on_microsoft_new_mail_listed_without_a_size_waits_for_the_download() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let small = json!({"name": "Small", "account": account, "server": false,
+        "conditions": [{"type": "sizeBetween", "value": {"min": 0, "max": 64}}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &small).unwrap();
+    let mut as_listed = listed("N1", "F-in", "Plan");
+    as_listed.server.size = 0;
+    let page = MessagePage { folder: "F-in".into(), messages: vec![as_listed], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let m = here(&s, account, "N1");
+    assert!(m.unfetched && m.flag == FlagStatus::None && m.rules_waiting.is_some(), "{m:?}");
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let m = here(&s, account, "N1");
+    assert!(!m.unfetched && m.rules_waiting.is_none() && m.flag == FlagStatus::Flagged, "{m:?}");
+}
