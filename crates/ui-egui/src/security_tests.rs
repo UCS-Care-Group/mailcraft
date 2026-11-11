@@ -228,9 +228,35 @@ fn a_driven_removal_of_an_imported_key_is_refused() {
     assert!(r.is_err());
     assert_eq!(w.state().ui.imported_keys.len(), 1);
     assert!(store.get(&kept().store_key).is_some(), "still in the credential store");
-    // The owner's own Confirm removes it.
-    w.state_mut().execute("ui.removePrivateKey", json!({"fingerprint": CAROL_FPR, "confirmed": true})).unwrap();
+    // Nor a script's request through the control channel, input not driven.
+    assert!(w.state_mut().execute("ui.removePrivateKey", json!({"fingerprint": CAROL_FPR, "confirmed": true})).is_err());
+    assert!(store.get(&kept().store_key).is_some(), "a script never removes the owner's key");
+    // The owner's own Confirm (the question's answer goes through `run`) removes it.
+    w.state_mut().run("ui.removePrivateKey", json!({"fingerprint": CAROL_FPR, "confirmed": true})).unwrap();
     assert!(store.get(&kept().store_key).is_none() && w.state().ui.imported_keys.is_empty());
+}
+
+/// The control channel is a script, never the owner (Martin, 2026-11-11): with the very key's
+/// dialog open and no input driven, its `engine.execute` of `ui.markKeyVerified` is refused, as
+/// for `ui.restartToUpdate`; only the dialog's button, the owner's press, marks it.
+#[test]
+fn the_control_channel_never_marks_a_key_verified() {
+    let mut w = window();
+    w.state_mut().execute("ui.verifyKey", json!({"address": CAROL, "fingerprint": CAROL_FPR})).unwrap();
+    w.run_steps(3);
+    assert!(!w.state().driven);
+    let (req, _rx) = ControlRequest::new(
+        "engine.execute",
+        json!({"command": "ui.markKeyVerified", "params": {"address": CAROL, "fingerprint": CAROL_FPR, "verified": true}}),
+    );
+    let ctx = w.ctx.clone();
+    let out = crate::control::handle(w.state_mut(), &ctx, &req);
+    assert!(matches!(&out, Outcome::Done(v) if v["ok"] == false), "refused");
+    assert!(!verified(w.state()));
+    assert!(matches!(&w.state().dialog, Some(Dialog::Security(_))), "the dialog stays for the owner");
+    // The same request as the window's own press goes through.
+    w.state_mut().run("ui.markKeyVerified", json!({"address": CAROL, "fingerprint": CAROL_FPR, "verified": true})).unwrap();
+    assert!(verified(w.state()));
 }
 
 /// A host that counts the jobs of each kind, and answers them as `answer` says.

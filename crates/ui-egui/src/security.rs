@@ -350,14 +350,32 @@ pub(crate) fn command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<V
             request_gnupg_valid(app);
             Ok(json!({"pending": "ownKeys"}))
         }
+        // A script's request (the control channel's `execute`) never removes the owner's key, it
+        // only asks; nor ever marks a key Verified, whatever dialog is open: those are the owner's
+        // press alone ([`owners_press`], through `MailApp::run`).
+        "ui.removePrivateKey" if p.get("confirmed").and_then(Value::as_bool) == Some(true) => {
+            Err(tl!("Your own key is removed only by you, in the window").to_string())
+        }
         "ui.removePrivateKey" => remove_private_key(app, p),
         "ui.verifyKey" => verify_key(app, s("address").unwrap_or_default(), s("fingerprint").unwrap_or_default()),
+        "ui.markKeyVerified" => Err(tl!("A key is marked Verified only in the dialog that shows its fingerprint, by you").to_string()),
+        _ => return None,
+    })
+}
+
+/// The owner's own press (`MailApp::run`, never the control channel's `execute`): the Verify
+/// dialog's buttons (`ui.markKeyVerified`) and the answer to Remove Your Key (the confirmed
+/// `ui.removePrivateKey`). Input the control channel injected (`driven`) is refused there too.
+pub(crate) fn owners_press(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
+    let s = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    Some(match id {
         "ui.markKeyVerified" => {
             let Some(verified) = p.get("verified").and_then(Value::as_bool) else {
                 return Some(Err(tl!("`verified` is true or false").to_string()));
             };
-            mark_key_verified(app, s("address").unwrap_or_default(), s("fingerprint").unwrap_or_default(), verified)
+            mark_key_verified(app, &s("address"), &s("fingerprint"), verified)
         }
+        "ui.removePrivateKey" => remove_private_key(app, p),
         _ => return None,
     })
 }

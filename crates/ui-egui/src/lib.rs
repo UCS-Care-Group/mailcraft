@@ -2202,6 +2202,11 @@ impl MailApp {
             updates::CHECK => self.check_for_updates(true),
             updates::RESTART => self.restart_to_update(),
             updates::GO_BACK => self.go_back_a_version(),
+            // Marking a key Verified and removing the owner's own key: the owner's press alone.
+            "ui.markKeyVerified" | "ui.removePrivateKey" => match security::owners_press(self, id, &params) {
+                Some(r) => r,
+                None => self.execute(id, params),
+            },
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => {
