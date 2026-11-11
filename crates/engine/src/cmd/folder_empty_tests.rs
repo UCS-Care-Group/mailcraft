@@ -4,10 +4,11 @@
 //! the number of messages (a folder of 200,000 took an hour, one message at a time), one step to
 //! undo, and the same changes waiting for the server as before.
 
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
-use mailcraft_model::sync::RemoteFlags;
-use mailcraft_model::{Address, FolderKind, Id, Mailbox, Message, Pending};
+use mailcraft_model::sync::{RemoteFlags, ServerMessage};
+use mailcraft_model::{Account, AccountKind, Address, Directory, FolderKind, Id, Mailbox, Message, OAuth, OAuthProvider, Pending, Queued};
 use serde_json::json;
 
 use crate::Session;
@@ -112,4 +113,48 @@ fn deleting_and_moving_a_big_selection_is_quick_and_undoes_in_one_step() {
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.count(inbox), N as usize);
     assert!(s.mailbox.pending.is_empty());
+}
+
+/// A session with a Microsoft account whose Deleted Items holds `n` messages its server has.
+fn microsoft(n: u32) -> (Session, Id) {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let oauth = OAuth { provider: OAuthProvider::Microsoft, directory: Directory::Organisation, ..Default::default() };
+    let account =
+        mb.add_account(Account { email: "noor@example.org".into(), kind: AccountKind::Microsoft, oauth: Some(oauth), ..Default::default() });
+    let deleted = mb.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    for k in 1..=n {
+        let server = ServerMessage { id: format!("server-{k}"), folder: "deleteditems".into(), ..Default::default() };
+        let m = Message {
+            folder: deleted,
+            account,
+            server: Some(server),
+            subject: format!("Message {k}"),
+            message_id: format!("<{k}@example.org>"),
+            date: i64::from(k),
+            from: Address::new("Bob", "bob@example.org"),
+            ..Default::default()
+        };
+        mb.add_message(m).unwrap();
+    }
+    let mut s = Session::new(mb);
+    s.run("folder.select", &json!({"id": deleted})).unwrap();
+    (s, deleted)
+}
+
+#[test]
+fn emptying_a_big_microsoft_deleted_items_is_quick_and_has_the_server_delete_each_once() {
+    let (mut s, deleted) = microsoft(N);
+    let (answer, took) = timed(|| s.run("folder.empty", &json!({"id": deleted})).unwrap());
+    assert!(took < SOON, "emptying {N} took {took:?}");
+    assert_eq!(answer["removed"], N);
+    let deletes: HashSet<&str> = s
+        .mailbox
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::DeleteMessage { id, .. } => Some(id.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!((deletes.len(), s.mailbox.queued.len()), (N as usize, N as usize));
 }
