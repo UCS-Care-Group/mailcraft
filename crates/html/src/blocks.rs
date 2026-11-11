@@ -457,6 +457,9 @@ struct BoxBuild {
     margin: [u8; 2],
     /// `display: inline-block`: a box on a line.
     inline: bool,
+    /// `display: table`: a block as wide as what it holds, which stands at the left (or in the
+    /// middle, by automatic margins) whatever the text-align round it.
+    table: bool,
     /// What holds it, for telling whether a box before it is on its line ([`Frame::after_box`]).
     parent: usize,
 }
@@ -1491,9 +1494,10 @@ impl Builder {
             box_margin: if boxed.inline { boxed.margin } else { [0, 0] },
             ..Table::default()
         };
-        // A box on a line stands where the text-align of what holds it puts the line, unless its
-        // own automatic margins centre it (`display: table; margin: 0 auto`).
-        let align = if boxed.inline && boxed.align == Align::Left { self.style().align } else { boxed.align };
+        // A box on a line stands where the text-align of what holds it puts the line. A
+        // `display: table` box is a block, as a browser lays one out: at the left, or in the middle
+        // by its own automatic margins (`margin: 0 auto`); only what it holds follows the text-align.
+        let align = if boxed.inline && !boxed.table && boxed.align == Align::Left { self.style().align } else { boxed.align };
         let table = Table { inline: boxed.inline, ..table };
         // A box that follows another with nothing between them stands in its line.
         let beside = boxed.inline && self.frame().after_box == Some(boxed.parent);
@@ -1988,6 +1992,7 @@ impl Builder {
                 radius: if background.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
                 inline: true,
+                table: css.table,
                 parent,
             };
             delta.background = None;
@@ -2202,8 +2207,10 @@ impl Builder {
                 outline,
                 width: if inline { line_box_width(&css) } else { capped.or(Some(Length::Percent(100))) },
                 // (A `display: table` box with automatic margins stands in the middle of its line.)
-                align: if css.centred() && (capped.is_some() || (inline && css.table)) { Align::Center } else { Align::Left },
+                // (Automatic margins do nothing on an `inline-block` box, whatever its `max-width`.)
+                align: if css.centred() && ((capped.is_some() && !inline) || (inline && css.table)) { Align::Center } else { Align::Left },
                 inline,
+                table: inline && css.table,
                 parent: parent.unwrap_or(0),
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },

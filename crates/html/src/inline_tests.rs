@@ -630,7 +630,8 @@ fn tables_that_float_stand_beside_each_other() {
 }
 
 /// A `display: table` box with automatic margins (`margin: 0 auto`) stands in the middle of its
-/// line, as a browser centres one; without them it stands where the text round it is aligned.
+/// line, as a browser centres one; without them it stands at the left, as a browser puts a block,
+/// whatever the text-align round it (which what it holds follows).
 #[test]
 fn a_display_table_box_with_automatic_margins_stands_in_the_middle() {
     let middle = |html: &str| {
@@ -642,9 +643,21 @@ fn a_display_table_box_with_automatic_margins_stands_in_the_middle() {
     assert_eq!(middle("<div><div style='display:table;margin:0 auto;background:#eee;padding:4px'>mid</div></div>"), Align::Center);
     assert_eq!(middle("<div><span style='display:table;margin:auto;background:#eee;padding:4px'>mid</span></div>"), Align::Center);
     assert_eq!(middle("<div><div style='display:table;background:#eee;padding:4px'>left</div></div>"), Align::Left);
-    assert_eq!(middle("<div style='text-align:right'><div style='display:table;background:#eee;padding:4px'>r</div></div>"), Align::Right);
-    // (`margin: auto` on a box on a line (`inline-block`) centres nothing, as in a browser.)
+    let right = parse("<div style='text-align:right'><div style='display:table;background:#eee;padding:4px'>r</div></div>");
+    let found = right.iter().find_map(|b| match &b.kind {
+        BlockKind::Table(t) if t.inline => Some((t, b)),
+        _ => None,
+    });
+    let Some((t, b)) = found else { panic!("{right:?}") };
+    assert_eq!(b.align, Align::Left, "the box at the left");
+    assert_eq!(t.rows[0].cells[0].blocks[0].align, Align::Right, "its words to the right");
+    // (`margin: auto` on a box on a line (`inline-block`) centres nothing, as in a browser, though
+    // it has a `max-width`; it stands where its holder's text-align puts it.)
     assert_eq!(middle("<div><span style='display:inline-block;margin:0 auto;background:#eee;padding:4px'>x</span></div>"), Align::Left);
+    let ib = "style='display:inline-block;max-width:280px;margin:0 auto;background:#eee;padding:4px'";
+    assert_eq!(middle(&format!("<div><div {ib}>x</div></div>")), Align::Left);
+    assert_eq!(middle(&format!("<div style='text-align:right'><div {ib}>x</div></div>")), Align::Right);
+    assert_eq!(middle(&format!("<div><span {ib}>x</span></div>")), Align::Left);
 }
 
 /// What column builders write, read as Outlook shows it: a badge or a label written as
