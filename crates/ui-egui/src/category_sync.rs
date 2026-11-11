@@ -256,10 +256,15 @@ impl MailApp {
         self.category_sync.rx = None;
         // What waits is worked out again at the next look, whatever the time.
         self.category_sync.ready = None;
-        // For a mailbox that has been closed since: its ids may name other things in this one.
+        // For a mailbox that has been closed since: its ids may name other things in this one. Nor
+        // for an account whose list isn't kept in step with Outlook any more (no longer a
+        // Microsoft account): Outlook's list is no list of its.
         let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_lowercase());
-        if self.category_sync.opening != self.session.openings() || address.as_deref() != Some(self.category_sync.address.as_str()) {
-            log::info!("categories: the answer is for a mailbox that is no longer open, or another address; let go of");
+        if self.category_sync.opening != self.session.openings()
+            || address.as_deref() != Some(self.category_sync.address.as_str())
+            || !category_accounts(&self.session.mailbox).contains(&account)
+        {
+            log::info!("categories: the answer is for a mailbox that is no longer open, another address or no Microsoft account; let go of");
             // (The account of the mailbox open now is still to be looked at.)
             self.category_sync.checked.remove(&account);
             return;

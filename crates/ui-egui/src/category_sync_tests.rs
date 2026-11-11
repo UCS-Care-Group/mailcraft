@@ -688,3 +688,19 @@ fn offline_before_the_first_look_the_categories_window_says_it_waits_to_check_no
     assert!(line.contains("until MailCraft can check") && !line.contains("No permission"), "{line}");
     assert!(!allow, "nothing to allow yet");
 }
+
+/// An answer for an account that is no longer a Microsoft account (changed while the job was on
+/// its way) is let go of: Outlook's list lands on no list here.
+#[test]
+fn an_answer_for_an_account_that_is_no_longer_a_microsoft_account_is_let_go_of() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category", "Made in Outlook"]));
+    assert!(app.categories_tick_at(0.0));
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    app.session.run("account.edit", &json!({"id": owner, "kind": "imap"})).unwrap();
+    app.poll_categories();
+    assert!(!app.category_sync.busy());
+    assert!(app.session.mailbox.category_of(owner, "Made in Outlook").is_none());
+    assert!(app.session.mailbox.category_of(0, "Made in Outlook").is_none());
+    assert!(!app.session.mailbox.category_writes.contains(&owner));
+}
