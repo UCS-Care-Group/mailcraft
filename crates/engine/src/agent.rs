@@ -963,6 +963,37 @@ fn beside_for_good(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: boo
     mb.rules.iter().filter(move |x| deletes_here(x) && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
 }
 
+/// The rules switched on that copy or move mail onto another account's server and that a change
+/// to the rules of `account` reaches, with that account, as [`beside_for_good`] finds those that
+/// delete for good: any change may let more mail reach them (#566).
+fn beside_onto_server(s: &Session, account: Id, rule: Id, on: bool) -> impl Iterator<Item = (&mailcraft_model::Rule, Id)> {
+    s.mailbox
+        .rules
+        .iter()
+        .filter(move |x| x.enabled && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
+        // (Of a rule for every account's mail, what it does with the mail of `account`.)
+        .filter_map(move |x| rule_onto_server(s, x, one_account(x).or((account != 0).then_some(account))).map(|to| (x, to)))
+}
+
+/// What a question about a change to the rules adds for the rules beside it that delete mail for
+/// good ([`beside_for_good_said`]) or put it on another account's server.
+fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
+    let mut said = beside_for_good_said(&s.mailbox, account, rule, on);
+    let onto: Vec<(String, Id)> = beside_onto_server(s, account, rule, on).map(|(r, to)| (quoted(&r.name), to)).collect();
+    if let Some((_, to)) = onto.first() {
+        let more = onto.len().saturating_sub(5);
+        let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+        let names: Vec<String> = onto.iter().take(5).map(|(n, _)| n.clone()).collect();
+        let server = s.mailbox.account(*to).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+        let (rule, verb, them) = if onto.len() == 1 { ("rule", "puts", "it") } else { ("rules", "put", "them") };
+        said.push_str(&format!(
+            "; the {rule} {}{more}, switched on, {verb} mail onto the server of {server}, and a change to the rules may let more mail reach {them}",
+            names.join(", ")
+        ));
+    }
+    said
+}
+
 /// What a question about a change to the rules adds when it is asked as a delete because rules
 /// beside it delete mail for good: their names (at most five), and why.
 fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool) -> String {
@@ -1000,17 +1031,39 @@ fn deletes_here(r: &mailcraft_model::Rule) -> bool {
 /// changes the rules beside it, as [`rules_delete_for_good`] asks of a command (#566). One that
 /// switches it off or takes it away only deletes less.
 pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
-    to.rules != now.rules && to.rules.iter().any(deletes_here)
+    let changed = changed_accounts(now, to);
+    to.rules.iter().any(|r| deletes_here(r) && reached(&changed, r))
+}
+
+/// The accounts whose rules an undo or redo from the rules of `now` to those of `to` changes (0:
+/// every account's): of each rule made, changed, taken away or moved in the list, and of those it
+/// shifts. None when the rules stay as they are.
+fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
+    if to.rules == now.rules {
+        return Vec::new();
+    }
+    let differ = |a: &[mailcraft_model::Rule], b: &[mailcraft_model::Rule]| -> Vec<Id> {
+        a.iter().enumerate().filter(|(i, r)| b.get(*i) != Some(*r)).map(|(_, r)| r.account).collect()
+    };
+    let mut changed = differ(&to.rules, &now.rules);
+    changed.extend(differ(&now.rules, &to.rules));
+    changed.sort_unstable();
+    changed.dedup();
+    changed
+}
+
+/// Whether a change to the rules of `changed` ([`changed_accounts`]) reaches rule `r`: for the
+/// same mail.
+fn reached(changed: &[Id], r: &mailcraft_model::Rule) -> bool {
+    changed.iter().any(|a| *a == 0 || r.account == 0 || *a == r.account)
 }
 
 /// The account on whose server a rule files mail, when an undo or redo from the rules of the
 /// mailbox now to those of `to` changes them and leaves such a rule switched on (#566), as
 /// [`undo_rules_delete_for_good`] reads one that deletes: any change may let more mail reach it.
 pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Option<Id> {
-    if to.rules == s.mailbox.rules {
-        return None;
-    }
-    to.rules.iter().filter(|r| r.enabled).find_map(|r| rule_onto_server(s, r, one_account(r)))
+    let changed = changed_accounts(&s.mailbox, to);
+    to.rules.iter().filter(|r| r.enabled && reached(&changed, r)).find_map(|r| rule_onto_server(s, r, one_account(r)))
 }
 
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
@@ -1058,20 +1111,30 @@ fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
 }
 
 /// Whether the rules this command makes, switches on or runs put mail on another account's
-/// server (#451).
+/// server (#451); or whether it changes the rules for mail that a rule switched on puts there:
+/// any change may let more mail reach that one, as [`rules_delete_for_good`] reads one that
+/// deletes (#566). Switching that rule off or deleting it only puts less there.
 fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
     let mb = &s.mailbox;
+    let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
+    let onto = |r: &mailcraft_model::Rule| rule_onto_server(s, r, one_account(r)).is_some();
+    let beside = |account: Id, rule: Id, on: bool| beside_onto_server(s, account, rule, on).next().is_some();
     match id {
         // A rule for one account files that account's new mail; one for every account, every
         // account's.
-        "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, one_account(&r)).is_some()),
-        "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| rule_onto_server(s, &r, one_account(&r)).is_some()),
+        "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| onto(&r) || beside(r.account, 0, true)),
+        "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| onto(&r) || beside(r.account, 0, true)),
         // Read as the commands read them: what they refuse does nothing, and needs no question.
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
-            p::id(params, "id")
-                .and_then(|r| mb.rules.iter().find(|x| x.id == r))
-                .is_some_and(|r| value.unwrap_or(!r.enabled) && rule_onto_server(s, r, one_account(r)).is_some())
+            named().is_some_and(|r| {
+                let on = value.unwrap_or(!r.enabled);
+                (on && onto(r)) || beside(r.account, r.id, on)
+            })
         }),
+        "rules.move" | "rules.remove" => named().is_some_and(|r| beside(r.account, r.id, id != "rules.remove")),
+        // (One kept there already changes nothing.)
+        "rules.keepOnServer" => crate::cmd::rules::keeping_on_server(s, params)
+            .is_ok_and(|(_, r, _)| r.keep != mailcraft_model::Keep::Server && beside(r.account, r.id, true)),
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
             let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
@@ -1581,12 +1644,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         // Each with the rules here that delete for good which the change reaches, when it is asked
         // as a delete for them (as `rules_delete_for_good` reads them).
         "rules.add" => {
-            let beside = crate::cmd::rules::rule_from_params(s, params).map(|r| beside_for_good_said(&s.mailbox, r.account, 0, true));
+            let beside = crate::cmd::rules::rule_from_params(s, params).map(|r| beside_said(s, r.account, 0, true));
             format!("{}{}", rule_text(s, params), beside.unwrap_or_default())
         }
         "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {
             Ok((r, _)) => {
-                let beside = beside_for_good_said(&s.mailbox, r.account, 0, true);
+                let beside = beside_said(s, r.account, 0, true);
                 let folder = r.actions.iter().find_map(|a| if let mailcraft_model::Action::MoveTo(f) = a { Some(*f) } else { None });
                 let to = folder.map(|f| quoted(&s.mailbox.folder_path(f))).unwrap_or_else(|| "a folder".to_string());
                 let from = r.conditions.iter().find_map(|c| match c {
@@ -1667,11 +1730,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
             match r {
-                Some(r) => format!(
-                    "move the rule {} {way}, which changes which rules run first{}",
-                    quoted(&r.name),
-                    beside_for_good_said(&s.mailbox, r.account, r.id, true)
-                ),
+                Some(r) => {
+                    format!("move the rule {} {way}, which changes which rules run first{}", quoted(&r.name), beside_said(s, r.account, r.id, true))
+                }
                 None => "move a rule that isn't there".to_string(),
             }
         }
@@ -1684,7 +1745,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     "keep the rule {} on the server of {to}, where it runs whether MailCraft is open or not: {}{}",
                     quoted(&r.name),
                     rule_words(s, r),
-                    beside_for_good_said(&s.mailbox, r.account, r.id, true)
+                    beside_said(s, r.account, r.id, true)
                 ),
                 None => "keep a rule that isn't there on a server".to_string(),
             }
@@ -1709,7 +1770,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         .filter(|_| r.on_server() || r.unanswered)
                         .map(|a| format!(", on the server of {} too", quoted(&plain(&a.email))))
                         .unwrap_or_default();
-                    let beside = on.map(|on| beside_for_good_said(&s.mailbox, r.account, r.id, on)).unwrap_or_default();
+                    let beside = on.map(|on| beside_said(s, r.account, r.id, on)).unwrap_or_default();
                     format!("{verb} the rule {}{there}: {}{beside}", quoted(&r.name), rule_words(s, r))
                 }
                 None => format!("{verb} a rule that isn't there"),

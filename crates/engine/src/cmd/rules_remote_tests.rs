@@ -1719,3 +1719,48 @@ fn an_agents_undo_that_brings_back_a_rule_filing_onto_another_server_is_asked_as
     assert!(found.iter().all(|f| f.contains("Owner(Send)")), "an agent's undo that brings the rule back is asked as a send: {found:#?}");
     assert!(found.iter().all(|f| f.contains("one switched on that files mail onto the server of")), "{found:#?}");
 }
+
+/// A rule that copies this computer's mail onto the Microsoft account's server: another change to
+/// the rules for that mail may let more of it reach the rule, and an agent's change is asked as a
+/// send, as one beside a rule that deletes for good is asked as a delete (#566).
+#[test]
+fn an_agent_asks_the_owner_before_changing_the_rules_beside_one_that_puts_mail_on_another_server() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, local, news) = session();
+    let up = add(&mut s, local, "Up", json!([{"type": "fromContains", "value": "news@example.org"}]), json!([{"type": "copyTo", "value": news}]));
+    let other = add(&mut s, local, "Other", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    let theirs = add(&mut s, account, "Theirs", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    let (send, settings) = (Access::Owner(Class::Send), Access::Owner(Class::Settings));
+    for (id, params) in [
+        ("rules.move", json!({"id": other, "direction": "up"})),
+        ("rules.enable", json!({"id": other, "value": false})),
+        ("rules.remove", json!({"id": other})),
+        ("rules.add", json!({"name": "More", "account": local, "conditions": [{"type": "toMe"}], "actions": [{"type": "markRead"}]})),
+    ] {
+        assert_eq!(classify(&s, id, &params), send, "{id} {params}");
+        let said = describe(&s, id, &params);
+        assert!(said.contains(&format!("; the rule \u{201c}Up\u{201d}, switched on, puts mail onto the server of {EMAIL}")), "{id}: {said}");
+    }
+    // Up itself going off or going only puts less there.
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": up, "value": false})), settings);
+    assert_eq!(classify(&s, "rules.remove", &json!({"id": up})), settings);
+    // The Microsoft account's own mail never reaches it.
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": theirs, "value": false})), settings);
+}
+
+/// An undo that puts back a rule of one account isn't asked as a delete because a rule for another
+/// account's mail deletes for good: no mail of that account reaches it (#566).
+#[test]
+fn an_undo_of_one_accounts_rules_isnt_asked_as_a_delete_for_another_accounts_rule() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, local, _) = session();
+    let purge = add(&mut s, account, "Purge", json!([{"type": "category", "value": "Bin"}]), json!([{"type": "deleteForGood"}]));
+    assert_eq!(rule(&s, purge).keep, Keep::Here);
+    let other = add(&mut s, local, "Other", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    run(&mut s, "rules.remove", json!({"id": other}));
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Settings));
+    // One of the account Purge is for is.
+    let mine = add(&mut s, account, "Mine", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    run(&mut s, "rules.remove", json!({"id": mine}));
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Delete));
+}
