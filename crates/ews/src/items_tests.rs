@@ -98,3 +98,14 @@ fn an_item_with_more_recipients_or_categories_than_are_kept_says_it_cut_them() {
     assert!(cut.cut && cut.to.len() == 200);
     assert!(read(0, 51).cut);
 }
+
+/// A listing names the Message-ID among the fields it asks for, whatever the Default shape holds:
+/// mail moved back into a folder on another device comes with a new item id and is known by its
+/// Message-ID (#566).
+#[test]
+fn a_listing_asks_for_the_message_id_by_name() {
+    for shape in [Shape::Full, Shape::Lean] {
+        let request = SyncFolderItems::new("FOLDER", "", 10, shape).element().write();
+        assert!(request.contains("FieldURI=\"message:InternetMessageId\""), "{request}");
+    }
+}

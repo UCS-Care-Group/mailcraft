@@ -103,7 +103,11 @@ impl SyncFolderItems {
     /// `MaxChangesReturned`, `SyncScope`.
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
+        // (The Message-ID by name too: mail moved back into a folder on another device comes with
+        // a new item id, and is known by it, #566. Microsoft's list of the Default shape doesn't
+        // promise it.)
         let mut extra = Element::new("t:AdditionalProperties")
+            .child(uri("message:InternetMessageId"))
             .child(uri("message:ToRecipients"))
             .child(uri("message:CcRecipients"))
             .child(uri("item:Categories"));

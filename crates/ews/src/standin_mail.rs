@@ -21,6 +21,7 @@ const FIELD_URIS: &[&str] = &[
     "message:ToRecipients",
     "message:CcRecipients",
     "message:From",
+    "message:InternetMessageId",
     "message:IsRead",
     "item:Categories",
     "item:Importance",
