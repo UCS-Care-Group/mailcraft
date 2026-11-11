@@ -85,12 +85,28 @@ fn the_search_s_targets_keep_the_srv_ports_and_take_the_alias_at_443() {
         r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.de2.hoster.example."}]}"#,
     );
     let targets = autodiscover_targets_at(&[&server.url("/q")], "example.org").unwrap();
-    let found: Vec<(String, u16)> = targets.into_iter().map(|t| (t.host, t.port)).collect();
-    assert_eq!(found, [("autodiscover.de2.hoster.example".to_string(), 8443), ("autodiscover.de2.hoster.example".to_string(), 443)]);
+    let srv: Vec<(String, u16)> = targets.srv.into_iter().map(|t| (t.host, t.port)).collect();
+    assert_eq!(srv, [("autodiscover.de2.hoster.example".to_string(), 8443)]);
+    // The alias is kept apart: it is no SRV record's word.
+    assert_eq!(targets.aliases, ["autodiscover.de2.hoster.example"]);
     // A split DNS: the public resolvers don't know the SRV record, the alias is public.
     let split = answering(r#"{"Status":3}"#, r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.de2.hoster.example."}]}"#);
     let targets = autodiscover_targets_at(&[&split.url("/q")], "example.org").unwrap();
-    assert_eq!(targets.into_iter().map(|t| (t.host, t.port)).collect::<Vec<_>>(), [("autodiscover.de2.hoster.example".to_string(), 443)]);
+    assert!(targets.srv.is_empty());
+    assert_eq!(targets.aliases, ["autodiscover.de2.hoster.example"]);
+}
+
+#[test]
+fn an_srv_record_that_names_autodiscover_of_the_domain_itself_is_kept_and_an_alias_to_itself_is_not() {
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"0 0 443 autodiscover.example.org."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.example.org."}]}"#,
+    );
+    let url = server.url("/q");
+    let targets = autodiscover_targets_at(&[&url], "example.org").unwrap();
+    assert_eq!(targets.srv.into_iter().map(|t| t.host).collect::<Vec<_>>(), ["autodiscover.example.org"]);
+    assert!(targets.aliases.is_empty());
+    assert_eq!(autodiscover_hosts_at(&[&url], "example.org").unwrap(), ["autodiscover.example.org"]);
 }
 
 #[test]

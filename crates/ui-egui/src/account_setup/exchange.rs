@@ -228,10 +228,8 @@ impl AccountSetup {
                 self.exchange.hosts = hosts;
                 self.exchange.found = true;
             }
-            provider::Autodiscover::Nothing => {
-                self.exchange.hosts.clear();
-                self.exchange.found = false;
-            }
+            // (The page was still opened for what the DNS said before: IMAP stays one click away.)
+            provider::Autodiscover::Nothing => self.exchange.hosts.clear(),
         }
     }
 
@@ -578,7 +576,7 @@ impl AccountSetup {
         page(ui, &t, |ui| {
             heading(ui, tl!("Exchange server account"), &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
-            if self.exchange.found {
+            if self.exchange.found && !self.exchange.hosts.is_empty() {
                 let domain = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()).unwrap_or_default();
                 note(
                     ui,

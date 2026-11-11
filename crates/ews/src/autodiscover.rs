@@ -60,6 +60,8 @@ pub const MAX_REDIRECTS: u8 = 5;
 const MAX_REQUESTS: u8 = 16;
 /// Most hosts taken from an SRV record.
 const MAX_SRV_HOSTS: usize = 3;
+/// Most hosts taken from the alias of `autodiscover.<domain>`, after the SRV record's.
+const MAX_ALIAS_HOSTS: usize = 2;
 /// The largest answer read: Autodiscover answers weigh a few kilobytes.
 pub const MAX_ANSWER: usize = 256 * 1024;
 /// Longest address kept.
@@ -701,6 +703,14 @@ impl Autodiscover {
     /// most three, and a port only if it is 443 or 1024 and above (the port of an SRV record
     /// names where the service listens: MS-OXDSCLI asks there).
     pub fn srv(&mut self, hosts: Option<Vec<(String, u16)>>) {
+        self.srv_and_aliases(hosts, Vec::new());
+    }
+
+    /// [`Self::srv`], with the hosts `autodiscover.<domain>` is an alias of besides: asked after
+    /// the SRV record's targets, at 443, at most two. An alias is not the SRV record's word: its
+    /// host has the sign-in, and its answer is believed, only after the owner's yes, in the domain
+    /// or out of it.
+    pub fn srv_and_aliases(&mut self, hosts: Option<Vec<(String, u16)>>, aliases: Vec<String>) {
         if !matches!(self.waiting, Waiting::Srv(_)) {
             return;
         }
@@ -721,8 +731,18 @@ impl Autodiscover {
                 self.srv_hosts.push(host.clone());
             }
         }
-        if named.is_empty() {
+        let mut aliased: Vec<String> = Vec::new();
+        for host in aliases {
+            let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+            if is_name(&host) && !named.iter().any(|(h, _)| *h == host) && !aliased.contains(&host) && aliased.len() < MAX_ALIAS_HOSTS {
+                aliased.push(host);
+            }
+        }
+        if named.is_empty() && aliased.is_empty() {
             return self.fail_step(Failure::Unreachable);
+        }
+        for host in aliased.into_iter().rev() {
+            self.queue.push_front(Target::Url(format!("https://{host}/autodiscover/autodiscover.xml")));
         }
         for (host, port) in named.into_iter().rev() {
             let port = if port == 443 { String::new() } else { format!(":{port}") };

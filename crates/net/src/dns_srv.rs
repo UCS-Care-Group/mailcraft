@@ -91,28 +91,48 @@ pub fn autodiscover_hosts(domain: &str) -> Result<Vec<String>, NetError> {
 
 /// [`autodiscover_hosts`], asking the name servers at `endpoints` instead.
 pub fn autodiscover_hosts_at(endpoints: &[&str], domain: &str) -> Result<Vec<String>, NetError> {
+    let found = autodiscover_targets_at(endpoints, domain)?;
     let mut hosts: Vec<String> = Vec::new();
-    for target in autodiscover_targets_at(endpoints, domain)? {
-        if !hosts.contains(&target.host) {
-            hosts.push(target.host);
+    for host in found.srv.into_iter().map(|target| target.host).chain(found.aliases) {
+        if hosts.len() < MAX_HOSTS && !hosts.contains(&host) {
+            hosts.push(host);
         }
     }
     Ok(hosts)
 }
 
-/// The places [`autodiscover_hosts`] names, with their ports: the SRV record's targets at the
-/// ports it gives, then the alias's host at 443. The search for an Exchange server asks these
-/// where MS-OXDSCLI asks the SRV record's alone: a domain whose SRV record is only in its own
-/// network's DNS (a split DNS) still names its hoster's Autodiscover by the alias, whose host
-/// has the certificate that `autodiscover.<domain>` itself hasn't.
-pub fn autodiscover_targets(domain: &str) -> Result<Vec<SrvTarget>, NetError> {
+/// The places [`autodiscover_hosts`] names, kept apart by what named them: the SRV record's
+/// targets with the ports it gives, and the hosts `autodiscover.<domain>` is an alias of.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct AutodiscoverTargets {
+    /// The SRV record's targets, best first.
+    pub srv: Vec<SrvTarget>,
+    /// The alias's hosts (never `autodiscover.<domain>` itself), asked at 443. Not an SRV
+    /// record's word: the search asks the owner before the sign-in goes to one, in the domain or
+    /// out of it.
+    pub aliases: Vec<String>,
+}
+
+/// The hosts are the organisation's own: not for a log.
+impl std::fmt::Debug for AutodiscoverTargets {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AutodiscoverTargets").field("srv", &self.srv.len()).field("aliases", &self.aliases.len()).finish()
+    }
+}
+
+/// The places [`autodiscover_hosts`] names, by what named them ([`AutodiscoverTargets`]). The
+/// search for an Exchange server asks the aliases' hosts after the SRV record's targets, where
+/// MS-OXDSCLI asks the SRV record's alone: a domain whose SRV record is only in its own network's
+/// DNS (a split DNS) still names its hoster's Autodiscover by the alias, whose host has the
+/// certificate that `autodiscover.<domain>` itself hasn't.
+pub fn autodiscover_targets(domain: &str) -> Result<AutodiscoverTargets, NetError> {
     autodiscover_targets_at(&RESOLVERS, domain)
 }
 
 /// [`autodiscover_targets`], asking the name servers at `endpoints` instead.
-pub fn autodiscover_targets_at(endpoints: &[&str], domain: &str) -> Result<Vec<SrvTarget>, NetError> {
+pub fn autodiscover_targets_at(endpoints: &[&str], domain: &str) -> Result<AutodiscoverTargets, NetError> {
     let srv = lookup_autodiscover_at(endpoints, domain);
-    let Some(domain) = domain_name(domain) else { return srv.map(|_| Vec::new()) };
+    let Some(domain) = domain_name(domain) else { return srv.map(|_| AutodiscoverTargets::default()) };
     let name = format!("{ALIAS}.{domain}");
     let mut alias = None;
     for endpoint in endpoints.iter().take(MAX_RESOLVERS) {
@@ -128,13 +148,19 @@ pub fn autodiscover_targets_at(endpoints: &[&str], domain: &str) -> Result<Vec<S
         (Err(e), None) => return Err(e),
         (srv, alias) => (srv.unwrap_or_default(), alias.unwrap_or_default()),
     };
-    let mut targets: Vec<SrvTarget> = Vec::new();
-    for target in srv.into_iter().chain(alias.into_iter().map(|host| SrvTarget { host, port: 443 })) {
-        if targets.len() < MAX_HOSTS && target.host != name && !targets.contains(&target) {
-            targets.push(target);
+    let mut found = AutodiscoverTargets::default();
+    for target in srv {
+        if found.srv.len() < MAX_HOSTS && !found.srv.contains(&target) {
+            found.srv.push(target);
         }
     }
-    Ok(targets)
+    // (An alias of the name to itself names nothing new.)
+    for host in alias {
+        if found.aliases.len() < MAX_HOSTS && host != name && !found.aliases.contains(&host) {
+            found.aliases.push(host);
+        }
+    }
+    Ok(found)
 }
 
 fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {

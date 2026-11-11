@@ -214,8 +214,11 @@ fn search_again_asks_the_dns_once_more_and_shows_what_it_says() {
     assert_eq!(page(&h), Some(Page::Exchange));
     assert_eq!(asked.lock().unwrap().clone(), vec!["lumen.example".to_string(), "lumen.example".to_string()]);
     let w = wizard(&h).unwrap();
-    assert!(w.exchange.hosts.is_empty() && !w.exchange.found && w.autodiscover.is_none());
+    assert!(w.exchange.hosts.is_empty() && w.autodiscover.is_none());
     assert!(says(&h, "names no server for automatic setup"));
+    // What the page was opened for no longer said, and IMAP still one click away.
+    assert!(!says(&h, "so this looks like an Exchange server account"));
+    assert!(says(&h, "Not an Exchange server? Set it up with IMAP"));
 }
 
 #[test]
