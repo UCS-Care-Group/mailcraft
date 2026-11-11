@@ -17279,7 +17279,7 @@ msgstr "Der Server hat ein Passwort angenommen, das nicht gesendet wurde"
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 msgid "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
-msgstr ""
+msgstr "der Server und MailCraft haben keine gemeinsame Verschlüsselungsmethode gefunden; häufig bietet der Server nur ältere Verschlüsselungsverfahren (CBC-Suites) an, die MailCraft nicht verwendet. Sein Administrator kann die AES-GCM-Suites aktivieren"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -17428,7 +17428,7 @@ msgstr "Der Server bietet keine Möglichkeit, sich mit einem Zugriffstoken anzum
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
-msgstr ""
+msgstr "der Server bietet nur ältere Verschlüsselungsverfahren (CBC-Suites) an, die MailCraft nicht verwendet; sein Administrator kann die AES-GCM-Suites aktivieren"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
