@@ -32,6 +32,8 @@ mailcraft-proto = { path = "../crates/proto" }
 mailcraft-pst = { path = "../crates/pst" }
 mailcraft-smime = { path = "../crates/smime" }
 mailcraft-vcard = { path = "../crates/vcard" }
+# What an Encrypted message opens to is overwritten when dropped (`smime_decrypt`).
+zeroize = "1"
 
 # Its own workspace, so the main one's builds, lints and cargo-deny leave it alone.
 [workspace]
@@ -214,6 +216,20 @@ bench = false
 [[bin]]
 name = "assuan"
 path = "fuzz_targets/assuan.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "smime_decrypt"
+path = "fuzz_targets/smime_decrypt.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "openpgp_decrypt"
+path = "fuzz_targets/openpgp_decrypt.rs"
 test = false
 doc = false
 bench = false

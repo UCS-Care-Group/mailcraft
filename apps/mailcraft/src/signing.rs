@@ -47,7 +47,7 @@ const MAX_EXPORT: usize = 32 * 1024 * 1024;
 /// How long `gpg --export` may take.
 const EXPORT_TIMEOUT: Duration = Duration::from_secs(30);
 /// What gpg-agent's pinentry says when it asks for a passphrase or a PIN to sign.
-const PINENTRY_TEXT: &str = "MailCraft is adding a Digital signature to a message you are sending.";
+pub(crate) const PINENTRY_TEXT: &str = "MailCraft is adding a Digital signature to a message you are sending.";
 
 /// The host of signing for the whole program (the window's keys and PIN questions).
 pub(crate) fn host() -> Arc<Host> {
@@ -225,7 +225,7 @@ pub(crate) struct Held {
     pub(crate) certificate: HeldCertificate,
     pub(crate) place: KeyPlace,
     /// The PKCS#11 token it is on, when it is on one without a PIN pad that needs a login.
-    token: Option<TokenRef>,
+    pub(crate) token: Option<TokenRef>,
 }
 
 #[cfg(target_os = "windows")]
@@ -348,7 +348,7 @@ pub(crate) fn sha256_named(hex: &str) -> Option<[u8; 32]> {
 // ---- OpenPGP ----
 
 /// `gpg`, as File › Options › Security finds it (`own_keys::gnupg`).
-fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
+pub(crate) fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
     use mailcraft_ui_egui::own_keys::Gnupg;
     crate::own_keys::gnupg::find().map_err(|state| match state {
         Gnupg::NotWorking(why) => why,
@@ -358,7 +358,7 @@ fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
 
 /// The public keys GnuPG has for `fingerprints` (`gpg --export`), at most [`MAX_EXPORT`] bytes.
 /// Each is a fingerprint in hex, checked, so nothing else reaches gpg's command line.
-fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Result<Vec<u8>, String> {
+pub(crate) fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Result<Vec<u8>, String> {
     if fingerprints.is_empty() || fingerprints.iter().any(|f| f.is_empty() || f.len() > 64 || !f.bytes().all(|b| b.is_ascii_hexdigit())) {
         return Ok(Vec::new());
     }
@@ -369,7 +369,7 @@ fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Resul
 
 /// The fingerprints (hex) of the owner's own keys: those GnuPG has a private key for, as
 /// File › Options › Security lists them.
-fn own_keys(gpg: &crate::own_keys::gnupg::Gpg) -> Result<Vec<String>, String> {
+pub(crate) fn own_keys(gpg: &crate::own_keys::gnupg::Gpg) -> Result<Vec<String>, String> {
     Ok(gpg.secret_keys()?.into_iter().map(|k| k.fingerprint.chars().filter(char::is_ascii_hexdigit).collect()).collect())
 }
 

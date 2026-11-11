@@ -2437,7 +2437,7 @@ msgid "Check Accessibility"
 msgstr "Toegankelijkheid controleren"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/encrypted.rs crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Check Again"
 msgstr "Opnieuw controleren"
@@ -3413,6 +3413,11 @@ msgstr "Afgewezen: {title}"
 msgid "Decrease Indent"
 msgstr "Inspringing verkleinen"
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Decrypt Again"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3933,6 +3938,11 @@ msgid "Download pictures in mail automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Download the bytes this message came as again"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
@@ -4261,6 +4271,11 @@ msgid "Encrypt"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Encrypted"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "End"
@@ -4564,6 +4579,11 @@ msgstr "Bestandsdialoogvensters zijn hier niet beschikbaar"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "File:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Files in an Encrypted message can't be opened or saved yet"
 msgstr ""
 
 #. interface
@@ -6131,6 +6151,11 @@ msgid "It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "It couldn't be opened: the key doesn't open it, or it was damaged."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file."
@@ -6155,7 +6180,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/digital_signatures.rs
-msgid "It is held in memory until MailCraft closes, and never saved. Send Again sends the message that waits for it."
+msgid "It is held in memory until MailCraft closes, and never saved. Send Again sends a message that waits for it; an Encrypted message is opened again at once."
 msgstr ""
 
 #. what a command says
@@ -6234,6 +6259,11 @@ msgstr "Het gebruikt een algoritme dat niet meer veilig is."
 #, fuzzy
 msgid "It waits on this computer until To Do is allowed for this account"
 msgstr "Deze wacht op deze computer tot To Do voor dit account is toegestaan"
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "It was downloaded before MailCraft kept the bytes it came as: Check Again downloads them."
+msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -8456,6 +8486,11 @@ msgid "None"
 msgstr "Geen"
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "None of your keys on this computer is one this message was encrypted to."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "None yet."
@@ -9146,6 +9181,11 @@ msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on th
 msgstr "De agenda van {name} is geopend. Die staat onder Gedeelde agenda's, alleen op deze computer."
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Opened with your key. What it says is held in memory only and never saved."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
@@ -9156,6 +9196,11 @@ msgstr "Geopend met de aanmelding van {owner}. Er is Volledige toegang tot het p
 #, fuzzy
 msgid "Opening Mail Attachment"
 msgstr "E-mailbijlage openen"
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Opening this message…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -13733,6 +13778,11 @@ msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "De afbeelding was te groot en is daarom kleiner gemaakt ({w} px breed)."
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "The place your keys are kept (GnuPG, the system's certificates or a smartcard) can't be reached."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
@@ -14091,7 +14141,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/digital_signatures.rs
-msgid "The smartcard {token} needs its PIN to add a Digital signature."
+msgid "The smartcard {token} needs its PIN to add a Digital signature or open an Encrypted message."
 msgstr ""
 
 #. interface
@@ -14927,6 +14977,11 @@ msgstr "Dit bericht heeft afbeeldingen op het web. Deze build kan ze niet downlo
 msgid "This message hasn't been sent."
 msgstr "Dit bericht is nog niet verzonden."
 
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "This message is encrypted in a way MailCraft can't open yet."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -15406,6 +15461,11 @@ msgstr "Het certificaat van deze server vertrouwen?"
 msgid "Trusted certificate (SHA-256 fingerprint):"
 msgstr "Vertrouwd certificaat (SHA-256-vingerafdruk):"
 
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Try Again"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -15423,6 +15483,11 @@ msgstr "Opnieuw aanmelden"
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Try to open this message again with your keys"
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -16249,6 +16314,11 @@ msgid "You always download this sender's pictures, but the mail server didn't co
 msgstr "U downloadt altijd de afbeeldingen van deze afzender, maar de e-mailserver heeft niet bevestigd dat dit bericht van die afzender komt, dus er wordt eerst om gevraagd."
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "You closed the question for your PIN or passphrase."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You declined this meeting."
@@ -16572,6 +16642,11 @@ msgstr ""
 #, fuzzy
 msgid "Your own name."
 msgstr "Uw eigen naam."
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Your smartcard needs its PIN to open this message."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -18330,6 +18405,11 @@ msgstr "het bericht heeft te veel geadresseerden"
 #, fuzzy
 msgid "the message is plain text; switch it to HTML first"
 msgstr "het bericht is platte tekst; zet het eerst om naar HTML"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the message isn't Encrypted"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

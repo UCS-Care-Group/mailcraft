@@ -34,6 +34,9 @@ mod clipboard;
 #[cfg(test)]
 mod control_challenge_flow;
 mod control_server;
+mod decrypting;
+#[cfg(test)]
+mod decrypting_tests;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_icons;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
@@ -1785,6 +1788,8 @@ fn services(
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
         // Digital signatures (#30): the owner's keys, and a smartcard's PIN.
         signing: Some(signing::host()),
+        // Encrypted messages opened with the same keys (#30 part 6).
+        decrypting: Some(signing::host()),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))

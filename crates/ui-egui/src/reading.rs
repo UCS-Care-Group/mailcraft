@@ -26,6 +26,7 @@
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
+mod encrypted;
 pub(crate) mod fonts;
 #[cfg(test)]
 mod header_tests;
@@ -187,6 +188,9 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     if place != Place::Quote && app.session.needs_load_for_display(m.id) {
         let _ = app.session.load_for_display(m.id);
     }
+    // An Encrypted message is read as what it opens to, held in memory only (#30 part 6).
+    let opened = if place == Place::Quote { None } else { encrypted::view(app, &ctx, m.id) };
+    let m = opened.as_ref().unwrap_or(m);
     remote::tick(app, &ctx);
     select::begin(app, ui, m, place);
     let doc = view::doc_shown(&ctx, m, place, remote::available(app), view::env_of(app, ui, place));
@@ -202,10 +206,16 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
         remote::line(app, ui, m, &doc, access, progress, place, t);
         unreadable_line(ui, m, t);
     });
-    // A meeting that came with the message: what it is, and the ways to answer it.
-    invitation::bar(app, ui, m, place);
-    // A calendar that was shared with the owner, and the way to open it (#70).
-    sharing::bar(app, ui, m);
+    // An Encrypted message: whether it was opened, and what to do if it wasn't (#30 part 6).
+    encrypted::bar(app, ui, m, place);
+    // A meeting that came with the message: what it is, and the ways to answer it. (Not in what
+    // an Encrypted message opened to: its parts are numbered as the stored message's are.)
+    let stored = !app.session.is_decrypted_view(m);
+    if stored {
+        invitation::bar(app, ui, m, place);
+        // A calendar that was shared with the owner, and the way to open it (#70).
+        sharing::bar(app, ui, m);
+    }
     // Only its headers and a preview are here yet (R3.2): say so, and why.
     if m.unfetched {
         let t = Tokens::get(ui.ctx());
@@ -402,6 +412,7 @@ pub(crate) fn show_plain_view(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, 
 pub(crate) fn tick(app: &mut MailApp, ctx: &egui::Context) {
     let_go_of_quotes(app, ctx);
     remote::tick(app, ctx);
+    encrypted::tick(app, ctx);
 }
 
 /// The message's display blocks, from its HTML when it has some, else from its text.
@@ -666,7 +677,9 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             let (r, _) = ui.allocate_exact_size(vec2(name_w + 44.0 + crate::ribbon::DROP_W, 38.0), Sense::hover());
             let drop_rect = Rect::from_min_max(pos2(r.max.x - crate::ribbon::DROP_W, r.min.y), r.max);
             let main_rect = Rect::from_min_max(r.min, pos2(drop_rect.min.x, r.max.y));
-            let filed = m.id != 0;
+            // (Files of an opened Encrypted message are in memory only: nothing opens or saves them yet.)
+            let opened = app.session.is_decrypted_view(m);
+            let filed = m.id != 0 && !opened;
             let resp = ui.interact(main_rect, ui.make_persistent_id(("attachment", m.id, index)), Sense::click());
             let drop_sense = if filed { Sense::click() } else { Sense::hover() };
             let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
@@ -704,7 +717,11 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             // (A message that is not in the mailbox has no number to name it by: attachments are
             // opened and saved once it is filed, and its `▾` is greyed and opens nothing.)
             if !filed {
-                let why = tl!("Move the message to a folder to open or save its attachments");
+                let why = if opened {
+                    tl!("Files in an Encrypted message can't be opened or saved yet")
+                } else {
+                    tl!("Move the message to a folder to open or save its attachments")
+                };
                 resp.on_hover_text(why);
                 drop.on_hover_text(why);
                 continue;

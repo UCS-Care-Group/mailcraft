@@ -15,8 +15,8 @@ reason = "Unmaintained notice, not a vulnerability: zvariant_derive was merged i
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2023-0071"
-reason = "rsa Marvin attack: a timing leak of a private key while it decrypts or signs; mailcraft-openpgp (rPGP 0.21) only verifies with public keys. This ignore must be removed or justified again before MailCraft signs or decrypts with a key it holds (#30 parts 5 and 6)"
+reason = "rsa Marvin attack: a timing leak of a private key while it decrypts or signs; mailcraft-openpgp (rPGP 0.21) verifies with public keys and decrypts in this process only with an X25519-class secret key (RSA and NIST-curve keys go through gpg-agent or the system key stores; part 6 never runs a private-key operation on them). This ignore must be removed or justified again before MailCraft signs or decrypts with an RSA or NIST-curve key it holds (#30)"
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0387"
-reason = "crypto-bigint 0.5 timing on secret integers; mailcraft-openpgp (rPGP 0.21) only verifies with public keys. This ignore must be removed or justified again before MailCraft signs or decrypts with a key it holds (#30 parts 5 and 6)"
+reason = "crypto-bigint 0.5 timing on secret integers; mailcraft-openpgp (rPGP 0.21) verifies with public keys and decrypts in this process only with an X25519-class secret key (RSA and NIST-curve keys go through gpg-agent or the system key stores; part 6 never runs a private-key operation on them). This ignore must be removed or justified again before MailCraft signs or decrypts with an RSA or NIST-curve key it holds (#30)"

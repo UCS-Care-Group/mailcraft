@@ -72,6 +72,7 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+pub mod decrypting;
 #[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
@@ -337,6 +338,10 @@ pub struct Services {
     pub ews_setup: Option<Box<dyn Fn(ews_setup::EwsSetupJob) -> Receiver<ews_setup::EwsSetupEvent>>>,
     /// Desktop: the owner's keys that can add a Digital signature, and a smartcard's PIN (#30).
     pub signing: Option<std::sync::Arc<dyn digital_signatures::SigningHost>>,
+    /// Desktop: opens an Encrypted message with the owner's keys, on a thread of its own, and
+    /// gives back what is in it for the window to hold in memory (#30 part 6). Absent in the
+    /// browser and the tests: such a message is then said to need the desktop program.
+    pub decrypting: Option<std::sync::Arc<dyn decrypting::DecryptHost>>,
     /// Whether the host holds the credential of this JMAP account itself (a page that signed the
     /// owner in to its server): for such an account the window never asks for a password, and its
     /// jobs go without one. Absent, or false for an account: the owner types it.
@@ -1672,6 +1677,9 @@ pub struct MailApp {
     mail_only_next: bool,
     /// A sign-in the host is waiting on (the owner is in the browser).
     signing_in: Option<SigningIn>,
+    /// Encrypted messages the host is opening, by message (#30 part 6). Never saved.
+    decrypting:
+        std::collections::HashMap<Id, std::sync::mpsc::Receiver<Result<mailcraft_engine::decrypt::Plain, mailcraft_engine::decrypt::Failure>>>,
     /// What a sign-in for an account that is being set up came to, until its dialog takes it.
     setup_sign_in: Option<Result<Tokens, String>>,
     /// An administrator's approval the host is waiting on, and what the last came to ([`approval`]).
@@ -1946,6 +1954,7 @@ impl MailApp {
             shared_check_next: None,
             mail_only_next: false,
             signing_in: None,
+            decrypting: Default::default(),
             setup_sign_in: None,
             approvals: Default::default(),
             sync_rx: None,
