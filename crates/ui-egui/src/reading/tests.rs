@@ -4190,6 +4190,27 @@ fn an_inner_percentage_table_can_keep_a_centred_wrapper_at_content_width() {
     });
 }
 
+/// An inner full-width header bar fills its auto-sized wrapper in either alignment.
+#[test]
+fn a_short_header_bar_in_a_nested_table_keeps_its_alignment() {
+    in_frame(false, |ctx| {
+        for align in ["center", "right"] {
+            let html = format!(
+                "<table role='presentation' width='600' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' align='{align}' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' width='100%' bgcolor='#d8e6da' cellspacing='0'><tr><td style='padding:0'>Header</td></tr></table>\
+                 </td></tr></table></td></tr></table>"
+            );
+            let message = html_message(56, ("Digest", "digest@bellweather.example"), "Header", &html);
+            let laid = lay_out(ctx, &message, 700.0);
+            let bar = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Fill { .. })).unwrap().rect;
+            assert!((24.0..120.0).contains(&bar.width()), "{align}: {bar:?}");
+            let offset = if align == "center" { bar.center().x - 300.0 } else { bar.max.x - 600.0 };
+            assert!(offset.abs() < 1.0, "{align}: {bar:?}");
+        }
+    });
+}
+
 /// The picture mark fits a narrow reading slot even when its requested padding does not.
 #[test]
 fn a_padded_picture_placeholder_fits_its_slot() {
@@ -4204,6 +4225,23 @@ fn a_padded_picture_placeholder_fits_its_slot() {
             assert!(placeholder.rect.max.x <= laid.width());
         }
     });
+}
+
+/// A decoded picture keeps its size until the slot itself is too small, then scales to fit.
+#[test]
+fn a_padded_decoded_picture_keeps_space_for_its_pixels() {
+    let html = "<img src='cid:tick-16@quillon.example' width='80' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(55, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            for (width, size, left) in [(100.0, 80.0, 10.0), (60.0, 60.0, 0.0), (250.0, 80.0, 85.0)] {
+                let laid = lay_out(ctx, &message, width);
+                let picture = shown_pictures(&laid)[0];
+                assert_eq!(picture.rect.size(), egui::Vec2::splat(size));
+                assert_eq!(picture.rect.min.x, left);
+            }
+        });
+    }
 }
 
 #[test]

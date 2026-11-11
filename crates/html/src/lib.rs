@@ -257,7 +257,8 @@ pub struct Span {
     /// A highlight behind the text.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<Rgb>,
-    /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`]; `None` for the reader's own size.
+    /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`] (32 for [`parse_text`]).
+    /// `None` uses the reader's own size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
     /// The font families asked for, lower case and joined by commas in their order

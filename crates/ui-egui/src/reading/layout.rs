@@ -886,12 +886,11 @@ struct Tile<'a> {
 
 /// What a picture block comes to in `room` points of width. `shown` counts it; measuring a column does not.
 fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'a> {
-    let Some(padding) = block.image_padding else { return picture_tile(cx, block, room, shown) };
+    let Some(padding) = block.image_padding else { return picture_tile(cx, block, room, 0.0, shown) };
     let mut pad = Pad::from_insets(padding);
     let wanted_padding = pad.across();
-    let mut tile = picture_tile(cx, block, (room - wanted_padding).max(1.0), shown);
-    // A placeholder can ask for more than the room left by its padding. Keep space for its
-    // mark when possible, and give the padding only what is left.
+    let mut tile = picture_tile(cx, block, room, wanted_padding, shown);
+    // Keep space for the picture or placeholder mark, and give the padding what is left.
     tile.size.x = tile.size.x.min(room);
     let padding_room = (room - tile.size.x).max(0.0);
     if wanted_padding > padding_room {
@@ -905,8 +904,9 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     tile
 }
 
-/// Measure the picture or its placeholder before applying any CSS padding.
-fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'a> {
+/// Measure the picture in the full slot. An unsized stand-in can use less width for its label
+/// to leave room for padding around its mark.
+fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, shown: bool) -> Tile<'a> {
     let BlockKind::Image { src, width, height, data, .. } = &block.kind else {
         return Tile { size: Vec2::ZERO, block, padding: None, data: None, label: String::new(), described: false, wanted: 0.0 };
     };
@@ -971,7 +971,7 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -
         return Tile { size, block, padding: None, data: None, label, described, wanted: w.min(super::MAX_BODY_WIDTH) };
     }
     let wanted = CHIP_HEIGHT + text;
-    Tile { size: vec2(wanted.min(room.max(CHIP_HEIGHT)), CHIP_HEIGHT), block, padding: None, data: None, label, described, wanted }
+    Tile { size: vec2(wanted.min((room - padding).max(CHIP_HEIGHT)), CHIP_HEIGHT), block, padding: None, data: None, label, described, wanted }
 }
 
 /// Lay out pictures that stand in one line, wrapping to more lines as needed; the bottom.

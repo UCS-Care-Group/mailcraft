@@ -163,6 +163,7 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    /// A row or cell role on an ordinary element in a block context.
     pub table_display: Option<TableDisplay>,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
