@@ -29,6 +29,11 @@ pub(crate) enum Perm {
     Asking,
 }
 
+/// How much of a refusal's reason File › Info and the Categories window show: the reasons the one
+/// question gives are whole in every language (the longest is about 160 characters), and a
+/// server's own words are cut after this many.
+pub(crate) const REASON_SHOWN: usize = 200;
+
 impl MailApp {
     /// The answers of the to-dos', rules', calendar's and categories' jobs, taken in at `now`: a
     /// job that came to nothing waits from when its answer is read, even after the window went

@@ -228,3 +228,22 @@ fn a_microsoft_account_still_on_imap_is_asked_only_for_its_to_dos_and_automatic_
     assert!(said.contains("tasks stay on this computer") && said.contains(crate::approval::NO_BROWSER), "{said}");
     assert!(!said.contains("rules") && !said.contains("categories"), "{said}");
 }
+
+/// An organisation whose administrator has to approve first: File › Info's tip and the Categories
+/// window say the reason whole, with where to go next, not cut before it.
+#[test]
+fn the_reason_an_administrator_has_to_approve_is_said_whole() {
+    let (mut app, owner, _, answer) = window();
+    *answer.lock().unwrap() = Err(crate::favorites_sync::NEEDS_APPROVAL.into());
+    both_need_it(&mut app, owner);
+    app.dialog = None;
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let (_, details, _) = app.sync_line(owner).unwrap();
+    for part in ["Tasks:", "Categories:"] {
+        let line = details.lines().find(|l| l.starts_with(part)).unwrap_or_default();
+        assert!(line.contains("once: File › Info"), "{part} {details}");
+    }
+    let (said, _) = app.categories_read_only_line(owner).unwrap();
+    assert!(said.contains("once: File › Info"), "{said}");
+}

@@ -417,7 +417,7 @@ impl MailApp {
     pub(crate) fn categories_read_only_line(&self, account: Id) -> Option<(String, bool)> {
         let owner = self.session.mailbox.categories_read_only(account)?;
         let address = self.session.mailbox.account(owner).map(|a| a.email.trim().to_string()).unwrap_or_default();
-        let shown = |why: &str| crate::forms::kit::shown(why, 90);
+        let shown = |why: &str| crate::forms::kit::shown(why, crate::server_sync::REASON_SHOWN);
         let line = |text: &str| crate::i18n::fmt(text, &[("address", &address)]);
         // (Allow only where there is a host to sign in with: never in the browser.)
         let host = self.services.graph_categories.is_some();
@@ -449,7 +449,7 @@ impl MailApp {
         if !category_accounts(&self.session.mailbox).contains(&account) {
             return None;
         }
-        let shown = |why: &str| crate::forms::kit::shown(why, 90);
+        let shown = |why: &str| crate::forms::kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.category_sync.perm.get(&account) {
             Some(Permission::Given) => (tl!("Categories: kept in step with Outlook").to_string(), false, Perm::Fine),
             Some(Permission::Needed | Permission::Declined) => {

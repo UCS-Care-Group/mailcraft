@@ -588,7 +588,7 @@ impl MailApp {
         if !reply_accounts(&self.session.mailbox).contains(&account) {
             return None;
         }
-        let shown = |why: &str| kit::shown(why, 90);
+        let shown = |why: &str| kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.auto_replies.perm.get(&account)? {
             Permission::Given => (tl!("Automatic replies: MailCraft may change them").to_string(), false, Perm::Fine),
             Permission::Needed | Permission::Declined => {
@@ -620,7 +620,7 @@ impl MailApp {
         if !reply_accounts(&self.session.mailbox).contains(&account) {
             return None;
         }
-        let shown = |why: &str| kit::shown(why, 90);
+        let shown = |why: &str| kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.auto_replies.trouble.get(&account) {
             Some(Trouble::SignInToRead) => {
                 (tl!("Automatic replies: MailCraft needs you to sign in again to read them").to_string(), Some(Again::SignIn))

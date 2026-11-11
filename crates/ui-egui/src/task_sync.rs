@@ -517,7 +517,8 @@ impl MailApp {
             Some(Permission::Asking) => (tl!("Tasks: asking for your permission…").to_string(), false),
             Some(Permission::Declined) => (tl!("Tasks: kept on this computer only (not allowed yet)").to_string(), true),
             Some(Permission::Refused(why)) => {
-                (crate::i18n::fmt(tl!("Tasks: not allowed ({why})"), &[("why", crate::forms::kit::shown(why, 90).as_str())]), true)
+                let why = crate::forms::kit::shown(why, crate::server_sync::REASON_SHOWN);
+                (crate::i18n::fmt(tl!("Tasks: not allowed ({why})"), &[("why", why.as_str())]), true)
             }
             Some(Permission::SignInOver(_)) => (tl!("Tasks: Microsoft no longer takes the sign-in").to_string(), true),
             None => (tl!("Tasks: not asked yet").to_string(), false),

@@ -459,7 +459,7 @@ impl MailApp {
         if !rules_remote::rule_accounts(&self.session.mailbox).contains(&account) {
             return None;
         }
-        let shown = |why: &str| crate::forms::kit::shown(why, 90);
+        let shown = |why: &str| crate::forms::kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.rules.perm.get(&account) {
             Some(Permission::Given) => (tl!("Rules: kept on the server").to_string(), false),
             Some(Permission::Needed) => (tl!("Rules: waiting for your permission to keep them on the server").to_string(), true),
