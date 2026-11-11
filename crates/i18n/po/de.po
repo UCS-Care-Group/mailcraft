@@ -17468,6 +17468,11 @@ msgstr "Der Server bietet keine Möglichkeit, sich mit einem Zugriffstoken anzum
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
 #, fuzzy
 msgid "the server refused the connection"
 msgstr "Der Server hat die Verbindung abgelehnt"

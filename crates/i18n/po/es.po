@@ -17484,6 +17484,11 @@ msgstr "el servidor no ofrece ninguna forma de iniciar sesión con un token de a
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
 #, fuzzy
 msgid "the server refused the connection"
 msgstr "el servidor rechazó la conexión"
