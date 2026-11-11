@@ -18716,14 +18716,6 @@ msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die N
 #~ msgstr "„{name}“ wird endgültig gelöscht."
 
 #, fuzzy
-#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
-#~ msgstr "Eine Webadresse, eine E-Mail-Adresse oder eine Telefonnummer (tel:). Ist nichts markiert, wird die Adresse unverändert eingefügt."
-
-#, fuzzy
-#~ msgid "Close (the draft stays as last saved)"
-#~ msgstr "Schließen (der Entwurf bleibt wie zuletzt gespeichert)"
-
-#, fuzzy
 #~ msgid "Delete for Good"
 #~ msgstr "Endgültig löschen"
 
@@ -18732,56 +18724,12 @@ msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die N
 #~ msgstr "Alles in „{folder}“ wird endgültig gelöscht."
 
 #, fuzzy
-#~ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
-#~ msgstr "{what} in einen lokalen Ordner importiert: Microsoft lässt ein E-Mail-Programm keine empfangenen E-Mails in Ihr Postfach legen"
-
-#, fuzzy
-#~ msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-#~ msgstr "E-Mails können noch nicht aus einem anderen Konto oder einem lokalen Ordner in ein Microsoft-Konto verschoben oder kopiert werden: Diese Version kann keine Nachricht auf den Microsoft-Server legen"
-
-#, fuzzy
-#~ msgid "MailCraft doesn't send mail from a JMAP account yet"
-#~ msgstr "MailCraft sendet noch keine E-Mails aus einem JMAP-Konto"
-
-#, fuzzy
-#~ msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
-#~ msgstr "Microsoft lässt ein E-Mail-Programm keine empfangenen E-Mails in Ihr Postfach legen; sie bleiben in einem lokalen Ordner."
-
-#, fuzzy
-#~ msgid "Move to Junk Email"
-#~ msgstr "In Junk-E-Mail verschieben"
-
-#, fuzzy
-#~ msgid "Only a meeting you organize has a Scheduling Assistant"
-#~ msgstr "Nur eine von Ihnen organisierte Besprechung hat einen Terminplanungs-Assistenten"
-
-#, fuzzy
-#~ msgid "Permanently Delete"
-#~ msgstr "Endgültig löschen"
-
-#, fuzzy
-#~ msgid "Pictures are always downloaded from:"
-#~ msgstr "Bilder werden immer heruntergeladen von:"
-
-#, fuzzy
-#~ msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
-#~ msgstr "Geben Sie an, was geöffnet werden soll: `message` oder `event` über die ID, oder `new` (\"appointment\" oder \"meeting\")"
-
-#, fuzzy
-#~ msgid "Scheduling Assistant"
-#~ msgstr "Terminplanungs-Assistent"
-
-#, fuzzy
 #~ msgid "This contact will be deleted for good."
 #~ msgstr "Dieser Kontakt wird endgültig gelöscht."
 
 #, fuzzy
 #~ msgid "This message will be deleted for good."
 #~ msgstr "Diese Nachricht wird endgültig gelöscht."
-
-#, fuzzy
-#~ msgid "a link goes to an http, https, mailto or tel address"
-#~ msgstr "ein Link führt zu einer http-, https-, mailto- oder tel-Adresse"
 
 #, fuzzy
 #~ msgid "{n} message will be deleted for good."
