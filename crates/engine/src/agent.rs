@@ -1354,13 +1354,25 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// mail for good (#566). Asked about as one question, so that the owner's yes lets it run. A rule
 /// that files mail onto another server (`send`) and deletes it for good needs Delete too (#566);
 /// until Delete is allowed it is asked as Delete instead (`verdict`), so a yes to Send never makes
-/// it, and `--allow` names both.
+/// it, and `--allow` names both; a yes to that Delete covers the Send its question names too, as
+/// an undo that brings back a change to a meeting needs it to run (#566).
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
+        _ if class == Class::Delete && raised(s, id, params) => vec![Class::Send],
         "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
         _ if id.starts_with("rules.") && class == Class::Send && rules_delete(s, id, params) => vec![Class::Delete],
         _ => Vec::new(),
     }
+}
+
+/// Whether a call classed Send leaves a rule switched on that deletes mail for good, or makes one,
+/// so that it is asked as Delete until Delete is allowed (`verdict`).
+fn raised(s: &Session, id: &str, params: &Value) -> bool {
+    classify(s, id, params) == Access::Owner(Class::Send)
+        && match id {
+            "edit.undo" | "edit.redo" => s.undo_rules_delete_for_good(id == "edit.redo"),
+            _ => rules_delete(s, id, params),
+        }
 }
 
 fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<Class>) -> Verdict {
@@ -1403,12 +1415,8 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     // `classify` says the first. Until `delete` is allowed it is asked as a delete, whose
     // question says both (the server it files onto, and the deleting): a yes to `send` alone,
     // asked about the server, never makes it (#566), nor brings it back by an undo or a redo.
-    let deleting_rule = || match id {
-        "edit.undo" | "edit.redo" => s.undo_rules_delete_for_good(id == "edit.redo"),
-        _ => rules_delete(s, id, params),
-    };
     let access = match classify(s, id, params) {
-        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && deleting_rule() => Access::Owner(Class::Delete),
+        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && raised(s, id, params) => Access::Owner(Class::Delete),
         access => access,
     };
     // What else the call needs besides its class (#473); a yes to the question about the class

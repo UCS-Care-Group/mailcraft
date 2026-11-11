@@ -2346,3 +2346,28 @@ fn the_question_about_switching_on_deleting_or_moving_a_rule_kept_here_names_its
     }
     assert!(!describe(&s, "rules.enable", &json!({"id": theirs, "value": true})).contains(EMAIL));
 }
+
+/// An agent's undo that brings back a meeting change that writes to people and leaves a rule
+/// switched on that deletes for good is asked once, as a delete (Allow), and the question names
+/// both: a yes to it covers both, and the undo then runs (#566).
+#[test]
+fn an_undo_asked_as_a_delete_beside_a_meeting_change_runs_on_the_yes() {
+    use crate::agent::{Class, Verdict, answered, check};
+    let (mut s, account, _, _) = session();
+    let purge = add(&mut s, account, "Purge", json!([{"type": "category", "value": "Bin"}]), json!([{"type": "deleteForGood"}]));
+    run(&mut s, "rules.enable", json!({"id": purge, "value": false}));
+    // The step was taken while a meeting update waited to go; it has gone since.
+    let change = mailcraft_model::remote::EventChange { account, event: 4_242, send: true, token: "t".into(), ..Default::default() };
+    s.history.last_mut().unwrap().mailbox.event_changes.push(change);
+    let Verdict::Ask(class, what) = check(&s, "edit.undo", &json!({}), &[]) else { panic!("asked") };
+    assert_eq!(class, Class::Delete);
+    assert!(what.contains("a change to a meeting") && what.contains("deletes mail permanently"), "{what}");
+    assert_eq!(answered(&s, "edit.undo", &json!({}), &[], Class::Delete), Verdict::Run);
+    // As the window runs it on that yes: allowed what the question was about, and what `also` adds.
+    let mut allow = vec![class];
+    allow.extend(crate::agent::also(&s, "edit.undo", &json!({}), class));
+    s.agent = Some(allow);
+    let done = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    assert!(done.is_ok(), "the owner said yes to a question that named both: {done:?}");
+}
