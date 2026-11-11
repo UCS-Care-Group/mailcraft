@@ -260,6 +260,49 @@ fn a_held_key_deletes_one_rule() {
     }
 }
 
+/// A held Space or Enter on a rule's Down button moves that rule alone, one place.
+#[test]
+fn a_held_key_moves_one_rule_one_place() {
+    for held in [egui::Key::Space, egui::Key::Enter] {
+        let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+        app.autosave = false;
+        for name in ["One", "Two", "Three"] {
+            let rule = json!({"name": name, "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "markRead"}]});
+            app.execute("rules.add", rule).unwrap();
+        }
+        app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+        let mut h = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
+        h.run_steps(6);
+        // The dialog's ×, then the first rule's switch, up and down.
+        for _ in 0..4 {
+            h.key_press(egui::Key::Tab);
+            h.run_steps(2);
+        }
+        let key = |pressed, repeat| egui::Event::Key { key: held, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
+        h.event(key(true, false));
+        h.step();
+        for _ in 0..6 {
+            h.event(key(true, true));
+            h.step();
+        }
+        h.event(key(false, false));
+        h.run_steps(3);
+        let names: Vec<&str> = h.state().session.mailbox.rules.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["Two", "One", "Three"], "{held:?}");
+    }
+}
+
 fn server_rule(id: &str, name: &str, sequence: i32) -> RemoteRule {
     RemoteRule {
         id: id.into(),
