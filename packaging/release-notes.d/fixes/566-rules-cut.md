@@ -1,0 +1,1 @@
+- An agent's rule with more than 20 conditions, exceptions or actions is refused instead of being cut short without a word, which let it act on more mail than it was meant to ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
