@@ -460,6 +460,11 @@ impl MailApp {
                 (crate::i18n::fmt(tl!("Categories: read-only here ({why})"), &[("why", shown(why).as_str())]), true, Perm::Waits)
             }
             Some(Permission::SignInOver(_)) => (tl!("Categories: Microsoft no longer takes the sign-in").to_string(), true, Perm::Waits),
+            // (Offline, or before the first look: a list MailCraft may not change yet is read-only
+            // until it is known.)
+            None if self.session.mailbox.categories_read_only(account).is_some() => {
+                (tl!("Categories: read-only here until MailCraft can check whether it may change them").to_string(), false, Perm::Waits)
+            }
             None => (tl!("Categories: checking…").to_string(), false, Perm::Fine),
         })
     }

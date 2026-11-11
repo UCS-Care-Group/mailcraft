@@ -247,3 +247,21 @@ fn the_reason_an_administrator_has_to_approve_is_said_whole() {
     let (said, _) = app.categories_read_only_line(owner).unwrap();
     assert!(said.contains("once: File › Info"), "{said}");
 }
+
+/// File › Info's one line says on or off only when every part is: a list not yet known to be
+/// changeable (offline, say) is read-only and says so, and parts that differ are partly on.
+#[test]
+fn the_line_is_partly_on_when_the_parts_differ() {
+    let (mut app, owner, _, _) = window();
+    let line = |app: &MailApp| app.sync_line(owner).unwrap();
+    let (said, details, _) = line(&app);
+    assert_eq!(said, "Sync with Outlook: partly on", "{details}");
+    assert!(details.contains("Categories: read-only here until"), "{details}");
+    app.category_sync.perm.insert(owner, Permission::Refused("x".into()));
+    assert_eq!(line(&app).0, "Sync with Outlook: partly on");
+    app.tasks.perm.insert(owner, Permission::Refused("x".into()));
+    assert_eq!(line(&app).0, "Sync with Outlook: off");
+    app.tasks.perm.remove(&owner);
+    app.category_sync.perm.insert(owner, Permission::Given);
+    assert_eq!(line(&app).0, "Sync with Outlook: on");
+}

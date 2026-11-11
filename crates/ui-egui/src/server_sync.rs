@@ -252,10 +252,15 @@ impl MailApp {
         }
         let details = parts.iter().map(|(line, ..)| line.as_str()).collect::<Vec<_>>().join("\n");
         let again = parts.iter().any(|(_, again, _)| *again);
+        // A part is off while it waits, or has a way to ask again; the line says on or off only
+        // when every part is, and partly on when they differ (their tip says which).
+        let off = |(_, again, p): &(String, bool, Perm)| *again || *p == Perm::Waits;
         let line = if parts.iter().any(|(.., p)| *p == Perm::Asking) {
             tl!("Sync with Outlook: asking for your permission…")
-        } else if again || parts.iter().any(|(.., p)| *p == Perm::Waits) {
+        } else if parts.iter().all(off) {
             tl!("Sync with Outlook: off")
+        } else if parts.iter().any(off) {
+            tl!("Sync with Outlook: partly on")
         } else {
             tl!("Sync with Outlook: on")
         };

@@ -1936,6 +1936,11 @@ msgstr ""
 msgid "Categories: read-only here ({why})"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+msgid "Categories: read-only here until MailCraft can check whether it may change them"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Categorize"
@@ -10597,6 +10602,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/server_sync.rs
 msgid "Sync with Outlook: on"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "Sync with Outlook: partly on"
 msgstr ""
 
 #. interface, name

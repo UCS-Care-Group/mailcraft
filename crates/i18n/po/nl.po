@@ -2318,6 +2318,12 @@ msgstr "Categorieën: hier alleen-lezen (MailCraft mag ze niet wijzigen)"
 msgid "Categories: read-only here ({why})"
 msgstr "Categorieën: hier alleen-lezen ({why})"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here until MailCraft can check whether it may change them"
+msgstr "Categorieën: hier alleen-lezen tot MailCraft kan controleren of het ze mag wijzigen"
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -12714,6 +12720,12 @@ msgstr "Synchronisatie met Outlook: uit"
 #, fuzzy
 msgid "Sync with Outlook: on"
 msgstr "Synchronisatie met Outlook: aan"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: partly on"
+msgstr "Synchronisatie met Outlook: deels aan"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
