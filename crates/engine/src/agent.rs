@@ -1325,14 +1325,27 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 }
 
 /// What a call classed `class` needs besides it, which the question about `class` names and a yes
-/// to it covers: an undo or redo that puts back the accounts (or a change that writes to people)
-/// and takes away messages, drafts, contacts or the like needs Delete too, as `edit.undo` refuses
-/// to take messages without it (#473); so does deleting a category a to-do in a shared list has
-/// (asked as `send`) when it goes from Outlook too (#661). Asked about as one question, so that
-/// the owner's yes lets it run.
+/// to it covers: an undo or redo that puts back the accounts and also what goes to a server
+/// (a change that writes to people, a category for Outlook) needs Send too; one that puts back
+/// the accounts (or a change that writes to people) and takes away messages, drafts, contacts or
+/// the like needs Delete too, as `edit.undo` refuses to take messages without it (#473); so does
+/// deleting a category a to-do in a shared list has (asked as `send`) when it goes from Outlook
+/// too (#661). Asked about as one question, so that the owner's yes lets it run.
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
-        "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
+        "edit.undo" | "edit.redo" => {
+            let redo = id == "edit.redo";
+            let mut more = Vec::new();
+            // (Only the accounts come before what is sent in [`Session::undo_reverts`].)
+            let sends = || s.undo_sends_items(redo) || !s.undo_sends_categories(redo).is_empty() || !s.undo_makes_categories(redo).is_empty();
+            if class == Class::Accounts && sends() {
+                more.push(Class::Send);
+            }
+            if class != Class::Delete && s.undo_deletes(redo) {
+                more.push(Class::Delete);
+            }
+            more
+        }
         // A category a to-do in a shared list has is deleted as `send` asks; one that goes from
         // Outlook too, where an undo only makes it anew, needs Delete as well (#661).
         "category.remove" if class != Class::Delete && removes_in_outlook(s, params) => vec![Class::Delete],

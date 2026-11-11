@@ -2633,3 +2633,17 @@ fn a_meeting_kept_on_this_computer_makes_no_category_in_outlook_and_asks_nothing
     assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
     assert!(s.mailbox.category_of(0, "Travel").is_some());
 }
+
+/// An undo that puts an account back as a Microsoft account, with a category of its list still to
+/// go to Outlook, needs `send` too, not only `accounts`, and asks both at once (#661).
+#[test]
+fn an_undo_that_puts_back_an_account_and_what_it_sends_needs_send_too() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Travel", "color": GREEN.hex()})).unwrap();
+    s.run("account.edit", &json!({"id": a, "kind": "imap"})).unwrap();
+    assert_eq!(s.undo_reverts(false), Some(Class::Accounts));
+    assert!(!s.undo_sends_categories(false).is_empty());
+    assert!(!matches!(check(&s, "edit.undo", &json!({}), &[Class::Accounts]), Verdict::Run), "it sends a category to Outlook");
+    assert_eq!(crate::agent::also(&s, "edit.undo", &json!({}), Class::Accounts), [Class::Send]);
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Send]), Verdict::Run);
+}
