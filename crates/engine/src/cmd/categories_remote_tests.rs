@@ -502,6 +502,30 @@ fn a_rename_deletes_the_old_name_only_once_the_server_has_the_new_one() {
 }
 
 #[test]
+fn an_undo_after_the_job_of_a_rename_brings_back_nothing_of_that_rename() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Blue", BLUE)], true);
+    let m = message_of(&mut s, a, &[]);
+    s.run("category.rename", &json!({"account": a, "from": "Blue", "to": "Navy"})).unwrap();
+    s.run("mail.flag", &json!({"id": m})).unwrap();
+    // The job makes the new name, then deletes the old one.
+    let sent = changes(&mut s, a);
+    assert_eq!(sent, [change(CategoryChangeKind::Create, "Navy", BLUE)]);
+    took(&mut s, a, &sent);
+    let sent = changes(&mut s, a);
+    assert_eq!(sent, [change(CategoryChangeKind::Delete, "Blue", BLUE)]);
+    took(&mut s, a, &sent);
+    assert!(s.mailbox.category_renames.is_empty());
+    // An undo of the flag, then another rename before the next read: Navy waits on Teal.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.category_renames.is_empty(), "{:?}", s.mailbox.category_renames);
+    s.run("category.rename", &json!({"account": a, "from": "Navy", "to": "Teal"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Teal", BLUE)]);
+    let said = answer(&mut s, a, CategoryChangeKind::Create, "Teal", BLUE, CategoryResult::Refused);
+    assert!(said["messages"].to_string().contains("\"Navy\\\" wasn't deleted in Outlook"), "{said}");
+    assert!(changes(&mut s, a).is_empty(), "nothing deleted there: {:?}", changes(&mut s, a));
+}
+
+#[test]
 fn a_name_that_left_the_list_is_not_kept_here_alone_so_outlook_keeps_it_when_it_comes() {
     // Its making refused after it was taken off the list again.
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);

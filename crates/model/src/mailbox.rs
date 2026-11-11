@@ -3677,7 +3677,7 @@ impl Mailbox {
 
     /// What `owner` keeps of its renames ([`Mailbox::category_renames`]) is what still waits: a
     /// new name on the list here that its server hasn't, for an old one it still has.
-    fn tidy_renames(&mut self, owner: Id) {
+    pub fn tidy_renames(&mut self, owner: Id) {
         let Some(renames) = self.category_renames.get_mut(&owner) else { return };
         let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
         let synced = self.synced_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();

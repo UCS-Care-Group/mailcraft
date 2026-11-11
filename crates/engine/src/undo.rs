@@ -332,7 +332,8 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
 /// `out` holds, for what comes across from the shared list and what leaves the other lists
 /// (#633). An account on one side of the step alone keeps what `out` has of it, and so does one
 /// the step gave another address. Whether the host found the account may change its server's
-/// list is never undone.
+/// list is never undone, and a rename waits only while it still does: a job since may have done
+/// it there (#661).
 fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>, said: &mut Said) {
     // An account the step gave another address is another mailbox on each side: what `out` knows
     // of its server is that mailbox's, and stays as `out` has it (#661).
@@ -418,6 +419,10 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
                 }
             }
         }
+    }
+    let renamed: Vec<Id> = out.category_renames.keys().copied().filter(|account| g.contains(account)).collect();
+    for account in renamed {
+        out.tidy_renames(account);
     }
 }
 
