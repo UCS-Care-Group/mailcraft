@@ -2262,6 +2262,28 @@ fn an_agent_is_refused_at_once_a_change_of_a_list_mailcraft_may_not_change_in_ou
 }
 
 #[test]
+fn a_refusal_for_a_category_taken_off_here_meanwhile_says_nothing_of_what_it_has_here() {
+    // A new one, taken off while the job that makes it is on its way: kept nowhere.
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Travel", GREEN)]);
+    s.run("category.remove", &json!({"account": a, "name": "Travel"})).unwrap();
+    let said = answers(&mut s, a, vec![outcome(CategoryChangeKind::Create, "Travel", GREEN, CategoryResult::Refused)]);
+    let lines = said["messages"].to_string();
+    assert!(lines.contains("didn't take the category") && !lines.contains("stays on this computer"), "{lines}");
+    assert!(s.mailbox.category_of(a, "Travel").is_none() && !s.mailbox.category_is_local(a, "Travel"));
+    // A new colour, and the category taken off meanwhile: it goes from Outlook next.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("category.set", &json!({"account": a, "name": "Old", "color": "#2F6FD0"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Color, "Old", BLUE)]);
+    s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+    let said = answers(&mut s, a, vec![outcome(CategoryChangeKind::Color, "Old", BLUE, CategoryResult::Refused)]);
+    let lines = said["messages"].to_string();
+    assert!(lines.contains("didn't take the new colour") && !lines.contains("server's again"), "{lines}");
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Old", GREEN)]);
+}
+
+#[test]
 fn a_name_another_device_made_in_outlook_meanwhile_keeps_outlooks_colour_and_says_so() {
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);
     s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"})).unwrap();

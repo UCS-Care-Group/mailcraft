@@ -139,6 +139,13 @@ fn on_categories(list: &[Category], name: &str) -> bool {
     list.iter().any(|have| same_category(&have.name, name))
 }
 
+/// A line about a change of a category its server refused (#661), ending in the server's reason
+/// (`why`): that it has the server's spelling or colour again when it was put `back`, and nothing
+/// of that when it was taken off here (or renamed) while the job was on its way.
+fn refused_line(line: &str, back: bool, why: &str) -> String {
+    if back { format!("{line}; it has the server's again{why}") } else { format!("{line}{why}") }
+}
+
 /// A category's name as [`same_category`] compares it: two names are the same category's when
 /// their keys are equal.
 pub fn category_key(name: &str) -> String {
@@ -3601,21 +3608,25 @@ impl Mailbox {
                 // as for a colour.
                 (CategoryResult::Refused, CategoryChangeKind::Create) if on_categories(&synced, name) => {
                     let was = synced.iter().find(|c| same_category(&c.name, name)).map(|c| c.name.clone());
+                    let mut back = false;
                     if let (Some(was), Some(list)) = (was, self.account_categories.get_mut(&owner))
                         && let Some(c) = list.iter_mut().find(|c| same_category(&c.name, name))
                     {
                         c.name = was;
+                        back = true;
                     }
-                    said.push(format!("The server didn't take the new spelling of the category \"{name}\"; it has the server's again{why}"));
+                    said.push(refused_line(&format!("The server didn't take the new spelling of the category \"{name}\""), back, &why));
                 }
                 // Other letters for one this job deleted there to make it so: the old letters are
                 // made there again with the next job, in its colour, so that nothing of it is lost
                 // there.
                 (CategoryResult::Refused, CategoryChangeKind::Create) if let Some(old) = deleted.iter().find(|d| same_category(d, name)) => {
+                    let mut back = false;
                     if let Some(c) = self.account_categories.get_mut(&owner).and_then(|list| list.iter_mut().find(|c| same_category(&c.name, name))) {
                         c.name = (*old).to_string();
+                        back = true;
                     }
-                    said.push(format!("The server didn't take the new spelling of the category \"{name}\"; it has the server's again{why}"));
+                    said.push(refused_line(&format!("The server didn't take the new spelling of the category \"{name}\""), back, &why));
                 }
                 (CategoryResult::Refused, CategoryChangeKind::Create) => {
                     let listed = self.account_categories.get(&owner).is_some_and(|list| on_categories(list, name));
@@ -3623,7 +3634,9 @@ impl Mailbox {
                     if listed && !on_list(names, name) && names.len() < MAX_CATEGORIES {
                         names.push(name.to_string());
                     }
-                    said.push(format!("The server didn't take the category \"{name}\"; it stays on this computer only{why}"));
+                    // (Taken off here meanwhile, or renamed: it stays nowhere.)
+                    let line = format!("The server didn't take the category \"{name}\"");
+                    said.push(if listed { format!("{line}; it stays on this computer only{why}") } else { format!("{line}{why}") });
                     // The old name of a rename to it stays the server's, and comes back here with
                     // the next read; any other deletion that waited on what is made goes.
                     let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
@@ -3641,12 +3654,14 @@ impl Mailbox {
                 }
                 (CategoryResult::Refused, CategoryChangeKind::Color) => {
                     let was = synced.iter().find(|c| same_category(&c.name, name)).map(|c| c.color);
+                    let mut back = false;
                     if let (Some(color), Some(list)) = (was, self.account_categories.get_mut(&owner))
                         && let Some(c) = list.iter_mut().find(|c| same_category(&c.name, name))
                     {
                         c.color = color;
+                        back = true;
                     }
-                    said.push(format!("The server didn't take the new colour of the category \"{name}\"; it has the server's again{why}"));
+                    said.push(refused_line(&format!("The server didn't take the new colour of the category \"{name}\""), back, &why));
                 }
                 (CategoryResult::Refused, CategoryChangeKind::Delete) => {
                     let was = synced.iter().find(|c| same_category(&c.name, name)).cloned();
