@@ -101,6 +101,17 @@ impl CategorySync {
     pub fn busy(&self) -> bool {
         self.rx.is_some()
     }
+
+    /// Forget what was learnt of `account`'s sign-in and list (#661): another address, or a list
+    /// kept in step afresh, is looked at afresh.
+    fn forget(&mut self, account: Id) {
+        self.checked.remove(&account);
+        self.perm.remove(&account);
+        self.failures.remove(&account);
+        self.settling.remove(&account);
+        self.waiting.remove(&account);
+        self.addresses.remove(&account);
+    }
 }
 
 /// The Microsoft accounts whose own list of categories is kept in step with their server, in the
@@ -127,6 +138,14 @@ impl MailApp {
     pub fn categories_tick_at(&mut self, now: f64) -> bool {
         self.category_sync.clock = now;
         self.categories_ask_tick();
+        // An account whose list isn't kept in step any more (made another kind of account, or
+        // removed): what was learnt of it goes, so that its list is looked at afresh if it is
+        // kept in step again.
+        let kept = category_accounts(&self.session.mailbox);
+        let gone: Vec<Id> = self.category_sync.addresses.keys().filter(|a| !kept.contains(a)).copied().collect();
+        for account in gone {
+            self.category_sync.forget(account);
+        }
         // (Offline, nothing goes, so what would go isn't looked through either.)
         if !self.auto_sync || self.offline() || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
             return false;
@@ -143,15 +162,11 @@ impl MailApp {
         {
             return false;
         }
-        for account in category_accounts(&self.session.mailbox) {
+        for account in kept {
             // Another address: what was learnt of the old one's sign-in and list is not this one's.
             let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_lowercase()).unwrap_or_default();
             if self.category_sync.addresses.get(&account).is_some_and(|was| *was != address) {
-                self.category_sync.checked.remove(&account);
-                self.category_sync.perm.remove(&account);
-                self.category_sync.failures.remove(&account);
-                self.category_sync.settling.remove(&account);
-                self.category_sync.waiting.remove(&account);
+                self.category_sync.forget(account);
             }
             self.category_sync.addresses.insert(account, address);
             if self.categories_blocked(account) {

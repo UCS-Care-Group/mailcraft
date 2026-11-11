@@ -704,3 +704,26 @@ fn an_answer_for_an_account_that_is_no_longer_a_microsoft_account_is_let_go_of()
     assert!(app.session.mailbox.category_of(0, "Made in Outlook").is_none());
     assert!(!app.session.mailbox.category_writes.contains(&owner));
 }
+
+#[test]
+fn an_account_made_an_imap_one_and_a_microsoft_one_again_is_looked_at_afresh() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    assert!(app.session.mailbox.categories_read_only(owner).is_none());
+    app.execute("account.edit", json!({"id": owner, "kind": "imap"})).unwrap();
+    assert!(!app.categories_tick_at(1_000.0));
+    // A Microsoft account again: its list is read again, read-only until a job says.
+    app.execute("account.edit", json!({"id": owner, "kind": "microsoft"})).unwrap();
+    remote::apply_categories(&mut app.session, &download(owner, &["Red category"])).unwrap();
+    assert!(app.session.mailbox.categories_read_only(owner).is_some());
+    if !app.tokens.contains_key(&owner) {
+        app.tokens.insert(owner, tokens("own-access", "ref-1"));
+    }
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(2_000.0), "looked at afresh");
+    app.poll_categories();
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+    assert!(app.session.mailbox.categories_read_only(owner).is_none(), "not read-only until Allow or a restart");
+}
