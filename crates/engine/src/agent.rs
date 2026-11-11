@@ -1939,9 +1939,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
             match r {
-                Some(r) => {
-                    format!("move the rule {} {way}, which changes which rules run first{}", quoted(&r.name), beside_said(s, r.account, r.id, true))
-                }
+                Some(r) => format!(
+                    "move the rule {}{} {way}, which changes which rules run first{}",
+                    quoted(&r.name),
+                    whose(s, r.account),
+                    beside_said(s, r.account, r.id, true)
+                ),
                 None => "move a rule that isn't there".to_string(),
             }
         }
@@ -1983,7 +1986,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         .account(r.account)
                         .filter(|_| r.on_server() || r.unanswered)
                         .map(|a| format!(", on the server of {} too", quoted(&plain(&a.email))))
-                        .unwrap_or_default();
+                        // One kept here: whose mail it is for, as the question about making it says.
+                        .unwrap_or_else(|| whose(s, r.account));
                     let beside = on.map(|on| beside_said(s, r.account, r.id, on)).unwrap_or_default();
                     format!("{verb} the rule {}{there}: {}{beside}", quoted(&r.name), rule_words(s, r))
                 }
@@ -2279,16 +2283,19 @@ fn rule_text(s: &Session, params: &Value) -> String {
                 rule_words(s, &r)
             )
         }
-        Ok(r) => {
-            // Whose mail it is for: an account with no address by its name, as the Rules dialog shows it.
-            let of = match s.mailbox.account(r.account) {
-                Some(a) if !a.email.is_empty() => format!(" for the mail of {}", quoted(&plain(&a.email))),
-                Some(a) if !a.name.trim().is_empty() => format!(" for the mail of {}", quoted(&clip(&a.name, 80))),
-                _ => String::new(),
-            };
-            format!("create the rule {}{of}: {}", quoted(&r.name), rule_words(s, &r))
-        }
+        Ok(r) => format!("create the rule {}{}: {}", quoted(&r.name), whose(s, r.account), rule_words(s, &r)),
         Err(_) => "create a rule that can't be made as asked".to_string(),
+    }
+}
+
+/// Whose mail a rule is for, as the Rules dialog shows it: an account with no address by its
+/// name; a rule from before rules had accounts is for every account's.
+fn whose(s: &Session, account: Id) -> String {
+    match s.mailbox.account(account) {
+        Some(a) if !a.email.is_empty() => format!(" for the mail of {}", quoted(&plain(&a.email))),
+        Some(a) if !a.name.trim().is_empty() => format!(" for the mail of {}", quoted(&clip(&a.name, 80))),
+        None if account == 0 => " for the mail of every account".to_string(),
+        _ => String::new(),
     }
 }
 

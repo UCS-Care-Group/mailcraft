@@ -2316,3 +2316,33 @@ fn a_rule_for_every_account_is_beside_a_change_to_any_accounts_rules() {
     s.mailbox.rules.push(every(902, "Onto", Action::MoveTo(news)));
     assert_eq!(ask(&s, "rules.add", read), send);
 }
+
+/// Two accounts each have a rule kept here called "Purge" that deletes mail permanently. The
+/// question about switching one on, deleting it or moving it says whose mail it is for, as the
+/// question about making one does: by the name alone the owner can't tell which it is (#566).
+#[test]
+fn the_question_about_switching_on_deleting_or_moving_a_rule_kept_here_names_its_account() {
+    use crate::agent::describe;
+    let (mut s, account, local, _) = session();
+    let purge = |s: &mut Session, account: Id| {
+        let made = run(
+            s,
+            "rules.add",
+            json!({"name": "Purge", "account": account, "conditions": [{"type": "subjectContains", "value": "spam"}], "actions": [{"type": "deleteForGood"}], "server": false}),
+        );
+        let id = made["id"].as_u64().unwrap();
+        run(s, "rules.enable", json!({"id": id, "value": false}));
+        id
+    };
+    let theirs = purge(&mut s, local);
+    let mine = purge(&mut s, account);
+    for (id, params) in [
+        ("rules.enable", json!({"id": mine, "value": true})),
+        ("rules.remove", json!({"id": mine})),
+        ("rules.move", json!({"id": mine, "direction": "up"})),
+    ] {
+        let asked = describe(&s, id, &params);
+        assert!(asked.contains(EMAIL), "{id}: {asked}");
+    }
+    assert!(!describe(&s, "rules.enable", &json!({"id": theirs, "value": true})).contains(EMAIL));
+}
