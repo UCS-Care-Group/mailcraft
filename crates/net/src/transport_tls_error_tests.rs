@@ -12,14 +12,18 @@ fn from(error: Error) -> std::io::Error {
 const PLAIN: &str =
     "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites";
 
+const LIKELY: &str = "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites";
+
 #[test]
-fn no_suite_in_common_is_said_in_plain_words() {
-    for error in [
-        Error::AlertReceived(AlertDescription::HandshakeFailure),
-        Error::AlertReceived(AlertDescription::InsufficientSecurity),
-        Error::PeerIncompatible(PeerIncompatible::NoCipherSuitesInCommon),
-    ] {
-        assert_eq!(handshake_problem(&from(error)).to_string(), PLAIN);
+fn no_suite_in_common_is_said_as_fact() {
+    let error = from(Error::PeerIncompatible(PeerIncompatible::NoCipherSuitesInCommon));
+    assert_eq!(handshake_problem(&error).to_string(), PLAIN);
+}
+
+#[test]
+fn a_refusing_alert_names_the_suites_only_as_the_likely_cause() {
+    for alert in [AlertDescription::HandshakeFailure, AlertDescription::InsufficientSecurity] {
+        assert_eq!(handshake_problem(&from(Error::AlertReceived(alert))).to_string(), LIKELY);
     }
 }
 
@@ -35,5 +39,7 @@ fn other_tls_errors_are_unchanged() {
 
 #[test]
 fn the_words_carry_no_address() {
-    assert!(!PLAIN.contains("example") && !PLAIN.contains("://"));
+    for text in [PLAIN, LIKELY] {
+        assert!(!text.contains("example") && !text.contains("://"));
+    }
 }
