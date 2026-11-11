@@ -300,6 +300,15 @@ impl MailApp {
         } else if result.sign_in_refused && result.tokens.is_none() && settling == 0 {
             log::warn!("categories: the sign-in was refused; waiting for a new one");
             self.category_sync.perm.insert(account, Permission::SignInOver(given));
+        } else if result.sign_in_refused && result.tokens.is_none() {
+            // Just after the owner allowed it, as a refusal of the permission is: tried again
+            // after the wait a failure has, a try fewer each time.
+            log::info!("categories: the sign-in was refused just after the owner allowed it; trying again ({settling} more)");
+            self.category_sync.settling.insert(account, settling - 1);
+            let (n, _) = self.category_sync.failures.get(&account).copied().unwrap_or((0, 0.0));
+            self.category_sync.failures.insert(account, (n.saturating_add(1), self.category_sync.clock.max(started)));
+            self.category_sync.checked.remove(&account);
+            settles = true;
         } else if result.covered == Some(true) {
             self.category_sync.perm.insert(account, Permission::Given);
             writes = Some(true);

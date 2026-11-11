@@ -653,3 +653,29 @@ fn offline_nothing_is_worked_out_and_nothing_goes() {
     assert!(app.categories_tick_at(70_000.0));
     assert_eq!(jobs.lock().unwrap()[1].2, 1);
 }
+
+#[test]
+fn a_sign_in_refused_just_after_the_owner_allowed_it_waits_before_it_is_tried_again() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    // A change waits; the owner has just allowed it (Ask again), and every job finds the renewed
+    // sign-in refused.
+    let green = OUTLOOK_COLORS[4].hex();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": green})).unwrap();
+    app.categories_allowed(owner);
+    let refused = || CategoriesResult { account: owner, sign_in_refused: true, ..Default::default() };
+    answers.lock().unwrap().extend([refused(), refused(), refused(), refused(), refused()]);
+    let before = jobs.lock().unwrap().len();
+    // Ten seconds of frames: a job, then a wait, not a job each time one ends.
+    let mut at = 5_000.0;
+    while at < 15_000.0 {
+        if app.categories_tick_at(at) {
+            app.poll_categories();
+        }
+        at += 16.0;
+    }
+    let tried = jobs.lock().unwrap().len() - before;
+    assert!(tried <= 2, "{tried} jobs in ten seconds");
+}
