@@ -179,3 +179,14 @@ fn numbered_names() {
     assert_eq!(numbered("a.pdf", 2), "a (2).pdf");
     assert_eq!(numbered("archive", 3), "archive (3)");
 }
+
+/// A message that carries "BÜRO" has the category "Büro" (a rule's condition and the menu's tick
+/// say so): Categorize "Büro" takes it off, as the tick says it would (#566).
+#[test]
+fn categorize_takes_off_a_category_written_in_another_case() {
+    let mut s = session();
+    let m = message(&mut s, Vec::new(), None);
+    s.mailbox.message_mut(m).unwrap().categories = vec!["BÜRO".into()];
+    s.run("mail.categorize", &json!({"ids": [m], "category": "Büro"})).unwrap();
+    assert!(s.mailbox.message(m).unwrap().categories.is_empty(), "{:?}", s.mailbox.message(m).unwrap().categories);
+}
