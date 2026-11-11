@@ -1858,9 +1858,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         },
         // Named whatever it is asked as: the folder, its account and the rules (#566).
         "rules.run" => {
-            let folder = p::id_strict(params, "folder").ok().flatten().unwrap_or(s.view.folder);
+            // (Named wrongly, the command refuses it: not the folder in view or every rule.)
+            let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else {
+                return "run the rules on a folder or a rule named in a way that can't be read".to_string();
+            };
+            let folder = folder.unwrap_or(s.view.folder);
             let from = s.mailbox.folder(folder).map(|f| f.account);
-            let only = p::id_strict(params, "id").ok().flatten();
             let running: Vec<&mailcraft_model::Rule> =
                 s.mailbox.rules.iter().filter(|r| r.enabled && from.is_some_and(|a| r.is_for(a)) && only.is_none_or(|o| o == r.id)).collect();
             // The accounts whose servers the run moves mail onto, and those it copies mail onto,

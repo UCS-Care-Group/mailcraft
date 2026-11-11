@@ -241,3 +241,22 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
 }
+
+/// Run Rules Now named wrongly (`folder` as text or null, `id` as text) is refused by the command,
+/// and the question says so: it doesn't name the folder in view, nor a rule there that deletes
+/// permanently, as if they would run (#566).
+#[test]
+fn run_rules_named_wrongly_is_said_as_that_not_as_the_folder_in_view() {
+    let mut s = sample();
+    let view = s.view.folder;
+    let path = s.mailbox.folder_path(view);
+    let subject = s.mailbox.messages_in(view).map(|m| m.subject.clone()).find(|t| !t.trim().is_empty()).unwrap();
+    let rule = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "deleteForGood"}]});
+    let rule = s.run("rules.add", &rule).unwrap()["id"].as_u64().unwrap();
+    assert!(describe(&s, "rules.run", &json!({})).contains(&path));
+    for bad in [json!({"folder": view.to_string()}), json!({"folder": null}), json!({"id": rule.to_string()})] {
+        assert!(s.run("rules.run", &bad).is_err(), "the command refuses {bad}");
+        let what = describe(&s, "rules.run", &bad);
+        assert!(!what.contains(&path) && !what.contains("permanently"), "{bad}: {what}");
+    }
+}
