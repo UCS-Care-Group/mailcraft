@@ -192,6 +192,28 @@ fn a_question_that_goes_away_drops_the_change_and_file_info_asks_again() {
 }
 
 #[test]
+fn a_change_after_the_question_was_closed_for_something_else_asks_again_and_waits() {
+    let (mut app, owner, answers, jobs, _) = window();
+    read(&mut app, owner, &answers);
+    // At the start, another of the four (the categories, say) put the question, and it was closed.
+    app.sync_not_now(owner);
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_consent_needed: true, ..Default::default() });
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+    app.poll_auto_replies();
+    // The owner's own change: asked again, and it waits for the answer, not dropped.
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"), "the owner is asked");
+    assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Asking));
+    assert!(!said(&app).contains("weren't changed"), "{}", said(&app));
+    let before = jobs.lock().unwrap().len();
+    app.dialog = None;
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, changed: true, ..Default::default() });
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let (_, change) = jobs.lock().unwrap().last().cloned().unwrap();
+    assert!(jobs.lock().unwrap().len() > before && change.and_then(|c| c.status) == Some(AutoReplyStatus::Disabled));
+}
+
+#[test]
 fn a_change_waiting_when_work_offline_is_turned_on_is_dropped_and_said() {
     let (mut app, owner, answers, jobs, _) = window();
     read(&mut app, owner, &answers);

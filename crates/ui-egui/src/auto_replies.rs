@@ -439,10 +439,13 @@ impl MailApp {
         } else if result.write_consent_needed {
             // The owner is asked, once, by itself; the change goes when he allows it. When he can't
             // be asked now (another window, a sign-in under way), the change is dropped and said:
-            // a later Ask again never sends a change made long before.
+            // a later Ask again never sends a change made long before. A change is the owner's
+            // own doing: it is asked about even when the question was closed earlier for another
+            // of the four (#661).
             log::info!("automatic replies: changing them needs the owner's permission");
             self.auto_replies.perm.insert(account, Permission::Needed);
-            asked = self.dialog.is_none() && self.signing_in.is_none() && self.ask_sync(account);
+            let free = self.dialog.is_none() && self.signing_in.is_none();
+            asked = free && if change.is_some() { self.ask_sync_again(account) } else { self.ask_sync(account) };
             if let Some(change) = change.clone().filter(|_| asked) {
                 self.auto_replies.held.insert(account, change);
             }
