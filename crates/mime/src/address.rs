@@ -199,12 +199,24 @@ fn phrase(name: &str) -> String {
 /// Whether text can stand as an address as it is: nothing in it could end the address or start another.
 fn is_addr_spec(s: &str) -> bool {
     let mut quoted = false;
+    let mut literal = false;
+    let mut closed = false;
+    let mut prev = None;
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
-        if c.is_control() {
+        if c.is_control() || closed {
             return false;
         }
-        if quoted {
+        if literal {
+            match c {
+                ']' => {
+                    literal = false;
+                    closed = true;
+                }
+                c if c.is_ascii_alphanumeric() || ".:-".contains(c) => {}
+                _ => return false,
+            }
+        } else if quoted {
             match c {
                 '"' => quoted = false,
                 '\\' if chars.next().is_none_or(char::is_control) => return false,
@@ -212,11 +224,14 @@ fn is_addr_spec(s: &str) -> bool {
             }
         } else if c == '"' {
             quoted = true;
+        } else if c == '[' && prev == Some('@') {
+            literal = true;
         } else if c.is_whitespace() || "<>(),;:\\".contains(c) {
             return false;
         }
+        prev = Some(c);
     }
-    !quoted
+    !quoted && !literal
 }
 
 /// An address that is safe between angle brackets: kept when well formed, else stripped of every
@@ -263,6 +278,12 @@ mod tests {
     fn a_domain_literal_keeps_its_colons() {
         assert_eq!(parse_list("ada@[IPv6:2001:db8::1]"), [a("", "ada@[IPv6:2001:db8::1]")]);
         assert_eq!(parse_list("Team: ada@[IPv6:2001:db8::1];"), [a("", "ada@[IPv6:2001:db8::1]")]);
+        let list = parse_list("ada@[IPv6:2001:db8::1], Bob <bob@[IPv6:::1]>");
+        assert_eq!(parse_list(&format_list(&list)), list);
+        assert_eq!(format_list(&list), "<ada@[IPv6:2001:db8::1]>, Bob <bob@[IPv6:::1]>");
+        assert_eq!(safe_email("a:b@example.com"), "ab@example.com");
+        assert_eq!(safe_email("ada@[IPv6:2001:db8::1"), "ada@[IPv62001db81");
+        assert_eq!(safe_email("ada@[IPv6::1]:x"), "ada@[IPv61]x");
     }
 
     #[test]
