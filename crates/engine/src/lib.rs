@@ -49,6 +49,8 @@ mod mark_tests;
 pub mod opening;
 #[cfg(test)]
 mod opening_tests;
+#[cfg(test)]
+mod openpgp_signature_tests;
 mod picture_fit;
 pub mod sample;
 pub mod sender_warnings;

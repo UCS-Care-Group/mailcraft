@@ -4385,7 +4385,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Er zijn nog minder dan twee van deze contactpersonen, dus er is niets om samen te voegen."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Bestand"
@@ -5493,6 +5493,11 @@ msgstr "Agendabestand importeren"
 #, fuzzy
 msgid "Import Contacts"
 msgstr "Contactpersonen importeren"
+
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Import Public Keys"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/file.rs
@@ -8772,7 +8777,7 @@ msgid "Optional"
 msgstr "Optioneel"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Opties"
@@ -9385,6 +9390,11 @@ msgstr "Voorgesteld begin"
 msgid "Proposed time"
 msgstr "Voorgestelde tijd"
 
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Public Keys"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
@@ -9719,6 +9729,11 @@ msgstr "Oudere e-mail van deze computer verwijderen"
 #, fuzzy
 msgid "Remove Picture"
 msgstr "Afbeelding verwijderen"
+
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Remove Public Key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10669,6 +10684,11 @@ msgstr "Bezig met zoeken op de server…"
 #, fuzzy
 msgid "Second time zone"
 msgstr "Tweede tijdzone"
+
+#. ribbon location
+#: crates/engine/src/cmd/keys.rs
+msgid "Security"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -12450,6 +12470,11 @@ msgid "The Digital signature can't be read."
 msgstr "De digitale ondertekening kan niet worden gelezen."
 
 #. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The Digital signature has expired."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The Entire Series"
@@ -12864,6 +12889,11 @@ msgstr "De uitnodiging vermeldt niet aan wie u moet antwoorden."
 #, fuzzy
 msgid "The kept contact is always merged"
 msgstr "De behouden contactpersoon wordt altijd samengevoegd"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The key that made it isn't one that may sign."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -13338,15 +13368,24 @@ msgstr "De handtekening wordt dan verzonden als de eenvoudigere tekst die hier w
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-#, fuzzy
-msgid "The signer's certificate isn't in the message."
-msgstr "Het certificaat van de ondertekenaar staat niet in het bericht."
+msgid "The signer's Public key (certificate) isn't in the message or kept on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key had expired when the message was signed."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The signer's key hasn't been marked verified."
 msgstr "De sleutel van de ondertekenaar is niet als geverifieerd gemarkeerd."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key was revoked by its owner."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
@@ -16032,6 +16071,11 @@ msgid "an HTML signature shows pictures from their web address: switch it to ric
 msgstr "een HTML-handtekening toont afbeeldingen vanaf hun webadres: schakel over naar tekst met opmaak om er een toe te voegen"
 
 #. what a command says
+#: crates/engine/src/digital_signature.rs
+msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
@@ -16510,6 +16554,11 @@ msgstr "geen Microsoft-account wordt via IMAP bijgehouden"
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
 msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
+msgid "no Public key with that fingerprint is kept for that address"
 msgstr ""
 
 #. what a command says
@@ -17070,6 +17119,11 @@ msgstr "de lezer van het .pst-bestand stopte voordat die klaar was"
 msgid "the Inbox of this account hasn't been read yet"
 msgstr "het Postvak IN van dit account is nog niet gelezen"
 
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the OpenPGP key is larger than a Public key is kept"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -17207,6 +17261,21 @@ msgstr "het einde van de periode moet na het begin liggen"
 #, fuzzy
 msgid "the event is gone"
 msgstr "de gebeurtenis is verdwenen"
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file holds no Public key that can be read: an X.509 certificate (DER or PEM) or OpenPGP Public keys"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file is empty"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file is larger than a file of Public keys can be (1 MB)"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
@@ -17943,6 +18012,11 @@ msgstr "deze download was voor een ander account, niet voor {name}"
 #, fuzzy
 msgid "this draft isn't downloaded yet: open it once you're online, then edit it"
 msgstr "dit concept is nog niet gedownload: open het zodra u online bent en bewerk het daarna"
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "this file holds a private key, which isn't imported as a Public key: import your own keys in File › Options › Security"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -19619,6 +19693,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "The signer's certificate isn't in the message."
+#~ msgstr "Het certificaat van de ondertekenaar staat niet in het bericht."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

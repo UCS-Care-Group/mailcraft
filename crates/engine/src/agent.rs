@@ -169,6 +169,8 @@ const SAFE: &[&str] = &[
     "mail.checkAgain",
     // What checking a message's Digital signature found, read only (#30 R23).
     "mail.digitalSignature",
+    // The Public keys kept, listed (never their bytes, never a key marked Verified): #30.
+    "keys.list",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -503,6 +505,9 @@ const SETTINGS: &[&str] = &[
     "junk.add",
     "junk.remove",
     "junk.list",
+    // The Public keys that Digital signatures are checked with, and later mail encrypted to (#30).
+    "keys.import",
+    "keys.remove",
     "signature.set",
     "signature.remove",
     "signature.rename",
@@ -642,6 +647,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
     ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
+    ("keys.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.save", "path", FileUse::Refused),
     ("file.saveAs", "path", FileUse::Refused),
     ("file.exportMessage", "path", FileUse::Writes { ext: "eml" }),
@@ -1269,6 +1275,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
     let label = s.registry.get(id).map(|c| c.label).unwrap_or(id);
     let st = |k: &str| p::str(params, k).unwrap_or("");
     match id {
+        "keys.import" => {
+            let to = match p::str(params, "address") {
+                Some(a) => format!("for {}", quoted(&clip(a, 80))),
+                None => "for every address the keys name".to_string(),
+            };
+            format!(
+                "import Public keys from a file {to}: Digital signatures from those addresses are then checked with them (they are never marked Verified)"
+            )
+        }
+        "keys.remove" => format!("remove the Public key {} kept for {}", quoted(&clip(st("fingerprint"), 100)), quoted(&clip(st("address"), 80))),
         "compose.send" => match s.compose_named(params) {
             Some(c) => {
                 let to: Vec<String> =

@@ -71,6 +71,9 @@ pub mod jmap_mail;
 mod jmap_sending_tests;
 pub mod junk;
 #[cfg(test)]
+mod keys_tests;
+pub mod keys;
+#[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
@@ -175,6 +178,7 @@ pub fn registry() -> Registry {
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());

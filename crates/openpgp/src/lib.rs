@@ -28,6 +28,7 @@ mod autocrypt;
 mod check;
 mod keys;
 mod mime;
+pub mod secret;
 
 #[cfg(test)]
 mod armour_tests;
@@ -44,6 +45,8 @@ mod keys_tests;
 mod mime_tests;
 #[cfg(test)]
 mod prop_tests;
+#[cfg(test)]
+mod secret_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

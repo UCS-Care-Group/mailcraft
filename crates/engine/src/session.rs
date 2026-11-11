@@ -3236,6 +3236,10 @@ impl Session {
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
             return Some(Class::Settings);
         }
+        // Public keys imported or removed (#30): the keys Digital signatures are checked with.
+        if step.touched.changed_keys() {
+            return Some(Class::Settings);
+        }
         None
     }
 
