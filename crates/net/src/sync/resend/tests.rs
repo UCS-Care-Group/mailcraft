@@ -61,7 +61,14 @@ fn the_key_goes_to_resends_api_alone_and_the_bytes_come_from_resend() {
     }
     assert!(raw_may_come_from(&url("https://inbound-cdn.resend.com/raw/1?Signature=x")).is_ok());
     assert!(raw_may_come_from(&url("https://d1a2b3c4.cloudfront.net/raw/1?Signature=x")).is_ok());
-    for elsewhere in ["https://resend.com.example/raw", "https://evilresend.com/raw", "http://127.0.0.1/raw", "https://evilcloudfront.net/raw"] {
+    assert!(raw_may_come_from(&url("https://cdn.resend.app/raw/1?Signature=x")).is_ok());
+    for elsewhere in [
+        "https://resend.com.example/raw",
+        "https://evilresend.com/raw",
+        "http://127.0.0.1/raw",
+        "https://evilcloudfront.net/raw",
+        "https://resend.app.example/raw",
+    ] {
         assert!(raw_may_come_from(&url(elsewhere)).is_err(), "{elsewhere}");
     }
     assert!(is_id("4ef9a417-02e9-4d39-ad75-9611e0fcc33c") && !is_id("a/b") && !is_id("") && !is_id(&"a".repeat(65)));

@@ -9,7 +9,7 @@
 //! Two requests are made of it, as Resend's API reference has them: `GET /emails/receiving` lists
 //! what came, newest first, a hundred at a time, and `GET /emails/receiving/{id}` says where the
 //! message's bytes are; those are then fetched from the signed address Resend gives (on a host
-//! under `resend.com` or Amazon's `cloudfront.net`, over TLS, as are the redirects followed from
+//! under `resend.com`, `resend.app` or Amazon's `cloudfront.net`, over TLS, as are the redirects followed from
 //! it), with nothing of the owner's sent along. The calls are paced ([`PACE`]): Resend's limit is
 //! the whole team's. Resend lists what came to every domain of the team: the account keeps what
 //! was written to its own address's domain ([`is_for`]).
@@ -490,12 +490,12 @@ pub(super) fn may_go_to(url: &Url) -> Result<(), NetError> {
     Err(NetError::Config("a Resend API key is only shown to Resend's API".into()))
 }
 
-/// Whether a message's bytes may be fetched from `url`: Resend's own, or the CloudFront address
+/// Whether a message's bytes may be fetched from `url`: Resend's own (`cdn.resend.app` as seen), or the CloudFront address
 /// Resend's API reference says it signs, over TLS.
 pub(super) fn raw_may_come_from(url: &Url) -> Result<(), NetError> {
     let host = url.host.trim_end_matches('.').to_ascii_lowercase();
     let under = |domain: &str| host == domain || host.strip_suffix(domain).is_some_and(|rest| rest.ends_with('.'));
-    if url.secure && url.port == 0 && (under("resend.com") || under("cloudfront.net")) {
+    if url.secure && url.port == 0 && (under("resend.com") || under("resend.app") || under("cloudfront.net")) {
         return Ok(());
     }
     // The host alone: the signature is in the rest of the address.
