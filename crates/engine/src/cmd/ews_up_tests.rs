@@ -480,3 +480,17 @@ fn a_folder_deleted_for_good_goes_up() {
     let request = ews_mail_request(&s, account, false).unwrap();
     assert!(request.changes.iter().any(|c| matches!(c, FolderChange::Delete { id, .. } if id == "F5")), "{:?}", request.changes);
 }
+
+/// As `a_delete_for_good_waits_for_a_copy_of_the_message_and_a_refused_copy_brings_it_back`,
+/// with the copy saved (the file current, as after an autosave): only the wait for the copy's
+/// answer holds the delete then (#566).
+#[test]
+fn a_delete_for_good_waits_for_the_copys_answer_once_the_copy_is_saved() {
+    let (mut s, account, a, _) = setup();
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    s.run("mail.copy", &json!({"ids": [a], "folder": projects})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [a]})).unwrap();
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    let all = changes(&s, account);
+    let [MessageChange::Copy { .. }] = all.as_slice() else { panic!("the delete went with the copy: {all:?}") };
+}

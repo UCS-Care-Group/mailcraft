@@ -672,3 +672,20 @@ fn a_message_the_server_wouldnt_give_is_passed_over_in_the_background_but_still_
     let here = s.mailbox.message(m).unwrap();
     assert!(!here.unfetched && here.fresh_stamps && here.headers.len() == 1, "{:?}", here.headers);
 }
+
+/// `a_message_copied_then_deleted_for_good_comes_back_when_the_copy_is_refused` holds the delete
+/// also because the mailbox file isn't current (no path), so the wait for the save
+/// (`copies_here_only`) holds it too. Once the copy is saved, as an autosave does before the next Send/Receive, only the wait for the copy's answer
+/// holds it: the delete still doesn't go in the same request as the copy (#566).
+#[test]
+fn a_delete_for_good_waits_for_the_copys_answer_once_the_copy_is_saved() {
+    let (mut s, account, m, _) = setup();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert!(s.file_is_current());
+    let asked = graph_mail_request(&s, account).unwrap().messages;
+    assert!(asked.iter().any(|c| matches!(c, MessageChange::Copy { .. })), "{asked:?}");
+    assert!(!asked.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "the delete went with the copy: {asked:?}");
+}
