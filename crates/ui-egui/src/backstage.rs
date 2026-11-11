@@ -267,9 +267,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             ui.horizontal(|ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim)).on_hover_text(&details);
-                let tip = tl!(
-                    "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
-                );
+                let tip = app.sync_tip(a.id);
                 if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
                     app.ask_sync_again(a.id);
                 }

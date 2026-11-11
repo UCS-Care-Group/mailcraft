@@ -1502,7 +1502,13 @@ msgid "Ask before downloading this sender's pictures again"
 msgstr "Redemander avant de télécharger les images de cet expéditeur"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr "Demander l'autorisation de synchroniser vos tâches et réponses automatiques avec Outlook : la page de Microsoft s'ouvre dans votre navigateur. Sans elle, les tâches restent sur cet ordinateur."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
 msgstr "Demander l'autorisation de synchroniser vos tâches, règles, réponses automatiques et catégories avec Outlook : la page de Microsoft s'ouvre dans votre navigateur. Sans elle, les tâches et les règles restent sur cet ordinateur et les catégories ne peuvent pas être modifiées ici."
@@ -4673,6 +4679,12 @@ msgstr "Pour un compte qui se connecte avec Microsoft : les dossiers que vous 
 #, fuzzy
 msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
 msgstr "Pour l'instant, les tâches et les règles restent sur cet ordinateur, vos réponses automatiques ne sont pas modifiées et les catégories ne peuvent pas être modifiées ici : {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
+msgstr "Pour l'instant, les tâches restent sur cet ordinateur et vos réponses automatiques ne sont pas modifiées : {error}"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -14446,6 +14458,18 @@ msgid ""
 "\n"
 "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+msgstr ""
+"Pour synchroniser avec Outlook les tâches et réponses automatiques de {address}, MailCraft a besoin de votre autorisation pour modifier vos listes To Do et les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
+"\n"
+"Tant que vous ne l'autorisez pas, les tâches restent sur cet ordinateur et rien n'en est envoyé à Microsoft."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

@@ -70,14 +70,38 @@ impl MailApp {
         self.put_sync_question(account)
     }
 
+    /// Whether keeping `account` in step with Outlook covers its rules and its categories too: an
+    /// account kept in step through Microsoft Graph. A Microsoft account still on IMAP keeps only its
+    /// to-dos and its automatic replies there, and the question and the texts say only those.
+    pub(crate) fn sync_covers_lists(&self, account: Id) -> bool {
+        self.session.mailbox.keeps_rules(account)
+    }
+
+    /// File › Info's tip for Ask again, saying only what `account` keeps in step.
+    pub(crate) fn sync_tip(&self, account: Id) -> &'static str {
+        if self.sync_covers_lists(account) {
+            tl!(
+                "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
+            )
+        } else {
+            tl!(
+                "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+            )
+        }
+    }
+
     fn put_sync_question(&mut self, account: Id) -> bool {
         let Some(address) = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()) else { return false };
-        let text = crate::i18n::fmt(
+        let text = if self.sync_covers_lists(account) {
             tl!(
                 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
-            ),
-            &[("address", &address)],
-        );
+            )
+        } else {
+            tl!(
+                "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+            )
+        };
+        let text = crate::i18n::fmt(text, &[("address", &address)]);
         let ask = Question {
             title: tl!("Keep in Step with Outlook").to_string(),
             text,
@@ -178,7 +202,14 @@ impl MailApp {
             }
             Err(e) if e == NO_BROWSER => {
                 self.sync_not_now(account);
-                self.status(crate::i18n::fmt(tl!("For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"), &[("error", &e)]));
+                let said = if self.sync_covers_lists(account) {
+                    tl!(
+                        "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+                    )
+                } else {
+                    tl!("For now, tasks stay on this computer and your automatic replies aren't changed: {error}")
+                };
+                self.status(crate::i18n::fmt(said, &[("error", &e)]));
                 None
             }
             Err(e) => Some(crate::i18n::fmt(tl!("MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"), &[("error", &e)])),

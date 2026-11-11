@@ -189,3 +189,42 @@ fn a_browser_that_cant_be_started_is_said_for_all_four() {
     }
     assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Declined));
 }
+
+/// A Microsoft account still on IMAP keeps its to-dos and its automatic replies in step with
+/// Outlook, never its rules or its categories: the question, File › Info's tip and the status bar
+/// say only those.
+#[test]
+fn a_microsoft_account_still_on_imap_is_asked_only_for_its_to_dos_and_automatic_replies() {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    let added = json!({"email": OWNER, "auth": "oauth2", "provider": "microsoft", "kind": "imap"});
+    let owner = s.run("account.add", &added).unwrap()["id"].as_u64().unwrap();
+    let mut app = MailApp::new(s, Services::default());
+    app.autosave = false;
+    app.tokens.insert(owner, tokens("own-access", "ref-1"));
+    app.services.graph_tasks = Some(Box::new(move |_: TasksJob| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(TasksResult { account: owner, consent_needed: true, ..Default::default() }).unwrap();
+        rx
+    }));
+    app.services.sign_in = Some(Box::new(|_: SignInRequest| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Err(crate::approval::NO_BROWSER.to_string())).unwrap();
+        rx
+    }));
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    app.tasks_tick_at(1.0);
+    let Some(Dialog::Confirm { command, ask, .. }) = &app.dialog else { panic!("asked") };
+    assert_eq!(command, "ui.allowSync");
+    let tip = app.sync_tip(owner);
+    for said in [ask.text.as_str(), tip] {
+        assert!(said.contains("tasks and automatic replies"), "{said}");
+        assert!(!said.contains("rules") && !said.contains("categories"), "{said}");
+    }
+    app.dialog = None;
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let (said, _) = app.status_msg.clone().unwrap();
+    assert!(said.contains("tasks stay on this computer") && said.contains(crate::approval::NO_BROWSER), "{said}");
+    assert!(!said.contains("rules") && !said.contains("categories"), "{said}");
+}
