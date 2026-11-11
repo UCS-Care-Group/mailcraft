@@ -492,3 +492,40 @@ fn an_agents_move_to_the_outbox_in_a_search_is_asked_about_what_it_sends() {
         ("put 2 messages (\u{201c}Brewing notes\u{201d}, \u{201c}Brewing notes\u{201d}) in the Outbox, which sends them", 2)
     );
 }
+
+/// Run Rules Now with "body contains" and "delete permanently" while a message's text kept on
+/// disk can't be read just now (a file another program holds, a damaged file): the rule doesn't
+/// read MailCraft's own note in its place ("This message's text is unavailable…") as the
+/// message's text, as it doesn't the note of a message too large to download, and deletes nothing
+/// for good on it (#566).
+#[test]
+fn run_rules_now_doesnt_delete_for_good_on_the_note_of_a_text_that_couldnt_be_read() {
+    let tmp = Temp::new("rule-unreadable");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let victim = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
+    assert!(!mb.message(victim).unwrap().body.text.to_lowercase().contains("unavailable"), "its own text hasn't the word");
+    assert!(s.mailbox.message(victim).unwrap().body_is_kept());
+    let inbox = s.mailbox.inbox().unwrap();
+    let id = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id,
+        name: "Gone".into(),
+        enabled: true,
+        conditions: vec![Condition::BodyContains(vec!["unavailable".into()])],
+        actions: vec![Action::DeleteForGood],
+        stop: false,
+        ..Default::default()
+    });
+    s.content_source = Some(Arc::new(Unreadable));
+    let kept_outside = s.mailbox.messages.values().filter(|m| m.body_is_kept()).count();
+    let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].as_u64();
+    let left = s.mailbox.messages.len();
+    assert!(
+        s.mailbox.message(victim).is_some(),
+        "deleted for good on MailCraft's note in place of its text: matched {matched:?} of {kept_outside} kept on disk, {left} of 24 left"
+    );
+}

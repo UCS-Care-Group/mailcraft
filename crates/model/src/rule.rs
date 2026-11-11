@@ -137,9 +137,11 @@ pub struct RuleClock {
 
 /// The text of `m` a rule reads: none of a message too large to download, whose text here is
 /// MailCraft's note saying so ([`Message::not_downloaded`], which a sender can't set), not the
-/// message's own.
+/// message's own; nor of one whose text kept beside the mailbox couldn't be brought in, whose text
+/// may be MailCraft's note saying that ([`crate::KeptBody::failed`]). Either is partly here, and a
+/// rule that reads its text can't tell yet.
 fn own_text(m: &Message) -> &str {
-    if m.not_downloaded > 0 { "" } else { &m.body.text }
+    if m.not_downloaded > 0 || m.kept.as_deref().is_some_and(|k| k.failed) { "" } else { &m.body.text }
 }
 
 /// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
