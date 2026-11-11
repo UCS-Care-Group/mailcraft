@@ -523,8 +523,9 @@ pub struct RulesWaiting {
 #[serde(default, rename_all = "camelCase")]
 pub struct RuleWaiting {
     pub rule: Id,
-    /// It acted as the message arrived, but for its delete for good: that waited on a rule
-    /// before it that couldn't tell and stops the rules after it.
+    /// It acted as the message arrived, but for its delete for good, which waited on its own.
+    /// Only an earlier build of #566 wrote this; it is read so that such a file opens, and the
+    /// delete doesn't go ([`crate::Mailbox::run_waiting_rules`]).
     #[serde(skip_serializing_if = "is_false")]
     pub delete_only: bool,
 }

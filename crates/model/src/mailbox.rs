@@ -3246,13 +3246,17 @@ impl Mailbox {
         let Some((account, listed)) = self.message(id).map(|m| (m.account, m.unfetched)) else { return ran };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
         let mut alert = false;
-        // A rule that may yet have applied and stopped the rest: they run, as they would if it
-        // didn't apply, but delete nothing for good, which can't be taken back if it did (#566).
+        // A rule that can't tell yet, which may apply after all (and stop the rest, or copy the
+        // message first): the rules after it run as they would if it didn't apply, but delete
+        // nothing for good, which can't be taken back (#566).
         let mut unsure = false;
         // New mail its server listed before it is fetched: what couldn't be told waits for it
         // to be here whole (#566).
         let waits = ruling == Ruling::Arriving && listed;
         let mut waiting = Vec::new();
+        // A copy made as it arrived: a delete for good that waited could no longer be held behind
+        // it once it may have been answered (refused, say), so none waits after one (#566).
+        let mut copied = false;
         for mut rule in order {
             let Some(m) = self.message(id) else { break };
             // New mail: a rule its server has ran there as the server last had it, which is what
@@ -3263,18 +3267,24 @@ impl Mailbox {
             let how = self.rule_matching(&rule, account, clock.zone);
             if !rule.matches_in(m, &how) {
                 let undecided = rule.undecided_in(m, &how);
-                unsure |= rule.stop && undecided;
+                unsure |= undecided;
                 if waits && undecided {
                     waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
                 }
                 continue;
             }
             if now || !rule.on_server() {
-                alert |= rule.alert && ruling == Ruling::Arriving;
-                if self.act(id, &rule.actions, clock, ruling != Ruling::Found && !unsure) && waits {
-                    waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: true });
+                // One that deletes for good while a rule before it can't tell yet waits whole, and
+                // acts once the message is here and that rule has had its say: its copy and its
+                // delete then go together, the delete held behind the copy until it is answered.
+                if waits && unsure && !copied && rule.actions.contains(&Action::DeleteForGood) {
+                    waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
+                } else {
+                    alert |= rule.alert && ruling == Ruling::Arriving;
+                    self.act(id, &rule.actions, clock, ruling != Ruling::Found && !unsure);
+                    copied |= rule.actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
+                    ran.push(rule.name.clone());
                 }
-                ran.push(rule.name.clone());
             }
             if rule.stop {
                 break;
@@ -3295,8 +3305,8 @@ impl Mailbox {
     /// Once a message is here whole, the rules that couldn't tell of it as it arrived have their
     /// say ([`Message::rules_waiting`], #566), in the order they ran then, and only where they
     /// left it: one moved since (by the owner, say) is let alone. A rule that acted then isn't run
-    /// again, but one whose delete for good waited on a rule before it now deletes it, unless that
-    /// rule applies after all (and stops the rules after it). Returns the names of the rules that
+    /// again; one that deletes for good and waited on a rule before it acts now, unless that rule
+    /// applies after all and stops the rules after it. Returns the names of the rules that
     /// acted. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]), as
     /// it would have as the message arrived.
     pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
@@ -3320,18 +3330,16 @@ impl Mailbox {
             }
             let how = self.rule_matching(&rule, account, clock.zone);
             if !rule.matches_in(m, &how) {
-                unsure |= rule.stop && rule.undecided_in(m, &how);
+                unsure |= rule.undecided_in(m, &how);
                 continue;
             }
-            if !rule.on_server() {
-                if !wait.delete_only {
-                    alert |= rule.alert;
-                    self.act(id, &rule.actions, clock, !unsure);
-                    ran.push(rule.name.clone());
-                } else if !unsure && rule.actions.contains(&Action::DeleteForGood) {
-                    self.act(id, &[Action::DeleteForGood], clock, true);
-                    ran.push(rule.name.clone());
-                }
+            // (A delete for good that waited on its own, which an earlier build of #566 kept in the
+            // file, doesn't go: the copy its rule made as the message arrived may have been
+            // refused since, and nothing holds the delete behind it.)
+            if !rule.on_server() && !wait.delete_only {
+                alert |= rule.alert;
+                self.act(id, &rule.actions, clock, !unsure);
+                ran.push(rule.name.clone());
             }
             if rule.stop {
                 break;

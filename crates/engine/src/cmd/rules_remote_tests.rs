@@ -1415,25 +1415,42 @@ fn a_rule_that_cant_tell_yet_doesnt_act_and_the_rules_after_it_delete_nothing_fo
     let (mut s, account, _, _) = session();
     let reports = s.mailbox.add_folder(account, None, "Reports").unwrap();
     let report = json!([{"type": "subjectContains", "value": "report"}]);
-    // Stops the others: unless the text says "keep"; when it says "draft"; when it is small.
+    // Stops the others: unless the text says "keep"; when it says "draft"; when it is small. With
+    // the text that comes, whether the first applies after all.
     let firsts = [
-        json!({"conditions": report, "exceptions": [{"type": "bodyContains", "value": "keep"}]}),
-        json!({"conditions": [{"type": "bodyContains", "value": "draft"}]}),
-        json!({"conditions": [{"type": "sizeBetween", "value": {"min": 0, "max": 1024}}]}),
+        (json!({"conditions": report, "exceptions": [{"type": "bodyContains", "value": "keep"}]}), "Please keep this.", false),
+        (json!({"conditions": [{"type": "bodyContains", "value": "draft"}]}), "Nothing to see.", false),
+        (json!({"conditions": [{"type": "sizeBetween", "value": {"min": 0, "max": 1024}}]}), "Nothing to see.", true),
     ];
-    for parts in firsts {
+    for (parts, text, applies) in firsts {
         let mut first = json!({"name": "First", "account": account, "server": false, "stop": true, "actions": [{"type": "flag"}]});
         first.as_object_mut().unwrap().extend(parts.as_object().unwrap().clone());
         let first = run(&mut s, "rules.add", first)["id"].as_u64().unwrap();
         let actions = json!([{"type": "moveTo", "value": reports}, {"type": "deleteForGood"}]);
         let then = json!({"name": "Then", "account": account, "server": false, "conditions": report, "actions": actions});
         let then = run(&mut s, "rules.add", then)["id"].as_u64().unwrap();
-        // Listed by its server, with a preview that says none of it.
+        // Listed by its server, with a preview that says none of it: the rule after it, which
+        // deletes for good, waits whole with it for the download.
         let m = arriving(&mut s, account, "a@example.org", "Report");
         s.mailbox.message_mut(m).unwrap().unfetched = true;
-        assert_eq!(s.mailbox.apply_rules(m, &s.rule_clock()), ["Then"], "{parts}");
+        assert!(s.mailbox.apply_rules(m, &s.rule_clock()).is_empty(), "{parts}");
         let left = s.mailbox.message(m).expect("the rule after it didn't delete the mail");
-        assert_eq!((left.folder, left.flag), (reports, mailcraft_model::FlagStatus::None), "{parts}");
+        assert_eq!(
+            (left.folder, left.flag),
+            (s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap(), mailcraft_model::FlagStatus::None),
+            "{parts}"
+        );
+        let waiting: Vec<Id> = left.rules_waiting.as_ref().map(|w| w.rules.iter().map(|r| r.rule).collect()).unwrap_or_default();
+        assert_eq!(waiting, [first, then], "{parts}");
+        // Once it is here: unless the first applies after all, the rule after it moves it and
+        // deletes it.
+        s.mailbox.message_mut(m).unwrap().unfetched = false;
+        s.mailbox.message_mut(m).unwrap().body.text = text.into();
+        s.mailbox.run_waiting_rules(m, &s.rule_clock());
+        match s.mailbox.message(m) {
+            None => assert!(!applies, "{parts}"),
+            Some(kept) => assert!(applies && kept.flag == mailcraft_model::FlagStatus::Flagged && kept.folder != reports, "{parts}"),
+        }
         // An exception that holds leaves that rule out as ever: the rules after it go on as ever.
         let sender = json!({"type": "from", "value": "a@example.org"});
         s.mailbox.rules.iter_mut().find(|r| r.id == first).unwrap().exceptions.push(serde_json::from_value(sender).unwrap());
