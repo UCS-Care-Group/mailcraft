@@ -1,21 +1,36 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Help › Report a Problem, and its button in the title bar beside Copy Diagnostics: the owner
-//! says what went wrong and MailCraft starts the report for them on GitHub.
+//! says what went wrong, and sends it to the MailCraft team or starts it on GitHub (#956).
 //!
-//! - **MailCraft posts nothing itself.** The repository's new-issue page (public, needs a GitHub
-//!   account) is opened in the system's browser, filled in through its address with the problem
-//!   form's fields (`.github/ISSUE_TEMPLATE/problem.yml`), and the owner reads it and submits it
-//!   there. No token, no request, no other program. (Reports by email went in #956: they would
-//!   arrive where nobody can triage them.)
+//! - **Send report** (a build that names the project's report relay): the title, what was
+//!   typed, the version, the platform, the GitHub username when one was given, and the
+//!   diagnostics when they are ticked, as the window shows them, go to the relay in one request
+//!   through the host ([`crate::Services::report_send`]), which files them privately for the
+//!   maintainers. **Only the owner's own click sends**: not `ui.reportProblem` (a script or an
+//!   agent can fill the window, `via: "send"`, and no more), not a click the control channel
+//!   made, never by itself and never again by itself. Taken, the window says the reference
+//!   (`R-<n>`, not a link) and clears what was typed; not taken, it says why in words, keeps the
+//!   draft and offers Try again and Open on GitHub.
+//! - **Open on GitHub**: MailCraft posts nothing itself. The repository's new-issue page
+//!   (public, needs a GitHub account) is opened in the system's browser, filled in through its
+//!   address with the problem form's fields (`.github/ISSUE_TEMPLATE/problem.yml`), and the owner
+//!   reads it and submits it there. (Reports by email went in #956: they would arrive where
+//!   nobody can triage them.)
 //! - **The address carries the title, what was typed, the version and the platform, and nothing
 //!   else.** Never the diagnostics: they are saved to a file the owner chooses (downloaded, in
-//!   the browser) and attached on the page by drag and drop. The address never exceeds [`URL_MAX`]: the window cuts what is typed
-//!   to fit and says so ([`clamp`]); a script's text that doesn't fit is refused, never cut.
-//! - The diagnostics are [`diagnostics`], the very text Copy Diagnostics copies, and the window
-//!   shows all of it before anything is opened.
+//!   the browser) and attached on the page by drag and drop. The address never exceeds
+//!   [`URL_MAX`]: what goes into it is cut to fit and that is said ([`clamp`]; the boxes
+//!   themselves are left whole where Send report is offered); a script's text that doesn't fit is
+//!   refused, never cut.
+//! - The diagnostics are [`diagnostics`], the very text Copy Diagnostics copies (its oldest log
+//!   lines left out when it is too long for a report: [`fit_diagnostics`]), and the window shows
+//!   all of it before anything goes.
+
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Ui, vec2};
+use mailcraft_model::report::{Field, NotSent, ProblemReport, fit_diagnostics};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -31,6 +46,8 @@ const TEMPLATE: &str = "problem.yml";
 /// The most of each box that is kept (a paste of a whole log is not a description).
 const TITLE_CHARS: usize = 200;
 const TEXT_CHARS: usize = 6_000;
+/// The longest GitHub username (39), with room for an `@` and a space.
+const USERNAME_CHARS: usize = 41;
 pub(crate) const WIDTH: f32 = 600.0;
 
 /// What Copy Diagnostics copies (`ui.copyDiagnostics`): the host's report (the version, the
@@ -173,8 +190,19 @@ fn report(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let open = p.get("open").and_then(Value::as_bool).unwrap_or(true);
     match p.get("via").and_then(Value::as_str).unwrap_or("github") {
         "github" => on_github(app, &typed, with_diagnostics, p.get("path").and_then(Value::as_str), open),
-        _ => Err("`via` is github".into()),
+        // A script or an agent may fill the window; only the owner's click on Send report sends.
+        "send" => Ok(draft(app, p)),
+        _ => Err("`via` is github or send".into()),
     }
+}
+
+/// `via: "send"`: the window, filled in with what `p` says, for the owner to read and send
+/// themselves. Nothing is sent.
+fn draft(app: &mut MailApp, p: &Value) -> Value {
+    let draft = Draft::new(app, p);
+    app.dialog = Some(crate::dialogs::Dialog::ReportProblem(Box::new(draft)));
+    app.sync_panel = None;
+    json!({"via": "send", "draft": true, "sent": false})
 }
 
 fn on_github(app: &mut MailApp, typed: &Typed, with_diagnostics: bool, path: Option<&str>, open: bool) -> Result<Value, String> {
@@ -232,8 +260,11 @@ fn save(_path: &str, _text: &str) -> Result<(), String> {
 /// What the Report a Problem window holds while it is open.
 pub struct Draft {
     pub(crate) typed: Typed,
+    /// A GitHub username to mention if the report is made public (Send report only).
+    pub(crate) username: String,
     pub(crate) include: bool,
-    /// The diagnostics, read once when the window opened, as Copy Diagnostics has them.
+    /// The diagnostics, read once when the window opened, as Copy Diagnostics has them (fitted to
+    /// the relay's room when they are very long: [`fit_diagnostics`]). What is shown is what goes.
     pub(crate) text: String,
     /// What was typed was cut to fit an address.
     pub(crate) cut: bool,
@@ -241,63 +272,185 @@ pub struct Draft {
     /// The save dialog for the diagnostics is open: the window stays, and closes once the file
     /// is saved (`files::poll`), so that nothing typed is lost to a cancelled dialog.
     pub(crate) waiting: bool,
+    /// Send report was pressed: the relay's answer comes through this.
+    pub(crate) sending: Option<Receiver<Result<u64, NotSent>>>,
+    /// The relay took the report under this reference; the draft is cleared.
+    pub(crate) sent: Option<u64>,
+    /// Why the last Send report didn't go, or wasn't taken. The draft is kept.
+    pub(crate) not_sent: Option<NotSent>,
 }
 
 fn not_saved() -> String {
     tl!("The diagnostics weren't saved, so GitHub's page wasn't opened. Try again, or untick Include diagnostics.").to_string()
 }
 
+/// Why a report wasn't sent, in words, with what the owner can do.
+pub(crate) fn why_not_sent(why: NotSent) -> &'static str {
+    match why {
+        NotSent::Refused(Field::Title) => tl!("Give the report a title, on one line and in 200 characters at most."),
+        NotSent::Refused(Field::Text) => tl!("Say what happened in 6,000 characters at most, what you expected included."),
+        NotSent::Refused(Field::Username) => {
+            tl!("That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none.")
+        }
+        NotSent::Refused(Field::Diagnostics) => tl!("The diagnostics are too long for a report. Untick Include diagnostics, or open it on GitHub."),
+        NotSent::Refused(Field::Version | Field::Platform | Field::Request) => {
+            tl!("The report service didn't take the report as it is. Shorten it and try again, or open it on GitHub.")
+        }
+        NotSent::RateLimited => tl!("The report service has taken as many reports as it can for now. Try again later, or open it on GitHub."),
+        NotSent::Disabled => tl!("The report service isn't taking reports just now. Try again later, or open it on GitHub."),
+        NotSent::Unavailable => tl!("The report service isn't working just now. Try again later, or open it on GitHub."),
+        NotSent::Failed => tl!("The report service couldn't file the report. Try again, or open it on GitHub."),
+        NotSent::Unreachable => tl!("The report service couldn't be reached. Check that you're online and try again, or open it on GitHub."),
+        NotSent::TooSlow => tl!("The report service didn't answer in time, so the report may have arrived. Try again later, or open it on GitHub."),
+        NotSent::Garbled => {
+            tl!(
+                "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
+            )
+        }
+    }
+}
+
 impl Draft {
     pub(crate) fn new(app: &MailApp, params: &Value) -> Draft {
         let mut typed = Typed::from_params(params);
         typed.title = typed.title.chars().take(TITLE_CHARS).collect();
-        Draft { typed, include: true, text: diagnostics(app), cut: false, error: String::new(), waiting: false }
+        let username: String = params.get("username").and_then(Value::as_str).unwrap_or_default().trim().chars().take(USERNAME_CHARS).collect();
+        Draft {
+            typed,
+            username,
+            include: params.get("diagnostics").and_then(Value::as_bool).unwrap_or(true),
+            text: fit_diagnostics(&diagnostics(app)),
+            cut: false,
+            error: String::new(),
+            waiting: false,
+            sending: None,
+            sent: None,
+            not_sent: None,
+        }
     }
 
-    /// The params of `ui.reportProblem` for `via`.
-    pub(crate) fn params(&self, via: &str) -> Value {
-        json!({"title": self.typed.title, "what": self.typed.what, "expected": self.typed.expected, "diagnostics": self.include, "via": via})
+    /// The params of `ui.reportProblem` for `via`, with `typed` as what was typed.
+    fn params_of(&self, typed: &Typed, via: &str) -> Value {
+        json!({"title": typed.title, "what": typed.what, "expected": typed.expected, "diagnostics": self.include, "via": via})
+    }
+
+    /// The report Send report sends: what the window shows, and nothing else.
+    pub(crate) fn report(&self) -> ProblemReport {
+        let (version, platform) = version_platform(&self.text);
+        let diagnostics = self.include.then_some(self.text.as_str());
+        ProblemReport::new(&self.typed.title, &self.typed.body(), &version, &platform, &self.username, diagnostics)
+    }
+
+    /// Send the report through the host, once: the owner pressed Send report (or Try again).
+    /// A report the relay would refuse is refused here, and nothing goes.
+    fn send(&mut self, app: &MailApp) {
+        let report = self.report();
+        self.error.clear();
+        if let Err(field) = report.json() {
+            self.not_sent = Some(NotSent::Refused(field));
+            return;
+        }
+        let Some(send) = &app.services.report_send else { return };
+        self.not_sent = None;
+        self.sending = Some(send(report));
+    }
+
+    /// The relay's answer, once it has come: sent clears the draft, anything else keeps it.
+    fn poll(&mut self) {
+        let Some(answer) = &self.sending else { return };
+        let got = match answer.try_recv() {
+            Ok(got) => got,
+            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Disconnected) => Err(NotSent::Unreachable),
+        };
+        self.sending = None;
+        match got {
+            Ok(reference) => {
+                self.sent = Some(reference);
+                self.not_sent = None;
+                self.typed = Typed::default();
+                self.username.clear();
+                self.cut = false;
+            }
+            Err(why) => self.not_sent = Some(why),
+        }
     }
 
     /// Lay the window out; `true` when it is to close.
     pub(crate) fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+        self.poll();
+        if let Some(reference) = self.sent {
+            return show_sent(ui, reference);
+        }
+        // Send report, in a build that names the project's relay; Open on GitHub alone otherwise.
+        let can_send = app.services.report_send.is_some();
+        let sending = self.sending.is_some();
         let t = Tokens::get(ui.ctx());
         let dim = |s: &str| egui::RichText::new(s.to_string()).color(t.text_dim).size(11.5);
-        ui.label(tl!("Say what went wrong. MailCraft sends nothing by itself: you check the report and send it."));
-        ui.label(
-            egui::RichText::new(tl!(
-                "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
-            ))
-            .color(t.red),
-        );
-        ui.label(tl!("Title"));
-        crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut self.typed.title).char_limit(TITLE_CHARS).desired_width(f32::INFINITY)));
-        ui.label(tl!("What happened"));
-        let what = ui.add(egui::TextEdit::multiline(&mut self.typed.what).char_limit(TEXT_CHARS).desired_rows(4).desired_width(f32::INFINITY));
-        crate::text_menu::field(what);
-        ui.label(tl!("What you expected (optional)"));
-        let expected =
-            ui.add(egui::TextEdit::multiline(&mut self.typed.expected).char_limit(TEXT_CHARS).desired_rows(2).desired_width(f32::INFINITY));
-        crate::text_menu::field(expected);
-        // What GitHub's address can carry: the boxes are cut to it, and that is said.
-        let (version, platform) = version_platform(&self.text);
-        self.cut |= clamp(&mut self.typed, self.include, &version, &platform);
-        if self.cut {
-            ui.label(
-                egui::RichText::new(tl!("That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."))
-                    .color(t.orange)
-                    .size(11.5),
-            );
+        ui.add_enabled_ui(!sending, |ui| {
+            if can_send {
+                ui.label(tl!("Say what went wrong. Nothing is sent until you press Send report, and then only what this window shows."));
+            } else {
+                ui.label(tl!("Say what went wrong. MailCraft sends nothing by itself: you check the report and send it."));
+                ui.label(
+                    egui::RichText::new(tl!(
+                        "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
+                    ))
+                    .color(t.red),
+                );
+            }
+            ui.label(tl!("Title"));
+            crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut self.typed.title).char_limit(TITLE_CHARS).desired_width(f32::INFINITY)));
+            ui.label(tl!("What happened"));
+            let what = ui.add(egui::TextEdit::multiline(&mut self.typed.what).char_limit(TEXT_CHARS).desired_rows(4).desired_width(f32::INFINITY));
+            crate::text_menu::field(what);
+            ui.label(tl!("What you expected (optional)"));
+            let expected =
+                ui.add(egui::TextEdit::multiline(&mut self.typed.expected).char_limit(TEXT_CHARS).desired_rows(2).desired_width(f32::INFINITY));
+            crate::text_menu::field(expected);
+            if can_send {
+                ui.label(tl!("GitHub username (optional)"));
+                let name = egui::TextEdit::singleline(&mut self.username).char_limit(USERNAME_CHARS).desired_width(240.0);
+                crate::text_menu::field(ui.add(name));
+                ui.label(dim(tl!("Only to mention you if we make the report public on GitHub.")));
+            } else {
+                // What GitHub's address can carry: the boxes are cut to it, and that is said.
+                let (version, platform) = version_platform(&self.text);
+                self.cut |= clamp(&mut self.typed, self.include, &version, &platform);
+            }
+            if self.cut {
+                let said = if can_send {
+                    tl!("GitHub's page has as much as a link can carry: copy the rest from here into it.")
+                } else {
+                    tl!("That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open.")
+                };
+                ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
+            }
+            ui.checkbox(&mut self.include, tl!("Include diagnostics"));
+            if self.include {
+                egui::ScrollArea::vertical().max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
+                    let shown =
+                        ui.add(egui::TextEdit::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                    crate::text_menu::read_only(shown);
+                });
+                ui.label(dim(if can_send {
+                    tl!("Send report sends them as shown. Open on GitHub saves them to a file you attach there; they are never put in the link.")
+                } else {
+                    tl!("They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link.")
+                }));
+            }
+        });
+        if can_send {
+            ui.add_space(2.0);
+            ui.label(tl!(
+                "Sent to the MailCraft team privately. If it's a real problem we may make it public on GitHub, with what you wrote and the diagnostics, so we can track it. Leave out anything private."
+            ));
+        } else {
+            ui.label(dim(tl!("GitHub is public and needs a GitHub account.")));
         }
-        ui.checkbox(&mut self.include, tl!("Include diagnostics"));
-        if self.include {
-            egui::ScrollArea::vertical().max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
-                let shown = ui.add(egui::TextEdit::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
-                crate::text_menu::read_only(shown);
-            });
-            ui.label(dim(tl!("They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link.")));
+        if let Some(why) = self.not_sent {
+            ui.label(egui::RichText::new(why_not_sent(why)).color(t.red));
         }
-        ui.label(dim(tl!("GitHub is public and needs a GitHub account.")));
         if !self.error.is_empty() {
             ui.label(egui::RichText::new(self.error.as_str()).color(t.red));
         }
@@ -309,20 +462,44 @@ impl Draft {
         if self.waiting {
             ui.label(dim(tl!("Choose where to save the diagnostics: GitHub's page opens once they are saved.")));
         }
-        let ready = !self.typed.what.trim().is_empty() && !self.waiting;
-        let mut via = None;
+        if sending {
+            ui.horizontal(|ui| {
+                ui.add(egui::Spinner::new().size(14.0));
+                ui.label(dim(tl!("Sending the report…")));
+            });
+        }
+        let ready = !self.typed.what.trim().is_empty() && !self.waiting && !sending;
+        let mut github = false;
+        let mut send = false;
         let mut cancel = false;
         ui.add_space(4.0);
         crate::dialogs::button_row(ui, |ui| {
             cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked();
-            let github = primary_button(ui, tl!("Open on GitHub"), ready)
-                .on_hover_text(tl!("Opens GitHub's page in your browser, filled in: you check it and submit it there."));
-            if github.clicked() && ready {
-                via = Some("github");
+            let github_tip = tl!("Opens GitHub's page in your browser, filled in: you check it and submit it there.");
+            if can_send {
+                let label = if self.not_sent.is_some() { tl!("Try again") } else { tl!("Send report") };
+                let pressed = primary_button(ui, label, ready).on_hover_text(tl!("Sends the report to the MailCraft team, as this window shows it."));
+                // Only the owner's own click sends: never a click a script or an agent made.
+                send = pressed.clicked() && ready && !app.driven;
+                let open = ui.add_enabled(ready, egui::Button::new(tl!("Open on GitHub")).min_size(vec2(72.0, 26.0))).on_hover_text(github_tip);
+                github = open.clicked() && ready;
+            } else {
+                github = primary_button(ui, tl!("Open on GitHub"), ready).on_hover_text(github_tip).clicked() && ready;
             }
         });
-        let Some(via) = via else { return cancel };
-        match app.run("ui.reportProblem", self.params(via)) {
+        if send {
+            self.send(app);
+            return false;
+        }
+        if !github {
+            return cancel;
+        }
+        // Where Send report is offered, the boxes are left whole for it: only what goes into
+        // GitHub's address is cut, and the window stays open with the rest when it is.
+        let mut typed = self.typed.clone();
+        let (version, platform) = version_platform(&self.text);
+        let cut = can_send && clamp(&mut typed, self.include, &version, &platform);
+        match app.run("ui.reportProblem", self.params_of(&typed, "github")) {
             Ok(v) if v.get("pending").is_some() => {
                 self.waiting = true;
                 self.error.clear();
@@ -332,6 +509,10 @@ impl Draft {
                 self.error = not_saved();
                 false
             }
+            Ok(_) if cut => {
+                self.cut = true;
+                false
+            }
             Ok(_) => true,
             Err(e) => {
                 self.error = e;
@@ -339,6 +520,21 @@ impl Draft {
             }
         }
     }
+}
+
+/// The window once the relay took the report: its reference (not a link), and Close.
+fn show_sent(ui: &mut Ui, reference: u64) -> bool {
+    let t = Tokens::get(ui.ctx());
+    ui.add_space(6.0);
+    let sent = crate::i18n::fmt(tl!("Sent, reference R-{reference}."), &[("reference", &reference.to_string())]);
+    ui.label(egui::RichText::new(sent).size(15.0).strong());
+    ui.add_space(4.0);
+    ui.label(tl!("Thank you. Give this reference if you write to us about it."));
+    ui.label(egui::RichText::new(tl!("What you wrote has been cleared from this window.")).color(t.text_dim).size(11.5));
+    ui.add_space(8.0);
+    let mut close = false;
+    crate::dialogs::button_row(ui, |ui| close = primary_button(ui, tl!("Close"), true).clicked());
+    close
 }
 
 #[cfg(test)]
