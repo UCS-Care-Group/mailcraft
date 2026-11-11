@@ -1595,7 +1595,7 @@ msgstr[1] "{n} Dateien angehängt"
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Attachment keywords"
-msgstr "Schlüsselwörter im Anhang"
+msgstr "Schlüsselwörter in Anlage"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -1794,7 +1794,7 @@ msgstr "Wieder online"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Back to Message"
-msgstr ""
+msgstr "Zurück zur Nachricht"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2518,7 +2518,7 @@ msgstr "Suche löschen (Esc)"
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Click to preview {name}; double-click to open it"
-msgstr ""
+msgstr "Klicken Sie auf {name}, um eine Vorschau anzuzeigen; doppelklicken Sie, um die Datei zu öffnen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -5453,7 +5453,7 @@ msgstr "Importiere … {messages} von {total}"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "In Junk E-mail, preview an attachment from its menu."
-msgstr ""
+msgstr "In Junk-E-Mails können Sie eine Anlage über deren Menü in der Vorschau anzeigen."
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -5814,7 +5814,7 @@ msgstr "Ihre Nachrichten in anderen Ordnern bleiben, wo sie sind."
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
-msgstr "Die Nachrichten, Anhänge, Einstellungen und gespeicherten Anmeldedaten werden ebenfalls übernommen, ebenso wie Kalender, Kontakte, Aufgaben und Arbeitszeiten, die vom zugehörigen Server stammen."
+msgstr "Die Nachrichten, Anlagen, Einstellungen und gespeicherten Anmeldedaten werden ebenfalls übernommen, ebenso wie Kalender, Kontakte, Aufgaben und Arbeitszeiten, die vom zugehörigen Server stammen."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7172,7 +7172,7 @@ msgstr "Nur die Termine verschieben"
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Move the message to a folder to open or save its attachments"
-msgstr "Verschieben Sie die Nachricht in einen Ordner, um ihre Anhänge zu öffnen oder zu speichern"
+msgstr "Verschieben Sie die Nachricht in einen Ordner, um ihre Anlagen zu öffnen oder zu speichern"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7521,7 +7521,7 @@ msgstr "Nächster Monat"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Next Page"
-msgstr ""
+msgstr "Nächste Seite"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7756,7 +7756,7 @@ msgstr "Keine neue Version ist zur Installation bereit."
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "No preview helper is available for this attachment."
-msgstr ""
+msgstr "Für diese Anlage ist kein Vorschauprogramm verfügbar."
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -8996,7 +8996,7 @@ msgstr "Einstellungen"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preparing attachment preview…"
-msgstr ""
+msgstr "Anlagenvorschau wird vorbereitet…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9013,22 +9013,22 @@ msgstr "Vorschau"
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
 msgid "Preview Attachment"
-msgstr ""
+msgstr "Anlage in der Vorschau anzeigen"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PdfCraft"
-msgstr ""
+msgstr "Anlagen mit lokalem PdfCraft in der Vorschau anzeigen"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PdfCraft and PhotoCraft"
-msgstr ""
+msgstr "Anlagen mit lokalem PdfCraft und PhotoCraft in der Vorschau anzeigen"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PhotoCraft"
-msgstr ""
+msgstr "Anlagen mit lokalem PhotoCraft in der Vorschau anzeigen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9054,7 +9054,7 @@ msgstr "Vorheriger Monat"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Previous Page"
-msgstr ""
+msgstr "Vorherige Seite"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -10517,7 +10517,7 @@ msgstr "Markieren Sie zuerst Text"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Select the message before previewing its attachment."
-msgstr ""
+msgstr "Wählen Sie die Nachricht aus, bevor Sie die Anlage in der Vorschau anzeigen."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -12288,12 +12288,12 @@ msgstr "Die Genehmigung ist nicht durchgegangen."
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "The attachment preview could not be opened."
-msgstr ""
+msgstr "Die Anlagenvorschau konnte nicht geöffnet werden."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "The attachment preview timed out."
-msgstr ""
+msgstr "Die Anlagenvorschau hat das Zeitlimit überschritten."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -12693,7 +12693,7 @@ msgstr "Die Liste der Absender ist voll: Entfernen Sie einige unter Datei › Op
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "The local program receives the selected attachment and runs with your permissions."
-msgstr ""
+msgstr "Das lokale Programm erhält die ausgewählte Anlage und wird mit Ihren Berechtigungen ausgeführt."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13481,12 +13481,12 @@ msgstr "Der Server dieses Kontos verwaltet diesen Kontakt. Hier vorgenommene Än
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "This attachment could not be previewed."
-msgstr ""
+msgstr "Diese Anlage konnte nicht in der Vorschau angezeigt werden."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "This attachment is too large to preview."
-msgstr ""
+msgstr "Diese Anlage ist zu groß, um in der Vorschau angezeigt zu werden."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -14065,7 +14065,7 @@ msgstr "Dieses Bild wurde heruntergeladen, kann aber nicht angezeigt werden."
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
-msgstr "Dadurch wird alles entfernt, was MailCraft auf diesem Computer speichert: die E-Mails, Anhänge, Kontakte, Kalender und Einstellungen aller Konten, die im Anmeldedatenspeicher des Systems gespeicherten Anmeldedaten, heruntergeladene Bilder, geöffnete Anhänge und Protokolle."
+msgstr "Dadurch wird alles entfernt, was MailCraft auf diesem Computer speichert: die E-Mails, Anlagen, Kontakte, Kalender und Einstellungen aller Konten, die im Anmeldedatenspeicher des Systems gespeicherten Anmeldedaten, heruntergeladene Bilder, geöffnete Anlagen und Protokolle."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -14452,7 +14452,7 @@ msgstr "Dienstag"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Turn on attachment previews in File › Options."
-msgstr ""
+msgstr "Aktivieren Sie die Anlagenvorschau unter Datei › Optionen."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -14815,7 +14815,7 @@ msgstr "Violett"
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Wait for the other attachment preview to finish."
-msgstr ""
+msgstr "Warten Sie, bis die Vorschau der anderen Anlage abgeschlossen ist."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -16923,7 +16923,7 @@ msgstr "der Server des Kontos hat keinen verwendbaren Namen"
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
-msgstr "die Anhänge sind zusammen größer als {mb} MB: Speichern Sie sie in einem Ordner"
+msgstr "die Anlagen sind zusammen größer als {mb} MB: Speichern Sie sie in einem Ordner"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -17160,7 +17160,7 @@ msgstr "die Nachricht hat keine Anlage {index}"
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "the message has no attachments to save"
-msgstr "die Nachricht enthält keine Anhänge zum Speichern"
+msgstr "die Nachricht enthält keine Anlagen zum Speichern"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs crates/proto/src/smtp.rs
@@ -18608,8 +18608,8 @@ msgstr[1] "{n} Teilnehmer"
 #, fuzzy
 msgid "{n} body or attachment is missing from the mailbox's content folder, or damaged."
 msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
-msgstr[0] "{n} Nachrichtentext oder Anhang fehlt im Inhaltsordner des Postfachs oder ist beschädigt."
-msgstr[1] "{n} Nachrichtentexte oder Anhänge fehlen im Inhaltsordner des Postfachs oder sind beschädigt."
+msgstr[0] "{n} Nachrichtentext oder Anlage fehlt im Inhaltsordner des Postfachs oder ist beschädigt."
+msgstr[1] "{n} Nachrichtentexte oder Anlagen fehlen im Inhaltsordner des Postfachs oder sind beschädigt."
 
 #. what a command says
 #: crates/model/src/message.rs
