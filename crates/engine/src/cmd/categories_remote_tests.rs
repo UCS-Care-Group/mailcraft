@@ -2279,3 +2279,21 @@ fn an_undo_of_a_rename_before_its_event_change_goes_sends_nothing_and_once_it_we
     event_answer(&mut s, a);
     assert!(!s.can_undo());
 }
+
+#[test]
+fn an_agents_undo_of_an_address_change_sends_nothing_the_old_server_has_and_says_so() {
+    let (mut s, a) = rig_with_local();
+    s.run("account.edit", &json!({"id": a, "email": "other@example.org"})).unwrap();
+    // The other mailbox's list: what the old one had is kept on this computer alone there.
+    read_as(&mut s, a, "other@example.org", vec![tag("Theirs", GREEN)]);
+    s.run("sync.categoryWrites", &json!({"account": a, "allowed": true})).unwrap();
+    assert!(s.mailbox.category_is_local(a, "Red category"));
+    match check(&s, "edit.undo", &json!({}), &[]) {
+        Verdict::Ask(Class::Accounts, text) => assert!(!text.contains("sends the categor"), "{text}"),
+        other => panic!("{other:?}"),
+    }
+    assert!(s.undo_sends_categories(false).is_empty());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.account(a).unwrap().email, "a@example.org");
+    assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
+}

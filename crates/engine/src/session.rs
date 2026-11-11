@@ -3366,9 +3366,12 @@ impl Session {
         let same = mailcraft_model::sync::same_category;
         let mut names: Vec<String> = Vec::new();
         for (owner, local) in &self.mailbox.local_categories {
-            let (true, Some(list)) = (back.synced_categories.contains_key(owner), back.account_categories.get(owner)) else { continue };
+            let (Some(synced), Some(list)) = (back.synced_categories.get(owner), back.account_categories.get(owner)) else { continue };
             for name in local {
-                let goes = list.iter().any(|c| same(&c.name, name)) && !back.category_is_local(*owner, name);
+                // (One the server has is not sent there: an address the step changed is the other
+                // mailbox's, whose server may have it.)
+                let goes =
+                    list.iter().any(|c| same(&c.name, name)) && !back.category_is_local(*owner, name) && !synced.iter().any(|c| same(&c.name, name));
                 if goes && !names.iter().any(|n| same(n, name)) {
                     names.push(name.clone());
                 }
