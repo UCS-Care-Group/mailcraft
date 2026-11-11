@@ -892,6 +892,26 @@ fn a_page_leaving_out_many_deletes_for_good_is_taken_quickly() {
     assert!(s.mailbox.queued.iter().all(gone));
 }
 
+/// A run of thousands of pages while tens of thousands of deletes for good wait (an emptied
+/// Deleted Items): the waiting deletes are looked through once for the run, not for each page.
+#[test]
+fn many_pages_while_many_deletes_for_good_wait_are_taken_quickly() {
+    use mailcraft_model::sync::{GraphMailResult, MessagePage};
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    for i in 0..40_000u64 {
+        let server = Some(ServerMessage { id: format!("D{i}"), folder: "in".into(), ..Default::default() });
+        let kept = Box::new(Message { id: 1_000_000 + i, server, ..Default::default() });
+        s.mailbox.queued.push(mailcraft_model::Queued::DeleteMessage { account: ms, id: format!("D{i}"), kept: Some(kept) });
+    }
+    let pages: Vec<MessagePage> = (0..2_000).map(|p| MessagePage { folder: "in".into(), link: format!("L{p}"), ..Default::default() }).collect();
+    let result = GraphMailResult { account: ms, email: "owner@example.org".into(), pages, ..Default::default() };
+    let started = std::time::Instant::now();
+    crate::cmd::graph_mail::apply_graph_mail(&mut s, result).unwrap();
+    let took = started.elapsed();
+    assert!(took.as_millis() < 1_000, "{took:?}");
+}
+
 /// The Microsoft server refused the bytes the copy waits for: it is asked again at the next
 /// start, and Check again says they are asked for, not that the copy has them.
 #[test]

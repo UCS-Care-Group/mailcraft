@@ -319,7 +319,7 @@ pub fn fold_exceptions(list: Vec<Condition>) -> Result<Vec<Condition>, ModelErro
         match (c.words(), out.iter_mut().find(|d| std::mem::discriminant(*d) == kind && d.words().is_some())) {
             (Some(words), Some(had)) => {
                 let mut all = had.words().unwrap_or_default().to_vec();
-                for w in words.iter().filter(|w| !all.iter().any(|a| a.eq_ignore_ascii_case(w))).collect::<Vec<_>>() {
+                for w in words.iter().filter(|w| !all.iter().any(|a| crate::sync::same_category(a, w))).collect::<Vec<_>>() {
                     if all.len() >= MAX_WORDS_EACH {
                         return Err(ModelError::Invalid(format!("exceptions of one kind look for at most {MAX_WORDS_EACH} words or addresses")));
                     }

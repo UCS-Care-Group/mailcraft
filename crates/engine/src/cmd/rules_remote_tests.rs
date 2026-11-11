@@ -1962,3 +1962,173 @@ fn a_rules_delete_of_new_mail_moved_to_deleted_items_leaves_it_there() {
     s.mailbox.folders.retain(|f| !(f.account == account && f.kind == FolderKind::Deleted));
     assert_eq!(classify(&s, "rules.add", &rule(account, "Gone", json!([{"type": "delete"}]))), Access::Owner(Class::Delete));
 }
+
+/// An agent's question about a rule kept on this computer names whose mail it is for, an account
+/// with no address by its name (#566).
+#[test]
+fn the_question_about_a_rule_kept_here_names_its_account() {
+    use crate::agent::describe;
+    let (s, account, _, _) = session();
+    let rule = |account: Id| json!({"name": "Here", "account": account, "server": false, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "flag"}]});
+    let asked = describe(&s, "rules.add", &rule(account));
+    assert!(asked.contains(&format!("the rule “Here” for the mail of “{EMAIL}”:")), "{asked}");
+    let mut s = Session::empty();
+    s.run("account.add", &json!({"email": EMAIL, "kind": "microsoft"})).unwrap();
+    let local = s.mailbox.local_account();
+    assert!(s.mailbox.account(local).unwrap().email.is_empty());
+    let asked = describe(&s, "rules.add", &rule(local));
+    assert!(asked.contains("the rule “Here” for the mail of “On this computer”:"), "{asked}");
+}
+
+/// Words that differ only in the case of a letter outside A–Z ("Büro", "BÜRO") are one word, as
+/// a rule matches them: kept once, so a server that keeps them in capitals is found to hold the
+/// same rule after a lost answer, and it isn't made twice (#566).
+#[test]
+fn words_differing_in_a_non_ascii_letters_case_are_one_and_find_the_rule_again() {
+    let (mut s, account, _, news) = session();
+    let made = run(
+        &mut s,
+        "rules.add",
+        json!({
+            "name": "Office",
+            "account": account,
+            "conditions": [{"type": "from", "value": "club@example.org"}, {"type": "category", "value": ["Été", "ÉTÉ"]}],
+            "exceptions": [{"type": "subjectContains", "value": "Büro"}, {"type": "subjectContains", "value": "BÜRO"}],
+            "actions": [{"type": "copyTo", "value": news}],
+        }),
+    );
+    assert_eq!(made["keep"], "server");
+    let id = made["id"].as_u64().unwrap();
+    assert_eq!(rule(&s, id).exceptions, [Condition::SubjectContains(vec!["Büro".into()])]);
+    assert_eq!(rule(&s, id).conditions[1], Condition::Category(vec!["Été".into()]));
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    // The answer is lost; the server has it, in its own capitals.
+    let mut there = remote("r8", "Office", 1);
+    there.conditions = vec![Condition::From(vec!["CLUB@EXAMPLE.ORG".into()]), Condition::Category(vec!["ÉTÉ".into()])];
+    there.exceptions = vec![Condition::SubjectContains(vec!["BÜRO".into(), "BÜRO".into()])];
+    (there.actions, there.copy_to) = (Vec::new(), "news".into());
+    // (Read as a download is.)
+    there.tidy();
+    let merged = apply_rules(&mut s, &download(account, vec![there])).unwrap();
+    assert_eq!((merged.added, s.mailbox.rules.len()), (0, 1), "exceptions here: {:?}", rule(&s, id).exceptions);
+}
+
+/// An undo of a move of one account's rule past another account's rule only gives that rule
+/// another place in the list: it is asked about as the move was, as settings, whether the other
+/// rule deletes for good or puts mail onto a server (#566).
+#[test]
+fn an_undo_of_a_move_past_another_accounts_rule_asks_as_the_move_did() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, local, _) = session();
+    let x = add(&mut s, local, "X", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    let purge = add(&mut s, account, "Purge", json!([{"type": "category", "value": "Bin"}]), json!([{"type": "deleteForGood"}]));
+    assert_eq!(rule(&s, purge).keep, Keep::Here);
+    add(&mut s, local, "W", json!([{"type": "subjectContains", "value": "w"}]), json!([{"type": "markRead"}]));
+    let down = json!({"id": x, "direction": "down", "account": local});
+    assert_eq!(classify(&s, "rules.move", &down), Access::Owner(Class::Settings));
+    run(&mut s, "rules.move", down);
+    assert_eq!(s.mailbox.rules.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["Purge", "W", "X"]);
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Settings), "past a rule that deletes for good");
+    // Past another account's rule that moves mail onto a server.
+    let (mut s, account, local, news) = session();
+    let x = add(&mut s, account, "X", json!([{"type": "subjectContains", "value": "x"}]), json!([{"type": "markRead"}]));
+    add(&mut s, local, "Away", json!([{"type": "fromContains", "value": "shop@example.org"}]), json!([{"type": "moveTo", "value": news}]));
+    let w = add(&mut s, account, "W", json!([{"type": "subjectContains", "value": "w"}]), json!([{"type": "markRead"}]));
+    for r in [x, w] {
+        s.mailbox.rules.iter_mut().find(|y| y.id == r).unwrap().keep = Keep::Here;
+    }
+    let down = json!({"id": x, "direction": "down", "account": account});
+    assert_eq!(classify(&s, "rules.move", &down), Access::Owner(Class::Settings));
+    run(&mut s, "rules.move", down);
+    assert_eq!(s.mailbox.rules.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["Away", "W", "X"]);
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Settings), "past a rule that moves mail onto a server");
+    // A move past a rule for the same mail is asked about as one: the deleting rule then runs first.
+    let (mut s, account, _, _) = session();
+    let first = add(&mut s, account, "First", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    let purge = add(&mut s, account, "Purge", json!([{"type": "category", "value": "Bin"}]), json!([{"type": "deleteForGood"}]));
+    s.mailbox.rules.iter_mut().find(|y| y.id == first).unwrap().keep = Keep::Here;
+    assert_eq!(rule(&s, purge).keep, Keep::Here);
+    run(&mut s, "rules.move", json!({"id": first, "direction": "down", "account": account}));
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Delete), "the same account's rules in another order");
+}
+
+/// An undo asked as a send because it brings back a meeting change that writes to people still
+/// says so when it also brings back a rule beside one that files mail onto another server (#566).
+#[test]
+fn an_undos_send_question_names_the_meeting_change_beside_a_rule_onto_another_server() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, _, local, news) = session();
+    add(&mut s, local, "Up", json!([{"type": "fromContains", "value": "news@example.org"}]), json!([{"type": "copyTo", "value": news}]));
+    let keep = add(&mut s, local, "Keep", json!([{"type": "toMe"}]), json!([{"type": "markRead"}]));
+    run(&mut s, "rules.remove", json!({"id": keep}));
+    // The step was taken while a meeting update waited to go; it has gone since.
+    let change = mailcraft_model::remote::EventChange { account: 1, event: 4_242, send: true, token: "t".into(), ..Default::default() };
+    s.history.last_mut().unwrap().mailbox.event_changes.push(change);
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Send));
+    let said = describe(&s, "edit.undo", &json!({}));
+    assert!(said.contains("a change to a meeting") && said.contains("files mail onto the server of"), "{said}");
+}
+
+/// The owner's yes to an agent's Run Rules Now reaches the mail that was in the folder when asked:
+/// a message moved there while the question is up (by the agent itself, say) is never deleted for
+/// good by it, nothing runs and the agent is to ask again; mail moved out meanwhile doesn't stop
+/// it (#566).
+#[test]
+fn run_rules_nows_yes_reaches_only_the_mail_there_when_asked() {
+    use crate::agent::bind::{Reach, Shown};
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, account, _, _) = session();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Gone", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "invoice"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let put = |s: &mut Session, subject: &str| {
+        s.mailbox
+            .add_message(Message { folder: archive, from: Address::new("Shop", "shop@example.org"), subject: subject.into(), ..Default::default() })
+            .unwrap()
+    };
+    let (one, two) = (put(&mut s, "invoice 1"), put(&mut s, "invoice 2"));
+    let params = json!({"folder": archive});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    // One moved out meanwhile: the rest are still those asked about.
+    s.mailbox.remove_message(two).unwrap();
+    assert_eq!(shown.check(&s, "rules.run", &params), Ok(Reach::All));
+    // One moved in meanwhile: nothing runs.
+    let came = put(&mut s, "invoice 3");
+    assert!(shown.check(&s, "rules.run", &params).is_err_and(|why| why.contains("came into it")));
+    assert!(s.mailbox.message(one).is_some() && s.mailbox.message(came).is_some());
+    // A rule that deletes switched on meanwhile changes what the yes would do: nothing runs either.
+    s.mailbox.remove_message(came).unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Also", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "receipt"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    assert!(shown.check(&s, "rules.run", &params).is_err(), "the question named only “Gone”");
+}
+
+/// A redo (or an undo) that brings back a rule copying onto another server and deleting for good
+/// is asked as `rules.add` of it is: as a delete, and a yes to send alone doesn't run it (#566).
+#[test]
+fn a_redo_of_a_rule_onto_another_server_that_deletes_for_good_is_asked_as_rules_add_is() {
+    use crate::agent::{Class, Verdict, answered, check};
+    let (mut s, account, _, _) = session();
+    let other = run(&mut s, "account.add", json!({"email": "other@example.org", "kind": "microsoft"}))["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    let params = json!({"name": "Both", "account": account, "conditions": [{"type": "toMe"}],
+        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}]});
+    assert!(matches!(check(&s, "rules.add", &params, &[]), Verdict::Ask(Class::Delete, _)));
+    run(&mut s, "rules.add", params);
+    run(&mut s, "edit.undo", json!({}));
+    let Verdict::Ask(Class::Delete, said) = check(&s, "edit.redo", &json!({}), &[]) else { panic!("asked as a delete") };
+    assert!(said.contains("other@example.org") && said.contains("deletes mail permanently"), "{said}");
+    assert_ne!(answered(&s, "edit.redo", &json!({}), &[], Class::Send), Verdict::Run, "a yes to send alone");
+    assert_eq!(answered(&s, "edit.redo", &json!({}), &[], Class::Delete), Verdict::Run);
+    assert_eq!(check(&s, "edit.redo", &json!({}), &[Class::Send, Class::Delete]), Verdict::Run);
+}

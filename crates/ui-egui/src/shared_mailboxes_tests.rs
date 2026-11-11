@@ -1074,3 +1074,17 @@ fn delete_on_a_shared_mailboxs_conversation_names_whose_folder_it_is() {
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &app.dialog else { panic!("not asked") };
     assert!(ask.text.starts_with(&format!("This deletes the conversation from Inbox - {SHARED}: ")), "{}", ask.text);
 }
+
+/// Run Rules Now on the ribbon, in the Rules drop-down and the menus is greyed over a shared
+/// mailbox's folder, whose mail the rules leave alone, as in the folder's own menu (#566).
+#[test]
+fn run_rules_now_is_greyed_over_a_shared_mailboxs_folder() {
+    let (mut app, owner, ..) = window();
+    let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    let theirs = app.session.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    let own = app.session.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    app.session.view.folder = own;
+    assert!(app.enabled("rules.run"), "the owner's own Inbox");
+    app.session.view.folder = theirs;
+    assert!(!app.enabled("rules.run"), "the shared mailbox's");
+}

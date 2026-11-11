@@ -889,6 +889,11 @@ struct Removing {
 pub struct Going(Vec<Id>);
 
 impl Going {
+    /// Whether the rules delete nothing for good.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Whether `id` goes: the rules run over one message at a time, so it is the last noted.
     fn has(&self, id: Id) -> bool {
         self.0.last() == Some(&id)
@@ -1299,7 +1304,7 @@ pub const BETWEEN_MAILBOXES: &str =
 /// mailbox until it is there (#566, [`Mailbox::held_for_copy`]).
 fn on_its_way(subject: &str) -> String {
     format!(
-        "\"{subject}\" is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+        "\"{subject}\" is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
     )
 }
 
@@ -2903,10 +2908,13 @@ impl Mailbox {
         self.messages.values().filter(|m| m.uid == 0 && m.server.is_none() && m.placed.is_empty()).map(|m| m.message_id.as_str()).collect()
     }
 
-    /// The message `q` is a copy of, when it is one waiting to be made on its account's server.
+    /// The message `q` is a copy of, when it is one waiting to be made on its account's server
+    /// (not once that account has no server to put it on: its servers taken out in its settings).
     fn copy_waiting_of(&self, q: &Queued) -> Option<Id> {
         match q {
-            Queued::PlaceMessage { account, message, source: Some(s), .. } if self.message(*message).is_some_and(|m| m.account == *account) => {
+            Queued::PlaceMessage { account, message, source: Some(s), .. }
+                if self.puts_on_server(*account) && self.message(*message).is_some_and(|m| m.account == *account) =>
+            {
                 Some(*s)
             }
             _ => None,

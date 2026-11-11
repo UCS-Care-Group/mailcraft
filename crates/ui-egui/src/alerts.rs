@@ -8,11 +8,11 @@
 //! - New mail is told of only while the window is not in front, once a Send/Receive is over: what
 //!   arrived is the engine's answer ([`mailcraft_engine::arrivals`]: never an account's first
 //!   download, mail a rule moved away, Junk E-mail or other folders, a shared mailbox, mail
-//!   already read). A rule that shows a desktop alert has one for the mail it acted on, wherever
-//!   it put it, even with the switch for new mail off (#566); and for mail it could tell of only
-//!   once it was fetched whole, once that download is over (the next frame with no Send/Receive
-//!   under way), unless the run that brought it told of it already (since the window opened: what
-//!   was told isn't kept).
+//!   already read). A rule that shows a desktop alert has one for the mail it acted on, in
+//!   whichever folder of its account it put it, even with the switch for new mail off (#566);
+//!   and for mail it could tell of only once it was fetched whole, once that download is over
+//!   (the next frame with no Send/Receive under way), unless the run that brought it told of it
+//!   already (since the window opened: what was told isn't kept).
 //! - Up to [`AT_ONCE`] at a time get an alert each; more get one that counts them.
 //! - What an alert says is the message's own text, and so hostile: the sender's name and the
 //!   subject only (never the body), as plain text, as a name is shown (#454): without control

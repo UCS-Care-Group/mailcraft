@@ -223,17 +223,17 @@ fn words(v: &Value, what: &str) -> Result<Vec<String>, CmdError> {
 fn words_of(v: &Value, what: &str, cap: usize) -> Result<Vec<String>, CmdError> {
     let one = |w: &Value| -> Result<String, CmdError> {
         let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(cap).collect();
-        if t.is_empty() { Err(bad(format!("`value` has {what} that is empty"))) } else { Ok(t) }
+        if t.is_empty() { Err(bad(format!("`value` has an empty text among its {what}"))) } else { Ok(t) }
     };
     let list: Vec<String> = match v.get("value") {
-        Some(Value::Array(items)) if items.len() > MAX_WORDS_EACH => return Err(bad(format!("`value` has more than {MAX_WORDS_EACH} of {what}"))),
+        Some(Value::Array(items)) if items.len() > MAX_WORDS_EACH => return Err(bad(format!("`value` has more than {MAX_WORDS_EACH} {what}"))),
         Some(Value::Array(items)) => items.iter().map(one).collect::<Result<_, _>>()?,
         Some(w) => vec![one(w)?],
         None => Vec::new(),
     };
     let mut kept: Vec<String> = Vec::new();
     for w in list {
-        if !kept.iter().any(|k| k.eq_ignore_ascii_case(&w)) {
+        if !kept.iter().any(|k| mailcraft_model::sync::same_category(k, &w)) {
             kept.push(w);
         }
     }
@@ -408,7 +408,7 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     let actions = actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
     let alert = p::opt_bool(v, "alert")?.unwrap_or(false);
     if conditions.is_empty() || (actions.is_empty() && !alert) {
-        return Err(bad("a rule needs at least one condition and one action"));
+        return Err(bad("a rule needs at least one condition, and an action or a desktop alert (`alert`)"));
     }
     let account = rule_account(s, v)?;
     let stop = p::opt_bool(v, "stop")?.unwrap_or(false);

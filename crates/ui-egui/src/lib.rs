@@ -2112,6 +2112,12 @@ impl MailApp {
         match self.session.registry.get(id) {
             // Cancel All, while the window has a Send/Receive under way.
             Some(_) if id == "sync.cancel" => self.syncing(),
+            // Run Rules Now over the folder in view: greyed where the rules leave the mail alone (a
+            // shared mailbox's), as in the folder's menu and the Rules dialog.
+            Some(s) if id == "rules.run" => {
+                let mb = &self.session.mailbox;
+                (s.enabled)(&self.session).is_none() && mb.folder(self.session.view.folder).is_some_and(|f| mb.rules_reach(f.account))
+            }
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
                 !self.data_removed

@@ -4792,7 +4792,7 @@ pub(crate) mod rules {
                 let current = if c.category.is_empty() { tl!("Choose a category").to_string() } else { shown(&c.category, 200) };
                 egui::ComboBox::from_id_salt((part, "category", i)).width(width).selected_text(current).truncate().show_ui(ui, |ui| {
                     for name in categories {
-                        if ui.selectable_label(name.eq_ignore_ascii_case(&c.category), shown(name, 200)).clicked() {
+                        if ui.selectable_label(mailcraft_model::sync::same_category(name, &c.category), shown(name, 200)).clicked() {
                             c.category = name.clone();
                         }
                     }
@@ -5215,7 +5215,7 @@ pub(crate) mod rules {
                 };
                 if let Some((_, all)) = kinds.get_mut(at) {
                     for w in split_words(&c.text) {
-                        if !all.iter().any(|a| a.eq_ignore_ascii_case(&w)) {
+                        if !all.iter().any(|a| mailcraft_model::sync::same_category(a, &w)) {
                             all.push(w);
                         }
                     }

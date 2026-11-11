@@ -359,3 +359,27 @@ fn a_rules_alert_is_told_of_in_any_gmail_category_when_alerts_are_for_primary_al
     assert_eq!(subjects(&found), ["Urgent: last day"], "the rule's alert, and not the new mail in Promotions");
     assert!(found[0].rule);
 }
+
+/// With alerts for new mail off, the window shows the arrivals a rule asked for: another account's
+/// flood of new mail in the same Send/Receive, over the most told of at once, doesn't leave them
+/// out (#566).
+#[test]
+fn a_rules_alert_is_not_cut_by_another_accounts_flood() {
+    let (mut s, account, inbox) = read_once();
+    let servers = json!({"email": "avery@other.example", "incoming": {"host": "imap.other.example"}, "outgoing": {"host": "smtp.other.example"}});
+    let other = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let other_inbox = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    apply(&mut s, other, vec![inbox_delta(other_inbox, vec![message(1, "Old", "Already there")])]);
+    let urgent =
+        json!({"name": "Urgent", "account": other, "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [], "alert": true});
+    s.run("rules.add", &urgent).unwrap();
+    let before = mark(&s.mailbox);
+    let many: Vec<Message> = (2..(MOST as u32 + 2)).map(|uid| message(uid, "Bulk", "Newsletter")).collect();
+    apply(&mut s, account, vec![inbox_delta(inbox, many)]);
+    apply(&mut s, other, vec![inbox_delta(other_inbox, vec![message(2, "Boss", "Urgent: call me")])]);
+    let found = arrivals(&s.mailbox, &before);
+    assert_eq!(found.len(), MOST, "still the most told of at once");
+    let shown: Vec<&str> = found.iter().filter(|a| a.rule).map(|a| a.subject.as_str()).collect();
+    assert_eq!(shown, ["Urgent: call me"]);
+    assert_eq!(found.last().map(|a| a.subject.as_str()), Some("Urgent: call me"), "oldest first");
+}

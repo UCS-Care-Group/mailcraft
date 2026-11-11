@@ -82,6 +82,10 @@ pub struct Down {
     /// The clock the rules run by on what arrives ([`Session::rule_clock`](crate::Session::rule_clock));
     /// without one, this computer's.
     pub clock: Option<mailcraft_model::RuleClock>,
+    /// The server ids of an account's messages deleted for good here whose delete is still to go,
+    /// found once for a run's pages ([`take_page`]; thousands wait after an emptied Deleted Items):
+    /// a page adds those its rules delete for good, and nothing in taking pages sends one.
+    deleting: Option<(Id, HashSet<String>)>,
 }
 
 impl Down {
@@ -92,7 +96,23 @@ impl Down {
 
     /// Whether taking in the pages did anything: the clock is no part of that.
     pub fn took_anything(&self) -> bool {
-        *self != Down { clock: self.clock, ..Default::default() }
+        self.new + self.changed + self.gone + self.removed + self.left > 0
+    }
+
+    /// [`Down::deleting`] of `account`, taken out to be read while a page is taken in, and found in
+    /// `mb`'s queue when there is none of that account's.
+    fn take_deleting(&mut self, mb: &Mailbox, account: Id) -> HashSet<String> {
+        match self.deleting.take() {
+            Some((a, ids)) if a == account => ids,
+            _ => mb
+                .queued
+                .iter()
+                .filter_map(|q| match q {
+                    Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.clone()),
+                    _ => None,
+                })
+                .collect(),
+        }
     }
 
     fn rule_clock(&self) -> mailcraft_model::RuleClock {
@@ -120,15 +140,9 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     let mut moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
     // Nor those deleted for good here whose delete is still to go: one waiting for a copy of it
-    // to be made, say, which marks it there and so has it listed again (#566).
-    let deleting: HashSet<String> = mb
-        .queued
-        .iter()
-        .filter_map(|q| match q {
-            Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.clone()),
-            _ => None,
-        })
-        .collect();
+    // to be made, say, which marks it there and so has it listed again (#566). Found once for
+    // the run's pages.
+    let deleting = down.take_deleting(mb, account);
     if page.afresh {
         for m in mb.messages.values_mut() {
             if m.account == account
@@ -253,8 +267,13 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
         }
     }
+    // (What the rules delete for good is still to go too: found again for the next page.)
+    let ruled = !going.is_empty();
     mb.rules_done(going);
     held_deletes_seen(mb, account, &page.folder, &held_left, &held_there);
+    if !ruled {
+        down.deleting = Some((account, deleting));
+    }
     // A listing afresh that ended without a copy being moved out: it left that folder (#30).
     if page.caught_up {
         for m in mb.messages.values_mut() {

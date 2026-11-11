@@ -2177,6 +2177,9 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     s.run("rules.enable", &json!({"id": made, "value": true})).unwrap();
     let what = describe(&s, "rules.run", &json!({"folder": inbox}));
     assert!(what.contains("which move mail onto the server of blake@other.example"), "{what}");
+    // One rule named: "which moves".
+    let what = describe(&s, "rules.run", &json!({"folder": inbox, "id": made}));
+    assert!(what.contains("which moves mail onto the server of blake@other.example"), "{what}");
     // A rule for one account's mail that files it in that account's own folder puts nothing on
     // another server: switched on, or named to run over another account's folder.
     let own = json!({"name": "Own", "account": b, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": other}]});
@@ -2612,4 +2615,27 @@ fn a_copy_listed_after_its_answer_shows_once_though_the_index_was_built_before()
     let mut seen = where_titled(&s, "Receipt");
     seen.sort_by(|a, b| a.3.cmp(&b.3));
     assert_eq!(seen, [(ms, "Inbox".to_string(), 0, Some("AAkA7".to_string())), (ms, "Archive".to_string(), 0, Some("AAkC1".to_string()))]);
+}
+
+/// The account a copy waits to be made in has its servers taken out in its settings: the
+/// original's delete for good, held for that copy, goes once the file holds the copy, as the
+/// original of a message moved there does (#566).
+#[test]
+fn a_held_delete_goes_once_the_copys_account_has_no_server() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.copy", &json!({"ids": [two], "folder": theirs})).unwrap();
+    s.run("mail.deletePermanently", &json!({"ids": [two]})).unwrap();
+    let one = titled(&s, "One");
+    s.run("mail.move", &json!({"ids": [one], "folder": theirs})).unwrap();
+    s.note_saved();
+    assert!(!ops(&s, a).contains(&delete(2)), "held for the copy while b has a server: {:?}", ops(&s, a));
+    s.run("account.edit", &json!({"id": b, "incoming": null, "outgoing": null})).unwrap();
+    assert_eq!(s.mailbox.account(b).unwrap().kind, mailcraft_model::AccountKind::Local);
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    let ops = ops(&s, a);
+    assert!(ops.contains(&delete(1)) && ops.contains(&delete(2)), "both originals go: {ops:?}");
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.account == b && m.subject == "Two").count(), 1, "the copy is kept");
 }

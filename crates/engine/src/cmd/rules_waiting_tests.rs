@@ -462,3 +462,45 @@ fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves
     assert_eq!(copies(&s, to, b), (0, 0));
     assert!(s.mailbox.messages.values().all(|m| m.rules_waiting.is_none()));
 }
+
+/// After a rule of this computer that copied new mail as it arrived, a later delete for good
+/// doesn't wait behind a rule that can't tell yet: it deletes nothing for good, and the message
+/// stays where the rules left it with its copy beside it, as the docs say (#566).
+#[test]
+fn a_delete_for_good_after_a_copy_made_as_mail_arrived_deletes_nothing() {
+    let mut s = Session::empty();
+    let (account, _, kept) = microsoft_with(&mut s, "Kept");
+    let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": kept}]});
+    s.run("rules.add", &copy).unwrap();
+    let unsure =
+        json!({"name": "Drafts", "server": false, "conditions": [{"type": "bodyContains", "value": "draft"}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &unsure).unwrap();
+    let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &gone).unwrap();
+    arrives(&mut s, account, "Plan");
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let left: Vec<bool> = s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| m.folder == kept).collect();
+    assert_eq!(left.len(), 2, "the original and its copy: {left:?}");
+    assert!(left.contains(&true) && left.contains(&false), "{left:?}");
+}
+
+/// A rule deletes new mail for good on one page of a run; a later page of the run lists it again
+/// (changed on the server meanwhile): it isn't taken in again while its delete is still to go.
+#[test]
+fn mail_a_rule_deleted_for_good_on_one_page_isnt_taken_in_again_from_the_next() {
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &gone).unwrap();
+    let first = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], link: "L1".into(), ..Default::default() };
+    let again = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Notes")], link: "L2".into(), ..Default::default() };
+    let result = GraphMailResult { account, email: ME.into(), pages: vec![first, again], partial: true, ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, result).unwrap();
+    let back = s.mailbox.messages.values().any(|m| m.server.as_ref().is_some_and(|server| server.id == "N1"));
+    assert!(!back, "taken in again");
+    assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1")));
+}

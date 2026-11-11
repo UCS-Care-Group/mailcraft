@@ -12,7 +12,8 @@
 //! ones it holds. On the yes, [`Shown::check`]:
 //! - a folder emptied or deleted ([`Object::FolderContent`]) reaches only the messages shown: what
 //!   came into it meanwhile stays (an empty takes the shown ones; a delete, which would take the
-//!   folder with what came, does nothing);
+//!   folder with what came, does nothing, and so does Run Rules Now over it, which would act on
+//!   what came: deleted for good, or put on another server, #566);
 //! - anything else is described again: when what the command would read from the window, or the
 //!   question's text, differs, or what it names is gone, nothing runs.
 //!
@@ -86,8 +87,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.downloadPictures"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
-        "folder.empty" | "folder.delete" => FolderContent,
-        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" => Folder,
+        "folder.empty" | "folder.delete" | "rules.run" => FolderContent,
+        "file.import" | "calendar.deleteAnsweredRequests" => Folder,
         "people.delete" | "people.merge" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
@@ -268,7 +269,17 @@ impl Shown {
                 return changed();
             }
             if now.messages.is_subset(&shown.messages) && now.folders.is_subset(&shown.folders) {
+                // What the rules would do is described again, as for anything else.
+                if id == "rules.run" && super::describe(s, id, params) != self.what {
+                    return changed();
+                }
                 return Ok(Reach::All);
+            }
+            if id == "rules.run" {
+                return Err(
+                    "the folder `rules.run` was asked about holds messages that came into it since the owner was asked, which the rules would act on: nothing was done. Ask the owner again"
+                        .to_string(),
+                );
             }
             if id != "folder.empty" {
                 return Err(format!(
@@ -287,12 +298,14 @@ impl Shown {
     }
 }
 
-/// The folder `folder.empty` or `folder.delete` with `params` acts on, as the command finds it,
-/// and the messages and folders that go with it.
+/// The folder `folder.empty`, `folder.delete` or `rules.run` with `params` acts on, as the command
+/// finds it, and the messages and folders that go with it (the rules run over its messages alone).
 fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
-    let folder = p::id_strict(params, "id").ok()?.unwrap_or(s.view.folder);
+    let folder = p::id_strict(params, if id == "rules.run" { "folder" } else { "id" }).ok()?.unwrap_or(s.view.folder);
     s.mailbox.folder(folder)?;
-    let (messages, folders) = if id == "folder.empty" {
+    let (messages, folders) = if id == "rules.run" {
+        (s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| m.id).collect(), Vec::new())
+    } else if id == "folder.empty" {
         (crate::cmd::folder::emptied(s, folder), crate::cmd::folder::emptied_with(s, folder))
     } else {
         (crate::cmd::folder::deleted_with(s, folder), s.mailbox.subtree(folder))

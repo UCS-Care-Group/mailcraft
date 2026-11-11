@@ -1096,23 +1096,30 @@ pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
 }
 
 /// The accounts whose rules an undo or redo from the rules of `now` to those of `to` changes (0:
-/// every account's): of each rule made, changed or taken away, and of each one moved past another
-/// in the list; not of those that only take a place up or down as one is made or taken away. None
-/// when the rules stay as they are.
+/// every account's): of each rule made, changed or taken away, and of each account whose rules
+/// run in another order (one moved past another for the same mail); not of those that only take
+/// another place in the list, as one is made, taken away or moved past them. None when the rules
+/// stay as they are.
 fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
     if to.rules == now.rules {
         return Vec::new();
     }
-    let differ = |a: &[mailcraft_model::Rule], b: &[mailcraft_model::Rule]| -> Vec<Id> {
-        // The rules both have, in each one's order: one at another place among them was moved.
-        let kept: Vec<&mailcraft_model::Rule> = a.iter().filter(|r| b.iter().any(|o| o.id == r.id)).collect();
-        let theirs: Vec<Id> = b.iter().filter(|o| a.iter().any(|r| r.id == o.id)).map(|o| o.id).collect();
-        let moved = kept.iter().enumerate().filter(|(i, r)| theirs.get(*i) != Some(&r.id)).map(|(_, r)| r.account);
-        let made_or_changed = a.iter().filter(|r| !b.iter().any(|o| o == *r)).map(|r| r.account);
-        made_or_changed.chain(moved).collect()
+    let made_or_changed = |a: &Mailbox, b: &Mailbox| -> Vec<Id> { a.rules.iter().filter(|r| !b.rules.contains(r)).map(|r| r.account).collect() };
+    let mut changed = made_or_changed(to, now);
+    changed.extend(made_or_changed(now, to));
+    // The rules both have, in the order they run for an account's mail on each side.
+    let ids = |m: &Mailbox| -> std::collections::HashSet<Id> { m.rules.iter().map(|r| r.id).collect() };
+    let (in_now, in_to) = (ids(now), ids(to));
+    let order = |m: &Mailbox, account: Id| -> Vec<Id> {
+        m.rules_in_order(account)
+            .into_iter()
+            .filter_map(|i| m.rules.get(i))
+            .map(|r| r.id)
+            .filter(|id| in_now.contains(id) && in_to.contains(id))
+            .collect()
     };
-    let mut changed = differ(&to.rules, &now.rules);
-    changed.extend(differ(&now.rules, &to.rules));
+    let accounts: std::collections::BTreeSet<Id> = now.accounts.iter().chain(&to.accounts).map(|a| a.id).collect();
+    changed.extend(accounts.into_iter().filter(|a| order(now, *a) != order(to, *a)));
     changed.sort_unstable();
     changed.dedup();
     changed
@@ -1363,9 +1370,13 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     // A rule that files mail onto another server and deletes it for good needs both grants;
     // `classify` says the first. Until `delete` is allowed it is asked as a delete, whose
     // question says both (the server it files onto, and the deleting): a yes to `send` alone,
-    // asked about the server, never makes it (#566).
+    // asked about the server, never makes it (#566), nor brings it back by an undo or a redo.
+    let deleting_rule = || match id {
+        "edit.undo" | "edit.redo" => s.undo_rules_delete_for_good(id == "edit.redo"),
+        _ => rules_delete(s, id, params),
+    };
     let access = match classify(s, id, params) {
-        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && rules_delete(s, id, params) => Access::Owner(Class::Delete),
+        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && deleting_rule() => Access::Owner(Class::Delete),
         access => access,
     };
     // What else the call needs besides its class (#473); a yes to the question about the class
@@ -1725,10 +1736,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             // (Each of these works the undo out on a copy of the mailbox: once.)
             let (places, rule_onto) = (s.undo_places(redo), s.undo_rules_onto_server(redo));
-            let what = match s.undo_reverts_with(redo, || !places.is_empty() || !rule_onto.is_empty()) {
+            // (Whether the class comes of a message or a rule onto a server, said below, rather
+            // than of a meeting or a task, which is looked at first.)
+            let onto_asked = std::cell::Cell::new(false);
+            let onto = || {
+                onto_asked.set(true);
+                !places.is_empty() || !rule_onto.is_empty()
+            };
+            let what = match s.undo_reverts_with(redo, onto) {
                 Some(Class::Accounts) => Some("the accounts"),
-                // What a message or a rule put on its way onto a server is is said below.
-                Some(Class::Send) if !places.is_empty() || !rule_onto.is_empty() => None,
+                Some(Class::Send) if onto_asked.get() => None,
                 Some(Class::Send) => {
                     Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
@@ -1822,7 +1839,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     list.push(email);
                 }
             }
-            let onto: Vec<String> = [("move", moves), ("copy", copies)]
+            // (One rule named, or the rules: "which moves", "which move".)
+            let one = only.is_some_and(|o| s.mailbox.rules.iter().any(|r| r.id == o));
+            let verbs = if one { ("moves", "copies") } else { ("move", "copy") };
+            let onto: Vec<String> = [(verbs.0, moves), (verbs.1, copies)]
                 .into_iter()
                 .filter(|(_, to)| !to.is_empty())
                 .map(|(verb, to)| format!("{verb} mail onto the server of {}", to.join(", ")))
@@ -2188,7 +2208,15 @@ fn rule_text(s: &Session, params: &Value) -> String {
                 rule_words(s, &r)
             )
         }
-        Ok(r) => format!("create the rule {}: {}", quoted(&r.name), rule_words(s, &r)),
+        Ok(r) => {
+            // Whose mail it is for: an account with no address by its name, as the Rules dialog shows it.
+            let of = match s.mailbox.account(r.account) {
+                Some(a) if !a.email.is_empty() => format!(" for the mail of {}", quoted(&plain(&a.email))),
+                Some(a) if !a.name.trim().is_empty() => format!(" for the mail of {}", quoted(&clip(&a.name, 80))),
+                _ => String::new(),
+            };
+            format!("create the rule {}{of}: {}", quoted(&r.name), rule_words(s, &r))
+        }
         Err(_) => "create a rule that can't be made as asked".to_string(),
     }
 }

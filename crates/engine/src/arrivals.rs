@@ -21,9 +21,10 @@
 //! - for a Gmail account whose owner asked for alerts for Primary alone (#911), mail Gmail put in
 //!   another of its categories.
 //!
-//! But a message a rule that shows a desktop alert acted on as it arrived counts wherever the
-//! rule put it, read or not ([`Arrival::rule`]; `Message::rule_alert`), as long as its account's
-//! Inbox had been read from its server before: an account's first download tells of nothing.
+//! But a message a rule that shows a desktop alert acted on as it arrived counts in whichever
+//! folder of its account the rule put it (not once moved out of the account), read or not
+//! ([`Arrival::rule`]; `Message::rule_alert`), as long as its account's Inbox had been read from
+//! its server before: an account's first download tells of nothing.
 //! So does one such a rule acted on only once it was fetched whole, after the run that brought it
 //! (#566): the fetch names it, and [`alerted`] says who it is from.
 //!
@@ -82,7 +83,9 @@ fn own(mailbox: &Mailbox, account: Id) -> bool {
     mailbox.account(account).is_some_and(|a| !a.is_shared() && a.kind.has_server())
 }
 
-/// What arrived in the Inboxes since `before` was marked, oldest first; at most [`MOST`].
+/// What arrived in the Inboxes since `before` was marked, oldest first; at most [`MOST`], the
+/// mail a rule shows an alert for kept before other new mail, which another account can bring a
+/// flood of while alerts for new mail are off.
 pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
     let Some(from) = before.last_id.checked_add(1) else { return Vec::new() };
     // An Inbox that was read from its server before, and that the server didn't number anew.
@@ -92,16 +95,21 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
     };
     // An account whose Inbox was read before: a rule's alert for its mail is told of.
     let known = |account: Id| before.inboxes.iter().any(|(id, _)| mailbox.folder(*id).is_some_and(|f| f.account == account));
-    mailbox
-        .messages
-        .range(from..)
-        .map(|(_, m)| &**m)
-        .filter(|m| {
-            !m.draft && own(mailbox, m.account) && ((!m.read && watched(m.folder) && alerts_for(mailbox, m)) || (m.rule_alert && known(m.account)))
-        })
-        .take(MOST)
-        .map(arrival)
-        .collect()
+    let (mut ruled, mut new) = (Vec::new(), Vec::new());
+    for m in mailbox.messages.range(from..).map(|(_, m)| &**m).filter(|m| !m.draft && own(mailbox, m.account)) {
+        if m.rule_alert && known(m.account) {
+            ruled.push(m);
+            if ruled.len() == MOST {
+                break;
+            }
+        } else if new.len() < MOST && !m.read && watched(m.folder) && alerts_for(mailbox, m) {
+            new.push(m);
+        }
+    }
+    new.truncate(MOST - ruled.len());
+    let mut all: Vec<&mailcraft_model::Message> = ruled.into_iter().chain(new).collect();
+    all.sort_by_key(|m| m.id);
+    all.into_iter().map(arrival).collect()
 }
 
 /// Of `ids`, the messages a rule shows a desktop alert for that are still here, in the owner's
