@@ -431,3 +431,61 @@ fn run_rules_now_shows_no_alert() {
     let m = s.mailbox.message(m).unwrap();
     assert!(m.read && !m.rule_alert);
 }
+
+/// An exception for "Ünal@example.org; ünal@example.org" leaves both alone: addresses are kept
+/// once only as a person's address is compared, A to Z in either case, whether they come in one
+/// exception or in two.
+#[test]
+fn an_exception_for_an_address_in_two_cases_leaves_both_alone() {
+    let one = json!([{"type": "from", "value": ["Ünal@example.org", "ünal@example.org"]}]);
+    let two = json!([{"type": "from", "value": "Ünal@example.org"}, {"type": "from", "value": "ünal@example.org"}]);
+    for exceptions in [one, two] {
+        let (mut s, _, inbox, _) = session();
+        let rule = json!({
+            "name": "Clean up",
+            "conditions": [{"type": "subjectContains", "value": "report"}],
+            "exceptions": exceptions,
+            "actions": [{"type": "deleteForGood"}],
+        });
+        s.run("rules.add", &rule).unwrap();
+        let upper = arriving(&mut s, inbox, "Ünal@example.org", "Report one");
+        let lower = arriving(&mut s, inbox, "ünal@example.org", "Report two");
+        let same = arriving(&mut s, inbox, "üNAL@EXAMPLE.ORG", "Report three");
+        let other = arriving(&mut s, inbox, "ada@example.org", "Report four");
+        s.run("rules.run", &json!({"folder": inbox})).unwrap();
+        assert!(s.mailbox.message(other).is_none(), "the rule acts on the rest");
+        assert!(s.mailbox.message(upper).is_some() && s.mailbox.message(lower).is_some(), "{exceptions}");
+        assert!(s.mailbox.message(same).is_some(), "the second, in other capitals A to Z");
+        assert_eq!(s.mailbox.rules[0].exceptions, [Condition::From(vec!["Ünal@example.org".into(), "ünal@example.org".into()])]);
+    }
+}
+
+/// An address's length is counted in characters, as a server rule's is when read back: one of
+/// 152 characters in more than 254 bytes is an address a rule looks for whole.
+#[test]
+fn an_address_is_measured_in_characters() {
+    let (mut s, _, _, _) = session();
+    let long = format!("{}@example.org", "ü".repeat(140));
+    assert!(long.chars().count() <= 254 && long.len() > 254);
+    let rule = json!({"name": "Long", "conditions": [{"type": "from", "value": long}], "actions": [{"type": "markRead"}]});
+    s.run("rules.add", &rule).unwrap();
+    assert_eq!(s.mailbox.rules[0].conditions, [Condition::From(vec![long])]);
+}
+
+/// More than 20 exceptions that aren't one list of words (three importances, four sensitivities,
+/// fourteen sizes) are refused, not cut: a rule without one of them would act on mail it was to
+/// leave alone. Twenty are taken.
+#[test]
+fn more_than_twenty_exceptions_are_refused() {
+    let (mut s, _, _, _) = session();
+    let mut exceptions: Vec<serde_json::Value> = ["high", "normal", "low"].iter().map(|i| json!({"type": "importance", "value": i})).collect();
+    exceptions.extend(["normal", "personal", "private", "confidential"].iter().map(|v| json!({"type": "sensitivity", "value": v})));
+    exceptions.extend((0..14).map(|n| json!({"type": "sizeBetween", "value": {"min": n * 10, "max": n * 10 + 5}})));
+    assert_eq!(exceptions.len(), 21);
+    let rule = |exceptions: &[serde_json::Value]| json!({"name": "Many", "conditions": [{"type": "subjectContains", "value": "x"}], "exceptions": exceptions, "actions": [{"type": "deleteForGood"}]});
+    let refused = s.run("rules.add", &rule(&exceptions)).unwrap_err();
+    assert!(refused.to_string().contains("`exceptions` has more than 20"), "{refused}");
+    assert!(s.mailbox.rules.is_empty());
+    s.run("rules.add", &rule(&exceptions[..20])).unwrap();
+    assert_eq!(s.mailbox.rules[0].exceptions.len(), 20);
+}

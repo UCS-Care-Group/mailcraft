@@ -216,11 +216,12 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
 /// The words under `value`: a text, or a list of them, any one of which is enough; at most
 /// [`MAX_WORDS_EACH`] of 200 characters each. `what` says what they are, for an error.
 fn words(v: &Value, what: &str) -> Result<Vec<String>, CmdError> {
-    words_of(v, what, 200)
+    words_of(v, what, 200, false)
 }
 
-/// [`words`], each cut to `cap` characters.
-fn words_of(v: &Value, what: &str, cap: usize) -> Result<Vec<String>, CmdError> {
+/// [`words`], each cut to `cap` characters, and kept once as [`mailcraft_model::same_word`] compares
+/// them (`addresses`: as people's addresses).
+fn words_of(v: &Value, what: &str, cap: usize, addresses: bool) -> Result<Vec<String>, CmdError> {
     let one = |w: &Value| -> Result<String, CmdError> {
         let t: String = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim().chars().take(cap).collect();
         if t.is_empty() { Err(bad(format!("`value` has an empty text among its {what}"))) } else { Ok(t) }
@@ -233,7 +234,7 @@ fn words_of(v: &Value, what: &str, cap: usize) -> Result<Vec<String>, CmdError> 
     };
     let mut kept: Vec<String> = Vec::new();
     for w in list {
-        if !kept.iter().any(|k| mailcraft_model::sync::same_category(k, &w)) {
+        if !kept.iter().any(|k| mailcraft_model::same_word(addresses, k, &w)) {
             kept.push(w);
         }
     }
@@ -243,14 +244,14 @@ fn words_of(v: &Value, what: &str, cap: usize) -> Result<Vec<String>, CmdError> 
 /// Whether a sender's `email` is one whole address that a rule can look for as it is (`from`); a
 /// rule for any other has the sender's words looked for instead (`fromContains`).
 pub fn by_address(email: &str) -> bool {
-    email.len() <= 254 && mailcraft_model::search::is_address(email)
+    email.chars().count() <= mailcraft_model::MAX_ADDRESS && mailcraft_model::search::is_address(email)
 }
 
 /// The people under `value`, by their whole addresses (`name@domain`), each read whole: one cut
 /// short would be somebody else's, and one longer than an address can be is refused.
 fn people(v: &Value) -> Result<Vec<String>, CmdError> {
     // (Read one past the longest an address can be, so that a longer one is refused, not cut.)
-    let list = words_of(v, "addresses", mailcraft_model::MAX_ADDRESS + 1)?;
+    let list = words_of(v, "addresses", mailcraft_model::MAX_ADDRESS + 1, true)?;
     match list.iter().find(|a| !by_address(a)) {
         Some(a) => Err(bad(format!("\"{a}\" isn't an address"))),
         None => Ok(list),
@@ -405,7 +406,17 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     if actions.len() > MOST_PARTS {
         return Err(bad(format!("`actions` has more than {MOST_PARTS}")));
     }
-    let actions = actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
+    let mut actions = actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
+    // An action given twice is done once: two copies into one folder are one, as Outlook's rule
+    // has each of its actions once.
+    let mut seen: Vec<Action> = Vec::new();
+    actions.retain(|a| {
+        let again = seen.contains(a);
+        if !again {
+            seen.push(a.clone());
+        }
+        !again
+    });
     let alert = p::opt_bool(v, "alert")?.unwrap_or(false);
     if conditions.is_empty() || (actions.is_empty() && !alert) {
         return Err(bad("a rule needs at least one condition, and an action or a desktop alert (`alert`)"));

@@ -1386,6 +1386,12 @@ struct OnServer {
     leaving: HashSet<(Id, u32)>,
     /// Messages put back as the server's after a refused copy ([`Message::returned`]).
     returned: Vec<Id>,
+    /// The Message-IDs of the account's mail in its folders, as the run first needs them
+    /// ([`OnServer::had`]); none of what the owner sent or is writing.
+    had: Option<HashSet<String>>,
+    /// The Message-IDs of what the server no longer has in a folder, taken out as this result
+    /// is taken in: had too, should it turn up in the Inbox.
+    left: HashSet<String>,
 }
 
 impl OnServer {
@@ -1393,7 +1399,20 @@ impl OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
         let returned = mb.messages.values().filter(|m| m.account == account && m.returned > 0).map(|m| m.id).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned }
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned, had: None, left: HashSet::new() }
+    }
+
+    /// Whether the account had a message by the Message-ID `id` in one of its folders: mail new
+    /// to a folder that it had is mail moved there on another device (a filed message moved back
+    /// into the Inbox, say), which the server gives a new UID. The run reads the Inbox before the
+    /// folder it left (`mailcraft_net::sync`), so it is still where it was. Not the owner's own
+    /// sent mail, or a draft, which a message to themselves comes back as.
+    fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        let had = self.had.get_or_insert_with(|| message_ids(mb, account));
+        had.contains(id) || self.left.contains(id)
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
@@ -1659,6 +1678,17 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
 /// Messages moved into the account out of another IMAP account that are this server's messages
 /// now (they have their UID here, #451): the original goes from the other server, by a deletion
 /// there, whatever is done with them here from now on.
+/// The `Message-ID`s of `account`'s mail outside Sent Items, Drafts and the Outbox: what it had,
+/// should one of them turn up in the Inbox as new, moved there on another device (#566).
+pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
+    let theirs = |f: Id| mb.folder(f).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    mb.messages
+        .values()
+        .filter(|m| m.account == account && !m.draft && !m.message_id.is_empty() && theirs(m.folder))
+        .map(|m| m.message_id.clone())
+        .collect()
+}
+
 fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
     let ids: Vec<Id> = mb
         .pending
@@ -2112,6 +2142,9 @@ fn take_in(
         if let Ok(m) = mb.forget_message(id) {
             on_server.by_uid.remove(&(folder, m.uid));
             counts.removed += 1;
+            if !m.draft && !m.message_id.is_empty() && !matches!(delta.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox) {
+                on_server.left.insert(m.message_id);
+            }
         }
     }
     // What was put back here after a refused copy and is listed as still there (the first piece
@@ -2172,6 +2205,9 @@ fn take_in(
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
         // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
         let waited = awaited.iter().any(|(id, seen)| *id == m.message_id && seen.fits(&m));
+        // Mail the account had, moved into the Inbox on another device: the rules file it as
+        // found (#566).
+        let moved_in = (inbox || junk) && sorting && uid > old_seen && on_server.had(mb, account, &m.message_id);
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
@@ -2183,10 +2219,13 @@ fn take_in(
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
             // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
             // them as any mail arriving in the Inbox does.
-            let fresh = sorting && uid > old_seen;
-            let sorted = fresh && mb.sort_junk(id);
+            // (They sort mail moved in on another device as any new mail, as they always did.)
+            let new = sorting && uid > old_seen;
+            let fresh = new && !moved_in;
+            let sorted = new && mb.sort_junk(id);
             // The rules file what was there before too (a first download, a mailbox numbered anew,
-            // older mail), but don't delete it for good or show an alert for it (#566).
+            // older mail, mail moved in on another device), but don't delete it for good, copy it
+            // or show an alert for it (#566).
             if inbox != sorted {
                 if fresh {
                     mb.apply_rules(id, clock);

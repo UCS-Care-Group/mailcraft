@@ -3524,6 +3524,9 @@ impl Mailbox {
         // A copy that couldn't be made: the message is then the only one, and isn't deleted.
         let mut no_copy = false;
         let mut did = false;
+        // The categories it was given, for the list of the account it ends up in: a move into
+        // another account's folder comes after them ([`Action::stage`]).
+        let mut categorized: Vec<String> = Vec::new();
         // Deleted for good, unless its server keeps it (a JMAP account's: the next run would bring
         // it back).
         let gone = |mb: &Mailbox, going: &mut Going| {
@@ -3576,8 +3579,7 @@ impl Mailbox {
                     match change {
                         Action::Categorize(c) if !m.has_category(c) => {
                             m.categories.push(c.clone());
-                            let account = m.account;
-                            self.adopt_category(account, c);
+                            categorized.push(c.clone());
                         }
                         Action::Flag => m.flag = crate::FlagStatus::Flagged,
                         Action::FlagFor(when) => {
@@ -3594,6 +3596,12 @@ impl Mailbox {
                         _ => {}
                     }
                 }
+            }
+        }
+        // (Not for one deleted for good: nothing of it carries them.)
+        if let Some(account) = self.message(id).filter(|_| !going.has(id)).map(|m| m.account) {
+            for c in &categorized {
+                self.adopt_category(account, c);
             }
         }
         did

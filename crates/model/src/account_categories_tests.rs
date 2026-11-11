@@ -343,3 +343,28 @@ fn a_first_read_doesnt_build_a_list_repair_would_cut() {
     mb.start_account_categories(a, &[]);
     assert!(mb.categories_of(a).len() <= MAX_CATEGORIES);
 }
+
+/// A rule of account A that categorizes new mail and moves it into a folder of account B, in
+/// either order: the category goes on B's list, the list of the account the message is in now,
+/// and not on A's.
+#[test]
+fn a_rule_moving_mail_into_another_account_puts_its_category_on_that_accounts_list() {
+    for move_first in [true, false] {
+        let (mut mb, a, b) = two_accounts();
+        mb.account_categories.insert(a, Vec::new());
+        mb.account_categories.insert(b, Vec::new());
+        let into = mb.add_folder(b, None, "Kept for B").unwrap();
+        let (moving, categorizing) = (Action::MoveTo(into), Action::Categorize("Zeta".into()));
+        let actions = if move_first { vec![moving, categorizing] } else { vec![categorizing, moving] };
+        let conditions = vec![Condition::SubjectContains(vec!["Weekly".into()])];
+        mb.rules.push(Rule { enabled: true, account: a, conditions, actions, ..Default::default() });
+        let clock = crate::RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 };
+        let m = message_of(&mut mb, a, &[]);
+        mb.message_mut(m).unwrap().subject = "Weekly".into();
+        mb.apply_rules(m, &clock);
+        let moved = mb.messages.values().find(|x| x.subject == "Weekly").unwrap();
+        assert_eq!((moved.account, moved.categories.as_slice()), (b, ["Zeta".to_string()].as_slice()));
+        let on = |acc: Id| mb.categories_of(acc).iter().any(|c| c.name == "Zeta");
+        assert_eq!((on(a), on(b)), (false, true), "move first: {move_first}");
+    }
+}

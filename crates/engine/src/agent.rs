@@ -983,8 +983,13 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
             _ => return false,
         },
         // (What the command refuses, a rule that deletes for good among it, does nothing.)
-        "rules.keepOnServer" if crate::cmd::rules::keeping_on_server(s, params).is_err() => return false,
-        "rules.keepOnServer" | "rules.move" | "rules.remove" => match named() {
+        // One for every account kept on one server is that account's from then on; one kept
+        // there already changes nothing.
+        "rules.keepOnServer" => match kept_on_server(s, params) {
+            Some(r) if r.keep != mailcraft_model::Keep::Server => (r.account, r.id, false, true),
+            _ => return false,
+        },
+        "rules.move" | "rules.remove" => match named() {
             Some(r) => (r.account, r.id, false, id != "rules.remove"),
             None => return false,
         },
@@ -1091,8 +1096,13 @@ fn deletes_here(mb: &Mailbox, r: &mailcraft_model::Rule) -> bool {
 /// changes the rules beside it, as [`rules_delete_for_good`] asks of a command (#566). One that
 /// switches it off or takes it away only deletes less.
 pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
+    !undo_rules_deleting(now, to).is_empty()
+}
+
+/// The names of the rules [`undo_rules_delete_for_good`] finds, for the owner's question.
+pub(crate) fn undo_rules_deleting(now: &Mailbox, to: &Mailbox) -> Vec<String> {
     let changed = changed_accounts(now, to);
-    to.rules.iter().any(|r| deletes_here(to, r) && reached(&changed, r))
+    to.rules.iter().filter(|r| deletes_here(to, r) && reached(&changed, r)).map(|r| r.name.clone()).collect()
 }
 
 /// The accounts whose rules an undo or redo from the rules of `now` to those of `to` changes (0:
@@ -1194,6 +1204,12 @@ pub fn rule_from_message_deletes(s: &Session, params: &Value) -> bool {
 }
 
 /// The account whose mail a rule files, or `None` for a rule for every account's.
+/// The rule `rules.keepOnServer` would keep on a server, as it would be there: for the mail of
+/// that server's account alone. None when the command refuses it.
+fn kept_on_server(s: &Session, params: &Value) -> Option<mailcraft_model::Rule> {
+    crate::cmd::rules::keeping_on_server(s, params).ok().map(|(_, r, account)| mailcraft_model::Rule { account, ..r })
+}
+
 fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
     (r.account != 0).then_some(r.account)
 }
@@ -1233,8 +1249,7 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         }),
         "rules.move" | "rules.remove" => named().is_some_and(|r| beside(r.account, r.id, id != "rules.remove")),
         // (One kept there already changes nothing.)
-        "rules.keepOnServer" => crate::cmd::rules::keeping_on_server(s, params)
-            .is_ok_and(|(_, r, _)| r.keep != mailcraft_model::Keep::Server && beside(r.account, r.id, true)),
+        "rules.keepOnServer" => kept_on_server(s, params).is_some_and(|r| r.keep != mailcraft_model::Keep::Server && beside(r.account, r.id, true)),
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
             let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
@@ -1763,9 +1778,17 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 let which = if rule_onto.len() == 1 { "one switched on that files" } else { "some switched on that file" };
                 does.push(format!("puts the rules back as they were, with {which} mail onto the server of {}", servers_named(s, &rule_onto)));
             }
-            if s.undo_rules_delete_for_good(redo) {
+            let deleting = s.undo_rules_deleting(redo);
+            if !deleting.is_empty() {
                 // Delete for the rules (#566): one that deletes mail permanently is on after it.
-                does.push("puts the rules back as they were, with one switched on that deletes mail permanently".to_string());
+                let names: Vec<String> = deleting.iter().take(5).map(|n| quoted(n)).collect();
+                let more = deleting.len().saturating_sub(5);
+                let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+                let (rule, verb) = if deleting.len() == 1 { ("rule", "deletes") } else { ("rules", "delete") };
+                does.push(format!(
+                    "puts the rules back as they were, with the {rule} {}{more} switched on, which {verb} mail permanently",
+                    names.join(", ")
+                ));
             }
             if s.undo_removes_items(redo) {
                 // Gone for good: they don't go to Deleted Items.
@@ -1818,7 +1841,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             Err(_) => "make a rule from a message that can't be made as asked".to_string(),
         },
-        "rules.run" if rules_onto_another_server(s, id, params) || rules_delete_for_good(s, id, params) => {
+        // Named whatever it is asked as: the folder, its account and the rules (#566).
+        "rules.run" => {
             let folder = p::id_strict(params, "folder").ok().flatten().unwrap_or(s.view.folder);
             let from = s.mailbox.folder(folder).map(|f| f.account);
             let only = p::id_strict(params, "id").ok().flatten();
@@ -1890,6 +1914,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "rules.keepOnServer" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            // As the rule will be: that account's ([`kept_on_server`]).
+            let kept = kept_on_server(s, params);
+            let r = kept.as_ref().or(r);
             let account = p::id(params, "account").or(r.map(|r| r.account)).and_then(|a| s.mailbox.account(a));
             let to = account.map(|a| quoted(&plain(&a.email))).unwrap_or_else(|| "a Microsoft account".to_string());
             match r {
@@ -2185,6 +2212,15 @@ fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
             }
             mailcraft_model::Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
             mailcraft_model::Action::CopyTo(_) => "copy it to a folder that is gone".to_string(),
+            // Deleted for good where there is no Deleted Items to put it in, as the gate asks ([`for_good`]).
+            mailcraft_model::Action::Delete if for_good(&s.mailbox, r) && !r.actions.contains(&mailcraft_model::Action::DeleteForGood) => {
+                if r.account == 0 {
+                    "delete it, permanently for an account with no Deleted Items"
+                } else {
+                    "delete it permanently: its account has no Deleted Items"
+                }
+                .to_string()
+            }
             other => plain(&other.describe()),
         })
         .collect();

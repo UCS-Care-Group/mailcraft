@@ -504,3 +504,36 @@ fn mail_a_rule_deleted_for_good_on_one_page_isnt_taken_in_again_from_the_next() 
     assert!(!back, "taken in again");
     assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1")));
 }
+
+/// A rule deletes new mail for good, except if a header holds a word or the sender marked it
+/// private. A message whose header fields run past what is kept of them (a mailing list's long
+/// trace, say) can't be told by the exception: the rule leaves it alone, though the one with the
+/// header near the top is told by it as ever.
+#[test]
+fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete_for_good() {
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "exceptions": [{"type": "headerContains", "value": "x-keep: yes"}, {"type": "sensitivity", "value": "private"}],
+        "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &gone).unwrap();
+    let page = MessagePage {
+        folder: "F-in".into(),
+        messages: ["N1", "N2", "N3"].iter().map(|id| listed(id, "F-in", "Plan")).collect(),
+        ..Default::default()
+    };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let padding: String = (0..200).map(|i| format!("X-Trace-{i}: hop {i}\r\n")).collect();
+    let fetched = vec![
+        whole("N1", "Plan", "X-Keep: yes\r\n", "Its header is near the top."),
+        whole("N2", "Plan", &format!("{padding}X-Keep: yes\r\n"), "The same header, after the trace."),
+        whole("N3", "Plan", &format!("{padding}Sensitivity: Private\r\n"), "Private, after the trace."),
+    ];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(here(&s, account, "N2").headers_cut && !here(&s, account, "N1").headers_cut);
+    for id in ["N1", "N2", "N3"] {
+        let _ = here(&s, account, id);
+    }
+    assert!(!s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. })));
+}

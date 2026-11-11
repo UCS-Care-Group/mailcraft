@@ -130,15 +130,16 @@ fn agents_are_asked_before_deleting_contacts_tasks_events_and_categories() {
 #[test]
 fn a_question_is_shown_in_full_or_refused() {
     let s = sample();
-    // A key that sorts first can't push the real params out of sight.
+    // A key that sorts first can't push the real params out of sight (of a command asked about
+    // by its params, which Run Rules Now no longer is: it names the folder and the rule).
     let junk = "z".repeat(250);
     let params = json!({"0": junk, "data": "visible-end", "name": "x"});
-    let d = describe(&s, "rules.run", &params);
+    let d = describe(&s, "rules.list", &params);
     assert!(d.contains(&junk) && d.contains("visible-end"), "{d}");
     // Too long to show: refused, not cut.
     let huge = json!({"0": "z".repeat(MAX_QUESTION * 2)});
-    assert!(matches!(check(&s, "rules.run", &huge, &[]), Verdict::Refuse(_)));
-    assert!(matches!(check(&s, "rules.run", &params, &[]), Verdict::Ask(Class::Settings, _)));
+    assert!(matches!(check(&s, "rules.list", &huge, &[]), Verdict::Refuse(_)));
+    assert!(matches!(check(&s, "rules.list", &params, &[]), Verdict::Ask(Class::Settings, _)));
     // Every recipient is counted, however many.
     let mut s = sample();
     let many: Vec<String> = (0..40).map(|i| format!("p{i}@example.org")).collect();

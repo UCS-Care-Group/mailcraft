@@ -5087,6 +5087,9 @@ pub(crate) mod rules {
         /// path. Once the rule is added, the rules are run over that folder while this is ticked.
         run_in: Option<(Id, String)>,
         then_run: bool,
+        /// Opened so: the sender the name was made of, and that name, so that the name follows
+        /// the move's folder while the owner hasn't changed it.
+        named_for: Option<(String, String)>,
         /// The folders a move can go to: id and path.
         folders: Vec<(Id, String)>,
         /// The folder and category a fresh action starts with.
@@ -5113,6 +5116,11 @@ pub(crate) mod rules {
             f
         }
 
+        /// The name Always Move Messages From This Sender gives a rule.
+        fn always_move_name(sender: &str, folder: &str) -> String {
+            crate::i18n::fmt(tl!("{sender} to {folder}"), &[("sender", sender), ("folder", folder)]).chars().take(mailcraft_model::MAX_NAME).collect()
+        }
+
         /// Fill the builder in for the mail of message `id`'s sender to go to `folder`, for the
         /// account the message came to, as `rules.fromMessage` makes it. Nothing for a message or
         /// folder that isn't there, a send queue, a sender with no address, or a shared mailbox's
@@ -5128,8 +5136,8 @@ pub(crate) mod rules {
                 return;
             }
             self.choose(mb, account);
-            let name = crate::i18n::fmt(tl!("{sender} to {folder}"), &[("sender", m.from.display()), ("folder", &target.name)]);
-            self.name = name.chars().take(mailcraft_model::MAX_NAME).collect();
+            self.name = Self::always_move_name(m.from.display(), &target.name);
+            self.named_for = Some((m.from.display().to_string(), self.name.clone()));
             // By the whole address, as `rules.fromMessage` makes it; a sender's that isn't one is
             // looked for as words.
             // (The address whole: one cut short would be somebody else's.)
@@ -5151,6 +5159,14 @@ pub(crate) mod rules {
             for a in &mut self.acts {
                 a.folder = folder_after_switch(mb, before, account, a.folder, folders, first);
             }
+            // A name Always Move made says where the mail goes: it says the new folder.
+            let moving_to = self.acts.first().filter(|a| a.kind == Do::Move).and_then(|a| mb.folder(a.folder));
+            if let (Some((sender, given)), Some(to)) = (self.named_for.as_mut(), moving_to)
+                && self.name == *given
+            {
+                self.name = Self::always_move_name(sender, &to.name);
+                given.clone_from(&self.name);
+            }
             // The mail already there that the new rule may run over is the account's own.
             if self.run_in.as_ref().is_some_and(|(f, _)| mb.folder(*f).is_none_or(|f| f.account != account)) {
                 self.run_in = None;
@@ -5167,6 +5183,7 @@ pub(crate) mod rules {
             self.server = true;
             self.run_in = None;
             self.then_run = false;
+            self.named_for = None;
             self.conds = vec![Cond::default()];
             self.acts = vec![self.fresh_action()];
         }
@@ -5215,7 +5232,7 @@ pub(crate) mod rules {
                 };
                 if let Some((_, all)) = kinds.get_mut(at) {
                     for w in split_words(&c.text) {
-                        if !all.iter().any(|a| mailcraft_model::sync::same_category(a, &w)) {
+                        if !all.iter().any(|a| mailcraft_model::same_word(c.kind.takes_people(), a, &w)) {
                             all.push(w);
                         }
                     }
@@ -5491,7 +5508,7 @@ pub(crate) mod rules {
                         }
                         Do::ClearCategories | Do::ClearFlag | Do::MarkRead | Do::Delete => {}
                         Do::DeleteForGood => {
-                            ui.label(egui::RichText::new(tl!("It can't be undone")).color(t.orange).size(11.5));
+                            ui.label(egui::RichText::new(tl!("It skips Deleted Items")).color(t.orange).size(11.5));
                         }
                     }
                     if many && remove_button(ui, tl!("Remove this action")) {

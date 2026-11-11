@@ -1689,7 +1689,8 @@ fn an_agents_undo_or_redo_that_leaves_a_rule_on_that_deletes_for_good_asks_as_a_
     // Deleted, it comes back by an undo, and the question says what it does.
     run(&mut s, "rules.remove", json!({"id": purge}));
     assert_eq!(undo(&s, false), delete);
-    assert!(describe(&s, "edit.undo", &json!({})).contains("puts the rules back as they were, with one switched on that deletes mail permanently"));
+    let asked = describe(&s, "edit.undo", &json!({}));
+    assert!(asked.contains("puts the rules back as they were, with the rule “Purge” switched on, which deletes mail permanently"), "{asked}");
 }
 
 #[test]
@@ -1707,7 +1708,7 @@ fn an_undo_that_puts_back_the_accounts_and_a_rule_that_deletes_for_good_is_asked
     let asked = describe(&s, "edit.undo", &json!({}));
     assert!(
         asked.contains(
-            "puts the accounts back as they were; it also puts the rules back as they were, with one switched on that deletes mail permanently"
+            "puts the accounts back as they were; it also puts the rules back as they were, with the rule “Purge” switched on, which deletes mail permanently"
         ),
         "{asked}"
     );
@@ -2131,4 +2132,80 @@ fn a_redo_of_a_rule_onto_another_server_that_deletes_for_good_is_asked_as_rules_
     assert_ne!(answered(&s, "edit.redo", &json!({}), &[], Class::Send), Verdict::Run, "a yes to send alone");
     assert_eq!(answered(&s, "edit.redo", &json!({}), &[], Class::Delete), Verdict::Run);
     assert_eq!(check(&s, "edit.redo", &json!({}), &[Class::Send, Class::Delete]), Verdict::Run);
+}
+
+/// A rule's Delete in an account with no Deleted Items deletes for good, and the question about
+/// it says so, as it asks as a delete.
+#[test]
+fn a_rules_delete_without_deleted_items_is_said_to_be_permanent() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, _, _) = session();
+    s.mailbox.folders.retain(|f| !(f.account == account && f.kind == FolderKind::Deleted));
+    let params = json!({"name": "Gone", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "delete"}]});
+    assert_eq!(classify(&s, "rules.add", &params), Access::Owner(Class::Delete));
+    let said = describe(&s, "rules.add", &params);
+    assert!(said.contains("delete it permanently: its account has no Deleted Items"), "{said}");
+}
+
+/// A rule for every account, kept on one account's server, files only that account's mail from
+/// then on: moving it into that account's own folder is no move onto another server, and isn't
+/// asked as one.
+#[test]
+fn keeping_a_rule_for_every_account_on_its_server_isnt_asked_as_a_move_onto_another_server() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, _, news) = session();
+    let every = news_rule(&mut s, account, news);
+    let r = s.mailbox.rules.iter_mut().find(|r| r.id == every).unwrap();
+    (r.account, r.keep) = (0, Keep::Here);
+    let params = json!({"id": every, "account": account});
+    assert!(super::rules::keeping_on_server(&s, &params).is_ok());
+    let said = describe(&s, "rules.keepOnServer", &params);
+    assert!(!said.contains("onto the server of"), "{said}");
+    assert_eq!(classify(&s, "rules.keepOnServer", &params), Access::Owner(Class::Settings));
+}
+
+/// Keeping on its server a rule its server keeps already changes nothing, and isn't asked as a
+/// delete for the rule beside it that deletes for good.
+#[test]
+fn keeping_a_rule_on_the_server_that_keeps_it_already_isnt_asked_as_a_delete() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, _, news) = session();
+    let there = news_rule(&mut s, account, news);
+    assert_eq!(rule(&s, there).keep, Keep::Server);
+    let purge = json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "spam"}], "actions": [{"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", purge);
+    let params = json!({"id": there});
+    assert_eq!(classify(&s, "rules.keepOnServer", &params), Access::Owner(Class::Settings));
+}
+
+/// A rule given "copy it to Newsletters" twice copies the message there once.
+#[test]
+fn a_rule_given_one_copy_twice_copies_once() {
+    let (mut s, account, _, news) = session();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.add_message(Message { folder: inbox, account, subject: "Weekly digest".into(), ..Default::default() }).unwrap();
+    let twice = json!({"name": "Digest", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "digest"}],
+        "actions": [{"type": "copyTo", "value": news}, {"type": "copyTo", "value": news}]});
+    let id = run(&mut s, "rules.add", twice)["id"].as_u64().unwrap();
+    assert_eq!(rule(&s, id).actions, vec![Action::CopyTo(news)]);
+    run(&mut s, "rules.run", json!({"folder": inbox}));
+    assert_eq!(s.mailbox.messages_in(news).count(), 1);
+}
+
+/// Run Rules Now asked as settings (a rule kept here that moves mail to Deleted Items) names the
+/// folder, its account and the rule, as it does when asked as a send or a delete.
+#[test]
+fn a_run_rules_now_question_asked_as_settings_names_the_folder_its_account_and_the_rule() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, _, _) = session();
+    let made = json!({"server": false, "name": "Bin it", "account": account,
+        "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "delete"}]});
+    let id = run(&mut s, "rules.add", made)["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let params = json!({"folder": inbox, "id": id});
+    assert_eq!(classify(&s, "rules.run", &params), Access::Owner(Class::Settings));
+    assert_eq!(describe(&s, "rules.run", &params), format!("run the rule “Bin it” on “Inbox” of {EMAIL}"));
 }

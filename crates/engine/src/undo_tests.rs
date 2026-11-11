@@ -182,3 +182,25 @@ fn an_undo_of_send_from_imap_of_a_microsoft_draft_takes_it_out_of_the_outbox() {
     let request = s.run("sync.request", &json!({"account": imap})).unwrap();
     assert_eq!(request["outbox"].as_array().map(Vec::len).unwrap_or(0), 0, "nothing to send");
 }
+
+/// Tens of thousands of messages wait to be put on an IMAP server (a big folder moved there): an
+/// undo of another step, and an agent's question about it, look each one up once.
+#[test]
+fn an_undo_while_many_messages_wait_to_go_onto_an_imap_server_is_quick() {
+    let (mut s, _, m, _) = setup();
+    let imap =
+        s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    for i in 0..40_000u64 {
+        let id = s.mailbox.add_message(Message { folder: inbox, account: imap, subject: format!("m{i}"), ..Default::default() }).unwrap();
+        s.mailbox.queued.push(Queued::PlaceMessage { account: imap, message: id, marker: format!("mk{i}"), copy: false, from: None, source: None });
+    }
+    s.mailbox_changed();
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    let started = std::time::Instant::now();
+    let _ = crate::agent::describe(&s, "edit.undo", &json!({}));
+    s.run("edit.undo", &json!({})).unwrap();
+    let took = started.elapsed();
+    assert!(took.as_millis() < 1_000, "{took:?}");
+    assert_eq!(s.mailbox.queued.iter().filter(|q| matches!(q, Queued::PlaceMessage { .. })).count(), 40_000);
+}

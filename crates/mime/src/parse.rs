@@ -98,11 +98,15 @@ fn read_headers(headers: &Headers, m: &mut Message) {
         match name.as_str() {
             "to" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.to.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.to.extend(list.into_iter().take(room));
             }
             "cc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.cc.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.cc.extend(list.into_iter().take(room));
             }
             "bcc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
@@ -118,7 +122,9 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             }
             "keywords" => {
                 let room = MAX_CATEGORIES.saturating_sub(m.categories.len());
-                m.categories.extend(value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty()).take(room));
+                let mut words = value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty());
+                m.categories.extend(words.by_ref().take(room));
+                m.headers_cut |= words.next().is_some();
             }
             "status" => m.read |= value.contains('R'),
             "x-status" => {
@@ -157,6 +163,9 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     kept_bytes += size;
                     let value = if has_words(&name) { decode_words(value) } else { value.to_string() };
                     m.headers.push((field.name.clone(), value));
+                } else {
+                    // Left out: what it says can't be told from the message (#566).
+                    m.headers_cut = true;
                 }
             }
         }

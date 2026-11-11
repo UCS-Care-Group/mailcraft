@@ -869,13 +869,28 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         Queued::PlaceMessage { account, message, .. } => out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none()),
         _ => true,
     });
+    // What the queue makes already, each once: looked up, not searched for (tens of thousands
+    // may wait after a big folder was moved onto a server).
+    let mut placed: HashSet<Id> = HashSet::new();
+    let mut copied: HashSet<Id> = HashSet::new();
+    for q in &queued {
+        match q {
+            Queued::PlaceMessage { message, .. } => {
+                placed.insert(*message);
+            }
+            Queued::CopyMessage { copy, .. } => {
+                copied.insert(*copy);
+            }
+            _ => {}
+        }
+    }
     // A message that lies, after the undo, where it waits now to be made on another account's
     // server, still waits to be: one moved out of a Microsoft account before its server had it,
     // which stays where it was moved ([`fields`]), or one put there since the change.
     for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
         if let Queued::PlaceMessage { account, message, .. } = q
             && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
-            && !queued.iter().any(|o| matches!(o, Queued::PlaceMessage { message: other, .. } if other == message))
+            && placed.insert(*message)
         {
             queued.push(q.clone());
         }
@@ -884,7 +899,7 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         if let Queued::CopyMessage { copy, .. } = q
             && out.messages.get(copy).is_some_and(|m| m.server.is_none())
             && !now.messages.contains_key(copy)
-            && !queued.iter().any(|o| matches!(o, Queued::CopyMessage { copy: other, .. } if other == copy))
+            && copied.insert(*copy)
         {
             queued.push(q.clone());
         }
@@ -894,7 +909,7 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         if let Queued::PlaceMessage { account, message, .. } = q
             && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
             && !now.messages.contains_key(message)
-            && !queued.iter().any(|o| matches!(o, Queued::PlaceMessage { message: other, .. } if other == message))
+            && placed.insert(*message)
         {
             queued.push(q.clone());
         }

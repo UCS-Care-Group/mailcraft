@@ -149,3 +149,51 @@ fn rules_and_folders_read_as_people_know_them() {
     assert!(rule.name.chars().count() <= mailcraft_model::MAX_NAME);
     assert!(shown(&describe(&s.mailbox, &rule), 600).chars().count() <= 601);
 }
+
+/// Switching "Rules for" to another account in the dialog itself: the move and the copy into
+/// the first account's folders go to the new account's first folder, a move into a third
+/// account's folder stays, and the rule is for the new account's mail (#566).
+#[test]
+fn switching_rules_for_in_the_dialog_moves_its_actions_folders_along() {
+    let mut s = Session::empty();
+    let [a, b, c] = ["a@example.org", "b@example.org", "c@example.org"]
+        .map(|email| s.run("account.add", &json!({"email": email})).unwrap()["id"].as_u64().unwrap());
+    let a_folder = s.mailbox.add_folder(a, None, "Kept A").unwrap();
+    let c_folder = s.mailbox.add_folder(c, None, "Kept C").unwrap();
+    let mut f = RulesForm::new(&s, &json!({}));
+    f.choose(&s.mailbox, a);
+    f.acts = vec![
+        Act { kind: Do::Move, folder: a_folder, ..f.fresh_action() },
+        Act { kind: Do::Copy, folder: a_folder, ..f.fresh_action() },
+        Act { kind: Do::Copy, folder: c_folder, ..f.fresh_action() },
+    ];
+    f.choose(&s.mailbox, b);
+    let first = s.mailbox.folder_of_kind(b, FolderKind::Archive).unwrap();
+    let folders: Vec<Id> = f.acts.iter().map(|x| x.folder).collect();
+    assert_eq!(folders, [first, first, c_folder]);
+    assert_eq!(f.account, b);
+}
+
+/// Always Move Messages From This Sender names the rule after the folder; switching "Rules for"
+/// moves the rule's mail to the other account's folder, and the name says that folder too,
+/// unless the owner wrote one of their own.
+#[test]
+fn an_always_move_name_follows_the_folder_when_rules_for_is_switched() {
+    let mut s = Session::empty();
+    let [a, b] = ["a@example.org", "b@example.org"].map(|email| s.run("account.add", &json!({"email": email})).unwrap()["id"].as_u64().unwrap());
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let projects = s.mailbox.add_folder(a, None, "Projects").unwrap();
+    let from = mailcraft_model::Address::new("Alice", "alice@example.org");
+    let m = s.mailbox.add_message(mailcraft_model::Message { folder: inbox, account: a, from, ..Default::default() }).unwrap();
+    for own in [false, true] {
+        let mut f = RulesForm::new(&s, &json!({"folder": projects, "id": m}));
+        assert_eq!(f.name, "Alice to Projects");
+        if own {
+            f.name = "Alice's mail".into();
+        }
+        f.choose(&s.mailbox, b);
+        let archive = s.mailbox.folder_of_kind(b, FolderKind::Archive).unwrap();
+        assert_eq!(f.acts[0].folder, archive);
+        assert_eq!(f.name, if own { "Alice's mail" } else { "Alice to Archive" });
+    }
+}

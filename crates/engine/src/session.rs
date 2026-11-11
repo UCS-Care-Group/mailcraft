@@ -3230,6 +3230,13 @@ impl Session {
         step.is_some_and(|step| crate::agent::undo_rules_delete_for_good(&self.mailbox, &step.mailbox))
     }
 
+    /// The names of the rules [`Session::undo_rules_delete_for_good`] finds, for the owner's
+    /// question.
+    pub fn undo_rules_deleting(&self, redo: bool) -> Vec<String> {
+        let step = if redo { self.redo.last() } else { self.history.last() };
+        step.map(|step| crate::agent::undo_rules_deleting(&self.mailbox, &step.mailbox)).unwrap_or_default()
+    }
+
     /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
     /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
     /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),

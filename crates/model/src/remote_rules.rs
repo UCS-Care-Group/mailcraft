@@ -97,7 +97,7 @@ impl RemoteRule {
                     } else if t.trim().chars().count() > longest {
                         note(CUT_WORDS);
                     }
-                    if !word.is_empty() && !tidied.iter().any(|w| crate::sync::same_category(w, &word)) {
+                    if !word.is_empty() && !tidied.iter().any(|w| crate::rule::same_word(condition.takes_addresses(), w, &word)) {
                         tidied.push(word);
                     }
                 }

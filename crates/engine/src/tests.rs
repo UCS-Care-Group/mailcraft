@@ -2108,6 +2108,95 @@ mod two_way {
         assert_eq!(copies(&s), (vec!["New memo".into()], vec!["New memo".into()], 1), "new mail");
     }
 
+    /// A message filed in Archive is moved back into the Inbox on a phone: the server gives it a
+    /// new UID there. It is mail the account had, not new mail: a rule that deletes for good files
+    /// it as found and deletes nothing, whichever folder the run reads first (#566).
+    #[test]
+    fn mail_moved_into_the_inbox_on_another_device_isnt_deleted_for_good() {
+        for archive_first in [false, true] {
+            let mut s = session();
+            let a =
+                run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+            let first = SyncResult {
+                account: a,
+                folders: vec![
+                    FolderDelta {
+                        complete: true,
+                        ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                    },
+                    FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![from_server(1, "Filed news")], vec![]) },
+                ],
+                ..Default::default()
+            };
+            apply(&mut s, first);
+            let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+            let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+            run(&mut s, "rules.add", purge);
+            let left = FolderDelta {
+                removed: vec![1],
+                uid_seen: 1,
+                complete: true,
+                ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![])
+            };
+            let came = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "Filed news")], vec![]) };
+            let folders = if archive_first { vec![left, came] } else { vec![came, left] };
+            apply(&mut s, SyncResult { account: a, folders, ..Default::default() });
+            let deletes = s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count();
+            let here: Vec<Id> = s.mailbox.messages.values().filter(|m| m.subject == "Filed news").map(|m| m.folder).collect();
+            assert_eq!((deletes, here), (0, vec![inbox]), "Archive read first: {archive_first}");
+            // New mail of the same kind is deleted for good as ever.
+            apply(
+                &mut s,
+                SyncResult {
+                    account: a,
+                    folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(4, "Fresh news")], vec![])],
+                    ..Default::default()
+                },
+            );
+            assert_eq!(s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count(), 1);
+            // A blocked sender's mail goes to Junk E-mail, whatever Message-ID it gives itself.
+            run(&mut s, "junk.add", json!({"list": "blocked", "entry": "x@example.org", "account": a}));
+            let again = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(5, "One")], vec![]);
+            apply(&mut s, SyncResult { account: a, folders: vec![again], ..Default::default() });
+            let junk = folder(&s, a, FolderKind::Junk);
+            assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "One" && m.folder == junk).count(), 1);
+        }
+    }
+
+    /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes for
+    /// good except if a header says to keep it can't tell, and leaves it alone (#566).
+    #[test]
+    fn new_imap_mail_with_headers_left_out_isnt_deleted_for_good_past_an_exception_on_them() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "exceptions": [{"type": "headerContains", "value": "x-keep"}], "actions": [{"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", purge);
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "first")], vec![]) }],
+                ..Default::default()
+            },
+        );
+        let cut = Message { headers_cut: true, ..from_server(2, "news cut") };
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "news whole"), cut], vec![])],
+                ..Default::default()
+            },
+        );
+        let left: Vec<String> = s.mailbox.messages_in(inbox).map(|m| m.subject.clone()).collect();
+        assert_eq!(left, ["first", "news cut"]);
+        let deletes: Vec<u32> =
+            s.mailbox.pending.iter().filter_map(|p| if let Pending::Delete { uid, .. } = p { Some(*uid) } else { None }).collect();
+        assert_eq!(deletes, [3]);
+    }
+
     /// New IMAP mail that a rule deletes for good, into an Inbox that holds many more: each one
     /// goes as it comes, in time in proportion to the delivery (#566).
     #[test]

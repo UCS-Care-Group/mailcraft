@@ -86,6 +86,10 @@ pub struct Down {
     /// found once for a run's pages ([`take_page`]; thousands wait after an emptied Deleted Items):
     /// a page adds those its rules delete for good, and nothing in taking pages sends one.
     deleting: Option<(Id, HashSet<String>)>,
+    /// The `Message-ID`s of the mail an account had before a run's new mail
+    /// ([`super::account::message_ids`]), found once for the run's pages when new mail comes into
+    /// the Inbox or Junk E-mail.
+    had: Option<(Id, HashSet<String>)>,
 }
 
 impl Down {
@@ -115,6 +119,18 @@ impl Down {
         }
     }
 
+    /// Whether `account` had a message with the `Message-ID` `id` before the run's new mail: one
+    /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566).
+    fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        if self.had.as_ref().is_none_or(|(a, _)| *a != account) {
+            self.had = Some((account, super::account::message_ids(mb, account)));
+        }
+        self.had.as_ref().is_some_and(|(_, had)| had.contains(id))
+    }
+
     fn rule_clock(&self) -> mailcraft_model::RuleClock {
         let system = || mailcraft_model::RuleClock { now: mailcraft_time::now(), zone: mailcraft_time::Zone::system(), due_hour: 17 };
         self.clock.unwrap_or_else(system)
@@ -132,6 +148,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // Then the rules (#567), on what arrives in the Inbox and only when the lists sort. Never in a
     // shared mailbox: the rules, like the lists, are the owner's.
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
+    let junk = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Junk);
     // (Of a Microsoft or Exchange server account alone, as the repair that puts right what an
     // earlier version kept: a JMAP server's Sent folder is read through here too.)
     let sent_items = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent) && mb.keeps_drafts_on_server(account);
@@ -246,6 +263,10 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 if sent_items {
                     message.draft = false;
                 }
+                // Mail the account had, moved into the Inbox or Junk E-mail on another device,
+                // where an Exchange server gives it a new id: the lists sort it as any new mail,
+                // and the rules file it as found (#566).
+                let moved_in = sorting && (inbox || junk) && down.had(mb, account, &message.message_id);
                 if let Ok(m) = mb.add_message(message) {
                     index.note(mb, account, &there.server.id, m);
                     // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
@@ -254,7 +275,11 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     // A move goes up as the owner's own does (R3.3).
                     let sorted = sorting && mb.sort_junk(m);
                     if ruling && inbox != sorted {
-                        mb.apply_rules_batched(m, &down.rule_clock(), &mut going);
+                        if moved_in {
+                            mb.apply_rules_found(m, &down.rule_clock());
+                        } else {
+                            mb.apply_rules_batched(m, &down.rule_clock(), &mut going);
+                        }
                         // Out of the account: should the page list it again, that is the same
                         // message (#606 review).
                         if mb.message(m).is_some_and(|m| m.account != account) {
@@ -669,7 +694,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         m.original = read.original;
     }
     m.parts_removed = false;
-    (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
+    (m.headers, m.fresh_stamps, m.headers_cut) = (read.headers, read.fresh_stamps, read.headers_cut);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
         mailcraft_model::auth_results::forget_stamps(m);

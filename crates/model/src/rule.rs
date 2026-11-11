@@ -155,6 +155,12 @@ fn any_in(words: &[String], texts: &[&str]) -> bool {
 }
 
 impl Condition {
+    /// Its words are people's whole addresses (From, Sent to), compared as addresses
+    /// ([`same_word`]).
+    pub fn takes_addresses(&self) -> bool {
+        matches!(self, Condition::From(_) | Condition::SentTo(_))
+    }
+
     pub fn matches(&self, m: &Message) -> bool {
         self.matches_in(m, &Matching::default())
     }
@@ -285,7 +291,8 @@ impl Condition {
     /// hold, though no header reads as Normal. A word found in what is here of the text holds, as
     /// ever, and a size that can't be told never matches.
     pub fn holds_in(&self, m: &Message, how: &Matching<'_>) -> bool {
-        self.matches_in(m, how) && !(matches!(self, Condition::Sensitivity(_)) && self.unread_in(m))
+        // (Nor one that holds for what isn't there, of recipients that were left out.)
+        self.matches_in(m, how) && !(matches!(self, Condition::Sensitivity(_) | Condition::NotToMe) && self.unread_in(m))
     }
 
     /// Whether it can't be told of `m` yet: it reads what isn't here, of a message only part of
@@ -296,13 +303,30 @@ impl Condition {
             // large to download don't.
             Condition::HasAttachment => m.partly_here() && !m.unfetched,
             Condition::SizeBetween { .. } => !m.size_known(),
-            Condition::HeaderContains(_) | Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete,
+            // Nor what the headers said past what was kept of them ([`Message::headers_cut`]).
+            Condition::HeaderContains(_) | Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete || m.headers_cut,
+            Condition::ToContains(_)
+            | Condition::SentTo(_)
+            | Condition::SentOnlyToMe
+            | Condition::ToMe
+            | Condition::CcMe
+            | Condition::ToOrCcMe
+            | Condition::NotToMe
+            | Condition::Category(_) => m.headers_cut,
             // A calendar part kept on disk and not brought in (one too large to be read) doesn't
             // say whether it asks.
             Condition::MeetingRequest => m.partly_here() || m.attachments.iter().any(|a| a.is_calendar() && !a.is_loaded()),
             other => other.reads_body() && m.partly_here(),
         }
     }
+}
+
+/// Whether `a` and `b`, two words of one condition, look for the same thing, and so are kept once:
+/// two people's addresses (`addresses`: From, Sent to) as [`Condition::matches_in`] compares a
+/// person's address, A to Z in either case and nothing else folded; any other two in any script's
+/// case, as words and categories are matched ([`crate::sync::same_category`]).
+pub fn same_word(addresses: bool, a: &str, b: &str) -> bool {
+    if addresses { a.trim().eq_ignore_ascii_case(b.trim()) } else { crate::sync::same_category(a, b) }
 }
 
 /// Exceptions as a server keeps them: any one of them holding leaves a message alone, so two that
@@ -319,7 +343,7 @@ pub fn fold_exceptions(list: Vec<Condition>) -> Result<Vec<Condition>, ModelErro
         match (c.words(), out.iter_mut().find(|d| std::mem::discriminant(*d) == kind && d.words().is_some())) {
             (Some(words), Some(had)) => {
                 let mut all = had.words().unwrap_or_default().to_vec();
-                for w in words.iter().filter(|w| !all.iter().any(|a| crate::sync::same_category(a, w))).collect::<Vec<_>>() {
+                for w in words.iter().filter(|w| !all.iter().any(|a| same_word(c.takes_addresses(), a, w))).collect::<Vec<_>>() {
                     if all.len() >= MAX_WORDS_EACH {
                         return Err(ModelError::Invalid(format!("exceptions of one kind look for at most {MAX_WORDS_EACH} words or addresses")));
                     }

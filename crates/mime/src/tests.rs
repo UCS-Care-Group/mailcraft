@@ -545,6 +545,7 @@ fn message() -> impl Strategy<Value = Message> {
             returned: 0,
             placed: String::new(),
             incomplete: false,
+            headers_cut: false,
             rules_waiting: None,
             server_draft: None,
             held: String::new(),
@@ -703,6 +704,22 @@ fn recipients_and_categories_are_capped_across_the_message() {
     assert_eq!(m.to.len() + m.cc.len() + m.bcc.len(), crate::MAX_RECIPIENTS);
     assert_eq!(m.categories.len(), crate::MAX_CATEGORIES);
     assert_eq!(m.reply_to.len(), crate::MAX_RECIPIENTS);
+}
+
+/// What is left out past the caps is said on the message (`headers_cut`, #566), so that a rule
+/// doesn't read a field it never saw as not there; a message within them says nothing.
+#[test]
+fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
+    let fields = |n: usize| (0..n).map(|i| format!("X-Trace-{i}: hop\r\n")).collect::<String>();
+    let message = |head: String| parse(format!("From: a@example.org\r\nSubject: s\r\n{head}\r\nbody\r\n").as_bytes());
+    assert!(!message(fields(200)).headers_cut);
+    assert!(message(fields(201)).headers_cut);
+    let to = |n: usize| format!("To: {}\r\n", (0..n).map(|i| format!("u{i}@example.org")).collect::<Vec<_>>().join(", "));
+    assert!(!message(to(crate::MAX_RECIPIENTS)).headers_cut);
+    assert!(message(to(crate::MAX_RECIPIENTS + 1)).headers_cut);
+    let keywords = |n: usize| format!("Keywords: {}\r\n", (0..n).map(|i| format!("k{i}")).collect::<Vec<_>>().join(","));
+    assert!(!message(keywords(crate::MAX_CATEGORIES)).headers_cut);
+    assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
 }
 
 #[test]

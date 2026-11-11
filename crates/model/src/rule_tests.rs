@@ -387,3 +387,22 @@ fn a_long_address_read_back_from_the_server_stays_whole() {
     words.tidy();
     assert_eq!(words.unknown, ["(words longer than are kept)"]);
 }
+
+/// A server rule's addresses read back are kept once as a person's address is compared (A to Z
+/// in either case), its words in any script's case: "Ünal@" and "ünal@" stay two people.
+#[test]
+fn a_server_rules_addresses_read_back_are_kept_once_as_addresses_compare() {
+    let mut remote = crate::remote_rules::RemoteRule {
+        id: "A3".into(),
+        name: "People".into(),
+        conditions: vec![Condition::SubjectContains(vec!["Büro".into(), "BÜRO".into()])],
+        exceptions: vec![Condition::From(vec!["Ünal@example.org".into(), "ünal@example.org".into(), "ÜNAL@EXAMPLE.ORG".into()])],
+        actions: vec![Action::MarkRead],
+        ..Default::default()
+    };
+    remote.tidy();
+    assert_eq!(remote.conditions, vec![Condition::SubjectContains(vec!["Büro".into()])]);
+    assert_eq!(remote.exceptions, vec![Condition::From(vec!["Ünal@example.org".into(), "ünal@example.org".into()])]);
+    assert!(same_word(true, "Ünal@example.org", "ÜNAL@EXAMPLE.ORG") && !same_word(true, "Ünal@example.org", "ünal@example.org"));
+    assert!(same_word(false, "Büro", "BÜRO"));
+}
