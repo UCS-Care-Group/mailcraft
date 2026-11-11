@@ -3380,7 +3380,8 @@ impl Mailbox {
         let waits = ruling == Ruling::Arriving && listed;
         let mut waiting = Vec::new();
         // A copy made as it arrived: a delete for good that waited could no longer be held behind
-        // it once it may have been answered (refused, say), so none waits after one (#566).
+        // it once it may have been answered (refused, say), so none waits after one, and none of
+        // the rules that wait for the download deletes it for good ([`RulesWaiting::copied`], #566).
         let mut copied = false;
         for mut rule in order {
             let Some(m) = self.message(id).filter(|_| !going.has(id)) else { break };
@@ -3439,7 +3440,7 @@ impl Mailbox {
         {
             m.rule_alert |= alert;
             if !waiting.is_empty() && m.unfetched {
-                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting }));
+                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, copied }));
             }
         }
         ran
@@ -3473,7 +3474,9 @@ impl Mailbox {
         if m.folder != waiting.folder || !self.rules_reach(account) {
             return ran;
         }
-        let mut unsure = false;
+        // (After a copy made as it arrived, as before the rules that couldn't tell have had their
+        // say, nothing goes for good.)
+        let mut unsure = waiting.copied;
         let mut alert = false;
         for wait in waiting.rules.iter().take(MAX_RULES) {
             let Some(m) = self.message(id).filter(|m| m.account == account && !going.has(id)) else { break };

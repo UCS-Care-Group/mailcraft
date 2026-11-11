@@ -465,6 +465,69 @@ fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves
     assert!(s.mailbox.messages.values().all(|m| m.rules_waiting.is_none()));
 }
 
+/// A rule copies new Microsoft mail into a folder of the account as it arrives (the server makes
+/// the copy); a later rule deletes for good mail whose text says "purge", which can't be told until
+/// the download, so it waits. The next Send/Receive sends the copy before the download (a large
+/// message, say) and the server refuses it. Once the message is downloaded the rule that waited
+/// deletes nothing for good, as after a copy made as it arrived it never does: nothing would hold
+/// the delete, and the message would be gone with no copy (#566).
+#[test]
+fn a_delete_for_good_that_waited_doesnt_go_after_a_copy_made_as_it_arrived() {
+    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
+    let mut s = Session::empty();
+    let (account, _, kept) = microsoft_with(&mut s, "Kept");
+    let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": kept}]});
+    s.run("rules.add", &copy).unwrap();
+    let purge = json!({"name": "Purge", "server": false, "conditions": [{"type": "bodyContains", "value": "purge"}],
+        "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &purge).unwrap();
+    arrives(&mut s, account, "Plan");
+    assert!(here(&s, account, "N1").rules_waiting.is_some(), "Purge waits for the download");
+    let changes = super::graph_up::message_changes(&s, account, 100).0;
+    let [copied @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy made as it arrived goes: {changes:?}") };
+    // The server refuses the copy (the mailbox is full, say).
+    let refused = MessageChangeDone { change: copied.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Plan").count(), 1, "the copy is taken away again");
+    // Downloaded later: the rule that waited has its say.
+    let fetched = vec![whole("N1", "Plan", "", "Please purge this after reading.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let left = s.mailbox.messages.values().filter(|m| m.subject == "Plan").count();
+    let deletes: Vec<MessageChange> =
+        super::graph_up::message_changes(&s, account, 100).0.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect();
+    assert!(
+        left > 0 || deletes.is_empty(),
+        "after a rule that copied it as it arrived, a later rule deleted it for good: {left} left here, the server told {deletes:?}"
+    );
+}
+
+/// [`a_delete_for_good_that_waited_doesnt_go_after_a_copy_made_as_it_arrived`] the other way
+/// round: the download comes before the copy's answer, and a refused copy leaves the original.
+#[test]
+fn a_delete_for_good_that_waited_doesnt_go_when_the_copy_is_refused_after_the_download() {
+    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
+    let mut s = Session::empty();
+    let (account, _, kept) = microsoft_with(&mut s, "Kept");
+    let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": kept}]});
+    s.run("rules.add", &copy).unwrap();
+    let purge = json!({"name": "Purge", "server": false, "conditions": [{"type": "bodyContains", "value": "purge"}],
+        "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &purge).unwrap();
+    arrives(&mut s, account, "Plan");
+    let fetched = vec![whole("N1", "Plan", "", "Please purge this after reading.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let changes = super::graph_up::message_changes(&s, account, 100).0;
+    let [copied @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy goes, and no delete: {changes:?}") };
+    let refused = MessageChangeDone { change: copied.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
+    let left = s.mailbox.messages.values().filter(|m| m.subject == "Plan").count();
+    let deletes: Vec<MessageChange> =
+        super::graph_up::message_changes(&s, account, 100).0.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect();
+    assert_eq!((left, deletes), (1, vec![]), "the original stays and no delete is sent");
+}
+
 /// After a rule of this computer that copied new mail as it arrived, a later delete for good
 /// doesn't wait behind a rule that can't tell yet: it deletes nothing for good, and the message
 /// stays where the rules left it with its copy beside it, as the docs say (#566).

@@ -65,7 +65,8 @@ fn a_rule_that_couldnt_tell_acts_once_the_message_is_whole_and_one_that_acted_is
     assert_eq!(mb.apply_rules(m, &clock()), ["".to_string()], "the copy, which could tell");
     assert_eq!(mb.messages_in(kept).count(), 1);
     let waiting = mb.message(m).unwrap().rules_waiting.clone().unwrap();
-    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }] });
+    // (With the copy it made as it arrived noted: nothing that waits deletes it for good.)
+    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], copied: true });
     // A copy of it doesn't wait for anything.
     let other = mb.add_folder(mb.accounts[0].id, None, "Other").unwrap();
     let copied = mb.copy_message(m, other).unwrap();

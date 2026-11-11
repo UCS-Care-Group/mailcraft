@@ -545,6 +545,10 @@ pub struct RulesWaiting {
     /// In the order they ran as it arrived.
     #[serde(deserialize_with = "crate::sync::lenient_list")]
     pub rules: Vec<RuleWaiting>,
+    /// A rule copied it as it arrived: that copy may have been refused since, and nothing would
+    /// hold a delete for good behind it, so none of the rules that wait deletes it for good.
+    #[serde(skip_serializing_if = "is_false")]
+    pub copied: bool,
 }
 
 /// One of [`RulesWaiting::rules`].
