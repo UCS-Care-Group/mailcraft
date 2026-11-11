@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc::Receiver};
 use std::time::Duration;
 
-use mailcraft_model::{Attachment, FolderKind, Id};
+use mailcraft_model::{Attachment, Id};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -27,6 +27,7 @@ pub enum Format {
 }
 
 impl Format {
+    /// The fixed extension used for the temporary input name.
     pub fn extension(self) -> &'static str {
         match self {
             Self::Pdf => "pdf",
@@ -37,6 +38,7 @@ impl Format {
         }
     }
 
+    /// Identify a possible format from metadata before loading the bytes.
     fn hint(part: &Attachment) -> Option<Self> {
         let mime = part.mime.to_ascii_lowercase();
         match mime.as_str() {
@@ -57,6 +59,7 @@ impl Format {
         }
     }
 
+    /// Check the file signature before handing bytes to the helper.
     pub fn matches(self, data: &[u8]) -> bool {
         match self {
             Self::Pdf => data.starts_with(b"%PDF-"),
@@ -79,6 +82,7 @@ pub enum Error {
 }
 
 impl Error {
+    /// Explain a refused or failed preview in the interface's language.
     fn text(self) -> &'static str {
         match self {
             Self::Unavailable => tl!("No preview helper is available for this attachment."),
@@ -102,6 +106,7 @@ pub struct Request {
 }
 
 impl Request {
+    /// Load and validate the attachment on the renderer's worker thread.
     pub fn load(&self) -> Result<Arc<Vec<u8>>, Error> {
         let bytes = (self.read)()?;
         if bytes.len() > MAX_INPUT_BYTES {
@@ -126,6 +131,7 @@ pub struct Host {
 }
 
 impl Host {
+    /// Whether a helper was found for this format.
     fn supports(&self, format: Format) -> bool {
         if format == Format::Pdf { self.pdf } else { self.images }
     }
@@ -161,11 +167,13 @@ pub(crate) struct Click {
 }
 
 impl Drop for Preview {
+    /// Stop a renderer when its preview is replaced or closed.
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Relaxed);
     }
 }
 
+/// Whether this attachment can be offered in the explicit preview menu.
 pub(crate) fn available(app: &MailApp, id: Id, index: usize) -> bool {
     app.ui.attachment_previews
         && app
@@ -178,6 +186,7 @@ pub(crate) fn available(app: &MailApp, id: Id, index: usize) -> bool {
             .is_some_and(|format| app.services.attachment_preview.as_ref().is_some_and(|host| host.supports(format)))
 }
 
+/// Show the opt-in control for the helpers this installation found.
 pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui) {
     let Some(host) = &app.services.attachment_preview else { return };
     let label = match (host.pdf, host.images) {
@@ -196,14 +205,17 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui) {
     }
 }
 
+/// Whether a chip click can preview the attachment without opening its menu.
 pub(crate) fn single_click_allowed(app: &MailApp, id: Id, index: usize) -> bool {
     available(app, id, index) && !in_junk(app, id)
 }
 
+/// Apply the mailbox's Junk policy to the message, including descendants of Junk.
 fn in_junk(app: &MailApp, id: Id) -> bool {
-    app.session.mailbox.message(id).and_then(|m| app.session.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Junk)
+    app.session.mailbox.message(id).is_some_and(|m| app.session.mailbox.in_junk(m.folder))
 }
 
+/// Defer the chip action until a double-click can be ruled out.
 pub(crate) fn queue_click(app: &mut MailApp, ctx: &egui::Context, id: Id, index: usize) {
     let Some(attachment) = attachment(app, id, index).cloned() else { return };
     let delay = ctx.options(|o| o.input_options.max_double_click_delay).clamp(0.0, 2.0);
@@ -219,10 +231,12 @@ pub(crate) fn queue_click(app: &mut MailApp, ctx: &egui::Context, id: Id, index:
     ctx.request_repaint_after(Duration::from_secs_f64(delay + 0.001));
 }
 
+/// Discard the queued single-click action without starting a helper.
 pub(crate) fn cancel_click(app: &mut MailApp) {
     app.pending_attachment_preview = None;
 }
 
+/// Start the queued action after checking that it still names the same attachment.
 pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
     let Some(click) = app.pending_attachment_preview.as_ref().filter(|click| click.viewport == ctx.viewport_id() && click.message == id) else {
         return;
@@ -241,14 +255,17 @@ pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
     }
 }
 
+/// Look up a filed attachment without loading its contents.
 fn attachment(app: &MailApp, id: Id, index: usize) -> Option<&Attachment> {
     app.session.mailbox.message(id)?.attachments.get(index)
 }
 
+/// Whether this chip owns the preview currently shown in the viewport.
 pub(crate) fn selected(app: &MailApp, viewport: egui::ViewportId, id: Id, index: usize) -> bool {
     app.attachment_preview.as_ref().is_some_and(|p| p.viewport == viewport && p.message == id && p.index == index)
 }
 
+/// Replace any old preview and submit the selected attachment's first page.
 pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index: usize) -> Result<(), String> {
     cancel_click(app);
     if !app.ui.attachment_previews {
@@ -295,6 +312,7 @@ pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index:
     Ok(())
 }
 
+/// Handle an owner's script request, which still requires an explicit menu in Junk.
 pub(crate) fn command(app: &mut MailApp, params: &Value) -> Result<Value, String> {
     let id = params.get("id").and_then(Value::as_u64).or_else(|| app.session.sel.focus()).ok_or_else(|| Error::Invalid.text())?;
     let index = params.get("index").and_then(Value::as_u64).and_then(|i| usize::try_from(i).ok()).ok_or_else(|| Error::Invalid.text())?;
@@ -309,6 +327,7 @@ pub(crate) fn command(app: &mut MailApp, params: &Value) -> Result<Value, String
 }
 
 impl Preview {
+    /// Start a page with its own retry budget.
     fn start(&mut self, host: &Host, page: u32) {
         self.page = page;
         self.texture = None;
@@ -318,6 +337,7 @@ impl Preview {
         self.submit(host);
     }
 
+    /// Submit the current page to the optional desktop host.
     fn submit(&mut self, host: &Host) {
         self.pending = Some((host.render)(Request {
             read: self.read.clone(),
@@ -328,6 +348,7 @@ impl Preview {
         }));
     }
 
+    /// Pick up a worker result or retry after a superseded render releases the slot.
     fn poll(&mut self, ctx: &egui::Context, host: &Host) {
         let now = ctx.input(|i| i.time);
         if let Some(at) = self.retry_at {
@@ -362,6 +383,7 @@ impl Preview {
     }
 }
 
+/// Release a preview or click when its viewport starts showing another message.
 pub(crate) fn follow_message(app: &mut MailApp, viewport: egui::ViewportId, id: Option<Id>) {
     if app.attachment_preview.as_ref().is_some_and(|p| p.viewport == viewport && Some(p.message) != id) {
         app.attachment_preview = None;
@@ -371,6 +393,7 @@ pub(crate) fn follow_message(app: &mut MailApp, viewport: egui::ViewportId, id: 
     }
 }
 
+/// Drop stale attachment state before polling the active preview.
 pub(crate) fn poll(app: &mut MailApp, ctx: &egui::Context) {
     if app.pending_attachment_preview.is_none() && app.attachment_preview.is_none() {
         return;
@@ -392,6 +415,7 @@ pub(crate) fn poll(app: &mut MailApp, ctx: &egui::Context) {
     }
 }
 
+/// Draw the preview in place of the message body when it belongs to this viewport.
 pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
     let viewport = ui.ctx().viewport_id();
     let Some(preview) = app.attachment_preview.as_mut().filter(|p| p.viewport == viewport && p.message == id) else { return false };

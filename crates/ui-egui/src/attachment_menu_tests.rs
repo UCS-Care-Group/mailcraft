@@ -389,8 +389,20 @@ fn previews_are_off_by_default_and_double_click_only_opens_the_file() {
     assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
 }
 
+/// In Junk itself, only the attachment menu can start a preview.
 #[test]
 fn junk_requires_the_explicit_attachment_menu() {
+    assert_junk_preview_restrictions(false);
+}
+
+/// A folder inside Junk inherits the same restrictions.
+#[test]
+fn a_subfolder_of_junk_requires_the_explicit_attachment_menu() {
+    assert_junk_preview_restrictions(true);
+}
+
+/// Check both preview entry points and the explicit menu in the requested Junk folder.
+fn assert_junk_preview_restrictions(in_subfolder: bool) {
     use crate::attachment_preview::{Host, Page};
     use std::sync::mpsc;
 
@@ -398,11 +410,13 @@ fn junk_requires_the_explicit_attachment_menu() {
     let app = h.state_mut();
     app.ui.attachment_previews = true;
     let message = app.session.mailbox.message(A).unwrap();
-    let junk = app.session.mailbox.folder_of_kind(message.account, mailcraft_model::FolderKind::Junk).unwrap();
+    let account = message.account;
+    let junk = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Junk).unwrap();
+    let folder = if in_subfolder { app.session.mailbox.add_folder(account, Some(junk), "Held").unwrap() } else { junk };
     let message = app.session.mailbox.message_mut(A).unwrap();
     message.attachments = vec![Attachment::new("notes.pdf", "application/pdf", b"%PDF-1.7".to_vec())];
-    app.execute("mail.move", json!({"id": A, "folder": junk})).unwrap();
-    app.execute("folder.select", json!({"id": junk})).unwrap();
+    app.execute("mail.move", json!({"id": A, "folder": folder})).unwrap();
+    app.execute("folder.select", json!({"id": folder})).unwrap();
     app.execute("mail.select", json!({"id": A})).unwrap();
     app.services.attachment_preview = Some(Host {
         pdf: true,
@@ -413,6 +427,8 @@ fn junk_requires_the_explicit_attachment_menu() {
             receive
         }),
     });
+    let refused = app.execute("ui.previewAttachment", json!({"id": A, "index": 0})).unwrap_err();
+    assert_eq!(refused, "In Junk E-mail, preview an attachment from its menu.");
     h.run_steps(4);
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);

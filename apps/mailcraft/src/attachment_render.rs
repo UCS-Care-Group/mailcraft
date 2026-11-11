@@ -18,6 +18,7 @@ const DEADLINE: Duration = Duration::from_secs(12);
 const MAX_PNG_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_INFO_BYTES: u64 = 64 * 1024;
 
+/// Expose the detected native helpers and reserve one renderer slot per window.
 pub(crate) fn service(ctx: &egui::Context) -> Option<Host> {
     let pdf = executable("MAILCRAFT_PDFCRAFT_CLI", "PdfCraft", "pdfcraft-cli");
     let photo = executable("MAILCRAFT_PHOTOCRAFT_CLI", "PhotoCraft", "photocraft-cli");
@@ -49,17 +50,20 @@ pub(crate) fn service(ctx: &egui::Context) -> Option<Host> {
 struct Slot(Arc<AtomicBool>);
 
 impl Slot {
+    /// Reserve the renderer until the worker finishes or its guard is dropped.
     fn acquire(busy: &Arc<AtomicBool>) -> Option<Self> {
         busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).ok().map(|_| Self(busy.clone()))
     }
 }
 
 impl Drop for Slot {
+    /// Make the slot available to the next preview request.
     fn drop(&mut self) {
         self.0.store(false, Ordering::Release);
     }
 }
 
+/// Resolve an explicit override, a platform installation, or an absolute PATH entry.
 fn executable(variable: &str, product: &str, tool: &str) -> Option<PathBuf> {
     if let Some(path) = std::env::var_os(variable) {
         return absolute_file(PathBuf::from(path));
@@ -82,6 +86,7 @@ fn executable(variable: &str, product: &str, tool: &str) -> Option<PathBuf> {
     })
 }
 
+/// Canonicalize an absolute file path, requiring an .exe extension on Windows.
 fn absolute_file(path: PathBuf) -> Option<PathBuf> {
     let allowed_type = !cfg!(windows) || path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
     if !path.is_absolute() || !allowed_type {
@@ -91,6 +96,7 @@ fn absolute_file(path: PathBuf) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+/// Stage one attachment and render the requested page under the shared deadline.
 fn render(program: &Path, request: Request) -> Result<Page, Error> {
     if request.page == 0
         || request.page > MAX_PAGES
@@ -164,6 +170,7 @@ fn render(program: &Path, request: Request) -> Result<Page, Error> {
     Ok(Page { image: egui::ColorImage::from_rgba_unmultiplied([rgba.width() as usize, rgba.height() as usize], rgba.as_raw()), pages })
 }
 
+/// Read a bounded page count from either supported PdfCraft metadata shape.
 fn pdf_pages(data: &[u8]) -> Result<u32, Error> {
     let info: serde_json::Value = serde_json::from_slice(data).map_err(|_| Error::Invalid)?;
     let value = info.get("pages").or_else(|| info.get("page_count")).ok_or(Error::Invalid)?;
@@ -171,6 +178,7 @@ fn pdf_pages(data: &[u8]) -> Result<u32, Error> {
     u32::try_from(n).ok().filter(|n| (1..=MAX_PAGES).contains(n)).ok_or(Error::Invalid)
 }
 
+/// Prepare a direct child process with temporary configuration and scratch paths.
 fn command(program: &Path, dir: &Path) -> Command {
     let mut command = Command::new(program);
     command.current_dir(dir).env_clear().stdin(Stdio::null()).stderr(Stdio::null());
@@ -188,6 +196,7 @@ fn command(program: &Path, dir: &Path) -> Command {
     command
 }
 
+/// Run one helper command, ending the child on cancellation, timeout or oversized output.
 #[allow(clippy::too_many_arguments)]
 fn run_helper(
     program: &Path,
@@ -222,6 +231,7 @@ fn run_helper(
     result
 }
 
+/// Read a regular output file with an independent cap on bytes read.
 fn read_bounded(path: &Path, cap: u64) -> Result<Vec<u8>, Error> {
     let meta = fs::symlink_metadata(path).map_err(|_| Error::Failed)?;
     if !meta.is_file() || meta.len() > cap {
@@ -232,6 +242,7 @@ fn read_bounded(path: &Path, cap: u64) -> Result<Vec<u8>, Error> {
     if data.len() as u64 > cap { Err(Error::TooLarge) } else { Ok(data) }
 }
 
+/// Decode only PNG output within the pixel and allocation limits.
 fn decode_png(data: &[u8]) -> Result<image::RgbaImage, Error> {
     if !data.starts_with(b"\x89PNG\r\n\x1a\n") {
         return Err(Error::Invalid);
