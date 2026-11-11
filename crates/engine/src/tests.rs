@@ -2020,6 +2020,42 @@ mod two_way {
         assert_eq!(copies(&s), 1, "not copied again");
     }
 
+    /// Mail an IMAP server had before it was read here (the Inbox's first download, older mail a
+    /// raised limit brings down) is filed by the rules but copied by none: not into a folder of its
+    /// account, and not onto another account's server, where years of an Inbox would go up. Mail
+    /// arriving after it is (#566).
+    #[test]
+    fn mail_the_server_had_before_isnt_copied_by_a_rule_here_or_onto_another_server() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let (kept, elsewhere) = (s.mailbox.add_folder(a, None, "Kept").unwrap(), s.mailbox.add_folder(b, None, "Kept").unwrap());
+        let copied = json!({"name": "Copied", "account": a, "conditions": [{"type": "subjectContains", "value": "memo"}],
+            "actions": [{"type": "copyTo", "value": kept}, {"type": "copyTo", "value": elsewhere}]});
+        run(&mut s, "rules.add", copied);
+        let inbox_news = |id, new, seen| FolderDelta { complete: true, uid_seen: seen, ..news(id, "INBOX", FolderKind::Inbox, 7, new, vec![]) };
+        let copies = |s: &Session| {
+            let here: Vec<String> = s.mailbox.messages_in(kept).map(|m| m.subject.clone()).collect();
+            let there: Vec<String> = s.mailbox.messages_in(elsewhere).map(|m| m.subject.clone()).collect();
+            (here, there, request(s, b).places.len())
+        };
+        let first = SyncResult {
+            account: a,
+            folders: vec![inbox_news(None, vec![from_server(1, "First memo"), from_server(10, "Second memo")], 10)],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        assert_eq!(copies(&s), (vec![], vec![], 0), "a first download");
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let older = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), vec![from_server(5, "Old memo")], 10)], ..Default::default() };
+        apply(&mut s, older);
+        assert_eq!(copies(&s), (vec![], vec![], 0), "older mail");
+        let new = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), vec![from_server(11, "New memo")], 11)], ..Default::default() };
+        apply(&mut s, new);
+        assert_eq!(copies(&s), (vec!["New memo".into()], vec!["New memo".into()], 1), "new mail");
+    }
+
     /// New IMAP mail that a rule deletes for good, into an Inbox that holds many more: each one
     /// goes as it comes, in time in proportion to the delivery (#566).
     #[test]

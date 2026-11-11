@@ -3286,16 +3286,16 @@ impl Mailbox {
 
     /// [`Mailbox::apply_rules`] for mail its server had before it was read here: an account's
     /// first download, a mailbox the server numbered anew, older mail a raised limit brings down.
-    /// It is filed as new mail is, but none of it is deleted for good and no alert is shown for it
-    /// (#566).
+    /// It is filed as new mail is, but none of it is copied or deleted for good and no alert is
+    /// shown for it (#566).
     pub fn apply_rules_found(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
         // (Nothing goes for good.)
         self.rules_on(id, Ruling::Found, clock, &mut Going::default())
     }
 
     /// [`Mailbox::apply_rules_found`] for the mail of a mailbox its server numbered anew, which
-    /// was here as other mail before: nothing is copied either, for the rules copied it as it first
-    /// arrived, and a copy now would be a second one (#566).
+    /// was here as other mail before: the rules copied it as it first arrived, and a copy now would
+    /// be a second one (#566).
     pub fn apply_rules_renumbered(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
         self.rules_on(id, Ruling::Renumbered, clock, &mut Going::default())
     }
@@ -3379,8 +3379,9 @@ impl Mailbox {
                     unsure |= copies_out;
                 } else {
                     alert |= rule.alert && ruling == Ruling::Arriving;
-                    // (Copied as it first arrived.)
-                    let actions: std::borrow::Cow<[Action]> = if ruling == Ruling::Renumbered {
+                    // (Copied as it first arrived, or there before: years of an Inbox aren't
+                    // copied, onto another server least of all.)
+                    let actions: std::borrow::Cow<[Action]> = if matches!(ruling, Ruling::Renumbered | Ruling::Found) {
                         rule.actions.iter().filter(|a| !matches!(a, Action::CopyTo(_))).cloned().collect()
                     } else {
                         std::borrow::Cow::Borrowed(&rule.actions)
