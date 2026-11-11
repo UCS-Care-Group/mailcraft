@@ -2212,3 +2212,71 @@ fn a_run_rules_now_question_asked_as_settings_names_the_folder_its_account_and_t
     assert_eq!(classify(&s, "rules.run", &params), Access::Owner(Class::Settings));
     assert_eq!(describe(&s, "rules.run", &params), format!("run the rule “Bin it” on “Inbox” of {EMAIL}"));
 }
+
+/// A rule for every account's mail that stops the rules after it keeps another
+/// account's mail from that account's rule that deletes for good. Kept on the Microsoft account's
+/// server, it is that account's alone, so the other account's mail reaches its rule that deletes
+/// for good: an agent's `rules.keepOnServer` of it is a change to the rules for that mail, and
+/// asks as a delete.
+#[test]
+fn keeping_an_every_account_rule_on_one_server_lets_anothers_mail_reach_its_delete_for_good() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, local, _) = session();
+    // From before rules had accounts: for every account's mail, and it stops the rules after it.
+    s.mailbox.rules.push(Rule {
+        id: 900,
+        name: "Old".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["invoice".into()])],
+        actions: vec![Action::MarkRead],
+        stop: true,
+        ..Default::default()
+    });
+    // The other account's rule, after it, deletes for good.
+    let purge = json!({"name": "Purge", "account": local, "conditions": [{"type": "subjectContains", "value": "invoice"}], "actions": [{"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", purge);
+    // Now the other account's invoices stop at Old, and stay.
+    let kept = arriving(&mut s, local, "billing@example.org", "invoice 1");
+    assert_eq!(s.mailbox.apply_rules(kept, &s.rule_clock()), ["Old"]);
+    assert!(s.mailbox.message(kept).is_some());
+    // The agent's question about keeping Old on the Microsoft account's server.
+    let params = json!({"id": 900});
+    let asked = classify(&s, "rules.keepOnServer", &params);
+    let said = crate::agent::describe(&s, "rules.keepOnServer", &params);
+    run(&mut s, "rules.keepOnServer", params);
+    // After it, the other account's next invoice reaches Purge and is deleted for good.
+    let gone = arriving(&mut s, local, "billing@example.org", "invoice 2");
+    assert_eq!(s.mailbox.apply_rules(gone, &s.rule_clock()), ["Purge"]);
+    assert!(s.mailbox.message(gone).is_none(), "deleted for good");
+    assert_eq!(asked, Access::Owner(Class::Delete), "asked as {asked:?}: {said}");
+    assert!(said.contains("the rule “Purge”, switched on here, deletes mail permanently"), "{said}");
+}
+
+/// The same for a send: the other account's rule after Old moves its mail onto
+/// the Microsoft account's server. Once Old is that account's alone, the other account's mail
+/// that stopped at Old goes onto that server: asked as a send, as a change beside such a rule is.
+#[test]
+fn keeping_an_every_account_rule_on_one_server_lets_anothers_mail_reach_its_move_onto_a_server() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, local, news) = session();
+    s.mailbox.rules.push(Rule {
+        id: 900,
+        name: "Old".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["invoice".into()])],
+        actions: vec![Action::MarkRead],
+        stop: true,
+        ..Default::default()
+    });
+    // The other account's rule, after it, moves its invoices into the Microsoft account's folder.
+    let mover = json!({"name": "Mover", "account": local, "conditions": [{"type": "subjectContains", "value": "invoice"}], "actions": [{"type": "moveTo", "value": news}]});
+    run(&mut s, "rules.add", mover);
+    assert!(s.mailbox.placed_into(local, account));
+    let params = json!({"id": 900});
+    let asked = classify(&s, "rules.keepOnServer", &params);
+    run(&mut s, "rules.keepOnServer", params);
+    let m = arriving(&mut s, local, "billing@example.org", "invoice 2");
+    assert_eq!(s.mailbox.apply_rules(m, &s.rule_clock()), ["Mover"]);
+    assert_eq!(s.mailbox.message(m).map(|m| m.account), Some(account), "onto the Microsoft account's server");
+    assert_eq!(asked, Access::Owner(Class::Send), "asked as {asked:?}");
+}

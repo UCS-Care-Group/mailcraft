@@ -983,10 +983,11 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
             _ => return false,
         },
         // (What the command refuses, a rule that deletes for good among it, does nothing.)
-        // One for every account kept on one server is that account's from then on; one kept
-        // there already changes nothing.
-        "rules.keepOnServer" => match kept_on_server(s, params) {
-            Some(r) if r.keep != mailcraft_model::Keep::Server => (r.account, r.id, false, true),
+        // One for every account kept on one server is that account's from then on, and leaves
+        // the other accounts' mail to the rules after it ([`kept_reach`]); one kept there already
+        // changes nothing.
+        "rules.keepOnServer" => match kept_reach(s, params) {
+            Some((r, account, on)) if r.keep != mailcraft_model::Keep::Server => (account, r.id, false, on),
             _ => return false,
         },
         "rules.move" | "rules.remove" => match named() {
@@ -1210,6 +1211,18 @@ fn kept_on_server(s: &Session, params: &Value) -> Option<mailcraft_model::Rule> 
     crate::cmd::rules::keeping_on_server(s, params).ok().map(|(_, r, account)| mailcraft_model::Rule { account, ..r })
 }
 
+/// [`kept_on_server`], with whose rules keeping it changes, as [`beside_for_good`] and
+/// [`beside_onto_server`] read them (an account, and whether the rule is still on for its mail):
+/// the server's account, where it runs before the rules of this computer; or, for a rule for
+/// every account's mail, every account, the others' mail now left to the rules after it (#566).
+fn kept_reach(s: &Session, params: &Value) -> Option<(mailcraft_model::Rule, Id, bool)> {
+    let every = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|x| x.id == r)).is_some_and(|r| r.account == 0);
+    kept_on_server(s, params).map(|r| {
+        let (account, on) = if every { (0, false) } else { (r.account, true) };
+        (r, account, on)
+    })
+}
+
 fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
     (r.account != 0).then_some(r.account)
 }
@@ -1249,7 +1262,9 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         }),
         "rules.move" | "rules.remove" => named().is_some_and(|r| beside(r.account, r.id, id != "rules.remove")),
         // (One kept there already changes nothing.)
-        "rules.keepOnServer" => kept_on_server(s, params).is_some_and(|r| r.keep != mailcraft_model::Keep::Server && beside(r.account, r.id, true)),
+        "rules.keepOnServer" => {
+            kept_reach(s, params).is_some_and(|(r, account, on)| r.keep != mailcraft_model::Keep::Server && beside(account, r.id, on))
+        }
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
             let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
@@ -1914,9 +1929,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "rules.keepOnServer" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
-            // As the rule will be: that account's ([`kept_on_server`]).
-            let kept = kept_on_server(s, params);
-            let r = kept.as_ref().or(r);
+            // As the rule will be: that account's ([`kept_on_server`]), with the rules beside it
+            // that keeping it reaches ([`kept_reach`]).
+            let kept = kept_reach(s, params);
+            let (reach, on) = kept.as_ref().map_or((r.map_or(0, |r| r.account), true), |(_, account, on)| (*account, *on));
+            let r = kept.as_ref().map(|(r, _, _)| r).or(r);
             let account = p::id(params, "account").or(r.map(|r| r.account)).and_then(|a| s.mailbox.account(a));
             let to = account.map(|a| quoted(&plain(&a.email))).unwrap_or_else(|| "a Microsoft account".to_string());
             match r {
@@ -1924,7 +1941,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     "keep the rule {} on the server of {to}, where it runs whether MailCraft is open or not: {}{}",
                     quoted(&r.name),
                     rule_words(s, r),
-                    beside_said(s, r.account, r.id, true)
+                    beside_said(s, reach, r.id, on)
                 ),
                 None => "keep a rule that isn't there on a server".to_string(),
             }
