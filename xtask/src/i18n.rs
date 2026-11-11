@@ -1114,7 +1114,8 @@ mod tests {
 
     #[test]
     fn an_old_text_kept_twice_by_a_merge_is_kept_once() {
-        let old = po::parse("msgid \"\"\nmsgstr \"\"\n\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n\n#, fuzzy\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n");
+        let old =
+            po::parse("msgid \"\"\nmsgstr \"\"\n\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n\n#, fuzzy\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n");
         let merged = merge(&old.entries, &Texts::new());
         assert_eq!(merged.iter().filter(|e| e.id == "Gone").count(), 1);
     }
