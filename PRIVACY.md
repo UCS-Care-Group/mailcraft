@@ -101,7 +101,7 @@ computer, for you, and for nothing else:
 - changing the rules your mailbox keeps on Microsoft's servers (the same permission), so that a
   rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
   phone: the rule's name, what it looks for (words, people's addresses, a size, categories, an
-  importance, a sensitivity, whether the mail has an attachment, is a meeting request, an automatic
+  importance, a sensitivity, whether the mail has an attachment, is a meeting invitation, an automatic
   reply or flagged, and whether it was sent to you, to you alone or with you in To or Cc; and its
   exceptions, of the same kinds) and what it does (with the folder it moves or copies mail to) go to
   your own Microsoft account and nowhere else. It is never asked for on a sign-in page, so signing in for mail never waits on it: it is

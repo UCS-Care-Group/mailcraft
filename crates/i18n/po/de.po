@@ -16035,7 +16035,7 @@ msgstr ""
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr "Eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: sie würden gesendet"
+msgstr "eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: sie würden gesendet"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs

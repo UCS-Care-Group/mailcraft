@@ -6258,7 +6258,7 @@ msgstr "Hij wordt daar uitgevoerd, of MailCraft nu open is of niet, en verschijn
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "It skips Deleted Items"
-msgstr "Zonder via Verwijderde items"
+msgstr "Zonder via Verwijderde items te gaan"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
