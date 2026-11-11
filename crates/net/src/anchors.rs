@@ -6,12 +6,13 @@
 //! sites: an authority may be trusted for one and not the other.
 //!
 //! - Linux and the other Unix systems: the bundle of authorities trusted for mail that the
-//!   system's trust store extracts (p11-kit's `email-ca-bundle.pem`), at the places the
-//!   distributions put it. A system that extracts none (Debian's `ca-certificates` holds the web
-//!   sites' set alone) has none here.
-//! - FreeBSD: none. Its authorities (`certctl`'s in the base system, `ca_root_nss`'s
-//!   `/usr/local/share/certs/ca-root-nss.crt` from ports, and p11-kit's, which reads that) are
-//!   the ones trusted for web sites, and nothing there keeps a set for mail.
+//!   system's trust store extracts (p11-kit's `email-ca-bundle.pem`, Arch, Fedora, openSUSE), at
+//!   the places the distributions put it.
+//! - Linux and FreeBSD without that bundle: the roots Mozilla trusts for mail in NSS's own list
+//!   (`libnssckbi.so` of `libnss3`, or of FreeBSD's `nss` port), read through PKCS#11
+//!   (`anchors_nss`). Debian's `ca-certificates`, and so Ubuntu's and Linux Mint's, holds the web
+//!   sites' set alone, and FreeBSD's `certctl` and `ca_root_nss` bundles are that set too; NSS's
+//!   list keeps the trust for each purpose. A system with neither has none here.
 //! - Windows: the authorities of the Trusted Root Certification Authorities store whose uses,
 //!   as Windows keeps them, include secure mail (or aren't limited).
 //! - macOS: none yet; the keychain's trust settings for mail aren't read. Signers there are "not
@@ -45,7 +46,25 @@ pub fn system_trust_anchors() -> Vec<Vec<u8>> {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn read() -> Vec<Vec<u8>> {
-    MAIL_BUNDLES.iter().find_map(|path| bundle(std::path::Path::new(path))).unwrap_or_default()
+    if let Some(found) = MAIL_BUNDLES.iter().find_map(|path| bundle(std::path::Path::new(path))) {
+        return found;
+    }
+    nss()
+}
+
+/// The roots NSS's own list trusts for mail, where the system has no bundle for mail.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn nss() -> Vec<Vec<u8>> {
+    let found = crate::anchors_nss::read().unwrap_or_default();
+    if !found.is_empty() {
+        log::info!("no bundle of authorities for mail on this system: NSS's list of roots trusted for mail is read instead");
+    }
+    found
+}
+
+#[cfg(all(unix, not(any(target_os = "macos", target_os = "linux", target_os = "freebsd"))))]
+fn nss() -> Vec<Vec<u8>> {
+    Vec::new()
 }
 
 /// The certificates of the PEM bundle at `path`, when it is there and can be read.

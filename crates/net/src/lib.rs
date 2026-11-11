@@ -26,6 +26,8 @@ pub const AVAILABLE: bool = false;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod anchors;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod anchors_nss;
 #[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
@@ -295,6 +297,9 @@ mod tls_test_support;
 #[cfg(not(target_arch = "wasm32"))]
 mod verifier_tests;
 
+#[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod anchors_nss_tests;
 #[cfg(test)]
 #[cfg(all(unix, not(target_os = "macos")))]
 mod anchors_tests;
