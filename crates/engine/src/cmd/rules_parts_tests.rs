@@ -566,3 +566,42 @@ fn a_rule_with_a_part_named_wrongly_is_refused_not_made_without_it() {
     }
     assert!(s.run("rules.add", &rule(json!({"exceptions": [{"type": "fromContains", "value": "boss"}]}))).is_ok());
 }
+
+/// A key a condition doesn't take (a `min` beside words, a unit in a size, a second `max` beside
+/// the value) and a `value` given to a part that is a yes or no (`false` on Flagged would be read
+/// as Flagged; a day on Flag isn't kept) are refused, not left out: the rule would act on other
+/// mail than was asked, and delete it for good (#566).
+#[test]
+fn a_key_or_a_value_a_part_doesnt_take_is_refused() {
+    let (mut s, account, _, kept) = session();
+    let with = |condition: Value, action: Value| json!({"name": "Odd", "account": account, "conditions": [condition], "actions": [action]});
+    let delete = json!({"type": "deleteForGood"});
+    let wrong = [
+        with(json!({"type": "subjectContains", "value": "invoice", "min": 500}), json!({"type": "moveTo", "value": kept})),
+        with(json!({"type": "sizeBetween", "value": {"min": 10, "max": 20, "unit": "MB"}}), delete.clone()),
+        with(json!({"type": "sizeBetween", "value": {"min": 1, "max": 5}, "max": 999}), delete.clone()),
+        with(json!({"type": "sizeBetween", "value": 5}), delete.clone()),
+        with(json!({"type": "flagged", "value": false}), delete.clone()),
+        with(json!({"type": "meetingRequest", "value": false}), delete.clone()),
+        with(json!({"type": "toMe", "value": false}), delete.clone()),
+        with(json!({"type": "hasAttachment", "value": false}), delete.clone()),
+        with(json!({"type": "subjectContains", "value": "offer"}), json!({"type": "flag", "value": "tomorrow"})),
+        with(json!({"type": "subjectContains", "value": "offer"}), json!({"type": "deleteForGood", "value": true})),
+    ];
+    let mut taken = Vec::new();
+    for v in wrong {
+        if s.run("rules.add", &v).is_ok() {
+            let r = s.mailbox.rules.last();
+            taken.push(format!("{v} made {:?} {:?}", r.map(|r| &r.conditions), r.map(|r| &r.actions)));
+        }
+    }
+    assert!(taken.is_empty(), "taken:\n{}", taken.join("\n"));
+    // Without one, or with none at all, they are taken.
+    for v in [
+        with(json!({"type": "flagged"}), delete.clone()),
+        with(json!({"type": "hasAttachment", "value": null}), json!({"type": "flag"})),
+        with(json!({"type": "sizeBetween", "value": {"min": 1, "max": 5}}), delete.clone()),
+    ] {
+        assert!(s.run("rules.add", &v).is_ok(), "{v}");
+    }
+}

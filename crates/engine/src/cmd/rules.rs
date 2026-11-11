@@ -269,9 +269,10 @@ fn kb(v: &Value, key: &str) -> Result<u64, CmdError> {
 
 fn condition(v: &Value) -> Result<Condition, CmdError> {
     // A part named wrongly is refused, not left out: a rule without it acts on more mail (#566).
-    p::only(v, &["type", "value", "min", "max"])?;
+    p::only(v, &["type", "value"])?;
     let value = || p::str(v, "value").unwrap_or("");
-    Ok(match p::req_str(v, "type")? {
+    let kind = p::req_str(v, "type")?;
+    Ok(match kind {
         "fromContains" => Condition::FromContains(words(v, "words")?),
         "toContains" => Condition::ToContains(words(v, "words")?),
         "subjectContains" => Condition::SubjectContains(words(v, "words")?),
@@ -287,20 +288,22 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
             }
             Condition::Category(names)
         }
-        "hasAttachment" => Condition::HasAttachment,
-        "sentOnlyToMe" => Condition::SentOnlyToMe,
-        "toMe" => Condition::ToMe,
-        "ccMe" => Condition::CcMe,
-        "toOrCcMe" => Condition::ToOrCcMe,
-        "notToMe" => Condition::NotToMe,
-        "meetingRequest" => Condition::MeetingRequest,
-        "automaticReply" => Condition::AutomaticReply,
-        "flagged" => Condition::Flagged,
+        "hasAttachment" => alone(v, kind, Condition::HasAttachment)?,
+        "sentOnlyToMe" => alone(v, kind, Condition::SentOnlyToMe)?,
+        "toMe" => alone(v, kind, Condition::ToMe)?,
+        "ccMe" => alone(v, kind, Condition::CcMe)?,
+        "toOrCcMe" => alone(v, kind, Condition::ToOrCcMe)?,
+        "notToMe" => alone(v, kind, Condition::NotToMe)?,
+        "meetingRequest" => alone(v, kind, Condition::MeetingRequest)?,
+        "automaticReply" => alone(v, kind, Condition::AutomaticReply)?,
+        "flagged" => alone(v, kind, Condition::Flagged)?,
         "importance" => Condition::Importance(Importance::parse(value()).ok_or_else(|| bad("importance is low, normal or high"))?),
         "sensitivity" => {
             Condition::Sensitivity(Sensitivity::parse(value()).ok_or_else(|| bad("sensitivity is normal, personal, private or confidential"))?)
         }
         "sizeBetween" => {
+            let range = v.get("value").filter(|r| r.is_object()).ok_or_else(|| bad("sizeBetween needs `value`: {\"min\": KB, \"max\": KB}"))?;
+            p::only(range, &["min", "max"])?;
             let (min, max) = (kb(v, "min")?, kb(v, "max")?);
             if min > max {
                 return Err(bad("sizeBetween's `min` is above its `max`"));
@@ -329,24 +332,31 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
         refuse_send_queue(s, folder)?;
         s.mailbox.folder(folder).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = folder))
     };
-    Ok(match p::req_str(v, "type")? {
+    let kind = p::req_str(v, "type")?;
+    Ok(match kind {
         "moveTo" => Action::MoveTo(folder()?),
         "copyTo" => Action::CopyTo(folder()?),
         "categorize" => Action::Categorize(clean_name(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("categorize needs a category name"))?),
-        "flag" => Action::Flag,
+        "flag" => alone(v, kind, Action::Flag)?,
         "flagFor" => {
             Action::FlagFor(FollowUp::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("flagFor is today, tomorrow, thisWeek or nextWeek"))?)
         }
-        "clearFlag" => Action::ClearFlag,
-        "clearCategories" => Action::ClearCategories,
-        "markRead" => Action::MarkRead,
+        "clearFlag" => alone(v, kind, Action::ClearFlag)?,
+        "clearCategories" => alone(v, kind, Action::ClearCategories)?,
+        "markRead" => alone(v, kind, Action::MarkRead)?,
         "setImportance" => {
             Action::SetImportance(Importance::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("importance is low, normal or high"))?)
         }
-        "delete" => Action::Delete,
-        "deleteForGood" => Action::DeleteForGood,
+        "delete" => alone(v, kind, Action::Delete)?,
+        "deleteForGood" => alone(v, kind, Action::DeleteForGood)?,
         other => return Err(bad(format!("unknown action type \"{other}\""))),
     })
+}
+
+/// A condition or an action that is a yes or no, which takes no `value`: one given `false` (or a
+/// day, for `flag`) is refused, not read as the part itself (#566).
+fn alone<T>(v: &Value, kind: &str, part: T) -> Result<T, CmdError> {
+    if v.get("value").is_some_and(|x| !x.is_null()) { Err(bad(format!("{kind} takes no `value`"))) } else { Ok(part) }
 }
 
 /// A rule never moves or copies mail into an Outbox: the next Send/Receive would send it.
