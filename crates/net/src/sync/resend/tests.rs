@@ -32,7 +32,7 @@ fn a_page_of_resends_list_is_read_and_what_isnt_usable_left_out() {
 #[test]
 fn uids_follow_when_mail_came_and_stay_the_same_from_run_to_run() {
     let first =
-        numbered(vec![listed("c", "2026-10-09T14:37:41.000Z"), listed("b", "2026-10-09T14:37:40.951Z"), listed("a", "2026-10-09T14:37:40.9Z")]);
+        numbered(vec![listed("c", "2026-10-09T14:37:41.000Z"), listed("b", "2026-10-09T14:37:40.951Z"), listed("a", "2026-10-09T14:37:40.1Z")]);
     let ids: Vec<&str> = first.iter().map(|(_, l)| l.id.as_str()).collect();
     assert_eq!(ids, ["a", "b", "c"]);
     let uids: Vec<u32> = first.iter().map(|(uid, _)| *uid).collect();
@@ -42,7 +42,7 @@ fn uids_follow_when_mail_came_and_stay_the_same_from_run_to_run() {
         listed("d", "2026-10-09T14:37:41.500Z"),
         listed("c", "2026-10-09T14:37:41.000Z"),
         listed("b", "2026-10-09T14:37:40.951Z"),
-        listed("a", "2026-10-09T14:37:40.9Z"),
+        listed("a", "2026-10-09T14:37:40.1Z"),
     ]);
     assert_eq!(&later[..3], &first[..]);
     assert!(later[3].0 > uids[2]);
@@ -183,14 +183,15 @@ fn a_message_resend_cant_give_is_kept_as_its_header_and_holds_nothing_back() {
 }
 
 #[test]
-fn a_message_too_large_is_kept_as_its_header_and_a_ninth_in_one_second_is_said() {
+fn a_message_too_large_is_kept_as_its_header_and_two_in_one_eighth_of_a_second_are_said() {
     let request = SyncRequest::default();
     let mut big = listed("big", "2026-10-09T14:37:40Z");
     big.said = json!({
         "from": "Noor <noor@example.org>\r\nBcc: evil@example.org", "to": ["avery@lumen.example"], "subject": "Big",
         "created_at": "2026-10-09T14:37:40Z", "attachments": [{"size": 40_000_000u64}]
     });
-    let mut list: Vec<Listed> = (0..10).map(|n| listed(&format!("m{n}"), &format!("2026-10-09T14:37:41.{n:03}Z"))).collect();
+    // Ten in one second, at .000, .100… .900: .000 and .100 share an eighth, as do .500 and .600.
+    let mut list: Vec<Listed> = (0..10).map(|n| listed(&format!("m{n}"), &format!("2026-10-09T14:37:41.{:03}Z", n * 100))).collect();
     list.push(big);
     let mut fetch = |id: &str| if id == "big" { Ok(Got::TooLarge) } else { Ok(mail(id)) };
     let result = brought(&request, list, &mut fetch);
@@ -267,4 +268,21 @@ fn only_mail_written_to_the_accounts_domain_is_kept() {
     assert!(!is_for(&to("to", "owner@sub.example.org"), "example.org"));
     assert!(!is_for(&to("to", "owner@example.org"), ""));
     assert!(!is_for(&json!({ "to": "owner@example.org" }), "example.org"));
+}
+
+#[test]
+fn one_listed_late_in_the_eighth_of_one_here_is_said_and_never_hidden() {
+    let x = numbered(vec![listed("x", "2026-10-09T14:37:40.600Z")]).remove(0).0;
+    // "x" was brought before its second settled, so the count stays short of it...
+    let mut request = read_to(0);
+    request.folders[0].known_uids = vec![x];
+    // ...and "y", earlier in the same eighth, turns up in the list after it.
+    let late = vec![listed("x", "2026-10-09T14:37:40.600Z"), listed("y", "2026-10-09T14:37:40.550Z")];
+    let result = brought(&request, late, &mut |id: &str| Ok(mail(id)));
+    assert!(subjects(&result).is_empty());
+    assert!(result.errors.iter().any(|e| e.contains("1 of them weren't brought")), "{:?}", result.errors);
+    // A message's UID comes from its own time alone, whatever else is listed.
+    let alone = numbered(vec![listed("z", "2026-10-09T14:37:40.900Z")]).remove(0).0;
+    let crowded = numbered(vec![listed("w", "2026-10-09T14:37:40.880Z"), listed("z", "2026-10-09T14:37:40.900Z")]);
+    assert!(crowded.iter().all(|(uid, l)| l.id != "z" || *uid == alone));
 }

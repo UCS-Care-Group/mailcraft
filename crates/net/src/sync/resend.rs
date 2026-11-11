@@ -39,11 +39,10 @@ const INBOX: &str = "INBOX";
 const UID_VALIDITY: u32 = 1;
 /// UIDs count from this instant (2024-01-01T00:00:00Z)...
 const BASE: i64 = 1_704_067_200;
-/// ...in this many steps a second: a message takes the step of its quarter of the second, or the
-/// one after it when a message of the same quarter came first ([`numbered`]). shortcut: the UIDs
-/// last until 2041, and a message with no step left in its second isn't brought and the run says
-/// so ([`bring`]); give the folder a new `UIDVALIDITY` and a later base, or more steps, when that
-/// is too little.
+/// ...in this many steps a second: a message takes the step of its eighth of the second, from its
+/// own time alone ([`numbered`]). shortcut: the UIDs last until 2041, and of two messages in one
+/// eighth of a second only the first is brought and the run says so ([`bring`]); give the folder
+/// a new `UIDVALIDITY` and a later base, or more steps, when that is too little.
 const SLOTS: i64 = 8;
 /// How long a second has to settle before the folder's count moves past it: Resend takes mail in
 /// on its own time, and one listed late, after a later one was counted, would never be asked for.
@@ -135,12 +134,12 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
     let settled_by = now.saturating_sub(SETTLE);
     // Those here already stay in, for the count to move past them.
     let mut new: Vec<(u32, Listed)> = numbered(listed).into_iter().filter(|(uid, _)| *uid > seen).collect();
-    // A UID two messages would share ([`SLOTS`]) is the first's.
+    // A UID two messages share ([`SLOTS`]) is the first's, and the other is said, never hidden.
     let before = new.len();
     new.dedup_by_key(|(uid, _)| *uid);
     if new.len() < before {
         run.out.errors.push(format!(
-            "Resend received too many messages in one second: {} of them weren't brought here; read them on Resend",
+            "Resend received more than one message in the same eighth of a second: {} of them weren't brought here; read them on Resend",
             before - new.len()
         ));
     }
@@ -372,26 +371,20 @@ pub(super) fn is_for(said: &Value, domain: &str) -> bool {
 }
 
 /// The messages oldest first, each with its UID: the steps of [`SLOTS`] since [`BASE`] to the
-/// second it came in, and its step in that second, from when in it it came, so that one listed
-/// late takes no other's.
+/// second it came in, and its eighth of that second. Nothing of another message goes into it, so
+/// that one Resend lists late never takes the UID of one that is here.
 pub(super) fn numbered(mut listed: Vec<Listed>) -> Vec<(u32, Listed)> {
     listed.sort_by(|a, b| (a.secs, a.millis, &a.id).cmp(&(b.secs, b.millis, &b.id)));
     listed.dedup_by(|a, b| a.id == b.id);
-    let mut out: Vec<(u32, Listed)> = Vec::with_capacity(listed.len());
-    for entry in listed {
-        let second = entry.secs.saturating_sub(BASE).max(0).saturating_mul(SLOTS);
-        // Every other step, by quarter of the second; the one between for a second of a quarter.
-        let mut step = second.saturating_add(i64::from(entry.millis.min(999)) * SLOTS / 2000 * 2);
-        if let Some((last, _)) = out.last()
-            && i64::from(*last) >= step
-        {
-            step = (i64::from(*last) + 1).min(second.saturating_add(SLOTS - 1));
-        }
-        // Never 0, which says nothing was seen.
-        let uid = u32::try_from(step).unwrap_or(u32::MAX).max(1);
-        out.push((uid, entry));
-    }
-    out
+    listed
+        .into_iter()
+        .map(|entry| {
+            let second = entry.secs.saturating_sub(BASE).max(0).saturating_mul(SLOTS);
+            let step = second.saturating_add(i64::from(entry.millis.min(999)) * SLOTS / 1000);
+            // Never 0, which says nothing was seen.
+            (u32::try_from(step).unwrap_or(u32::MAX).max(1), entry)
+        })
+        .collect()
 }
 
 /// `2026-10-09T14:37:40.951Z` as seconds since 1970 and thousandths.
