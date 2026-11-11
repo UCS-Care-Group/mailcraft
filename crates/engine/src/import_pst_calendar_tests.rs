@@ -53,6 +53,11 @@ fn minutes(ts: i64) -> u32 {
     (ts / 60 + 194_074_560) as u32
 }
 
+/// The same for a time before 1970, whose division must round down.
+fn minutes_i(ts: i64) -> u32 {
+    (ts.div_euclid(60) + 194_074_560) as u32
+}
+
 fn folder(name: &str, class: &str, messages: Vec<MessageSpec>) -> FolderSpec {
     FolderSpec { name: name.into(), class: Some(class.into()), messages, children: vec![] }
 }
@@ -340,8 +345,238 @@ fn changed_occurrences_stay_within_what_one_import_may_make() {
     let answer = run(&mut s, &dir, &file(vec![folder("Calendar", "IPF.Appointment", vec![a])]), json!({}));
     adds_up(&answer);
     let held: usize = s.mailbox.events.values().map(|e| e.description.len()).sum();
-    assert!(held as u64 <= crate::import_pst::item::RTF_TEXT_BUDGET + (2 << 20), "{held}");
+    assert!(held as u64 <= crate::import_pst::item::PLAN_TEXT_BUDGET + (2 << 20), "{held}");
     assert!(notes(&answer).iter().any(|n| n.contains("changed occurrences are left out")), "{answer}");
+}
+
+const KEYWORDS: u16 = 0x8000 + NAMED.len() as u16;
+
+fn keywords(items: &[String]) -> Value {
+    let mut b = (items.len() as u32).to_le_bytes().to_vec();
+    let mut at = 4 + 4 * items.len() as u32;
+    let texts: Vec<Vec<u8>> = items.iter().map(|t| t.encode_utf16().flat_map(u16::to_le_bytes).collect()).collect();
+    for t in &texts {
+        b.extend_from_slice(&at.to_le_bytes());
+        at += t.len() as u32;
+    }
+    texts.iter().for_each(|t| b.extend_from_slice(t));
+    Value { ty: 0x101F, bytes: b }
+}
+
+fn repeating(blob: &[u8]) -> Vec<(u16, Value)> {
+    vec![(lid(0x8223), w::boolean(true)), (lid(0x8216), w::binary(blob))]
+}
+
+fn on(y: i32, m: u8, d: u8) -> Date {
+    Date::new(y, m, d).unwrap()
+}
+
+fn days(s: &Session, title: &str, from: Date, to: Date) -> Vec<Date> {
+    event(s, title).occurrences(from, to).iter().map(|o| o.start.date).collect()
+}
+
+fn import_one(name: &str, a: MessageSpec) -> (Temp, Session, Json) {
+    let dir = Temp::new(name);
+    let mut s = kept_session(&dir);
+    let answer = run(&mut s, &dir, &file(vec![folder("Calendar", "IPF.Appointment", vec![a])]), json!({}));
+    adds_up(&answer);
+    (dir, s, answer)
+}
+
+const NEVER: (u32, u32, u32) = (0x2023, 0, 0x5AE9_80DF);
+
+#[test]
+fn the_keywords_of_changed_occurrences_count_against_the_budget() {
+    let first = at(2026, 3, 2, 0, 0);
+    let day = |n: i64| minutes(first + n * 86_400);
+    let changed: Vec<_> = (0..4000).map(|n| (day(n) + 600, day(n) + 660, day(n) + 540, None)).collect();
+    let blob = recurrence_bytes(0x200A, 0, 1440, &[], NEVER, &[], day(0), (540, 600), &changed);
+    let words: Vec<String> = (0..100).map(|n| format!("{n:03}{}", "k".repeat(110))).collect();
+    let mut extra = repeating(&blob);
+    extra.push((KEYWORDS, keywords(&words)));
+    let (_dir, s, answer) = import_one("cal-keywords", appointment("Tagged", first + 9 * 3600, first + 10 * 3600, extra));
+    let held: usize = s.mailbox.events.values().flat_map(|e| e.categories.iter()).map(String::len).sum();
+    assert!(held as u64 <= crate::import_pst::item::PLAN_TEXT_BUDGET, "{held}");
+    assert!(notes(&answer).iter().any(|n| n.contains("changed occurrences are left out")), "{answer}");
+}
+
+#[test]
+fn events_and_tasks_together_stay_within_what_one_import_may_bring() {
+    let dir = Temp::new("cal-total");
+    let mut s = kept_session(&dir);
+    let start = at(2026, 3, 2, 9, 0);
+    let big = |mut m: MessageSpec| {
+        m.body = "x".repeat(1 << 20);
+        m
+    };
+    let events = (0..7).map(|n| big(appointment(&format!("E{n}"), start, start + 60, vec![]))).collect();
+    let tasks = (0..7).map(|n| big(task(&format!("T{n}"), vec![]))).collect();
+    let answer = run(&mut s, &dir, &file(vec![folder("Calendar", "IPF.Appointment", events), folder("Tasks", "IPF.Task", tasks)]), json!({}));
+    adds_up(&answer);
+    let held = s.mailbox.events.values().map(|e| e.description.len()).sum::<usize>() + s.mailbox.tasks.values().map(|t| t.notes.len()).sum::<usize>();
+    assert!(held as u64 <= crate::import_pst::item::PLAN_TEXT_BUDGET, "{held}");
+    let why: Vec<&str> = answer["leftOutItems"].as_array().unwrap().iter().map(|n| n["why"].as_str().unwrap()).collect();
+    assert!(!why.is_empty() && why.iter().all(|w| w.contains("as much calendar and task text")), "{why:?}");
+}
+
+#[test]
+fn a_birthday_from_before_1970_comes_in_and_keeps_repeating() {
+    let first = at(1965, 8, 5, 0, 0);
+    let blob = recurrence_bytes(0x200D, 2, 12, &[5], NEVER, &[], minutes_i(first), (0, 1440), &[]);
+    let mut extra = repeating(&blob);
+    extra.push((lid(0x8215), w::boolean(true)));
+    let (_dir, s, answer) = import_one("cal-1965", appointment("Birthday", first, first + 86_400, extra));
+    assert_eq!(answer["events"], 1, "{answer}");
+    assert!(event(&s, "Birthday").recurrence.is_some(), "{answer}");
+    assert_eq!(days(&s, "Birthday", on(2026, 1, 1), on(2026, 12, 31)), vec![on(2026, 8, 5)]);
+}
+
+#[test]
+fn a_task_with_outlooks_no_date_has_no_date() {
+    let dir = Temp::new("task-none");
+    let mut s = kept_session(&dir);
+    let none = w::time(0x0CB3_4557_A3DD_4000);
+    let t = task("Open ended", vec![(lid(0x8104), none.clone()), (lid(0x8105), none)]);
+    run(&mut s, &dir, &file(vec![folder("Tasks", "IPF.Task", vec![t])]), json!({}));
+    let t = s.mailbox.tasks.values().find(|t| t.title == "Open ended").unwrap();
+    assert_eq!((t.start, t.due), (None, None));
+}
+
+#[test]
+fn a_series_starts_where_the_item_says_not_where_the_pattern_opens() {
+    let opens = minutes(at(2026, 8, 19, 0, 0));
+    let item = |title: &str, y, m, d, blob: &[u8]| appointment(title, at(y, m, d, 9, 0), at(y, m, d, 10, 0), repeating(blob));
+    let yearly = recurrence_bytes(0x200D, 2, 12, &[5], NEVER, &[], opens, (540, 600), &[]);
+    let (_a, s, _) = import_one("cal-yearly", item("Y", 2027, 8, 5, &yearly));
+    assert_eq!(days(&s, "Y", on(2026, 1, 1), on(2028, 12, 31)), vec![on(2027, 8, 5), on(2028, 8, 5)]);
+    let two = recurrence_bytes(0x200C, 2, 2, &[5], NEVER, &[], opens, (540, 600), &[]);
+    let (_b, s, _) = import_one("cal-two-months", item("M", 2026, 10, 5, &two));
+    assert_eq!(days(&s, "M", on(2026, 8, 1), on(2026, 12, 31)), vec![on(2026, 10, 5), on(2026, 12, 5)]);
+    let counted = recurrence_bytes(0x200C, 3, 1, &[0x7F, 2], NEVER, &[], opens, (540, 600), &[]);
+    let (_c, s, _) = import_one("cal-counted", item("N", 2026, 9, 2, &counted));
+    assert_eq!(days(&s, "N", on(2026, 8, 1), on(2026, 10, 31)), vec![on(2026, 9, 2), on(2026, 10, 2)]);
+}
+
+#[test]
+fn the_31st_starting_in_a_short_month_keeps_that_first_day() {
+    let opens = minutes(at(2026, 4, 10, 0, 0));
+    let blob = recurrence_bytes(0x200C, 2, 1, &[31], (0x2021, 3, minutes(at(2026, 5, 31, 0, 0))), &[], opens, (540, 600), &[]);
+    let a = appointment("Month end", at(2026, 4, 30, 9, 0), at(2026, 4, 30, 10, 0), repeating(&blob));
+    let (_d, s, _) = import_one("cal-31", a);
+    let mut all: Vec<Date> = s.mailbox.events.values().flat_map(|e| e.occurrences(on(2026, 4, 1), on(2026, 7, 31))).map(|o| o.start.date).collect();
+    all.sort();
+    assert_eq!(all, vec![on(2026, 4, 30), on(2026, 5, 31)]);
+}
+
+#[test]
+fn a_fortnight_counted_from_another_first_day_is_not_guessed() {
+    let first = at(2026, 3, 1, 0, 0);
+    // Every two weeks on Sunday and Monday, weeks starting on Sunday.
+    let mut blob = recurrence_bytes(0x200B, 1, 2, &[0b11], NEVER, &[], minutes(first), (540, 600), &[]);
+    blob[34] = 0;
+    let (_d, s, answer) = import_one("cal-dow", appointment("Pair", first + 9 * 3600, first + 10 * 3600, repeating(&blob)));
+    assert!(event(&s, "Pair").recurrence.is_none());
+    assert!(notes(&answer).iter().any(|n| n.contains("only its first occurrence")), "{answer}");
+    // Sunday alone is the same fortnight however the week is counted.
+    let mut one = recurrence_bytes(0x200B, 1, 2, &[0b1], NEVER, &[], minutes(first), (540, 600), &[]);
+    one[34] = 0;
+    let (_e, s, _) = import_one("cal-dow1", appointment("Sunday", first + 9 * 3600, first + 10 * 3600, repeating(&one)));
+    assert_eq!(days(&s, "Sunday", on(2026, 3, 1), on(2026, 3, 31)), vec![on(2026, 3, 1), on(2026, 3, 15), on(2026, 3, 29)]);
+}
+
+#[test]
+fn a_series_without_a_zone_keeps_the_instant_in_the_file() {
+    // 09:00 by its own clock, which the file's 14:00 UTC shows was five hours behind.
+    let opens = at(2026, 3, 2, 0, 0);
+    let blob = recurrence_bytes(0x200A, 0, 1440, &[], NEVER, &[], minutes(opens), (540, 600), &[]);
+    let (_d, s, answer) = import_one("cal-nozone", appointment("Far away", opens + 14 * 3600, opens + 15 * 3600, repeating(&blob)));
+    assert_eq!(event(&s, "Far away").start.hour, 14, "{answer}");
+    assert!(notes(&answer).iter().any(|n| n.contains("time zone")), "{answer}");
+}
+
+#[test]
+fn a_series_in_another_zone_is_shown_by_this_computers_clock() {
+    let dir = Temp::new("cal-zones");
+    let mut s = kept_session(&dir);
+    s.prefs.time_zone = "Europe/London".to_string();
+    s.clock.offset = None;
+    // Late on a New York evening: the next day in London.
+    let opens = at(2026, 1, 12, 0, 0);
+    let blob = recurrence_bytes(0x200B, 1, 1, &[0b10], (0x2021, 2, minutes(at(2026, 1, 19, 0, 0))), &[], minutes(opens), (1320, 1380), &[]);
+    let mut extra = repeating(&blob);
+    extra.push((lid(0x8260), w::binary(&time_zone_bytes("Eastern Standard Time"))));
+    let a = appointment("Evening", opens + 27 * 3600, opens + 28 * 3600, extra);
+    run(&mut s, &dir, &file(vec![folder("Calendar", "IPF.Appointment", vec![a])]), json!({}));
+    let e = event(&s, "Evening");
+    assert_eq!((e.start.date, e.start.hour), (on(2026, 1, 13), 3));
+}
+
+#[test]
+fn a_second_import_after_the_series_is_deleted_does_not_repeat_what_was_moved() {
+    let dir = Temp::new("cal-outlived");
+    let mut s = kept_session(&dir);
+    let first = at(2026, 3, 2, 0, 0);
+    let day = |n: i64| minutes(first + n * 86_400);
+    let moved = (day(7) + 840, day(7) + 900, day(7) + 540, Some("Moved".to_string()));
+    let blob = recurrence_bytes(0x200B, 1, 1, &[0b10], NEVER, &[], day(0), (540, 600), &[moved]);
+    let bytes = file(vec![folder("Calendar", "IPF.Appointment", vec![appointment("Weekly", first + 9 * 3600, first + 10 * 3600, repeating(&blob))])]);
+    run(&mut s, &dir, &bytes, json!({}));
+    let series = event(&s, "Weekly").id;
+    s.mailbox.events.remove(&series);
+    run(&mut s, &dir, &bytes, json!({}));
+    assert_eq!(s.mailbox.events.values().filter(|e| e.title == "Moved").count(), 1);
+    assert_eq!(s.mailbox.events.values().filter(|e| e.title == "Weekly").count(), 1);
+}
+
+#[test]
+fn a_series_that_ends_before_it_starts_is_its_first_occurrence_and_named() {
+    let first = at(2026, 3, 2, 0, 0);
+    let blob = recurrence_bytes(0x200A, 0, 1440, &[], (0x2021, 1, minutes(at(2026, 2, 1, 0, 0))), &[], minutes(first), (540, 600), &[]);
+    let (_d, s, answer) = import_one("cal-ended", appointment("Ended", first + 9 * 3600, first + 10 * 3600, repeating(&blob)));
+    assert_eq!(days(&s, "Ended", on(2026, 3, 1), on(2026, 3, 31)), vec![on(2026, 3, 2)]);
+    assert!(notes(&answer).iter().any(|n| n.contains("only its first occurrence")), "{answer}");
+}
+
+#[test]
+fn a_calendar_removed_meanwhile_stops_the_import() {
+    use crate::import_pst::{Batch, Staged};
+    let dir = Temp::new("cal-gone");
+    let mut s = kept_session(&dir);
+    let id = s.mailbox.alloc_id();
+    s.mailbox.calendars.push(mailcraft_model::Calendar { id, name: "Chosen".into(), visible: true, ..Default::default() });
+    let batch = || {
+        let mut b = Batch::default();
+        b.events = vec![mailcraft_model::Event { title: "One".into(), calendar: id, ..Default::default() }];
+        b.identity = "x".into();
+        b
+    };
+    let params = json!({"staged": true, "name": "old-mail", "places": {"calendar": id}});
+    s.staged_pst = Some(Staged::Batch(batch()));
+    s.run("file.importPst", &params).unwrap();
+    let before = s.mailbox.events.len();
+    s.mailbox.calendars.retain(|c| c.id != id);
+    s.staged_pst = Some(Staged::Batch(batch()));
+    let e = s.run("file.importPst", &params).unwrap_err().to_string();
+    assert!(e.contains("calendar"), "{e}");
+    assert_eq!(s.mailbox.events.len(), before);
+}
+
+#[test]
+fn what_the_reader_left_out_of_a_meeting_is_named() {
+    let start = at(2026, 3, 2, 9, 0);
+    let mut a = appointment("Crowded", start, start + 3600, vec![]);
+    a.recipients = (0..1010).map(|n| (format!("P{n}"), format!("p{n}@example.org"), 1)).collect();
+    let (_d, _s, answer) = import_one("cal-crowd", a);
+    assert!(notes(&answer).iter().any(|n| n.contains("past the limit")), "{answer}");
+}
+
+#[test]
+fn a_gregorian_variant_keeps_repeating() {
+    let first = at(2026, 3, 2, 0, 0);
+    let mut blob = recurrence_bytes(0x200A, 0, 1440, &[], NEVER, &[], minutes(first), (540, 600), &[]);
+    blob[8] = 2;
+    let (_d, s, _) = import_one("cal-us", appointment("Daily", first + 9 * 3600, first + 10 * 3600, repeating(&blob)));
+    assert!(event(&s, "Daily").recurrence.is_some());
 }
 
 proptest::proptest! {

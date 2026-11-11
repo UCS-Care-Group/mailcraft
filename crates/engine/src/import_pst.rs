@@ -621,10 +621,13 @@ pub fn read<R: Read + Seek>(
                 let k = key(&identity, nid);
                 match what_kind {
                     calendar::Kind::Appointment => {
-                        let Some(built) = calendar::build(&mut pst, &m, &named, job.here).map_err(|e| pst_error(&e))? else {
-                            row.left_out = row.left_out.saturating_add(1);
-                            report.leave_out(&what("appointment"), &b.shown, "it has no start time");
-                            continue;
+                        let built = match calendar::build(&mut pst, &m, &named, job.here).map_err(|e| pst_error(&e))? {
+                            Ok(built) => built,
+                            Err(why) => {
+                                row.left_out = row.left_out.saturating_add(1);
+                                report.leave_out(&what("appointment"), &b.shown, why);
+                                continue;
+                            }
                         };
                         row.added = row.added.saturating_add(1);
                         report.events_added = report.events_added.saturating_add(1);
@@ -636,11 +639,16 @@ pub fn read<R: Read + Seek>(
                         if job.dry_run {
                             continue;
                         }
-                        e.imported = k;
+                        e.imported.clone_from(&k);
                         e.calendar = job.calendar.unwrap_or(0);
                         batch.calendar_name.clone_from(&job.name);
                         batch.bytes = batch.bytes.saturating_add(calendar::held(&e));
-                        for mut one in built.changed {
+                        for (mark, mut one) in built.changed {
+                            // Known by itself: it may outlive its series, which then comes in again.
+                            one.imported = format!("{k}/{mark}");
+                            if job.known_plans.contains(&one.imported) {
+                                continue;
+                            }
                             one.calendar = e.calendar;
                             batch.bytes = batch.bytes.saturating_add(calendar::held(&one));
                             batch.events.push(one);
@@ -648,7 +656,14 @@ pub fn read<R: Read + Seek>(
                         batch.events.push(e);
                     }
                     calendar::Kind::Task => {
-                        let (mut t, notes) = calendar::build_task(&mut pst, &m, &named).map_err(|e| pst_error(&e))?;
+                        let (mut t, notes) = match calendar::build_task(&mut pst, &m, &named).map_err(|e| pst_error(&e))? {
+                            Ok(built) => built,
+                            Err(why) => {
+                                row.left_out = row.left_out.saturating_add(1);
+                                report.leave_out(&what("task"), &b.shown, why);
+                                continue;
+                            }
+                        };
                         row.added = row.added.saturating_add(1);
                         report.tasks_added = report.tasks_added.saturating_add(1);
                         let shown = if t.title.is_empty() { "task".to_string() } else { format!("task \"{}\"", t.title) };
@@ -659,7 +674,7 @@ pub fn read<R: Read + Seek>(
                             continue;
                         }
                         t.imported = k;
-                        batch.bytes = batch.bytes.saturating_add((t.title.len().saturating_add(t.notes.len()) as u64).saturating_add(256));
+                        batch.bytes = batch.bytes.saturating_add(calendar::held_task(&t));
                         batch.tasks.push(t);
                     }
                 }
@@ -821,12 +836,18 @@ fn named<R: Read + Seek>(pst: &mut Pst<R>, charset: Option<&'static str>, report
             charset,
             contact: contact::ContactIds::find(map),
             rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET),
+            plan_room: std::cell::Cell::new(item::PLAN_TEXT_BUDGET),
             calendar: calendar::CalendarIds::find(map),
         }),
         Err(e) if ends_import(&e) => Err(pst_error(&e)),
         Err(e) => {
             report.damaged(format!("the file's named properties (categories, due dates): {e}"));
-            Ok(Named { charset, rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET), ..Named::default() })
+            Ok(Named {
+                charset,
+                rtf_room: std::cell::Cell::new(item::RTF_TEXT_BUDGET),
+                plan_room: std::cell::Cell::new(item::PLAN_TEXT_BUDGET),
+                ..Named::default()
+            })
         }
     }
 }
@@ -1373,6 +1394,10 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
         e.origin = Default::default();
         if e.calendar == 0 {
             e.calendar = run.calendar(s, &batch.calendar_name)?;
+        }
+        // (Gone while the file was read: an event never falls to another, perhaps a server's.)
+        if !s.mailbox.calendar(e.calendar).is_some_and(|c| c.origin.is_local()) {
+            return Err(fail("the calendar the .pst file was being imported into was removed: the import stopped"));
         }
         let id = s.mailbox.add_event(e).map_err(|e| fail(e.to_string()))?;
         run.plans.events.push(id);

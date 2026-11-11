@@ -24,6 +24,8 @@ pub const MAX_BODY: u64 = 32 << 20;
 const MAX_RTF: usize = 64 << 20;
 /// Most bytes of text one import takes from bodies kept as rich text.
 pub const RTF_TEXT_BUDGET: u64 = if cfg!(test) { 40 << 20 } else { 256 << 20 };
+/// Most memory one import's events and to-dos may take: unlike mail, they aren't moved out of it.
+pub const PLAN_TEXT_BUDGET: u64 = if cfg!(test) { 8 << 20 } else { 512 << 20 };
 /// The name of the attachment that keeps a body's rich text.
 const RTF_FILE: &str = "message body.rtf";
 /// Most bytes of the transport headers kept.
@@ -111,6 +113,8 @@ pub struct Named {
     pub contact: super::contact::ContactIds,
     /// Bytes of text this import may still take from rich text.
     pub rtf_room: std::cell::Cell<u64>,
+    /// Bytes of memory this import's events and to-dos may still take.
+    pub plan_room: std::cell::Cell<u64>,
     /// The ids of the named properties of calendar items and tasks.
     pub calendar: super::calendar::CalendarIds,
 }
@@ -735,7 +739,7 @@ fn attachment<R: Read + Seek>(
 }
 
 /// A part of an item the reader left out, for its note.
-fn part_name(part: &mailcraft_pst::Part) -> String {
+pub(super) fn part_name(part: &mailcraft_pst::Part) -> String {
     use mailcraft_pst::Part;
     match part {
         Part::Recipients { count } => format!("{count} recipients past the limit"),

@@ -76,6 +76,8 @@ pub struct Recur {
     pub day_or_nth: u32,
     pub end_type: u32,
     pub count: u32,
+    /// The day weeks start on (0 is Sunday): what an interval of weeks is counted by.
+    pub first_day_of_week: u32,
     /// Days that do not happen as the series says: deleted, and changed ones too.
     pub deleted: Vec<u32>,
     pub modified: Vec<u32>,
@@ -221,7 +223,7 @@ pub fn appointment_recurrence(blob: &[u8]) -> Result<Recur> {
     }
     r.end_type = c.u32()?;
     r.count = c.u32()?;
-    let _first_day_of_week = c.u32()?;
+    r.first_day_of_week = c.u32()?;
     r.deleted = c.dates()?;
     r.modified = c.dates()?;
     r.start_date = c.u32()?;

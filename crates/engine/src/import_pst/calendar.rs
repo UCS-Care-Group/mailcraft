@@ -75,6 +75,14 @@ const MAX_SHORT: usize = 4096;
 const MAX_ATTENDEES: usize = 1000;
 /// Minutes between 1601 and 1970.
 const MINUTES_TO_1970: i64 = 194_074_560;
+/// Minutes between 1601 and 1900, the earliest a calendar item is read from (a birthday's series
+/// starts in the year of the birth).
+const MINUTES_TO_1900: i64 = 157_258_080;
+/// A task's date past this (about the year 4500) is Outlook's way of writing "none"
+/// ([MS-OXOTASK] 2.2.2.2.4).
+const TASK_NO_DATE: i64 = 79_870_000_000;
+/// Why an item past what one import may bring is left out.
+const PAST_BUDGET: &str = "this import has brought as much calendar and task text as one import may";
 /// Longest an occurrence of a series may last, in minutes (five years).
 const MAX_LENGTH: u32 = 5 * 366 * 1440;
 /// Most days of a series named as not happening.
@@ -134,7 +142,8 @@ pub fn kind(class: &str) -> Option<Kind> {
 /// couldn't be brought.
 pub struct BuiltEvent {
     pub event: Event,
-    pub changed: Vec<Event>,
+    /// Each with what tells it apart within its series.
+    pub changed: Vec<(String, Event)>,
     pub notes: Vec<String>,
 }
 
@@ -152,10 +161,24 @@ fn weekdays(mask: u32) -> Vec<Weekday> {
     days.into_iter().enumerate().filter(|(bit, _)| mask >> bit & 1 == 1).map(|(_, d)| d).collect()
 }
 
-/// The first day a series happens: PatternStartDate is only a lower bound, and a month's pattern
-/// names its own day ([MS-OXOCAL] 2.2.1.44.1), which the mailbox reads from the first occurrence.
+/// What a calendar item's FILETIME is in seconds since 1970, from 1900 on.
+fn moment(ft: u64) -> Option<Timestamp> {
+    let seconds = i64::try_from(ft / 10_000_000).ok()?.checked_sub(11_644_473_600)?;
+    ((MINUTES_TO_1900 - MINUTES_TO_1970) * 60..253_402_300_800).contains(&seconds).then_some(seconds)
+}
+
+/// How far a series' clock is from UTC, in minutes: its first occurrence is written both ways.
+fn clock_offset(start: Timestamp, start_offset: u32) -> i32 {
+    let difference = (i64::from(start_offset) - start.rem_euclid(86_400) / 60).rem_euclid(1440);
+    i32::try_from(if difference > 840 { difference - 1440 } else { difference }).unwrap_or(0)
+}
+
+/// The first day a series happens, when all the file says is its pattern: PatternStartDate is
+/// only a lower bound, and a month's pattern names its own day ([MS-OXOCAL] 2.2.1.44.1), which
+/// the mailbox reads from the first occurrence.
 fn first_day(r: &Recur, start_date: Date) -> Date {
-    if r.pattern == recur::PATTERN_MONTH && matches!(r.day_or_nth, 1..=31) {
+    let counted_day = r.pattern == recur::PATTERN_MONTH_NTH && r.weekdays & 0x7F == 0x7F;
+    if (r.pattern == recur::PATTERN_MONTH || counted_day) && matches!(r.day_or_nth, 1..=31) {
         let wanted = u8::try_from(r.day_or_nth).unwrap_or(1);
         let mut month = start_date.start_of_month();
         // (A month must have the day and be on or after the start: at most a year or so on.)
@@ -172,16 +195,39 @@ fn first_day(r: &Recur, start_date: Date) -> Date {
     start_date
 }
 
+/// The rule of a series and the day it first happens. The item itself is at its first occurrence
+/// (`whole`); when that isn't a day of the pattern (it was moved), the pattern says.
+fn first_of(r: &Recur, whole: Date) -> Result<(Recurrence, Date), &'static str> {
+    let opens = wall(r.start_date).date;
+    let day_named = match r.pattern {
+        recur::PATTERN_MONTH => u32::from(whole.day) == r.day_or_nth,
+        recur::PATTERN_MONTH_NTH if r.weekdays & 0x7F == 0x7F => u32::from(whole.day) == r.day_or_nth,
+        _ => true,
+    };
+    if whole >= opens
+        && day_named
+        && let Ok(kept) = rule(r, whole)
+        && kept.dates(whole, whole, whole, &[]).contains(&whole)
+    {
+        return Ok((kept, whole));
+    }
+    let from = first_day(r, opens);
+    let kept = rule(r, from)?;
+    let first = kept.dates(from, from, from.add_days(800), &[]).first().copied().ok_or("it ends before its first day")?;
+    Ok((kept, first))
+}
+
 /// The rule of a series whose first day is `first`, or why the mailbox can't keep it.
 pub fn rule(r: &Recur, first: Date) -> Result<Recurrence, &'static str> {
-    if r.calendar > 1 || r.pattern >= 0x0A {
+    // (0 is the default, and 1, 2 and 9 to 12 are the Gregorian calendar in its several languages.)
+    if !matches!(r.calendar, 0..=2 | 9..=12) || r.pattern >= 0x0A {
         return Err("it repeats by a calendar other than the Gregorian");
     }
     // (An occurrence starts within its day and lasts at most a few years.)
     if r.start_offset >= 1440
         || r.end_offset < r.start_offset
         || r.end_offset - r.start_offset > MAX_LENGTH
-        || i64::from(r.start_date) < MINUTES_TO_1970
+        || i64::from(r.start_date) < MINUTES_TO_1900
     {
         return Err("its times can't be read");
     }
@@ -199,6 +245,9 @@ pub fn rule(r: &Recur, first: Date) -> Result<Recurrence, &'static str> {
     };
     let mut out = match (r.pattern, freq) {
         (recur::PATTERN_DAY, _) => Recurrence { freq: Freq::Daily, interval: every(r.period / 1440)?, ..Default::default() },
+        (recur::PATTERN_WEEK, _) if r.period > 1 && splits_weeks(r) => {
+            return Err("it repeats by weeks that start on a day this calendar can't count from");
+        }
         (recur::PATTERN_WEEK, _) if r.weekdays & 0x7F != 0 => {
             Recurrence { freq: Freq::Weekly, interval: every(r.period)?, by_day: weekdays(r.weekdays), ..Default::default() }
         }
@@ -231,6 +280,15 @@ pub fn rule(r: &Recur, first: Date) -> Result<Recurrence, &'static str> {
         out.until = Some(wall(r.end_date).date);
     }
     Ok(out)
+}
+
+/// Whether the days of a series fall in one of the mailbox's weeks (from Monday) but in two of
+/// the file's, which matters once it skips weeks.
+fn splits_weeks(r: &Recur) -> bool {
+    let monday_based = |day: u32| (day % 7 + 6) % 7;
+    let start = monday_based(r.first_day_of_week);
+    let days = || (0..7).filter(|bit| r.weekdays >> bit & 1 == 1).map(monday_based);
+    days().any(|d| d < start) && days().any(|d| d >= start)
 }
 
 fn zone_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, id: Option<u16>, notes: &mut Vec<String>) -> Result<Option<Zone>, PstError> {
@@ -289,17 +347,23 @@ fn people(m: &mailcraft_pst::Message, text: &Text, notes: &mut Vec<String>) -> (
     (list, organizer)
 }
 
-/// The appointment `m` as an event; `None` when it has no time to be at.
-pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named: &Named, here: Here) -> Result<Option<BuiltEvent>, PstError> {
+/// The appointment `m` as an event, or why it isn't brought.
+pub fn build<R: Read + Seek>(
+    pst: &mut Pst<R>,
+    m: &mailcraft_pst::Message,
+    named: &Named,
+    here: Here,
+) -> Result<Result<BuiltEvent, &'static str>, PstError> {
     let p = &m.properties;
     let ids = &named.calendar;
     let text = Text::of(p, named.charset);
     let offset_at = |t: Timestamp| here.at(t);
-    let time = |lid: u32| ids.id(lid).and_then(|id| p.time(id)).and_then(filetime);
+    let time = |lid: u32| ids.id(lid).and_then(|id| p.time(id)).and_then(moment);
     let named_text = |lid: u32| ids.id(lid).and_then(|id| text.short(p, id));
-    let Some(start) = time(START_WHOLE).or_else(|| time(COMMON_START)) else { return Ok(None) };
+    let Some(start) = time(START_WHOLE).or_else(|| time(COMMON_START)) else { return Ok(Err("it has no start time")) };
     let end = time(END_WHOLE).or_else(|| time(COMMON_END)).unwrap_or(start).max(start);
     let (description, mut notes) = item::plain_body(pst, m, named, MAX_NOTES)?;
+    left_out_notes(m, &mut notes);
     let all_day = ids.id(ALL_DAY).and_then(|id| p.bool(id)).unwrap_or(false);
     let state = ids.id(STATE_FLAGS).and_then(|id| p.int(id)).unwrap_or(0);
     let (attendees, mut organizer) = people(m, &text, &mut notes);
@@ -329,21 +393,28 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         importance: importance(p),
         ..Default::default()
     };
+    if !charge(named, held(&e)) {
+        return Ok(Err(PAST_BUDGET));
+    }
 
     let recurring = ids.id(RECURRING).and_then(|id| p.bool(id)).unwrap_or(false);
     let blob = match ids.id(RECUR).filter(|_| recurring) {
         Some(id) => value(pst, m, id, MAX_BLOB, "recurrence", &mut notes)?,
         None => None,
     };
+    let zone = if blob.is_some() { zone_of(pst, m, ids.id(ZONE_RECUR), &mut notes)? } else { None };
     let series = match &blob {
         Some(PropValue::Binary(b)) => match mailcraft_pst::appointment_recurrence(b) {
-            Ok(r) => match rule(&r, first_day(&r, wall(r.start_date).date)) {
-                Ok(rule) => Some((r, rule)),
-                Err(why) => {
-                    notes.push(format!("{why}: only its first occurrence is brought in"));
-                    None
+            Ok(r) => {
+                let whole = zone.map_or_else(|| DateTime::from_timestamp(start, clock_offset(start, r.start_offset)).date, |z| z.wall(start).date);
+                match first_of(&r, whole) {
+                    Ok((rule, first)) => Some((r, rule, first, whole)),
+                    Err(why) => {
+                        notes.push(format!("{why}: only its first occurrence is brought in"));
+                        None
+                    }
                 }
-            },
+            }
             Err(err) => {
                 notes.push(format!("its recurrence could not be read ({err}): only its first occurrence is brought in"));
                 None
@@ -357,20 +428,20 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         }
     };
 
-    let Some((r, rule)) = series else {
+    let Some((r, rule, first, whole)) = series else {
         let (zs, ze) = (zone_of(pst, m, ids.id(ZONE_START), &mut notes)?, zone_of(pst, m, ids.id(ZONE_END), &mut notes)?);
         place_once(&mut e, start, end, zs, ze, here);
-        return Ok(Some(BuiltEvent { event: e, changed: Vec::new(), notes }));
+        return Ok(Ok(BuiltEvent { event: e, changed: Vec::new(), notes }));
     };
 
-    let zone = zone_of(pst, m, ids.id(ZONE_RECUR), &mut notes)?;
-    // (Weekly and counted patterns: the first day the rule itself names.)
-    let from = first_day(&r, wall(r.start_date).date);
-    let first =
-        if r.pattern == recur::PATTERN_MONTH { from } else { rule.dates(from, from, from.add_days(800), &[]).first().copied().unwrap_or(from) };
+    if zone.is_none() && !all_day {
+        notes.push("its time zone can't be read: its times follow the clock of its first occurrence".to_string());
+    }
+    // Without a zone, the clock its first occurrence was written by.
+    let by_clock = zone.or_else(|| Zone::fixed(clock_offset(start, r.start_offset)));
     let clock = DateTime::at_midnight(first).add_minutes(i64::from(r.start_offset));
     let length = i64::from(r.end_offset.saturating_sub(r.start_offset));
-    let instant = |w: DateTime| match zone {
+    let instant = |w: DateTime| match by_clock {
         Some(z) => z.instant(w),
         None => mailcraft_model::zoned::instant_at(w, &offset_at),
     };
@@ -396,10 +467,16 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
         days.truncate(MAX_DAYS);
     }
     e.exceptions = days;
+    charge(named, e.exceptions.len().saturating_mul(16) as u64);
 
     let mut changed = Vec::new();
     let mut past_budget = 0usize;
     for x in &r.exceptions {
+        // Each is a copy of the series: a few bytes of the file can ask for many.
+        if held(&e) > named.plan_room.get() {
+            past_budget = past_budget.saturating_add(1);
+            continue;
+        }
         let mut one = Event { recurrence: None, exceptions: Vec::new(), start_zone: String::new(), end_zone: String::new(), ..e.clone() };
         let begins = wall(x.start);
         one.uid = if e.uid.is_empty() { String::new() } else { format!("{}-{}", e.uid, wall(x.original).date.iso()) };
@@ -427,14 +504,11 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
             one.set_instants(at, until, &offset_at);
             (one.start_zone, one.end_zone) = mailcraft_model::zoned::own_zones(zone, None, (at, until), false, &offset_at);
         }
-        // Each is a copy of the series: a few bytes of the file can ask for many.
-        let (cost, room) = (held(&one), named.rtf_room.get());
-        if cost > room {
+        if !charge(named, held(&one)) {
             past_budget = past_budget.saturating_add(1);
             continue;
         }
-        named.rtf_room.set(room.saturating_sub(cost));
-        changed.push(one);
+        changed.push((x.original.to_string(), one));
     }
     if past_budget > 0 {
         notes.push(format!("{past_budget} changed occurrences are left out: this import has made as many as one import may"));
@@ -442,7 +516,28 @@ pub fn build<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named
     if !changed.is_empty() {
         notes.push(format!("{} changed occurrences come in as events of their own, with the notes and people of the series", changed.len()));
     }
-    Ok(Some(BuiltEvent { event: e, changed, notes }))
+    // A series on the 31st that begins in a shorter month: the mailbox takes a series' day from
+    // its first occurrence, so that one comes in by itself.
+    if r.pattern == recur::PATTERN_MONTH && whole < first && whole.day == whole.end_of_month().day && r.day_or_nth > u32::from(whole.day) {
+        let mut one = Event { recurrence: None, exceptions: Vec::new(), ..e.clone() };
+        place_once(&mut one, start, end, zone, None, here);
+        if charge(named, held(&one)) {
+            changed.push(("first".to_string(), one));
+        }
+    }
+    Ok(Ok(BuiltEvent { event: e, changed, notes }))
+}
+
+/// What the reader couldn't read of an item.
+fn left_out_notes(m: &mailcraft_pst::Message, notes: &mut Vec<String>) {
+    notes.extend(m.left_out.iter().map(|part| format!("{}: {}", item::part_name(&part.part), part.reason)));
+}
+
+/// Takes `cost` from what this import's events and to-dos may hold; false when it doesn't fit.
+fn charge(named: &Named, cost: u64) -> bool {
+    let room = named.plan_room.get();
+    named.plan_room.set(room.saturating_sub(cost));
+    cost <= room
 }
 
 /// An appointment that happens once.
@@ -464,24 +559,42 @@ pub fn held(e: &Event) -> u64 {
     let people =
         e.attendees.iter().map(|a| a.address.name.len().saturating_add(a.address.email.len()).saturating_add(64)).fold(0usize, usize::saturating_add);
     let days = e.exceptions.len().saturating_mul(16);
+    let organizer = e.organizer.as_ref().map_or(0, |a| a.name.len().saturating_add(a.email.len()));
     (e.title
         .len()
         .saturating_add(e.location.len())
         .saturating_add(e.description.len())
+        .saturating_add(e.uid.len())
+        .saturating_add(organizer)
+        .saturating_add(categories_held(&e.categories))
         .saturating_add(people)
         .saturating_add(days)
         .saturating_add(512)) as u64
 }
 
+/// The same for a to-do.
+pub fn held_task(t: &Task) -> u64 {
+    (t.title.len().saturating_add(t.notes.len()).saturating_add(categories_held(&t.categories)).saturating_add(256)) as u64
+}
+
+fn categories_held(categories: &[String]) -> usize {
+    categories.iter().map(|c| c.len().saturating_add(24)).fold(0, usize::saturating_add)
+}
+
 /// A task of the file as a to-do on this computer.
-pub fn build_task<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, named: &Named) -> Result<(Task, Vec<String>), PstError> {
+pub fn build_task<R: Read + Seek>(
+    pst: &mut Pst<R>,
+    m: &mailcraft_pst::Message,
+    named: &Named,
+) -> Result<Result<(Task, Vec<String>), &'static str>, PstError> {
     let p = &m.properties;
     let ids = &named.calendar;
     let text = Text::of(p, named.charset);
-    let time = |lid: u32| ids.id(lid).and_then(|id| p.time(id)).and_then(filetime);
+    let time = |lid: u32| ids.id(lid).and_then(|id| p.time(id)).and_then(filetime).filter(|t| *t < TASK_NO_DATE);
     // A task's dates are days, written as midnight UTC ([MS-OXOTASK] 2.2.2.2.4, 2.2.2.2.5).
     let day = |lid: u32| time(lid).map(|t| DateTime::from_timestamp(t, 0).date);
     let (notes_text, mut notes) = item::plain_body(pst, m, named, MAX_NOTES)?;
+    left_out_notes(m, &mut notes);
     let done = ids.id(TASK_COMPLETE).and_then(|id| p.bool(id)).unwrap_or(false);
     let completed = done.then(|| time(TASK_DONE_ON).or_else(|| p.time(0x3008).and_then(filetime)).unwrap_or(0));
     let reminder = ids.id(REMINDER_SET).and_then(|id| p.bool(id)).unwrap_or(false);
@@ -507,5 +620,8 @@ pub fn build_task<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, 
         kept_here: true,
         ..Default::default()
     };
-    Ok((task, notes))
+    if !charge(named, held_task(&task)) {
+        return Ok(Err(PAST_BUDGET));
+    }
+    Ok(Ok((task, notes)))
 }

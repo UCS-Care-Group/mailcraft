@@ -17171,6 +17171,11 @@ msgstr "de browser kan mappen niet via een pad lezen"
 msgid "the calendar is gone"
 msgstr "de agenda is verdwenen"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the calendar the .pst file was being imported into was removed: the import stopped"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
