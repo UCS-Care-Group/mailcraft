@@ -29,7 +29,7 @@ const ECDSA_SHA384: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.100
 // ---- randomness and keys ----
 
 /// The system's randomness, as the RSA library asks for it.
-struct Random(ring::rand::SystemRandom);
+pub(crate) struct Random(ring::rand::SystemRandom);
 
 impl rsa::rand_core::TryRng for Random {
     type Error = std::convert::Infallible;
@@ -51,19 +51,19 @@ impl rsa::rand_core::TryRng for Random {
 
 impl rsa::rand_core::TryCryptoRng for Random {}
 
-fn random() -> Random {
+pub(crate) fn random() -> Random {
     Random(ring::rand::SystemRandom::new())
 }
 
 /// An RSA key of `bits`, made once per test run.
-fn rsa_key(bits: usize) -> &'static rsa::PrivateKey {
+pub(crate) fn rsa_key(bits: usize) -> &'static rsa::PrivateKey {
     static K2048: OnceLock<rsa::PrivateKey> = OnceLock::new();
     static K1024: OnceLock<rsa::PrivateKey> = OnceLock::new();
     let cell = if bits == 1024 { &K1024 } else { &K2048 };
     cell.get_or_init(|| rsa::PrivateKey::new(&mut random(), bits).unwrap())
 }
 
-fn p256_key() -> p256::ecdsa::SigningKey {
+pub(crate) fn p256_key() -> p256::ecdsa::SigningKey {
     loop {
         let mut b = [0u8; 32];
         ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut b).unwrap();
@@ -84,9 +84,9 @@ fn p384_key() -> p384::ecdsa::SigningKey {
 }
 
 /// A public key as rcgen puts it in a certificate.
-struct Public {
-    der: Vec<u8>,
-    alg: &'static rcgen::SignatureAlgorithm,
+pub(crate) struct Public {
+    pub(crate) der: Vec<u8>,
+    pub(crate) alg: &'static rcgen::SignatureAlgorithm,
 }
 
 impl rcgen::PublicKeyData for Public {
@@ -98,19 +98,19 @@ impl rcgen::PublicKeyData for Public {
     }
 }
 
-fn rsa_public(key: &rsa::PrivateKey) -> Public {
+pub(crate) fn rsa_public(key: &rsa::PrivateKey) -> Public {
     Public { der: key.to_public_key().to_pkcs1_der().unwrap().as_bytes().to_vec(), alg: &rcgen::PKCS_RSA_SHA256 }
 }
 
 // ---- certificates ----
 
-struct Authority {
-    der: Vec<u8>,
-    key: rcgen::KeyPair,
-    params: rcgen::CertificateParams,
+pub(crate) struct Authority {
+    pub(crate) der: Vec<u8>,
+    pub(crate) key: rcgen::KeyPair,
+    pub(crate) params: rcgen::CertificateParams,
 }
 
-fn params(name: &str) -> rcgen::CertificateParams {
+pub(crate) fn params(name: &str) -> rcgen::CertificateParams {
     let mut p = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
     p.distinguished_name = rcgen::DistinguishedName::new();
     p.distinguished_name.push(rcgen::DnType::CommonName, name);
@@ -126,7 +126,7 @@ fn ca_params(name: &str) -> rcgen::CertificateParams {
     p
 }
 
-fn root(name: &str) -> Authority {
+pub(crate) fn root(name: &str) -> Authority {
     let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
     let params = ca_params(name);
     let der = params.self_signed(&key).unwrap().der().to_vec();

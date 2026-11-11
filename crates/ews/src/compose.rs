@@ -37,6 +37,8 @@ pub enum Unsendable {
     TooLarge,
     /// To be Digitally signed, and not (#30 R19): it is never sent unsigned.
     NotSigned,
+    /// To be Encrypted, and not (#30 part 7): it is never sent in the clear.
+    NotEncrypted,
 }
 
 impl std::fmt::Display for Unsendable {
@@ -46,6 +48,7 @@ impl std::fmt::Display for Unsendable {
             Self::BadAddress => "a recipient's address isn't one mail can be sent to",
             Self::TooLarge => "the message is too large to send",
             Self::NotSigned => mailcraft_mime::NOT_SIGNED,
+            Self::NotEncrypted => mailcraft_mime::NOT_ENCRYPTED,
         })
     }
 }
@@ -359,6 +362,9 @@ impl SendMessage {
     pub fn new(message: &Message) -> Result<Self, Unsendable> {
         if mailcraft_mime::signature_missing(message) {
             return Err(Unsendable::NotSigned);
+        }
+        if mailcraft_mime::encryption_missing(message) {
+            return Err(Unsendable::NotEncrypted);
         }
         let mut anyone = false;
         for address in message.recipients() {

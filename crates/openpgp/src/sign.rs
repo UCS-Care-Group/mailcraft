@@ -25,7 +25,7 @@ use crate::MAX_MESSAGE;
 use crate::keys::{self, Budget, Fingerprint, KeyId, PublicKey};
 
 /// The most bytes [`signing_keys`] reads: a large keyring's export.
-const MAX_INPUT: usize = 32 << 20;
+pub(crate) const MAX_INPUT: usize = 32 << 20;
 /// How many certificates (transferable public keys) one call looks at.
 const MAX_CERTIFICATES: usize = 1_024;
 /// How many signing keys one call gives back.
@@ -344,7 +344,7 @@ pub fn signing_keys(bytes: &[u8], now: u64) -> Vec<SigningKey> {
 /// The certificates in binary packets `bytes`, at most `max`: from each Public-Key packet (tag
 /// 6) to the next (RFC 9580 §10.1), told by the packets' headers alone (§4.2). One with more
 /// packets than any real key is left out; what follows bytes that aren't a packet is not read.
-fn split_certificates(bytes: &[u8], max: usize) -> Vec<&[u8]> {
+pub(crate) fn split_certificates(bytes: &[u8], max: usize) -> Vec<&[u8]> {
     fn close<'a>(bytes: &'a [u8], start: Option<usize>, end: usize, packets: usize, out: &mut Vec<&'a [u8]>) {
         if let Some(begin) = start
             && packets <= MAX_PACKETS_PER_CERTIFICATE

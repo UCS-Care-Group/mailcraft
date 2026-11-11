@@ -16,6 +16,10 @@
 //! RFC 8551 §3.5.3): it hands the digest of the signed attributes to the key's holder, which
 //! signs it (no key is ever seen here), and checks what comes back against the certificate.
 //!
+//! [`encrypt`] makes the CMS EnvelopedData of a MIME entity for the recipients' certificates
+//! (RFC 5652 §6, RFC 8551 §3.3): AES-256-CBC with a random key that is encrypted to each
+//! certificate's RSA key. Only Public keys are used; the random numbers are handed in.
+//!
 //! Input is hostile: BER is turned into DER with nesting bounded, every length is checked
 //! against what is there, the certificates, signers and the path to an anchor are capped, and
 //! nothing here panics on any bytes.
@@ -25,11 +29,14 @@
 mod algorithms;
 mod cert;
 mod chain;
+mod encrypt;
 pub mod import;
 pub mod pkcs12;
 mod sign;
 mod verify;
 
+#[cfg(test)]
+mod encrypt_tests;
 #[cfg(test)]
 mod import_tests;
 #[cfg(test)]
@@ -40,6 +47,7 @@ mod sign_tests;
 mod tests;
 
 pub use chain::{Anchors, MAX_ANCHORS};
+pub use encrypt::{EncryptError, EncryptRequest, MAX_ENCRYPTED_BYTES, MAX_RECIPIENTS, can_encrypt_to, encrypt};
 pub use sign::{DigestAlgorithm, MAX_CHAIN, MAX_SIGNED_BYTES, SignError, SignRequest, SignatureScheme, sign};
 pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, MAX_VERIFICATIONS, Signed, check};
 

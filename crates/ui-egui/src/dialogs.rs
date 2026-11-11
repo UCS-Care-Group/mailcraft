@@ -149,6 +149,8 @@ pub enum Dialog {
     DigitalSignatures(Box<crate::digital_signatures::DigitalSignatures>),
     /// A smartcard's PIN, asked when a signature wanted it (#30).
     SigningPin(Box<crate::digital_signatures::SigningPin>),
+    /// Send with Encrypt on, and recipients with no Public key: Send unencrypted, Remove, Cancel (#30).
+    EncryptStop(Box<crate::encryption::Stop>),
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
@@ -259,6 +261,7 @@ impl Dialog {
             Dialog::MergeContacts(_) => "mergeContacts",
             Dialog::DigitalSignatures(_) => "digitalSignatures",
             Dialog::SigningPin(_) => "signingPin",
+            Dialog::EncryptStop(_) => "encryptStop",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
@@ -2091,6 +2094,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             if (close || !open) && !done {
                 dialog.close(app);
             }
+            close |= !open || done;
+        }
+        Dialog::EncryptStop(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Can't encrypt for everybody"), crate::encryption::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::MergeContacts(dialog) => {

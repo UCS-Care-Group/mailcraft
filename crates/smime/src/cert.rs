@@ -314,6 +314,19 @@ impl Cert {
         usage && self.may_vouch_for_mail()
     }
 
+    /// Whether mail may be encrypted to it (RFC 8551 §4.4): its key usage, when it has one,
+    /// allows key encipherment, and its extended key usage, when it has one, names email
+    /// protection (or any use). A certification authority's certificate is not one to encrypt to.
+    pub fn for_encryption(&self) -> bool {
+        let tbs = self.parsed.tbs_certificate();
+        let usage = match tbs.get_extension::<KeyUsage>() {
+            Ok(Some((_, ku))) => ku.key_encipherment(),
+            Ok(None) => true,
+            Err(_) => false,
+        };
+        usage && self.may_vouch_for_mail() && !self.is_authority()
+    }
+
     /// Whether it names itself as its issuer.
     pub fn self_issued(&self) -> bool {
         self.subject == self.issuer

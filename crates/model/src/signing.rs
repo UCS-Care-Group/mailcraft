@@ -85,6 +85,9 @@ pub struct Unsigned {
     pub message: crate::Id,
     /// Why, in plain words: no key material, no PIN, no address.
     pub why: String,
+    /// It was to be Encrypted and couldn't be (#30 part 7), not to be Digitally signed.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub encrypting: bool,
 }
 
 /// What a message waiting in the Outbox says when it is held for that ([`Unsigned`]).

@@ -17,6 +17,7 @@ pub mod confusables;
 mod contact;
 pub mod dav;
 pub mod digital_signature;
+pub mod encrypting;
 mod ews_server;
 pub mod gmail;
 mod jmap_server;

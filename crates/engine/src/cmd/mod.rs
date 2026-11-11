@@ -29,6 +29,9 @@ mod compose_trust_tests;
 #[cfg(test)]
 mod conversation_thread_tests;
 pub mod edit;
+pub mod encrypting;
+#[cfg(test)]
+mod encrypting_tests;
 mod ews_down;
 pub mod ews_mail;
 mod ews_up;
@@ -191,6 +194,7 @@ pub fn registry() -> Registry {
     v.extend(send_receive::specs());
     v.extend(signature::specs());
     v.extend(signing::specs());
+    v.extend(encrypting::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());

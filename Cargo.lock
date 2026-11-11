@@ -3307,6 +3307,7 @@ dependencies = [
  "pgp",
  "proptest",
  "rand 0.8.8",
+ "rand_core 0.6.4",
  "rsa 0.9.10",
  "sha1 0.10.7",
  "sha2 0.10.9",

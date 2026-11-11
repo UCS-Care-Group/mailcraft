@@ -677,6 +677,11 @@ pub struct Compose {
     /// and the account's Always add a Digital signature holds, as it stands at Send.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sign: Option<bool>,
+    /// Encrypt (`compose.encrypt`, #30 R16a): `None` while the owner hasn't set it for this
+    /// message, and the account's Encrypt when every recipient has a key holds, as it stands at
+    /// Send. On for a reply to an Encrypted message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypt: Option<bool>,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// The signature put in the body (its paragraphs are marked there): which one, how it lays

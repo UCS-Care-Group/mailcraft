@@ -59,6 +59,11 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
             done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_SIGNED.to_string() };
             return Ok(());
         }
+        // The same for one to be Encrypted (#30 part 7): never sent as the server's draft, which is clear.
+        (Some(_), Some(message)) if message.encrypt_with.is_some() || message.encrypt == Some(true) => {
+            done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_ENCRYPTED.to_string() };
+            return Ok(());
+        }
         (Some(draft), _) => {
             let mut up = DraftDone { change: draft.without_data(), id: draft.id.clone(), ..Default::default() };
             let brought = super::drafts::one(graph, draft, &mut up);

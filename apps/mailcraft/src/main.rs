@@ -54,6 +54,9 @@ mod favorites_organisation_flow;
 mod file_dialogs;
 mod file_launcher;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
+mod encrypting;
+#[cfg(test)]
+mod encrypting_tests;
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
 #[cfg(test)]

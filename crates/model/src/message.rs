@@ -411,6 +411,20 @@ pub struct Message {
     /// goes), and nothing sends it unsigned. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub sign_with: Option<crate::signing::SigningKey>,
+    /// Encrypt (#30 R16a), as the owner set it for this message: `None` while they haven't, and
+    /// the account's Encrypt when every recipient has a key holds. A reply to an Encrypted message
+    /// is begun with it on. Kept with a draft.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub encrypt: Option<bool>,
+    /// For a message queued to be sent: what it is to be Encrypted to (#30 R16a, R17), decided at
+    /// Send from the Public keys kept. The host encrypts it on its way out ([`Message::original`]
+    /// then holds what goes), and nothing sends it in the clear. `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub encrypt_with: Option<crate::encrypting::Encryption>,
+    /// For a draft: it stays on this computer, never put on a server (#30 R20): it is to be
+    /// Encrypted, and what a server would be given of it is its clear text.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub local_only: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.

@@ -866,6 +866,10 @@ fn mime_body_with(message: &Message, options: &SendOptions) -> Result<String, Ne
     if mailcraft_mime::signature_missing(message) {
         return Err(NetError::Config("it was to be Digitally signed and wasn't, so it wasn't sent".into()));
     }
+    // And one to be Encrypted that isn't goes nowhere either (#30 part 7).
+    if mailcraft_mime::encryption_missing(message) {
+        return Err(NetError::Config("it was to be Encrypted and wasn't, so it wasn't sent".into()));
+    }
     // Leaving someone out silently would be worse than not sending.
     let mut anyone = false;
     for address in message.recipients() {

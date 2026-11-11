@@ -32,6 +32,10 @@ impl Envelope {
         if mailcraft_mime::signature_missing(message) {
             return Err(NetError::Config(said!("it was to be Digitally signed and wasn't, so it wasn't sent")));
         }
+        // And one to be Encrypted that isn't goes nowhere either (#30 part 7).
+        if mailcraft_mime::encryption_missing(message) {
+            return Err(NetError::Config(said!("it was to be Encrypted and wasn't, so it wasn't sent")));
+        }
         let from = account.email.trim();
         if !is_address(from) {
             return Err(NetError::Config(said!("the account has no usable e-mail address to send from")));

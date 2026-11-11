@@ -539,6 +539,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
+        // A reply to an Encrypted message is Encrypted too, unless the owner turns it off (#30 R16).
+        encrypt: (mode != ComposeMode::Forward && super::encrypting::was_encrypted(&m)).then_some(true),
         ..Default::default()
     };
     if let Some(sig) = &sig {
@@ -1013,6 +1015,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         importance: m.importance,
         read_receipt: asked_receipt(m),
         sign: m.sign,
+        encrypt: m.encrypt,
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
@@ -1230,6 +1233,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         importance: c.importance,
         read_receipt: c.read_receipt,
         sign: c.sign,
+        encrypt: c.encrypt,
         message_id,
         ..Default::default()
     })
@@ -1389,6 +1393,16 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     // choice for this message (#30 R16a): signed with the key the account signs with, or refused
     // here, never sent unsigned.
     m.sign_with = super::signing::will_sign(s, &c).map_err(super::signing::send_refused)?;
+    // And what it is Encrypted to, or why it can't be: a recipient with no key stops the send and
+    // is named, never sent in the clear (R18).
+    match super::encrypting::will_encrypt(s, &c) {
+        super::encrypting::Will::Encrypted { to, .. } => m.encrypt_with = Some(to),
+        other => {
+            if let Some(e) = super::encrypting::send_refused(&other) {
+                return Err(e);
+            }
+        }
+    }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();
@@ -1466,7 +1480,13 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.server, m.server_draft, m.uid, m.synced) = (old.server.clone(), old.server_draft.clone(), old.uid, old.synced);
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
-    let graph = s.mailbox.keeps_drafts_on_server(m.account);
+    // A draft that is to be Encrypted stays on this computer: what a server would be given of it
+    // is its clear text (R20).
+    m.local_only = super::encrypting::keeps_draft_here(s, &c);
+    let graph = s.mailbox.keeps_drafts_on_server(m.account) && !m.local_only;
+    if m.local_only {
+        m.server_draft = None;
+    }
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
         // Not a forward as an attachment: made as a forward, it would have the source's files

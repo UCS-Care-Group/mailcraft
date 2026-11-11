@@ -22,7 +22,7 @@ pub fn draft_changes(s: &Session, account: Id, limit: usize) -> (Vec<DraftUp>, u
         .messages
         .values()
         .map(AsRef::as_ref)
-        .filter(|m| m.account == account && m.draft && Some(m.folder) != outbox)
+        .filter(|m| m.account == account && m.draft && !m.local_only && Some(m.folder) != outbox)
         .filter(|m| m.server_draft.as_ref().is_some_and(|d| d.pending))
         .collect();
     waiting.sort_by_key(|m| m.id);
@@ -48,7 +48,9 @@ pub fn pending(mb: &Mailbox, account: Id) -> usize {
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
     mb.messages
         .values()
-        .filter(|m| m.account == account && m.draft && Some(m.folder) != outbox && m.server_draft.as_ref().is_some_and(|d| d.pending))
+        .filter(|m| {
+            m.account == account && m.draft && !m.local_only && Some(m.folder) != outbox && m.server_draft.as_ref().is_some_and(|d| d.pending)
+        })
         .count()
 }
 

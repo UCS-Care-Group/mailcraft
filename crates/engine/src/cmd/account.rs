@@ -784,7 +784,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let (ops, _) = remote_ops(s, account, MAX_OPS);
     let (places, _) = place_ops(s, account, MAX_PLACES);
     // What is sent goes whole: the files a message keeps on disk are read for it.
-    let outbox = s.loaded_outbox(outbox).into_iter().map(|m| super::signing::decided(&s.mailbox, m)).collect();
+    let outbox = s.loaded_outbox(outbox).into_iter().map(|m| super::signing::decided(&s.mailbox, m, s.now())).collect();
     let gmail_moves = gmail_moves(s, account);
     Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, gmail_moves, ..Default::default() })
 }
@@ -1420,6 +1420,7 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
             // Sent: it isn't to be signed again (its signed copy is the server's, #30).
             if let Ok(m) = mb.message_mut(*id) {
                 m.sign_with = None;
+                m.encrypt_with = None;
             }
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a
