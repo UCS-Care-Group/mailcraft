@@ -344,8 +344,10 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Shift+Delete does. A rule that can't yet tell whether it applies to new mail not downloaded
   waits until the message is here whole, and so does one that copies it into another account's
   folder; the rules after it act meanwhile, but one that deletes for good waits with it. Nothing
-  is deleted for good of mail its server had before it was read here (a first download, older
-  mail), nor by Run Rules Now after a rule that can't tell (a Delete in Deleted Items included).
+  is copied or deleted for good of mail its server had before it was read here (a first download,
+  older mail, a mailbox the server numbered anew), nor deleted for good by Run Rules Now after a
+  rule that can't tell (a Delete in Deleted Items included). An undo of a step that copied a
+  message and deleted it for good leaves the copy, which is then all there is of it.
   The rules leave a shared mailbox's mail alone, Run Rules Now too. On an IMAP, Microsoft or
   Exchange server account, the server's original of a message copied on this computer and
   deleted for good, by a rule or by hand, goes only once the mailbox file holds the copy.
