@@ -8,8 +8,8 @@
 //! (`sync.categoryChanges`); the host tells it and reads the list back, and the window takes in
 //! whether the list may be changed (`sync.categoryWrites`), what the server made of the changes
 //! (`sync.applyCategoryChanges`) and what it has (`sync.applyCategories`). The calendar's job
-//! reads the list too, every few minutes, so Outlook's changes show here with it. The merge is the
-//! engine's ([`mailcraft_engine::cmd::categories_remote`]).
+//! reads the list too, every quarter of an hour, so Outlook's changes show here with it. The
+//! merge is the engine's ([`mailcraft_engine::cmd::categories_remote`]).
 //!
 //! **The permission.** Changing the list takes `MailboxSettings.ReadWrite`, as the rules and the
 //! automatic replies do. Without it the list is read-only here, and the Categories window says so
