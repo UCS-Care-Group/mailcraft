@@ -2603,6 +2603,83 @@ fn a_category_given_after_another_rule_moved_the_mail_is_asked_for_on_the_list_i
     assert!(s.mailbox.category_of(b, "Zed").is_some());
 }
 
+/// What a rule gives mail depends on which rules run before it: one that sets the importance a
+/// later one matches, one that stops the rest, the order. So switching a rule on or off,
+/// deleting or moving one asks `send` while a rule that runs with it gives mail a name new on a
+/// list kept in step with Outlook, and names it (#661).
+#[test]
+fn a_change_of_which_rules_run_asks_for_the_categories_the_rules_may_then_give() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let rule = |id: Id, enabled: bool, stop: bool, conditions: Vec<Condition>, actions: Vec<Action>| Rule {
+        id,
+        name: format!("R{id}"),
+        enabled,
+        stop,
+        account: a,
+        conditions,
+        actions,
+        ..Default::default()
+    };
+    let high = mailcraft_model::Importance::High;
+    s.mailbox.rules = vec![
+        rule(901, false, false, vec![Condition::SubjectContains("x".into())], vec![Action::SetImportance(high)]),
+        rule(902, true, true, vec![Condition::SubjectContains("y".into())], vec![Action::Flag]),
+        rule(903, true, false, vec![Condition::Importance(high)], vec![Action::Categorize("Zed".into())]),
+    ];
+    let asked = |s: &Session, command: &str, params: serde_json::Value| match check(s, command, &params, &[Class::Settings]) {
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("\u{201c}Zed\u{201d}") && text.contains("a@example.org"), "{command}: {text}"),
+        other => panic!("{command}: {other:?}"),
+    };
+    // Switching on the rule that sets the importance the last one matches.
+    asked(&s, "rules.enable", json!({"id": 901, "value": true}));
+    // Switching off, deleting or moving the one that stops the rest.
+    asked(&s, "rules.enable", json!({"id": 902, "value": false}));
+    asked(&s, "rules.remove", json!({"id": 902}));
+    asked(&s, "rules.move", json!({"id": 902, "direction": "down"}));
+    // Run, the name goes on the list, and nothing is asked for it again.
+    s.mailbox.rules.iter_mut().filter(|r| r.id == 901).for_each(|r| r.enabled = true);
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    s.mailbox.add_message(Message { folder: inbox, subject: "x".into(), ..Default::default() }).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert!(s.mailbox.category_of(a, "Zed").is_some());
+    assert_eq!(check(&s, "rules.remove", &json!({"id": 902}), &[Class::Settings]), Verdict::Run);
+}
+
+/// Deleting a rule its server has is a delete, and while a rule that runs with it gives mail a
+/// name new on a list kept in step with Outlook, a send too: both are asked at once (#661).
+#[test]
+fn deleting_a_server_rule_that_lets_another_give_a_new_category_asks_send_and_delete() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let server = mailcraft_model::ServerRule { id: "srv-1".into(), synced_enabled: true, ..Default::default() };
+    s.mailbox.rules = vec![
+        Rule {
+            id: 911,
+            name: "Stop".into(),
+            enabled: true,
+            stop: true,
+            account: a,
+            conditions: vec![Condition::SubjectContains("y".into())],
+            actions: vec![Action::Flag],
+            keep: mailcraft_model::Keep::Server,
+            server: Some(server),
+            ..Default::default()
+        },
+        Rule {
+            id: 912,
+            name: "Tag".into(),
+            enabled: true,
+            account: a,
+            conditions: vec![Condition::SubjectContains("y".into())],
+            actions: vec![Action::Categorize("Zed".into())],
+            ..Default::default()
+        },
+    ];
+    let params = json!({"id": 911});
+    assert!(!matches!(check(&s, "rules.remove", &params, &[Class::Send]), Verdict::Run), "it deletes a rule on its server");
+    assert!(!matches!(check(&s, "rules.remove", &params, &[Class::Delete]), Verdict::Run), "it makes a category in Outlook");
+    assert_eq!(check(&s, "rules.remove", &params, &[Class::Send, Class::Delete]), Verdict::Run);
+}
+
 #[test]
 fn an_agents_undo_or_redo_that_makes_a_category_in_outlook_again_asks_send_and_says_so() {
     let ask = |s: &Session, command: &str, allow: &[Class], what: &[&str]| match check(s, command, &json!({}), allow) {

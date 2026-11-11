@@ -908,7 +908,9 @@ struct MadeInOutlook {
 const GIVES_CATEGORIES: [&str; 6] = ["tasks.new", "tasks.edit", "calendar.new", "calendar.newMeeting", "calendar.edit", "people.meeting"];
 
 /// The commands that make, switch on or run rules, which may give mail a category (#661).
-const RUNS_RULES: [&str; 4] = ["rules.add", "rules.fromMessage", "rules.enable", "rules.run"];
+/// The calls that make, switch on or off, delete, move, keep elsewhere or run a rule: each changes
+/// which rules run on mail, and so what they give it.
+const RUNS_RULES: [&str; 7] = ["rules.add", "rules.fromMessage", "rules.enable", "rules.run", "rules.remove", "rules.move", "rules.keepOnServer"];
 
 /// The account a list kept in step with Outlook is, for the items of `account`, when MailCraft may
 /// change it there.
@@ -987,38 +989,48 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
     (!owners.is_empty()).then_some(MadeInOutlook { names: vec![name], owners, made: true })
 }
 
-/// The categories the rules a call makes, switches on or runs give mail and put on a list kept in
-/// step with Outlook that hasn't got them, so that the next job makes them there (#661); each
-/// with that list's account. A rule for one account gives that account's mail its categories; one
-/// for every account, every account's. Read as the commands read their params, as for
-/// [`rules_onto_another_server`].
+/// The categories the rules a call makes, switches on or off, deletes, moves, keeps elsewhere or
+/// runs give mail and put on a list kept in step with Outlook that hasn't got them, so that the
+/// next job makes them there (#661); each with that list's account. A rule for one account gives
+/// that account's mail its categories; one for every account, every account's. Read as the
+/// commands read their params, as for [`rules_onto_another_server`].
 fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, Id)> {
     let mb = &s.mailbox;
     let mut out = Vec::new();
+    let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
     match id {
         "rules.add" => {
             if let Ok(r) = crate::cmd::rules::rule_from_params(s, params) {
-                rule_makes_in_outlook(mb, &r, one_account(&r), &mut out);
+                rule_makes_in_outlook(mb, &r, one_account(&r), Counted::WithOthers, &mut out);
             }
         }
         "rules.fromMessage" => {
             if let Ok((r, _)) = crate::cmd::rules::rule_from_message(s, params) {
-                rule_makes_in_outlook(mb, &r, one_account(&r), &mut out);
+                rule_makes_in_outlook(mb, &r, one_account(&r), Counted::WithOthers, &mut out);
             }
         }
         "rules.enable" => {
-            let named = p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
-            if let (Ok(value), Some(r)) = (p::opt_bool(params, "value"), named)
-                && value.unwrap_or(!r.enabled)
-            {
-                rule_makes_in_outlook(mb, r, one_account(r), &mut out);
+            if let (Ok(value), Some(r)) = (p::opt_bool(params, "value"), named()) {
+                let counted = if value.unwrap_or(!r.enabled) { Counted::WithOthers } else { Counted::Others };
+                rule_makes_in_outlook(mb, r, one_account(r), counted, &mut out);
+            }
+        }
+        "rules.remove" => {
+            if let Some(r) = named() {
+                rule_makes_in_outlook(mb, r, one_account(r), Counted::Others, &mut out);
+            }
+        }
+        "rules.move" | "rules.keepOnServer" => {
+            if let Some(r) = named() {
+                let counted = if r.enabled { Counted::WithOthers } else { Counted::Others };
+                rule_makes_in_outlook(mb, r, one_account(r), counted, &mut out);
             }
         }
         "rules.run" => {
             let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return out };
             if let Some(a) = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account) {
                 for r in mb.rules.iter().filter(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id)) {
-                    rule_makes_in_outlook(mb, r, Some(a), &mut out);
+                    rule_makes_in_outlook(mb, r, Some(a), Counted::Alone, &mut out);
                 }
             }
         }
@@ -1027,13 +1039,25 @@ fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, 
     out
 }
 
+/// Whose categories [`rule_makes_in_outlook`] counts: the rule's alone (a rule run by itself, or
+/// each of the rules a run goes through), the rule's and those of the rules that run with it (a
+/// rule made, switched on, moved or kept elsewhere: which of the others match, stop or are
+/// moved to then changes), or only theirs (a rule switched off or deleted).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Counted {
+    Alone,
+    WithOthers,
+    Others,
+}
+
 /// [`rules_make_in_outlook`] for one rule, giving the mail of `from` (every account's, `None`) its
-/// categories. The mail may have been moved to another account by then, by this rule or by one
-/// that runs before it ([`Mailbox::run_rules`] runs the rules of the account the mail came to,
-/// in their order, wherever an earlier one moved it), or a move may have been refused (a message
-/// not downloaded whole, say): every list it may be on is named. A rule that moves mail to another
-/// account takes the categories the rules that run with it give there too.
-fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<Id>, out: &mut Vec<(String, Id)>) {
+/// categories, and, as `counted` says, those of the rules that run on the same mail. The mail may
+/// have been moved to another account by then, by this rule or by one that runs before it
+/// ([`Mailbox::run_rules`] runs the rules of the account the mail came to, in their order,
+/// wherever an earlier one moved it), or a move may have been refused (a message not downloaded
+/// whole, say): every list it may be on is named. What each rule matches, where it stands and
+/// whether one before it stops the rest are not worked out: whatever they give may be given.
+fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<Id>, counted: Counted, out: &mut Vec<(String, Id)>) {
     let mut accounts: Vec<Id> = match from {
         Some(a) => vec![a],
         None => mb.accounts.iter().map(|a| a.id).collect(),
@@ -1051,18 +1075,16 @@ fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<I
             _ => None,
         })
         .collect();
-    // (A rule for every account's mail moves some account's mail away wherever it moves it.)
-    let moves_away = r.actions.iter().any(|action| match action {
-        mailcraft_model::Action::MoveTo(folder) => mb.folder(*folder).is_some_and(|f| !mb.is_send_queue(f.id) && from.is_none_or(|a| f.account != a)),
-        _ => false,
-    });
     for account in moved_to {
         if !accounts.contains(&account) {
             accounts.push(account);
         }
     }
-    let others = mb.rules.iter().filter(|x| moves_away && x.id != r.id && x.enabled && runs_with(x));
-    let given = r.actions.iter().chain(others.flat_map(|x| x.actions.iter()));
+    // A rule runs here when it is switched on, or, on new mail, when its server last had it on.
+    let runs = |x: &mailcraft_model::Rule| x.enabled || x.server.as_ref().is_some_and(|s| s.synced_enabled);
+    let own = (counted != Counted::Others).then_some(r);
+    let others = mb.rules.iter().filter(|x| counted != Counted::Alone && x.id != r.id && runs(x) && runs_with(x));
+    let given = own.into_iter().chain(others).flat_map(|x| x.actions.iter());
     for action in given {
         let mailcraft_model::Action::Categorize(name) = action else { continue };
         let Some(name) = mailcraft_model::clean_name(name) else { continue };
@@ -1091,7 +1113,7 @@ fn made_in_outlook_suffix(s: &Session, id: &str, params: &Value) -> String {
         many => (format!("the categories {}", some(many, 3)), "they", "are"),
     };
     if RUNS_RULES.contains(&id) {
-        format!("; the rule gives mail {what}, new on the list{whose}, which is kept in step with Outlook, so {it} {is} made in Outlook too")
+        format!("; the rules give mail {what}, new on the list{whose}, which is kept in step with Outlook, so {it} {is} made in Outlook too")
     } else {
         format!("; {what} {is} new on the list{whose}, which is kept in step with Outlook, and {is} made in Outlook too")
     }
@@ -1359,7 +1381,9 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// the accounts (or a change that writes to people) and takes away messages, drafts, contacts or
 /// the like needs Delete too, as `edit.undo` refuses to take messages without it (#473); so does
 /// deleting a category a to-do in a shared list has (asked as `send`) when it goes from Outlook
-/// too (#661). Asked about as one question, so that the owner's yes lets it run.
+/// too (#661); a rule call needs Send for a category made in Outlook and Delete for a rule
+/// deleted on its server or one there that deletes mail, whichever it is asked about (#661).
+/// Asked about as one question, so that the owner's yes lets it run.
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         "edit.undo" | "edit.redo" => {
@@ -1378,6 +1402,21 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
         // A category a to-do in a shared list has is deleted as `send` asks; one that goes from
         // Outlook too, where an undo only makes it anew, needs Delete as well (#661).
         "category.remove" if class != Class::Delete && removes_in_outlook(s, params) => vec![Class::Delete],
+        // A rule call asked about for one reason needs the others too: a category made in Outlook
+        // is a send, and a rule deleted on its server, or one there that deletes mail, a delete
+        // (#661).
+        _ if RUNS_RULES.contains(&id) => {
+            let mut more = Vec::new();
+            if class != Class::Send && makes_in_outlook(s, id, params).is_some() {
+                more.push(Class::Send);
+            }
+            let there = |x: &mailcraft_model::Rule| x.on_server() || x.unanswered;
+            let deleted_there = id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x)));
+            if class != Class::Delete && (deleted_there || server_rule_deletes(s, id, params)) {
+                more.push(Class::Delete);
+            }
+            more
+        }
         _ => Vec::new(),
     }
 }
