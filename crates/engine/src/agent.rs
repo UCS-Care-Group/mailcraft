@@ -1086,7 +1086,14 @@ fn reached(changed: &[Id], r: &mailcraft_model::Rule) -> bool {
 /// [`undo_rules_delete_for_good`] reads one that deletes: any change may let more mail reach it.
 pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Option<Id> {
     let changed = changed_accounts(&s.mailbox, to);
-    to.rules.iter().filter(|r| r.enabled && reached(&changed, r)).find_map(|r| rule_onto_server(s, r, one_account(r)))
+    to.rules.iter().filter(|r| r.enabled && reached(&changed, r)).find_map(|r| match one_account(r) {
+        Some(a) => rule_onto_server(s, r, Some(a)),
+        // A rule for every account's mail: what it does with the mail of the accounts whose rules
+        // the step changes, as `beside_onto_server` reads it; every account's when it is changed
+        // itself.
+        None if changed.contains(&0) => rule_onto_server(s, r, None),
+        None => changed.iter().find_map(|a| rule_onto_server(s, r, Some(*a))),
+    })
 }
 
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
@@ -1667,7 +1674,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             // (Each of these works the undo out on a copy of the mailbox: once.)
             let (places, rule_onto) = (s.undo_places(redo), s.undo_rules_onto_server(redo));
-            let what = match s.undo_reverts(redo) {
+            let what = match s.undo_reverts_with(redo, || !places.is_empty() || rule_onto.is_some()) {
                 Some(Class::Accounts) => Some("the accounts"),
                 // What a message or a rule put on its way onto a server is is said below.
                 Some(Class::Send) if !places.is_empty() || rule_onto.is_some() => None,

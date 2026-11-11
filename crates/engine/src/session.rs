@@ -3280,6 +3280,13 @@ impl Session {
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
+        self.undo_reverts_with(redo, || !self.undo_places(redo).is_empty() || self.undo_rules_onto_server(redo).is_some())
+    }
+
+    /// [`Session::undo_reverts`], told by `onto` whether the step puts mail or a rule on its way
+    /// onto another account's server ([`Session::undo_places`], [`Session::undo_rules_onto_server`]),
+    /// for a question that has worked those out already: each works the undo out on a copy.
+    pub(crate) fn undo_reverts_with(&self, redo: bool, onto: impl FnOnce() -> bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
         let (to, now) = (&step.mailbox, &self.mailbox);
@@ -3304,7 +3311,7 @@ impl Session {
         // A message the step puts on its way onto another account's server again, or a rule it
         // brings back or switches on that files mail there (#566): an agent's move there, or its
         // rule that does, is a send too.
-        if !self.undo_places(redo).is_empty() || self.undo_rules_onto_server(redo).is_some() {
+        if onto() {
             return Some(Class::Send);
         }
         if self.undo_deletes(redo) {

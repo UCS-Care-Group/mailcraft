@@ -1806,3 +1806,22 @@ fn a_rule_made_without_an_account_is_for_the_account_in_view() {
     assert!(refused.contains("`account`"), "{refused}");
     assert_eq!(s.mailbox.rules, before);
 }
+
+/// An undo of one account's rules reaches only that account's mail: a rule for every account that
+/// files another account's mail onto this one's server isn't one the undo lets more mail reach,
+/// so it is asked as a change of the rules, not as a send (#566).
+#[test]
+fn an_undo_of_one_accounts_rules_isnt_a_send_for_a_rule_of_every_account_filing_into_it() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, _, _) = session();
+    run(&mut s, "account.add", json!({"email": "other@example.org", "kind": "microsoft"}));
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    s.mailbox.folder_mut(archive).unwrap().server = Some(ServerFolder { id: "arch".into(), name: "Archive".into(), ..Default::default() });
+    // A rule for every account's mail, as a mailbox from before rules had accounts holds.
+    let every = add(&mut s, account, "Everyone", json!([{"type": "hasAttachment"}]), json!([{"type": "copyTo", "value": archive}]));
+    let r = s.mailbox.rules.iter_mut().find(|r| r.id == every).unwrap();
+    (r.account, r.keep) = (0, Keep::Here);
+    let mine = add(&mut s, account, "Mine", json!([{"type": "subjectContains", "value": "digest"}]), json!([{"type": "markRead"}]));
+    run(&mut s, "rules.enable", json!({"id": mine, "value": false}));
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Settings));
+}
