@@ -193,8 +193,8 @@ fn what_the_server_refuses_or_no_longer_has_is_said() {
 #[test]
 fn a_folder_the_server_says_is_its_own_is_answered_so_and_the_run_goes_on() {
     // #1069: RSS Feeds and the like, which no well-known name marks. The server's word is taken
-    // whatever the status it comes with; a 403 for a move or a deletion in the owner's own
-    // mailbox says the same; any other last word on a change is a refusal, not a stopped run.
+    // whatever the status it comes with. A bare 403 says no such thing (it may pass): a refusal,
+    // as is any other last word on a change, never a stopped run.
     let server = StandIn::start().unwrap();
     let mut state = server.state();
     let deleted = state.well_known("deleteditems");
@@ -220,7 +220,7 @@ fn a_folder_the_server_says_is_its_own_is_answered_so_and_the_run_goes_on() {
     assert!(
         matches!(
             outcomes.as_slice(),
-            [ChangeOutcome::OwnFolder { .. }, ChangeOutcome::OwnFolder { .. }, ChangeOutcome::OwnFolder { .. }, ChangeOutcome::Refused { .. }]
+            [ChangeOutcome::OwnFolder { .. }, ChangeOutcome::OwnFolder { .. }, ChangeOutcome::Refused { .. }, ChangeOutcome::Refused { .. }]
         ),
         "{outcomes:?}"
     );

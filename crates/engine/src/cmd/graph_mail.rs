@@ -612,8 +612,11 @@ pub(super) fn change_done(
             FolderChange::Rename { folder, .. } | FolderChange::Move { folder, .. },
             ChangeOutcome::Refused { why } | ChangeOutcome::OwnFolder { why },
         ) => {
-            // Put back to how the server has it, and said once. One the server says is its own
-            // (#1069) is marked so: it isn't offered for renaming, moving or deleting again.
+            // Put back to how the server has it, its place and its name (a move into Deleted Items
+            // may have numbered it; a rename sent before the move is the server's name by now),
+            // and said once (#1069). Only one the server says is its own (`OwnFolder`, its own
+            // code for it) is marked so, and isn't offered for renaming, moving or deleting
+            // again: a bare refusal (a 403 may pass) leaves it the owner's.
             let server = mb.folder(*folder).filter(|f| f.account == account)?.server.clone()?;
             let back = if server.parent.is_empty() { None } else { mb.folder_by_server(account, &server.parent) };
             let f = mb.folder_mut(*folder).ok()?;
@@ -621,10 +624,13 @@ pub(super) fn change_done(
                 && let Some(kept) = f.server.as_mut()
             {
                 kept.well_known = true;
-                // (Its name too: a move into Deleted Items may have numbered it.)
+            }
+            // (A refused rename is said by the name asked for; a refused move by the folder's own.)
+            let asked = shown(&f.name);
+            if f.kind == FolderKind::Custom {
                 f.name = server.name.clone();
             }
-            let was = shown(&f.name);
+            let was = if matches!(change, FolderChange::Rename { .. }) { asked } else { shown(&f.name) };
             let said = match change {
                 FolderChange::Rename { .. } => {
                     f.name = server.name.clone();

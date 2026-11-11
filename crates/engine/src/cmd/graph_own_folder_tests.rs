@@ -152,3 +152,40 @@ fn a_folder_of_the_owners_still_goes_and_an_ordinary_refusal_marks_nothing() {
     s.run("folder.delete", &json!({"id": projects})).unwrap();
     assert_eq!(s.mailbox.folder(projects).unwrap().parent, s.mailbox.folder_of_kind(account, FolderKind::Deleted));
 }
+
+#[test]
+fn a_bare_403_puts_the_folder_back_by_its_name_says_so_and_marks_nothing() {
+    // A 403 without the server's code for its own folders may pass (a policy changed, a token
+    // short of a scope): the folder goes back where the server has it, its name too, the owner
+    // is told, nothing is sent again, and it can be deleted later.
+    let (mut s, account) = session();
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.add_folder(account, Some(deleted), "Projects").unwrap();
+    let projects = s.mailbox.folder_by_server(account, "pr").unwrap();
+    s.run("folder.delete", &json!({"id": projects})).unwrap();
+    assert_eq!(s.mailbox.folder(projects).unwrap().name, "Projects (2)");
+    let refused: Vec<FolderChangeDone> = graph_mail_request(&s, account)
+        .unwrap()
+        .changes
+        .into_iter()
+        .filter(|c| matches!(c, FolderChange::Move { id, .. } | FolderChange::Rename { id, .. } if id == "pr"))
+        .map(|change| FolderChangeDone {
+            change,
+            outcome: ChangeOutcome::Refused { why: "the server says this account may not make that change".into() },
+        })
+        .collect();
+    assert!(!refused.is_empty());
+    let answer = take(&mut s, account, refused);
+    let errors = answer["errors"].to_string();
+    assert!(errors.contains("Couldn't move the folder \\\"Projects\\\"") && errors.contains("may not"), "{errors}");
+    let f = s.mailbox.folder(projects).unwrap();
+    assert_eq!((f.parent, f.name.as_str(), f.server_owned()), (None, "Projects", false));
+    let again = folder_changes(&s.mailbox, account, 10).0;
+    assert!(!again.iter().any(|c| matches!(c, FolderChange::Move { id, .. } | FolderChange::Rename { id, .. } if id == "pr")), "{again:?}");
+    s.view.folder = projects;
+    for id in ["folder.rename", "folder.move", "folder.delete"] {
+        assert!(s.enabled(id), "{id}");
+    }
+    s.run("folder.delete", &json!({"id": projects})).unwrap();
+    assert_eq!(s.mailbox.folder(projects).unwrap().parent, Some(deleted));
+}

@@ -867,7 +867,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                     None => refused("the server has a folder of that name there"),
                 })),
                 404 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, &body, false),
+                _ => outcome_of(graph, &reply, &body),
             }
         }
         FolderChange::Rename { folder: _, id, name } => {
@@ -881,7 +881,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                 200 | 201 => Ok(Some(done_in_place(known, &reply)?)),
                 409 => Ok(Some(refused("the server has a folder of that name there"))),
                 404 | 410 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, &body, false),
+                _ => outcome_of(graph, &reply, &body),
             }
         }
         FolderChange::Move { folder: _, id, parent } => {
@@ -895,7 +895,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
                 200 | 201 => Ok(Some(done(known, &reply, &to)?)),
                 409 => Ok(Some(refused("the server has a folder of that name there"))),
                 404 | 410 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, &body, true),
+                _ => outcome_of(graph, &reply, &body),
             }
         }
         FolderChange::Delete { id, shown } => {
@@ -914,7 +914,7 @@ fn make_change(graph: &Graph<'_>, known: &Known, made: &HashMap<u64, String>, ch
             match reply.status {
                 200..=299 => Ok(Some(ChangeOutcome::Done { folder: GraphFolder { id, ..Default::default() } })),
                 404 | 410 => Ok(Some(ChangeOutcome::Gone)),
-                _ => outcome_of(graph, &reply, "", true),
+                _ => outcome_of(graph, &reply, ""),
             }
         }
     }
@@ -963,12 +963,12 @@ fn done_in_place(known: &Known, reply: &Reply) -> Result<ChangeOutcome, NetError
 /// and any other 403 stops them too, the change waiting here for the next run.
 ///
 /// A folder the server answers is one of its own is [`ChangeOutcome::OwnFolder`] (#1069): put
-/// back here and never offered for it again. That is an answer with one of [`OWN_FOLDER_CODES`],
-/// whatever its status; or, for a move or a deletion (`moving`) in the owner's own mailbox, a 403:
-/// the owner may move and delete every folder of his that the server lets go of. Any other answer
-/// that is the server's last word on a change (a 400, a 405, a 422) is a refusal, so that the
-/// folder is put back rather than the run stopping on it every time.
-fn outcome_of(graph: &Graph<'_>, reply: &Reply, sent: &str, moving: bool) -> Result<Option<ChangeOutcome>, NetError> {
+/// back here and never offered for it again. That is only an answer with one of
+/// [`OWN_FOLDER_CODES`], whatever its status: a bare 403 may pass (a policy changed later, a
+/// token short of a scope), so it is a refusal and marks nothing. Any other answer that is the
+/// server's last word on a change (a 400, a 403, a 405, a 422) is a refusal, so that the folder is
+/// put back rather than the run stopping on it every time.
+fn outcome_of(graph: &Graph<'_>, reply: &Reply, sent: &str) -> Result<Option<ChangeOutcome>, NetError> {
     refusing(graph, reply)?;
     let body = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
     let code = body.get("error").map_or("", |error| text(error, "code"));
@@ -979,7 +979,6 @@ fn outcome_of(graph: &Graph<'_>, reply: &Reply, sent: &str, moving: bool) -> Res
         return Err(graph.refusal(Doing::Folders, reply, sent));
     }
     match reply.status {
-        403 if moving => Ok(Some(own_folder())),
         400 | 405 | 422 => Ok(Some(refused("the server says the change isn't one it can make"))),
         403 => Ok(Some(refused("the server says this account may not make that change"))),
         _ => Err(graph.refusal(Doing::Folders, reply, sent)),
