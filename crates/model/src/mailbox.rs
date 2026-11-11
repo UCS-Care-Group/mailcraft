@@ -3758,10 +3758,11 @@ impl Mailbox {
     /// (what carries it keeps it, in grey), a colour or a spelling it changed is taken. What was
     /// changed here and not sent yet stays as it is here, to go with the next job. A name the
     /// server now has that was kept here alone becomes the server's, in its colour. The list
-    /// holds [`MAX_CATEGORIES`] at most: a name the server added beyond it waits. How many
-    /// categories changed.
+    /// holds [`MAX_CATEGORIES`] at most: a name the server added beyond it waits. At the first
+    /// read of the server, what it doesn't list is kept here alone. How many categories changed.
     pub fn take_server_categories(&mut self, owner: Id, server: &[Category], complete: bool) -> usize {
         self.tidy_local(owner);
+        let first = !self.synced_categories.contains_key(&owner);
         let synced = self.synced_categories.get(&owner).cloned().unwrap_or_default();
         let mut local = self.local_categories.get(&owner).cloned().unwrap_or_default();
         let mut list = self.account_categories.get(&owner).cloned().unwrap_or_default();
@@ -3812,6 +3813,16 @@ impl Mailbox {
             list.retain(|c| !missing.iter().any(|was| same_category(&was.name, &c.name)));
         } else {
             synced_now.extend(missing.into_iter().cloned());
+        }
+        // The first read of this server (the list was another mailbox's, or no Microsoft
+        // account's, until now): what it doesn't list is kept here alone, as when a list starts
+        // (#661), and is never sent unasked.
+        if first {
+            for c in list.iter().filter(|c| !on_categories(server, &c.name)) {
+                if !on_list(&local, &c.name) {
+                    local.push(c.name.clone());
+                }
+            }
         }
         let changed = list.iter().filter(|c| !before.contains(c)).count() + before.iter().filter(|c| !list.contains(c)).count();
         let lists_changed = self.synced_categories.get(&owner) != Some(&synced_now);

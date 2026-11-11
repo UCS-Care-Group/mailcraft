@@ -519,6 +519,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // (And a Microsoft account's address is its mailbox: what its server had of its categories is
     // the old one's, #661.)
     let was_address = before.email.trim().to_string();
+    let was_microsoft = before.kind == AccountKind::Microsoft;
     if listed_ews(s, id) && a.kind == AccountKind::Exchange {
         let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
@@ -563,7 +564,11 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
-    if readdressed {
+    // So is one that isn't a Microsoft account any more: nothing keeps its list in step with
+    // Outlook, and it is the owner's to change here; should it be one again, its server's list is
+    // read as a new address's is.
+    let left_microsoft = was_microsoft && s.mailbox.account(id).is_some_and(|x| x.kind != AccountKind::Microsoft);
+    if readdressed || left_microsoft {
         s.mailbox.restart_category_sync(id);
     }
     Ok(json!({"id": id}))

@@ -859,6 +859,31 @@ fn another_address_by_way_of_another_kind_is_another_mailbox_too() {
 }
 
 #[test]
+fn an_account_that_is_not_microsofts_any_more_keeps_its_categories_here_to_change() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("account.edit", &json!({"id": a, "kind": "imap"})).unwrap();
+    assert_eq!(s.mailbox.account(a).unwrap().email, "a@example.org");
+    // Nothing keeps it in step with Outlook: it is changed here, and nothing waits to go there.
+    assert!(s.mailbox.categories_read_only(a).is_none() && s.mailbox.synced_list_owner(a).is_none());
+    s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#123456"})).unwrap();
+    s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+    assert!(s.run("sync.categoryChanges", &json!({"account": a})).is_err() || changes(&mut s, a).is_empty());
+    // A Microsoft account again: its server's list is read as a new address's is, and what is
+    // only here stays here.
+    s.run("account.edit", &json!({"id": a, "kind": "microsoft"})).unwrap();
+    read(&mut s, a, vec![tag("Red category", RED), tag("Old", GREEN)]);
+    s.run("sync.categoryWrites", &json!({"account": a, "allowed": true})).unwrap();
+    assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
+    assert!(s.mailbox.category_is_local(a, "Travel"));
+    assert!(!s.mailbox.category_is_local(a, "Red category"));
+    // Undone, the kind change sends nothing either.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("account.edit", &json!({"id": a, "kind": "imap"})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(deletes(&mut s, a).is_empty(), "{:?}", deletes(&mut s, a));
+}
+
+#[test]
 fn an_undo_of_other_letters_half_done_there_makes_the_old_letters_again() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
     s.run("category.rename", &json!({"account": a, "from": "client", "to": "Client"})).unwrap();
