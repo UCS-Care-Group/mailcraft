@@ -352,6 +352,12 @@ msgid "A copy of your whole mailbox is saved next to it first, as always. Mail i
 msgstr "Une copie de toute votre boîte aux lettres est d'abord enregistrée à côté d'elle, comme toujours. Le courrier de la Boîte d'envoi n'est pas oublié : il est envoyé via Microsoft Graph."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
+msgstr "Une alerte sur le bureau pour le courrier sur lequel cette règle agit à son arrivée, même si celle du nouveau courrier est désactivée dans Fichier › Options"
+
+#. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "A file dialog is already open."
@@ -449,12 +455,6 @@ msgstr "Une note pour l'accompagner (facultatif)"
 #, fuzzy
 msgid "A note to the organizer (optional)"
 msgstr "Une note pour l'organisateur (facultatif)"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-msgstr "Une notification pour le courrier sur lequel cette règle agit à son arrivée, comme pour le nouveau courrier, même si les notifications de nouveau courrier sont désactivées"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -4798,7 +4798,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr "De et Envoyé à demandent des adresses complètes, comme quelqu'un@example.org."
+msgstr "« De » et « Envoyé à » demandent des adresses complètes, comme quelqu'un@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -7433,7 +7433,7 @@ msgstr "Déplacer vers le dossier"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
-msgstr "« Déplacer vers le dossier » et « Copier dans un dossier » ont besoin d'un dossier ; « Catégoriser » a besoin d'une catégorie."
+msgstr "« Déplacer vers le dossier » et « Copier dans le dossier » ont besoin d'un dossier ; « Catégoriser » a besoin d'une catégorie."
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -9563,7 +9563,7 @@ msgstr "Reçu entre"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr "Reçu entre demande un ou deux jours (AAAA-MM-JJ), le plus ancien d'abord."
+msgstr "« Reçu entre » demande un ou deux jours (AAAA-MM-JJ), le plus ancien d'abord."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -11832,7 +11832,7 @@ msgstr "La taille est comprise entre"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr "La taille est comprise entre demande deux tailles en Ko, la plus petite d'abord."
+msgstr "« La taille est comprise entre » demande deux tailles en Ko, la plus petite d'abord."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -13227,8 +13227,8 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
 msgstr "Les règles ne touchent pas au courrier d'une boîte aux lettres partagée : elle a ses propres règles."
@@ -19252,7 +19252,7 @@ msgstr[0] "{n} message"
 msgstr[1] "{n} messages"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -19295,14 +19295,6 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] ""
 msgstr[1] ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} message correspondant"
-msgstr[1] "{n} messages correspondants"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19842,6 +19834,16 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
+#~ msgstr "Une notification pour le courrier sur lequel cette règle agit à son arrivée, comme pour le nouveau courrier, même si les notifications de nouveau courrier sont désactivées"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} message correspondant"
+#~ msgstr[1] "{n} messages correspondants"
 
 #, fuzzy
 #~ msgid "It can't be undone"

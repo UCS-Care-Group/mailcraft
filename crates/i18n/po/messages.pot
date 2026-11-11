@@ -304,6 +304,11 @@ msgid "A copy of your whole mailbox is saved next to it first, as always. Mail i
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/files.rs
 msgid "A file dialog is already open."
 msgstr ""
@@ -391,11 +396,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "A note to the organizer (optional)"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
 msgstr ""
 
 #. interface
@@ -11619,8 +11619,8 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
 msgstr ""
 
@@ -16951,7 +16951,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
 msgstr[0] ""
@@ -16989,13 +16989,6 @@ msgstr[1] ""
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
-msgstr[0] ""
-msgstr[1] ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
 msgstr[0] ""
 msgstr[1] ""
 

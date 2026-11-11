@@ -25,6 +25,26 @@ fn a_rule_made_or_switched_on_isnt_answered_with_delete() {
     assert_eq!(verbs(Class::Delete, "rules.fromMessage", false), (tl!("Allow"), tl!("Don't Allow")));
 }
 
+/// An undo that only brings back a rule that deletes mail permanently deletes nothing itself: its
+/// buttons say Allow, as for making that rule. One that takes something away says Delete.
+#[test]
+fn an_undo_that_brings_back_a_deleting_rule_isnt_answered_with_delete() {
+    let mut a = MailApp::new(Session::empty(), Services::default());
+    a.autosave = false;
+    let account = a.execute("account.add", json!({"email": "me@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let purge = json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+    let id = a.execute("rules.add", purge).unwrap()["id"].as_u64().unwrap();
+    a.execute("rules.remove", json!({"id": id})).unwrap();
+    let (req, _reply) = ControlRequest::new("engine.execute", json!({"command": "edit.undo", "params": {}}));
+    let out = crate::control::handle(&mut a, &egui::Context::default(), &req.from_agent(Vec::new()));
+    assert!(matches!(out, Outcome::Pending));
+    let asked = a.asking.front().unwrap();
+    assert_eq!(asked.class, Class::Delete, "{}", asked.what);
+    assert_eq!(verbs(asked.class, &asked.id, asked.deletes), (tl!("Allow"), tl!("Don't Allow")));
+    assert_eq!(verbs(Class::Delete, "edit.undo", true), (tl!("Delete"), tl!("Don't Delete")));
+}
+
 #[test]
 fn a_rule_that_copies_onto_another_server_and_deletes_for_good_is_asked_about_once_as_a_delete() {
     // Answered Send, the rule was made without the owner's yes to deleting mail for good.

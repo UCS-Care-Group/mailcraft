@@ -352,6 +352,12 @@ msgid "A copy of your whole mailbox is saved next to it first, as always. Mail i
 msgstr "Come sempre, prima viene salvata accanto a essa una copia dell'intera cassetta postale. La posta in Posta in uscita non va persa: viene inviata tramite Microsoft Graph."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
+msgstr "Un avviso desktop per la posta su cui questa regola agisce all'arrivo, anche quando quello per la nuova posta è disattivato in File › Opzioni"
+
+#. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "A file dialog is already open."
@@ -449,12 +455,6 @@ msgstr "Una nota di accompagnamento (facoltativa)"
 #, fuzzy
 msgid "A note to the organizer (optional)"
 msgstr "Una nota per l'organizzatore (facoltativa)"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-msgstr "Una notifica per la posta su cui questa regola agisce all'arrivo, come per la nuova posta, anche quando le notifiche per la nuova posta sono disattivate"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -4798,7 +4798,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr "Da e Inviato a richiedono indirizzi completi, come qualcuno@example.org."
+msgstr "«Da» e «Inviato a» richiedono indirizzi completi, come qualcuno@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -9563,7 +9563,7 @@ msgstr "Ricevuto tra"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr "Ricevuto tra richiede uno o due giorni (AAAA-MM-GG), il precedente per primo."
+msgstr "«Ricevuto tra» richiede uno o due giorni (AAAA-MM-GG), il precedente per primo."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -11830,7 +11830,7 @@ msgstr "La dimensione è tra"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr "La dimensione è tra richiede due dimensioni in KB, la minore per prima."
+msgstr "«La dimensione è tra» richiede due dimensioni in KB, la minore per prima."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -13225,8 +13225,8 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
 msgstr "Le regole non toccano la posta di una cassetta postale condivisa: ha regole proprie."
@@ -19250,7 +19250,7 @@ msgstr[0] "{n} messaggio"
 msgstr[1] "{n} messaggi"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -19293,14 +19293,6 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] ""
 msgstr[1] ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} messaggio corrispondente"
-msgstr[1] "{n} messaggi corrispondenti"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19840,6 +19832,16 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
+#~ msgstr "Una notifica per la posta su cui questa regola agisce all'arrivo, come per la nuova posta, anche quando le notifiche per la nuova posta sono disattivate"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} messaggio corrispondente"
+#~ msgstr[1] "{n} messaggi corrispondenti"
 
 #, fuzzy
 #~ msgid "It can't be undone"

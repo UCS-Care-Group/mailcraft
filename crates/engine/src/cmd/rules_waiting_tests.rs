@@ -17,7 +17,9 @@ use crate::cmd::{ews_mail, graph_mail, jmap_mail};
 
 const ME: &str = "ada@example.org";
 
-/// What a server's list gives of a new message: its headers and a preview, no text.
+/// What a server's list gives of a new message: its headers and a preview, no text. (An Exchange
+/// server's gives its size too; a Microsoft account's doesn't, which
+/// `a_size_rule_on_microsoft_new_mail_listed_without_a_size_waits_for_the_download` takes.)
 fn listed(id: &str, folder: &str, subject: &str) -> GraphMessage {
     GraphMessage {
         server: ServerMessage { id: id.into(), folder: folder.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },

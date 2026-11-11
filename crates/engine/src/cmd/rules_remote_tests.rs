@@ -1364,8 +1364,11 @@ fn a_rule_this_version_couldnt_show_before_is_shown_once_its_parts_are_known() {
     );
 }
 
+/// New mail not downloaded yet, which a rule copies into another account and then deletes: the
+/// rule waits for the download and deletes nothing before; once the message is whole, it copies it
+/// and goes on.
 #[test]
-fn mail_a_rule_couldnt_copy_isnt_deleted() {
+fn mail_a_rule_copies_into_another_account_isnt_deleted_before_it_is_whole() {
     let (mut s, account, local, _) = session();
     let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     for gone in ["delete", "deleteForGood"] {

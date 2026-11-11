@@ -4369,7 +4369,7 @@ pub(crate) mod rules {
     /// The width of a rule's button (an icon of 14 points, as `icon_button` lays it out).
     const BUTTON: f32 = 22.0;
 
-    /// What a condition looks at, in the order of Outlook's Rules Wizard. Each can be an
+    /// What a condition looks at, much in the order of Outlook's Rules Wizard. Each can be an
     /// exception too.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum When {
@@ -5338,11 +5338,19 @@ pub(crate) mod rules {
                     // (Not over a shared mailbox's folder: the rules leave its mail alone.)
                     let reach = app.session.mailbox.folder(app.session.view.folder).is_some_and(|f| app.session.mailbox.rules_reach(f.account));
                     let any = !(there.is_empty() && here.is_empty()) && reach;
-                    if ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip).clicked() {
+                    let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
+                    // Greyed over a shared mailbox's folder: says why.
+                    let button = if reach {
+                        button
+                    } else {
+                        button.on_disabled_hover_text(tl!("The rules leave a shared mailbox's mail alone: its rules are its own."))
+                    };
+                    if button.clicked() {
                         run = Some(("rules.run", json!({})));
                     }
                     if let Some(n) = self.ran {
-                        let found = tln!(n, "{n} message matched", "{n} messages matched");
+                        // (What the rules changed, as the status bar says it.)
+                        let found = tln!(n, "{n} message changed", "{n} messages changed");
                         ui.label(egui::RichText::new(found).color(t.text_dim));
                     }
                 });
@@ -5531,7 +5539,7 @@ pub(crate) mod rules {
             row(ui, "", |ui| {
                 ui.checkbox(&mut self.stop, tl!("Stop processing more rules"));
                 ui.checkbox(&mut self.alert, tl!("Show a desktop alert")).on_hover_text(tl!(
-                    "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
+                    "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
                 ));
             });
             // Where it is kept: the owner says, while the server can do all of it; greyed, with why,

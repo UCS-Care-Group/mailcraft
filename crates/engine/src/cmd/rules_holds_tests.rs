@@ -95,9 +95,10 @@ use mailcraft_model::{Address, Message};
 
 const ME: &str = "ada@example.org";
 
+/// A new message as a Microsoft account's list gives it: no text, and no size.
 fn listed(id: &str, folder: &str, subject: &str) -> GraphMessage {
     GraphMessage {
-        server: ServerMessage { id: id.into(), folder: folder.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
+        server: ServerMessage { id: id.into(), folder: folder.into(), change_key: "CK1".into(), ..Default::default() },
         message_id: format!("{id}@example.org"),
         subject: subject.into(),
         from: Address::new("Zoe Park", "zoe@example.org"),

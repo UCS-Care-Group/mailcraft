@@ -53,8 +53,9 @@ pub struct Asking {
     /// (#503).
     counted: Vec<(u64, u64)>,
     /// For `rules.fromMessage`, whether the rule it makes deletes mail, when the owner was asked
-    /// ([`agent::rule_from_message_deletes`]): the buttons say Delete only then.
-    deletes: bool,
+    /// ([`agent::rule_from_message_deletes`]); for an undo or a redo, whether it takes something
+    /// away itself, not only puts back a rule that deletes mail: the buttons say Delete only then.
+    pub(crate) deletes: bool,
     /// What the question showed, kept here and never in the agent's params: the yes reaches that
     /// alone ([`agent::bind`], AU3-24).
     shown: agent::bind::Shown,
@@ -128,9 +129,13 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 Ok(counted) => counted,
                 Err(why) => return err(why),
             };
-            let deletes = id == "rules.fromMessage" && agent::rule_from_message_deletes(&app.session, &params);
-            let also = agent::also(&app.session, id, &params, class);
             let (taken, items) = undo_takes(app, id);
+            let deletes = match id {
+                "rules.fromMessage" => agent::rule_from_message_deletes(&app.session, &params),
+                "edit.undo" | "edit.redo" => !taken.is_empty() || !items.is_empty() || !app.session.undo_drafts(id == "edit.redo").is_empty(),
+                _ => false,
+            };
+            let also = agent::also(&app.session, id, &params, class);
             let steps = app.session.undo_steps_moved();
             app.asking.push_back(Asking {
                 id: id.to_string(),
@@ -414,12 +419,13 @@ pub fn expire(app: &mut MailApp, now: f64) {
 /// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
 /// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
 /// (#566). One made from a message that deletes mail (`deletes`) does: it runs at once on the
-/// mail from that sender.
+/// mail from that sender. So does an undo or a redo that takes something away; one that only puts
+/// back a rule that deletes mail doesn't.
 pub(crate) fn verbs(class: Class, id: &str, deletes: bool) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
         Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable" | "rules.move") => (tl!("Allow"), tl!("Don't Allow")),
-        Class::Delete if id == "rules.fromMessage" && !deletes => (tl!("Allow"), tl!("Don't Allow")),
+        Class::Delete if matches!(id, "rules.fromMessage" | "edit.undo" | "edit.redo") && !deletes => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),
     }

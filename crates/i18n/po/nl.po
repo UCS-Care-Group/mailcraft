@@ -363,6 +363,12 @@ msgid "A copy of your whole mailbox is saved next to it first, as always. Mail i
 msgstr "Er wordt eerst, zoals altijd, een kopie van uw hele postvak ernaast opgeslagen. E-mail in Postvak UIT blijft niet achter: die wordt verzonden via Microsoft Graph."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
+msgstr "Een bureaubladmelding voor de e-mail waarop deze regel bij aankomst werkt, ook als die voor nieuwe e-mail uit staat in Bestand › Opties"
+
+#. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "A file dialog is already open."
@@ -468,12 +474,6 @@ msgstr "Een notitie erbij (optioneel)"
 #, fuzzy
 msgid "A note to the organizer (optional)"
 msgstr "Een notitie aan de organisator (optioneel)"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-msgstr "Een melding voor de e-mail waarop deze regel bij aankomst werkt, zoals voor nieuwe e-mail, ook als meldingen voor nieuwe e-mail uit staan"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -5031,7 +5031,7 @@ msgstr "Van afzender"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr "Van en Verzonden aan vragen volledige adressen, zoals iemand@example.org."
+msgstr "‘Van’ en ‘Verzonden aan’ vragen volledige adressen, zoals iemand@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -10042,7 +10042,7 @@ msgstr "Ontvangen tussen"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr "Ontvangen tussen vraagt één of twee dagen (YYYY-MM-DD), de eerdere eerst."
+msgstr "‘Ontvangen tussen’ vraagt één of twee dagen (YYYY-MM-DD), de eerdere eerst."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -12422,7 +12422,7 @@ msgstr "Grootte ligt tussen"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr "Grootte ligt tussen vraagt twee groottes in KB, de kleinste eerst."
+msgstr "‘Grootte ligt tussen’ vraagt twee groottes in KB, de kleinste eerst."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -13910,8 +13910,8 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
 msgstr "De regels laten de mail van een gedeeld postvak met rust: het heeft eigen regels."
@@ -20250,7 +20250,7 @@ msgstr[0] "{n} bericht"
 msgstr[1] "{n} berichten"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -20296,14 +20296,6 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} bericht is al hier en wordt weggelaten"
 msgstr[1] "{n} berichten zijn al hier en worden weggelaten"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} bericht komt overeen"
-msgstr[1] "{n} berichten komen overeen"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -20864,6 +20856,16 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
+#~ msgstr "Een melding voor de e-mail waarop deze regel bij aankomst werkt, zoals voor nieuwe e-mail, ook als meldingen voor nieuwe e-mail uit staan"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} bericht komt overeen"
+#~ msgstr[1] "{n} berichten komen overeen"
 
 #, fuzzy
 #~ msgid "It can't be undone"
