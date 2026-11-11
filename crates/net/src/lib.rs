@@ -10,7 +10,8 @@
 //! token (SASL XOAUTH2) instead of a password, and [`lookup_mx`] finds out where a domain's mail
 //! goes, which tells its provider. [`graph`] asks Microsoft Graph for what a Microsoft 365
 //! account has that IMAP and SMTP don't reach: sending where SMTP is switched off, the calendar,
-//! the contacts, and which folders the owner keeps under Favorites in Outlook. All of them
+//! the contacts, and which folders the owner keeps under Favorites in Outlook. [`report`] sends
+//! a problem report the owner wrote to the project's report relay, on their click. All of them
 //! block, so a host calls them on a background thread; every connection has timeouts.
 //!
 //! A password or a token is only ever sent inside TLS, or to a server on this machine. It never
@@ -53,6 +54,8 @@ pub mod pictures;
 mod pinned;
 #[cfg(not(target_arch = "wasm32"))]
 mod push;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod report;
 #[cfg(not(target_arch = "wasm32"))]
 mod send;
 #[cfg(not(target_arch = "wasm32"))]
@@ -275,6 +278,10 @@ mod native {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod password_tests;
+
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod report_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod said_tests;

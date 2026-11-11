@@ -1707,6 +1707,7 @@ fn services(
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
+    let report_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
@@ -1861,6 +1862,13 @@ fn services(
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
+        // Help › Report a Problem › Send report (#956), on the owner's click alone: the report the
+        // window showed goes to the project's relay, once. A build that names no relay has none.
+        report_send: mailcraft_net::report::relay().map(|_| {
+            Box::new(move |report: mailcraft_model::report::ProblemReport| {
+                background(&report_ctx, "problem report", move || mailcraft_net::report::send(&report))
+            }) as Box<dyn Fn(_) -> _>
+        }),
         microsoft_client_id: microsoft_client_id(),
         google_client_id: google_client_id(),
         google_client_secret: google_client_secret(),
