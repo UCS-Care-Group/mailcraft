@@ -396,13 +396,12 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
         .into_iter()
         .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
         .collect();
-    for m in &ids {
-        // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items.
-        if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
-            s.mailbox.remove_message(*m)?;
-        } else {
-            s.mailbox.delete_message(*m)?;
-        }
+    // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items. All
+    // of it in one go (#1037): one at a time, a folder of 200,000 took an hour.
+    if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
+        s.mailbox.remove_messages(&ids)?;
+    } else {
+        s.mailbox.delete_messages(&ids)?;
     }
     for c in children {
         s.mailbox.delete_folder(c)?;
