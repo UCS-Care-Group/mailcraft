@@ -83,7 +83,7 @@ pub struct CategorySync {
     /// The address each account had when it was last looked at: another address is another
     /// mailbox, whose list is looked at afresh (#661).
     addresses: HashMap<Id, String>,
-    failures: HashMap<Id, (u32, f64)>,
+    pub(crate) failures: HashMap<Id, (u32, f64)>,
     /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
     /// job that came to nothing waits from when it ended, however long it ran (#661).
     pub(crate) clock: f64,
@@ -314,7 +314,14 @@ impl MailApp {
             }
             match self.session.mailbox.account(account).cloned() {
                 Some(owner) => match categories_remote::apply_category_changes(&mut self.session, &uploaded.clone().for_account(&owner)) {
-                    Ok(said) => errors.extend(said),
+                    Ok((said, news)) => {
+                        errors.extend(said);
+                        // (A name Outlook had already is no problem: the owner is told it in the
+                        // status bar.)
+                        if !news.is_empty() {
+                            self.status(news.join(" "));
+                        }
+                    }
                     Err(e) => {
                         errors.push(crate::i18n::fmt(tl!("The categories sent couldn't be noted: {error}"), &[("error", &e.to_string())]));
                         worked = false;

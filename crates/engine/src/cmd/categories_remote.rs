@@ -30,7 +30,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r##"{"account": number} — what that Microsoft account's server is to be told of its list of categories: {"account", "email", "changes": [{"kind": "create"|"color"|"delete", "name": string, "color": "#RRGGBB"}]}; none while the list is read-only here"##),
         CommandSpec::new("sync.applyCategoryChanges", "Apply Sent Category Changes", "Send / Receive", apply_category_changes_command)
             .pure()
-            .params(r##"{"result": CategoriesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "name", "color", "result": "done"|"denied"|"failed"|"refused", "error"?: string}]} — answers {"done", "messages": [string]}"##),
+            .params(r##"{"result": CategoriesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "name", "color", "result": "done"|"denied"|"failed"|"refused", "error"?: string, "found"?: bool (a creation the server had that name for already: done, in the server's colour)}]} — answers {"done", "messages": [string] (what went wrong), "notices": [string] (news only: a name Outlook had already keeps Outlook's colour)}"##),
         CommandSpec::new("sync.categoryWrites", "Category Changes Allowed", "Send / Receive", category_writes_command)
             .pure()
             .params(r#"{"account": number, "allowed": bool} — whether the sign-in of that Microsoft account covers changing its server's list of categories, as the host found; without it the list is read-only here"#),
@@ -51,8 +51,9 @@ pub fn categories_waiting(s: &Session, account: mailcraft_model::Id) -> usize {
 }
 
 /// Take in what a server made of the changes sent to it. Not an undo step: an undo of the change
-/// it took sends the reverse with the next job.
-pub fn apply_category_changes(s: &mut Session, uploaded: &CategoriesUploaded) -> Result<Vec<String>, CmdError> {
+/// it took sends the reverse with the next job. Answers the lines for the owner about what went
+/// wrong, and those that are only news.
+pub fn apply_category_changes(s: &mut Session, uploaded: &CategoriesUploaded) -> Result<(Vec<String>, Vec<String>), CmdError> {
     let owner = super::remote::owner(&s.mailbox, uploaded.account, &uploaded.email)?.id;
     if !s.mailbox.synced_categories.contains_key(&owner) {
         return Err(fail("this account's categories aren't kept in step with its server"));
@@ -77,9 +78,9 @@ fn apply_category_changes_command(s: &mut Session, v: &Value) -> CmdResult {
     let value = v.get("result").cloned().ok_or_else(|| bad("`result` is required"))?;
     let uploaded: CategoriesUploaded = serde_json::from_value(value)
         .map_err(|e| bad(format!("`result`: {}", e.to_string().chars().filter(|c| !c.is_control()).take(MAX_SHOWN).collect::<String>())))?;
-    let messages = apply_category_changes(s, &uploaded)?;
+    let (messages, notices) = apply_category_changes(s, &uploaded)?;
     let done = uploaded.outcomes.iter().filter(|o| o.result == CategoryResult::Done).count();
-    Ok(json!({"done": done, "messages": messages}))
+    Ok(json!({"done": done, "messages": messages, "notices": notices}))
 }
 
 /// Say whether `account`'s sign-in covers changing its server's list of categories. Not an undo

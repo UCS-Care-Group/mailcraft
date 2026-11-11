@@ -3555,11 +3555,12 @@ impl Mailbox {
     /// Take in what `owner`'s server made of the changes sent to it (#661): what it took is the
     /// server's from now on ([`Mailbox::synced_categories`]); what it refused for good is put back
     /// as the server has it (a name it wouldn't make stays on this computer alone), and is said.
-    /// What failed for now goes again with the next job. Lines for the owner.
-    pub fn take_category_outcomes(&mut self, owner: Id, outcomes: &[crate::remote::CategoryOutcome]) -> Vec<String> {
+    /// What failed for now goes again with the next job. Lines for the owner: what went wrong, and
+    /// what is only news (a name Outlook had already keeps Outlook's colour), which is no problem.
+    pub fn take_category_outcomes(&mut self, owner: Id, outcomes: &[crate::remote::CategoryOutcome]) -> (Vec<String>, Vec<String>) {
         use crate::remote::{CategoryChangeKind, CategoryResult};
-        let mut said = Vec::new();
-        let Some(synced) = self.synced_categories.get(&owner).cloned() else { return said };
+        let (mut said, mut news) = (Vec::new(), Vec::new());
+        let Some(synced) = self.synced_categories.get(&owner).cloned() else { return (said, news) };
         let mut synced = synced;
         // (The names this job deleted there: a name written anew in other letters is deleted and
         // made again, and the making may yet be refused.)
@@ -3605,7 +3606,7 @@ impl Mailbox {
                             && c.color != color
                         {
                             c.color = color;
-                            said.push(format!("The category \"{name}\" was in Outlook already: it has Outlook's colour."));
+                            news.push(format!("The category \"{name}\" was in Outlook already: it has Outlook's colour."));
                         }
                     }
                     // Taken off here (or kept here alone) while the job was on its way: what this
@@ -3707,7 +3708,7 @@ impl Mailbox {
         self.set_synced(owner, synced);
         self.tidy_local(owner);
         self.tidy_renames(owner);
-        said
+        (said, news)
     }
 
     /// What `owner` keeps of its renames ([`Mailbox::category_renames`]) is what still waits: a

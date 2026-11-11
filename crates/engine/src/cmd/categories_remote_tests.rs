@@ -2291,12 +2291,12 @@ fn a_name_another_device_made_in_outlook_meanwhile_keeps_outlooks_colour_and_say
     // The job found it there already, in blue: it is blue here too, and nothing more goes.
     let said = answers(&mut s, a, vec![CategoryOutcome { found: true, ..outcome(CategoryChangeKind::Create, "Travel", BLUE, CategoryResult::Done) }]);
     assert_eq!(s.mailbox.category_of(a, "Travel").map(|c| c.color), Some(BLUE));
-    assert!(said["messages"].to_string().contains("was in Outlook already"), "{said}");
+    assert!(said["notices"].to_string().contains("was in Outlook already") && said["messages"] == json!([]), "{said}");
     assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
     // Found there in the colour it has here: nothing to say.
     s.run("category.set", &json!({"account": a, "name": "Home", "color": "#2E8B57"})).unwrap();
     let said = answers(&mut s, a, vec![CategoryOutcome { found: true, ..outcome(CategoryChangeKind::Create, "Home", GREEN, CategoryResult::Done) }]);
-    assert_eq!(said["messages"], json!([]));
+    assert_eq!((&said["messages"], &said["notices"]), (&json!([]), &json!([])));
 }
 
 #[test]

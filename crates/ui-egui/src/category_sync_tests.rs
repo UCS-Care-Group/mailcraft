@@ -580,3 +580,33 @@ fn an_agents_change_to_outlooks_list_runs_on_the_owners_yes() {
     assert!(mb.category_of(owner, "Crimson").is_some() && mb.category_of(owner, "Red category").is_none());
     assert!(mb.category_of(owner, "Blue category").is_none());
 }
+
+/// A name Outlook had already (made on another device meanwhile) takes Outlook's colour, and the
+/// status bar says so: it is no Send/Receive problem, and nothing waits longer for it.
+#[test]
+fn a_name_outlook_had_already_is_said_in_the_status_bar_and_is_no_problem() {
+    let (mut app, owner, answers, _, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": OUTLOOK_COLORS[4].hex()})).unwrap();
+    let at = 60_000.0;
+    assert!(!app.categories_tick_at(at));
+    let found = CategoryOutcome {
+        kind: CategoryChangeKind::Create,
+        name: "Travel".into(),
+        color: OUTLOOK_COLORS[7],
+        result: CategoryResult::Done,
+        error: String::new(),
+        found: true,
+    };
+    let mut answer = covered(owner, &["Red category", "Travel"]);
+    answer.uploaded = Some(CategoriesUploaded { account: owner, outcomes: vec![found], ..Default::default() });
+    answers.lock().unwrap().push_back(answer);
+    assert!(app.categories_tick_at(at + 5_000.0));
+    app.poll_categories();
+    let (said, _) = app.status_msg.clone().unwrap();
+    assert!(said.contains("\"Travel\" was in Outlook already"), "{said}");
+    assert!(!app.sync_problems.iter().any(|(a, ..)| *a == owner), "no problem");
+    assert!(!app.category_sync.failures.contains_key(&owner), "no wait");
+}
