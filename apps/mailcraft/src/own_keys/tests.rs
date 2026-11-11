@@ -43,7 +43,19 @@ fn import(format: SignatureFormat, bytes: &[u8], passphrase: Option<&str>, store
 
 #[test]
 fn gpg_is_found_in_gpgconfs_list() {
-    assert_eq!(gpg_in(COMPONENTS.as_bytes()).unwrap().to_str(), Some("/usr/bin/gpg"));
+    // (An absolute path is the system's own kind: Gpg4win's has a drive, its colon as `%3a`.)
+    let unix = gpg_in(COMPONENTS.as_bytes());
+    #[cfg(not(windows))]
+    assert_eq!(unix.unwrap().to_str(), Some("/usr/bin/gpg"));
+    #[cfg(windows)]
+    assert!(unix.is_none(), "not a path on Windows");
+    #[cfg(windows)]
+    assert_eq!(
+        gpg_in(b"gpgconf:GPG Configuration:C%3a\\Program Files\\GnuPG\\bin\\gpgconf.exe\ngpg:OpenPGP:C%3a\\Program Files\\GnuPG\\bin\\gpg.exe\n")
+            .unwrap()
+            .to_str(),
+        Some("C:\\Program Files\\GnuPG\\bin\\gpg.exe")
+    );
     assert!(gpg_in(b"gpg:OpenPGP:relative/gpg\n").is_none());
     assert!(gpg_in(b"gpgsm:S/MIME:/usr/bin/gpgsm\n").is_none());
 }
