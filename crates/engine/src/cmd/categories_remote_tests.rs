@@ -2653,6 +2653,24 @@ fn a_meeting_kept_on_this_computer_makes_no_category_in_outlook_and_asks_nothing
     assert!(s.mailbox.category_of(0, "Travel").is_some());
 }
 
+/// A meeting with a contact kept on this computer (`send: false` on a calendar on a server) is a
+/// new meeting with the contact invited: its new category joins the list the accounts share, and
+/// the agent's question doesn't say it is made in Outlook (#661).
+#[test]
+fn a_meeting_with_a_contact_kept_on_this_computer_is_not_said_to_make_a_category_in_outlook() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let event = server_event(&mut s, a, &[]);
+    let calendar = s.mailbox.event(event).unwrap().calendar;
+    let pat = mailcraft_model::Labeled { label: "work".into(), value: "pat@example.org".into() };
+    let contact = s.mailbox.add_contact(Contact { display_name: "Pat".into(), emails: vec![pat], ..Default::default() });
+    let params = json!({"id": contact, "title": "M", "calendar": calendar, "send": false, "categories": ["Travel"]});
+    let said = crate::agent::describe(&s, "people.meeting", &params);
+    assert!(!said.contains("Outlook"), "{said}");
+    s.run("people.meeting", &params).unwrap();
+    assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
+    assert!(s.mailbox.category_of(0, "Travel").is_some());
+}
+
 /// An undo that puts an account back as a Microsoft account, with a category of its list still to
 /// go to Outlook, needs `send` too, not only `accounts`, and asks both at once (#661).
 #[test]

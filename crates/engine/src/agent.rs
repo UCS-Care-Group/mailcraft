@@ -923,8 +923,8 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
     if GIVES_CATEGORIES.contains(&id) {
         let (account, given, had, was) = match id {
             "tasks.new" | "tasks.edit" => cmd::tasks::categories_given(s, id, params).map(|(a, given, had)| (a, given, had, a))?,
-            // A meeting with a contact is `calendar.newMeeting` with the same params.
-            "people.meeting" => cmd::calendar::categories_given(s, "calendar.newMeeting", params)?,
+            // A meeting with a contact is `calendar.newMeeting` with the contact among the attendees.
+            "people.meeting" => cmd::calendar::categories_given(s, "calendar.newMeeting", &cmd::people::meeting_params(s, params).ok()?)?,
             _ => cmd::calendar::categories_given(s, id, params)?,
         };
         let owner = writable(account)?;

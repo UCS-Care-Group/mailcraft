@@ -412,6 +412,13 @@ fn named(s: &Session, v: &Value) -> Result<Id, CmdError> {
 
 /// A new meeting with the contact invited: `calendar.newMeeting`, which says what goes to whom.
 fn meeting(s: &mut Session, v: &Value) -> CmdResult {
+    let fields = meeting_params(s, v)?;
+    s.run("calendar.newMeeting", &fields)
+}
+
+/// The params `people.meeting` runs `calendar.newMeeting` with: its own, the contact added to the
+/// attendees. (An agent's question reads them too, so that it says what the meeting will be.)
+pub(crate) fn meeting_params(s: &Session, v: &Value) -> Result<Value, CmdError> {
     let id = named(s, v)?;
     let to = s.mailbox.contact(id).and_then(Contact::address).ok_or_else(|| fail("this contact has no e-mail address"))?;
     let mut fields = match v {
@@ -434,7 +441,7 @@ fn meeting(s: &mut Session, v: &Value) -> CmdResult {
         format!("{}; {more}", to.full())
     };
     fields.insert("attendees".into(), json!(attendees));
-    s.run("calendar.newMeeting", &Value::Object(fields))
+    Ok(Value::Object(fields))
 }
 
 /// A file name for a contact's card: its name, without what a file name can't have.
