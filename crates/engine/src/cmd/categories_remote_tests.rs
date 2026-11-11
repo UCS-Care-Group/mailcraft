@@ -2107,6 +2107,25 @@ fn on_the_list_the_rest_share_a_rename_reaches_a_shared_mailboxs_items_as_everyb
     assert_eq!(s.mailbox.message(theirs).unwrap().categories, ["New"]);
 }
 
+/// On the list the rest share, a shared mailbox's events take a rename or a deletion here only,
+/// as before #661: that list isn't the mailbox's own, so nothing goes to its server.
+#[test]
+fn on_the_list_the_rest_share_a_shared_mailboxs_events_change_here_only() {
+    for (command, params, after) in
+        [("category.rename", json!({"from": "Old", "to": "New"}), vec!["New".to_string()]), ("category.remove", json!({"name": "Old"}), Vec::new())]
+    {
+        let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+        s.mailbox.categories = vec![tag("Old", GREEN)];
+        let a = s.run("account.add", &json!({"email": "a@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let shared = s.run("account.addSharedMailbox", &json!({"account": a, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+        assert_eq!(s.mailbox.category_list_owner(shared), None, "the list the rest share");
+        let theirs = server_event(&mut s, shared, &["Old"]);
+        s.run(command, &params).unwrap();
+        assert_eq!(s.mailbox.event(theirs).unwrap().categories, after, "{command}: changed here");
+        assert!(!s.mailbox.event_changes.iter().any(|c| c.event == theirs), "{command}: nothing goes to its server: {:?}", s.mailbox.event_changes);
+    }
+}
+
 // ---- what an agent may do to Outlook's list without the owner (#661) ----
 
 #[test]

@@ -183,11 +183,13 @@ fn categorized_events(s: &Session) -> Vec<mailcraft_model::Event> {
 /// The events whose categories a rename or a deletion changed (`before`: as they were) are told
 /// to their servers as an edit of each would be (#661). Mail and to-dos need nothing of the
 /// kind: what differs from the server's copy goes by itself. An event of a calendar this account
-/// may only read is not: it keeps the old name there.
+/// may only read is not: it keeps the old name there. Nor is a shared mailbox's: only a list that
+/// is its own could change its items on its server, and the list the rest share changes them
+/// here only, as before.
 fn tell_events(s: &mut Session, before: &[mailcraft_model::Event]) -> Result<(), CmdError> {
     let offset_at = super::remote::offset_of(s);
     for e in before {
-        if super::remote::writable(&s.mailbox, e.calendar).is_err() {
+        if !told(&s.mailbox, e) {
             continue;
         }
         if s.mailbox.event(e.id).is_some_and(|now| now.categories != e.categories)
@@ -199,12 +201,19 @@ fn tell_events(s: &mut Session, before: &[mailcraft_model::Event]) -> Result<(),
     Ok(())
 }
 
+/// Whether a change of `e`'s categories goes to its server ([`tell_events`]): its calendar may be
+/// changed there, and isn't a shared mailbox's.
+fn told(mb: &mailcraft_model::Mailbox, e: &mailcraft_model::Event) -> bool {
+    let shared = mb.calendar(e.calendar).and_then(|c| mb.account(c.origin.account)).is_some_and(|a| a.is_shared());
+    !shared && super::remote::writable(mb, e.calendar).is_ok()
+}
+
 /// The refusal of a rename or a deletion that changes more events of calendars kept on a server
 /// than can wait to be sent at once (#661): Send/Receive getting the changes waiting now through
 /// would never make room for them all. `None` when it would.
 fn more_than_can_wait(s: &Session, before: &[mailcraft_model::Event]) -> Option<CmdError> {
     let mb = &s.mailbox;
-    let on_server = |e: &&mailcraft_model::Event| e.origin.is_remote() && !e.origin.id.is_empty() && super::remote::writable(mb, e.calendar).is_ok();
+    let on_server = |e: &&mailcraft_model::Event| e.origin.is_remote() && !e.origin.id.is_empty() && told(mb, e);
     let changed = before.iter().filter(on_server).filter(|e| mb.event(e.id).is_some_and(|now| now.categories != e.categories)).count();
     (changed > mailcraft_model::remote::MAX_EVENT_CHANGES)
         .then(|| failed!("This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."))
