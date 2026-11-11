@@ -13491,6 +13491,20 @@ msgstr "De contactpersonen die u hebt gekozen"
 msgid "The conversations' messages in other folders stay where they are."
 msgstr "De berichten van de gesprekken in andere mappen blijven waar ze zijn."
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The copy made of '{subject}' stays: it is all there is of the message now."
+msgstr "De kopie van '{subject}' blijft: die is nu alles wat er van het bericht over is."
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The copy made of {n} message stays: it is all there is of it now."
+msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
+msgstr[0] "De kopie van {n} bericht blijft: die is nu alles wat ervan over is."
+msgstr[1] "De kopieën van {n} berichten blijven: die zijn nu alles wat er van die berichten over is."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -18029,7 +18043,7 @@ msgstr "Persoonlijk"
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Private"
-msgstr "Persoonlijk"
+msgstr "Privé"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs

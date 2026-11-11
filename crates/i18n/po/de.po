@@ -12814,6 +12814,20 @@ msgstr ""
 msgid "The conversations' messages in other folders stay where they are."
 msgstr "Die Nachrichten der Unterhaltungen in anderen Ordnern bleiben, wo sie sind."
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The copy made of '{subject}' stays: it is all there is of the message now."
+msgstr "Die Kopie von '{subject}' bleibt: Sie ist jetzt alles, was von der E-Mail da ist."
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The copy made of {n} message stays: it is all there is of it now."
+msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
+msgstr[0] "Die Kopie von {n} E-Mail bleibt: Sie ist jetzt alles, was davon da ist."
+msgstr[1] "Die Kopien von {n} E-Mails bleiben: Sie sind jetzt alles, was von diesen E-Mails da ist."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy

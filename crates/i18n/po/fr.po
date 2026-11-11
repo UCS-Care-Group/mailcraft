@@ -12826,6 +12826,20 @@ msgstr ""
 msgid "The conversations' messages in other folders stay where they are."
 msgstr "Les messages des conversations dans d'autres dossiers restent où ils sont."
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The copy made of '{subject}' stays: it is all there is of the message now."
+msgstr "La copie de '{subject}' reste : c’est désormais tout ce qui reste du message."
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The copy made of {n} message stays: it is all there is of it now."
+msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
+msgstr[0] "La copie de {n} message reste : c’est désormais tout ce qui en reste."
+msgstr[1] "Les copies de {n} messages restent : c’est désormais tout ce qui reste de ces messages."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -17102,7 +17116,7 @@ msgstr "Confidentiel"
 #, fuzzy
 msgctxt "sensitivity"
 msgid "Normal"
-msgstr "Normale"
+msgstr "Normal"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

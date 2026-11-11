@@ -179,6 +179,10 @@ struct Said {
     /// Moved on from a mailbox whose copy was let go while the copy it was first moved out of
     /// waits for the bytes it came as (#30).
     held: Vec<String>,
+    /// The Message-IDs of the messages the change deleted for good, which stay deleted.
+    gone: Vec<String>,
+    /// A copy the change made of one of those, which stays ([`copies_kept`]).
+    copies: Vec<String>,
     /// What the server is to be told besides (#70): a copy made in another mailbox of the
     /// owner's that goes again, a move back into the mailbox a message came from.
     queued: Vec<Queued>,
@@ -230,6 +234,22 @@ impl Said {
                 lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
             }
         }
+        match self.copies.as_slice() {
+            [] => {}
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("The copy made of '{subject}' stays: it is all there is of the message now."),
+                &[("subject", &shown(one))],
+            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "The copy made of {n} message stays: it is all there is of it now.",
+                    "The copies made of {n} messages stay: they are all there is of those messages now.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
+        }
         lines
     }
 }
@@ -255,6 +275,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let mut said = Said::default();
     let dropped = folders(&mut out, touched, now, &g, &mut said);
     messages(&mut out, touched, now, &g, &mut said);
+    copies_kept(&mut out, touched, now, &mut said);
     // A folder the change made, not on the server, that something still lies in stays.
     for f in dropped {
         if out.messages.values().any(|m| m.folder == f.id) || out.folders.iter().any(|o| o.parent == Some(f.id)) {
@@ -526,6 +547,26 @@ fn messages(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id
     }
 }
 
+/// A copy the change made of a message it deleted for good, which the undo can't bring back (a
+/// rule that copies and then deletes permanently, run by Run Rules Now, #566), is all there is of
+/// that message now: it stays as it is, on its way onto a server too, and the server's delete of
+/// the original, which waits for it, still waits. Found by the Message-ID among what the change
+/// made: keeping one too many loses nothing.
+fn copies_kept(out: &mut Mailbox, touched: &Touched, now: &Mailbox, said: &mut Said) {
+    let gone: HashSet<&str> = said.gone.iter().map(String::as_str).filter(|id| !id.is_empty()).collect();
+    if gone.is_empty() {
+        return;
+    }
+    for id in &touched.changed_messages {
+        if out.messages.contains_key(id) {
+            continue;
+        }
+        let Some(c) = now.messages.get(id).filter(|c| gone.contains(c.message_id.as_str()) && out.folder(c.folder).is_some()) else { continue };
+        said.copies.push(c.subject.clone());
+        out.messages.insert(*id, c.clone());
+    }
+}
+
 /// One message the change touched: as it was before it (`t`), right after it (`a`) and now (`c`).
 fn merge(
     t: Option<&Message>,
@@ -554,6 +595,7 @@ fn merge(
             // Deleted for good by the change: the server's copy is gone, or going.
             if t.server.as_ref().is_some_and(|s| !s.gone) || t.moving_out.is_some() {
                 said.deleted.push(t.subject.clone());
+                said.gone.push(t.message_id.clone());
                 return None;
             }
             // Never on the server: back, as ever.

@@ -285,3 +285,62 @@ fn a_delete_in_deleted_items_after_a_rule_that_cant_tell_yet_is_held_as_a_delete
     (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
     assert_eq!(graph_deletes(&s, account), [], "deleted for good while the rule before it couldn't tell");
 }
+
+// ---- An undo of Run Rules Now that copied mail and deleted it for good ----
+
+/// A Microsoft account's message, all here.
+fn microsoft_message(s: &mut Session, account: Id, subject: &str) {
+    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", subject)], ..Default::default() };
+    super::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let fetched = vec![whole("N1", subject, "The plan.")];
+    super::graph_mail::apply_graph_fetch(s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+}
+
+/// Run Rules Now with "copy, then delete permanently" on a Microsoft account, then one Undo: the
+/// server's original can't come back (its delete only waits for the copy), so the copy stays,
+/// on this computer or on its way to the server, and the undo says so. Before, the undo took the
+/// copy away and the delete then went: the message was nowhere (#566).
+#[test]
+fn an_undo_of_run_rules_now_that_copied_and_deleted_for_good_keeps_the_copy() {
+    for within in [false, true] {
+        let (mut s, account, kept) = microsoft_and_here();
+        let saved = s.mailbox.add_folder(account, None, "Saved").unwrap();
+        s.mailbox.folder_mut(saved).unwrap().server = Some(ServerFolder { id: "F-saved".into(), caught_up: true, ..Default::default() });
+        let to = if within { saved } else { kept };
+        microsoft_message(&mut s, account, "Plan");
+        let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+            "actions": [{"type": "copyTo", "value": to}, {"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", rule);
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
+        let undone = run(&mut s, "edit.undo", json!({}));
+        assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
+        assert_eq!(copies_here(&s, to, "Plan"), 1, "the copy is all there is of it");
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        let request = super::graph_mail::graph_mail_request(&s, account).unwrap().messages;
+        let copies = request.iter().filter(|c| matches!(c, MessageChange::Copy { .. })).count();
+        let deletes = request.iter().filter(|c| matches!(c, MessageChange::Delete { .. })).count();
+        assert_eq!(
+            (copies, deletes),
+            (usize::from(to == saved), usize::from(to == kept)),
+            "the server's copy is still made, and the delete waits for it"
+        );
+    }
+    // Into another account's server: the copy still goes there, and the delete waits for it.
+    let (mut s, account, _) = microsoft_and_here();
+    let imap = run(&mut s, "account.add", json!({"email": "bo@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(there).unwrap().remote = "INBOX".into();
+    microsoft_message(&mut s, account, "Plan");
+    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", rule);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    run(&mut s, "rules.run", json!({"folder": inbox}));
+    let undone = run(&mut s, "edit.undo", json!({}));
+    assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    let placing = super::account::sync_request(&s, imap).unwrap().places.len();
+    assert_eq!((placing, graph_deletes(&s, account).len()), (1, 0), "on its way there, the original's delete waiting for it");
+}

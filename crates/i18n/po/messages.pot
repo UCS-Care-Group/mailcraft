@@ -11250,6 +11250,18 @@ msgstr ""
 msgid "The conversations' messages in other folders stay where they are."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "The copy made of '{subject}' stays: it is all there is of the message now."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "The copy made of {n} message stays: it is all there is of it now."
+msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "The day after"
