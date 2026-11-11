@@ -721,14 +721,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if rules_onto_another_server(s, id, params) {
         return Access::Owner(Class::Send);
     }
-    if rules_delete_for_good(s, id, params) || server_rule_deletes(s, id, params) {
-        return Access::Owner(Class::Delete);
-    }
-    // A rule its server has is deleted there, where undo doesn't reach and MailCraft may not be
-    // able to make it again (#566), as `tasks.delete`; so is one that went to be made there and
-    // had no answer, which the server may have.
-    let there = |x: &mailcraft_model::Rule| x.on_server() || x.unanswered;
-    if id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x))) {
+    if rules_delete(s, id, params) {
         return Access::Owner(Class::Delete);
     }
     // What the owner is writing or changing is theirs to let go of, whatever `--allow` says
@@ -1140,6 +1133,18 @@ fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
     (r.account != 0).then_some(r.account)
 }
 
+/// Whether a command on the rules deletes, where undo doesn't reach (#566): a rule that deletes
+/// mail for good made, switched on or run ([`rules_delete_for_good`]), a rule that deletes put on
+/// its server ([`server_rule_deletes`]), or a rule its server has deleted there, as
+/// `tasks.delete` (MailCraft may not be able to make it again); so is one that went to be made
+/// there and had no answer, which the server may have. Asked as a delete, also beside a send.
+fn rules_delete(s: &Session, id: &str, params: &Value) -> bool {
+    let there = |x: &mailcraft_model::Rule| x.on_server() || x.unanswered;
+    rules_delete_for_good(s, id, params)
+        || server_rule_deletes(s, id, params)
+        || (id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x))))
+}
+
 /// Whether the rules this command makes, switches on or runs put mail on another account's
 /// server (#451); or whether it changes the rules for mail that a rule switched on puts there:
 /// any change may let more mail reach that one, as [`rules_delete_for_good`] reads one that
@@ -1256,7 +1261,7 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
-        _ if id.starts_with("rules.") && class == Class::Send && rules_delete_for_good(s, id, params) => vec![Class::Delete],
+        _ if id.starts_with("rules.") && class == Class::Send && rules_delete(s, id, params) => vec![Class::Delete],
         _ => Vec::new(),
     }
 }
@@ -1302,7 +1307,7 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     // question says both (the server it files onto, and the deleting): a yes to `send` alone,
     // asked about the server, never makes it (#566).
     let access = match classify(s, id, params) {
-        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && rules_delete_for_good(s, id, params) => Access::Owner(Class::Delete),
+        Access::Owner(Class::Send) if !allow.contains(&Class::Delete) && rules_delete(s, id, params) => Access::Owner(Class::Delete),
         access => access,
     };
     // What else the call needs besides its class (#473); a yes to the question about the class

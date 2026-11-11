@@ -2893,6 +2893,16 @@ impl Mailbox {
         self.queued.iter().filter_map(|q| self.copy_waiting_of(q)).collect()
     }
 
+    /// The Message-IDs of the messages made on this computer that no server has yet, nor was told
+    /// to make (`placed`): copies kept here, among them. A delete for good of what one was copied
+    /// from waits until the mailbox file holds it, so that a quit before then loses nothing (#566:
+    /// a rule that copies onto this computer and deletes for good). A message with no Message-ID
+    /// can't be told apart, so one such copy holds back every delete of one without (until the
+    /// next autosave). In one pass, for a run that looks at each delete waiting to go.
+    pub fn copies_here_only(&self) -> HashSet<&str> {
+        self.messages.values().filter(|m| m.uid == 0 && m.server.is_none() && m.placed.is_empty()).map(|m| m.message_id.as_str()).collect()
+    }
+
     /// The message `q` is a copy of, when it is one waiting to be made on its account's server.
     fn copy_waiting_of(&self, q: &Queued) -> Option<Id> {
         match q {
@@ -3524,8 +3534,9 @@ impl Mailbox {
                     no_copy |= !copied || self.message(id).is_some_and(|m| m.partly_here() && !m.unfetched);
                 }
                 Action::Delete | Action::DeleteForGood if no_copy => {}
-                // Held back, to be done once the message is here whole.
-                Action::DeleteForGood if !for_good => did = true,
+                // Held back, to be done once the message is here whole: nothing done yet, so not
+                // counted as done.
+                Action::DeleteForGood if !for_good => {}
                 // To Deleted Items, or for good from there (or where an account has none), as
                 // [`Mailbox::delete_message`] does.
                 Action::Delete => {
@@ -3535,6 +3546,8 @@ impl Mailbox {
                         .and_then(|(account, at)| self.folder_of_kind(account, FolderKind::Deleted).filter(|d| !self.subtree(*d).contains(&at)));
                     did |= match binned {
                         Some(d) => self.move_message(id, d).is_ok(),
+                        // From Deleted Items it is a delete for good, held back as one (#566).
+                        None if !for_good => false,
                         None => gone(self, going),
                     };
                 }

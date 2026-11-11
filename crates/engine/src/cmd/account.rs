@@ -998,19 +998,13 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
     let followed = |f: &&Folder| !f.remote.is_empty() && f.uid_validity != 0;
     let mailboxes: HashSet<&str> = folders.values().copied().filter(followed).map(|f| f.remote.as_str()).collect();
     let copied_from = mb.copies_wait_for();
-    // The Message-IDs of the copies that are on this computer only and not in the mailbox file
-    // yet (`saved`): a delete for good of what one was copied from waits for the save, as the
-    // original of a message moved here does, so that a quit before it loses nothing (#566: a rule
-    // that copies within the account, or into an account whose server is given no copy, and
-    // deletes for good). Not one made on another server that hasn't said where (`placed`). A
-    // message with no Message-ID can't be told apart: a delete of one waits for the save if any
-    // such copy is unsaved (the next autosave). Found when there is a delete to hold, in one pass.
+    // The copies on this computer only, while the mailbox file doesn't hold them yet (`saved`): a
+    // delete for good of what one was copied from waits for the save, as the original of a message
+    // moved here does (#566: a rule that copies within the account, or into an account whose server
+    // is given no copy, and deletes for good; `Mailbox::copies_here_only`). Found when there is a
+    // delete to hold.
     let deletes = mb.pending.iter().any(|p| p.account() == account && matches!(p, Pending::Delete { .. }));
-    let here_only: HashSet<&str> = if saved || !deletes {
-        HashSet::new()
-    } else {
-        mb.messages.values().filter(|m| m.uid == 0 && m.server.is_none() && m.placed.is_empty()).map(|m| m.message_id.as_str()).collect()
-    };
+    let here_only: HashSet<&str> = if saved || !deletes { HashSet::new() } else { mb.copies_here_only() };
     for pending in mb.pending.iter().filter(|p| p.account() == account) {
         let (from, uid) = pending.source();
         if uid == 0 || !mailboxes.contains(from) {

@@ -116,6 +116,8 @@ mod reply_to_first_tests;
 mod resend_reply_to_tests;
 pub mod rules;
 #[cfg(test)]
+mod rules_holds_tests;
+#[cfg(test)]
 mod rules_parts_tests;
 pub mod rules_remote;
 #[cfg(test)]

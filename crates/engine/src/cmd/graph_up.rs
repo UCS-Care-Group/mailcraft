@@ -76,6 +76,10 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     // (Found once: every delete of a Microsoft account's keeps the message, and an emptied Deleted
     // Items queues thousands of them.)
     let copied_from = mb.copies_wait_for();
+    // (Nor while a copy of it kept on this computer only isn't in the mailbox file yet, as on IMAP:
+    // a quit before the save would lose both, #566.)
+    let deletes = mb.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account: a, .. } if *a == account));
+    let here_only: HashSet<&str> = if s.file_is_current() || !deletes { HashSet::new() } else { mb.copies_here_only() };
     for queued in mb.queued.iter().filter(|q| q.account() == account) {
         match queued {
             Queued::CopyMessage { id, to, copy, marker, .. } => {
@@ -85,7 +89,8 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
             // (Nor while a copy of the message here is still on its way to another account's
             // server, from the whole message here: a refused one puts the original back, #566.)
             Queued::DeleteMessage { id, kept, .. } => {
-                let held = copying.contains(id.as_str()) || kept.as_ref().is_some_and(|m| copied_from.contains(&m.id));
+                let held = copying.contains(id.as_str())
+                    || kept.as_ref().is_some_and(|m| copied_from.contains(&m.id) || here_only.contains(m.message_id.as_str()));
                 note(&|| (!held).then(|| MessageChange::Delete { id: id.clone() }));
             }
             // (Made by the run with the whole message: `graph_place`.)
