@@ -77,6 +77,7 @@ mod menubar;
 mod opened_files;
 #[cfg(test)]
 mod opened_flow;
+mod own_keys;
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
@@ -1707,10 +1708,12 @@ fn services(
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
+    let report_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
@@ -1846,6 +1849,12 @@ fn services(
         open_file: opened_files()
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
         secrets: secrets::store(),
+        // File › Options › Security (#30 R13): the owner's own certificates and keys listed,
+        // GnuPG's valid keys read, and a key file imported, each on a thread of its own.
+        own_keys: Some(Box::new(move |job| {
+            let store = keys_store.clone();
+            background(&keys_ctx, "own keys", move || own_keys::run(job, store))
+        })),
         // File › Info › Remove MailCraft's data from this computer (#177): the folders this
         // program works in, and no others. Not offered by a run that keeps nothing.
         data_wipe: prefs_enabled().then(|| {
@@ -1861,6 +1870,13 @@ fn services(
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
+        // Help › Report a Problem › Send report (#956), on the owner's click alone: the report the
+        // window showed goes to the project's relay, once. A build that names no relay has none.
+        report_send: mailcraft_net::report::relay().map(|_| {
+            Box::new(move |report: mailcraft_model::report::ProblemReport| {
+                background(&report_ctx, "problem report", move || mailcraft_net::report::send(&report))
+            }) as Box<dyn Fn(_) -> _>
+        }),
         microsoft_client_id: microsoft_client_id(),
         google_client_id: google_client_id(),
         google_client_secret: google_client_secret(),

@@ -27,6 +27,8 @@ fn fix_header(b: &mut [u8]) {
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = mailcraft_pst::list_stream(data, 1000);
+    let _ = mailcraft_pst::appointment_recurrence(data);
+    let _ = mailcraft_pst::time_zone_key(data);
     let mut data = data.to_vec();
     // ponytail: only the header's CRCs are put right; pages and blocks keep theirs, since the proptests already mutate with checksums put right. Add a repair mode if coverage stalls behind them.
     fix_header(&mut data);

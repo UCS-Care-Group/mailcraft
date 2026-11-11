@@ -146,6 +146,7 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
 pub mod people_view;
@@ -180,6 +181,13 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+pub mod security;
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../engine/src/private_keys_fixtures_tests.rs"]
+mod security_fixtures_tests;
+#[cfg(test)]
+mod security_tests;
 mod send_receive;
 mod sender_images;
 mod sending;
@@ -343,6 +351,12 @@ pub struct Services {
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
     pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
+    /// Desktop: the owner's own certificates and keys (#30 R13; [`own_keys`]), on a background
+    /// thread: list them where the system keeps them (the Windows certificate store, the macOS
+    /// keychain, PKCS#11 tokens, GnuPG), read which OpenPGP keys GnuPG trusts fully, import a
+    /// `.p12` or an OpenPGP secret key. Public facts come back, never a key or a passphrase.
+    /// Absent in the browser and the tests: signing and decrypting need the desktop program.
+    pub own_keys: Option<Box<dyn Fn(own_keys::OwnKeysJob) -> Receiver<own_keys::OwnKeysAnswer>>>,
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
@@ -453,6 +467,14 @@ pub struct Services {
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
     /// the copy then has the version and the platform only.
     pub diagnostics: Option<Box<dyn Fn() -> String>>,
+    /// Desktop, in a build that names the project's report relay (`MAILCRAFT_REPORT_URL`): send
+    /// a problem report on a background thread (`mailcraft_net::report::send`), one `POST` of
+    /// what the Report a Problem window showed, and nothing else. Run only by the owner's own
+    /// click on Send report ([`report_problem`]), never by a command, an agent or by itself. The
+    /// reference the relay filed it under, or why it wasn't sent, arrives through the channel
+    /// and the host wakes the UI. Absent in the browser, the tests and a fork's build: the window
+    /// then offers Open on GitHub alone.
+    pub report_send: Option<Box<dyn Fn(mailcraft_model::report::ProblemReport) -> Receiver<Result<u64, mailcraft_model::report::NotSent>>>>,
     /// Desktop: ask, on a background thread, which is the newest release of MailCraft
     /// ([`updates`]): GitHub alone is asked, about this build's repository, and is told nothing of
     /// the owner (`mailcraft_net::update::latest`). The argument says whether a pre-release will
@@ -1000,6 +1022,9 @@ pub struct UiState {
     pub alert_reminders: bool,
     /// The filters Advanced Search's Add filters puts in its panel (#329).
     pub advanced_filters: advanced_search::Filters,
+    /// The public facts of the private keys imported in File › Options › Security (#30): never
+    /// a key or a passphrase, which the system's credential store holds ([`own_keys`]).
+    pub imported_keys: Vec<own_keys::ImportedKey>,
 }
 
 impl Default for UiState {
@@ -1051,6 +1076,7 @@ impl Default for UiState {
             update_install_told: false,
             alert_new_mail: true,
             alert_reminders: true,
+            imported_keys: Vec::new(),
         }
     }
 }
@@ -1065,6 +1091,12 @@ fn fresh_options() -> mailcraft_engine::Prefs {
 
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
 const SAVING_SHOWN_AFTER_MS: u64 = 700;
+
+/// How long one frame goes on taking in the pieces of a Send/Receive that are waiting
+/// ([`MailApp::poll_sync`]): once at least, then again while this lasts.
+const SYNC_FRAME_BUDGET: std::time::Duration = std::time::Duration::from_millis(8);
+/// Most new messages in the pieces taken in together: a batch stops growing once it has these.
+const SYNC_BATCH_MESSAGES: usize = 500;
 
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
@@ -1272,6 +1304,42 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
+        "ui.importPrivateKey",
+        "Import Your Certificate or Key",
+        "File › Options › Security",
+        r#"{"format": "smime"|"openpgp"} — opens the file picker for a .p12/.pfx (S/MIME) or an OpenPGP secret key, then a dialog that asks for the .p12's passphrase in the window; the file and the passphrase go to the desktop program's key store and never through a command. Window only, never for an agent"#,
+    ),
+    (
+        "ui.removePrivateKey",
+        "Remove Your Imported Key",
+        "File › Options › Security",
+        r#"{"fingerprint": string, "confirmed"?: true} — deletes a key imported in File › Options › Security from the system's credential store; asks first. Window only, never for an agent"#,
+    ),
+    (
+        "ui.refreshOwnKeys",
+        "Refresh Your Certificates and Keys",
+        "File › Options › Security",
+        "{} — looks for the owner's certificates and keys again (and GnuPG's fully trusted keys). Window only, never for an agent",
+    ),
+    (
+        "ui.importPublicKey",
+        "Import a Public Key",
+        "File › Options › Security",
+        "{} — opens the file picker for a Public key (an X.509 certificate or an OpenPGP Public key), which `keys.import` keeps. Window only (an agent passes `data` to `keys.import`)",
+    ),
+    (
+        "ui.verifyKey",
+        "Verify a Public Key",
+        "File › Options › Security",
+        r#"{"address": string, "fingerprint": string} — the dialog that shows an OpenPGP key's whole fingerprint, to compare with the one its owner gives another way, and marks it Verified on the owner's word. Window only, never for an agent"#,
+    ),
+    (
+        "ui.markKeyVerified",
+        "Mark Key Verified",
+        "File › Options › Security",
+        r#"{"address": string, "fingerprint": string, "verified": bool} — the Verify dialog's buttons: refused unless that dialog is open for that very key. Window only, never for an agent"#,
+    ),
+    (
         "ui.desktopAlerts",
         "Desktop Alerts",
         "File › Options",
@@ -1364,7 +1432,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.reportProblem",
         "Report a Problem",
         "Help",
-        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default and only way; email went in #956), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default) | "send", "username"?: string (send), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. send: the window, filled in with the title, what was typed and the GitHub username, for the owner to read and send with Send report; nothing is sent (only the owner's own click sends a report, never a script or an agent). Answers {"via": "send", "draft": true, "sent": false}. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
@@ -1439,6 +1507,8 @@ pub struct MailApp {
     /// whether one was left for the next (#30: the list never checks many in one frame).
     pub(crate) row_checks_left: u32,
     pub(crate) row_checks_wanted: bool,
+    /// The owner's own keys and the work on them under way (#30, File › Options › Security).
+    pub(crate) security: security::State,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
@@ -1802,6 +1872,7 @@ impl MailApp {
             trust_anchors_arriving: None,
             row_checks_left: 1,
             row_checks_wanted: false,
+            security: security::State::default(),
             ui: UiState::default(),
             services,
             dialog: None,
@@ -2139,6 +2210,11 @@ impl MailApp {
             updates::CHECK => self.check_for_updates(true),
             updates::RESTART => self.restart_to_update(),
             updates::GO_BACK => self.go_back_a_version(),
+            // Marking a key Verified and removing the owner's own key: the owner's press alone.
+            "ui.markKeyVerified" | "ui.removePrivateKey" => match security::owners_press(self, id, &params) {
+                Some(r) => r,
+                None => self.execute(id, params),
+            },
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => {
@@ -2387,6 +2463,9 @@ impl MailApp {
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
+        if let Some(r) = security::command(self, id, p) {
+            return Some(r);
+        }
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
             "ui.openDataFolder" => self.open_data_folder(),
@@ -4305,8 +4384,12 @@ impl MailApp {
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
     pub fn poll_sync(&mut self) {
-        // A few pieces a frame: each one redraws the lists, and the window should stay quick.
-        for _ in 0..4 {
+        // What is waiting, taken in together, for as long as a frame can spare (#991): each time
+        // reads the whole account and has the lists made again, whatever the pieces bring, and a
+        // run with thousands of folders hands over a piece or more for each.
+        let started = std::time::Instant::now();
+        let mut first = true;
+        while std::mem::take(&mut first) || started.elapsed() < SYNC_FRAME_BUDGET {
             // (A JMAP account's run has pieces of its own: [`jmap_mail`].)
             if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
                 return self.poll_jmap();
@@ -4335,10 +4418,23 @@ impl MailApp {
                     return;
                 }
             };
-            let (account, last) = (piece.account, !piece.partial);
-            let downloading = !piece.folders.is_empty();
-            let signed_in = piece.step.as_ref().is_some_and(|step| step.stage.signed_in());
-            let refused = piece.errors.iter().any(|e| {
+            // And the pieces that came after it, up to the last, while they bring little mail:
+            // taking in what came is what takes the time.
+            let mut new = piece.new_count();
+            let mut pieces = vec![piece];
+            while pieces.len() < mailcraft_engine::cmd::account::MAX_PIECES_TOGETHER
+                && new < SYNC_BATCH_MESSAGES
+                && pieces.last().is_some_and(|piece| piece.partial)
+                && let Ok(piece) = rx.try_recv()
+            {
+                new = new.saturating_add(piece.new_count());
+                pieces.push(piece);
+            }
+            let account = pieces.first().map_or(*whose, |piece| piece.account);
+            let last = pieces.last().is_some_and(|piece| !piece.partial);
+            let downloading = pieces.iter().any(|piece| !piece.folders.is_empty());
+            let signed_in = pieces.iter().any(|piece| piece.step.as_ref().is_some_and(|step| step.stage.signed_in()));
+            let refused = pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
                 let e = e.to_lowercase();
                 // Microsoft's word for a token that ran out during the run.
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
@@ -4347,8 +4443,10 @@ impl MailApp {
             if signed_in {
                 self.keep_accepted_password(account);
             }
-            self.note_said_problems(account, piece.problems(), false);
-            match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
+            for piece in &pieces {
+                self.note_said_problems(account, piece.problems(), false);
+            }
+            match mailcraft_engine::cmd::account::apply_sync_parts(&mut self.session, &mut self.sync_totals, pieces) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
@@ -4628,6 +4726,7 @@ impl MailApp {
             self.shared_check_tick();
         }
         self.check_secret_store();
+        security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
             // Whether a new version is out, when the owner wants that known ([`updates`]).

@@ -48,9 +48,17 @@ pub(crate) struct Touched {
     changed_contacts: BTreeSet<Id>,
     pending_added: HashSet<String>,
     pending_removed: HashSet<String>,
+    /// The Public keys it imported, removed or changed (#30): an undo puts back only those.
+    keys: Vec<mailcraft_model::public_keys::KeyName>,
 }
 
 impl Touched {
+    /// Whether the change imported, removed or changed a Public key: an undo of it changes
+    /// them back, which is a setting's change.
+    pub(crate) fn changed_keys(&self) -> bool {
+        !self.keys.is_empty()
+    }
+
     /// Whether the change added, changed or took away the contact `id`.
     pub(crate) fn changed_contact(&self, id: Id) -> bool {
         self.changed_contacts.contains(&id)
@@ -157,6 +165,7 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         t.pending_added = is.difference(&was).cloned().collect();
         t.pending_removed = was.difference(&is).cloned().collect();
     }
+    t.keys = after.public_keys.differences(&before.public_keys);
     t
 }
 
@@ -232,8 +241,11 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
     // The certificates Digital signatures brought are what was learnt, not what the owner did
-    // (#30): an undo leaves them.
-    out.public_keys = now.public_keys.clone();
+    // (#30): an undo leaves them, and puts back only the keys the change imported, removed or
+    // changed, never taking a revocation away or marking a key Verified.
+    let mut keys = now.public_keys.clone();
+    keys.put_back(&out.public_keys, &touched.keys);
+    out.public_keys = keys;
     returned(&mut out, now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);

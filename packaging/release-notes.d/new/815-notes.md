@@ -1,0 +1,1 @@
+- Import a .pst File now brings in notes and journal entries too, and mail kept as rich text keeps its HTML. The import is no longer a preview. Notes and the journal have no window of their own yet ([#815](https://github.com/GITHUB_REPOSITORY/issues/815)).

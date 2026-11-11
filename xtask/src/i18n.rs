@@ -916,8 +916,10 @@ fn merge(old: &[Entry], found: &Texts) -> Vec<Entry> {
         }
         out.push(e);
     }
+    // Two branches that each keep the same old text leave it twice after a merge; keep one.
+    let mut kept = std::collections::BTreeSet::new();
     for was in old.iter().filter(|e| !e.is_header() && !found.contains_key(&e.key())) {
-        if was.strs.iter().any(|s| !s.is_empty()) {
+        if was.strs.iter().any(|s| !s.is_empty()) && kept.insert(was.key()) {
             out.push(Entry { obsolete: true, references: Vec::new(), extracted: Vec::new(), ..(*was).clone() });
         }
     }
@@ -1108,6 +1110,14 @@ mod tests {
                 "{who} was added later, {then}"
             ]
         );
+    }
+
+    #[test]
+    fn an_old_text_kept_twice_by_a_merge_is_kept_once() {
+        let old =
+            po::parse("msgid \"\"\nmsgstr \"\"\n\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n\n#, fuzzy\n#~ msgid \"Gone\"\n#~ msgstr \"Parti\"\n");
+        let merged = merge(&old.entries, &Texts::new());
+        assert_eq!(merged.iter().filter(|e| e.id == "Gone").count(), 1);
     }
 
     #[test]
