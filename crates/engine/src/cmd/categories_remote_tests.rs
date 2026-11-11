@@ -920,6 +920,17 @@ fn an_undo_of_other_letters_half_done_there_makes_the_old_letters_again() {
 }
 
 #[test]
+fn other_letters_whose_deletion_went_with_its_answer_lost_stay_and_are_made_there() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "client", "to": "Client"})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "client", GREEN), change(CategoryChangeKind::Create, "Client", GREEN)]);
+    // The old spelling was deleted there and the answer never came: the next read has neither.
+    read(&mut s, a, vec![tag("Red category", RED)]);
+    assert_eq!(s.mailbox.category_of(a, "Client").map(|c| (c.name.as_str(), c.color)), Some(("Client", GREEN)), "{:?}", names(&s, a));
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Client", GREEN)]);
+}
+
+#[test]
 fn two_undos_in_a_row_put_back_the_category_as_it_was_first() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Theirs", GREEN)], true);
     s.run("category.set", &json!({"account": a, "name": "Theirs", "color": "#2F6FD0"})).unwrap();

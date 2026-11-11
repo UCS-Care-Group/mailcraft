@@ -3894,13 +3894,15 @@ impl Mailbox {
                 (None, None) => unplaced.push(&s.name),
             }
         }
-        // Deleted on the server: a deletion there wins (the items keep the name, in grey). Of a
-        // list the server didn't give whole, nothing is taken for deleted, and what it didn't
+        // Deleted on the server: a deletion there wins (the items keep the name, in grey), but not
+        // over a name written here in other letters, whose old spelling the upload deletes first:
+        // that deletion may be its own, its answer lost, and the new spelling is still to be made.
+        // Of a list the server didn't give whole, nothing is taken for deleted, and what it didn't
         // give stays as it was last synced.
         let missing: Vec<&Category> = synced.iter().filter(|was| !on_categories(server, &was.name)).collect();
         let mut synced_now: Vec<Category> = server.iter().filter(|c| !unplaced.iter().any(|n| same_category(n, &c.name))).cloned().collect();
         if complete {
-            list.retain(|c| !missing.iter().any(|was| same_category(&was.name, &c.name)));
+            list.retain(|c| !missing.iter().any(|was| same_category(&was.name, &c.name) && was.name == c.name));
         } else {
             synced_now.extend(missing.into_iter().cloned());
         }
