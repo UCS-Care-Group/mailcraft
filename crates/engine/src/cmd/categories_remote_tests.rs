@@ -2392,3 +2392,35 @@ fn an_agents_undo_of_an_address_change_sends_nothing_the_old_server_has_and_says
     assert_eq!(s.mailbox.account(a).unwrap().email, "a@example.org");
     assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
 }
+
+/// The old name's deletion in Outlook waits only for an item still to change there (#661): a
+/// message gone from its server, or that it never gave an id, doesn't hold it, nor does a to-do
+/// of an account whose to-dos aren't kept in To Do. Two deletions waiting are looked at together:
+/// only the one an item still carries there waits.
+#[test]
+fn a_deletion_waits_only_for_an_item_still_to_change_there() {
+    let colours = || vec![tag("Red category", RED), tag("Old", GREEN), tag("Other", BLUE)];
+    for (gone, id) in [(false, "m-1"), (true, "m-1"), (false, "")] {
+        let (mut s, a) = rig(colours(), true);
+        let m = server_message(&mut s, a, &["Old"]);
+        let there = s.mailbox.message_mut(m).unwrap().server.as_mut().unwrap();
+        (there.gone, there.id) = (gone, id.into());
+        s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+        s.run("category.remove", &json!({"account": a, "name": "Other"})).unwrap();
+        let mut want = vec![change(CategoryChangeKind::Delete, "Other", BLUE)];
+        if gone || id.is_empty() {
+            want.insert(0, change(CategoryChangeKind::Delete, "Old", GREEN));
+        }
+        assert_eq!(changes(&mut s, a), want, "gone {gone}, id {id:?}");
+    }
+    for keeps in [true, false] {
+        let (mut s, a) = rig(colours(), true);
+        server_task(&mut s, a, &["Old"]);
+        if !keeps {
+            s.mailbox.accounts.iter_mut().find(|x| x.id == a).unwrap().oauth = None;
+        }
+        s.run("category.remove", &json!({"account": a, "name": "Old"})).unwrap();
+        let goes = changes(&mut s, a).iter().any(|c| c.name == "Old");
+        assert_eq!(goes, !keeps, "keeps to-dos: {keeps}");
+    }
+}

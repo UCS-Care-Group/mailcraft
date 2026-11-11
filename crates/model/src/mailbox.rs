@@ -152,6 +152,18 @@ pub fn category_key(name: &str) -> String {
     name.chars().flat_map(char::to_lowercase).collect()
 }
 
+/// Note in `found` each name of `wanted` (as [`category_key`]s) that an item carries `there`, on
+/// its server, and no longer `here` (#661). Whether every one of `wanted` is found.
+fn left_there(wanted: &HashSet<String>, there: &[String], here: &[String], found: &mut HashSet<String>) -> bool {
+    for name in there {
+        let key = category_key(name);
+        if wanted.contains(&key) && !found.contains(&key) && !here.iter().any(|h| same_category(h, name)) {
+            found.insert(key);
+        }
+    }
+    found.len() >= wanted.len()
+}
+
 /// What a change to a list of categories that is read-only here says (#661).
 pub fn categories_read_only_text(address: &str) -> String {
     format!("the categories of {address} come from its server, and MailCraft has no permission to change them there")
@@ -3501,9 +3513,11 @@ impl Mailbox {
         let max = crate::remote::MAX_CATEGORY_CHANGES;
         // (A pair is never cut in two by the limit: half of it would be a deletion alone.)
         let mut changes: Vec<CategoryChange> = respelled.into_iter().take(max / 2).flatten().collect();
-        if creates.is_empty() {
+        if creates.is_empty() && !deletes.is_empty() {
             // The items that carried it take their new names there first, as Outlook moves them.
-            changes.extend(deletes.into_iter().filter(|d| !self.still_carried_there(owner, &d.name)));
+            let names: Vec<&str> = deletes.iter().map(|d| d.name.as_str()).collect();
+            let carried = self.carried_there(owner, &names);
+            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name))));
         }
         changes.extend(creates);
         changes.extend(colors);
@@ -3511,45 +3525,49 @@ impl Mailbox {
         changes
     }
 
-    /// Whether an item of `owner`'s own still carries `name` on its server while it no longer
-    /// does here, its change still to go (#661): a message (not one in the Outbox, which
-    /// is sent, not changed), a to-do, or an event whose change waits. A deletion of the name in
-    /// Outlook waits for them, as Outlook moves every item to a category's new name. A change the
-    /// server refuses is given up (a message is put back as the server has it, a to-do is kept
-    /// here alone), and the deletion goes; one held for now (a shared calendar whose rights
-    /// shrank) keeps the name on that item there, and the list keeps it with it. Looked at only
-    /// while a deletion waits, once a job, and it stops at the first item found.
-    fn still_carried_there(&self, owner: Id, name: &str) -> bool {
+    /// Which of `names` (as [`category_key`]s) an item of `owner`'s own still carries on its
+    /// server while it no longer does here, its change still to go (#661): a message (not one in
+    /// the Outbox, which is sent, not changed), a to-do, or an event whose change waits. A
+    /// deletion of the name in Outlook waits for them, as Outlook moves every item to a category's
+    /// new name. A change the server refuses is given up (a message is put back as the server has
+    /// it, a to-do is kept here alone), and the deletion goes; one held for now (a shared calendar
+    /// whose rights shrank) keeps the name on that item there, and the list keeps it with it.
+    /// Looked at only while a deletion waits, once a job: one pass for all of them, which stops
+    /// once each is found.
+    fn carried_there(&self, owner: Id, names: &[&str]) -> HashSet<String> {
+        let wanted: HashSet<String> = names.iter().map(|n| category_key(n)).collect();
+        let mut found = HashSet::new();
         // (The owner's own items: a change of the list rewrites no other mailbox's.)
-        let uses = |account: Id| account == owner;
-        let carries = |list: &[String]| list.iter().any(|c| same_category(c, name));
-        let messages = self.messages.values().any(|m| {
-            uses(m.account)
-                && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty() && carries(&s.categories))
-                && !carries(&m.categories)
-                && self.folder(m.folder).is_none_or(|f| f.kind != FolderKind::Outbox)
+        let outboxes: HashSet<Id> = self.folders.iter().filter(|f| f.kind == FolderKind::Outbox).map(|f| f.id).collect();
+        let messages = self.messages.values().filter_map(|m| {
+            let there = m.server.as_ref().filter(|s| !s.gone && !s.id.is_empty())?;
+            (m.account == owner && !outboxes.contains(&m.folder)).then_some((there.categories.as_slice(), m.categories.as_slice()))
         });
-        let keeps_tasks = |account: Id| self.account(account).is_some_and(Account::keeps_tasks);
-        let tasks = || {
-            self.tasks.values().any(|t| {
-                !t.local_only
-                    && !t.origin.id.is_empty()
-                    && uses(t.origin.account)
-                    && t.synced.as_ref().is_some_and(|f| carries(&f.categories))
-                    && !carries(&t.categories)
-                    && keeps_tasks(t.origin.account)
-            })
-        };
-        let events = || {
-            let others = self.others_calendars();
-            let own_calendar = |e: &Event| self.calendar(e.calendar).is_some() && !others.contains(&e.calendar);
-            self.event_changes.iter().any(|c| {
-                uses(c.account)
-                    && c.base.as_ref().is_some_and(|b| carries(&b.categories))
-                    && self.event(c.event).is_some_and(|e| !carries(&e.categories) && own_calendar(e))
-            })
-        };
-        messages || tasks() || events()
+        for (there, here) in messages {
+            if left_there(&wanted, there, here, &mut found) {
+                return found;
+            }
+        }
+        let keeps_tasks = self.account(owner).is_some_and(Account::keeps_tasks);
+        let tasks = self.tasks.values().filter(|t| keeps_tasks && !t.local_only && !t.origin.id.is_empty() && t.origin.account == owner);
+        for t in tasks {
+            if let Some(there) = &t.synced
+                && left_there(&wanted, &there.categories, &t.categories, &mut found)
+            {
+                return found;
+            }
+        }
+        let others = self.others_calendars();
+        for c in self.event_changes.iter().filter(|c| c.account == owner) {
+            let (Some(base), Some(e)) = (c.base.as_ref(), self.event(c.event)) else { continue };
+            if self.calendar(e.calendar).is_some()
+                && !others.contains(&e.calendar)
+                && left_there(&wanted, &base.categories, &e.categories, &mut found)
+            {
+                return found;
+            }
+        }
+        found
     }
 
     /// Take in what `owner`'s server made of the changes sent to it (#661): what it took is the

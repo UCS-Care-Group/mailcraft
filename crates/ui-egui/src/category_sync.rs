@@ -211,6 +211,10 @@ impl MailApp {
     }
 
     fn start_categories_job(&mut self, account: Id, now: f64) -> bool {
+        // (Offline, nothing goes: what would go isn't worked out at every frame either.)
+        if self.offline() || self.services.graph_categories.is_none() {
+            return false;
+        }
         let Some(owner) = self.session.mailbox.account(account).cloned() else { return false };
         let Some(oauth) = owner.oauth.clone() else { return false };
         let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
