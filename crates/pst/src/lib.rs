@@ -70,4 +70,4 @@ pub use pst::{
     LeftOutPart, Message, MessageRef, Nid, NodeInfo, Part, Pst, Recipient, RecipientKind, Store, node_types,
 };
 pub use recur::{Recur, RecurException, appointment_recurrence, time_zone_key};
-pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_text};
+pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_html, rtf_text};

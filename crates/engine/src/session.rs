@@ -999,12 +999,14 @@ pub enum WordIndex {
 pub(crate) struct ImportedPlans {
     pub events: Vec<Id>,
     pub tasks: Vec<Id>,
+    pub notes: Vec<Id>,
+    pub journal: Vec<Id>,
     pub calendar: Option<Id>,
 }
 
 impl ImportedPlans {
     fn is_empty(&self) -> bool {
-        self.events.is_empty() && self.tasks.is_empty() && self.calendar.is_none()
+        self.events.is_empty() && self.tasks.is_empty() && self.notes.is_empty() && self.journal.is_empty() && self.calendar.is_none()
     }
 }
 
@@ -3031,6 +3033,12 @@ impl Session {
         for id in &plans.tasks {
             before.mailbox.tasks.remove(id);
         }
+        for id in &plans.notes {
+            before.mailbox.notes.remove(id);
+        }
+        for id in &plans.journal {
+            before.mailbox.journal.remove(id);
+        }
         // A calendar it made goes too, unless the owner has put something in it since.
         if let Some(id) = plans.calendar
             && !before.mailbox.events.values().any(|e| e.calendar == id)
@@ -3235,6 +3243,8 @@ impl Session {
         gone.extend(now.contacts.keys().filter(|k| !back.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
         gone.extend(now.events.keys().filter(|k| !back.events.contains_key(*k)).map(|k| format!("event {k}")));
         gone.extend(now.tasks.keys().filter(|k| !back.tasks.contains_key(*k)).map(|k| format!("task {k}")));
+        gone.extend(now.notes.keys().filter(|k| !back.notes.contains_key(*k)).map(|k| format!("note {k}")));
+        gone.extend(now.journal.keys().filter(|k| !back.journal.contains_key(*k)).map(|k| format!("journal entry {k}")));
         gone.extend(now.calendars.iter().filter(|c| !back.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
         gone.extend(categories_gone(&now.categories, &back.categories).into_iter().map(|n| format!("category {n}")));
         // An account's own list the undo doesn't keep is taken away whole.
@@ -3329,6 +3339,10 @@ impl Session {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
+            return Some(Class::Settings);
+        }
+        // Public keys imported or removed (#30): the keys Digital signatures are checked with.
+        if step.touched.changed_keys() {
             return Some(Class::Settings);
         }
         None

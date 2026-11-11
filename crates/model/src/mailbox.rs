@@ -1079,6 +1079,10 @@ pub struct Mailbox {
     pub events: BTreeMap<Id, Arc<Event>>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub tasks: BTreeMap<Id, Arc<Task>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
+    pub notes: BTreeMap<Id, Arc<crate::Note>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
+    pub journal: BTreeMap<Id, Arc<crate::JournalEntry>>,
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub categories: Vec<Category>,
     pub rules: Vec<Rule>,
@@ -1224,6 +1228,8 @@ impl Default for Mailbox {
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),
+            notes: BTreeMap::new(),
+            journal: BTreeMap::new(),
             categories: default_categories(),
             rules: Vec::new(),
             junk: crate::JunkLists::default(),
@@ -3139,6 +3145,20 @@ impl Mailbox {
         self.events.remove(&id).map(|_| ()).ok_or(not_found("event", id))
     }
 
+    pub fn add_note(&mut self, mut n: crate::Note) -> Id {
+        n.id = self.alloc_id();
+        let id = n.id;
+        self.notes.insert(id, Arc::new(n));
+        id
+    }
+
+    pub fn add_journal(&mut self, mut j: crate::JournalEntry) -> Id {
+        j.id = self.alloc_id();
+        let id = j.id;
+        self.journal.insert(id, Arc::new(j));
+        id
+    }
+
     pub fn add_task(&mut self, mut t: Task) -> Id {
         if t.id == 0 || self.tasks.contains_key(&t.id) {
             t.id = self.alloc_id();
@@ -4057,6 +4077,8 @@ impl Mailbox {
             .chain(self.contacts.keys())
             .chain(self.events.keys())
             .chain(self.tasks.keys())
+            .chain(self.notes.keys())
+            .chain(self.journal.keys())
             .copied()
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))

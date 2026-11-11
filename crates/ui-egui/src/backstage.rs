@@ -437,7 +437,7 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     {
         let _ = app.run("file.importFolderTree", json!({}));
     }
-    if tile(ui, "import", tl!("Import a .pst File (preview)"), tl!("The mail of a .pst file, into a folder on this computer"), t) {
+    if tile(ui, "import", tl!("Import a .pst File"), tl!("The mail, contacts, calendar, tasks and notes of a .pst file, onto this computer"), t) {
         let _ = app.run("file.importPst", json!({}));
     }
     if tile(ui, "open", tl!("Open Mailbox File"), tl!("Replace what is open with a .mailcraft file"), t) {
@@ -708,6 +708,8 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    section(ui, tl!("Security"), t);
+    crate::security::options(app, ui, t);
     section(ui, tl!("Calendar"), t);
     let mut twelve = prefs.twelve_hour;
     if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {

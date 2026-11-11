@@ -27,6 +27,7 @@ mod message;
 pub mod messages;
 #[cfg(test)]
 mod messages_tests;
+mod note;
 mod offline;
 pub mod outlook_colors;
 pub mod pictures;
@@ -79,6 +80,7 @@ pub use message::{
     text_hash,
 };
 pub use messages::Messages;
+pub use note::{JournalEntry, Note};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};

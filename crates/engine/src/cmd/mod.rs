@@ -77,6 +77,9 @@ pub mod junk;
 mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
+pub mod keys;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod leave_compose_tests;
 pub mod mail;
@@ -84,6 +87,7 @@ pub mod mail;
 mod moves_between_accounts_tests;
 #[cfg(test)]
 mod newer_account_tests;
+pub mod notes;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
@@ -175,9 +179,11 @@ pub fn registry() -> Registry {
     v.extend(people::specs());
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
+    v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(categories_remote::specs());
     v.extend(account::specs());
