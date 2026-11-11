@@ -145,3 +145,40 @@ fn undo_with_the_account_gone_or_the_folders_gone_never_panics() {
         s.run("edit.redo", &json!({})).unwrap();
     }
 }
+
+/// A draft saved on a Microsoft server, sent from an IMAP account and then undone: the sent
+/// message has the draft's Message-ID, and the draft is gone from the server, but the message in
+/// the IMAP Outbox is no copy the undo keeps: it comes out of the Outbox and nothing is sent
+/// (#566).
+#[test]
+fn an_undo_of_send_from_imap_of_a_microsoft_draft_takes_it_out_of_the_outbox() {
+    let (mut s, account, _, _) = setup();
+    let imap =
+        s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let imap_outbox = s.mailbox.folder_of_kind(imap, FolderKind::Outbox).unwrap();
+    let drafts = s.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    let draft = s
+        .mailbox
+        .add_message(Message {
+            account,
+            folder: drafts,
+            draft: true,
+            subject: "Not yet".into(),
+            to: vec![mailcraft_model::Address::new("Kit", "kit@example.net")],
+            message_id: "draft-1@example.org".into(),
+            server: Some(ServerMessage { id: "D-1".into(), folder: "F-3".into(), ..Default::default() }),
+            server_draft: Some(mailcraft_model::sync::ServerDraft { marker: "mailcraft-draft-1".into(), ..Default::default() }),
+            ..Default::default()
+        })
+        .unwrap();
+    s.mailbox_changed();
+    s.run("mail.editDraft", &json!({"id": draft})).unwrap();
+    s.run("compose.set", &json!({"account": imap})).unwrap();
+    let queued = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.message(queued).map(|m| m.folder), Some(imap_outbox));
+    let said = undo(&mut s);
+    assert!(!said.iter().any(|l| l.contains("The copy made of")), "{said:?}");
+    assert!(s.mailbox.message(queued).is_none_or(|m| m.folder != imap_outbox), "{said:?}");
+    let request = s.run("sync.request", &json!({"account": imap})).unwrap();
+    assert_eq!(request["outbox"].as_array().map(Vec::len).unwrap_or(0), 0, "nothing to send");
+}

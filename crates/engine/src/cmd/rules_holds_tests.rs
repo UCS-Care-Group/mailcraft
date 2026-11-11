@@ -344,3 +344,38 @@ fn an_undo_of_run_rules_now_that_copied_and_deleted_for_good_keeps_the_copy() {
     let placing = super::account::sync_request(&s, imap).unwrap().places.len();
     assert_eq!((placing, graph_deletes(&s, account).len()), (1, 0), "on its way there, the original's delete waiting for it");
 }
+
+/// The same undo once Send/Receive has made the copy on the server, the delete waiting a run more:
+/// the copy, all there is of the message, stays where the rule put it and isn't moved to Deleted
+/// Items (#566).
+#[test]
+fn an_undo_after_the_server_made_the_copy_leaves_it_where_the_rule_put_it() {
+    use mailcraft_model::sync::{MessageChangeDone, MessageOutcome};
+    let (mut s, account, _) = microsoft_and_here();
+    let saved = s.mailbox.add_folder(account, None, "Saved").unwrap();
+    s.mailbox.folder_mut(saved).unwrap().server = Some(ServerFolder { id: "F-saved".into(), caught_up: true, ..Default::default() });
+    let bin = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.folder_mut(bin).unwrap().server = Some(ServerFolder { id: "F-bin".into(), caught_up: true, ..Default::default() });
+    microsoft_message(&mut s, account, "Plan");
+    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": saved}, {"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", rule);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    let request = super::graph_mail::graph_mail_request(&s, account).unwrap().messages;
+    assert_eq!(graph_deletes(&s, account), [], "the delete waits for the copy");
+    let copy = request.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).expect("the copy goes");
+    let outcome = MessageOutcome::Done { categories: None, flag: None, folder: "F-saved".into(), id: "C1".into() };
+    let done = vec![MessageChangeDone { change: copy, outcome, there: None }];
+    super::graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: done, ..Default::default() }).unwrap();
+    assert_eq!(copies_here(&s, saved, "Plan"), 1, "the copy, made on the server");
+    let undone = run(&mut s, "edit.undo", json!({}));
+    assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
+    let at: Vec<(Id, Option<String>)> =
+        s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| (m.folder, m.server.as_ref().map(|x| x.id.clone()))).collect();
+    assert_eq!(at, [(saved, Some("C1".to_string()))], "the only copy left of the message");
+    let moves = super::graph_mail::graph_mail_request(&s, account).unwrap().messages;
+    assert!(!moves.iter().any(|c| matches!(c, MessageChange::Move { .. })), "nothing moved on the server: {moves:?}");
+    assert_eq!(graph_deletes(&s, account).len(), 1, "the original's delete still goes");
+}

@@ -1971,6 +1971,58 @@ mod two_way {
         assert_eq!(deletes(&s), [RemoteOp::Delete { from: "INBOX".into(), uid: 2 }]);
     }
 
+    /// Undo of Run Rules Now with "copy to a folder, delete permanently" on an IMAP account takes
+    /// the copy away and brings the original back. Pressed while the delete is on its way, and the
+    /// server's answer lost, the original is kept on this computer when the server no longer lists
+    /// it, never lost with the copy (#566).
+    #[test]
+    fn an_imap_undo_while_the_delete_is_on_its_way_keeps_the_message_when_the_answer_is_lost() {
+        for here in [false, true] {
+            let mut s = session();
+            let a =
+                run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+            // A folder on this computer, or another folder of the account.
+            let kept = if here { kind(&s, FolderKind::Inbox) } else { s.mailbox.add_folder(a, None, "Kept").unwrap() };
+            let first = SyncResult {
+                account: a,
+                folders: vec![FolderDelta {
+                    complete: true,
+                    ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "Hello"), from_server(2, "An offer")], vec![])
+                }],
+                ..Default::default()
+            };
+            apply(&mut s, first);
+            let inbox = folder(&s, a, FolderKind::Inbox);
+            let rule = json!({"name": "Keep", "account": a, "conditions": [{"type": "subjectContains", "value": "offer"}],
+                "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]});
+            run(&mut s, "rules.add", rule);
+            assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
+            (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+            assert_eq!(request(&s, a).ops, [RemoteOp::Delete { from: "INBOX".into(), uid: 2 }]);
+            run(&mut s, "edit.undo", json!({}));
+            assert_eq!(request(&s, a).ops, [], "the delete is called off");
+            // The server deleted it, and the answer was lost: the next run lists no uid 2.
+            let next = SyncResult {
+                account: a,
+                folders: vec![FolderDelta {
+                    removed: vec![2],
+                    ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![], vec![has(1, false, false)])
+                }],
+                ..Default::default()
+            };
+            apply(&mut s, next);
+            let left: Vec<String> = s
+                .mailbox
+                .messages
+                .values()
+                .filter(|m| m.subject == "An offer")
+                .filter_map(|m| s.mailbox.folder(m.folder))
+                .map(|f| f.name.clone())
+                .collect();
+            assert_eq!(left, ["Imported"], "copied {}: the message is kept here", if here { "onto this computer" } else { "within the account" });
+        }
+    }
+
     /// Older mail below how far the Inbox was read, and an Inbox the server numbered anew, are mail
     /// that was there before: filed by the rules, never deleted for good by one or alerted of, and
     /// what was copied as it arrived isn't copied again (#566).
