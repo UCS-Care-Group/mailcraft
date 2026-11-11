@@ -282,6 +282,9 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
+        // A message on its way onto another account's server now still is (a rule's copy of mail
+        // that came since the change, whose original's delete waits for it, #566).
+        queue(&mut out, now, &g);
         waiting_as_now(&mut out, touched, now);
         return (out, Vec::new());
     }
@@ -909,7 +912,8 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
     }
     // A message that lies, after the undo, where it waits now to be made on another account's
     // server, still waits to be: one moved out of a Microsoft account before its server had it,
-    // which stays where it was moved ([`fields`]), or one put there since the change.
+    // which stays where it was moved ([`fields`]), or one put there since the change, in any
+    // mailbox.
     for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
         if let Queued::PlaceMessage { account, message, .. } = q
             && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())

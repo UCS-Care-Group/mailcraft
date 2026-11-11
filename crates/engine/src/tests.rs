@@ -2023,6 +2023,99 @@ mod two_way {
         }
     }
 
+    /// In a mailbox with no Microsoft or Exchange account, a rule copies new IMAP mail into another
+    /// IMAP account's Inbox and deletes it for good; then the owner undoes a step from before the
+    /// mail came. The copy is still on its way to the other server, or else the original is kept
+    /// (#566).
+    #[test]
+    fn an_undo_of_an_earlier_step_keeps_a_rules_copy_on_its_way_or_its_original() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let theirs_inbox = SyncResult {
+            account: b,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 9, vec![], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, theirs_inbox);
+        let theirs = folder(&s, b, FolderKind::Inbox);
+        let rule = json!({"name": "Hand on", "account": a, "conditions": [{"type": "subjectContains", "value": "offer"}],
+            "actions": [{"type": "copyTo", "value": theirs}, {"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", rule);
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "Hello")], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        // A step of the owner's before the new mail comes.
+        let hello = titled(&s, a, "Hello");
+        run(&mut s, "mail.flag", json!({"ids": [hello]}));
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(2, "An offer")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        let copy = titled(&s, b, "An offer");
+        assert_eq!(request(&s, b).places.len(), 1, "the copy is on its way to B's server");
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        assert!(!request(&s, a).ops.iter().any(|op| matches!(op, RemoteOp::Delete { .. })), "held for the copy");
+        run(&mut s, "edit.undo", json!({}));
+        assert!(s.mailbox.message(copy).is_some(), "the copy stays");
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        let places = request(&s, b).places.len();
+        let deletes: Vec<RemoteOp> = request(&s, a).ops.into_iter().filter(|op| matches!(op, RemoteOp::Delete { .. })).collect();
+        assert!(
+            places == 1 || deletes.is_empty(),
+            "the copy no longer goes to B's server ({places} placements) while A's server is told to delete the original: {deletes:?}"
+        );
+    }
+
+    /// A rule that moves new mail into another IMAP account, and an undo of a step from before the
+    /// mail came, in a mailbox with no Microsoft or Exchange account: the message still goes onto
+    /// the other account's server, and the original waits for it there (#566).
+    #[test]
+    fn an_undo_of_an_earlier_step_keeps_a_rules_move_into_another_imap_account_on_its_way() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let theirs_inbox = SyncResult {
+            account: b,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 9, vec![], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, theirs_inbox);
+        let theirs = folder(&s, b, FolderKind::Inbox);
+        let rule = json!({"name": "Hand on", "account": a, "conditions": [{"type": "subjectContains", "value": "offer"}],
+            "actions": [{"type": "moveTo", "value": theirs}]});
+        run(&mut s, "rules.add", rule);
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "Hello")], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let hello = titled(&s, a, "Hello");
+        run(&mut s, "mail.flag", json!({"ids": [hello]}));
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(2, "An offer")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        assert_eq!(request(&s, b).places.len(), 1);
+        run(&mut s, "edit.undo", json!({}));
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        let places = request(&s, b).places.len();
+        let deletes: Vec<RemoteOp> = request(&s, a).ops.into_iter().filter(|op| matches!(op, RemoteOp::Delete { .. })).collect();
+        assert_eq!((places, deletes), (1, vec![]), "the message still goes to B's server, and the original stays on A's until it is there");
+    }
+
     /// Older mail below how far the Inbox was read, and an Inbox the server numbered anew, are mail
     /// that was there before: filed by the rules, never deleted for good by one or alerted of, and
     /// what was copied as it arrived isn't copied again (#566).
