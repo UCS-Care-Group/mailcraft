@@ -39,6 +39,13 @@ send ([Problem reports](#problem-reports)).
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how
   many and clears them.
+- **Attachment previews** are off until you enable them in File › Options. Previewing passes a
+  temporary copy of the selected attachment and rendering arguments to a local executable, which
+  runs with your operating system permissions. For PDFs or images respectively, MailCraft uses
+  the path in `MAILCRAFT_PDFCRAFT_CLI` or `MAILCRAFT_PHOTOCRAFT_CLI` if set. Otherwise it looks
+  for the expected CLI name in the usual Windows or macOS installation location and then on
+  `PATH`. It selects the file by path and name without verifying the program's publisher or
+  identity. In Junk E-mail and its subfolders, choose Preview Attachment from the attachment menu.
 - **A downloaded new version** (only for a copy that updates itself) is kept in the `updates`
   folder of MailCraft's settings folder until it is installed (when you press Restart to update,
   or when you quit), and is deleted when it doesn't pass MailCraft's release signature or when a

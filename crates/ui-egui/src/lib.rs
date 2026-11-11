@@ -54,6 +54,7 @@ pub mod approval;
 #[cfg(test)]
 mod attachment_menu_tests;
 mod attachment_open;
+pub mod attachment_preview;
 pub mod auto_replies;
 #[cfg(test)]
 mod auto_replies_tests;
@@ -275,6 +276,7 @@ pub struct Services {
     /// programs and scripts and asked about macros. An error means nothing was opened. Absent in
     /// the browser (the file is downloaded instead) and the tests.
     pub open_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
+    pub attachment_preview: Option<attachment_preview::Host>,
     /// Web: hand bytes to the browser as a download. An error means no download started.
     pub download: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
     /// Web: told whether there are unsaved changes after each pass, for the leave-page guard.
@@ -997,6 +999,7 @@ pub struct UiState {
     /// in the message list, from Gravatar, favicon.im and Google. Off unless the owner turns it on:
     /// asking tells those services whose pictures are looked at.
     pub sender_images: bool,
+    pub attachment_previews: bool,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -1066,6 +1069,7 @@ impl Default for UiState {
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
             sender_images: false,
+            attachment_previews: false,
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -1129,6 +1133,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
+    (
+        "ui.previewAttachment",
+        "Preview Attachment",
+        "Message › Attachments",
+        r#"{"id"?: number (the selected message), "index": number (zero-based attachment index)} — preview the file using an installed helper, if supported"#,
+    ),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
         "ui.advancedSearch",
@@ -1499,6 +1509,8 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 
 /// The application.
 pub struct MailApp {
+    attachment_preview: Option<attachment_preview::Preview>,
+    pending_attachment_preview: Option<attachment_preview::Click>,
     pub session: Session,
     /// The system's certification authorities for mail, read off the window's thread by the host
     /// (#30): handed to the session when they come, and the window never waits for them.
@@ -1874,6 +1886,8 @@ impl MailApp {
             row_checks_wanted: false,
             security: security::State::default(),
             ui: UiState::default(),
+            attachment_preview: None,
+            pending_attachment_preview: None,
             services,
             dialog: None,
             people_picked: Vec::new(),
@@ -2600,6 +2614,7 @@ impl MailApp {
                 None => Err("`value` is a percentage from 80 to 200".into()),
             },
             "ui.advancedSearch" => advanced_search::command(self, p),
+            "ui.previewAttachment" => attachment_preview::command(self, p),
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;
@@ -4612,6 +4627,7 @@ impl MailApp {
     /// Per-frame logic before layout: control requests, screenshots, background results, file
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        attachment_preview::poll(self, ctx);
         self.apply_language();
         // The system's authorities for mail, once the host has read them: what was checked
         // without them is checked again (#30).
