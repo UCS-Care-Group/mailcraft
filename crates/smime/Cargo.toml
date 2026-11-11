@@ -33,6 +33,10 @@ aes = { version = "0.9", default-features = false }
 des = { version = "0.9", default-features = false }
 cbc = { version = "0.2", default-features = false, features = ["block-padding"] }
 zeroize = { version = "1", default-features = false, features = ["alloc"] }
+# AES-GCM for AuthEnvelopedData (RFC 5083/5084), the content of an Encrypted message that a sender
+# wrote with it; already in the tree through rPGP (`mailcraft-openpgp`). Decrypting only: no
+# RSA private-key operation runs in this crate (#30 decision 6).
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
 
 [dev-dependencies]
 proptest = { workspace = true }

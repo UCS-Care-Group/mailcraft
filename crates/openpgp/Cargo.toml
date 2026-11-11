@@ -15,6 +15,12 @@ mailcraft-names = { workspace = true }
 # rPGP's generation of RustCrypto (the workspace's `sha2` is 0.11, for S/MIME).
 sha2 = { version = "0.10", default-features = false }
 sha3 = { workspace = true }
+# Opening an Encrypted message (#30 part 6): the key derivation and the key unwrapping of ECDH and
+# X25519 session keys (RFC 9580 §11.5, §5.1.6; RFC 3394), in rPGP's generation, already in the tree
+# through it. No RSA private-key operation runs here (decision 6).
+aes-kw = "0.2"
+hkdf = "0.12"
+zeroize = { version = "1", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # Random numbers in the browser, which rPGP's dependencies ask for even when it only checks.
@@ -27,3 +33,4 @@ rand = { version = "0.8", default-features = false, features = ["std", "std_rng"
 sha1 = { workspace = true }
 ed25519-dalek = { workspace = true }
 rsa = { version = "0.9", default-features = false }
+x25519-dalek = { version = "2", default-features = false, features = ["static_secrets"] }

@@ -29,7 +29,7 @@ const ECDSA_SHA384: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.100
 // ---- randomness and keys ----
 
 /// The system's randomness, as the RSA library asks for it.
-struct Random(ring::rand::SystemRandom);
+pub(crate) struct Random(ring::rand::SystemRandom);
 
 impl rsa::rand_core::TryRng for Random {
     type Error = std::convert::Infallible;
@@ -51,12 +51,12 @@ impl rsa::rand_core::TryRng for Random {
 
 impl rsa::rand_core::TryCryptoRng for Random {}
 
-fn random() -> Random {
+pub(crate) fn random() -> Random {
     Random(ring::rand::SystemRandom::new())
 }
 
 /// An RSA key of `bits`, made once per test run.
-fn rsa_key(bits: usize) -> &'static rsa::PrivateKey {
+pub(crate) fn rsa_key(bits: usize) -> &'static rsa::PrivateKey {
     static K2048: OnceLock<rsa::PrivateKey> = OnceLock::new();
     static K1024: OnceLock<rsa::PrivateKey> = OnceLock::new();
     let cell = if bits == 1024 { &K1024 } else { &K2048 };
@@ -84,7 +84,7 @@ fn p384_key() -> p384::ecdsa::SigningKey {
 }
 
 /// A public key as rcgen puts it in a certificate.
-struct Public {
+pub(crate) struct Public {
     der: Vec<u8>,
     alg: &'static rcgen::SignatureAlgorithm,
 }
@@ -98,13 +98,13 @@ impl rcgen::PublicKeyData for Public {
     }
 }
 
-fn rsa_public(key: &rsa::PrivateKey) -> Public {
+pub(crate) fn rsa_public(key: &rsa::PrivateKey) -> Public {
     Public { der: key.to_public_key().to_pkcs1_der().unwrap().as_bytes().to_vec(), alg: &rcgen::PKCS_RSA_SHA256 }
 }
 
 // ---- certificates ----
 
-struct Authority {
+pub(crate) struct Authority {
     der: Vec<u8>,
     key: rcgen::KeyPair,
     params: rcgen::CertificateParams,
@@ -126,7 +126,7 @@ fn ca_params(name: &str) -> rcgen::CertificateParams {
     p
 }
 
-fn root(name: &str) -> Authority {
+pub(crate) fn root(name: &str) -> Authority {
     let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
     let params = ca_params(name);
     let der = params.self_signed(&key).unwrap().der().to_vec();
@@ -141,8 +141,19 @@ fn intermediate(name: &str, by: &Authority) -> Authority {
 }
 
 /// A mail signer's certificate for `address` and `key`, issued by `by`.
-fn signer_cert(address: &str, key: &impl rcgen::PublicKeyData, by: &Authority) -> Vec<u8> {
+pub(crate) fn signer_cert(address: &str, key: &impl rcgen::PublicKeyData, by: &Authority) -> Vec<u8> {
+    signer_cert_with(address, key, by, &[])
+}
+
+/// [`signer_cert`] with a subject key identifier, when `key_id` is not empty.
+pub(crate) fn signer_cert_with(address: &str, key: &impl rcgen::PublicKeyData, by: &Authority, key_id: &[u8]) -> Vec<u8> {
     let mut p = params("Ada");
+    if !key_id.is_empty() {
+        // SubjectKeyIdentifier (2.5.29.14): an OCTET STRING of the identifier, in the extension's.
+        let mut inner = vec![0x04, key_id.len() as u8];
+        inner.extend_from_slice(key_id);
+        p.custom_extensions.push(rcgen::CustomExtension::from_oid_content(&[2, 5, 29, 14], inner));
+    }
     p.subject_alt_names = vec![rcgen::SanType::Rfc822Name(address.try_into().unwrap())];
     p.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
     p.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::EmailProtection];

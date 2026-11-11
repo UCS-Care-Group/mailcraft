@@ -30,6 +30,7 @@
 mod armour;
 mod autocrypt;
 mod check;
+mod decrypt;
 mod keys;
 mod mime;
 pub mod secret;
@@ -41,6 +42,8 @@ mod armour_tests;
 mod autocrypt_tests;
 #[cfg(test)]
 mod coverage_tests;
+#[cfg(test)]
+mod decrypt_tests;
 #[cfg(test)]
 #[path = "fixtures_tests.rs"]
 mod fixtures;
@@ -61,6 +64,10 @@ mod vector_tests;
 
 pub use autocrypt::{Autocrypt, parse_autocrypt};
 pub use check::{CantCheck, Checked, Coverage, Issuer, NotVerified, Outcome, Signer};
+pub use decrypt::{
+    AgentRequest, DecryptError, DecryptionKey, EncryptedMessage, Esk, MAX_DECRYPTION_KEYS, MAX_PLAINTEXT, Plaintext, Recipient, SessionKey,
+    agent_request, decrypt_with_secret_key, decryption_keys, encrypted_message, session_key,
+};
 pub use keys::{Fingerprint, KeyId, KeyRing, PublicKey};
 pub use sign::{AgentKey, HashAlgorithm, SignError, SignatureValue, SigningKey, sign_detached, signing_keys};
 
@@ -132,6 +139,22 @@ pub fn verify(original: &[u8], from: &str, keys: &KeyRing, now: u64, verified: i
         };
     }
     Some(checked)
+}
+
+/// Checks the Digital signature packets `signatures` (binary) that came inside an Encrypted
+/// message over the `data` it opened to ([`Plaintext`]): as [`verify`] checks any other, with the
+/// same keys, time and trust. The signature covers all of what was encrypted, so it is
+/// [`Coverage::whole`] of it.
+pub fn verify_inside(signatures: &[u8], data: &[u8], from: &str, keys: &KeyRing, now: u64, verified: impl Fn(&Fingerprint, &str) -> bool) -> Checked {
+    let cx = check::Context {
+        from: mime::address(from),
+        keys,
+        now,
+        verified: &verified,
+        verifications: std::cell::Cell::new(0),
+        data_passes: std::cell::Cell::new(0),
+    };
+    Checked { outcome: check::check(signatures, data, &cx), coverage: Coverage { whole: true, path: Vec::new(), span: None } }
 }
 
 /// Whether a message too large to check is a signed one, told cheaply: a PGP/MIME type at the

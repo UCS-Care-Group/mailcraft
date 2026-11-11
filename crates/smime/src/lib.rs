@@ -16,6 +16,9 @@
 //! RFC 8551 §3.5.3): it hands the digest of the signed attributes to the key's holder, which
 //! signs it (no key is ever seen here), and checks what comes back against the certificate.
 //!
+//! [`decrypt()`] opens CMS EnvelopedData (an Encrypted message): the key holder unwraps the content-encryption
+//! key (no RSA private-key operation runs in this process) and the content is decrypted here.
+//!
 //! Input is hostile: BER is turned into DER with nesting bounded, every length is checked
 //! against what is there, the certificates, signers and the path to an anchor are capped, and
 //! nothing here panics on any bytes.
@@ -25,11 +28,14 @@
 mod algorithms;
 mod cert;
 mod chain;
+mod decrypt;
 pub mod import;
 pub mod pkcs12;
 mod sign;
 mod verify;
 
+#[cfg(test)]
+mod decrypt_tests;
 #[cfg(test)]
 mod import_tests;
 #[cfg(test)]
@@ -40,6 +46,7 @@ mod sign_tests;
 mod tests;
 
 pub use chain::{Anchors, MAX_ANCHORS};
+pub use decrypt::{DecryptError, Decrypted, KeyTransport, MAX_CMS, MAX_UNWRAPS, Unwrapped, decrypt, is_enveloped};
 pub use sign::{DigestAlgorithm, MAX_CHAIN, MAX_SIGNED_BYTES, SignError, SignRequest, SignatureScheme, sign};
 pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, MAX_VERIFICATIONS, Signed, check};
 
