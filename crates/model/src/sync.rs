@@ -1287,6 +1287,10 @@ pub struct GraphMessage {
     /// here (#611).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<bool>,
+    /// Some of its recipients (To, Cc) or categories were left out as it was listed, past what is
+    /// kept of one: a rule can't tell from it what they said ([`crate::Message::headers_cut`], #566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub cut: bool,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so

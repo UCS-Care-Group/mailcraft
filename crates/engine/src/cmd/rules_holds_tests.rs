@@ -447,3 +447,36 @@ fn a_too_large_imap_message_isnt_deleted_for_good_after_a_rule_that_cant_tell_ye
     s.mailbox.apply_rules(m, &s.rule_clock());
     assert!(s.mailbox.message(m).is_some(), "deleted for good while the rule before it couldn't tell");
 }
+
+/// A Microsoft account's listing keeps at most 500 recipients of To and Cc and 25 categories, and
+/// says when it left some out (`GraphMessage::cut`). A message to 600 people, the owner past the
+/// first 500: "except if my address is in To or Cc" can't tell from the listing, so the rule
+/// that deletes permanently doesn't act. The same message with the owner among those kept is
+/// left alone by the exception.
+#[test]
+fn a_listing_that_cut_its_recipients_isnt_deleted_for_good_past_an_exception_about_me() {
+    let (mut s, account, _) = microsoft_and_here();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge news", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+            "exceptions": [{"type": "toOrCcMe"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let mut m = listed("N1", "F-in", "To all 600 of us");
+    m.to = (0..500).map(|i| Address::new("", &format!("p{i}@example.org"))).collect();
+    m.cut = true;
+    let mut kept = listed("N2", "F-in", "To 500 of us");
+    kept.to = m.to.clone();
+    kept.to[10] = Address::new("Ada", ME);
+    let page = MessagePage { folder: "F-in".into(), messages: vec![m, kept], ..Default::default() };
+    super::graph_mail::apply_graph_mail(
+        &mut s,
+        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
+    )
+    .unwrap();
+    assert!(s.mailbox.messages.values().any(|m| m.subject == "To 500 of us"), "the exception leaves it alone");
+    let cut = s.mailbox.messages.values().find(|m| m.subject == "To all 600 of us").map(|m| m.headers_cut);
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert!(graph_deletes(&s, account).is_empty(), "a delete for good queued for the server");
+    assert_eq!(cut, Some(true), "the message past the 500 kept is here, and said to be cut");
+}

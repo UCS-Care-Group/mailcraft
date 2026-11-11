@@ -32,7 +32,7 @@ use mailcraft_model::sync::{
 use mailcraft_model::{FolderKind, Id, Mailbox, Queued};
 
 use super::graph_down::{self, Down, ServerIndex};
-use super::jmap_down::{MAX_BATCH, MAX_BUSY, MAX_FETCHED, MAX_MESSAGE, MAX_PREVIEW, MAX_TEXT, line, lines, people, person};
+use super::jmap_down::{MAX_BATCH, MAX_BUSY, MAX_FETCHED, MAX_MESSAGE, MAX_PEOPLE, MAX_PREVIEW, MAX_TEXT, line, lines, people, person};
 
 /// Longest name of a folder kept, in characters.
 const MAX_NAME: usize = 255;
@@ -52,6 +52,8 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     if !is_id(&m.server.id) {
         return false;
     }
+    // Past what is kept of a list, what it said is left out (#566).
+    m.cut |= m.server.categories.len() > 50 || m.to.len() > MAX_PEOPLE || m.cc.len() > MAX_PEOPLE;
     let server = &mut m.server;
     server.folder = folder.to_owned();
     server.gone = false;

@@ -240,6 +240,9 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
+    // Past what is kept of a list, what it said is left out (#566).
+    let more = |name: &str, cap: usize| item.child_in(TYPES, name).is_some_and(|list| list.children.len() > cap);
+    let cut = more("ToRecipients", MAX_PEOPLE) || more("CcRecipients", MAX_PEOPLE) || more("Categories", MAX_CATEGORIES);
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
@@ -265,6 +268,7 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         preview: line(item.child_in(TYPES, "Preview").map_or("", |n| n.text.as_str()), MAX_PREVIEW),
         has_attachments: flag(item, "HasAttachments"),
         draft: item.child_in(TYPES, "IsDraft").map(|n| n.text.trim().eq_ignore_ascii_case("true")),
+        cut,
     })
 }
 

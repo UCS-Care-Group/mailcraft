@@ -532,6 +532,9 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         .and_then(Value::as_array)
         .map(|all| all.iter().filter_map(Value::as_str).take(MAX_CATEGORIES).map(|c| c.chars().take(255).collect()).collect())
         .unwrap_or_default();
+    // Past what is kept of a list, what it said is left out (#566).
+    let more = |name: &str, cap: usize| value.get(name).and_then(Value::as_array).is_some_and(|all| all.len() > cap);
+    let cut = more("toRecipients", MAX_PEOPLE) || more("ccRecipients", MAX_PEOPLE) || more("categories", MAX_CATEGORIES);
     let server = ServerMessage {
         id,
         folder: folder.to_string(),
@@ -569,6 +572,7 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         preview: capped(value, "bodyPreview", MAX_PREVIEW),
         has_attachments: value.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false),
         draft: value.get("isDraft").and_then(Value::as_bool),
+        cut,
     })))
 }
 

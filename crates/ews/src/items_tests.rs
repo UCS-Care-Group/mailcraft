@@ -79,3 +79,22 @@ fn a_page_larger_than_the_model_takes_in_is_no_page() {
         (0..mailcraft_model::sync::MAX_EWS_PAGE_MESSAGES + 1).map(|n| format!("<t:Create>{}</t:Create>", bare(&format!("ID{n}")))).collect();
     assert_eq!(page(&changes, 512).unwrap_err(), Error::Unreadable);
 }
+
+/// An item with more recipients or categories than the reader keeps says so (#566): a rule then
+/// can't tell from the listing what was left out.
+#[test]
+fn an_item_with_more_recipients_or_categories_than_are_kept_says_it_cut_them() {
+    let read = |to: usize, categories: usize| {
+        let to: String = (0..to).map(|n| format!("<t:Mailbox><t:EmailAddress>p{n}@example.org</t:EmailAddress></t:Mailbox>")).collect();
+        let categories: String = (0..categories).map(|n| format!("<t:String>C{n}</t:String>")).collect();
+        let item = format!(
+            "<t:Create><t:Message><t:ItemId Id=\"ID1\" ChangeKey=\"CK\"/><t:Categories>{categories}</t:Categories><t:ToRecipients>{to}</t:ToRecipients></t:Message></t:Create>"
+        );
+        page(&item, 10).unwrap().messages.remove(0)
+    };
+    let whole = read(200, 50);
+    assert!(!whole.cut && whole.to.len() == 200 && whole.server.categories.len() == 50);
+    let cut = read(201, 0);
+    assert!(cut.cut && cut.to.len() == 200);
+    assert!(read(0, 51).cut);
+}

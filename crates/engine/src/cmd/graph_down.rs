@@ -379,6 +379,7 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         server: Some(server),
         unfetched: true,
         attachments_on_server: there.has_attachments,
+        headers_cut: there.cut,
         ..Default::default()
     }
 }
@@ -436,6 +437,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if m.importance == last.importance {
         m.importance = now.importance;
     }
+    // (Its categories are the server's, and what a listing left out of them stays left out.)
+    m.headers_cut |= there.cut;
     if follows {
         m.folder = folder;
     }
@@ -694,7 +697,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         m.original = read.original;
     }
     m.parts_removed = false;
-    (m.headers, m.fresh_stamps, m.headers_cut) = (read.headers, read.fresh_stamps, read.headers_cut);
+    (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
+    // What a listing left out stays left out: its categories are the server's still (#566).
+    m.headers_cut |= read.headers_cut;
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
         mailcraft_model::auth_results::forget_stamps(m);

@@ -450,3 +450,24 @@ mod inbox_pass {
         assert!(last.partial && last.inbox_pass && !last.errors.is_empty() && last.pages.is_empty());
     }
 }
+
+/// A message to more people, or with more categories, than the reader keeps says so (#566): a
+/// rule then can't tell from the listing what was left out.
+#[test]
+fn a_listing_with_more_recipients_or_categories_than_are_kept_says_it_cut_them() {
+    let people =
+        |n: usize, p: &str| (0..n).map(|i| serde_json::json!({"emailAddress": {"address": format!("{p}{i}@example.org")}})).collect::<Vec<_>>();
+    let read = |to: usize, cc: usize, categories: usize| {
+        let entry = serde_json::json!({
+            "id": "AAMk-600", "parentFolderId": "F-in", "receivedDateTime": "2026-10-14T16:00:00Z", "subject": "To all of us",
+            "toRecipients": people(to, "t"), "ccRecipients": people(cc, "c"),
+            "categories": (0..categories).map(|i| format!("C{i}")).collect::<Vec<_>>(),
+        });
+        super::down::message_of(&entry).unwrap()
+    };
+    let whole = read(500, 500, 25);
+    assert!(!whole.cut && whole.to.len() == 500 && whole.cc.len() == 500 && whole.server.categories.len() == 25);
+    let cut = read(600, 0, 0);
+    assert!(cut.cut && cut.to.len() == 500);
+    assert!(read(0, 501, 0).cut && read(0, 0, 26).cut);
+}
