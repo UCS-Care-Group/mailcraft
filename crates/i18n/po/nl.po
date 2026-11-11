@@ -117,6 +117,12 @@ msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt va
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr "'{subject}' blijft waar die is verplaatst: die is digitaal ondertekend of versleurd, en de kopie in het postvak waarvandaan die kwam, is verwijderd, terwijl de kopie waaruit die eerst werd verplaatst de bytes behoudt zoals die aankw. Verplaats die terug om die daar weer te zetten."
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "'{subject}' was permanently deleted: that can't be undone here."
+msgstr "'{subject}' is definitief verwijderd: dat kan hier niet ongedaan worden gemaakt."
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -20335,6 +20341,14 @@ msgid "{n} message that came back empty after a refused delete is being download
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
 msgstr[0] "{n} bericht dat leeg terugkwam na een geweigerde verwijdering, wordt opnieuw gedownload."
 msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerde verwijdering, worden opnieuw gedownload."
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message was permanently deleted: that can't be undone here."
+msgid_plural "{n} messages were permanently deleted: that can't be undone here."
+msgstr[0] "{n} bericht is definitief verwijderd: dat kan hier niet ongedaan worden gemaakt."
+msgstr[1] "{n} berichten zijn definitief verwijderd: dat kan hier niet ongedaan worden gemaakt."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

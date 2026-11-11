@@ -115,6 +115,12 @@ msgstr "„{subject}“ wurde möglicherweise gesendet: Sehen Sie in „Gesendet
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "'{subject}' was permanently deleted: that can't be undone here."
+msgstr "'{subject}' wurde endgültig gelöscht: das lässt sich hier nicht rückgängig machen."
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -19317,6 +19323,14 @@ msgid "{n} message that came back empty after a refused delete is being download
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
 msgstr[0] ""
 msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message was permanently deleted: that can't be undone here."
+msgid_plural "{n} messages were permanently deleted: that can't be undone here."
+msgstr[0] "{n} E-Mail wurde endgültig gelöscht: das lässt sich hier nicht rückgängig machen."
+msgstr[1] "{n} E-Mails wurden endgültig gelöscht: das lässt sich hier nicht rückgängig machen."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

@@ -115,6 +115,12 @@ msgstr "Es posible que «{subject}» se haya enviado: compruebe Elementos enviad
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "'{subject}' was permanently deleted: that can't be undone here."
+msgstr "'{subject}' se eliminó definitivamente: eso no se puede deshacer aquí."
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -19333,6 +19339,14 @@ msgid "{n} message that came back empty after a refused delete is being download
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
 msgstr[0] ""
 msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message was permanently deleted: that can't be undone here."
+msgid_plural "{n} messages were permanently deleted: that can't be undone here."
+msgstr[0] "Se eliminó definitivamente {n} mensaje: eso no se puede deshacer aquí."
+msgstr[1] "Se eliminaron definitivamente {n} mensajes: eso no se puede deshacer aquí."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

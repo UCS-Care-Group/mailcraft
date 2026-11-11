@@ -98,6 +98,11 @@ msgstr ""
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "'{subject}' was permanently deleted: that can't be undone here."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "(No title)"
@@ -17024,6 +17029,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/lib.rs
 msgid "{n} message that came back empty after a refused delete is being downloaded again."
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "{n} message was permanently deleted: that can't be undone here."
+msgid_plural "{n} messages were permanently deleted: that can't be undone here."
 msgstr[0] ""
 msgstr[1] ""
 

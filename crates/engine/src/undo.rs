@@ -202,8 +202,17 @@ impl Said {
         let mut lines = Vec::new();
         match self.deleted.as_slice() {
             [] => {}
-            [one] => lines.push(format!("'{}' was permanently deleted: that can't be undone here.", shown(one))),
-            many => lines.push(format!("{} messages were permanently deleted: that can't be undone here.", many.len())),
+            [one] => lines
+                .push(mailcraft_i18n::fmt(lang.t("'{subject}' was permanently deleted: that can't be undone here."), &[("subject", &shown(one))])),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} message was permanently deleted: that can't be undone here.",
+                    "{n} messages were permanently deleted: that can't be undone here.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
         }
         match self.folders.as_slice() {
             [] => {}

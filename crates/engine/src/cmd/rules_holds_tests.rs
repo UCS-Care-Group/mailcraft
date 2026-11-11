@@ -480,3 +480,24 @@ fn a_listing_that_cut_its_recipients_isnt_deleted_for_good_past_an_exception_abo
     assert!(graph_deletes(&s, account).is_empty(), "a delete for good queued for the server");
     assert_eq!(cut, Some(true), "the message past the 500 kept is here, and said to be cut");
 }
+
+/// The undo of Run Rules Now with a rule that copies and then deletes permanently says both its
+/// lines about the one message in the window's language: that it was deleted for good, and that
+/// its copy stays.
+#[test]
+fn the_undo_of_a_copy_then_a_delete_for_good_says_both_lines_in_the_windows_language() {
+    let (mut s, account, _) = microsoft_and_here();
+    s.interface_language = mailcraft_i18n::Lang::German;
+    let imap = run(&mut s, "account.add", json!({"email": "bo@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(there).unwrap().remote = "INBOX".into();
+    microsoft_message(&mut s, account, "Plan");
+    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", rule);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    run(&mut s, "rules.run", json!({"folder": inbox}));
+    let undone = run(&mut s, "edit.undo", json!({})).to_string();
+    assert!(undone.contains("Die Kopie von 'Plan' bleibt"), "{undone}");
+    assert!(undone.contains("'Plan' wurde endgültig gelöscht"), "{undone}");
+}
