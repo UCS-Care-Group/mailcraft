@@ -410,7 +410,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
   every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
   Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
-  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  calendar and its check, free and busy times, the to-dos, the rules, the automatic replies and the
+  categories.
   When another mailbox takes the place of the open one they are all called off, an answer that
   still comes for the old one is let go of whole, and no answer is taken in for an account under
   the address of the account open now; a shared mailbox's sign-in is checked against its owner's

@@ -63,7 +63,7 @@ MailCraft connects only to these, over encrypted connections:
 |---|---|---|
 | Your mail provider's servers (IMAP, SMTP) | Send/Receive, and on the timer you set | What a mail program sends: your sign-in and your mail |
 | A JMAP server you add an account for (the session address you gave it, and the addresses at the same server that its session names) | Send/Receive, on the timer you set, and when you open a message that isn't downloaded yet; only in a build that connects to JMAP servers (the browser build, from the version that adds it) | What a mail program sends: your password or access token, and your mail. A password or token you type is kept in memory only, until the program closes, the server turns it down or the account's server changes; it is never remembered in the credential store, the mailbox file, the settings or the browser's storage. Where the page you use signed you in itself, the program asks it for the credential at each Send/Receive or download (once more if the server turns it down), and keeps none of it beyond that |
-| Microsoft's sign-in pages and Microsoft Graph, for an account that signs in with Microsoft | When you sign in; for calendar, contacts, tasks (Microsoft To Do), sending mail, working hours, categories, automatic replies, the rules kept on the server and Outlook's Favorites | Your sign-in happens on Microsoft's page in your browser; the program receives tokens, never your password |
+| Microsoft's sign-in pages and Microsoft Graph, for an account that signs in with Microsoft | When you sign in; for calendar, contacts, tasks (Microsoft To Do), sending mail, working hours, categories (read, and made, recoloured and deleted there: their names and colours), automatic replies, the rules kept on the server and Outlook's Favorites | Your sign-in happens on Microsoft's page in your browser; the program receives tokens, never your password |
 | Google's sign-in page (`accounts.google.com/o/oauth2/v2/auth`) and token endpoint (`oauth2.googleapis.com/token`), for an account that signs in with Google | When you sign in, switch an existing account to Google sign-in or reconnect; the token endpoint is also used when a saved sign-in is renewed | The browser's sign-in request carries the application's client ID, the permissions requested, your account address as a login hint, a random state value, a PKCE challenge and a return address on your own computer. The token endpoint receives the authorization code and PKCE verifier, or the refresh token, together with the application's client ID and Desktop client-secret registration value. Google returns tokens and identifies the signed-in address in the identity token; MailCraft makes no separate user-info request. You enter your Google password on Google's page: MailCraft never sees it. |
 | Gmail's API (`gmail.googleapis.com`), for an account that signs in with Google, to move mail between Gmail's inbox categories | Not in this version: moving mail between Gmail's categories is switched off until Google has reviewed MailCraft's use of the API. Once it is switched on, only at the Send/Receive after you move a message of the Inbox from one Gmail category to another; never for an account that signs in with an app password | Gmail's own id of each message you moved, the category it goes to (the labels to add and take off), and the account's sign-in token, which Gmail's API takes as it is; nothing else of the message or of you |
 | A public DNS-over-HTTPS resolver (Cloudflare, then Google) | Once, when you press Connect while adding an account at a domain the program does not know | The domain of your address (the part after the @), never the mailbox name |
@@ -90,7 +90,8 @@ computer, for you, and for nothing else:
   can turn your automatic replies on or off and change their text, a rule you keep on the server goes
   there (below), and your list of categories is the same here and in Outlook: a category you make, delete
   or give another colour here (one of Outlook's 25) is made, deleted or recoloured in your Microsoft
-  account, and a renamed one is made under its new name and the old one deleted. Only your automatic
+  account, and a renamed one is made under its new name, given to your mail, events and to-dos there, and
+  the old one deleted. Only your automatic
   replies, your rules and your categories are changed with it, never your working hours or other settings;
 - reading and changing your To Do lists and tasks (`Tasks.ReadWrite`), so that your tasks are kept in
   step with Microsoft To Do: your tasks' titles, notes, dates, importance, categories and whether they are
@@ -105,9 +106,10 @@ computer, for you, and for nothing else:
   signing in for mail never waits on them. An account that signed in before is asked by the
   program, in one question for both ("Keep in Step with Outlook"), and then on one page of
   Microsoft's; a question you close is not put again by itself while MailCraft stays open (it comes
-  back the next time MailCraft starts), and File › Info has one line for each Microsoft account (Sync
-  with Outlook: on or off) with Ask again. Until they are given, nothing of your
-  tasks and rules is sent and they stay on this computer, the rules already on the server are read with
+  back the next time MailCraft starts, or when you open another mailbox), and File › Info has one line
+  for each Microsoft account (Sync with Outlook: on, partly on or off) with Ask again. Until they are
+  given, nothing of your tasks and rules is sent and they stay on this computer, a change of your
+  automatic replies waits for your answer (a no, or the question closed, drops it and says so), the rules already on the server are read with
   your mailbox settings and shown, and your categories are shown as Outlook has them and can't be changed
   here;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
