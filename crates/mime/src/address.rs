@@ -80,6 +80,8 @@ pub(crate) fn parse_list(s: &str) -> Vec<Address> {
     let mut out = Vec::new();
     let mut parts = Parts::default();
     let mut chars = s.chars();
+    // Inside a `[...]` domain literal, whose colons (IPv6) don't end a group name.
+    let mut in_literal = false;
     while let Some(c) = chars.next() {
         match c {
             '"' => {
@@ -153,11 +155,19 @@ pub(crate) fn parse_list(s: &str) -> Vec<Address> {
                 }
                 parts.angle = Some((address, parts.text.len()));
             }
-            ',' | ';' => parts.finish(&mut out),
+            ',' | ';' => {
+                in_literal = false;
+                parts.finish(&mut out);
+            }
             // The name of a group ends here; its members follow.
-            ':' if parts.angle.is_none() => parts = Parts::default(),
+            ':' if parts.angle.is_none() && !in_literal => parts = Parts::default(),
             ' ' | '\t' | '\r' | '\n' => parts.space(),
             c => {
+                match c {
+                    '[' => in_literal = true,
+                    ']' => in_literal = false,
+                    _ => {}
+                }
                 parts.text.push(c);
                 parts.raw.push(c);
             }
@@ -247,6 +257,12 @@ mod tests {
 
     fn a(name: &str, email: &str) -> Address {
         Address { name: name.into(), email: email.into() }
+    }
+
+    #[test]
+    fn a_domain_literal_keeps_its_colons() {
+        assert_eq!(parse_list("ada@[IPv6:2001:db8::1]"), [a("", "ada@[IPv6:2001:db8::1]")]);
+        assert_eq!(parse_list("Team: ada@[IPv6:2001:db8::1];"), [a("", "ada@[IPv6:2001:db8::1]")]);
     }
 
     #[test]
