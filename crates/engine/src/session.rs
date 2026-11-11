@@ -3347,14 +3347,20 @@ impl Session {
         if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
-        if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
-            return Some(Class::Settings);
-        }
-        // Public keys imported or removed (#30): the keys Digital signatures are checked with.
-        if step.touched.changed_keys() {
-            return Some(Class::Settings);
-        }
-        None
+        self.undo_changes_settings(redo).then_some(Class::Settings)
+    }
+
+    /// Whether undoing (`redo`: redoing) puts back rules, signatures, Safe and Blocked Senders or
+    /// Public keys: a change of settings, whatever else it does (#661).
+    pub fn undo_changes_settings(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let (to, now) = (&step.mailbox, &self.mailbox);
+        // (Public keys imported or removed, #30: the keys Digital signatures are checked with.)
+        to.rules != now.rules
+            || to.signatures != now.signatures
+            || to.junk != now.junk
+            || to.junk_accounts != now.junk_accounts
+            || step.touched.changed_keys()
     }
 
     /// Whether undoing (`redo`: redoing) puts back a change that other people see or that goes to

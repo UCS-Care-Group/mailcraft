@@ -904,6 +904,12 @@ struct MadeInOutlook {
     made: bool,
 }
 
+/// What an undo or redo that is a change of settings puts back, in its question.
+const SETTINGS_PUT_BACK: &str = "the rules, signatures or Safe and Blocked Senders";
+
+/// What an undo or redo that writes to people puts back, in its question.
+const SENT_ITEMS: &str = "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do";
+
 /// The commands that give an item the categories a `categories` list names (#661).
 const GIVES_CATEGORIES: [&str; 6] = ["tasks.new", "tasks.edit", "calendar.new", "calendar.newMeeting", "calendar.edit", "people.meeting"];
 
@@ -1408,8 +1414,10 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// the like needs Delete too, as `edit.undo` refuses to take messages without it (#473); so does
 /// deleting a category a to-do in a shared list has (asked as `send`) when it goes from Outlook
 /// too (#661); a rule call needs Send for a category made in Outlook and Delete for a rule
-/// deleted on its server or one there that deletes mail, whichever it is asked about (#661).
-/// Asked about as one question, so that the owner's yes lets it run.
+/// deleted on its server or one there that deletes mail, whichever it is asked about (#661), and
+/// the Settings it is besides, whatever it is asked as; so does an undo or redo that puts back
+/// rules, signatures or Safe and Blocked Senders. Asked about as one question, so that the
+/// owner's yes lets it run.
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         "edit.undo" | "edit.redo" => {
@@ -1428,6 +1436,10 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             if class != Class::Delete && s.undo_deletes(redo) {
                 more.push(Class::Delete);
             }
+            // Rules and the like put back are a change of settings, whatever else the step does.
+            if class != Class::Settings && s.undo_changes_settings(redo) {
+                more.push(Class::Settings);
+            }
             more
         }
         // A category a to-do in a shared list has is deleted as `send` asks; one that goes from
@@ -1445,6 +1457,13 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             let deleted_there = id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x)));
             if class != Class::Delete && (deleted_there || server_rule_deletes(s, id, params)) {
                 more.push(Class::Delete);
+            }
+            // A change of rules is a change of settings, whatever else it is asked as.
+            if let Some(Access::Owner(base)) = access(id)
+                && base != class
+                && !more.contains(&base)
+            {
+                more.push(base);
             }
             more
         }
@@ -1897,17 +1916,21 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(Class::Accounts) => Some("the accounts"),
                 // The categories it sends to Outlook are named below (#661).
                 Some(Class::Send) if !s.undo_sends_items(redo) => None,
-                Some(Class::Send) => {
-                    Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
-                }
+                Some(Class::Send) => Some(SENT_ITEMS),
                 // What Delete is for is said below.
                 Some(Class::Delete) => None,
-                _ => Some("the rules, signatures or Safe and Blocked Senders"),
+                _ => Some(SETTINGS_PUT_BACK),
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
-            // The categories the rules it puts back give mail and have made in Outlook (#661).
-            if let Some(made) = gathered(s.undo_rules_make_categories(redo)) {
-                does.push(format!("puts the rules back as they were{}", made_suffix(s, &made, true)));
+            // What else a yes to the accounts covers (#661): a change that writes to people.
+            if s.undo_reverts(redo) == Some(Class::Accounts) && s.undo_sends_items(redo) {
+                does.push(format!("puts {SENT_ITEMS} back as they were"));
+            }
+            // The rules and the like it puts back when it is asked about for something else
+            // (#661), and the categories those rules give mail and have made in Outlook.
+            if !matches!(s.undo_reverts(redo), None | Some(Class::Settings)) && s.undo_changes_settings(redo) {
+                let made = gathered(s.undo_rules_make_categories(redo)).map(|m| made_suffix(s, &m, true)).unwrap_or_default();
+                does.push(format!("puts {SETTINGS_PUT_BACK} back as they were{made}"));
             }
             // The categories it deletes in Outlook are named below, and not said twice (#661).
             if s.undo_removes_more_than_outlooks(redo) {
@@ -1952,7 +1975,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 many => does.push(format!("sends the categories {}, kept on this computer only, to Outlook", some(many, 3))),
             }
             if does.is_empty() {
-                does.push("puts the rules, signatures or Safe and Blocked Senders back as they were".to_string());
+                does.push(format!("puts {SETTINGS_PUT_BACK} back as they were"));
             }
             format!("{verb} {}, which also {}", quoted(label.unwrap_or("the last change")), does.join("; it also "))
         }

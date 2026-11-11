@@ -2718,7 +2718,53 @@ fn deleting_a_server_rule_that_lets_another_give_a_new_category_asks_send_and_de
     let params = json!({"id": 911});
     assert!(!matches!(check(&s, "rules.remove", &params, &[Class::Send]), Verdict::Run), "it deletes a rule on its server");
     assert!(!matches!(check(&s, "rules.remove", &params, &[Class::Delete]), Verdict::Run), "it makes a category in Outlook");
-    assert_eq!(check(&s, "rules.remove", &params, &[Class::Send, Class::Delete]), Verdict::Run);
+    assert!(matches!(check(&s, "rules.remove", &params, &[Class::Send, Class::Delete]), Verdict::Ask(Class::Settings, _)), "it changes the rules");
+    assert_eq!(check(&s, "rules.remove", &params, &[Class::Send, Class::Delete, Class::Settings]), Verdict::Run);
+}
+
+/// A rule call asked about as a send (a category made in Outlook) is a change of rules too, and
+/// so is an undo or redo that puts back rules, whatever else it is asked about as: `--allow send`
+/// alone lets neither run, and one question covers both (#661).
+#[test]
+fn a_rule_call_or_an_undo_asked_about_for_something_else_needs_settings_too() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let rule = |id: Id, actions: Vec<Action>| Rule {
+        id,
+        name: format!("R{id}"),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::SubjectContains("y".into())],
+        actions,
+        ..Default::default()
+    };
+    s.mailbox.rules = vec![rule(902, vec![Action::Flag]), rule(903, vec![Action::Categorize("Zed".into())])];
+    let tag_it = json!({"name": "T", "account": a, "conditions": [{"type": "subjectContains", "value": "z"}], "actions": [{"type": "categorize", "value": "Zed"}]});
+    for (command, params) in [("rules.remove", json!({"id": 902})), ("rules.add", tag_it)] {
+        assert!(matches!(check(&s, command, &params, &[Class::Send]), Verdict::Ask(Class::Settings, _)), "{command}");
+        assert_eq!(check(&s, command, &params, &[Class::Send, Class::Settings]), Verdict::Run, "{command}");
+    }
+    // Undone: the rules it puts back are said with the categories they give.
+    s.run("rules.remove", &json!({"id": 903})).unwrap();
+    match check(&s, "edit.undo", &json!({}), &[Class::Send]) {
+        Verdict::Ask(Class::Settings, text) => {
+            assert!(text.contains("puts the rules, signatures or Safe and Blocked Senders back") && text.contains("Zed"), "{text}")
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Send, Class::Settings]), Verdict::Run);
+    // A step that also puts back the accounts: the accounts, and the rules too.
+    if let Some(account) = s.history.last_mut().and_then(|step| step.mailbox.accounts.first_mut()) {
+        account.name = "Before".into();
+    }
+    assert_eq!(s.undo_reverts(false), Some(Class::Accounts));
+    assert!(crate::agent::also(&s, "edit.undo", &json!({}), Class::Accounts).contains(&Class::Settings));
+    assert!(crate::agent::describe(&s, "edit.undo", &json!({})).contains("the rules, signatures or Safe and Blocked Senders"));
+    // And a change that writes to people that it puts back is said as well.
+    if let Some(step) = s.history.last_mut() {
+        step.mailbox.event_changes.push(mailcraft_model::remote::EventChange { account: a, send: true, ..Default::default() });
+    }
+    assert!(s.undo_sends_items(false));
+    assert!(crate::agent::describe(&s, "edit.undo", &json!({})).contains("a change to a meeting"));
 }
 
 #[test]
