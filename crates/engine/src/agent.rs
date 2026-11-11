@@ -921,8 +921,11 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     if id == "rules.run" {
         let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
         // (Not over a shared mailbox's folder, which the command refuses.)
-        let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account).filter(|a| mb.rules_reach(*a));
-        return from.is_some_and(|a| mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && runs_for_good(r)));
+        let folder = folder.unwrap_or(s.view.folder);
+        let from = mb.folder(folder).map(|f| f.account).filter(|a| mb.rules_reach(*a));
+        return from.is_some_and(|a| {
+            mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && runs_for_good_over(mb, r, folder))
+        });
     }
     let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
     // The rule made or changed: its account and id, whether the command makes or switches on one
@@ -1018,6 +1021,14 @@ fn for_good(r: &mailcraft_model::Rule) -> bool {
 /// known here, as a rule that acts on a message has ([`mailcraft_model::Rule::matches_in`]).
 fn runs_for_good(r: &mailcraft_model::Rule) -> bool {
     for_good(r) && r.known() && !r.conditions.is_empty()
+}
+
+/// [`runs_for_good`] over the mail of `folder`: a rule that deletes mail deletes it for good there
+/// when it is Deleted Items or a folder under it, or its account has none, as `mail.delete` does.
+fn runs_for_good_over(mb: &Mailbox, r: &mailcraft_model::Rule, folder: Id) -> bool {
+    let binned =
+        || mb.folder(folder).is_some_and(|f| mb.folder_of_kind(f.account, FolderKind::Deleted).is_none_or(|d| mb.subtree(d).contains(&folder)));
+    runs_for_good(r) || (r.actions.contains(&mailcraft_model::Action::Delete) && r.known() && !r.conditions.is_empty() && binned())
 }
 
 /// A rule switched on that deletes mail for good here (one its server has runs there, among the
@@ -1698,7 +1709,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 .map(|(verb, to)| format!("{verb} mail onto the server of {}", to.join(", ")))
                 .collect();
             // The rules of the run that delete mail for good, by name (#566).
-            let gone: Vec<String> = running.iter().filter(|r| runs_for_good(r)).map(|r| quoted(&r.name)).collect();
+            let gone: Vec<String> = running.iter().filter(|r| runs_for_good_over(&s.mailbox, r, folder)).map(|r| quoted(&r.name)).collect();
             // The folder by its account too: every account has an Inbox.
             let place = s.mailbox.folder(folder).map_or_else(
                 || "a folder".to_string(),

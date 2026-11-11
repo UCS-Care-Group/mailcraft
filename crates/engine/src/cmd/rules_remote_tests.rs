@@ -1764,3 +1764,19 @@ fn an_undo_of_one_accounts_rules_isnt_asked_as_a_delete_for_another_accounts_rul
     run(&mut s, "rules.remove", json!({"id": mine}));
     assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Delete));
 }
+
+/// A rule that deletes mail, run over Deleted Items, deletes it for good, as Delete does there: an
+/// agent's Run Rules Now over that folder is asked as a delete, and the question names the rule.
+#[test]
+fn run_rules_now_over_deleted_items_with_a_rule_that_deletes_is_asked_as_a_delete() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, _, _) = session();
+    let bin = json!({"server": false, "name": "Bin", "account": account, "conditions": [{"type": "toMe"}], "actions": [{"type": "delete"}]});
+    run(&mut s, "rules.add", bin);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": deleted})), Access::Owner(Class::Delete));
+    let asked = describe(&s, "rules.run", &json!({"folder": deleted}));
+    assert!(asked.contains("and the rule \u{201c}Bin\u{201d} deletes mail permanently"), "{asked}");
+}
