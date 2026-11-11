@@ -2020,6 +2020,51 @@ mod two_way {
         assert_eq!(copies(&s), 1, "not copied again");
     }
 
+    /// New IMAP mail that a rule deletes for good, into an Inbox that holds many more: each one
+    /// goes as it comes, in time in proportion to the delivery (#566).
+    #[test]
+    fn new_imap_mail_a_rule_deletes_for_good_takes_time_in_proportion() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", purge);
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(
+                    None,
+                    "INBOX",
+                    FolderKind::Inbox,
+                    7,
+                    (1..9).chain(20_000..40_000).map(|u| from_server(u, &format!("keep {u}"))).collect(),
+                    vec![],
+                )
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let many: Vec<Message> = (40_010..50_010).map(|uid| from_server(uid, &format!("news {uid}"))).collect();
+        let started = std::time::Instant::now();
+        apply(&mut s, SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, many, vec![])], ..Default::default() });
+        let took = started.elapsed();
+        assert_eq!(s.mailbox.messages_in(inbox).filter(|m| m.subject.starts_with("news")).count(), 0);
+        let deletes: Vec<u32> =
+            s.mailbox.pending.iter().filter_map(|p| if let Pending::Delete { uid, .. } = p { Some(*uid) } else { None }).collect();
+        assert_eq!(deletes.len(), 10_000);
+        assert_eq!(deletes.first().copied(), Some(40_010), "in the order they came");
+        // And a later run finds nothing of them to take in again.
+        assert_eq!(
+            apply(
+                &mut s,
+                SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![], vec![])], ..Default::default() }
+            )["new"],
+            0
+        );
+        assert!(took.as_millis() < 1_500, "{took:?}");
+    }
+
     #[test]
     fn a_backlog_goes_up_in_batches_and_is_counted_fast() {
         let (mut s, a, inbox, archive) = synced();
