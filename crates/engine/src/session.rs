@@ -3247,7 +3247,7 @@ impl Session {
 
     /// The categories that undoing (`redo`: redoing) would have a job delete on their account's
     /// server (#661), which nothing had to be deleted there before: known there, and off the list
-    /// here or kept here alone after it. Worked out as the undo would, on a copy, as for
+    /// here, kept here alone or written in other letters after it. Worked out as the undo would, on a copy, as for
     /// [`Session::undo_takes_mail`].
     pub fn undo_deletes_categories(&self, redo: bool) -> Vec<String> {
         self.undo_category_deletes(redo).into_iter().map(|(_, name)| name).collect()
@@ -3274,18 +3274,35 @@ impl Session {
     /// [`Session::undo_deletes_categories`], each with the account whose server it is deleted on.
     fn undo_category_deletes(&self, redo: bool) -> Vec<(Id, String)> {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        // (No list written there, now or then: nothing to work out.)
+        if self.mailbox.category_writes.is_empty() && step.mailbox.category_writes.is_empty() {
+            return Vec::new();
+        }
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
-        // What a job is to delete there: known there, not on the list here (or kept here alone).
-        let to_delete = |mb: &Mailbox, owner: Id| -> Vec<String> {
+        let same = mailcraft_model::sync::same_category;
+        // What a job is to delete there: known there and not on the list here (or kept here
+        // alone), or on it in other letters (`Some`: those), which the server can't rename: it is
+        // deleted there and made again.
+        let to_delete = |mb: &Mailbox, owner: Id| -> Vec<(String, Option<String>)> {
             let (Some(synced), Some(list)) = (mb.synced_categories.get(&owner), mb.account_categories.get(&owner)) else { return Vec::new() };
-            let here = |name: &str| list.iter().any(|c| mailcraft_model::sync::same_category(&c.name, name)) && !mb.category_is_local(owner, name);
-            synced.iter().filter(|c| !here(&c.name)).map(|c| c.name.clone()).collect()
+            let mut out = Vec::new();
+            for was in synced {
+                match list.iter().find(|c| same(&c.name, &was.name)).filter(|c| !mb.category_is_local(owner, &c.name)) {
+                    None => out.push((was.name.clone(), None)),
+                    Some(c) if c.name != was.name => out.push((was.name.clone(), Some(c.name.clone()))),
+                    Some(_) => {}
+                }
+            }
+            out
         };
         let mut names = Vec::new();
         for owner in back.category_writes.iter().filter(|id| back.synced_categories.contains_key(id)) {
             let already = to_delete(&self.mailbox, *owner);
-            let is_new = |n: &String| !already.iter().any(|a| mailcraft_model::sync::same_category(a, n));
-            names.extend(to_delete(&back, *owner).into_iter().filter(is_new).map(|name| (*owner, name)));
+            // Deleted there already, or written there in the same other letters already.
+            let is_new = |(name, respelled): &(String, Option<String>)| {
+                !already.iter().any(|(a, again)| same(a, name) && (again.is_none() || again == respelled))
+            };
+            names.extend(to_delete(&back, *owner).into_iter().filter(is_new).map(|(name, _)| (*owner, name)));
         }
         names
     }

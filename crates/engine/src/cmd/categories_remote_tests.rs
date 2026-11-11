@@ -1596,6 +1596,26 @@ fn an_agents_undo_of_a_rename_both_jobs_took_names_what_it_deletes_in_outlook() 
 }
 
 #[test]
+fn an_agents_undo_of_a_rename_in_other_letters_names_what_it_deletes_in_outlook() {
+    // Outlook can't rename: the undo deletes "Client" there and makes "client" again.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "client", "to": "Client"})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    let verdict = check(&s, "edit.undo", &json!({}), &[]);
+    match verdict {
+        Verdict::Ask(Class::Delete, text) => assert!(text.contains("deletes the category \u{201c}Client\u{201d} in Outlook"), "{text}"),
+        other => panic!("{other:?}"),
+    }
+    s.agent = Some(vec![Class::Accounts, Class::Send, Class::Settings]);
+    let refused = s.run("edit.undo", &json!({})).unwrap_err().to_string();
+    assert!(refused.contains("delete categories in Outlook"), "{refused}");
+    s.agent = None;
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Client", GREEN), change(CategoryChangeKind::Create, "client", GREEN)]);
+}
+
+#[test]
 fn an_agent_without_delete_cannot_undo_what_deletes_a_category_in_outlook() {
     let (mut s, a) = rig_with_local();
     s.run("category.addToOutlook", &json!({"account": a, "name": "Old local"})).unwrap();
