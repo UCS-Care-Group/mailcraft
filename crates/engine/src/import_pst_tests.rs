@@ -110,7 +110,7 @@ fn mailbox_file() -> FileSpec {
         AttachSpec::Message(Box::new(forwarded)),
     ];
     let mut appointment = note("Dentist");
-    appointment.class = "IPM.Appointment".into();
+    appointment.class = "IPM.StickyNote".into();
     let mut contact = note("Fern Ochoa");
     contact.class = "IPM.Contact".into();
     let mut stray = note("A message among contacts");
@@ -138,7 +138,10 @@ fn job(dry_run: bool) -> Job {
         known: HashSet::new(),
         room: 31,
         known_contacts: HashSet::new(),
+        known_plans: HashSet::new(),
         keep_at: None,
+        calendar: None,
+        here: crate::import_pst::calendar::Here { offset: Some(0), zone: mailcraft_time::Zone::UTC },
     }
 }
 
@@ -198,7 +201,7 @@ fn the_mail_of_every_folder_comes_in_and_every_item_is_accounted_for() {
     assert_eq!(row(&answer, "Contacts")["later"], 0);
     assert_eq!(row(&answer, "Contacts")["added"], 2);
     let kinds: Vec<&str> = answer["laterKinds"].as_array().unwrap().iter().map(|k| k["kind"].as_str().unwrap()).collect();
-    assert_eq!(kinds, ["appointment"]);
+    assert_eq!(kinds, ["note"]);
     assert_eq!(s.mailbox.contacts.len(), 1);
     // The file's own folders are named, not brought.
     let not: Vec<&str> = answer["notBrought"].as_array().unwrap().iter().map(|e| e["what"].as_str().unwrap()).collect();
@@ -1184,11 +1187,11 @@ fn subclasses_and_contacts_among_mail_come_in_and_the_rest_is_still_counted() {
     adds_up(&answer);
     assert_eq!(
         (answer["found"].clone(), answer["added"].clone(), answer["contacts"].clone(), answer["later"].clone()),
-        (json!(4), json!(3), json!(2), json!(1))
+        (json!(4), json!(4), json!(2), json!(0))
     );
     assert_eq!(answer["leftOut"], 0);
     assert_eq!(s.mailbox.contacts.len(), 2);
-    assert_eq!(answer["laterKinds"][0]["kind"], "task");
+    assert_eq!(answer["tasks"], 1);
 }
 
 #[test]
@@ -1402,7 +1405,7 @@ fn deleted_contacts_are_left_out_in_one_line_and_every_other_folders_come_in() {
     // One line for each folder in Deleted Items, not one for each contact.
     let left = texts(&answer, "leftOutItems", "what");
     assert_eq!(left.len(), 2, "{left:?}");
-    assert!(left.iter().any(|w| w.ends_with("lists (3)")) && left.iter().any(|w| w.ends_with("lists (1)")), "{left:?}");
+    assert!(left.iter().any(|w| w.ends_with("tasks (3)")) && left.iter().any(|w| w.ends_with("tasks (1)")), "{left:?}");
     assert!(texts(&answer, "leftOutItems", "why").iter().all(|w| w == "in Deleted Items, left out"));
     // The report names the automatic and the hidden folders the contacts came from.
     let folders = texts(&answer, "notes", "folder");
