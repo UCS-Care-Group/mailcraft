@@ -1564,6 +1564,11 @@ fn an_agent_asks_the_owner_before_a_rule_that_deletes_for_good() {
     // The question says so, by the rule's name.
     let asked = crate::agent::describe(&s, "rules.run", &json!({"folder": inbox}));
     assert!(asked.contains("and the rule \u{201c}Gone\u{201d} deletes mail permanently") && !asked.contains("Empty"), "{asked}");
+    // Whose Inbox, and the one rule when one is named.
+    let email = s.mailbox.account(account).unwrap().email.clone();
+    assert!(asked.contains(&format!("run the rules on \u{201c}Inbox\u{201d} of {email}")), "{asked}");
+    let one = crate::agent::describe(&s, "rules.run", &json!({"folder": inbox, "id": id}));
+    assert!(one.contains(&format!("run the rule \u{201c}Gone\u{201d} on \u{201c}Inbox\u{201d} of {email}")), "{one}");
 }
 
 #[test]
@@ -1607,6 +1612,10 @@ fn an_agent_asks_the_owner_before_changing_the_rules_beside_one_that_deletes_for
     // Purge itself going off or going only deletes less.
     assert_eq!(ask(&s, "rules.enable", json!({"id": purge, "value": false})), settings);
     assert_eq!(ask(&s, "rules.remove", json!({"id": purge})), settings);
+    // Kept on its server, which the command refuses for a rule that deletes for good: no question
+    // about deleting.
+    assert!(s.run("rules.keepOnServer", &json!({"id": purge})).is_err());
+    assert_eq!(ask(&s, "rules.keepOnServer", json!({"id": purge})), settings);
     // Another account's mail never reaches Purge.
     assert_eq!(ask(&s, "rules.add", tagger(local)), settings);
     for (id, params) in [

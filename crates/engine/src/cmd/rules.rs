@@ -711,11 +711,29 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) -> bool {
 }
 
 fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
+    let (i, rule, account) = keeping_on_server(s, v)?;
+    let id = rule.id;
+    if rule.keep == Keep::Server {
+        return Ok(json!({"id": id, "account": rule.account, "keep": "server"}));
+    }
+    if let Some(r) = s.mailbox.rules.get_mut(i) {
+        r.account = account;
+        r.keep = Keep::Server;
+        r.refused.clear();
+    }
+    Ok(json!({"id": id, "account": account, "keep": "server"}))
+}
+
+/// The rule `rules.keepOnServer` is asked to keep on a server (where it is in the list, and as it
+/// is) and the account whose server is to keep it, or why it can't: for the command, and for the
+/// agent's question, which isn't asked of what the command refuses.
+pub(crate) fn keeping_on_server(s: &Session, v: &Value) -> Result<(usize, Rule, Id), CmdError> {
     let id = p::req_id(v, "id")?;
     let i = s.mailbox.rules.iter().position(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
     if rule.keep == Keep::Server {
-        return Ok(json!({"id": id, "account": rule.account, "keep": "server"}));
+        let account = rule.account;
+        return Ok((i, rule, account));
     }
     let account = match (rule.account, p::id_strict(v, "account")?) {
         (0, Some(account)) => account,
@@ -733,10 +751,5 @@ fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(why) = server_cannot(&s.mailbox, &rule, account) {
         return Err(CmdError::Failed(why.said().to_string()));
     }
-    if let Some(r) = s.mailbox.rules.get_mut(i) {
-        r.account = account;
-        r.keep = Keep::Server;
-        r.refused.clear();
-    }
-    Ok(json!({"id": id, "account": account, "keep": "server"}))
+    Ok((i, rule, account))
 }

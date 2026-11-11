@@ -945,6 +945,8 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
             }
             _ => return false,
         },
+        // (What the command refuses, a rule that deletes for good among it, does nothing.)
+        "rules.keepOnServer" if crate::cmd::rules::keeping_on_server(s, params).is_err() => return false,
         "rules.keepOnServer" | "rules.move" | "rules.remove" => match named() {
             Some(r) => (r.account, r.id, false, id != "rules.remove"),
             None => return false,
@@ -1031,7 +1033,7 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
     match id {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| there(&r) && deletes(&r)),
-        "rules.keepOnServer" => named().is_some_and(|r| !there(r) && deletes(r)),
+        "rules.keepOnServer" => crate::cmd::rules::keeping_on_server(s, params).is_ok_and(|(_, r, _)| !there(&r) && deletes(&r)),
         // Moving a server rule that deletes mail changes where it runs among the others there.
         "rules.move" => named().is_some_and(|r| there(r) && deletes(r)),
         // Read as the command reads it, as `rules_onto_another_server` does.
@@ -1634,8 +1636,19 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 .collect();
             // The rules of the run that delete mail for good, by name (#566).
             let gone: Vec<String> = running.iter().filter(|r| runs_for_good(r)).map(|r| quoted(&r.name)).collect();
-            let place = s.mailbox.folder(folder).map_or_else(|| "a folder".to_string(), |f| quoted(&s.mailbox.folder_path(f.id)));
-            let mut text = format!("run the rules on {place}");
+            // The folder by its account too: every account has an Inbox.
+            let place = s.mailbox.folder(folder).map_or_else(
+                || "a folder".to_string(),
+                |f| match s.mailbox.account(f.account) {
+                    Some(a) if !a.email.is_empty() => format!("{} of {}", quoted(&s.mailbox.folder_path(f.id)), clip(&a.email, 80)),
+                    _ => quoted(&s.mailbox.folder_path(f.id)),
+                },
+            );
+            let what = match only.and_then(|o| s.mailbox.rules.iter().find(|r| r.id == o)) {
+                Some(r) => format!("the rule {}", quoted(&r.name)),
+                None => "the rules".to_string(),
+            };
+            let mut text = format!("run {what} on {place}");
             if !onto.is_empty() {
                 text.push_str(&format!(", which {}", onto.join(" and ")));
             }
