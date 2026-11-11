@@ -360,3 +360,27 @@ fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
     rule.conditions = vec![Condition::SubjectOrBodyContains(words("report"))];
     assert!(rule.matches(&stub) && !rule.undecided_in(&stub, &Matching::default()));
 }
+
+/// A From or Sent to address of 201 to 254 characters, which `rules.add` keeps whole and so does
+/// a Microsoft account's server, is still whole and known when the server's rules are read back
+/// ([`crate::remote_rules::RemoteRule::tidy`]), not cut to 200 and greyed. Words looked for are
+/// still cut at 200.
+#[test]
+fn a_long_address_read_back_from_the_server_stays_whole() {
+    let long = format!("a@{}.{}.{}.{}.example", "b".repeat(60), "c".repeat(60), "d".repeat(60), "e".repeat(30));
+    assert!(long.len() > 200 && long.len() <= 254);
+    let mut remote = crate::remote_rules::RemoteRule {
+        id: "A1".into(),
+        name: "Long".into(),
+        conditions: vec![Condition::From(vec![long.clone()]), Condition::SentTo(vec![long.clone()])],
+        actions: vec![Action::MarkRead],
+        ..Default::default()
+    };
+    remote.tidy();
+    assert!(remote.unknown.is_empty(), "{:?}", remote.unknown);
+    assert_eq!(remote.conditions, vec![Condition::From(vec![long.clone()]), Condition::SentTo(vec![long.clone()])]);
+    let mut words =
+        crate::remote_rules::RemoteRule { id: "A2".into(), conditions: vec![Condition::SubjectContains(vec![long])], ..Default::default() };
+    words.tidy();
+    assert_eq!(words.unknown, ["(words longer than are kept)"]);
+}

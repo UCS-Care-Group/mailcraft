@@ -165,6 +165,27 @@ fn parts_this_version_does_not_know_are_named() {
     assert!(rule_of(&json!({"id": "has space"})).is_none());
 }
 
+/// Exceptions the server gives as something other than an object can't be read, so the rule has a
+/// part not known here (as before exceptions were read) and is never run here without them.
+#[test]
+fn exceptions_that_are_not_an_object_are_a_part_not_known() {
+    for exceptions in [json!(["from the boss"]), json!("from the boss"), json!(7), json!(true)] {
+        let rule = rule_of(&json!({
+            "id": "A4", "displayName": "Bin", "sequence": 1, "isEnabled": true,
+            "conditions": {"subjectContains": ["report"]},
+            "exceptions": exceptions,
+            "actions": {"delete": true}
+        }))
+        .unwrap();
+        assert_eq!(rule.unknown, ["exceptions"], "exceptions {exceptions}");
+    }
+    // None given, or an empty object, is no exception at all.
+    for exceptions in [json!(null), json!({}), json!(false)] {
+        let rule = rule_of(&json!({"id": "A5", "conditions": {"subjectContains": ["report"]}, "exceptions": exceptions})).unwrap();
+        assert!(rule.unknown.is_empty() && rule.exceptions.is_empty(), "exceptions {exceptions}: {:?}", rule.unknown);
+    }
+}
+
 #[test]
 fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_back() {
     let people = |a: &[&str]| json!(a.iter().map(|a| json!({"emailAddress": {"name": "N", "address": a}})).collect::<Vec<_>>());

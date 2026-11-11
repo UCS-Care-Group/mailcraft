@@ -211,7 +211,13 @@ fn condition_of(name: &str, value: &Value) -> Option<Condition> {
 /// version doesn't know, each after `prefix`.
 fn conditions_of(entry: &Value, key: &str, prefix: &str, unknown: &mut Vec<String>) -> Vec<Condition> {
     let empty = Map::new();
-    let parts = entry.get(key).and_then(Value::as_object).unwrap_or(&empty);
+    let given = entry.get(key);
+    // Something other than an object can't be read: the rule has a part not known here, so that
+    // it isn't run here without it.
+    if given.is_some_and(|v| !v.is_object() && said(v)) {
+        unknown.push(key.to_string());
+    }
+    let parts = given.and_then(Value::as_object).unwrap_or(&empty);
     let mut conditions = Vec::new();
     for (name, value) in parts.iter().filter(|(name, value)| !name.starts_with('@') && said(value)) {
         match condition_of(name, value) {
