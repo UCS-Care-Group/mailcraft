@@ -15,7 +15,7 @@ use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
 use crate::media::Env;
 use crate::sheet;
-use crate::style::{self, Css, MsoList, Size};
+use crate::style::{self, Css, MsoList, Size, TableDisplay};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
     Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT, MAX_ROW_SPAN,
@@ -479,6 +479,8 @@ struct TableBuild {
     header: bool,
     /// There was no `<table>`: a stray `<tr>` or `<td>` started it.
     implied: bool,
+    /// This implied table came from styled rows or cells inside an ordinary element.
+    css_implied: bool,
     /// Nested too deep to be a grid: its cells are not kept apart.
     flat: bool,
     /// At a cap: no more rows or cells are opened, the last cell takes what follows.
@@ -628,6 +630,10 @@ struct Builder {
     unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
     implied: usize,
+    /// Source tags inside CSS rows and cells. The layout stack can keep a capped cell open
+    /// after its source tag has closed, so it cannot tell which role a same-name end tag has.
+    css_parts: Vec<(&'static str, Option<TableDisplay>)>,
+    css_parts_overflow: usize,
     quote: usize,
     lists: usize,
     pre: usize,
@@ -685,6 +691,8 @@ impl Builder {
             own_link: None,
             unseen_gap: false,
             implied: 0,
+            css_parts: Vec::new(),
+            css_parts_overflow: 0,
             quote: 0,
             lists: 0,
             pre: 0,
@@ -1186,6 +1194,7 @@ impl Builder {
         self.fresh = true;
     }
 
+    /// Keep the composer's original cap when no pictures are being decoded.
     fn max_font_px(&self) -> u8 {
         if self.decode { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
     }
@@ -1690,7 +1699,7 @@ impl Builder {
     }
 
     /// Open a table that a stray `<tr>` or `<td>` implies; its index, or `None` when the stack is full.
-    fn imply_table(&mut self) -> Option<usize> {
+    fn imply_table(&mut self, css_implied: bool) -> Option<usize> {
         self.flush();
         let build = TableBuild {
             rows: Vec::new(),
@@ -1706,6 +1715,7 @@ impl Builder {
             presentation: false,
             header: false,
             implied: true,
+            css_implied,
             flat: self.frames.len() >= MAX_TABLE_DEPTH,
             full: false,
             last_row: false,
@@ -1748,6 +1758,7 @@ impl Builder {
             presentation: matches!(role.as_deref(), Some("presentation" | "none")),
             header: false,
             implied: false,
+            css_implied: false,
             flat: self.frames.len() >= MAX_TABLE_DEPTH,
             full: false,
             last_row: false,
@@ -1766,13 +1777,14 @@ impl Builder {
         }
     }
 
+    /// Start a native or CSS row in the nearest table, making an implied table if needed.
     fn open_row(&mut self, tag: &Tag<'_>) {
         if self.overflow > 0 {
             self.overflow = self.overflow.saturating_add(1);
             self.flush();
             return;
         }
-        let Some(table) = self.table_index().or_else(|| self.imply_table()) else {
+        let Some(table) = self.table_index().or_else(|| self.imply_table(false)) else {
             self.overflow = self.overflow.saturating_add(1);
             return;
         };
@@ -1799,13 +1811,14 @@ impl Builder {
         }
     }
 
+    /// Start a native or CSS cell, with the same limits on the grid, spans and dimensions.
     fn open_cell(&mut self, tag: &Tag<'_>, header: bool) {
         if self.overflow > 0 {
             self.overflow = self.overflow.saturating_add(1);
             self.flush();
             return;
         }
-        let Some(table) = self.table_index().or_else(|| self.imply_table()) else {
+        let Some(table) = self.table_index().or_else(|| self.imply_table(false)) else {
             self.overflow = self.overflow.saturating_add(1);
             return;
         };
@@ -1949,6 +1962,70 @@ impl Builder {
     }
 
     // ---- elements ----
+
+    /// Remember the source name of a CSS row or cell, including ordinary tags nested in one,
+    /// and send its content through the native table builder.
+    fn open_css_table_part(&mut self, tag: &Tag<'_>, name: &'static str) -> bool {
+        let display = (tag.raw_attr("style").is_some() || tag.sheet.as_ref().is_some_and(|applied| applied.css.table_display.is_some()))
+            .then(|| css_of(tag).table_display)
+            .flatten();
+        if display.is_none() && self.css_parts.is_empty() {
+            return false;
+        }
+        if self.css_parts.len() >= MAX_DEPTH {
+            self.css_parts_overflow = self.css_parts_overflow.saturating_add(1);
+            return false;
+        }
+        let in_row = self.css_parts.last().is_some_and(|(_, role)| *role == Some(TableDisplay::Row));
+        let adjacent = self.css_parts.is_empty() && self.table_index().and_then(|i| self.table_at(i)).is_some_and(|t| t.css_implied);
+        self.css_parts.push((name, display));
+        let Some(display) = display else { return false };
+        let in_grid = in_row || adjacent || self.nodes.last().is_some_and(|n| matches!(n.kind, Kind::Table(_) | Kind::Row(_)));
+        if self.overflow == 0 && !in_grid {
+            self.close_paragraph();
+            if self.imply_table(true).is_none() {
+                self.overflow = self.overflow.saturating_add(1);
+                return true;
+            }
+        }
+        match display {
+            TableDisplay::Row => self.open_row(tag),
+            TableDisplay::Cell => self.open_cell(tag, false),
+        }
+        true
+    }
+
+    /// Close a CSS role as the corresponding native tag. Close an implied CSS table when the
+    /// ordinary source element holding it ends, including when a cap kept the last cell open.
+    fn end_css_table_part(&mut self, name: &str) -> bool {
+        if self.css_parts_overflow > 0 {
+            self.css_parts_overflow -= 1;
+            return false;
+        }
+        if let Some(index) = self.css_parts.iter().rposition(|(tag, _)| *tag == name) {
+            let role = self.css_parts.get(index).and_then(|(_, role)| *role);
+            self.css_parts.truncate(index);
+            match role {
+                Some(TableDisplay::Row) => {
+                    self.end_row_tag();
+                    return true;
+                }
+                Some(TableDisplay::Cell) => {
+                    self.end_cell_tag();
+                    return true;
+                }
+                None => {}
+            }
+        }
+        if let Some(index) = self.table_index()
+            && self.table_at(index).is_some_and(|t| t.css_implied)
+            && index.checked_sub(1).and_then(|parent| self.nodes.get(parent)).is_some_and(|n| n.name == name)
+            && !self.nodes.iter().skip(index + 1).any(|n| n.name == name)
+        {
+            self.close_at(index, true);
+        }
+        false
+    }
 
     /// An inline element: a formatting element (`format`) or a `<span>`.
     fn open_inline(&mut self, name: &'static str, format: bool, tag: &Tag<'_>, mut delta: Delta) {
@@ -2245,7 +2322,13 @@ impl Builder {
         }
     }
 
+    /// Route an opening tag to its native builder or its whitelisted CSS table role.
     fn open(&mut self, tag: &Tag<'_>) {
+        if let Some(name) = table_source(&tag.name)
+            && self.open_css_table_part(tag, name)
+        {
+            return;
+        }
         let on = Some(true);
         match canon(&tag.name) {
             "b" => self.open_inline("b", true, tag, Delta { bold: on, ..Delta::default() }),
@@ -2366,8 +2449,12 @@ impl Builder {
         }
     }
 
+    /// End an element, using its original tag name even when CSS gave it a table role.
     fn end(&mut self, name: &str) {
         let name = canon(name);
+        if table_source(name).is_some() && self.end_css_table_part(name) {
+            return;
+        }
         match name {
             "b" | "i" | "cite" | "u" | "s" | "code" | "sub" | "small" | "big" | "mark" | "font" | "a" => self.end_format(name),
             "span" | "label" | "abbr" | "acronym" | "q" | "time" | "bdi" | "bdo" | "data" | "nobr" => self.end_inline(name),
@@ -2390,6 +2477,11 @@ impl Builder {
             }
         }
     }
+}
+
+/// Ordinary elements whose styling can supply a row or cell without replacing a native role.
+fn table_source(name: &str) -> Option<&'static str> {
+    if name == "span" { Some("span") } else { block_name(name).filter(|name| *name != "body") }
 }
 
 /// The whitelisted facts of a tag's `style` attribute.

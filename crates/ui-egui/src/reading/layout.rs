@@ -889,18 +889,23 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     let Some(padding) = block.image_padding else { return picture_tile(cx, block, room, shown) };
     let mut pad = Pad::from_insets(padding);
     let wanted_padding = pad.across();
-    if wanted_padding > (room - 1.0).max(0.0) {
-        let scale = (room - 1.0).max(0.0) / wanted_padding;
+    let mut tile = picture_tile(cx, block, (room - wanted_padding).max(1.0), shown);
+    // A placeholder can ask for more than the room left by its padding. Keep space for its
+    // mark when possible, and give the padding only what is left.
+    tile.size.x = tile.size.x.min(room);
+    let padding_room = (room - tile.size.x).max(0.0);
+    if wanted_padding > padding_room {
+        let scale = padding_room / wanted_padding;
         pad.left *= scale;
         pad.right *= scale;
     }
-    let mut tile = picture_tile(cx, block, (room - pad.across()).max(1.0), shown);
     tile.size += vec2(pad.across(), pad.top + pad.bottom);
     tile.wanted += wanted_padding;
     tile.padding = Some(pad);
     tile
 }
 
+/// Measure the picture or its placeholder before applying any CSS padding.
 fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'a> {
     let BlockKind::Image { src, width, height, data, .. } = &block.kind else {
         return Tile { size: Vec2::ZERO, block, padding: None, data: None, label: String::new(), described: false, wanted: 0.0 };

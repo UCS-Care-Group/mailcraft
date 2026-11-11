@@ -28,7 +28,8 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
-//! | boxes on a line | `display: inline-block`, exactly (any other `display` but `none` says nothing) |
+//! | boxes on a line | `display: inline-block` |
+//! | table parts | `display: table-row` and `display: table-cell` on ordinary blocks and spans |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
@@ -67,6 +68,9 @@ const MAX_VALUE: usize = 1024;
 /// `<small>`) is measured against.
 pub(crate) const BASE_FONT_PX: f32 = 13.0;
 
+/// The largest font size a message can ask for in the reading pane, in CSS pixels.
+pub const MAX_FONT_PX: u8 = 48;
+
 /// A margin up to this many pixels is no paragraph gap: lines that close are still one block of lines.
 const SLIGHT_MARGIN_PX: f32 = 6.0;
 
@@ -104,6 +108,13 @@ pub(crate) enum MsoList {
     Ignore,
     /// The item's level, from 1.
     Level(u8),
+}
+
+/// The two table roles a style can give an ordinary element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TableDisplay {
+    Row,
+    Cell,
 }
 
 /// The whitelisted facts of one `style` attribute.
@@ -152,6 +163,7 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    pub table_display: Option<TableDisplay>,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
 }
@@ -227,6 +239,11 @@ impl Css {
                 "display" => {
                     display_none = value == "none";
                     css.inline_block = value == "inline-block";
+                    css.table_display = match value {
+                        "table-row" => Some(TableDisplay::Row),
+                        "table-cell" => Some(TableDisplay::Cell),
+                        _ => None,
+                    };
                 }
                 "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),
                 "opacity" => opacity_zero = number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),

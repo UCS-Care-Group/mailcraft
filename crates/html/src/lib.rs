@@ -54,7 +54,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
-pub use style::MAX_FAMILIES;
+pub use style::{MAX_FAMILIES, MAX_FONT_PX};
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
@@ -103,9 +103,6 @@ pub const MAX_ROW_SPAN: u16 = 200;
 /// The smallest font size a message can ask for, in CSS pixels. Smaller text is shown at this
 /// size (text of 2 pixels or less is a hiding trick and is not shown at all).
 pub const MIN_FONT_PX: u8 = 10;
-
-/// The largest font size a message can ask for, in CSS pixels.
-pub const MAX_FONT_PX: u8 = 96;
 
 /// A colour a message asks for (sRGB).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

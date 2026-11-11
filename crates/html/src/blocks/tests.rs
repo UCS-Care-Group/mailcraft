@@ -20,16 +20,68 @@ fn para(text: &str) -> Block {
     Block::new(BlockKind::Paragraph, vec![Span::plain(text)])
 }
 
+/// The reading pane keeps newsletter type sizes up to 48 px. Paste retains its original cap.
 #[test]
 fn newsletter_type_and_button_line_height_survive_parsing() {
     let html = "<div style='font-size:54px'>A large headline</div>\
+                <div style='font-size:44px'>A smaller headline</div>\
                 <div><a href='https://example.org' style='font-size:34px;line-height:1'>Read</a></div>";
     let blocks = parse(html);
-    assert_eq!(blocks[0].spans[0].size, Some(54));
-    let button = &blocks[1];
+    assert_eq!(blocks[0].spans[0].size, Some(48));
+    assert_eq!(blocks[1].spans[0].size, Some(44));
+    assert_eq!(parse_text(html)[0].spans[0].size, Some(32));
+    let button = &blocks[2];
     assert_eq!(button.line_height, Some(LineHeight::Scale(100)));
     assert_eq!(button.spans[0].size, Some(34));
     assert_eq!(button.spans[0].link.as_deref(), Some("https://example.org"));
+}
+
+/// Inline and stylesheet roles build the same rows and cells as native tags, including limits.
+#[test]
+fn css_table_parts_use_native_layout_and_limits() {
+    let styled = "<style>.row{display:table-row}.cell{display:table-cell}</style>\
+        <table role='presentation'><div class='row' valign='middle'>\
+        <div class='cell' style='width:75%;padding:6px'><div>First</div> still first</div>\
+        <span style='display:table-cell;width:25%'>Second</span></div>\
+        <div style='display:table-row'><span class='cell' colspan='9000' rowspan='9000' width='99999'>Wide</span></div></table>";
+    let native = "<table role='presentation'><tr valign='middle'>\
+        <td style='width:75%;padding:6px'><div>First</div> still first</td>\
+        <td style='width:25%'>Second</td></tr>\
+        <tr><td colspan='9000' rowspan='9000' width='99999'>Wide</td></tr></table>";
+    assert_eq!(parse(styled), parse(native));
+    let blocks = parse(styled);
+    let BlockKind::Table(table) = &blocks[0].kind else { panic!("expected a table") };
+    assert_eq!(table.rows[0].cells.len(), 2);
+    assert_eq!(table.rows[1].cells[0].rowspan, MAX_ROW_SPAN);
+    assert_eq!(usize::from(table.rows[1].cells[0].colspan), MAX_TABLE_COLUMNS);
+}
+
+/// CSS row and cell tags may imply a table inside a regular newsletter container.
+#[test]
+fn css_table_parts_form_a_grid_inside_a_regular_wrapper() {
+    let styled = "<div style='display:table'><div style='display:table-row'>\
+        <span style='display:table-cell'>One</span><span style='display:table-cell'>Two</span>\
+        </div></div><p>After</p>";
+    let blocks = parse(styled);
+    assert!(matches!(&blocks[0].kind, BlockKind::Table(t) if t.rows.len() == 1 && t.rows[0].cells.len() == 2));
+    assert_eq!(blocks[1].text(), "After");
+    assert_eq!(parse("<div style='display:table'>Plain</div>"), parse("<div>Plain</div>"));
+}
+
+/// A capped cell still takes overflow text, and its closing div stays distinct from the row's.
+#[test]
+fn css_rows_close_after_a_capped_cell_with_the_same_tag_name() {
+    let mut styled = String::from("<div><div style='display:table-row'>");
+    let mut native = String::from("<div><table><tr>");
+    for _ in 0..=MAX_TABLE_COLUMNS {
+        styled.push_str("<div style='display:table-cell'>cell</div>");
+        native.push_str("<td>cell</td>");
+    }
+    styled.push_str("</div></div><p>After</p>");
+    native.push_str("</tr></table></div><p>After</p>");
+    let blocks = parse(&styled);
+    assert_eq!(blocks, parse(&native));
+    assert_eq!(blocks.last().unwrap().text(), "After");
 }
 
 fn hex(c: Rgb) -> String {

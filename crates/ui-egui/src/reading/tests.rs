@@ -4190,6 +4190,22 @@ fn an_inner_percentage_table_can_keep_a_centred_wrapper_at_content_width() {
     });
 }
 
+/// The picture mark fits a narrow reading slot even when its requested padding does not.
+#[test]
+fn a_padded_picture_placeholder_fits_its_slot() {
+    let html = "<img src='https://example.org/icon.png' width='24' height='24' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(54, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    in_frame(false, |ctx| {
+        for (width, left) in [(40.0, 8.0), (200.0, 88.0)] {
+            let laid = lay_out(ctx, &message, width);
+            let placeholder = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Placeholder(_))).unwrap();
+            assert_eq!(placeholder.rect.width(), 24.0);
+            assert_eq!(placeholder.rect.min.x, left);
+            assert!(placeholder.rect.max.x <= laid.width());
+        }
+    });
+}
+
 #[test]
 fn a_picture_and_text_in_one_line_go_on_lines_of_their_own_when_short_of_room() {
     let html = "<p style='text-align:center'><img src='cid:quillon-mark@quillon.example' width='32' height='32' alt=''> Bellweather Directory, the weekly digest</p>";
