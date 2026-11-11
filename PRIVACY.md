@@ -104,8 +104,10 @@ computer, for you, and for nothing else:
   These two permissions are on the page of a new sign-in, beside the rest; when Microsoft's page won't have them
   (an organisation may make an administrator approve them), it is asked again without them, so that
   signing in for mail never waits on them. An account that signed in before is asked by the
-  program, in one question for both ("Keep in Step with Outlook"), and then on one page of
-  Microsoft's; a question you close is not put again by itself while MailCraft stays open (it comes
+  program for those of them its sign-in doesn't cover yet, in one question for both ("Keep in Step
+  with Outlook"), and then on one page of Microsoft's (one that allowed changing its automatic
+  replies or rules before has `MailboxSettings.ReadWrite` already, and its categories are kept in
+  step without a new question); a question you close is not put again by itself while MailCraft stays open (it comes
   back when you change your automatic replies or press Allow in the Categories window, the next time
   MailCraft starts, or when you open another mailbox), and File › Info has one line
   for each Microsoft account (Sync with Outlook: on, partly on or off) with Ask again. Until they are

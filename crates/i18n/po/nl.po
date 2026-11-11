@@ -15293,11 +15293,11 @@ msgstr ""
 msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
 "Om de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
-"Tot u het toestaat, blijven regels op deze computer en wordt er niets van naar Microsoft verzonden, en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
+"Tot u het toestaat, blijven regels op deze computer en wordt er niets van naar Microsoft verzonden, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -15305,11 +15305,11 @@ msgstr ""
 msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
 "Om de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
-"Tot u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden."
+"Tot u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden, en worden uw automatische antwoorden niet gewijzigd."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -15317,11 +15317,11 @@ msgstr ""
 msgid ""
 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
 "Om de taken, regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
-"Tot u het toestaat, blijven taken en regels op deze computer en wordt er niets van naar Microsoft verzonden, en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
+"Tot u het toestaat, blijven taken en regels op deze computer en wordt er niets van naar Microsoft verzonden, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -20700,6 +20700,36 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+#~ msgstr ""
+#~ "Om de regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+#~ "\n"
+#~ "Tot u het toestaat, blijven regels op deze computer en wordt er niets van naar Microsoft verzonden, en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+#~ msgstr ""
+#~ "Om de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+#~ "\n"
+#~ "Tot u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden."
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+#~ msgstr ""
+#~ "Om de taken, regels, automatische antwoorden en categorieën van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
+#~ "\n"
+#~ "Tot u het toestaat, blijven taken en regels op deze computer en wordt er niets van naar Microsoft verzonden, en kunnen de categorieën van dit postvak hier niet worden gewijzigd."
 
 #, fuzzy
 #~ msgid "It goes to the server once MailCraft may change the server's rules (File › Info › Turn On); until then it runs on this computer, while MailCraft is open."

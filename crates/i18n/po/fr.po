@@ -14525,11 +14525,11 @@ msgstr ""
 msgid ""
 "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
 "Pour synchroniser avec Outlook les règles, réponses automatiques et catégories de {address}, MailCraft a besoin de votre autorisation pour modifier les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
 "\n"
-"Tant que vous ne l'autorisez pas, les règles restent sur cet ordinateur, rien n'en est envoyé à Microsoft, et les catégories de cette boîte aux lettres ne peuvent pas être modifiées ici."
+"Tant que vous ne l'autorisez pas, les règles restent sur cet ordinateur, rien n'en est envoyé à Microsoft, vos réponses automatiques ne sont pas modifiées, et les catégories de cette boîte aux lettres ne peuvent pas être modifiées ici."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -14537,11 +14537,11 @@ msgstr ""
 msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
 msgstr ""
 "Pour synchroniser avec Outlook les tâches et réponses automatiques de {address}, MailCraft a besoin de votre autorisation pour modifier vos listes To Do et les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
 "\n"
-"Tant que vous ne l'autorisez pas, les tâches restent sur cet ordinateur et rien n'en est envoyé à Microsoft."
+"Tant que vous ne l'autorisez pas, les tâches restent sur cet ordinateur, rien n'en est envoyé à Microsoft, et vos réponses automatiques ne sont pas modifiées."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -14549,11 +14549,11 @@ msgstr ""
 msgid ""
 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
 "Pour synchroniser avec Outlook les tâches, règles, réponses automatiques et catégories de {address}, MailCraft a besoin de votre autorisation pour modifier vos listes To Do et les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
 "\n"
-"Tant que vous ne l'autorisez pas, les tâches et les règles restent sur cet ordinateur, rien n'en est envoyé à Microsoft, et les catégories de cette boîte aux lettres ne peuvent pas être modifiées ici."
+"Tant que vous ne l'autorisez pas, les tâches et les règles restent sur cet ordinateur, rien n'en est envoyé à Microsoft, vos réponses automatiques ne sont pas modifiées, et les catégories de cette boîte aux lettres ne peuvent pas être modifiées ici."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -19690,6 +19690,36 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+#~ msgstr ""
+#~ "Pour synchroniser avec Outlook les règles, réponses automatiques et catégories de {address}, MailCraft a besoin de votre autorisation pour modifier les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
+#~ "\n"
+#~ "Tant que vous ne l'autorisez pas, les règles restent sur cet ordinateur, rien n'en est envoyé à Microsoft, et les catégories de cette boîte aux lettres ne peuvent pas être modifiées ici."
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+#~ msgstr ""
+#~ "Pour synchroniser avec Outlook les tâches et réponses automatiques de {address}, MailCraft a besoin de votre autorisation pour modifier vos listes To Do et les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
+#~ "\n"
+#~ "Tant que vous ne l'autorisez pas, les tâches restent sur cet ordinateur et rien n'en est envoyé à Microsoft."
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, and the categories of this mailbox can't be changed here."
+#~ msgstr ""
+#~ "Pour synchroniser avec Outlook les tâches, règles, réponses automatiques et catégories de {address}, MailCraft a besoin de votre autorisation pour modifier vos listes To Do et les paramètres de votre boîte aux lettres. La page de Microsoft s'ouvre dans votre navigateur pour vous le demander, une seule fois.\n"
+#~ "\n"
+#~ "Tant que vous ne l'autorisez pas, les tâches et les règles restent sur cet ordinateur, rien n'en est envoyé à Microsoft, et les catégories de cette boîte aux lettres ne peuvent pas être modifiées ici."
 
 #, fuzzy
 #~ msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
