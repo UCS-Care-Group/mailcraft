@@ -2717,8 +2717,12 @@ fn settle_calendars(mailbox: &mut Mailbox) {
 /// on this computer, which says where it is and offers to move it to the account's calendar.
 fn rehome_strays(mailbox: &mut Mailbox) {
     let served = |mailbox: &Mailbox, calendar: Id| mailbox.calendar(calendar).is_some_and(|c| keeper(mailbox, &c.origin).is_some());
-    let strays: Vec<Id> =
-        mailbox.events.values().filter(|e| e.origin.is_local() && served(mailbox, e.calendar)).map(|e| e.id).take(MAX_STRAYS).collect();
+    // What is on its way to a server is never a stray: one made or moved into a server's
+    // calendar has that account in its origin from then on ([`note_created`], [`note_moved`]),
+    // and anything a waiting change names stays where it is all the same.
+    let waiting: HashSet<Id> = mailbox.event_changes.iter().map(|change| change.event).collect();
+    let stray = |e: &Event| e.origin.is_local() && !waiting.contains(&e.id) && served(mailbox, e.calendar);
+    let strays: Vec<Id> = mailbox.events.values().filter(|e| stray(e)).map(|e| e.id).take(MAX_STRAYS).collect();
     if strays.is_empty() {
         return;
     }
