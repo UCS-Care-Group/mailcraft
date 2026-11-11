@@ -457,7 +457,8 @@ fn read_key_file(path: &str) -> Result<Vec<u8>, String> {
     {
         use std::io::Read as _;
         let too_large = || tl!("That file is larger than a key file can be.").to_string();
-        let file = std::fs::File::open(path).map_err(|e| crate::i18n::fmt(tl!("The file couldn't be read ({why})"), &[("why", &e.kind().to_string())]))?;
+        let file =
+            std::fs::File::open(path).map_err(|e| crate::i18n::fmt(tl!("The file couldn't be read ({why})"), &[("why", &e.kind().to_string())]))?;
         let max = crate::own_keys::MAX_FILE as u64;
         if file.metadata().map(|m| !m.is_file() || m.len() > max).unwrap_or(true) {
             return Err(too_large());

@@ -463,6 +463,11 @@ msgstr "Een notitie aan de organisator (optioneel)"
 msgid "A on top"
 msgstr "A bovenaan"
 
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "A part of this key is RSA (a subkey for encryption, perhaps), which MailCraft doesn't use by itself: keep the key in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -6856,6 +6861,11 @@ msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft mag de agenda's van anderen nog niet lezen."
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
@@ -6986,6 +6996,11 @@ msgstr "De gegevens van MailCraft zijn al verwijderd"
 #, fuzzy
 msgid "MailCraft's data has been removed: nothing is sent or received"
 msgstr "De gegevens van MailCraft zijn verwijderd: er wordt niets verzonden of ontvangen"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft's search for your keys stopped without an answer. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs
@@ -13175,6 +13190,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
+msgid "The file holds more than one key, or something besides the key: export only the one secret key to import (gpg --armor --export-secret-keys <key>)."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
 msgid "The file holds no OpenPGP secret key that can be read."
 msgstr ""
 
@@ -13230,6 +13250,11 @@ msgstr ""
 #, fuzzy
 msgid "The import stopped unexpectedly. What came in stays; import the file again for the rest."
 msgstr "De import werd onverwacht gestopt. Wat er binnenkwam, blijft; importeer het bestand opnieuw voor de rest."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The import stopped without an answer. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13465,6 +13490,11 @@ msgstr "De afbeelding was te groot en is daarom kleiner gemaakt ({w} px breed)."
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
 msgstr "De poort; laat deze leeg voor de gebruikelijke"
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The private key in this file isn't encrypted, so MailCraft doesn't keep it: export it again with its key encrypted (AES), protected by a passphrase."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -15675,6 +15705,11 @@ msgstr "Waar ze verschillen, heeft de behouden contactpersoon:"
 msgid "Whether it is held online is for its organizer to say."
 msgstr "Of het online plaatsvindt, is aan de organisator."
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16213,6 +16248,11 @@ msgstr "De beheerder van uw organisatie moet dit één keer goedkeuren"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your own key is removed only by you, in the window"
 msgstr ""
 
 #. interface

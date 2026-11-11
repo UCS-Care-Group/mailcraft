@@ -712,8 +712,20 @@ fn main() {
             let answer = match job {
                 OwnKeysJob::List => OwnKeysAnswer::Listed(Listing {
                     keys: vec![
-                        key(SignatureFormat::Smime, "Bob Example", "bob@example.org", "3f:9a:21:c4:5e:07:b8:d2:6a:11:90:fe:33:c7:4d:28:85:e1:0b:76:a9:5c:12:f4:de:60:38:9b:c1:47:2e:af", KeyPlace::Token("PIV Card".into())),
-                        key(SignatureFormat::OpenPgp, "Bob Example <bob@example.org>", "bob@example.org", "B218 EB03 0C44 1424 207A A6C0 10C3 5688 F1AD A5A2", KeyPlace::Gnupg),
+                        key(
+                            SignatureFormat::Smime,
+                            "Bob Example",
+                            "bob@example.org",
+                            "3f:9a:21:c4:5e:07:b8:d2:6a:11:90:fe:33:c7:4d:28:85:e1:0b:76:a9:5c:12:f4:de:60:38:9b:c1:47:2e:af",
+                            KeyPlace::Token("PIV Card".into()),
+                        ),
+                        key(
+                            SignatureFormat::OpenPgp,
+                            "Bob Example <bob@example.org>",
+                            "bob@example.org",
+                            "B218 EB03 0C44 1424 207A A6C0 10C3 5688 F1AD A5A2",
+                            KeyPlace::Gnupg,
+                        ),
                     ],
                     gnupg: Gnupg::Found,
                     smime: SmimePlace::Tokens,

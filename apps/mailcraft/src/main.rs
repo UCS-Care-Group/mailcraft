@@ -75,9 +75,9 @@ mod logging;
 #[cfg(target_os = "macos")]
 mod menubar;
 mod opened_files;
-mod own_keys;
 #[cfg(test)]
 mod opened_flow;
+mod own_keys;
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]

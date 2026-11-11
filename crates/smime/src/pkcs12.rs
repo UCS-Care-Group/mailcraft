@@ -122,8 +122,13 @@ pub struct Opened {
     pub others: Vec<Vec<u8>>,
     /// The private key as PKCS #8 `PrivateKeyInfo` in DER, wiped when let go of.
     pub private_key: Zeroizing<Vec<u8>>,
-    /// What kind of key the certificate's is (so the private key's): whether it may be used here.
+    /// What kind of key the private key is, read from its own PKCS #8 algorithm identifier (and
+    /// curve): whether it may be used here. The certificate is of the same kind.
     pub key_kind: KeyKind,
+    /// Whether the private key was encrypted in the file (a shrouded key bag, or a bag in an
+    /// encrypted safe), and not merely vouched for by the MAC: a key in a plain key bag of a
+    /// plain safe is in the file in clear.
+    pub key_encrypted: bool,
 }
 
 /// What kind of key a certificate holds.
@@ -146,6 +151,7 @@ impl std::fmt::Debug for Opened {
             .field("others", &self.others.len())
             .field("private_key", &"[redacted]")
             .field("key_kind", &self.key_kind)
+            .field("key_encrypted", &self.key_encrypted)
             .finish()
     }
 }
@@ -195,16 +201,16 @@ pub fn open(p12: &[u8], passphrase: &str) -> Result<Opened, Error> {
     }
     for info in ber::children(list.value).ok_or(Error::Unreadable)? {
         let (kind, content) = content_info(&info)?;
-        let contents = if kind == DATA {
-            octets(content)?
+        let (contents, encrypted) = if kind == DATA {
+            (octets(content)?, false)
         } else if kind == ENCRYPTED_DATA {
-            Zeroizing::new(encrypted_data(content, passphrase, &mut work)?).to_vec()
+            (Zeroizing::new(encrypted_data(content, passphrase, &mut work)?).to_vec(), true)
         } else {
             // (Enveloped data, which needs a key of the owner's to open: not a file to import.)
             return Err(Error::UnknownAlgorithm);
         };
         let contents = Zeroizing::new(contents);
-        safe_contents(&contents, passphrase, &mut work, &mut found, 0)?;
+        safe_contents(&contents, Safe { passphrase, encrypted, depth: 0 }, &mut work, &mut found)?;
     }
     found.finish()
 }
@@ -229,24 +235,59 @@ impl Work {
 /// The bags found.
 #[derive(Default)]
 struct Found {
-    keys: Vec<(Zeroizing<Vec<u8>>, Option<Vec<u8>>)>,
+    /// Each private key, its local key id, and whether it was encrypted in the file.
+    keys: Vec<(Zeroizing<Vec<u8>>, Option<Vec<u8>>, bool)>,
     certificates: Vec<(Vec<u8>, Option<Vec<u8>>)>,
 }
 
 impl Found {
+    /// The one private key and its certificate: the one whose public key is the key's, else
+    /// (a key that doesn't carry its public half) the one with the key's local key id, when it
+    /// is of the very kind the key is (algorithm and curve). The kind said is the private key's.
     fn finish(mut self) -> Result<Opened, Error> {
-        let (key, key_id) = match self.keys.len() {
+        let (key, key_id, key_encrypted) = match self.keys.len() {
             1 => self.keys.pop().ok_or(Error::NoPrivateKey)?,
             _ => return Err(Error::NoPrivateKey),
         };
+        let key_kind = private_key_kind(&key);
+        let kind_of = |c: &[u8]| crate::cert::Cert::from_der(c).map_or(KeyKind::Other, |c| crate::algorithms::key_kind(c.public_key()));
         let public = public_of(&key);
         let by_key = public.as_ref().and_then(|p| self.certificates.iter().position(|(c, _)| certificate_key(c).as_ref() == Some(p)));
-        let by_id = key_id.as_ref().and_then(|id| self.certificates.iter().position(|(_, cid)| cid.as_ref() == Some(id)));
+        let by_id = key_id.as_ref().and_then(|id| self.certificates.iter().position(|(c, cid)| cid.as_ref() == Some(id) && kind_of(c) == key_kind));
         let at = by_key.or(by_id).ok_or(Error::NoCertificate)?;
         let (certificate, _) = self.certificates.remove(at);
-        let key_kind = crate::cert::Cert::from_der(&certificate).map_or(KeyKind::Other, |c| crate::algorithms::key_kind(c.public_key()));
-        Ok(Opened { certificate, others: self.certificates.into_iter().map(|(c, _)| c).collect(), private_key: key, key_kind })
+        if kind_of(&certificate) != key_kind {
+            return Err(Error::NoCertificate);
+        }
+        Ok(Opened { certificate, others: self.certificates.into_iter().map(|(c, _)| c).collect(), private_key: key, key_kind, key_encrypted })
     }
+}
+
+/// What kind of key a PKCS #8 `PrivateKeyInfo` is, by its own algorithm identifier: RSA by its
+/// modulus, EC by its named curve (the identifier's parameters, else the `ECPrivateKey`'s own).
+fn private_key_kind(pkcs8: &[u8]) -> KeyKind {
+    let read = || -> Option<KeyKind> {
+        let (info, _) = ber::read(pkcs8)?;
+        let fields = ber::children(info.value)?;
+        let [_, alg, key, ..] = fields.as_slice() else { return None };
+        if key.tag != 0x04 {
+            return None;
+        }
+        let (oid, params) = algorithm(alg).ok()?;
+        let (inner, _) = ber::read(key.value)?;
+        let parts = ber::children(inner.value)?;
+        let curve_of = |t: &Tlv<'_>| oid_of(t).ok();
+        let curve = params.as_ref().and_then(curve_of).or_else(|| {
+            // ECPrivateKey (RFC 5915): [0] parameters, a named curve.
+            let explicit = parts.iter().find(|p| p.tag == 0xa0)?;
+            let (named, _) = ber::read(explicit.value)?;
+            curve_of(&named)
+        });
+        // RSAPrivateKey (RFC 8017 A.1.2): version, modulus, …
+        let modulus = parts.get(1).filter(|n| n.tag == 0x02).map(|n| n.value);
+        Some(crate::algorithms::private_key_kind(oid, curve, modulus))
+    };
+    read().unwrap_or(KeyKind::Other)
 }
 
 /// A ContentInfo's type and content (inside its `[0] EXPLICIT`).
@@ -567,8 +608,18 @@ where
     Ok(buffer)
 }
 
+/// Where a SafeContents is: the passphrase, whether it came out of an encrypted safe, and how
+/// deep in other bags.
+#[derive(Clone, Copy)]
+struct Safe<'a> {
+    passphrase: &'a str,
+    encrypted: bool,
+    depth: usize,
+}
+
 /// The bags of a SafeContents, into `found`.
-fn safe_contents(bytes: &[u8], passphrase: &str, work: &mut Work, found: &mut Found, depth: usize) -> Result<(), Error> {
+fn safe_contents(bytes: &[u8], safe: Safe<'_>, work: &mut Work, found: &mut Found) -> Result<(), Error> {
+    let Safe { passphrase, encrypted, depth } = safe;
     if depth > MAX_NESTING {
         return Err(Error::Unreasonable);
     }
@@ -600,7 +651,7 @@ fn safe_contents(bytes: &[u8], passphrase: &str, work: &mut Work, found: &mut Fo
         }
         let key_id = attributes.and_then(local_key_id);
         match oid_of(kind)? {
-            KEY_BAG => found.keys.push((Zeroizing::new(value.whole.to_vec()), key_id)),
+            KEY_BAG => found.keys.push((Zeroizing::new(value.whole.to_vec()), key_id, encrypted)),
             SHROUDED_KEY_BAG => {
                 // EncryptedPrivateKeyInfo (RFC 5958 §3).
                 if value.tag != 0x30 {
@@ -613,7 +664,7 @@ fn safe_contents(bytes: &[u8], passphrase: &str, work: &mut Work, found: &mut Fo
                 if ber::read(&key).is_none_or(|(k, rest)| k.tag != 0x30 || !rest.is_empty()) {
                     return Err(Error::WrongPassphrase);
                 }
-                found.keys.push((key, key_id));
+                found.keys.push((key, key_id, true));
             }
             CERT_BAG => {
                 if value.tag != 0x30 {
@@ -631,7 +682,7 @@ fn safe_contents(bytes: &[u8], passphrase: &str, work: &mut Work, found: &mut Fo
                     found.certificates.push((der, key_id));
                 }
             }
-            SAFE_CONTENTS_BAG => safe_contents(value.whole, passphrase, work, found, depth.saturating_add(1))?,
+            SAFE_CONTENTS_BAG => safe_contents(value.whole, Safe { depth: depth.saturating_add(1), ..safe }, work, found)?,
             // CRLs and secrets: of no use here.
             _ => {}
         }

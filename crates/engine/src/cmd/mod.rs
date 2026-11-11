@@ -71,12 +71,12 @@ pub mod jmap_mail;
 mod jmap_sending_tests;
 pub mod junk;
 #[cfg(test)]
-mod keys_tests;
-pub mod keys;
-#[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
+pub mod keys;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod leave_compose_tests;
 pub mod mail;

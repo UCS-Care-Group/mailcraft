@@ -100,6 +100,27 @@ fn another_from_address_or_a_changed_message_is_said() {
     assert!(s.mailbox.public_keys.of(ALICE).is_empty(), "nothing from a changed message");
 }
 
+/// The sender shown (the message's From as the mailbox has it) and the From field of its bytes,
+/// which the check goes by, aren't one address: Verified is nobody's word for the one shown.
+#[test]
+fn a_from_shown_that_isnt_the_one_checked_is_a_mismatch() {
+    let mut mb = Mailbox::with_local_account("Bob", "bob@example.org");
+    let inbox = mb.inbox().unwrap();
+    let mut ids = Vec::new();
+    for shown in ["mallory@example.org", " Alice@Example.org "] {
+        let mut m = mailcraft_mime::parse_fetched(&crlf(WITH_KEY));
+        m.folder = inbox;
+        m.from.email = shown.to_string();
+        ids.push(mb.add_message(m).unwrap());
+    }
+    let mut s = Session::new(mb);
+    s.clock.now = Some(NOW);
+    s.run("keys.import", &json!({"data": mailcraft_charset::base64::STANDARD.encode(ALICE_ASC)})).unwrap();
+    s.set_key_verified(ALICE, ALICE_FPR, true).unwrap();
+    assert_eq!(said(&mut s, ids[0]), (Verdict::NotVerified, Some(Why::AddressMismatch)));
+    assert_eq!(said(&mut s, ids[1]).0, Verdict::Verified, "the same address, in another case and with spaces");
+}
+
 #[test]
 fn the_signers_key_in_the_message_is_kept_and_nobody_elses() {
     let (mut s, ids) = session_with(&[WITH_TWO]);

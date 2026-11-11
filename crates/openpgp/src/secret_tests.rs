@@ -68,7 +68,64 @@ fn a_key_whose_signing_subkey_isnt_here_cant_sign() {
 fn an_rsa_key_says_so() {
     // (RSA keys are never used in this process: the window refuses them.)
     let key = secret("Ada <ada@example.org>", Make { rsa: Some(2048), ..Make::default() });
-    assert_eq!(read(&key.to_bytes().unwrap()).unwrap().signing_kind, Some(SigningKind::Rsa));
+    let info = read(&key.to_bytes().unwrap()).unwrap();
+    assert_eq!(info.signing_kind, Some(SigningKind::Rsa));
+    assert!(info.any_rsa);
+}
+
+/// An Ed25519 key that signs, with an RSA subkey for encryption: an RSA part all the same.
+#[test]
+fn an_rsa_encryption_subkey_says_so_too() {
+    let key = secret("Ada <ada@example.org>", Make { rsa_encryption: true, ..Make::default() });
+    let info = read(&key.to_bytes().unwrap()).unwrap();
+    assert_eq!(info.signing_kind, Some(SigningKind::EdDsa));
+    assert!(info.any_rsa);
+    let plain = read(&secret("Ada <ada@example.org>", Make::default()).to_bytes().unwrap()).unwrap();
+    assert!(!plain.any_rsa);
+}
+
+/// The whole file is kept, so the one key checked must be all there is in it.
+#[test]
+fn a_file_with_more_than_one_key_is_refused() {
+    let ada = secret("Ada <ada@example.org>", Make::default());
+    let mut bea = secret("Bea <bea@example.org>", Make { seed: 2, ..Make::default() });
+    protect(&mut bea, true, true);
+    let (a, b) = (ada.to_armored_string(ArmorOptions::default()).unwrap(), bea.to_armored_string(ArmorOptions::default()).unwrap());
+    assert_eq!(read(format!("{b}\n{a}").as_bytes()).err(), Some(Error::SeveralKeys), "two armour blocks");
+    assert_eq!(read(format!("{b}\n{}", armoured_public(&ada)).as_bytes()).err(), Some(Error::SeveralKeys), "a key and another block");
+    let mut both = bea.to_bytes().unwrap();
+    both.extend(ada.to_bytes().unwrap());
+    assert_eq!(read(&both).err(), Some(Error::SeveralKeys), "two binary keys");
+    let mut trailing = bea.to_bytes().unwrap();
+    trailing.extend(b"\0and then something else");
+    assert_eq!(read(&trailing).err(), Some(Error::SeveralKeys), "something after the key");
+    assert!(read(&bea.to_bytes().unwrap()).is_ok());
+    assert!(read(b.as_bytes()).is_ok());
+}
+
+/// A passphrase that is empty protects nothing.
+#[test]
+fn an_empty_passphrase_is_no_protection() {
+    let mut key = secret("Ada <ada@example.org>", Make { subkey: true, ..Make::default() });
+    let empty = Password::empty();
+    key.primary_key.set_password(StdRng::seed_from_u64(3), &empty).unwrap();
+    for sub in &mut key.secret_subkeys {
+        sub.key.set_password(StdRng::seed_from_u64(4), &empty).unwrap();
+    }
+    assert!(key.primary_key.secret_params().is_encrypted());
+    assert!(!read(&key.to_bytes().unwrap()).unwrap().protected, "it opens with nothing typed");
+    // Only the subkey's empty: still not protected.
+    let mut key = secret("Ada <ada@example.org>", Make { subkey: true, ..Make::default() });
+    protect(&mut key, true, false);
+    for sub in &mut key.secret_subkeys {
+        sub.key.set_password(StdRng::seed_from_u64(4), &empty).unwrap();
+    }
+    assert!(!read(&key.to_bytes().unwrap()).unwrap().protected);
+    for sub in &mut key.secret_subkeys {
+        sub.key.remove_password(&empty).unwrap();
+    }
+    protect(&mut key, false, true);
+    assert!(read(&key.to_bytes().unwrap()).unwrap().protected);
 }
 
 #[test]

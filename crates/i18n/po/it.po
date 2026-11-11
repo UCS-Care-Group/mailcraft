@@ -444,6 +444,11 @@ msgstr "Una nota per l'organizzatore (facoltativa)"
 msgid "A on top"
 msgstr "A in alto"
 
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "A part of this key is RSA (a subkey for encryption, perhaps), which MailCraft doesn't use by itself: keep the key in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -6504,6 +6509,11 @@ msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
@@ -6623,6 +6633,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "MailCraft's data has been removed: nothing is sent or received"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft's search for your keys stopped without an answer. Try again."
 msgstr ""
 
 #. interface
@@ -12499,6 +12514,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
+msgid "The file holds more than one key, or something besides the key: export only the one secret key to import (gpg --armor --export-secret-keys <key>)."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
 msgid "The file holds no OpenPGP secret key that can be read."
 msgstr ""
 
@@ -12549,6 +12569,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "The import stopped unexpectedly. What came in stays; import the file again for the rest."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The import stopped without an answer. Try again."
 msgstr ""
 
 #. interface
@@ -12774,6 +12799,11 @@ msgstr "L'immagine era troppo grande ed è stata ridotta ({w} px di larghezza)."
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
 msgstr "La porta; lasciare vuoto per quella abituale"
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The private key in this file isn't encrypted, so MailCraft doesn't keep it: export it again with its key encrypted (AES), protected by a passphrase."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -14850,6 +14880,11 @@ msgstr ""
 msgid "Whether it is held online is for its organizer to say."
 msgstr "Se si tiene online lo decide l'organizzatore."
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Who has answered, and how"
@@ -15352,6 +15387,11 @@ msgstr "L'amministratore della propria organizzazione deve approvarlo una volta"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your own key is removed only by you, in the window"
 msgstr ""
 
 #. interface

@@ -13,7 +13,10 @@
 //! - **Verified is the owner's word, in this window alone (R6, R23).** `ui.verifyKey` opens a
 //!   dialog with the key's whole fingerprint; `ui.markKeyVerified` does anything only while that
 //!   very dialog (the same address and fingerprint) is open, and its buttons are what run it.
-//!   Neither is a command an agent may run ([`mailcraft_engine::agent`]).
+//!   Neither is a command an agent may run ([`mailcraft_engine::agent`]), and neither the
+//!   buttons that lead to it (Compare fingerprint…, Verify…), its own, nor Remove and its Confirm
+//!   for an imported key, answer input the control channel injected (`MailApp::driven`, as the
+//!   password field's eye): an agent allowed to click can't mark a key or delete one.
 //! - The browser has no host for private keys: the page says signing and decrypting need the
 //!   desktop program, and the Public keys are listed and imported as everywhere.
 
@@ -59,9 +62,22 @@ pub struct State {
     import_rx: Option<Receiver<OwnKeysAnswer>>,
     /// GnuPG's valid keys were asked for at start.
     started: bool,
+    /// When GnuPG's valid keys were last asked for, and last read (the mailbox's clock).
+    gnupg_asked: Option<Timestamp>,
+    pub(crate) gnupg_read: Option<Timestamp>,
+    /// Whether the window had the focus at the last frame: GnuPG is asked again when it comes
+    /// back (the owner may have changed a trust there meanwhile).
+    focused: bool,
+    /// The contact form's Add from file… pick under way: the one form a key picked goes to.
+    pub(crate) card_pick: Option<u64>,
+    /// The last such pick's number.
+    picks: u64,
     /// What the last import, removal or refresh came to: whether it worked, and the words.
     pub(crate) said: Option<(bool, String)>,
 }
+
+/// How long after GnuPG was asked the window's coming back asks it again, in seconds.
+const GNUPG_AGAIN: i64 = 60;
 
 /// The dialogs of this page.
 pub enum SecurityDialog {
@@ -131,14 +147,29 @@ fn format_name(format: SignatureFormat) -> &'static str {
     }
 }
 
-fn take(rx: &mut Option<Receiver<OwnKeysAnswer>>) -> Option<OwnKeysAnswer> {
-    let answer = match rx.as_ref()?.try_recv() {
-        Ok(answer) => Some(answer),
-        Err(TryRecvError::Empty) => return None,
-        Err(TryRecvError::Disconnected) => None,
+/// What a job's channel holds this frame.
+enum Taken {
+    /// Nothing yet: the job is under way.
+    Waiting,
+    Answer(OwnKeysAnswer),
+    /// The host let go of the job without answering (its thread ended): it is over.
+    Gone,
+}
+
+fn take(rx: &mut Option<Receiver<OwnKeysAnswer>>) -> Taken {
+    let Some(r) = rx.as_ref() else { return Taken::Waiting };
+    let taken = match r.try_recv() {
+        Ok(answer) => Taken::Answer(answer),
+        Err(TryRecvError::Empty) => return Taken::Waiting,
+        Err(TryRecvError::Disconnected) => Taken::Gone,
     };
     *rx = None;
-    answer
+    taken
+}
+
+/// What a job the host let go of is told.
+fn host_gone() -> String {
+    tl!("MailCraft's search for your keys stopped without an answer. Try again.").to_string()
 }
 
 /// Ask the host for the owner's keys.
@@ -158,25 +189,48 @@ fn request_gnupg_valid(app: &mut MailApp) {
     }
     if let Some(host) = &app.services.own_keys {
         app.security.gnupg_rx = Some(host(OwnKeysJob::GnupgValid));
+        app.security.gnupg_asked = Some(app.session.now());
     }
 }
 
-/// Each frame: GnuPG's valid keys once the window is up (R6), and what the host answered.
-pub(crate) fn tick(app: &mut MailApp) {
-    if !app.security.started && !app.data_removed && app.services.own_keys.is_some() {
-        app.security.started = true;
-        request_gnupg_valid(app);
+/// Each frame: GnuPG's valid keys once the window is up (R6), and again when the window comes
+/// back to the front (at most once a minute: the owner may have changed a trust in GnuPG
+/// meanwhile), and what the host answered. `focused`: whether the window has the focus.
+pub(crate) fn tick(app: &mut MailApp, focused: bool) {
+    let regained = focused && !app.security.focused;
+    app.security.focused = focused;
+    if !app.data_removed && app.services.own_keys.is_some() {
+        let now = app.session.now();
+        let due = app.security.gnupg_asked.is_none_or(|at| now.saturating_sub(at) >= GNUPG_AGAIN);
+        if !app.security.started || (regained && due) {
+            app.security.started = true;
+            request_gnupg_valid(app);
+        }
     }
-    if let Some(OwnKeysAnswer::Listed(listing)) = take(&mut app.security.listing_rx) {
-        app.security.listing = Some(listing);
-    }
-    match take(&mut app.security.gnupg_rx) {
-        Some(OwnKeysAnswer::GnupgValid(Ok(pairs))) => app.session.set_gnupg_valid(pairs),
-        Some(OwnKeysAnswer::GnupgValid(Err(why))) => log::info!("GnuPG's valid keys couldn't be read: {why}"),
+    match take(&mut app.security.listing_rx) {
+        Taken::Answer(OwnKeysAnswer::Listed(listing)) => app.security.listing = Some(listing),
+        // (A listing, so that the page shows the trouble and doesn't ask again every frame.)
+        Taken::Gone => {
+            let mut listing = app.security.listing.take().unwrap_or_default();
+            listing.trouble.retain(|t| *t != host_gone());
+            listing.trouble.push(host_gone());
+            app.security.listing = Some(listing);
+        }
         _ => {}
     }
-    if let Some(OwnKeysAnswer::Imported(result)) = take(&mut app.security.import_rx) {
-        imported(app, result);
+    match take(&mut app.security.gnupg_rx) {
+        Taken::Answer(OwnKeysAnswer::GnupgValid(Ok(pairs))) => {
+            app.session.set_gnupg_valid(pairs);
+            app.security.gnupg_read = Some(app.session.now());
+        }
+        Taken::Answer(OwnKeysAnswer::GnupgValid(Err(why))) => log::info!("GnuPG's valid keys couldn't be read: {why}"),
+        Taken::Gone => log::info!("GnuPG's valid keys weren't answered"),
+        _ => {}
+    }
+    match take(&mut app.security.import_rx) {
+        Taken::Answer(OwnKeysAnswer::Imported(result)) => imported(app, result),
+        Taken::Gone => imported(app, Err(tl!("The import stopped without an answer. Try again.").to_string())),
+        _ => {}
     }
 }
 
@@ -201,13 +255,21 @@ fn imported(app: &mut MailApp, result: Result<Imported, String>) {
                 app.security.said = Some((false, tl!("The import gave back something that isn't a key's name in the credential store.").to_string()));
                 return;
             };
+            let again = app.ui.imported_keys.iter().any(|k| k.store_key == key.store_key);
+            if !again && app.ui.imported_keys.len() >= crate::own_keys::MAX_IMPORTED {
+                // (Full since the import started: what the host kept goes again, so that nothing
+                // stays in the credential store that the page doesn't list.)
+                if let Some(store) = &app.services.secrets {
+                    store.delete(&key.store_key);
+                }
+                app.security.said = Some((false, full()));
+                return;
+            }
             if let Some(public) = public {
                 own_public_key(app, &key, &public);
             }
             app.ui.imported_keys.retain(|k| k.store_key != key.store_key);
-            if app.ui.imported_keys.len() < crate::own_keys::MAX_IMPORTED {
-                app.ui.imported_keys.push(key);
-            }
+            app.ui.imported_keys.push(key);
             let said = tl!("Imported: MailCraft keeps it in the system's credential store, still protected by its passphrase.").to_string();
             app.status(said.clone());
             app.security.said = Some((true, said));
@@ -228,14 +290,25 @@ fn imported(app: &mut MailApp, result: Result<Imported, String>) {
     }
 }
 
+/// What an import is told when the page lists as many imported keys as it keeps.
+fn full() -> String {
+    crate::i18n::fmt(
+        tl!("MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."),
+        &[("n", &crate::own_keys::MAX_IMPORTED.to_string())],
+    )
+}
+
 /// The public half of the owner's own OpenPGP key, kept for its addresses so that the owner's own
-/// Digital signatures check, and Verified for them: the owner holds its private key.
+/// Digital signatures check, and Verified for those of its addresses that are the owner's
+/// accounts' (the owner holds its private key; a User ID naming anyone else is only that key's
+/// word, and stays not Verified).
 fn own_public_key(app: &mut MailApp, key: &ImportedKey, public: &[u8]) {
     if let Err(e) = app.run("keys.import", json!({"name": "own key", "data": encode(public)})) {
         log::info!("the public half of an imported key wasn't kept: {e}");
         return;
     }
-    for address in &key.addresses {
+    let own: Vec<String> = app.session.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|a| !a.is_empty()).collect();
+    for address in key.addresses.iter().filter(|a| own.contains(&a.trim().to_lowercase())) {
         let _ = app.session.set_key_verified(address, &key.fingerprint, true);
     }
 }
@@ -255,6 +328,12 @@ pub(crate) fn command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<V
             }
             if app.security.import_rx.is_some() {
                 return Some(Err(tl!("An import is under way").to_string()));
+            }
+            // (Before anything is kept, so that nothing is kept that the page couldn't list.)
+            if app.ui.imported_keys.len() >= crate::own_keys::MAX_IMPORTED {
+                let said = full();
+                app.security.said = Some((false, said.clone()));
+                return Some(Err(said));
             }
             crate::files::open(app, purpose);
             Ok(json!({"pending": purpose}))
@@ -309,6 +388,10 @@ fn remove_private_key(app: &mut MailApp, p: &Value) -> Result<Value, String> {
             ask: Question::new(tl!("Remove Your Key"), text, tl!("Remove"), json!({"confirmed": true})),
         });
         return Ok(json!({"pending": "confirm"}));
+    }
+    // The owner's own answer: never input the control channel injected, or one of its requests.
+    if app.driven {
+        return Err(tl!("Your own key is removed only by you, in the window").to_string());
     }
     let gone = match (&app.services.secrets, crate::own_keys::is_store_name(&key.store_key)) {
         (Some(store), true) => {
@@ -370,7 +453,8 @@ fn mark_key_verified(app: &mut MailApp, address: &str, fingerprint: &str, verifi
         },
         _ => false,
     };
-    if !open {
+    // (Input the control channel injected, or one of its requests, is never the owner's word.)
+    if !open || app.driven {
         return Err(tl!("A key is marked Verified only in the dialog that shows its fingerprint, by you").to_string());
     }
     app.session.set_key_verified(&address, fingerprint, verified).map_err(|e| e.to_string())?;
@@ -415,9 +499,11 @@ pub(crate) fn picked(app: &mut MailApp, purpose: &str, name: &str, bytes: Result
             app.security.said = Some(said);
         }
         PURPOSE_CARD => {
+            // Only to the very form that asked: not to another opened since, nor after it closed.
+            let asked = app.security.card_pick.take();
             let key = mailcraft_engine::cmd::keys::card_key_from(&bytes).map_err(|e| e.to_string());
             let r = match (&mut app.dialog, key) {
-                (Some(Dialog::Form(crate::forms::Form::Contact(form))), Ok(key)) => form.add_key(key),
+                (Some(Dialog::Form(crate::forms::Form::Contact(form))), Ok(key)) if asked.is_some() && form.key_pick() == asked => form.add_key(key),
                 (_, Err(e)) => Err(e),
                 _ => Err(tl!("The contact's form was closed: open it again to add the key").to_string()),
             };
@@ -429,12 +515,25 @@ pub(crate) fn picked(app: &mut MailApp, purpose: &str, name: &str, bytes: Result
     }
 }
 
+/// The contact form's Add from file…: the picker opened, and the number of this pick, which the
+/// form keeps, so that the key picked goes to that form and no other.
+pub(crate) fn ask_card_key(app: &mut MailApp) -> u64 {
+    app.security.picks = app.security.picks.wrapping_add(1).max(1);
+    app.security.card_pick = Some(app.security.picks);
+    crate::files::open(app, PURPOSE_CARD);
+    app.security.picks
+}
+
 /// Press Import in the import dialog: the file and the passphrase go to the host.
 fn start_import(app: &mut MailApp, d: &mut ImportDialog) {
     let Some(host) = &app.services.own_keys else {
         d.error = no_host().to_string();
         return;
     };
+    if app.ui.imported_keys.len() >= crate::own_keys::MAX_IMPORTED {
+        d.error = full();
+        return;
+    }
     // (The file stays in the dialog, still protected by its passphrase, for another try.)
     let file = KeyFile(Zeroizing::new(d.file.0.to_vec()));
     let passphrase = (d.format == SignatureFormat::Smime).then(|| Passphrase::new(std::mem::take(&mut *d.passphrase)));
@@ -545,12 +644,13 @@ pub(crate) fn show_dialog(app: &mut MailApp, ctx: &egui::Context, dialog: &mut S
                     let not = ui.add(egui::Button::new(tl!("Not verified")).min_size(vec2(96.0, 26.0)));
                     app.hit.add("keyNotVerified", 0, not.rect);
                     let not = not.on_hover_text(if v.verified { tl!("Take back that you verified it") } else { tl!("Leave it not verified") });
-                    if not.clicked() {
+                    // (A click the control channel injected doesn't answer: the owner's word only.)
+                    if not.clicked() && !app.driven {
                         *mark = Some(json!({"address": v.address, "fingerprint": v.fingerprint, "verified": false}));
                     }
                     let yes = primary_button(ui, tl!("Mark as verified"), true);
                     app.hit.add("keyVerified", 0, yes.rect);
-                    if yes.clicked() {
+                    if yes.clicked() && !app.driven {
                         *mark = Some(json!({"address": v.address, "fingerprint": v.fingerprint, "verified": true}));
                     }
                 });
@@ -647,6 +747,19 @@ fn own_keys(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             ),
             Gnupg::Found | Gnupg::Unknown => {}
         }
+        if let Some(at) = app.security.gnupg_read.filter(|_| listing.gnupg == Gnupg::Found) {
+            let when = crate::dates::list_label(at, now, app.session.offset_at(at), app.session.prefs.twelve_hour);
+            dim(
+                ui,
+                &crate::i18n::fmt(
+                    tl!(
+                        "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
+                    ),
+                    &[("when", &when)],
+                ),
+                t,
+            );
+        }
         if listing.smime == SmimePlace::None {
             dim(ui, tl!("This system has no place MailCraft knows for S/MIME certificates with a private key."), t);
         }
@@ -677,7 +790,8 @@ fn own_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, key: &OwnKey, t: &Token
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let r = ui.small_button(tl!("Remove")).on_hover_text(tl!("Delete this key from this computer"));
                     app.hit.add("removeOwnKey", i as u64, r.rect);
-                    if r.clicked() {
+                    // (Not for a click the control channel injected.)
+                    if r.clicked() && !app.driven {
                         let _ = app.run("ui.removePrivateKey", json!({"fingerprint": key.fingerprint}));
                     }
                 });
@@ -774,7 +888,8 @@ fn public_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, address: &str, key: 
                 .small_button(tl!("Compare fingerprint…"))
                 .on_hover_text(tl!("Compare the key's fingerprint with the person's, and mark it as verified"));
             app.hit.add("compareFingerprint", i as u64, r.rect);
-            if r.clicked() {
+            // (Not for a click the control channel injected: the dialog is the owner's.)
+            if r.clicked() && !app.driven {
                 let _ = app.run("ui.verifyKey", json!({"address": address, "fingerprint": key.fingerprint}));
             }
         }

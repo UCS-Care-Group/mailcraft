@@ -131,7 +131,9 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
                     if place == Place::Pane {
                         app.hit.add("verifySigner", m.id, resp.rect);
                     }
-                    verify = resp.on_hover_text(tl!("Compare the signer's key's fingerprint with theirs, and mark it as verified")).clicked();
+                    // (Not for a click the control channel injected: the dialog is the owner's.)
+                    verify = resp.on_hover_text(tl!("Compare the signer's key's fingerprint with theirs, and mark it as verified")).clicked()
+                        && !app.driven;
                 }
             });
         });

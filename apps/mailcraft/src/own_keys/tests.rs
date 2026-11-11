@@ -76,6 +76,45 @@ fn only_full_and_ultimate_user_ids_are_valid() {
     assert!(valid_in(revoked.as_bytes()).is_empty());
 }
 
+/// GnuPG is asked under its direct trust model whatever its options say, and only what that
+/// gives `f` or `u` counts: as GnuPG 2.4 lists a keyring of synthetic keys under it (the owner's
+/// own key, one whose ownertrust the owner set to full, one the owner certified but set nothing
+/// on, one a fully trusted key certified).
+#[test]
+fn validity_is_read_under_the_direct_trust_model_only() {
+    assert_eq!(super::gnupg::VALID, ["--trust-model=direct", "--list-keys"]);
+    let direct = "tru:t:1:1794361287:0:3:1:5\n\
+        pub:u:255:22:AA:1::::::scSC:\nfpr:::::::::B218EB030C441424207AA6C010C35688F1ADA5A2:\nuid:u::::::::Owner <owner@example.org>:\n\
+        pub:f:255:22:BB:1::::::scSC:\nfpr:::::::::8BC23215100DCD66578744B8F679705104FB7CCB:\nuid:f::::::::Pal <pal@example.org>:\n\
+        pub:e:255:22:CC:1::::::scSC:\nfpr:::::::::8B04E32F9C92601AD5A4D5D612D680A3D331558F:\nuid:e::::::::Set <set@example.org>:\n\
+        pub:-:255:22:DD:1::::::scSC:\nfpr:::::::::04928A3DA30AE43BCCACAB6C054BC24260C4ECDD:\nuid:-::::::::Unknown <unk@example.org>:\n";
+    let addresses: Vec<String> = valid_in(direct.as_bytes()).into_iter().map(|(_, a)| a).collect();
+    assert_eq!(addresses, ["owner@example.org", "pal@example.org"]);
+}
+
+/// The runner stops a program that takes too long, or writes more than is read, at once.
+#[cfg(unix)]
+#[test]
+fn a_program_is_stopped_past_its_time_or_its_output() {
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    use super::gnupg::run_within;
+    let started = Instant::now();
+    let err = run_within(Path::new("/bin/sleep"), &["30"], Duration::from_millis(300), 1024).unwrap_err();
+    assert!(err.contains("didn't finish in time"), "{err}");
+    assert!(started.elapsed() < Duration::from_secs(10));
+    if let Some(yes) = ["/usr/bin/yes", "/bin/yes"].into_iter().map(Path::new).find(|p| p.exists()) {
+        let started = Instant::now();
+        let err = run_within(yes, &[], Duration::from_secs(20), 4096).unwrap_err();
+        assert!(err.contains("listed more"), "{err}");
+        assert!(started.elapsed() < Duration::from_secs(10), "stopped at once, not at the time limit");
+    }
+    if let Some(echo) = ["/bin/echo", "/usr/bin/echo"].into_iter().map(Path::new).find(|p| p.exists()) {
+        assert_eq!(run_within(echo, &["example"], Duration::from_secs(20), 4096).unwrap(), b"example\n");
+    }
+}
+
 #[test]
 fn an_openpgp_key_is_kept_by_its_fingerprint_with_its_public_half() {
     let store = Arc::new(Store::default());

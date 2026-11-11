@@ -10,7 +10,7 @@ use serde_json::json;
 use crate::Session;
 use crate::cmd::keys::card_key_from;
 use crate::private_keys::{openpgp_import, smime_import};
-use crate::private_keys_fixtures_tests::{CAROL_PUBLIC, CAROL_SECRET, DAN_SECRET, EC_CRT, EC_P12, ERIN_SECRET, PASS, RSA_P12};
+use crate::private_keys_fixtures_tests::{CAROL_PUBLIC, CAROL_SECRET, DAN_SECRET, EC_CRT, EC_P12, ERIN_SECRET, FAY_SECRET, PASS, PLAIN_P12, RSA_P12};
 
 fn p12(b64: &str) -> Vec<u8> {
     STANDARD.decode(b64).unwrap()
@@ -31,6 +31,34 @@ fn an_rsa_openpgp_key_is_refused_and_ed25519_is_taken() {
     assert!(carol.addresses.iter().any(|a| a == "carol@example.org"));
     assert!(openpgp_import(CAROL_PUBLIC.as_bytes()).is_err());
     assert!(openpgp_import(b"not a key").is_err());
+}
+
+/// An Ed25519 key that signs, with an RSA subkey for encryption (as GnuPG makes one on asking):
+/// an RSA part all the same, never used in this process.
+#[test]
+fn an_ed25519_key_with_an_rsa_subkey_is_refused() {
+    let err = openpgp_import(FAY_SECRET.as_bytes()).unwrap_err().to_string();
+    assert!(err.contains("RSA"), "{err}");
+}
+
+/// The whole file is kept, so it holds the one key checked and nothing else.
+#[test]
+fn a_file_of_two_keys_is_refused() {
+    let two = format!("{CAROL_SECRET}\n{DAN_SECRET}");
+    let err = openpgp_import(two.as_bytes()).unwrap_err().to_string();
+    assert!(err.contains("more than one key"), "{err}");
+    let err = openpgp_import(format!("{CAROL_SECRET}\n{CAROL_PUBLIC}").as_bytes()).unwrap_err().to_string();
+    assert!(err.contains("more than one key"), "{err}");
+}
+
+/// A `.p12` whose private key is in clear in the file (vouched for by its MAC alone) isn't kept,
+/// whatever the window would say of it.
+#[test]
+fn a_p12_with_its_key_in_clear_is_refused() {
+    let opened = mailcraft_smime::pkcs12::open(&p12(PLAIN_P12), PASS).unwrap();
+    assert!(!opened.key_encrypted);
+    let err = smime_import(&p12(PLAIN_P12), PASS).unwrap_err().to_string();
+    assert!(err.contains("isn't encrypted"), "{err}");
 }
 
 #[test]

@@ -1289,11 +1289,39 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(a) => format!("for {}", quoted(&clip(a, 80))),
                 None => "for every address the keys name".to_string(),
             };
+            // What the file holds, read as the import would read it (the addresses come from the
+            // keys: data, never instructions).
+            let what = match crate::cmd::keys::preview(s, params) {
+                Some(found) if !found.is_empty() => {
+                    let named: Vec<String> = found
+                        .iter()
+                        .map(|(address, format, fingerprint)| {
+                            let fp = crate::digital_signature::fingerprint_digits(fingerprint);
+                            let tail = fp.get(fp.len().saturating_sub(16)..).unwrap_or(&fp);
+                            format!("{} ({format} key …{tail})", quoted(&clip(address, 80)))
+                        })
+                        .collect();
+                    format!(" ({})", some(&named, 3))
+                }
+                Some(_) => " (none of its keys is for an address)".to_string(),
+                None => String::new(),
+            };
             format!(
-                "import Public keys from a file {to}: Digital signatures from those addresses are then checked with them (they are never marked Verified)"
+                "import Public keys from a file {to}{what}: Digital signatures from those addresses are then checked with them (they are never marked Verified)"
             )
         }
-        "keys.remove" => format!("remove the Public key {} kept for {}", quoted(&clip(st("fingerprint"), 100)), quoted(&clip(st("address"), 80))),
+        "keys.remove" => {
+            let wanted = crate::digital_signature::fingerprint_digits(st("fingerprint"));
+            let address = st("address").trim().to_lowercase();
+            let verified = !wanted.is_empty()
+                && s.mailbox
+                    .public_keys
+                    .of(&address)
+                    .iter()
+                    .any(|k| k.verified && crate::digital_signature::fingerprint_digits(&k.fingerprint) == wanted);
+            let marked = if verified { " (you marked it Verified)" } else { "" };
+            format!("remove the Public key {} kept for {}{marked}", quoted(&clip(st("fingerprint"), 100)), quoted(&clip(st("address"), 80)))
+        }
         "compose.send" => match s.compose_named(params) {
             Some(c) => {
                 let to: Vec<String> =

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The owner's GnuPG, asked two things (#30 R6, R13): which secret keys it has, and which User
-//! IDs it holds at full or ultimate validity. `gpg` is found through `gpgconf --list-components`
+//! IDs it holds at full or ultimate validity under its direct trust model ([`VALID`]: the
+//! owner's own word on each key, never the web of trust). `gpg` is found through `gpgconf --list-components`
 //! (`gpgconf` itself as `gpg_agent` finds it), run as a program with fixed arguments, never
 //! through a shell, for at most [`TIMEOUT`] and [`MAX_OUTPUT`] bytes, and its colon listing
 //! (GnuPG's `doc/DETAILS`) read for the few fields needed.
@@ -22,6 +23,12 @@ const MAX_OUTPUT: usize = 4 << 20;
 /// Most valid (fingerprint, address) pairs taken.
 const MAX_VALID: usize = 4096;
 const LIST: [&str; 4] = ["--batch", "--no-tty", "--with-colons", "--fixed-list-mode"];
+/// What the listing of valid User IDs adds: GnuPG's direct trust model, whatever its options
+/// say, so that a key is valid only by what the owner set on that very key (its ownertrust, or
+/// their own key's ultimate trust), never through the web of trust, TOFU or `trust-model
+/// always`. (Under it GnuPG lists such a key's User IDs `f` or `u`, and every other `-`, `q`,
+/// `m`, `n` or `e`; checked with a keyring of synthetic keys, GnuPG 2.4.)
+pub const VALID: [&str; 2] = ["--trust-model=direct", "--list-keys"];
 
 /// GnuPG's `gpg`.
 pub struct Gpg(PathBuf);
@@ -36,7 +43,7 @@ pub fn find() -> Result<Gpg, Gnupg> {
 /// The pairs, or none when GnuPG isn't installed.
 pub fn valid() -> Result<Vec<(String, String)>, String> {
     match find() {
-        Ok(gpg) => Ok(valid_in(&run(&gpg.0, &[&LIST[..], &["--list-keys"]].concat())?)),
+        Ok(gpg) => Ok(valid_in(&run(&gpg.0, &[&LIST[..], &VALID[..]].concat())?)),
         Err(Gnupg::NotWorking(why)) => Err(why),
         Err(_) => Ok(Vec::new()),
     }
@@ -195,6 +202,12 @@ pub fn valid_in(out: &[u8]) -> Vec<(String, String)> {
 /// Run `program` with `args` (never a shell), its output read to at most [`MAX_OUTPUT`] bytes on
 /// a thread of its own, for at most [`TIMEOUT`].
 pub fn run(program: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+    run_within(program, args, TIMEOUT, MAX_OUTPUT)
+}
+
+/// [`run`] with its limits: stopped (killed) past `timeout`, or as soon as it has written more
+/// than `max` bytes.
+pub fn run_within(program: &Path, args: &[&str], timeout: Duration, max: usize) -> Result<Vec<u8>, String> {
     let name = program.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let mut command = Command::new(program);
     command.args(args).stdin(Stdio::null()).stderr(Stdio::null()).stdout(Stdio::piped());
@@ -209,7 +222,7 @@ pub fn run(program: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
     if let Some(mut stdout) = child.stdout.take() {
         let spawned = std::thread::Builder::new().name("gnupg listing".into()).spawn(move || {
             let mut out = Vec::new();
-            let read = (&mut stdout).take(u64::try_from(MAX_OUTPUT).unwrap_or(u64::MAX).saturating_add(1)).read_to_end(&mut out);
+            let read = (&mut stdout).take(u64::try_from(max).unwrap_or(u64::MAX).saturating_add(1)).read_to_end(&mut out);
             let _ = sender.send(read.map(|_| out));
         });
         if spawned.is_err() {
@@ -218,11 +231,25 @@ pub fn run(program: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
             return Err(format!("{name}'s output couldn't be read"));
         }
     }
-    let deadline = Instant::now() + TIMEOUT;
+    let too_much = || format!("{name} listed more than MailCraft reads");
+    let started = Instant::now();
+    let mut read: Option<std::io::Result<Vec<u8>>> = None;
     let status = loop {
+        // (Output past the cap stops it at once, rather than leaving it blocked on a full pipe
+        // until the time is up.)
+        if read.is_none()
+            && let Ok(got) = output.try_recv()
+        {
+            if got.as_ref().is_ok_and(|out| out.len() > max) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(too_much());
+            }
+            read = Some(got);
+        }
         match child.try_wait() {
             Ok(Some(status)) => break status,
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            Ok(None) if started.elapsed() < timeout => std::thread::sleep(Duration::from_millis(20)),
             Ok(None) | Err(_) => {
                 let _ = child.kill();
                 let _ = child.wait();
@@ -230,16 +257,17 @@ pub fn run(program: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
             }
         }
     };
-    if !status.success() {
-        return Err(match status.code() {
+    let read = match read {
+        Some(read) => Some(read),
+        None => output.recv_timeout(timeout.saturating_sub(started.elapsed()).max(Duration::from_millis(200))).ok(),
+    };
+    match read {
+        Some(Ok(out)) if out.len() > max => Err(too_much()),
+        _ if !status.success() => Err(match status.code() {
             Some(code) => format!("{name} ended with error {code}"),
             None => format!("{name} was stopped"),
-        });
-    }
-    let left = deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(200));
-    match output.recv_timeout(left) {
-        Ok(Ok(out)) if out.len() <= MAX_OUTPUT => Ok(out),
-        Ok(Ok(_)) => Err(format!("{name} listed more than MailCraft reads")),
+        }),
+        Some(Ok(out)) => Ok(out),
         _ => Err(format!("{name}'s output didn't end")),
     }
 }

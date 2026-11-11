@@ -118,6 +118,29 @@ fn an_agent_imports_with_the_owners_word_and_never_from_a_path() {
     assert_ne!(check(&s, "keys.import", &json!({"path": "/home/bob/key.asc"}), &[Class::Settings]), Verdict::Run);
 }
 
+/// The owner's question names what an agent imports, and what it removes is said to be Verified
+/// when the owner marked it so.
+#[test]
+fn the_owners_question_names_the_keys() {
+    let mut s = session();
+    let data = json!({"data": STANDARD.encode(ALICE_ASC)});
+    let asked = crate::agent::describe(&s, "keys.import", &data);
+    let tail: String = ALICE_FPR.chars().filter(char::is_ascii_hexdigit).collect::<String>();
+    let tail = &tail[tail.len() - 16..];
+    assert!(asked.contains("alice@example.org") && asked.contains(tail) && asked.contains("openpgp"), "{asked}");
+    // Hostile or unreadable data asks without naming anything, and never panics.
+    for junk in [json!({"data": "%%%"}), json!({"data": STANDARD.encode(b"\xff\xfe junk")}), json!({"data": "A".repeat(2 << 20)}), json!({})] {
+        let asked = crate::agent::describe(&s, "keys.import", &junk);
+        assert!(asked.starts_with("import Public keys"), "{asked}");
+    }
+    import(&mut s, ALICE_ASC.as_bytes()).unwrap();
+    let remove = json!({"address": "alice@example.org", "fingerprint": ALICE_FPR});
+    assert!(!crate::agent::describe(&s, "keys.remove", &remove).contains("Verified"));
+    s.set_key_verified("alice@example.org", ALICE_FPR, true).unwrap();
+    let asked = crate::agent::describe(&s, "keys.remove", &remove);
+    assert!(asked.contains("(you marked it Verified)"), "{asked}");
+}
+
 #[test]
 fn no_command_marks_a_key_verified() {
     let mut s = session();

@@ -146,6 +146,7 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
 pub mod people_view;
@@ -180,7 +181,6 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
-pub mod own_keys;
 pub mod security;
 #[cfg(test)]
 #[allow(dead_code)]
@@ -1307,7 +1307,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options › Security",
         r#"{"fingerprint": string, "confirmed"?: true} — deletes a key imported in File › Options › Security from the system's credential store; asks first. Window only, never for an agent"#,
     ),
-    ("ui.refreshOwnKeys", "Refresh Your Certificates and Keys", "File › Options › Security", "{} — looks for the owner's certificates and keys again (and GnuPG's fully trusted keys). Window only, never for an agent"),
+    (
+        "ui.refreshOwnKeys",
+        "Refresh Your Certificates and Keys",
+        "File › Options › Security",
+        "{} — looks for the owner's certificates and keys again (and GnuPG's fully trusted keys). Window only, never for an agent",
+    ),
     (
         "ui.importPublicKey",
         "Import a Public Key",
@@ -4708,7 +4713,7 @@ impl MailApp {
             self.shared_check_tick();
         }
         self.check_secret_store();
-        security::tick(self);
+        security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
             // Whether a new version is out, when the owner wants that known ([`updates`]).

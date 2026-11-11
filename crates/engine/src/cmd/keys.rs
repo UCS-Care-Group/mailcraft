@@ -153,6 +153,35 @@ fn import(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"imported": imported}))
 }
 
+/// What `keys.import` with `v` would keep, for the owner's question to an agent: each (address,
+/// format, fingerprint), read as the import reads them and kept nowhere; `None` when the import
+/// would be refused. Agents always pass `data` (MCP reads a `--files` path into it), so nothing
+/// is read from a file for this; a `path` alone gives `None`.
+pub(crate) fn preview(s: &Session, v: &Value) -> Option<Vec<(String, &'static str, String)>> {
+    let data = p::str(v, "data")?;
+    if data.len() > MAX_IMPORT_BYTES.saturating_mul(4) / 3 + 1024 {
+        return None;
+    }
+    let only = address_param(v).ok()?;
+    let bytes = super::base64_decode(data).ok()?;
+    if bytes.is_empty() || bytes.len() > MAX_IMPORT_BYTES {
+        return None;
+    }
+    if mailcraft_smime::import::holds_private_key(&bytes) || mailcraft_openpgp::secret::holds_secret(&bytes) {
+        return None;
+    }
+    let mut out = Vec::new();
+    for f in read_keys(&bytes, s.now()).ok()? {
+        let addresses: Vec<String> = match &only {
+            Some(a) if f.addresses.contains(a) => vec![a.clone()],
+            Some(_) => continue,
+            None => f.addresses,
+        };
+        out.extend(addresses.into_iter().map(|a| (a, format_name(f.key.format), f.key.fingerprint.clone())));
+    }
+    Some(out)
+}
+
 /// The Public keys in `bytes`: certificates for mail, else OpenPGP keys. What isn't one is
 /// refused with the reason.
 fn read_keys(bytes: &[u8], now: i64) -> Result<Vec<Found>, crate::CmdError> {
@@ -345,7 +374,8 @@ pub fn card_keys_param(had: &[ContactKey], list: &Value) -> Result<Vec<ContactKe
     let mut out = Vec::with_capacity(list.len());
     for entry in list {
         if let Some(n) = entry.get("keep") {
-            let key = n.as_u64().and_then(|n| usize::try_from(n).ok()).and_then(|n| had.get(n)).ok_or_else(|| bad("`keep` names no key of the card"))?;
+            let key =
+                n.as_u64().and_then(|n| usize::try_from(n).ok()).and_then(|n| had.get(n)).ok_or_else(|| bad("`keep` names no key of the card"))?;
             out.push(key.clone());
         } else if let Some(data) = p::str(entry, "data") {
             if data.len() > MAX_IMPORT_BYTES.saturating_mul(4) / 3 + 1024 {

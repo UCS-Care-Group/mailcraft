@@ -3424,8 +3424,8 @@ mod contact {
     use serde_json::{Map, Value, json};
 
     use super::kit::{Pass, body, category_chips, changes, date_hint, date_ok, date_value, error, footer, multiline, object, row, shown, tall_row};
-    use crate::files::base64_lite::encode;
     use crate::MailApp;
+    use crate::files::base64_lite::encode;
     use crate::widgets::icon_button;
 
     const EMAIL_LABELS: [&str; 3] = ["work", "home", "other"];
@@ -3520,6 +3520,9 @@ mod contact {
         favorite: bool,
         /// The card's certificates and keys.
         keys: Vec<CardKey>,
+        /// The number of the Add from file… pick this form asked for: a key picked goes only to
+        /// the form that asked for it.
+        key_pick: Option<u64>,
         error: String,
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
@@ -3530,6 +3533,11 @@ mod contact {
     }
 
     impl ContactForm {
+        /// The number of the Add from file… pick this form asked for, if any.
+        pub fn key_pick(&self) -> Option<u64> {
+            self.key_pick
+        }
+
         /// Add a Public key from a file to the card (Add from file…), when there is room and it
         /// isn't there already.
         pub fn add_key(&mut self, key: ContactKey) -> Result<(), String> {
@@ -3782,7 +3790,7 @@ mod contact {
                 None
             };
             if add_key {
-                crate::files::open(app, crate::security::PURPOSE_CARD);
+                self.key_pick = Some(crate::security::ask_card_key(app));
             }
             match run.map(|(command, params)| app.execute(command, params)) {
                 Some(Ok(_)) => true,
