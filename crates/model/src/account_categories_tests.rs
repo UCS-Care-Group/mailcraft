@@ -368,3 +368,25 @@ fn a_rule_moving_mail_into_another_account_puts_its_category_on_that_accounts_li
         assert_eq!((on(a), on(b)), (false, true), "move first: {move_first}");
     }
 }
+
+/// A rule of Microsoft account A that categorizes new mail and copies it into a folder of
+/// Microsoft account C, which has a list of its own: the copy lands in C with the category, and
+/// the category is on C's list, as it is for a move there (#566).
+#[test]
+fn a_rule_copying_mail_into_another_account_puts_its_category_on_that_accounts_list() {
+    let (mut mb, a, c) = two_accounts();
+    mb.account_categories.insert(a, Vec::new());
+    mb.account_categories.insert(c, Vec::new());
+    let into = mb.add_folder(c, None, "Copied for C").unwrap();
+    let conditions = vec![Condition::SubjectContains(vec!["Weekly".into()])];
+    let actions = vec![Action::Categorize("Eta".into()), Action::CopyTo(into)];
+    mb.rules.push(Rule { enabled: true, account: a, conditions, actions, ..Default::default() });
+    let clock = crate::RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 };
+    let m = message_of(&mut mb, a, &[]);
+    mb.message_mut(m).unwrap().subject = "Weekly".into();
+    mb.apply_rules(m, &clock);
+    let copy = mb.messages.values().find(|x| x.subject == "Weekly" && x.account == c).unwrap();
+    assert_eq!(copy.categories, ["Eta".to_string()]);
+    let on = |acc: Id| mb.categories_of(acc).iter().any(|c| c.name == "Eta");
+    assert_eq!((on(a), on(c)), (true, true), "on A's list / on C's list");
+}

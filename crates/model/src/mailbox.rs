@@ -3548,8 +3548,10 @@ impl Mailbox {
         let mut no_copy = false;
         let mut did = false;
         // The categories it was given, for the list of the account it ends up in: a move into
-        // another account's folder comes after them ([`Action::stage`]).
+        // another account's folder comes after them ([`Action::stage`]), and so does a copy, for
+        // the list of the account the copy is in.
         let mut categorized: Vec<String> = Vec::new();
+        let mut copied_into: Vec<Id> = Vec::new();
         // Deleted for good, unless its server keeps it (a JMAP account's: the next run would bring
         // it back).
         let gone = |mb: &Mailbox, going: &mut Going| {
@@ -3572,7 +3574,13 @@ impl Mailbox {
                 }
                 Action::CopyTo(folder) => {
                     let at = u64::try_from(clock.now).unwrap_or_default();
-                    let copied = !self.is_send_queue(*folder) && self.copy_message_marked(id, *folder, at).is_ok();
+                    let copy = if self.is_send_queue(*folder) { None } else { self.copy_message_marked(id, *folder, at).ok() };
+                    let copied = copy.is_some();
+                    if let Some(account) = copy.and_then(|c| self.message(c)).map(|m| m.account)
+                        && !copied_into.contains(&account)
+                    {
+                        copied_into.push(account);
+                    }
                     did |= copied;
                     // A copy of the headers here isn't a copy of the message on the server.
                     no_copy |= !copied || self.message(id).is_some_and(|m| m.partly_here() && !m.unfetched);
@@ -3624,8 +3632,9 @@ impl Mailbox {
                 }
             }
         }
-        // (Not for one deleted for good: nothing of it carries them.)
-        if let Some(account) = self.message(id).filter(|_| !going.has(id)).map(|m| m.account) {
+        // (Not for one deleted for good: nothing of it carries them; its copies do.)
+        let kept = self.message(id).filter(|_| !going.has(id)).map(|m| m.account);
+        for account in kept.into_iter().chain(copied_into) {
             for c in &categorized {
                 self.adopt_category(account, c);
             }
