@@ -605,3 +605,38 @@ fn mail_moved_back_after_its_owner_filed_it_isnt_deleted_for_good_by_a_rule_that
     }
     assert!(lost.is_empty(), "the message the owner filed away is deleted for good after: {lost:?}");
 }
+
+/// The same filing away done on another device (a phone) on a Microsoft account, whose ids don't
+/// change with a move: a run sees the message in Kept, a later one back in the Inbox, and the rule
+/// that waited lets it alone once it is downloaded. Downloaded while it is in Kept, it is let
+/// alone too.
+#[test]
+fn mail_filed_away_and_back_on_a_phone_isnt_deleted_for_good_by_a_rule_that_waited() {
+    for back in [true, false] {
+        let mut s = Session::empty();
+        let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
+        let gone = json!({"name": "Invoices", "server": false,
+            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "deleteForGood"}]});
+        s.run("rules.add", &gone).unwrap();
+        arrives(&mut s, account, "Plan");
+        let m = here(&s, account, "N1").id;
+        assert!(s.mailbox.message(m).unwrap().rules_waiting.is_some());
+        let run = |s: &mut Session, from: &str, to: &str| {
+            let left = MessagePage { folder: from.into(), removed: vec!["N1".into()], ..Default::default() };
+            let there = MessagePage { folder: to.into(), messages: vec![listed("N1", to, "Plan")], ..Default::default() };
+            let pages = vec![left, there];
+            graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages, partial: true, ..Default::default() }).unwrap();
+        };
+        run(&mut s, "F-in", "F-kept");
+        assert_eq!(s.mailbox.message(m).unwrap().folder, kept, "filed away");
+        if back {
+            run(&mut s, "F-kept", "F-in");
+            let back = s.mailbox.message(m).unwrap();
+            assert!(back.folder == inbox && back.unfetched, "{back:?}");
+        }
+        let fetched = vec![whole("N1", "Plan", "", "The invoice for May.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let deletes = s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. }));
+        assert!(s.mailbox.message(m).is_some_and(|x| !x.unfetched) && !deletes, "moved back: {back}");
+    }
+}

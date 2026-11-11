@@ -517,3 +517,25 @@ fn run_rules_now_counts_only_the_messages_it_changed() {
     let id = s.mailbox.rules.iter().find(|r| r.name == "File").unwrap().id;
     assert_eq!(s.run("rules.run", &json!({"folder": kept, "id": id})).unwrap()["matched"], 0, "nothing moved in Kept");
 }
+
+/// Run Rules Now over a large Inbox of a mailbox with many folders, some of them under Deleted
+/// Items (deleted folders go there): whether each message lies under Deleted Items is looked for
+/// up from its folder, so the run doesn't walk every folder under Deleted Items for each message.
+#[test]
+fn run_rules_now_stays_quick_with_folders_under_deleted_items() {
+    let (mut s, account, inbox, _) = session();
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    for i in 0..1_000usize {
+        let parent = (i < 200).then_some(deleted);
+        s.mailbox.add_folder(account, parent, &format!("F{i}")).unwrap();
+    }
+    for i in 0..20_000 {
+        arriving(&mut s, inbox, "zoe@example.org", &format!("Plan {i}"));
+    }
+    let rule = json!({"name": "Nothing", "account": account, "conditions": [{"type": "subjectContains", "value": "zzzz"}], "actions": [{"type": "markRead"}]});
+    s.run("rules.add", &rule).unwrap();
+    let started = std::time::Instant::now();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let took = started.elapsed();
+    assert!(took.as_millis() < 1_000, "{took:?}");
+}

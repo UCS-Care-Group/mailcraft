@@ -439,8 +439,11 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     }
     // (Its categories are the server's, and what a listing left out of them stays left out.)
     m.headers_cut |= there.cut;
-    if follows {
+    if follows && m.folder != folder {
         m.folder = folder;
+        // Moved on another device before it is here whole, and back too: the rules that waited on
+        // it let it alone, as after a move here ([`Mailbox::move_message`], #566).
+        m.rules_waiting = None;
     }
     if m.unfetched {
         m.attachments_on_server = there.has_attachments;

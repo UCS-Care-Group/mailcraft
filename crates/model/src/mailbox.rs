@@ -3514,9 +3514,25 @@ impl Mailbox {
         self.act(id, &rule.actions, clock, true, from_bin, going)
     }
 
-    /// Whether message `id` lies in its account's Deleted Items, or a folder under it.
+    /// Whether message `id` lies in its account's Deleted Items, or a folder under it: looked for
+    /// up from its folder, as [`Mailbox::in_junk`] does, so that Run Rules Now over many messages
+    /// doesn't walk every folder under Deleted Items for each.
     fn in_deleted_items(&self, id: Id) -> bool {
-        self.message(id).is_some_and(|m| self.folder_of_kind(m.account, FolderKind::Deleted).is_some_and(|d| self.subtree(d).contains(&m.folder)))
+        let Some(m) = self.message(id) else { return false };
+        let Some(deleted) = self.folder_of_kind(m.account, FolderKind::Deleted) else { return false };
+        let mut cur = Some(m.folder);
+        let mut steps = 0;
+        while let Some(f) = cur.and_then(|c| self.folder(c)) {
+            if f.id == deleted {
+                return true;
+            }
+            cur = f.parent;
+            steps += 1;
+            if steps > MAX_DEPTH {
+                break;
+            }
+        }
+        false
     }
 
     /// Do what a rule says to a message: change it first, then copy it, then move it, and delete
