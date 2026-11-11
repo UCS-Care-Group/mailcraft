@@ -226,6 +226,12 @@ msgstr "1 mois"
 msgid "1 week"
 msgstr "1 semaine"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "1. Turn on 2-Step Verification for your Google account, if it isn't on yet: Google offers app passwords only then."
+msgstr "1. Activez la validation en deux étapes de votre compte Google si ce n'est pas déjà fait : Google ne propose les mots de passe d'application qu'à cette condition."
+
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -250,6 +256,12 @@ msgstr "2 semaines"
 msgid "2 years"
 msgstr "2 ans"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "2. Open Google's App passwords page, sign in, type a name such as MailCraft and press Create."
+msgstr "2. Ouvrez la page Mots de passe des applications de Google, connectez-vous, saisissez un nom comme MailCraft et appuyez sur Créer."
+
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -261,6 +273,12 @@ msgstr "3 jours"
 #, fuzzy
 msgid "3 months"
 msgstr "3 mois"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "3. Copy the 16-letter password Google shows, which it shows only once, and paste it here."
+msgstr "3. Copiez le mot de passe de 16 lettres que Google affiche, une seule fois, et collez-le ici."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5128,6 +5146,12 @@ msgid "Horizontal Line"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "How do I make an app password?"
+msgstr "Comment créer un mot de passe d'application ?"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."
@@ -5165,6 +5189,12 @@ msgstr ""
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "If Google's page says the setting isn't available, 2-Step Verification is off, or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+msgstr "Si la page de Google indique que le paramètre n'est pas disponible, la validation en deux étapes est désactivée, ou le compte n'autorise pas les mots de passe d'application (certains comptes professionnels ou scolaires, et les comptes avec la Protection avancée)."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8225,6 +8255,12 @@ msgstr "Ouvrir la boîte de dialogue"
 #, fuzzy
 msgid "Open Draft"
 msgstr "Ouvrir le brouillon"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Open Google's App passwords page"
+msgstr "Ouvrir la page Mots de passe des applications de Google"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
