@@ -15394,6 +15394,11 @@ msgid "the server accepted a password that was not sent"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server answered a command that wasn't sent"
 msgstr ""
@@ -15511,6 +15516,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/proto/src/smtp.rs
 msgid "the server offers no way to sign in with an access token"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
 msgstr ""
 
 #. why a mail server couldn't be used
