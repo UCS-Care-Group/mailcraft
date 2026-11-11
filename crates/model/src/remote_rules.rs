@@ -22,9 +22,6 @@ pub const MAX_RULE_OPS: usize = 100;
 /// as unknown, and the longest name of one.
 pub const MAX_PARTS: usize = 20;
 pub const MAX_WORDS: usize = 200;
-/// Longest address a condition about people looks for (From, Sent to): an address can be 254
-/// characters, which `rules.add` and the Rules dialog keep, and so does a server.
-pub const MAX_ADDRESS: usize = 255;
 const MAX_UNKNOWN: usize = 20;
 const MAX_PART_NAME: usize = 64;
 /// Longest text kept of why a server didn't take a change.
@@ -91,7 +88,7 @@ impl RemoteRule {
                 if words.len() > MAX_WORDS_EACH {
                     note(CUT_PARTS);
                 }
-                let longest = if matches!(condition, Condition::From(_) | Condition::SentTo(_)) { MAX_ADDRESS } else { MAX_WORDS };
+                let longest = if matches!(condition, Condition::From(_) | Condition::SentTo(_)) { crate::MAX_ADDRESS } else { MAX_WORDS };
                 let mut tidied: Vec<String> = Vec::new();
                 for t in words.iter().take(MAX_WORDS_EACH) {
                     let word = line(t, longest);

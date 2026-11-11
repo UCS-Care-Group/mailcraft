@@ -245,7 +245,8 @@ pub fn by_address(email: &str) -> bool {
 /// The people under `value`, by their whole addresses (`name@domain`), each read whole: one cut
 /// short would be somebody else's, and one longer than an address can be is refused.
 fn people(v: &Value) -> Result<Vec<String>, CmdError> {
-    let list = words_of(v, "addresses", mailcraft_model::remote_rules::MAX_ADDRESS)?;
+    // (Read one past the longest an address can be, so that a longer one is refused, not cut.)
+    let list = words_of(v, "addresses", mailcraft_model::MAX_ADDRESS + 1)?;
     match list.iter().find(|a| !by_address(a)) {
         Some(a) => Err(bad(format!("\"{a}\" isn't an address"))),
         None => Ok(list),

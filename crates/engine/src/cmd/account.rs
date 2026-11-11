@@ -997,8 +997,9 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
     // yet (`saved`): a delete for good of what one was copied from waits for the save, as the
     // original of a message moved here does, so that a quit before it loses nothing (#566: a rule
     // that copies within the account, or into an account whose server is given no copy, and
-    // deletes for good). Not one made on another server that hasn't said where (`placed`). Found
-    // when there is a delete to hold, in one pass.
+    // deletes for good). Not one made on another server that hasn't said where (`placed`). A
+    // message with no Message-ID can't be told apart: a delete of one waits for the save if any
+    // such copy is unsaved (the next autosave). Found when there is a delete to hold, in one pass.
     let deletes = mb.pending.iter().any(|p| p.account() == account && matches!(p, Pending::Delete { .. }));
     let here_only: HashSet<&str> = if saved || !deletes {
         HashSet::new()

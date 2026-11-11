@@ -1527,10 +1527,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             // back, the messages it takes away, and the drafts.
             let drafts = s.undo_drafts(redo);
             let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
+            // (Each of these works the undo out on a copy of the mailbox: once.)
+            let (places, rule_onto) = (s.undo_places(redo), s.undo_rules_onto_server(redo));
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => Some("the accounts"),
                 // What a message or a rule put on its way onto a server is is said below.
-                Some(Class::Send) if !s.undo_places(redo).is_empty() || s.undo_rules_onto_server(redo).is_some() => None,
+                Some(Class::Send) if !places.is_empty() || rule_onto.is_some() => None,
                 Some(Class::Send) => {
                     Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
@@ -1540,13 +1542,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
             let server = |a: Id| s.mailbox.account(a).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
-            let places = s.undo_places(redo);
             if !places.is_empty() {
                 // Send for a message (#566): it waits again to be made on another account's server.
                 let to: Vec<String> = places.iter().take(3).map(|a| server(*a)).collect();
                 does.push(format!("puts mail back on its way onto the server of {}", to.join(", ")));
             }
-            if let Some(a) = s.undo_rules_onto_server(redo) {
+            if let Some(a) = rule_onto {
                 // Send for the rules (#566): one that files mail onto another server is on after it.
                 does.push(format!("puts the rules back as they were, with one switched on that files mail onto the server of {}", server(a)));
             }
