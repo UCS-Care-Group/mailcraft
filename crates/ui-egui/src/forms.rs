@@ -3419,11 +3419,12 @@ mod contact {
 
     use egui::Ui;
     use mailcraft_engine::Session;
-    use mailcraft_model::{Id, Labeled, PostalAddress};
+    use mailcraft_model::{ContactKey, Id, Labeled, PostalAddress};
     use mailcraft_time::Date;
     use serde_json::{Map, Value, json};
 
     use super::kit::{Pass, body, category_chips, changes, date_hint, date_ok, date_value, error, footer, multiline, object, row, shown, tall_row};
+    use crate::files::base64_lite::encode;
     use crate::MailApp;
     use crate::widgets::icon_button;
 
@@ -3479,6 +3480,23 @@ mod contact {
         }
     }
 
+    /// One of the card's keys in the form (#30 R11): one it had, by its place on the card, or
+    /// one added from a file (a Public key, checked as `people.edit` checks it), with its bytes
+    /// as base64 for the command.
+    #[derive(Clone, Debug, PartialEq)]
+    enum CardKey {
+        Had(usize, ContactKey),
+        Added { key: ContactKey, data: String },
+    }
+
+    impl CardKey {
+        fn key(&self) -> &ContactKey {
+            match self {
+                CardKey::Had(_, key) | CardKey::Added { key, .. } => key,
+            }
+        }
+    }
+
     /// The contact form: a new contact, or an existing one being edited.
     #[derive(Clone, Debug, Default, PartialEq)]
     pub struct ContactForm {
@@ -3500,6 +3518,8 @@ mod contact {
         notes: String,
         categories: Vec<String>,
         favorite: bool,
+        /// The card's certificates and keys.
+        keys: Vec<CardKey>,
         error: String,
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
@@ -3510,6 +3530,20 @@ mod contact {
     }
 
     impl ContactForm {
+        /// Add a Public key from a file to the card (Add from file…), when there is room and it
+        /// isn't there already.
+        pub fn add_key(&mut self, key: ContactKey) -> Result<(), String> {
+            if self.keys.len() >= mailcraft_model::Contact::MAX_KEYS {
+                return Err(tl!("A contact's card keeps at most 32 certificates and keys").to_string());
+            }
+            if self.keys.iter().any(|k| k.key().data == key.data) {
+                return Err(tl!("That key is on the card already").to_string());
+            }
+            let data = encode(&key.data);
+            self.keys.push(CardKey::Added { key, data });
+            Ok(())
+        }
+
         /// A new contact, prefilled from `p` (`first`, `last`, `email`, and the other one-line
         /// fields of `people.new`).
         pub fn new(p: &Value) -> ContactForm {
@@ -3556,6 +3590,7 @@ mod contact {
                 notes: c.notes.clone(),
                 categories: c.categories.clone(),
                 favorite: c.favorite,
+                keys: c.keys.iter().take(mailcraft_model::Contact::MAX_KEYS).cloned().enumerate().map(|(i, k)| CardKey::Had(i, k)).collect(),
                 focus: true,
                 ..Default::default()
             };
@@ -3613,6 +3648,10 @@ mod contact {
                 "notes": self.notes,
                 "categories": self.categories,
                 "favorite": self.favorite,
+                "keys": self.keys.iter().map(|k| match k {
+                    CardKey::Had(i, _) => json!({"keep": i}),
+                    CardKey::Added { data, .. } => json!({"data": data}),
+                }).collect::<Vec<_>>(),
             }))
         }
 
@@ -3639,6 +3678,7 @@ mod contact {
 
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+            let mut add_key = false;
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
             let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
             let categories = app.session.mailbox.categories_of(account).to_vec();
@@ -3697,6 +3737,29 @@ mod contact {
                 tall_row(ui, tl!("Notes"), |ui| {
                     multiline(ui, "notes", &mut self.notes, 3);
                 });
+                // The card's certificates and keys (#30 R11), and the Public keys kept for its
+                // addresses, which are shown and not the card's to change.
+                tall_row(ui, tl!("Certificates"), |ui| {
+                    let t = crate::theme::Tokens::get(ui.ctx());
+                    let mut gone = None;
+                    for (i, k) in self.keys.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            if ui.small_button(tl!("Remove")).on_hover_text(tl!("Take this key off the card")).clicked() {
+                                gone = Some(i);
+                            }
+                            crate::security::card_key_line(app, ui, k.key(), &t);
+                        });
+                    }
+                    if let Some(i) = gone {
+                        self.keys.remove(i);
+                    }
+                    let emails: Vec<String> = self.emails.iter().map(|e| e.value.clone()).collect();
+                    crate::security::kept_key_lines(app, ui, &emails, &t);
+                    add_key |= ui
+                        .button(tl!("Add from file…"))
+                        .on_hover_text(tl!("An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this contact's"))
+                        .clicked();
+                });
             });
             error(ui, &self.error);
             let ready = self.ready();
@@ -3718,6 +3781,9 @@ mod contact {
             } else {
                 None
             };
+            if add_key {
+                crate::files::open(app, crate::security::PURPOSE_CARD);
+            }
             match run.map(|(command, params)| app.execute(command, params)) {
                 Some(Ok(_)) => true,
                 Some(Err(e)) => {

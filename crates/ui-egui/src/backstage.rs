@@ -726,6 +726,8 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    section(ui, tl!("Security"), t);
+    crate::security::options(app, ui, t);
     section(ui, tl!("Calendar"), t);
     let mut twelve = prefs.twelve_hour;
     if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {

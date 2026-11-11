@@ -150,6 +150,9 @@ pub enum Dialog {
     Pick(Box<crate::pick_item::Pick>),
     /// View Source: a message's source as plain text ([`crate::view_source`]).
     ViewSource(Box<crate::view_source::Source>),
+    /// File › Options › Security's: importing a private key, verifying a Public key (#30;
+    /// [`crate::security`]). Opened by their own window-only commands, never by `ui.dialog`.
+    Security(Box<crate::security::SecurityDialog>),
     /// Find and Replace in the message being written ([`crate::find_replace`]).
     FindReplace(crate::find_replace::FindReplace),
     /// Insert › Symbol ([`crate::symbol`]).
@@ -255,6 +258,7 @@ impl Dialog {
                 crate::pick_item::PickKind::Contact => "businessCard",
             },
             Dialog::ViewSource(_) => "viewSource",
+            Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
             Dialog::FindReplace(d) => {
                 if d.replace {
@@ -1434,6 +1438,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     });
     let mut close = escape;
     let mut reopen: Option<Dialog> = None;
+    // The Verify dialog's answer, run with the dialog in its place (`ui.markKeyVerified` does
+    // nothing without it).
+    let mut mark: Option<Value> = None;
     match &mut dialog {
         Dialog::Commands { query, selected } => {
             let open = window(ctx, tl!("Search Commands"), 520.0, |ui| {
@@ -2099,6 +2106,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, &title, crate::auto_replies::WIDTH, |ui| done = dialog.show(app, ui));
             close |= !open || done;
         }
+        Dialog::Security(security) => {
+            close |= crate::security::show_dialog(app, ctx, security, enter, &mut mark);
+        }
         Dialog::FolderProperties(dialog) => {
             let idle = ctx.memory(|m| m.focused().is_none());
             let over = dialog.size_open;
@@ -2112,6 +2122,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
             close |= !open || done;
         }
+    }
+    if let Some(params) = mark {
+        app.dialog = Some(dialog);
+        if let Err(e) = app.run("ui.markKeyVerified", params) {
+            app.status(e);
+        }
+        return;
     }
     if !close {
         // While it stays open the dialog is a modal layer: egui keeps the keyboard and the pointer

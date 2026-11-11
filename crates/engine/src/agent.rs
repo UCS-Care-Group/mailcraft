@@ -598,6 +598,15 @@ const NEVER: &[&str] = &[
     // installed-app registration value, even when granted account/settings commands.
     "ui.googleClientId",
     "ui.googleClientSecret",
+    // The owner's own keys (#30 R12, R13): imported, removed and looked for in the window only,
+    // through a file picker and a passphrase typed there; and a key marked Verified only by the
+    // owner, in the dialog that shows its fingerprint (R6, R23).
+    "ui.importPrivateKey",
+    "ui.removePrivateKey",
+    "ui.refreshOwnKeys",
+    "ui.importPublicKey",
+    "ui.verifyKey",
+    "ui.markKeyVerified",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).

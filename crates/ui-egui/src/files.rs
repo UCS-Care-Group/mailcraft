@@ -428,6 +428,12 @@ fn on_message(mut params: Value, asking: Option<u64>) -> Value {
 }
 
 fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>) -> Result<Value, String> {
+    // A key file (#30): read here, at most a key file's size, and handed on as bytes, never as a
+    // path a command opens.
+    if crate::security::is_purpose(purpose) {
+        crate::security::picked(app, purpose, path, read_key_file(path));
+        return Ok(json!({"picked": purpose}));
+    }
     let r = match purpose {
         "mailbox" => app.run("file.open", json!({"path": path})),
         "attach" => app.run("compose.attach", on_message(json!({"path": path}), asking)),
@@ -443,6 +449,31 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str, asking: Option<u64>
         app.ui.backstage = false;
     }
     r
+}
+
+/// The key file at `path`, of at most [`crate::own_keys::MAX_FILE`] bytes.
+fn read_key_file(path: &str) -> Result<Vec<u8>, String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::io::Read as _;
+        let too_large = || tl!("That file is larger than a key file can be.").to_string();
+        let file = std::fs::File::open(path).map_err(|e| crate::i18n::fmt(tl!("The file couldn't be read ({why})"), &[("why", &e.kind().to_string())]))?;
+        let max = crate::own_keys::MAX_FILE as u64;
+        if file.metadata().map(|m| !m.is_file() || m.len() > max).unwrap_or(true) {
+            return Err(too_large());
+        }
+        let mut bytes = Vec::new();
+        file.take(max.saturating_add(1)).read_to_end(&mut bytes).map_err(|e| e.kind().to_string())?;
+        if bytes.len() as u64 > max {
+            return Err(too_large());
+        }
+        Ok(bytes)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = path;
+        Err(tl!("The browser can't read files by path").to_string())
+    }
 }
 
 /// The mailbox file at `path` was opened: first in File's Recent, and File closes.
@@ -639,6 +670,11 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
 /// One file that arrived: opened, brought in, attached or put in the body, as it was picked for.
 fn delivered_one(app: &mut MailApp, d: crate::Delivered) {
     let (purpose, asking) = d.asked.unwrap_or_else(|| (purpose_of(app, &d.name).to_string(), crate::windows::compose_window::target(app)));
+    if crate::security::is_purpose(&purpose) {
+        let bytes = d.bytes.map_err(|_| crate::i18n::fmt(tl!("{name} couldn't be read"), &[("name", &d.name)]));
+        crate::security::picked(app, &purpose, &d.name, bytes);
+        return;
+    }
     let bytes = match d.bytes {
         Ok(bytes) => bytes,
         Err(why) => {
