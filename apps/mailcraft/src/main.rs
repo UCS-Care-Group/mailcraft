@@ -1476,7 +1476,9 @@ fn categories_job_with(
         // (Reading takes the calendar's permission: its job says what there is to say.)
         Err(NetError::Forbidden(_)) => {}
         Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
-        Err(e) => log::debug!("the list of categories didn't come down after the changes: {e}"),
+        // A failure of the job, said as one, and what goes next waits as after any (the
+        // calendar's job reads the list again meanwhile).
+        Err(e) => out.errors.push(format!("Couldn't read the categories from Microsoft: {e}")),
     }
     out
 }

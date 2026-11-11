@@ -137,3 +137,19 @@ fn a_sign_in_microsoft_no_longer_takes_is_told_apart_from_a_failure() {
     assert_eq!(out.errors.len(), 1);
     assert!(!out.errors[0].contains("re-fresh"), "{}", out.errors[0]);
 }
+
+/// A read of the list that fails (no connection, a server error) is a failure of the job, said
+/// as one; the calendar's permission not covering it says nothing here (its job says it).
+#[test]
+fn a_read_of_the_list_that_fails_is_a_failure() {
+    let read = |_: &str| -> Result<CategoriesDownload, NetError> { Err(NetError::Proto(mailcraft_proto::ProtoError::Io("no connection".into()))) };
+    for changes in [Vec::new(), vec![create()]] {
+        let push = told(Some(CategoryResult::Done));
+        let out = categories_job_with(job(changes), &given, &CategoriesGraph { push: &push, read: &read });
+        assert!(out.download.is_none() && out.errors.len() == 1, "{:?}", out.errors);
+    }
+    let read = |_: &str| -> Result<CategoriesDownload, NetError> { Err(NetError::Forbidden("calendar".into())) };
+    let push = |_: &str, _: &CategoriesUpload| -> CategoriesUploaded { panic!("nothing waits") };
+    let out = categories_job_with(job(Vec::new()), &given, &CategoriesGraph { push: &push, read: &read });
+    assert!(out.errors.is_empty());
+}
