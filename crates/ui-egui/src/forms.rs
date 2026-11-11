@@ -4982,6 +4982,15 @@ pub(crate) mod rules {
         });
     }
 
+    /// The folder a move or a copy of the builder keeps when "Rules for" goes from the account
+    /// `before` to `now`: one of `before`'s own was its own mail's folder, and becomes `now`'s
+    /// first (`first`), as one that isn't among `now`'s choices does; a move or a copy into an
+    /// account's folder would otherwise put `now`'s mail on that other account's server.
+    pub(crate) fn folder_after_switch(mb: &Mailbox, before: Id, now: Id, folder: Id, choices: &[(Id, String)], first: Id) -> Id {
+        let theirs = before != now && mb.folder(folder).is_some_and(|f| f.account == before);
+        if theirs || !choices.iter().any(|f| f.0 == folder) { first } else { folder }
+    }
+
     /// The Rules dialog.
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
     pub struct RulesForm {
@@ -5060,14 +5069,13 @@ pub(crate) mod rules {
 
         /// Show the rules of `account`: a new rule is for its mail, and moves it to its folders.
         fn choose(&mut self, mb: &Mailbox, account: Id) {
+            let before = self.account;
             self.account = account;
             self.folders = move_choices(mb, account);
             self.first_folder = mb.folder_of_kind(account, FolderKind::Archive).or(self.folders.first().map(|f| f.0)).unwrap_or(0);
             let (folders, first) = (&self.folders, self.first_folder);
             for a in &mut self.acts {
-                if !folders.iter().any(|f| f.0 == a.folder) {
-                    a.folder = first;
-                }
+                a.folder = folder_after_switch(mb, before, account, a.folder, folders, first);
             }
             // The mail already there that the new rule may run over is the account's own.
             if self.run_in.as_ref().is_some_and(|(f, _)| mb.folder(*f).is_none_or(|f| f.account != account)) {
