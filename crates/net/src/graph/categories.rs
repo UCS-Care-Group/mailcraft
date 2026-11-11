@@ -35,7 +35,9 @@ use crate::http;
 ///   colour it has already is not sent: [`CategoryResult::Done`]. So is a change of colour of one
 ///   it deleted meanwhile: the next read takes it away here too.
 /// - made (201), changed (200), deleted (204), any other 2xx, a deletion answered 404 or 410, a
-///   creation answered 409 (made there meanwhile): [`CategoryResult::Done`].
+///   creation answered 409 (made there meanwhile: Graph documents only that a name is unique in
+///   the list, not the code a second one gets, so any other refusal of it is said as refused and
+///   the category stays on this computer): [`CategoryResult::Done`].
 /// - 403: [`CategoryResult::Denied`]; the rest of the upload is left untried.
 /// - 412, 429, 503, 504, any other 5xx, no connection, the list not to be read: nothing more is
 ///   tried ([`CategoryResult::Failed`] for the change that was on its way), and all of it goes
