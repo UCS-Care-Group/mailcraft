@@ -782,8 +782,8 @@ fn a_reply_in_a_shared_mailbox_starts_with_its_own_reply_signature_and_the_owner
 
 /// The owner's rules leave a shared mailbox's mail alone however they are run, as arriving mail
 /// is left alone and `rules.fromMessage` refuses one of its messages: Run Rules Now over its
-/// Inbox is refused, and a rule for every account (`rules.add` without `account`, an agent's or
-/// a script's) that deletes for good deletes nothing on the shared mailbox's server.
+/// Inbox is refused, and a rule for every account (as a mailbox from before rules had accounts
+/// holds) that deletes for good deletes nothing on the shared mailbox's server.
 #[test]
 fn run_rules_now_over_a_shared_mailbox_leaves_its_mail_alone() {
     let (mut s, owner, shared) = both();
@@ -792,7 +792,8 @@ fn run_rules_now_over_a_shared_mailbox_leaves_its_mail_alone() {
     assert_eq!(before.len(), 2);
     let gone =
         json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "support@example.org"}], "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &gone).unwrap();
+    let every = s.run("rules.add", &gone).unwrap()["id"].as_u64().unwrap();
+    s.mailbox.rules.iter_mut().find(|r| r.id == every).unwrap().account = 0;
     let mut mine = gone.clone();
     (mine["account"], mine["server"]) = (json!(owner), json!(false));
     s.run("rules.add", &mine).unwrap();

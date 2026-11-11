@@ -1017,7 +1017,9 @@ fn removing_an_account_takes_its_rules_with_it() {
     add(&mut s, account, "Mine", json!([{"type": "subjectContains", "value": "digest"}]), json!([{"type": "delete"}]));
     news_rule(&mut s, account, news);
     add(&mut s, local, "Local", json!([{"type": "hasAttachment"}]), json!([{"type": "markRead"}]));
-    run(&mut s, "rules.add", json!({"name": "Everyone", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]}));
+    // A rule for every account's mail, as a mailbox from before rules had accounts holds.
+    let everyone = add(&mut s, local, "Everyone", json!([{"type": "hasAttachment"}]), json!([{"type": "markRead"}]));
+    s.mailbox.rules.iter_mut().find(|r| r.id == everyone).unwrap().account = 0;
     run(&mut s, "account.remove", json!({"id": account}));
     let left: Vec<(&str, Id)> = s.mailbox.rules.iter().map(|r| (r.name.as_str(), r.account)).collect();
     assert_eq!(left, [("Local", local), ("Everyone", 0)]);
@@ -1210,12 +1212,11 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
     let mut left_out = flag.clone();
     left_out.as_object_mut().unwrap().remove("server");
     assert_eq!(run(&mut s, "rules.add", left_out)["keep"], "here");
-    // So is a move out of the account (to one on this computer alone), and a server for a rule of every account or of an account
-    // whose server keeps none.
+    // So is a move out of the account (to one on this computer alone), and a server for a rule of an account whose server keeps
+    // none.
     let inbox_here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     let out = json!({"name": "Out", "account": account, "server": true, "conditions": digest, "actions": [{"type": "moveTo", "value": inbox_here}]});
     assert!(s.run("rules.add", &out).unwrap_err().to_string().contains("on this computer"));
-    assert!(s.run("rules.add", &json!({"name": "All", "server": true, "conditions": digest, "actions": [{"type": "markRead"}]})).is_err());
     assert!(
         s.run("rules.add", &json!({"name": "Here", "account": local, "server": true, "conditions": digest, "actions": [{"type": "markRead"}]}))
             .is_err()
@@ -1517,14 +1518,14 @@ fn a_rule_filing_within_its_own_account_isnt_said_to_go_onto_another_server() {
     // With another account whose mail could be filed there, the question said a rule of the
     // account's own moved its mail "onto the server of" that same account.
     let (mut s, account, _, _) = session();
-    run(&mut s, "account.add", json!({"email": "other@example.org", "kind": "microsoft"}));
+    let other = run(&mut s, "account.add", json!({"email": "other@example.org", "kind": "microsoft"}))["id"].as_u64().unwrap();
     let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
     let mut rule = json!({"name": "File", "account": account, "server": false, "conditions": [{"type": "toMe"}],
         "actions": [{"type": "moveTo", "value": archive}, {"type": "copyTo", "value": archive}]});
     let asked = crate::agent::describe(&s, "rules.add", &rule);
     assert!(asked.contains("move it to ") && asked.contains("copy it to ") && !asked.contains("onto the server"), "{asked}");
-    // A rule for every account's mail does put the other's there.
-    rule.as_object_mut().unwrap().remove("account");
+    // A rule for the other account's mail does put it there.
+    rule["account"] = json!(other);
     let asked = crate::agent::describe(&s, "rules.add", &rule);
     assert!(asked.contains("move it onto the server of ") && asked.contains("copy it onto the server of "), "{asked}");
 }
@@ -1778,4 +1779,30 @@ fn run_rules_now_over_deleted_items_with_a_rule_that_deletes_is_asked_as_a_delet
     assert_eq!(classify(&s, "rules.run", &json!({"folder": deleted})), Access::Owner(Class::Delete));
     let asked = describe(&s, "rules.run", &json!({"folder": deleted}));
     assert!(asked.contains("and the rule \u{201c}Bin\u{201d} deletes mail permanently"), "{asked}");
+}
+
+/// A new rule is always for one account's mail (#566): `rules.add` without `account` makes it for
+/// the account of the folder in view, as `rules.move` reads it, and is refused when that folder
+/// is no account's. A script or an agent can't make a rule for every account any more.
+#[test]
+fn a_rule_made_without_an_account_is_for_the_account_in_view() {
+    let (mut s, account, local, news) = session();
+    let params = |name: &str| json!({"name": name, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]});
+    s.view.folder = news;
+    let made = run(&mut s, "rules.add", params("Microsoft's"));
+    let id = made["id"].as_u64().unwrap();
+    assert_eq!((rule(&s, id).account, made["keep"].as_str()), (account, Some("server")));
+    s.view.folder = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let id = run(&mut s, "rules.add", params("Local"))["id"].as_u64().unwrap();
+    assert_eq!(rule(&s, id).account, local);
+    // The agent's question says what the command then makes.
+    s.view.folder = news;
+    let asked = crate::agent::describe(&s, "rules.add", &params("Asked"));
+    assert!(asked.contains(EMAIL), "{asked}");
+    // A folder that is no account's: refused, the rules as they were.
+    let before = s.mailbox.rules.clone();
+    s.view.folder = 0;
+    let refused = s.run("rules.add", &params("Nobody's")).unwrap_err().to_string();
+    assert!(refused.contains("`account`"), "{refused}");
+    assert_eq!(s.mailbox.rules, before);
 }

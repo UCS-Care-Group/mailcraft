@@ -20,7 +20,7 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account of the folder in view, a shared mailbox's owner's), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -358,11 +358,20 @@ fn own_account(mb: &Mailbox, account: Id) -> Id {
     }
 }
 
-/// The account a new rule is for: the one `v` names, or none (for every account's mail, kept on
-/// this computer, as rules were before they had accounts: what a script that names none asked
-/// for then).
+/// The account a new rule is for: the one `v` names, or else that of the folder in view (a
+/// shared mailbox's owner's), as `rules.move` reads it. A new rule is always for one account's
+/// mail (#566): one for every account's is only what a mailbox from before rules had accounts
+/// holds.
 fn rule_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let Some(account) = p::id_strict(v, "account")? else { return Ok(0) };
+    let account = match p::id_strict(v, "account")? {
+        Some(account) => account,
+        None => s
+            .mailbox
+            .folder(s.view.folder)
+            .map(|f| own_account(&s.mailbox, f.account))
+            .filter(|a| s.mailbox.account(*a).is_some())
+            .ok_or_else(|| bad("say whose mail the rule is for (`account`): the folder in view is no account's"))?,
+    };
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.is_shared() {
         return Err(fail("a rule is for an account's own mail, not a shared mailbox's"));

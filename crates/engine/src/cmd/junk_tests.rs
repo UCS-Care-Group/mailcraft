@@ -641,7 +641,7 @@ fn graph_rule_to_local() -> (Session, Id, Id, Id) {
     let kept_here = s.mailbox.folder_of_kind(local, FolderKind::Archive).unwrap();
     s.run(
         "rules.add",
-        &json!({"name": "News", "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": kept_here}]}),
+        &json!({"name": "News", "account": account, "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": kept_here}]}),
     )
     .unwrap();
     (s, account, local, kept_here)
