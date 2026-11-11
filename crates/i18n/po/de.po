@@ -6005,7 +6005,7 @@ msgstr "Warten Sie weiter, dann erfolgt der Wechsel von selbst, sobald MailCraft
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Keep {address}"
-msgstr ""
+msgstr "{address} beibehalten"
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -8270,7 +8270,7 @@ msgstr "Bestätigen Sie nur, wenn Sie diesen Server kennen."
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
-msgstr ""
+msgstr "Behalten Sie Ihre Adresse mit eigener Domäne nur bei, wenn beide Adressen Aliase desselben Microsoft-Postfachs sind."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
