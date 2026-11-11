@@ -2674,9 +2674,12 @@ fn an_undo_or_redo_of_a_rule_change_asks_for_the_categories_the_rules_may_then_g
     s.run("rules.remove", &json!({"id": 902})).unwrap();
     s.run("edit.undo", &json!({})).unwrap();
     asked(&s, "edit.redo");
-    // With the name on the list, nothing is asked for it.
+    // A step that leaves the rules as they are asks what it asked before.
     let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
     let m = s.mailbox.add_message(Message { folder: inbox, ..Default::default() }).unwrap();
+    s.run("mail.flag", &json!({"id": m})).unwrap();
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Run);
+    // With the name on the list, nothing is asked for it.
     s.run("mail.categorize", &json!({"ids": [m], "category": "Zed"})).unwrap();
     assert!(s.mailbox.category_of(a, "Zed").is_some());
     s.run("rules.remove", &json!({"id": 903})).unwrap();
