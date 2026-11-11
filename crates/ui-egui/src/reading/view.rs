@@ -180,6 +180,7 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 gap: if n == 0 { block.gap } else { 0 },
                 line_height: block.line_height,
                 inset: block.inset,
+                image_padding: block.image_padding,
                 line: block.line,
             });
             cuts.push((n > 0).then_some(glue));

@@ -306,7 +306,11 @@ fn check(laid: &Laid, t: &Tokens, what: &str) {
                     section.format.color,
                     if t.dark { "dark" } else { "light" }
                 );
-                assert!((9.0..=33.0).contains(&section.format.font_id.size), "{what}: text of size {}", section.format.font_id.size);
+                assert!(
+                    (9.0..=f32::from(mailcraft_html::MAX_FONT_PX)).contains(&section.format.font_id.size),
+                    "{what}: text of size {}",
+                    section.format.font_id.size
+                );
             }
         }
     }
@@ -4161,6 +4165,83 @@ fn small_pictures_in_a_table_in_a_centred_cell_stand_in_the_middle() {
         let centre = (pictures[0].rect.min.x + pictures[1].rect.max.x) / 2.0;
         assert!((centre - 300.0).abs() < 0.5, "{:?} {:?}", pictures[0].rect, pictures[1].rect);
     });
+}
+
+#[test]
+fn an_inner_percentage_table_can_keep_a_centred_wrapper_at_content_width() {
+    let icons: String = (0..5)
+        .map(|i| {
+            let pad = if i < 4 { 32 } else { 0 };
+            format!("<td style='width:20%'><img src='cid:tick-16@quillon.example' width='40' height='40' style='padding-right:{pad}px'></td>")
+        })
+        .collect();
+    let html = format!(
+        "<table align='center'><tr><td style='padding:20px 0'><table width='100%' cellspacing='0'><tr>{icons}</tr></table></td></tr></table>"
+    );
+    let message = html_message(53, ("Digest", "digest@bellweather.example"), "Icons", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &message, 600.0);
+        let icons = shown_pictures(&laid);
+        assert_eq!(icons.len(), 5);
+        for (index, icon) in icons.iter().enumerate() {
+            assert_eq!(icon.rect.size(), egui::vec2(40.0, 40.0));
+            assert_eq!(icon.rect.min, egui::pos2(136.0 + index as f32 * 72.0, 20.0));
+        }
+    });
+}
+
+/// An inner full-width header bar fills its auto-sized wrapper in either alignment.
+#[test]
+fn a_short_header_bar_in_a_nested_table_keeps_its_alignment() {
+    in_frame(false, |ctx| {
+        for align in ["center", "right"] {
+            let html = format!(
+                "<table role='presentation' width='600' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' align='{align}' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' width='100%' bgcolor='#d8e6da' cellspacing='0'><tr><td style='padding:0'>Header</td></tr></table>\
+                 </td></tr></table></td></tr></table>"
+            );
+            let message = html_message(56, ("Digest", "digest@bellweather.example"), "Header", &html);
+            let laid = lay_out(ctx, &message, 700.0);
+            let bar = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Fill { .. })).unwrap().rect;
+            assert!((24.0..120.0).contains(&bar.width()), "{align}: {bar:?}");
+            let offset = if align == "center" { bar.center().x - 300.0 } else { bar.max.x - 600.0 };
+            assert!(offset.abs() < 1.0, "{align}: {bar:?}");
+        }
+    });
+}
+
+/// The picture mark fits a narrow reading slot even when its requested padding does not.
+#[test]
+fn a_padded_picture_placeholder_fits_its_slot() {
+    let html = "<img src='https://example.org/icon.png' width='24' height='24' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(54, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    in_frame(false, |ctx| {
+        for (width, left) in [(40.0, 8.0), (200.0, 88.0)] {
+            let laid = lay_out(ctx, &message, width);
+            let placeholder = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Placeholder(_))).unwrap();
+            assert_eq!(placeholder.rect.width(), 24.0);
+            assert_eq!(placeholder.rect.min.x, left);
+            assert!(placeholder.rect.max.x <= laid.width());
+        }
+    });
+}
+
+/// A decoded picture keeps its size until the slot itself is too small, then scales to fit.
+#[test]
+fn a_padded_decoded_picture_keeps_space_for_its_pixels() {
+    let html = "<img src='cid:tick-16@quillon.example' width='80' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(55, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            for (width, size, left) in [(100.0, 80.0, 10.0), (60.0, 60.0, 0.0), (250.0, 80.0, 85.0)] {
+                let laid = lay_out(ctx, &message, width);
+                let picture = shown_pictures(&laid)[0];
+                assert_eq!(picture.rect.size(), egui::Vec2::splat(size));
+                assert_eq!(picture.rect.min.x, left);
+            }
+        });
+    }
 }
 
 #[test]
