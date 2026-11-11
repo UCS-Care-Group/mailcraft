@@ -6,7 +6,7 @@ use crate::{Date, DateTime, MINUTE, Timestamp, Weekday, month_short, parse_month
 
 /// `Tue, 01 Jul 2003 10:52:37 +0200` for an instant, written in a zone `offset_minutes` east of UTC.
 pub fn format_rfc5322(ts: Timestamp, offset_minutes: i32) -> String {
-    let off = offset_minutes.clamp(-24 * 60, 24 * 60);
+    let off = offset_minutes.clamp(-(23 * 60 + 59), 23 * 60 + 59);
     let t = DateTime::from_timestamp(ts, off);
     let sign = if off < 0 { '-' } else { '+' };
     let a = off.unsigned_abs();
