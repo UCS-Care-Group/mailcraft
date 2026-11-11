@@ -9,8 +9,10 @@
 //! Two requests are made of it, as Resend's API reference has them: `GET /emails/receiving` lists
 //! what came, newest first, a hundred at a time, and `GET /emails/receiving/{id}` says where the
 //! message's bytes are; those are then fetched from the signed address Resend gives (on a host
-//! under `resend.com`, over TLS, as are the redirects followed from it), with nothing of the
-//! owner's sent along. The calls are paced ([`PACE`]): Resend's limit is the whole team's.
+//! under `resend.com` or Amazon's `cloudfront.net`, over TLS, as are the redirects followed from
+//! it), with nothing of the owner's sent along. The calls are paced ([`PACE`]): Resend's limit is
+//! the whole team's. Resend lists what came to every domain of the team: the account keeps what
+//! was written to its own address's domain ([`is_for`]).
 //!
 //! The account has one folder there, its Inbox ([`INBOX`]). Resend knows no flags, moves or
 //! folders: what the owner changes here stays here, and the run says the change is done so that
@@ -82,7 +84,7 @@ pub(super) fn exchange(run: &mut Run) {
     run.hand_over(SyncStep::new(SyncStage::Connecting, "", 0, 0));
     run.out.listed = vec![ListedFolder { remote: INBOX.into(), kind: FolderKind::Inbox, parent: String::new(), name: "Inbox".into() }];
     let (key, cancel) = (request.secret(), run.cancel);
-    let (listed, reached) = match list_since(key, inbox(request).1, cancel) {
+    let (mut listed, reached) = match list_since(key, inbox(request).1, cancel) {
         Ok(listed) => listed,
         Err(e) => {
             run.failed("Couldn't check for new mail", &e);
@@ -95,6 +97,8 @@ pub(super) fn exchange(run: &mut Run) {
             MAX_PAGES * 100
         ));
     }
+    let domain = request.account.email.rsplit_once('@').map_or("", |(_, domain)| domain);
+    listed.retain(|listed| is_for(&listed.said, domain));
     let largest = run.limits.largest;
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
     bring(run, listed, now, &mut |id| fetch(key, id, largest, cancel));
@@ -339,6 +343,19 @@ pub(super) fn read_page(body: &[u8]) -> Option<(Vec<Listed>, bool)> {
     Some((page, more))
 }
 
+/// Whether a message of Resend's list was written to an address at `domain` (To, Cc or Bcc as the
+/// list gives them, `Name <a@b>` or bare).
+pub(super) fn is_for(said: &Value, domain: &str) -> bool {
+    let domain = domain.trim().trim_end_matches('.');
+    !domain.is_empty()
+        && ["to", "cc", "bcc"].iter().filter_map(|field| said.get(field).and_then(Value::as_array)).flatten().take(300).filter_map(Value::as_str).any(
+            |text| {
+                let address = text.rsplit_once('<').map_or(text, |(_, rest)| rest.split('>').next().unwrap_or(rest));
+                address.trim().rsplit_once('@').is_some_and(|(_, at)| at.trim_end_matches('.').eq_ignore_ascii_case(domain))
+            },
+        )
+}
+
 /// The messages oldest first, each with its UID: the steps of [`SLOTS`] since [`BASE`] to the
 /// second it came in, and which of that second's messages it is.
 pub(super) fn numbered(mut listed: Vec<Listed>) -> Vec<(u32, Listed)> {
@@ -473,13 +490,16 @@ pub(super) fn may_go_to(url: &Url) -> Result<(), NetError> {
     Err(NetError::Config("a Resend API key is only shown to Resend's API".into()))
 }
 
-/// Whether a message's bytes may be fetched from `url`: Resend's own, over TLS.
+/// Whether a message's bytes may be fetched from `url`: Resend's own, or the CloudFront address
+/// Resend's API reference says it signs, over TLS.
 pub(super) fn raw_may_come_from(url: &Url) -> Result<(), NetError> {
     let host = url.host.trim_end_matches('.').to_ascii_lowercase();
-    if url.secure && url.port == 0 && (host == "resend.com" || host.ends_with(".resend.com")) {
+    let under = |domain: &str| host == domain || host.strip_suffix(domain).is_some_and(|rest| rest.ends_with('.'));
+    if url.secure && url.port == 0 && (under("resend.com") || under("cloudfront.net")) {
         return Ok(());
     }
-    Err(NetError::Config("Resend said a message is somewhere that isn't Resend's".into()))
+    // The host alone: the signature is in the rest of the address.
+    Err(NetError::Config(format!("Resend said a message is at {host}, which isn't Resend's")))
 }
 
 #[cfg(test)]

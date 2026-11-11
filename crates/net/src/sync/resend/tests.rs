@@ -60,7 +60,8 @@ fn the_key_goes_to_resends_api_alone_and_the_bytes_come_from_resend() {
         assert!(may_go_to(&url(elsewhere)).is_err(), "{elsewhere}");
     }
     assert!(raw_may_come_from(&url("https://inbound-cdn.resend.com/raw/1?Signature=x")).is_ok());
-    for elsewhere in ["https://resend.com.example/raw", "https://evilresend.com/raw", "http://127.0.0.1/raw"] {
+    assert!(raw_may_come_from(&url("https://d1a2b3c4.cloudfront.net/raw/1?Signature=x")).is_ok());
+    for elsewhere in ["https://resend.com.example/raw", "https://evilresend.com/raw", "http://127.0.0.1/raw", "https://evilcloudfront.net/raw"] {
         assert!(raw_may_come_from(&url(elsewhere)).is_err(), "{elsewhere}");
     }
     assert!(is_id("4ef9a417-02e9-4d39-ad75-9611e0fcc33c") && !is_id("a/b") && !is_id("") && !is_id(&"a".repeat(65)));
@@ -241,4 +242,16 @@ fn what_is_asked_again_or_put_into_the_account_is_settled_and_said() {
     let result = brought(&request, Vec::new(), &mut |id: &str| Ok(mail(id)));
     assert_eq!(result.folders[0].refetch_done, [5]);
     assert!(result.errors.iter().any(|e| e.contains("can't send a message it received again")));
+}
+
+#[test]
+fn only_mail_written_to_the_accounts_domain_is_kept() {
+    let to = |field: &str, address: &str| json!({ field: [address] });
+    assert!(is_for(&to("to", "owner@example.org"), "example.org"));
+    assert!(is_for(&to("cc", "Owner <Someone@EXAMPLE.org>"), "example.org"));
+    assert!(is_for(&to("bcc", "x@example.org."), "example.org"));
+    assert!(!is_for(&to("to", "owner@other.example"), "example.org"));
+    assert!(!is_for(&to("to", "owner@sub.example.org"), "example.org"));
+    assert!(!is_for(&to("to", "owner@example.org"), ""));
+    assert!(!is_for(&json!({ "to": "owner@example.org" }), "example.org"));
 }
