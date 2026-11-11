@@ -3251,6 +3251,12 @@ impl Session {
         if crate::agent::places_tasks(now, to) {
             return Some(Class::Send);
         }
+        // A message the step puts on its way onto another account's server again, or a rule it
+        // brings back or switches on that files mail there (#566): an agent's move there, or its
+        // rule that does, is a send too.
+        if !self.undo_places(redo).is_empty() || self.undo_rules_onto_server(redo).is_some() {
+            return Some(Class::Send);
+        }
         if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
@@ -3258,6 +3264,32 @@ impl Session {
             return Some(Class::Settings);
         }
         None
+    }
+
+    /// The accounts on whose servers undoing the last step (or redoing, `redo`) puts a message on
+    /// its way again: one brought back that waits to be made there and doesn't wait now (#566).
+    /// Read off the queue the undo itself makes, by the merge it runs (on a copy, O(n)).
+    pub fn undo_places(&self, redo: bool) -> Vec<Id> {
+        use mailcraft_model::Queued;
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
+        let waits = |q: &Queued| match q {
+            Queued::PlaceMessage { account, message, .. } => Some((*account, *message)),
+            _ => None,
+        };
+        let now: std::collections::BTreeSet<(Id, Id)> = self.mailbox.queued.iter().filter_map(waits).collect();
+        let mut onto: Vec<Id> = back.queued.iter().filter_map(waits).filter(|w| !now.contains(w)).map(|(account, _)| account).collect();
+        onto.sort_unstable();
+        onto.dedup();
+        onto
+    }
+
+    /// The account on whose server a rule files mail, when undoing the last step (or redoing,
+    /// `redo`) changes the rules and leaves such a rule switched on (#566), as
+    /// [`Session::undo_rules_delete_for_good`] reads a rule that deletes.
+    pub fn undo_rules_onto_server(&self, redo: bool) -> Option<Id> {
+        let step = if redo { self.redo.last() } else { self.history.last() }?;
+        crate::agent::undo_rules_onto_another_server(self, &step.mailbox)
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,

@@ -1683,3 +1683,30 @@ fn an_undo_that_puts_back_the_accounts_and_a_rule_that_deletes_for_good_is_asked
     assert!(matches!(undo(&s, &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
     assert_eq!(undo(&s, &[Class::Accounts, Class::Delete]), Verdict::Run);
 }
+
+/// A rule that copies or moves this computer's mail onto the Microsoft account's server is a
+/// send for an agent to make; deleted by the owner, an agent's Undo brings it back, and it files
+/// the next mail there. That undo is asked as a send too, as `rules.add` of the same rule is.
+#[test]
+fn an_agents_undo_that_brings_back_a_rule_filing_onto_another_server_is_asked_as_a_send() {
+    use crate::agent::{Access, Class, classify, describe};
+    let mut found = Vec::new();
+    for kind in ["copyTo", "moveTo"] {
+        let (mut s, account, local, news) = session();
+        let params = json!({"name": "Up", "account": local, "conditions": [{"type": "fromContains", "value": "news@example.org"}], "actions": [{"type": kind, "value": news}]});
+        assert_eq!(classify(&s, "rules.add", &params), Access::Owner(Class::Send), "{kind}");
+        let id = run(&mut s, "rules.add", params)["id"].as_u64().unwrap();
+        run(&mut s, "rules.remove", json!({"id": id}));
+        let undo = classify(&s, "edit.undo", &json!({}));
+        let said = describe(&s, "edit.undo", &json!({}));
+        run(&mut s, "edit.undo", json!({}));
+        // The rule is back, and the next mail of this computer goes onto the Microsoft server.
+        let m = arriving(&mut s, local, "news@example.org", "Weekly");
+        s.mailbox.apply_rules(m, &s.rule_clock());
+        let up = s.mailbox.queued.iter().filter(|q| matches!(q, mailcraft_model::Queued::PlaceMessage { account: a, .. } if *a == account)).count();
+        assert_eq!(up, 1, "{kind}: on its way onto the server");
+        found.push(format!("{kind}: {undo:?}, said: {said}"));
+    }
+    assert!(found.iter().all(|f| f.contains("Owner(Send)")), "an agent's undo that brings the rule back is asked as a send: {found:#?}");
+    assert!(found.iter().all(|f| f.contains("one switched on that files mail onto the server of")), "{found:#?}");
+}

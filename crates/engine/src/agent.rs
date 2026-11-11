@@ -1001,6 +1001,16 @@ pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
     to.rules != now.rules && to.rules.iter().any(deletes_here)
 }
 
+/// The account on whose server a rule files mail, when an undo or redo from the rules of the
+/// mailbox now to those of `to` changes them and leaves such a rule switched on (#566), as
+/// [`undo_rules_delete_for_good`] reads one that deletes: any change may let more mail reach it.
+pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Option<Id> {
+    if to.rules == s.mailbox.rules {
+        return None;
+    }
+    to.rules.iter().filter(|r| r.enabled).find_map(|r| rule_onto_server(s, r, one_account(r)))
+}
+
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
 /// it runs there whether MailCraft is open or not, undo doesn't reach it, and the agent couldn't
 /// delete it again itself (#566). What a rule with parts not known here does isn't known: it may
@@ -1519,6 +1529,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => Some("the accounts"),
+                // What a message or a rule put on its way onto a server is is said below.
+                Some(Class::Send) if !s.undo_places(redo).is_empty() || s.undo_rules_onto_server(redo).is_some() => None,
                 Some(Class::Send) => {
                     Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
@@ -1527,6 +1539,17 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 _ => Some("the rules, signatures or Safe and Blocked Senders"),
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
+            let server = |a: Id| s.mailbox.account(a).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+            let places = s.undo_places(redo);
+            if !places.is_empty() {
+                // Send for a message (#566): it waits again to be made on another account's server.
+                let to: Vec<String> = places.iter().take(3).map(|a| server(*a)).collect();
+                does.push(format!("puts mail back on its way onto the server of {}", to.join(", ")));
+            }
+            if let Some(a) = s.undo_rules_onto_server(redo) {
+                // Send for the rules (#566): one that files mail onto another server is on after it.
+                does.push(format!("puts the rules back as they were, with one switched on that files mail onto the server of {}", server(a)));
+            }
             if s.undo_rules_delete_for_good(redo) {
                 // Delete for the rules (#566): one that deletes mail permanently is on after it.
                 does.push("puts the rules back as they were, with one switched on that deletes mail permanently".to_string());

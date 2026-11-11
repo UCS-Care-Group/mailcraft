@@ -906,3 +906,69 @@ fn check_again_on_a_copy_whose_bytes_its_microsoft_server_refused_says_they_are_
     assert!(why.contains("a part was removed"), "{why}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A message of this computer moved into a Microsoft account, then deleted for good before its
+/// server had it. An agent's Undo of that delete puts it on its way onto the Microsoft server
+/// again (#566), as an agent's own move there would: asked as a send, as `mail.move` there is,
+/// naming the server.
+#[test]
+fn an_agents_undo_that_puts_a_message_back_on_its_way_onto_a_microsoft_server_is_asked_as_a_send() {
+    use crate::agent::{Class, Verdict, check};
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, "owner@example.org");
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let id = s.mailbox.add_message(Message { folder: here, account: local, subject: "Private".into(), ..Default::default() }).unwrap();
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let waits = |s: &Session| {
+        s.mailbox
+            .queued
+            .iter()
+            .filter(|q| matches!(q, mailcraft_model::Queued::PlaceMessage { account, message, .. } if *message == id && *account == ms))
+            .count()
+    };
+    // An agent's move there is a send.
+    let moving = json!({"ids": [id], "folder": theirs});
+    assert!(matches!(check(&s, "mail.move", &moving, &[]), Verdict::Ask(Class::Send, _)));
+    // The owner moves it there, then thinks better of it and deletes it for good.
+    s.run("mail.move", &moving).unwrap();
+    assert_eq!(waits(&s), 1);
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert_eq!(waits(&s), 0);
+    let verdict = check(&s, "edit.undo", &json!({}), &[]);
+    let said = crate::agent::describe(&s, "edit.undo", &json!({}));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(waits(&s), 1, "the undo puts it on its way onto the Microsoft server again");
+    assert!(matches!(verdict, Verdict::Ask(Class::Send, _)), "an agent's undo that does is asked as a send: {verdict:?}");
+    assert!(said.contains("puts mail back on its way onto the server of owner@example.org"), "{said}");
+}
+
+/// The same into an IMAP account, whose queue the undo keeps as the step had it.
+#[test]
+fn an_agents_undo_that_puts_a_message_back_on_its_way_into_an_imap_account_is_asked_as_a_send() {
+    use crate::agent::{Class, Verdict, check};
+    let mut s = Session::empty();
+    let _ms = microsoft(&mut s, "owner@example.org");
+    let imap = imap_account(&mut s, "home@mail.example", vec![]);
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let id = s.mailbox.add_message(Message { folder: here, account: local, subject: "Private".into(), ..Default::default() }).unwrap();
+    let theirs = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    let waits = |s: &Session| {
+        s.mailbox
+            .queued
+            .iter()
+            .filter(|q| matches!(q, mailcraft_model::Queued::PlaceMessage { account, message, .. } if *message == id && *account == imap))
+            .count()
+    };
+    let moving = json!({"ids": [id], "folder": theirs});
+    assert!(matches!(check(&s, "mail.move", &moving, &[]), Verdict::Ask(Class::Send, _)));
+    s.run("mail.move", &moving).unwrap();
+    assert_eq!(waits(&s), 1);
+    s.run("mail.deletePermanently", &json!({"ids": [id]})).unwrap();
+    assert_eq!(waits(&s), 0);
+    let verdict = check(&s, "edit.undo", &json!({}), &[]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(waits(&s), 1, "the undo puts it on its way onto the IMAP server again");
+    assert!(matches!(verdict, Verdict::Ask(Class::Send, _)), "an agent's undo that does is asked as a send: {verdict:?}");
+}
