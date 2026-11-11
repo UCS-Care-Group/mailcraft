@@ -709,7 +709,7 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
             for row in &galley.rows {
                 for (i, glyph) in row.row.glyphs.iter().enumerate() {
                     let point = egui::vec2(row.pos.x + glyph.pos.x + glyph.advance_width / 2.0, row.pos.y + row.row.size.y / 2.0);
-                    let wanted = text.links.iter().find(|(range, _)| range.contains(&(index + i))).map(|(_, url)| url.clone());
+                    let wanted = text.links.iter().find(|link| link.range.contains(&(index + i))).map(|link| link.url.clone());
                     assert_eq!(super::view::link_under(text, &galley, point), wanted, "{start}: character {}", index + i);
                 }
                 index += row.row.glyphs.len() + usize::from(row.ends_with_newline);
@@ -720,7 +720,43 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
             assert_eq!(super::view::link_under(text, &galley, egui::vec2(galley.rect.center().x, galley.rect.max.y + 40.0)), None);
         }
         let ItemKind::Text(text) = &find(&laid, "Some words").kind else { panic!() };
-        assert_eq!(text.links.iter().map(|(r, url)| (r.clone(), &**url)).collect::<Vec<_>>(), [(20..36, "https://example.org/there")]);
+        assert_eq!(text.links.iter().map(|link| (link.range.clone(), &*link.url)).collect::<Vec<_>>(), [(20..36, "https://example.org/there")]);
+    });
+}
+
+/// Tall HTML line spacing leaves each wrapped link underline next to its own glyphs.
+#[test]
+fn link_underlines_follow_the_baseline_of_each_wrapped_row() {
+    in_frame(false, |ctx| {
+        let html =
+            "<p style='line-height:2.5' align='center'>Préface <a href='https://example.org'>a link that wraps across several lines</a> fin</p>";
+        let m = html_message(0, ("A", "a@example.org"), "Links", html);
+        let laid = lay_out(ctx, &m, 140.0);
+        let ItemKind::Text(text) = &find(&laid, "Préface").kind else { panic!() };
+        let link = text.links.first().unwrap();
+        let galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
+        assert!(text.job.sections.iter().all(|section| section.format.underline.is_empty()));
+        let layer = egui::LayerId::new(egui::Order::Middle, egui::Id::unique("link underlines"));
+        let at = egui::pos2(200.0, 50.0);
+        super::view::paint_link_underlines(&ctx.layer_painter(layer), at, &galley, &text.links);
+        ctx.graphics(|graphics| {
+            let mut lines = graphics.get(layer).unwrap().all_entries();
+            assert!(lines.len() > 1, "the link should wrap");
+            let mut index = 0;
+            for row in &galley.rows {
+                let glyphs: Vec<_> = row.glyphs.iter().enumerate().filter(|(i, _)| link.range.contains(&(index + i))).map(|(_, g)| g).collect();
+                if let (Some(first), Some(last)) = (glyphs.first(), glyphs.last()) {
+                    let egui::Shape::LineSegment { points: [from, to], stroke } = &lines.next().unwrap().shape else { panic!() };
+                    let baseline = at.y + row.pos.y + first.pos.y;
+                    assert!((baseline + 1.0..=baseline + 2.5).contains(&from.y));
+                    assert_eq!((from.x, to.x), (at.x + row.pos.x + first.pos.x, at.x + row.pos.x + last.max_x()));
+                    assert_eq!(from.y, to.y);
+                    assert_eq!(stroke.color, link.ink);
+                }
+                index += row.glyphs.len() + usize::from(row.ends_with_newline);
+            }
+            assert_eq!(lines.len(), 0);
+        });
     });
 }
 
@@ -851,10 +887,10 @@ fn a_link_shows_the_hand_and_opens_when_clicked_and_only_then() {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
         let galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
-        let (range, url) = text.links.first().unwrap();
+        let link = text.links.first().unwrap();
         let (mut index, mut at) = (0, None);
         for row in &galley.rows {
-            if let Some(glyph) = range.start.checked_sub(index).and_then(|i| row.row.glyphs.get(i + 1)) {
+            if let Some(glyph) = link.range.start.checked_sub(index).and_then(|i| row.row.glyphs.get(i + 1)) {
                 at = Some(
                     origin + item.rect.min.to_vec2() + egui::vec2(text.anchor + row.pos.x + glyph.pos.x + 1.0, row.pos.y + row.row.size.y / 2.0),
                 );
@@ -863,7 +899,7 @@ fn a_link_shows_the_hand_and_opens_when_clicked_and_only_then() {
             index += row.row.glyphs.len() + usize::from(row.ends_with_newline);
         }
         let plain = find(laid, "Hi Priya");
-        (at.unwrap(), url.to_string(), origin + plain.rect.min.to_vec2() + egui::vec2(4.0, 6.0))
+        (at.unwrap(), link.url.to_string(), origin + plain.rect.min.to_vec2() + egui::vec2(4.0, 6.0))
     })
     .unwrap();
     assert_eq!(url, "https://docs.juniperlabs.example/migration/plan");
@@ -3168,8 +3204,8 @@ fn a_selection_copies_tables_lists_quotes_and_links_as_text() {
     let (start, range, url) = super::view::kept(&ctx, gmail, |laid, _| {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
-        let (range, url) = text.links.first().unwrap();
-        (text.job.text.clone(), range.clone(), url.to_string())
+        let link = text.links.first().unwrap();
+        (text.job.text.clone(), link.range.clone(), link.url.to_string())
     })
     .unwrap();
     let (from, to) = (gap(&harness, gmail, &start, range.start), gap(&harness, gmail, &start, range.end));
@@ -3812,8 +3848,8 @@ fn the_menu_of_the_body_copies_selects_all_and_knows_a_links_address() {
     let (start, range, url) = super::view::kept(&ctx, id, |laid, _| {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
-        let (range, url) = text.links.first().unwrap();
-        (text.job.text.clone(), range.clone(), url.to_string())
+        let link = text.links.first().unwrap();
+        (text.job.text.clone(), link.range.clone(), link.url.to_string())
     })
     .unwrap();
     let on_link = gap(&harness, id, &start, range.start + 1) + egui::vec2(1.0, 0.0);
