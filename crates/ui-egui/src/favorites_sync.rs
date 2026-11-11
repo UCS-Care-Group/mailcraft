@@ -292,23 +292,22 @@ impl MailApp {
             FavoritesOutcome::NotPermitted => {
                 self.favorites.missing.insert(account, now);
                 self.favorites.uncovered.insert(account);
-                // (What the owner was told when he asked stays said.)
-                if matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) && why.trim().is_empty() {
-                    return;
-                }
                 if self.favorites.connected.contains(&account) || matches!(why, NEEDS_APPROVAL | REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT) {
-                    let by = match why {
-                        REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT => why,
-                        NEEDS_APPROVAL if self.directory(account) == Directory::Personal => REFUSED_FOR_ACCOUNT,
-                        _ => {
-                            if self.directory(account) == Directory::Personal {
-                                REFUSED_FOR_ACCOUNT
-                            } else {
-                                NEEDS_APPROVAL
+                    // (What the owner was told when he asked stays said.)
+                    if !(matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) && why.trim().is_empty()) {
+                        let by = match why {
+                            REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT => why,
+                            NEEDS_APPROVAL if self.directory(account) == Directory::Personal => REFUSED_FOR_ACCOUNT,
+                            _ => {
+                                if self.directory(account) == Directory::Personal {
+                                    REFUSED_FOR_ACCOUNT
+                                } else {
+                                    NEEDS_APPROVAL
+                                }
                             }
-                        }
-                    };
-                    self.favorites_refused(account, by);
+                        };
+                        self.favorites_refused(account, by);
+                    }
                 } else if !matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) {
                     self.favorites.notes.insert(account, Note::Offer);
                 }
