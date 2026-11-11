@@ -1,0 +1,1 @@
+- Add Account recognises legacy Outlook.com custom domains from their Hotmail MX records and selects Microsoft sign-in instead of guessed IMAP and SMTP settings.

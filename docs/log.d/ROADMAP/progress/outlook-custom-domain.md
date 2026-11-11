@@ -1,0 +1,1 @@
+| 2026-11-11 | Add Account recognises legacy Outlook.com custom domains whose MX records end in `pamx1.hotmail.com`, selecting Outlook.com settings and Microsoft sign-in; regression tests cover hostname boundaries and the setup flow. |
