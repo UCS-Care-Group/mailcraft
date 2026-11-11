@@ -1630,7 +1630,7 @@ msgid "Attachment options for {name}"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Allegati"
@@ -1810,6 +1810,11 @@ msgstr "Indietro"
 #: crates/ui-egui/src/send_receive.rs
 msgid "Back online"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Back to Message"
+msgstr "Torna al messaggio"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2525,6 +2530,11 @@ msgstr "Cancella ricerca"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Cancella ricerca (Esc)"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Click to preview {name}; double-click to open it"
+msgstr "Un clic per vedere l’anteprima di {name}, doppio clic per aprirlo"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -5523,6 +5533,11 @@ msgstr ""
 msgid "Importing… {messages} of {total}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "In Junk E-mail, preview an attachment from its menu."
+msgstr "In Posta indesiderata, apri l’anteprima dal menu dell’allegato."
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "In Progress"
@@ -7626,6 +7641,11 @@ msgstr "Messaggio successivo"
 msgid "Next Month"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Next Page"
+msgstr "Pagina successiva"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7858,6 +7878,11 @@ msgstr "Lì non si sta leggendo alcun messaggio"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Nessuna nuova versione pronta per l'installazione."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview helper is available for this attachment."
+msgstr "Non è disponibile un programma per l’anteprima di questo allegato."
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -9135,6 +9160,11 @@ msgid "Preferences"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preparing attachment preview…"
+msgstr "Preparazione dell’anteprima…"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Press Send/Receive to download your mail."
@@ -9145,6 +9175,26 @@ msgstr "Premere Invia/Ricevi per scaricare la posta."
 #, fuzzy
 msgid "Preview"
 msgstr "Anteprima"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+msgid "Preview Attachment"
+msgstr "Anteprima allegato"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft"
+msgstr "Visualizza gli allegati in anteprima con PdfCraft locale"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft and PhotoCraft"
+msgstr "Visualizza gli allegati in anteprima con PdfCraft e PhotoCraft locali"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PhotoCraft"
+msgstr "Visualizza gli allegati in anteprima con PhotoCraft locale"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9168,6 +9218,11 @@ msgstr "Messaggio precedente"
 #: crates/ui-egui/src/date_picker.rs
 msgid "Previous Month"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Previous Page"
+msgstr "Pagina precedente"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -10628,6 +10683,11 @@ msgstr "Selezionare un elemento da leggere"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Selezionare prima del testo"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Select the message before previewing its attachment."
+msgstr "Seleziona il messaggio prima di aprire l’anteprima dell’allegato."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -12395,6 +12455,16 @@ msgid "The approval didn't go through."
 msgstr "L'approvazione non è andata a buon fine."
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview could not be opened."
+msgstr "Impossibile aprire l’anteprima dell’allegato."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview timed out."
+msgstr "Tempo scaduto durante la preparazione dell’anteprima."
+
+#. interface
 #: crates/ui-egui/src/files.rs
 msgid "The browser can't read files by path"
 msgstr ""
@@ -12782,6 +12852,11 @@ msgstr "L'elenco dei domini è pieno: rimuoverne alcuni in File › Opzioni"
 #, fuzzy
 msgid "The list of senders is full: remove some in File › Options"
 msgstr "L'elenco dei mittenti è pieno: rimuoverne alcuni in File › Opzioni"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The local program receives the selected attachment and runs with your permissions."
+msgstr "Il programma locale riceve l’allegato selezionato e viene eseguito con i tuoi permessi."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13563,6 +13638,16 @@ msgstr "Non è ancora possibile interrogare il calendario di questo account: pri
 #, fuzzy
 msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr "Il server di questo account conserva questo contatto. Le modifiche fatte qui non vengono ancora inviate indietro, quindi qui non può essere modificato né eliminato. Preferito e categorie sono conservati su questo computer."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment could not be previewed."
+msgstr "Impossibile visualizzare questo allegato in anteprima."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment is too large to preview."
+msgstr "Questo allegato è troppo grande per l’anteprima."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -14518,6 +14603,11 @@ msgid "Tuesday"
 msgstr "martedì"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Turn on attachment previews in File › Options."
+msgstr "Attiva le anteprime degli allegati in File › Opzioni."
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Turned off by your organisation"
@@ -14874,6 +14964,11 @@ msgstr ""
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
 msgid "Violet"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Wait for the other attachment preview to finish."
+msgstr "Attendi il completamento dell’altra anteprima."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -15596,7 +15691,7 @@ msgid "Z on top"
 msgstr "Z in alto"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
 msgstr "Ridimensiona"
 
