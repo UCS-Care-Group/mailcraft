@@ -15,6 +15,8 @@ mod invitation;
 #[cfg(test)]
 mod invitation_tests;
 pub(crate) use invitation::{same_organizer, tidy_imported};
+#[cfg(test)]
+mod list_tests;
 mod meeting;
 pub mod share;
 #[cfg(test)]
@@ -50,7 +52,7 @@ fn own_specs() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
         CommandSpec::new("calendar.list", "List Events", "Calendar", list)
             .pure()
-            .params(r#"{"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (default: the range in view)"#),
+            .params(r#"{"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (default: the range in view), "calendars"?: [id, …] (1 to 64 calendars, listed whether they are shown or not; default: the calendars that are shown) — each occurrence with its "calendar", "uid", "private", "cancelled" and "response" (the owner's own answer when they are among the people invited, else null)"#),
         CommandSpec::new("calendar.respond", "Respond", "Meeting › Respond", respond)
             .params(r#"{"response": "accept"|"tentative"|"decline", "id"?: number, "send"?: bool (tell the organizer by mail; default false: the answer is kept in the calendar and nobody is written to), "comment"?: string (goes with the answer when it is sent), "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD"} — a declined meeting is taken out of the calendar; the answer says {"id", "response", "sent": bool}"#)
             .selection(needs_event),
@@ -842,12 +844,41 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
 /// What happens on the days `from`–`to` in the calendars that are shown, in order.
 pub fn occurrences(s: &Session, from: Date, to: Date) -> Vec<mailcraft_model::Occurrence> {
     let shown: Vec<Id> = s.mailbox.calendars.iter().filter(|c| c.visible).map(|c| c.id).collect();
+    occurrences_in(s, from, to, &shown)
+}
+
+/// What happens on the days `from`–`to` in the calendars named, shown or not, in order.
+fn occurrences_in(s: &Session, from: Date, to: Date, calendars: &[Id]) -> Vec<mailcraft_model::Occurrence> {
     // (A series by another zone's clock is wherever that clock puts each occurrence here.)
     let here = remote::offset_of(s);
     let mut out: Vec<mailcraft_model::Occurrence> =
-        s.mailbox.events.values().filter(|e| shown.contains(&e.calendar)).flat_map(|e| e.occurrences_in(from, to, &here)).collect();
+        s.mailbox.events.values().filter(|e| calendars.contains(&e.calendar)).flat_map(|e| e.occurrences_in(from, to, &here)).collect();
     out.sort_by_key(|o| (o.start, o.end, o.event));
     out
+}
+
+/// The most calendars `calendar.list` takes by `calendars`.
+const MAX_LISTED_CALENDARS: usize = 64;
+
+/// The calendars `calendar.list` is asked for by `calendars`: `None` when it isn't given. Read
+/// strictly: a list of 1 to 64 ids of calendars the mailbox has (one named twice counts once);
+/// anything else (`null`, an id as text, zero, a fraction, a calendar that isn't there) is
+/// refused, never taken to mean the calendars that are shown.
+fn listed_calendars(s: &Session, v: &Value) -> Result<Option<Vec<Id>>, CmdError> {
+    let Some(x) = v.get("calendars") else { return Ok(None) };
+    let wrong = || bad(format!("`calendars` is a list of 1 to {MAX_LISTED_CALENDARS} calendar ids (calendar.calendars)"));
+    let list = x.as_array().filter(|a| !a.is_empty() && a.len() <= MAX_LISTED_CALENDARS).ok_or_else(wrong)?;
+    let mut ids: Vec<Id> = Vec::with_capacity(list.len());
+    for x in list {
+        let id = x.as_u64().filter(|i| *i != 0).ok_or_else(wrong)?;
+        if !s.mailbox.calendars.iter().any(|c| c.id == id) {
+            return Err(fail(format!("there is no calendar {id}")));
+        }
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    Ok(Some(ids))
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
@@ -857,11 +888,20 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     if from.days_until(to) > 3700 {
         return Err(bad("the range is longer than ten years"));
     }
-    let items: Vec<Value> = occurrences(s, from, to)
+    let found = match listed_calendars(s, v)? {
+        Some(calendars) => occurrences_in(s, from, to, &calendars),
+        None => occurrences(s, from, to),
+    };
+    let items: Vec<Value> = found
         .into_iter()
         .filter_map(|o| {
             let e = s.mailbox.event(o.event)?;
-            Some(json!({"id": e.id, "title": e.title, "start": o.start.iso(), "end": o.end.iso(), "allDay": e.all_day, "location": e.location, "repeats": e.recurrence.is_some(), "showAs": e.show_as, "categories": e.categories}))
+            let response = invitation::listed_answer(s, e);
+            Some(json!({
+                "id": e.id, "calendar": e.calendar, "uid": e.uid, "title": e.title, "start": o.start.iso(), "end": o.end.iso(),
+                "allDay": e.all_day, "location": e.location, "repeats": e.recurrence.is_some(), "showAs": e.show_as,
+                "categories": e.categories, "private": e.private, "cancelled": e.cancelled, "response": response,
+            }))
         })
         .collect();
     Ok(json!({"from": from.iso(), "to": to.iso(), "events": items}))

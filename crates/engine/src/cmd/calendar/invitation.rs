@@ -313,7 +313,7 @@ fn is_mine(s: &Session, who: &Address) -> bool {
 }
 
 /// What the owner has answered, in an event's list of people; `None` when the owner isn't in it.
-fn listed_answer(s: &Session, event: &Event) -> Option<Response> {
+pub(crate) fn listed_answer(s: &Session, event: &Event) -> Option<Response> {
     event.attendees.iter().find(|who| is_mine(s, &who.address)).map(|who| who.response)
 }
 
