@@ -593,13 +593,22 @@ fn merge(
     }
 }
 
+/// Whether `m` is a JMAP account's and was never on its server: nothing is made on such a server
+/// from a message here, so one with no word of the server's has no original there.
+fn never_on_its_jmap_server(now: &Mailbox, m: &Message) -> bool {
+    m.server.is_none() && m.moving_out.is_none() && now.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap)
+}
+
 /// A message here before the change, after it and now: as it is now, but for what the change
 /// changed, which is as it was before.
 fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSet<Id>, said: &mut Said) -> Option<Arc<Message>> {
     let mut m = c.as_ref().clone();
     if t.account != c.account {
         let placed = c.server.as_ref().filter(|s| !s.gone && !s.id.is_empty() && g.contains(&c.account));
-        if g.contains(&t.account) && c.moving_out.as_ref().is_none_or(|out| out.account != t.account) {
+        // A message its JMAP server never had (a draft written here, one brought in from a file):
+        // nothing of it was removed there, so it goes back as one of an account with no server would.
+        let from_server = g.contains(&t.account) && !never_on_its_jmap_server(now, t);
+        if from_server && c.moving_out.as_ref().is_none_or(|out| out.account != t.account) {
             // The copy it was first moved out of, in a third mailbox, is kept while it may hold the
             // bytes a protected message came as (#30, `Mailbox::place_called_off`): it stays the
             // one this message is moved out of, and the copy made here goes instead.
@@ -634,7 +643,7 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
             }
             (m.server, m.uid, m.synced) = (None, 0, None);
-        } else if g.contains(&t.account) {
+        } else if from_server {
             // Moved out of a Microsoft account: back while the server's copy is still there.
             let Some(out) = c.moving_out.clone().filter(|out| out.account == t.account && !out.left) else {
                 said.moved_out.push(t.subject.clone());

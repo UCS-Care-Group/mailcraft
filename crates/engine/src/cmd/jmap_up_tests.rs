@@ -5,7 +5,7 @@
 //! sent from such an account: `jmap_sending_tests.rs`; what a run reads: `jmap_mail_tests.rs`.)
 
 use mailcraft_model::sync::{FolderListing, JmapChange, JmapChangeDone, JmapOutcome, MessagePage, SendDone, SendOutcome};
-use mailcraft_model::{FlagStatus, Queued};
+use mailcraft_model::{FlagStatus, FolderKind, Message, Queued};
 use serde_json::json;
 
 use super::tests::{ME, email, folder_here, here, mailboxes, marks, piece, run, session, window};
@@ -332,5 +332,46 @@ fn the_folders_of_a_listing_that_comes_with_the_answers_are_taken_after_them() {
     .unwrap();
     assert_eq!((answer["pushed"].as_u64(), answer["removedMessages"].as_u64()), (Some(1), Some(0)));
     assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(folder_here(&s, account, "M5")));
+    assert!(up(&s, account).is_empty());
+}
+
+#[test]
+fn a_message_deleted_for_good_while_its_move_is_on_its_way_is_deleted_where_the_server_has_it_now() {
+    let (mut s, account, [one, ..]) = mail();
+    s.run("mail.move", &json!({"ids": [one], "folder": folder_here(&s, account, "M5")})).unwrap();
+    let moved = up(&s, account);
+    assert_eq!(moved.len(), 1);
+    // Deleted for good before the server answers the move: the deletion waits under the old id.
+    s.run("mail.deletePermanently", &json!({"ids": [one]})).unwrap();
+    assert_eq!(up(&s, account), [JmapChange::Destroy { id: "E1".into() }]);
+    // The server made the move and gave the message a new id: that is the one to delete, and what
+    // was kept of the message says where the server has it, should the server refuse.
+    let outcomes = moved.into_iter().map(|change| (change, JmapOutcome::Done { id: "E9".into() }));
+    answered(&mut s, account, outcomes.collect());
+    assert_eq!(up(&s, account), [JmapChange::Destroy { id: "E9".into() }]);
+    let kept = s.mailbox.queued.iter().find_map(|queued| match queued {
+        Queued::DeleteMessage { kept, .. } => kept.as_ref().and_then(|kept| kept.server.clone()),
+        _ => None,
+    });
+    assert_eq!(kept.map(|server| (server.id, server.folder)), Some(("E9".into(), "M5".into())));
+    let answer = answered(&mut s, account, vec![(JmapChange::Destroy { id: "E9".into() }, done())]);
+    assert_eq!(answer["pushed"].as_u64(), Some(1));
+    assert!(s.mailbox.queued.is_empty() && up(&s, account).is_empty());
+}
+
+#[test]
+fn a_message_the_server_never_had_moved_to_another_account_goes_back_with_undo() {
+    let (mut s, account, _) = mail();
+    let other = s.run("account.add", &json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    let elsewhere = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    let inbox = folder_here(&s, account, "M1");
+    // Only this computer has it: nothing of it is on the JMAP server.
+    let mine = s.mailbox.add_message(Message { folder: inbox, subject: "Mine".into(), ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [mine], "folder": elsewhere})).unwrap();
+    assert_eq!(s.mailbox.message(mine).map(|m| (m.account, m.folder)), Some((other, elsewhere)));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.message(mine).map(|m| (m.account, m.folder)), Some((account, inbox)), "{:?}", s.undo_said());
+    assert!(s.mailbox.message(mine).is_some_and(|m| m.server.is_none() && m.moving_out.is_none()));
+    assert!(s.undo_said().is_empty(), "{:?}", s.undo_said());
     assert!(up(&s, account).is_empty());
 }

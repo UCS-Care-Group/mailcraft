@@ -123,3 +123,57 @@ fn a_refused_change_is_told_once_and_starts_no_run_after_run() {
     app.auto_sync();
     assert!(taken(&jobs).is_empty());
 }
+
+#[test]
+fn emptying_a_folder_says_the_server_is_told_only_when_the_server_has_some_of_it() {
+    let (mut app, accounts, jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    let one = with_mail(&mut app, ada, &jobs);
+    let trash = app.session.mailbox.folder_of_kind(ada, FolderKind::Deleted).unwrap();
+    let asks = |app: &MailApp| crate::dialogs::confirmation(app, "folder.empty", &json!({"id": trash})).expect("asks first").text;
+    // Only what this computer has: nothing is removed anywhere else.
+    app.session.mailbox.add_message(mailcraft_model::Message { folder: trash, subject: "Mine".into(), ..Default::default() }).unwrap();
+    assert!(!asks(&app).contains("mail server"), "{}", asks(&app));
+    // With one the server has among it, the server is told too.
+    app.execute("mail.delete", json!({"ids": [one]})).unwrap();
+    assert_eq!(app.session.mailbox.message(one).map(|m| m.folder), Some(trash));
+    assert!(asks(&app).contains("They are removed from the mail server too."), "{}", asks(&app));
+}
+
+#[test]
+fn a_mark_made_while_another_mark_of_the_message_goes_up_has_a_run_of_its_own_at_once() {
+    let (mut app, accounts, jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    let one = with_mail(&mut app, ada, &jobs);
+    app.execute("mail.markRead", json!({"ids": [one]})).unwrap();
+    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.auto_sync();
+    app.auto_sync();
+    let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    let change = JmapChange::Keywords { message: one, id: "E1".into(), read: Some(true), flagged: None, answered: None, forwarded: None };
+    assert_eq!(job.request.changes, std::slice::from_ref(&change));
+    // Flagged while the run is under way: still one change of the message, so nothing calls the
+    // run off, and the flag is no part of what the run took up.
+    app.execute("mail.flag", json!({"ids": [one]})).unwrap();
+    assert_eq!(app.waiting_to_go(ada), 1);
+    let changes = vec![JmapChangeDone { change, outcome: JmapOutcome::Done { id: String::new() } }];
+    tx.send(last(&job, JmapMailResult { whole: true, changes, ..Default::default() })).unwrap();
+    app.poll_sync();
+    assert!(!app.syncing());
+    assert_eq!(app.waiting_to_go(ada), 1, "the flag still waits");
+    // It is not something the server turned down: the next look starts a run for it.
+    app.push_checked = 0.0;
+    app.auto_sync();
+    app.auto_sync();
+    let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    let flag = JmapChange::Keywords { message: one, id: "E1".into(), read: None, flagged: Some(true), answered: None, forwarded: None };
+    assert_eq!(job.request.changes, std::slice::from_ref(&flag));
+    // A change that gets no answer makes nothing: no further run is started for it by itself.
+    tx.send(last(&job, JmapMailResult { whole: true, ..Default::default() })).unwrap();
+    app.poll_sync();
+    assert_eq!(app.waiting_to_go(ada), 1);
+    app.push_checked = 0.0;
+    app.auto_sync();
+    app.auto_sync();
+    assert!(taken(&jobs).is_empty());
+}

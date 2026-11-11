@@ -1773,6 +1773,8 @@ pub struct MailApp {
     /// Per account: how much was still waiting after its last Send/Receive, and when that was.
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
+    /// How many changes the server made in the JMAP run under way, as its pieces said so far.
+    jmap_made: usize,
     last_autosave: f64,
     /// When the messages being written were last saved by themselves, by the session's clock
     /// (seconds; `None`: none has had changes since one was opened).
@@ -1997,6 +1999,7 @@ impl MailApp {
             push_checked: 0.0,
             push_only_next: Default::default(),
             push_seen: Default::default(),
+            jmap_made: 0,
             last_autosave: 0.0,
             draft_saved_at: None,
             saved_rev,
@@ -3582,6 +3585,14 @@ impl MailApp {
     /// seconds ([`MailApp::auto_sync`]), whichever way the account is kept in step.
     pub(crate) fn note_pushed(&mut self, account: Id) {
         self.push_seen.insert(account, (self.waiting_to_go(account), now_ms()));
+    }
+
+    /// What waits to go from `account` is not what its last run left undone: the next look
+    /// ([`MailApp::auto_sync`]) starts a run for it without the wait a refusal is given.
+    pub(crate) fn push_again_soon(&mut self, account: Id) {
+        if self.waiting_to_go(account) > 0 {
+            self.push_seen.insert(account, (0, now_ms()));
+        }
     }
 
     /// The passwords and sign-ins in memory belong to the accounts of the mailbox they were given

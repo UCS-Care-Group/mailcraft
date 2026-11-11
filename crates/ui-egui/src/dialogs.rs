@@ -520,7 +520,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             }
             let everything =
                 crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
-            let text = format!("{everything}{}", server_too(on_server(f.account)));
+            // (Of a JMAP account, only when its server has some of it: what is this computer's
+            // alone, a draft or mail brought in from a file, is removed nowhere else.)
+            let jmap = mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let going = mb.subtree(f.id);
+            let theirs = || mb.messages.values().any(|m| m.server.is_some() && going.contains(&m.folder));
+            let text = format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
         "folder.delete" => {
