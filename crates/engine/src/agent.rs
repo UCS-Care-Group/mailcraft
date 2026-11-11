@@ -949,9 +949,13 @@ fn servers_named(s: &Session, accounts: &[Id]) -> String {
 /// doesn't bring back from a server, as `mail.deletePermanently` (#566); or whether it changes the
 /// rules for mail that a rule switched on here deletes for good: any change may let more mail
 /// reach that one (a rule before it that stopped the others, or one that sets a category or a
-/// flag it looks for). Switching that rule off or deleting it only deletes less.
+/// flag it looks for). Switching that rule off or deleting it only deletes less. So does a change
+/// to the Safe or Blocked Senders that lets more mail through to the rules ([`junk_lets_through`]).
 fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     let mb = &s.mailbox;
+    if id.starts_with("junk.") {
+        return junk_lets_through(s, id, params).into_iter().any(|a| beside_for_good(mb, a, 0, true).next().is_some());
+    }
     if id == "rules.run" {
         let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
         // (Not over a shared mailbox's folder, which the command refuses.)
@@ -999,6 +1003,45 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     makes || beside_for_good(mb, account, rule, on).next().is_some()
 }
 
+/// The accounts whose new mail a change to the Safe or Blocked Senders lets through to the rules,
+/// as a rule before the others that stopped them would (the lists sort new mail first,
+/// [`Mailbox::sort_junk`]): taking a sender off the Blocked Senders, whose mail went to Junk
+/// E-mail, or putting one on the Safe Senders, whose mail the account's server put in Junk E-mail
+/// is taken out into the Inbox (#566). One that blocks more lets less through. Read as the commands
+/// read them.
+fn junk_lets_through(s: &Session, id: &str, params: &Value) -> Vec<Id> {
+    use mailcraft_model::JunkList;
+    let list = || p::str(params, "list").and_then(JunkList::parse);
+    match id {
+        "junk.add" if list() == Some(JunkList::Safe) => crate::cmd::junk::list_account(s, params).into_iter().collect(),
+        "junk.remove" if list() == Some(JunkList::Blocked) => crate::cmd::junk::list_account(s, params).into_iter().collect(),
+        "junk.neverBlockSender" | "junk.neverBlockDomain" => {
+            let ids = p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default();
+            let mut accounts: Vec<Id> = Vec::new();
+            for a in ids.iter().filter_map(|m| s.mailbox.message(*m)).map(|m| s.mailbox.junk_owner(m.account)) {
+                if !accounts.contains(&a) {
+                    accounts.push(a);
+                }
+            }
+            accounts
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// What a question about a change to the Safe or Blocked Senders adds for the rules that the mail
+/// it lets through reaches ([`junk_lets_through`]), as [`beside_said`] does for a change to the rules.
+fn junk_beside_said(s: &Session, id: &str, params: &Value) -> String {
+    let mut said = String::new();
+    for a in junk_lets_through(s, id, params) {
+        let more = beside_said_of(s, a, 0, true, "this change");
+        if !said.contains(&more) {
+            said.push_str(&more);
+        }
+    }
+    said
+}
+
 /// The rules switched on here that delete mail for good and that a change to the rules of
 /// `account` reaches: for the same mail, and `rule` itself only when it is still on after the
 /// change (`on`).
@@ -1025,7 +1068,12 @@ fn beside_onto_server(s: &Session, account: Id, rule: Id, on: bool) -> impl Iter
 /// What a question about a change to the rules adds for the rules beside it that delete mail for
 /// good ([`beside_for_good_said`]) or put it on another account's server.
 fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
-    let mut said = beside_for_good_said(&s.mailbox, account, rule, on);
+    beside_said_of(s, account, rule, on, "a change to the rules")
+}
+
+/// [`beside_said`], for `change`.
+fn beside_said_of(s: &Session, account: Id, rule: Id, on: bool, change: &str) -> String {
+    let mut said = beside_for_good_said_of(&s.mailbox, account, rule, on, change);
     let onto: Vec<(String, Vec<Id>)> = beside_onto_server(s, account, rule, on).map(|(r, to)| (quoted(&r.name), to)).collect();
     if !onto.is_empty() {
         let more = onto.len().saturating_sub(5);
@@ -1040,9 +1088,9 @@ fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
         let server = servers_named(s, &servers);
         said.push_str(&by_count(
             onto.len(),
-            "; the rule {names}{more}, switched on, puts mail onto the server of {server}, and a change to the rules may let more mail reach it",
-            "; the rules {names}{more}, switched on, put mail onto the server of {server}, and a change to the rules may let more mail reach them",
-            &[("names", &names.join(", ")), ("more", &more), ("server", &server)],
+            "; the rule {names}{more}, switched on, puts mail onto the server of {server}, and {change} may let more mail reach it",
+            "; the rules {names}{more}, switched on, put mail onto the server of {server}, and {change} may let more mail reach them",
+            &[("names", &names.join(", ")), ("more", &more), ("server", &server), ("change", change)],
         ));
     }
     said
@@ -1051,6 +1099,11 @@ fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
 /// What a question about a change to the rules adds when it is asked as a delete because rules
 /// beside it delete mail for good: their names (at most five), and why.
 fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool) -> String {
+    beside_for_good_said_of(mb, account, rule, on, "a change to the rules")
+}
+
+/// [`beside_for_good_said`], for `change`.
+fn beside_for_good_said_of(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool, change: &str) -> String {
     let names: Vec<String> = beside_for_good(mb, account, rule, on).map(|r| quoted(&r.name)).collect();
     if names.is_empty() {
         return String::new();
@@ -1059,9 +1112,9 @@ fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on
     let more = if more > 0 { format!(" and {more} more") } else { String::new() };
     by_count(
         names.len(),
-        "; the rule {names}{more}, switched on here, deletes mail permanently, and a change to the rules may let more mail reach it",
-        "; the rules {names}{more}, switched on here, delete mail permanently, and a change to the rules may let more mail reach them",
-        &[("names", &names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more)],
+        "; the rule {names}{more}, switched on here, deletes mail permanently, and {change} may let more mail reach it",
+        "; the rules {names}{more}, switched on here, delete mail permanently, and {change} may let more mail reach them",
+        &[("names", &names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more), ("change", change)],
     )
 }
 
@@ -1111,14 +1164,29 @@ pub(crate) fn undo_rules_deleting(now: &Mailbox, to: &Mailbox) -> Vec<String> {
 /// The accounts whose rules an undo or redo from the rules of `now` to those of `to` changes (0:
 /// every account's): of each rule made, changed or taken away, and of each account whose rules
 /// run in another order (one moved past another for the same mail); not of those that only take
-/// another place in the list, as one is made, taken away or moved past them. None when the rules
-/// stay as they are.
+/// another place in the list, as one is made, taken away or moved past them; and of each account
+/// whose Safe or Blocked Senders let more mail through to the rules after it, as
+/// [`junk_lets_through`] reads a change to them. None when the rules and the lists stay as they
+/// are.
 fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
+    let lists = |m: &Mailbox, a: Id| m.junk_accounts.get(&a).cloned().unwrap_or_default();
+    let mut changed: Vec<Id> = now
+        .junk_accounts
+        .keys()
+        .chain(to.junk_accounts.keys())
+        .copied()
+        .filter(|a| {
+            let (now, to) = (lists(now, *a), lists(to, *a));
+            to.safe.iter().any(|e| !now.safe.contains(e)) || now.blocked.iter().any(|e| !to.blocked.contains(e))
+        })
+        .collect();
     if to.rules == now.rules {
-        return Vec::new();
+        changed.sort_unstable();
+        changed.dedup();
+        return changed;
     }
     let made_or_changed = |a: &Mailbox, b: &Mailbox| -> Vec<Id> { a.rules.iter().filter(|r| !b.rules.contains(r)).map(|r| r.account).collect() };
-    let mut changed = made_or_changed(to, now);
+    changed.extend(made_or_changed(to, now));
     changed.extend(made_or_changed(now, to));
     // The rules both have, in the order they run for an account's mail on each side.
     let ids = |m: &Mailbox| -> std::collections::HashSet<Id> { m.rules.iter().map(|r| r.id).collect() };
@@ -1251,6 +1319,8 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
     let onto = |r: &mailcraft_model::Rule| rule_onto_server(s, r, one_account(r)).is_some();
     let beside = |account: Id, rule: Id, on: bool| beside_onto_server(s, account, rule, on).next().is_some();
     match id {
+        // A change to the Safe or Blocked Senders that lets more mail through to the rules.
+        _ if id.starts_with("junk.") => junk_lets_through(s, id, params).into_iter().any(|a| beside(a, 0, true)),
         // A rule for one account files that account's new mail; one for every account, every
         // account's.
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| onto(&r) || beside(r.account, 0, true)),
@@ -1360,7 +1430,7 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         _ if class == Class::Delete && raised(s, id, params) => vec![Class::Send],
         "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
-        _ if id.starts_with("rules.") && class == Class::Send && rules_delete(s, id, params) => vec![Class::Delete],
+        _ if (id.starts_with("rules.") || id.starts_with("junk.")) && class == Class::Send && rules_delete(s, id, params) => vec![Class::Delete],
         _ => Vec::new(),
     }
 }
@@ -2019,7 +2089,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             if id == "junk.blockSender" {
                 format!("add {who} to the Blocked Senders, whose new mail goes to Junk E-mail, and move {} there", messages_text(s, &ids))
             } else {
-                format!("add {who} to the Safe Senders, whose new mail is never treated as junk")
+                format!("add {who} to the Safe Senders, whose new mail is never treated as junk{}", junk_beside_said(s, id, params))
             }
         }
         "junk.add" | "junk.remove" => {
@@ -2035,10 +2105,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 .and_then(|a| s.mailbox.account(a))
                 .map(|a| format!(" of the account {}", quoted(&clip(if a.email.is_empty() { &a.name } else { &a.email }, 80))))
                 .unwrap_or_default();
+            let beside = junk_beside_said(s, id, params);
             if id == "junk.add" {
-                format!("add {} to the {list}{of}", quoted(&entry))
+                format!("add {} to the {list}{of}{beside}", quoted(&entry))
             } else {
-                format!("remove {} from the {list}{of}", quoted(&entry))
+                format!("remove {} from the {list}{of}{beside}", quoted(&entry))
             }
         }
         "account.add" => {

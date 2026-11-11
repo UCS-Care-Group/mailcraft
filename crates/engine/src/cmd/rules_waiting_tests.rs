@@ -703,3 +703,62 @@ fn mail_filed_away_and_back_on_a_phone_isnt_deleted_for_good_by_a_rule_that_wait
         assert!(s.mailbox.message(m).is_some_and(|x| !x.unfetched) && !deletes, "moved back: {back}");
     }
 }
+
+/// The Safe and Blocked Senders sort new mail before the rules: an agent taking a sender off the
+/// Blocked Senders lets their mail reach a rule that deletes for good, as one taking a rule out of
+/// its way would, and is asked as a delete, the question naming the rule; one that blocks more
+/// isn't (#566).
+#[test]
+fn unblocking_a_sender_beside_a_rule_that_deletes_for_good_asks_as_a_delete() {
+    use crate::agent::{Access, Class, classify};
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
+    // The owner's: Zoe is blocked, and a rule deletes her mail for good.
+    let purge = json!({"name": "Purge", "account": account, "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &purge).unwrap();
+    s.run("junk.add", &json!({"list": "blocked", "entry": "zoe@example.org", "account": account})).unwrap();
+    let arrive = |s: &mut Session, id: &str| {
+        let page = MessagePage { folder: "F-in".into(), messages: vec![listed(id, "F-in", "Weekly")], ..Default::default() };
+        graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+            .unwrap();
+    };
+    let lies = |s: &Session, id: &str| s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|x| x.id == id)).map(|m| m.folder);
+    arrive(&mut s, "N1");
+    assert_eq!(lies(&s, "N1"), Some(junk), "blocked: her mail waits in Junk E-mail, where it can be got back");
+    // Any change to the rules for the same mail asks as a delete while Purge is on (#566)...
+    let other =
+        json!({"name": "Read", "account": account, "server": false, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]});
+    assert_eq!(classify(&s, "rules.add", &other), Access::Owner(Class::Delete));
+    // ...but taking her off Blocked Senders, which lets her mail reach Purge, asks as settings.
+    let unblock = json!({"list": "blocked", "entry": "zoe@example.org", "account": account});
+    let class = classify(&s, "junk.remove", &unblock);
+    let asked = crate::agent::describe(&s, "junk.remove", &unblock);
+    s.run("junk.remove", &unblock).unwrap();
+    arrive(&mut s, "N2");
+    assert_eq!(lies(&s, "N2"), None, "unblocked: her next message is deleted for good as it arrives");
+    assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N2")), "and on the server");
+    assert_eq!(class, Access::Owner(Class::Delete), "junk.remove beside a rule that deletes for good; question: {asked}");
+    assert!(asked.contains("Purge") && asked.contains("deletes mail permanently"), "{asked}");
+    // Putting a sender on the Safe Senders lets mail the server put in Junk E-mail through too;
+    // blocking one, or taking one off the Safe Senders, lets less through.
+    let safe = json!({"list": "safe", "entry": "ann@example.org", "account": account});
+    assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Delete));
+    let block = json!({"list": "blocked", "entry": "bob@example.org", "account": account});
+    assert_eq!(classify(&s, "junk.add", &block), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "junk.remove", &safe), Access::Owner(Class::Settings));
+    // With the rule switched off, nothing deletes for good: a change to the lists is settings.
+    let purge = s.mailbox.rules.iter().find(|r| r.name == "Purge").unwrap().id;
+    s.run("rules.enable", &json!({"id": purge, "value": false})).unwrap();
+    assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Settings));
+    // Beside a rule that moves mail onto another account's server, it is asked as a send.
+    let other = s.run("account.add", &json!({"email": "other@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let theirs = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(theirs).unwrap().server = Some(ServerFolder { id: "O-in".into(), ..Default::default() });
+    let onto = json!({"name": "Onto", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "ann"}], "actions": [{"type": "moveTo", "value": theirs}]});
+    s.run("rules.add", &onto).unwrap();
+    assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Send));
+    assert!(crate::agent::describe(&s, "junk.add", &safe).contains("Onto"));
+}

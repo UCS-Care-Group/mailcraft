@@ -2371,3 +2371,19 @@ fn an_undo_asked_as_a_delete_beside_a_meeting_change_runs_on_the_yes() {
     s.agent = None;
     assert!(done.is_ok(), "the owner said yes to a question that named both: {done:?}");
 }
+
+/// An agent's undo of the owner's blocking a sender takes them off the Blocked Senders again,
+/// beside a rule that deletes their mail for good: asked as a delete, as `junk.remove` is; the undo
+/// of taking one off lets less through, and isn't (#566).
+#[test]
+fn an_undo_that_unblocks_a_sender_beside_a_rule_that_deletes_for_good_is_asked_as_a_delete() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, _, _) = session();
+    add(&mut s, account, "Purge", json!([{"type": "fromContains", "value": "zoe"}]), json!([{"type": "deleteForGood"}]));
+    let zoe = json!({"list": "blocked", "entry": "zoe@example.org", "account": account});
+    run(&mut s, "junk.add", zoe.clone());
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Delete));
+    assert!(crate::agent::describe(&s, "edit.undo", &json!({})).contains("Purge"));
+    run(&mut s, "junk.remove", zoe);
+    assert_ne!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Delete));
+}
