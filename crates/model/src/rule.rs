@@ -21,15 +21,25 @@ use std::sync::Arc;
 use crate::{Id, Importance, Message, contains_ci, starts_with_ci};
 
 /// Maximum length of a regex pattern that can be used in a rule.
+/// Counted in bytes, not characters, to prevent DoS attacks with multi-byte characters.
 pub const MAX_PATTERN_LENGTH: usize = 1000;
+
+/// Maximum length of text for contains/starts-with conditions.
+pub const MAX_TEXT_LENGTH: usize = 200;
+
+/// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH.
+pub fn clean_condition_text(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.len() > MAX_TEXT_LENGTH { trimmed[..MAX_TEXT_LENGTH].to_string() } else { trimmed.to_string() }
+}
 
 /// A regex pattern that has been compiled and is ready to match.
 #[derive(Clone, Debug)]
 pub struct Pattern {
     /// The original pattern string, kept untrimmed for accurate error messages.
-    pub pattern: String,
+    pattern: String,
     /// The compiled regex, cached so it doesn't need to be recompiled for every message.
-    regex: Arc<regex::Regex>,
+    regex: Option<Arc<regex::Regex>>,
 }
 
 impl Pattern {
@@ -39,7 +49,7 @@ impl Pattern {
             return None;
         }
         let regex = regex::RegexBuilder::new(&pattern).case_insensitive(true).size_limit(1 << 20).build().ok()?;
-        Some(Pattern { pattern, regex: Arc::new(regex) })
+        Some(Pattern { pattern, regex: Some(Arc::new(regex)) })
     }
 
     /// Check if the pattern is valid (can be compiled) and not too long.
@@ -52,12 +62,12 @@ impl Pattern {
 
     /// Match the pattern against text.
     pub fn is_match(&self, text: &str) -> bool {
-        self.regex.is_match(text)
+        self.regex.as_ref().is_some_and(|r| r.is_match(text))
     }
 
-    /// Create a Pattern from a pattern string (recompiles the regex).
-    pub fn from_string(pattern: String) -> Option<Pattern> {
-        Self::new(pattern)
+    /// Get the pattern string.
+    pub fn as_str(&self) -> &str {
+        &self.pattern
     }
 }
 
@@ -84,7 +94,9 @@ impl<'de> Deserialize<'de> for Pattern {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Pattern::new(s).ok_or_else(|| serde::de::Error::custom("pattern is too long or invalid"))
+        // A pattern that won't compile becomes a rule that matches nothing, with its text kept.
+        // The regex field is None, so is_match() returns false.
+        Ok(Pattern { pattern: s, regex: None })
     }
 }
 

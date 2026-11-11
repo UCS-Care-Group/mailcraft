@@ -6237,7 +6237,11 @@ pub(crate) mod rules {
                 .map(|c| match c.kind {
                     When::Attachment => json!({"type": c.kind.code()}),
                     When::Importance => json!({"type": c.kind.code(), "value": c.importance.code()}),
-                    kind => json!({"type": c.op.code(kind), "value": c.text}),
+                    kind => {
+                        // Clean the text: trim whitespace, cap at MAX_TEXT_LENGTH
+                        let cleaned = mailcraft_model::clean_condition_text(&c.text);
+                        json!({"type": c.op.code(kind), "value": cleaned})
+                    }
                 })
                 .collect();
             let actions: Vec<Value> = self
@@ -6262,20 +6266,22 @@ pub(crate) mod rules {
             ("rules.add", params)
         }
 
-        /// Whether Add can run: the rule has a name, every text condition a text (a pattern
-        /// that reads as a regex), every move a folder and every Categorize a category.
+        /// Whether Add can run: the rule has a name, every text condition a non-empty text
+        /// (a pattern that reads as a regex for Matches), every move a folder and every Categorize a category.
         fn ready(&self) -> bool {
             let conds = self.conds.iter().all(|c| {
                 if !c.kind.takes_text() {
                     return true;
                 }
-                if c.text.is_empty() {
+                // A text must be non-empty after trimming
+                let trimmed = c.text.trim();
+                if trimmed.is_empty() {
                     return false;
                 }
                 // A pattern's text is not trimmed: a long alternation like a@x.example|b@...|ca...
                 // must be refused whole if over 1000 chars, not cut to something that might still
                 // compile but match differently.
-                c.op != Op::Matches || mailcraft_model::regex_is_ok(&c.text)
+                c.op != Op::Matches || mailcraft_model::regex_is_ok(trimmed)
             });
             let acts = self.acts.iter().all(|a| match a.kind {
                 Do::Move => a.folder != 0,

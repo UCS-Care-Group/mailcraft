@@ -80,8 +80,8 @@ fn regex_conditions() {
     b.body.text = "your order 2026-4411 is on its way".into();
     b.hidden_text = "order 2026-4411 also hidden".into();
     assert!(r(Condition::BodyMatches(Pattern::new(r"order \d{4}-\d{4}".to_string()).unwrap())).matches(&b));
-    // A pattern a reader doesn't take matches nothing, and says so in words.
-    assert!(!r(Condition::SubjectMatches(Pattern::new("order #d".to_string()).unwrap())).matches(&m));
+    // A pattern that's valid but won't match the message.
+    assert!(!r(Condition::SubjectMatches(Pattern::new("invoice".to_string()).unwrap())).matches(&m));
     // Use a pattern that's truly invalid - unmatched group
     assert!(Pattern::new("(".to_string()).is_none());
     assert_eq!(
@@ -94,9 +94,10 @@ fn regex_conditions() {
     );
     // A pattern over 1000 chars is refused.
     assert!(Pattern::new("a".repeat(1001)).is_none());
-    // A pattern a message carries that's valid but won't match.
+    // A pattern that's valid but won't match any message.
     let evil = r(Condition::SubjectMatches(Pattern::new("zzzzzzzzzz".to_string()).unwrap()));
-    assert!(!evil.matches(&m) || !evil.matches(&Message { subject: "aaaa".into(), ..m }));
+    assert!(!evil.matches(&m));
+    assert!(!evil.matches(&Message { subject: "aaaa".into(), ..m }));
 }
 
 #[test]
@@ -113,4 +114,40 @@ fn rules_round_trip_as_json() {
     let json = serde_json::to_string(&rule).unwrap();
     assert!(json.contains(r#"{"type":"moveTo","value":9}"#), "{json}");
     assert_eq!(serde_json::from_str::<Rule>(&json).unwrap(), rule);
+}
+
+#[test]
+fn invalid_pattern_deserializes_to_empty_matcher() {
+    // A pattern that doesn't compile (e.g., from a desktop build with full regex features
+    // being loaded in a CLI build with limited features) becomes a rule that matches nothing.
+    let invalid = "(unclosed"; // Unmatched parenthesis
+    let json = format!(r#"{{"type":"subjectMatches","value":"{}"}}"#, invalid);
+
+    // Deserialize to Condition
+    let condition: Condition = serde_json::from_str(&json).unwrap();
+    match condition {
+        Condition::SubjectMatches(p) => {
+            // The pattern text is kept
+            assert_eq!(p.as_str(), invalid);
+            // But it doesn't match anything
+            let m = Message { subject: "any text".into(), ..Default::default() };
+            assert!(!p.is_match(&m.subject));
+        }
+        _ => panic!("Expected SubjectMatches"),
+    }
+}
+
+#[test]
+fn clean_condition_text_trims_and_caps() {
+    // Trims whitespace
+    assert_eq!(clean_condition_text("  hello  "), "hello");
+    assert_eq!(clean_condition_text("\t\nhello\n\t"), "hello");
+    // Caps at MAX_TEXT_LENGTH
+    let text = "a".repeat(250);
+    let cleaned = clean_condition_text(&text);
+    assert_eq!(cleaned.len(), MAX_TEXT_LENGTH);
+    assert_eq!(cleaned, "a".repeat(MAX_TEXT_LENGTH));
+    // Empty after trim becomes empty
+    assert_eq!(clean_condition_text("   "), "");
+    assert_eq!(clean_condition_text(""), "");
 }
