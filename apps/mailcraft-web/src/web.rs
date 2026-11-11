@@ -314,8 +314,9 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
 /// Fetch the face `file` (next to the page) once, and put it behind the window's fonts: for the
 /// script of an interface language the browser has no system face for (`page::face_for`, #1010).
 /// Nothing is fetched for any other language, so the page stays as small as it was. Until it
-/// arrives, the text is drawn with empty boxes for the letters it lacks; a failure is logged and
-/// tried again the next time the language is put in force.
+/// arrives, the text is drawn with empty boxes for the letters it lacks. A failure is logged and
+/// not retried until `on_language` next fires, which is when the language changes (away from
+/// Georgian and back); nothing retries by itself.
 fn load_face(ctx: &egui::Context, file: &'static str) {
     thread_local!(static REQUESTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) });
     if REQUESTED.replace(true) {
@@ -325,6 +326,9 @@ fn load_face(ctx: &egui::Context, file: &'static str) {
     wasm_bindgen_futures::spawn_local(async move {
         match fetch_face(file).await {
             Ok(bytes) => {
+                // Possible lost update: `reading/fonts.rs::install` also reads the definitions and
+                // sets them back; if both land before egui applies fonts, the later one wins and
+                // drops the other's faces.
                 let fonts = ctx.fonts(|f| f.definitions().clone());
                 match mailcraft_ui_egui::theme::with_extra_face(fonts, "NotoSansGeorgian", bytes) {
                     Some(fonts) => {
@@ -346,7 +350,7 @@ fn load_face(ctx: &egui::Context, file: &'static str) {
 }
 
 /// The bytes of `file`, fetched from beside `index.html`; an error names what failed (no window,
-/// the request, an HTTP status other than success, or reading the body).
+/// the request, an HTTP status other than success, a body over 1 MB, or reading the body).
 async fn fetch_face(file: &str) -> Result<Vec<u8>, String> {
     let js = |e: wasm_bindgen::JsValue| format!("{e:?}");
     let window = web_sys::window().ok_or("no window")?;
@@ -355,8 +359,16 @@ async fn fetch_face(file: &str) -> Result<Vec<u8>, String> {
     if !response.ok() {
         return Err(format!("HTTP {}", response.status()));
     }
+    let declared = response.headers().get("content-length").map_err(js)?.and_then(|v| v.parse::<u64>().ok());
+    if declared.is_some_and(|n| !page::face_size_ok(n)) {
+        return Err("larger than the face cap".into());
+    }
     let buffer = wasm_bindgen_futures::JsFuture::from(response.array_buffer().map_err(js)?).await.map_err(js)?;
-    Ok(js_sys::Uint8Array::new(&buffer).to_vec())
+    let bytes = js_sys::Uint8Array::new(&buffer);
+    if !page::face_size_ok(u64::from(bytes.length())) {
+        return Err("larger than the face cap".into());
+    }
+    Ok(bytes.to_vec())
 }
 
 /// A picked file's bytes, as the browser gives them: a read that fails (the file moved or changed

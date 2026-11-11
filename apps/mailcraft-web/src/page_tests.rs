@@ -62,3 +62,11 @@ fn only_georgian_has_a_face_to_fetch() {
         assert_eq!(face_for(code), None);
     }
 }
+
+/// A fetched face is capped at 1 MB, to the byte.
+#[test]
+fn a_fetched_face_is_capped_at_one_megabyte() {
+    assert!(face_size_ok(35_300));
+    assert!(face_size_ok(1_000_000));
+    assert!(!face_size_ok(1_000_001));
+}

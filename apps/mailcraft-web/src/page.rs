@@ -44,3 +44,12 @@ pub fn face_for(code: &str) -> Option<&'static str> {
 
 /// Noto Sans Georgian (`assets/fonts/`, copied next to `index.html` by Trunk).
 pub const GEORGIAN_FACE: &str = "NotoSansGeorgian-Regular.ttf";
+
+/// The most a fetched face may be: the Georgian face is 35 KB, so 1 MB leaves room and no more. A
+/// server's answer larger than this is refused before it is checked as a font.
+pub const FACE_MAX_BYTES: u64 = 1_000_000;
+
+/// Whether a fetched face of `len` bytes is within [`FACE_MAX_BYTES`].
+pub fn face_size_ok(len: u64) -> bool {
+    len <= FACE_MAX_BYTES
+}
