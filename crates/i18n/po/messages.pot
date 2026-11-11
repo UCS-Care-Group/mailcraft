@@ -17463,7 +17463,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
-msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
 msgstr ""
 
 #. what a command says

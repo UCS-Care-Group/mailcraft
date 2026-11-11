@@ -20844,8 +20844,8 @@ msgstr "„{subject}” kwam van de server maar kon niet op deze computer worden
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
-msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
-msgstr "„{subject}” is nog onderweg naar de server van zijn postvak, en het bericht waarvan het is gekopieerd blijft op zijn eigen server tot het daar is: verplaats het na het volgende Verzenden/ontvangen"
+msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
+msgstr "„{subject}” is nog onderweg naar de server van zijn postvak, en het bericht waarvan het is gekopieerd blijft op zijn eigen server tot het daar is: verplaats het zodra het daar is"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -20864,6 +20864,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+#~ msgstr "„{subject}” is nog onderweg naar de server van zijn postvak, en het bericht waarvan het is gekopieerd blijft op zijn eigen server tot het daar is: verplaats het na het volgende Verzenden/ontvangen"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

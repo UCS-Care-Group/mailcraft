@@ -19806,8 +19806,8 @@ msgstr "„{subject}“ kam von seinem Server, konnte aber auf diesem Computer n
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
-msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
-msgstr "„{subject}“ ist noch auf dem Weg zum Server seines Postfachs, und die Nachricht, von der es kopiert wurde, bleibt auf ihrem eigenen Server, bis es dort ist: Verschieben Sie es nach dem nächsten Senden/Empfangen"
+msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
+msgstr "„{subject}“ ist noch auf dem Weg zum Server seines Postfachs, und die Nachricht, von der es kopiert wurde, bleibt auf ihrem eigenen Server, bis es dort ist: Verschieben Sie es, sobald es dort ist"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -19826,6 +19826,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
+#~ msgstr "„{subject}“ ist noch auf dem Weg zum Server seines Postfachs, und die Nachricht, von der es kopiert wurde, bleibt auf ihrem eigenen Server, bis es dort ist: Verschieben Sie es nach dem nächsten Senden/Empfangen"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
