@@ -323,3 +323,22 @@ fn a_held_key_deletes_one_category() {
         assert_eq!(names, before[1..], "{held:?}");
     }
 }
+
+/// A list kept in step with Outlook offers Outlook's 25 colours, and a new category takes the
+/// first of them that no category of the list has (#661); the list the rest share keeps the
+/// program's own colours.
+#[test]
+fn a_list_kept_in_step_with_outlook_offers_outlooks_colours() {
+    use mailcraft_model::outlook_colors::OUTLOOK_COLORS;
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let a = s.run("account.add", &json!({"email": "a@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let taken = OUTLOOK_COLORS[..12].iter().enumerate().map(|(i, c)| Category { name: format!("C{i}"), color: *c }).collect();
+    remote::apply_categories(&mut s, &CategoriesDownload { account: a, email: "a@example.org".into(), categories: taken, complete: true }).unwrap();
+    s.run("sync.categoryWrites", &json!({"account": a, "allowed": true})).unwrap();
+    assert_eq!(super::categories::palette_of(&s.mailbox, a), &OUTLOOK_COLORS[..]);
+    let mut f = CategoriesForm::new(&s, &json!({"account": a})).unwrap();
+    f.new_name = "Travel".into();
+    let (_, params) = f.add_command();
+    assert_eq!(params["color"], json!(OUTLOOK_COLORS[12].hex()), "{params}");
+    assert_eq!(super::categories::palette_of(&s.mailbox, 0), &super::categories::PALETTE[..]);
+}
