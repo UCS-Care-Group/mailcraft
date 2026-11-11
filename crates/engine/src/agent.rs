@@ -1028,8 +1028,9 @@ fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, 
 }
 
 /// [`rules_make_in_outlook`] for one rule, giving the mail of `from` (every account's, `None`) its
-/// categories. Its actions are read in their order, as the rule runs: mail it moved first is
-/// given what comes after in the account it was moved to, on that account's list.
+/// categories. Its actions are read in their order, as the rule runs: mail it moves first may be
+/// given what comes after in the account it was moved to, on that account's list, or, when the
+/// move is refused (a message not downloaded whole, say), where it was: both are named.
 fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<Id>, out: &mut Vec<(String, Id)>) {
     let mut accounts: Vec<Id> = match from {
         Some(a) => vec![a],
@@ -1038,8 +1039,10 @@ fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<I
     for action in &r.actions {
         if let mailcraft_model::Action::MoveTo(folder) = action {
             // (A rule puts nothing into a send queue, nor into a folder that is gone.)
-            if let Some(f) = mb.folder(*folder).filter(|f| !mb.is_send_queue(f.id)) {
-                accounts = vec![f.account];
+            if let Some(f) = mb.folder(*folder).filter(|f| !mb.is_send_queue(f.id))
+                && !accounts.contains(&f.account)
+            {
+                accounts.push(f.account);
             }
             continue;
         }

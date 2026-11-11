@@ -2526,8 +2526,8 @@ fn an_agent_asks_before_a_rule_gives_mail_a_category_that_is_made_in_outlook() {
 }
 
 /// A rule that moves mail into another account's folder before it gives it a category puts the
-/// category on the list of the account the mail lands in, as the rule runs, and an agent's
-/// question names that list, not the one of the folder it runs over (#661).
+/// category on the list of the account the mail lands in, as the rule runs, or, where the move is
+/// refused, on its own: an agent's question names both lists (#661).
 #[test]
 fn a_rule_that_moves_mail_before_it_categorises_it_names_the_list_the_mail_lands_in() {
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);
@@ -2547,15 +2547,17 @@ fn a_rule_that_moves_mail_before_it_categorises_it_names_the_list_the_mail_lands
     });
     match check(&s, "rules.run", &json!({"folder": inbox}), &[]) {
         Verdict::Ask(Class::Send, text) => {
-            assert!(text.contains("\u{201c}Zed\u{201d}") && text.contains("b@example.org"), "{text}");
-            assert!(!text.contains("a@example.org"), "{text}");
+            assert!(text.contains("\u{201c}Zed\u{201d}") && text.contains("b@example.org") && text.contains("a@example.org"), "{text}");
         }
         other => panic!("{other:?}"),
     }
+    // One whole message, moved; one with only its headers here, which can't be.
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "x".into(), ..Default::default() }).unwrap();
+    let headers = s.mailbox.add_message(Message { folder: inbox, subject: "x 2".into(), incomplete: true, ..Default::default() }).unwrap();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     assert_eq!(s.mailbox.message(m).unwrap().account, b);
-    assert!(s.mailbox.category_of(b, "Zed").is_some() && s.mailbox.category_of(a, "Zed").is_none());
+    assert_eq!(s.mailbox.message(headers).unwrap().account, a);
+    assert!(s.mailbox.category_of(b, "Zed").is_some() && s.mailbox.category_of(a, "Zed").is_some());
 }
 
 #[test]
