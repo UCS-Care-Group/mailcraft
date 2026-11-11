@@ -73,6 +73,8 @@ pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
 #[cfg(test)]
+mod dialog_report_tests;
+#[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
