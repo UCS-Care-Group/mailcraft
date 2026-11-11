@@ -880,6 +880,27 @@ struct Removing {
     went: HashSet<Id>,
 }
 
+/// The messages a run of the rules deletes for good, which go together once it is done
+/// ([`Mailbox::rules_done`]), as [`Mailbox::remove_messages`] removes them: one at a time, each
+/// looked through every change waiting, to which each delete adds one, and Run Rules Now over
+/// tens of thousands of a Microsoft account's took seconds (#566). One of them is gone to the
+/// rules meanwhile: none acts on it after the one that deletes it.
+#[derive(Debug, Default)]
+pub struct Going(Vec<Id>);
+
+impl Going {
+    /// Whether `id` goes: the rules run over one message at a time, so it is the last noted.
+    fn has(&self, id: Id) -> bool {
+        self.0.last() == Some(&id)
+    }
+
+    fn add(&mut self, id: Id) {
+        if !self.has(id) {
+            self.0.push(id);
+        }
+    }
+}
+
 /// What a message deleted for good keeps of itself while its server is asked to delete it
 /// ([`Queued::DeleteMessage`]): all of it when it is whole in memory (named by nothing on disk:
 /// what is in memory is all it needs), else what [`Message::to_fetch_again`] leaves (#793).
@@ -3231,7 +3252,16 @@ impl Mailbox {
     /// A rule its account's server has doesn't act: the server ran it before the mail came here.
     /// It is still matched, so that one that stops later rules stops those of this computer too.
     pub fn apply_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
-        self.rules_on(id, Ruling::Arriving, clock)
+        let mut going = Going::default();
+        let ran = self.apply_rules_batched(id, clock, &mut going);
+        self.rules_done(going);
+        ran
+    }
+
+    /// [`Mailbox::apply_rules`] of one of many messages arriving together: what the rules delete
+    /// for good goes once they are all in ([`Going`], [`Mailbox::rules_done`]).
+    pub fn apply_rules_batched(&mut self, id: Id, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
+        self.rules_on(id, Ruling::Arriving, clock, going)
     }
 
     /// [`Mailbox::apply_rules`] for mail its server had before it was read here: an account's
@@ -3239,17 +3269,40 @@ impl Mailbox {
     /// It is filed as new mail is, but none of it is deleted for good and no alert is shown for it
     /// (#566).
     pub fn apply_rules_found(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
-        self.rules_on(id, Ruling::Found, clock)
+        // (Nothing goes for good.)
+        self.rules_on(id, Ruling::Found, clock, &mut Going::default())
     }
 
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
     /// the server has here too, as Outlook does), and none shows an alert: the mail isn't
     /// arriving.
     pub fn run_rules(&mut self, id: Id, now: bool, clock: &crate::RuleClock) -> Vec<String> {
-        self.rules_on(id, if now { Ruling::Now } else { Ruling::Arriving }, clock)
+        let mut going = Going::default();
+        let ran = self.rules_on(id, if now { Ruling::Now } else { Ruling::Arriving }, clock, &mut going);
+        self.rules_done(going);
+        ran
     }
 
-    fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock) -> Vec<String> {
+    /// [`Mailbox::run_rules`] now, over one of the messages of a folder: what the rules delete for
+    /// good goes once they have run over them all ([`Going`], [`Mailbox::rules_done`]).
+    pub fn run_rules_batched(&mut self, id: Id, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
+        self.rules_on(id, Ruling::Now, clock, going)
+    }
+
+    /// Remove for good what a run of the rules deleted for good ([`Going`]), together.
+    pub fn rules_done(&mut self, going: Going) {
+        if going.0.is_empty() {
+            return;
+        }
+        let mut removing = self.removing(&going.0);
+        for id in &going.0 {
+            // (A message whose server keeps it isn't noted, `act`.)
+            let _ = self.remove_one(*id, &mut removing);
+        }
+        self.removed(&removing);
+    }
+
+    fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
         let now = ruling == Ruling::Now;
         let mut ran = Vec::new();
         let Some((account, listed)) = self.message(id).map(|m| (m.account, m.unfetched)) else { return ran };
@@ -3267,7 +3320,7 @@ impl Mailbox {
         // it once it may have been answered (refused, say), so none waits after one (#566).
         let mut copied = false;
         for mut rule in order {
-            let Some(m) = self.message(id) else { break };
+            let Some(m) = self.message(id).filter(|_| !going.has(id)) else { break };
             // New mail: a rule its server has ran there as the server last had it, which is what
             // says whether the rules after it run, whatever was switched here and not sent yet.
             if let Some(server) = rule.server.as_ref().filter(|s| !now && !s.id.is_empty()) {
@@ -3290,17 +3343,19 @@ impl Mailbox {
                     waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
                 } else {
                     alert |= rule.alert && ruling == Ruling::Arriving;
-                    self.act(id, &rule.actions, clock, ruling != Ruling::Found && !unsure);
+                    if self.act(id, &rule.actions, clock, ruling != Ruling::Found && !unsure, going) {
+                        ran.push(rule.name.clone());
+                    }
                     copied |= rule.actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
-                    ran.push(rule.name.clone());
                 }
             }
             if rule.stop {
                 break;
             }
         }
-        // Moved out of the account, it didn't arrive where it is now.
-        if let Ok(m) = self.message_mut(id)
+        // Moved out of the account, it didn't arrive where it is now; deleted for good, it is gone.
+        if !going.has(id)
+            && let Ok(m) = self.message_mut(id)
             && m.account == account
         {
             m.rule_alert |= alert;
@@ -3319,6 +3374,15 @@ impl Mailbox {
     /// acted. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]), as
     /// it would have as the message arrived.
     pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        let mut going = Going::default();
+        let ran = self.run_waiting_rules_batched(id, clock, &mut going);
+        self.rules_done(going);
+        ran
+    }
+
+    /// [`Mailbox::run_waiting_rules`] of one of many messages fetched together: what the rules
+    /// delete for good goes once they have had their say of them all ([`Mailbox::rules_done`]).
+    pub fn run_waiting_rules_batched(&mut self, id: Id, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
         let mut ran = Vec::new();
         if !self.message(id).is_some_and(|m| m.rules_waiting.is_some() && !m.partly_here()) {
             return ran;
@@ -3332,7 +3396,7 @@ impl Mailbox {
         let mut unsure = false;
         let mut alert = false;
         for wait in waiting.rules.iter().take(MAX_RULES) {
-            let Some(m) = self.message(id).filter(|m| m.account == account) else { break };
+            let Some(m) = self.message(id).filter(|m| m.account == account && !going.has(id)) else { break };
             let Some(mut rule) = self.rules.iter().find(|r| r.id == wait.rule && r.is_for(account)).cloned() else { continue };
             if let Some(server) = rule.server.as_ref().filter(|s| !s.id.is_empty()) {
                 rule.enabled = server.synced_enabled;
@@ -3347,15 +3411,17 @@ impl Mailbox {
             // refused since, and nothing holds the delete behind it.)
             if !rule.on_server() && !wait.delete_only {
                 alert |= rule.alert;
-                self.act(id, &rule.actions, clock, !unsure);
-                ran.push(rule.name.clone());
+                if self.act(id, &rule.actions, clock, !unsure, going) {
+                    ran.push(rule.name.clone());
+                }
             }
             if rule.stop {
                 break;
             }
         }
-        // Moved out of the account, it didn't arrive where it is now.
-        if let Ok(m) = self.message_mut(id)
+        // Moved out of the account, it didn't arrive where it is now; deleted for good, it is gone.
+        if !going.has(id)
+            && let Ok(m) = self.message_mut(id)
             && m.account == account
         {
             m.rule_alert |= alert;
@@ -3366,6 +3432,15 @@ impl Mailbox {
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
     /// folder, as Outlook offers): whether it acted. A rule for another account's mail doesn't.
     pub fn run_rule(&mut self, id: Id, rule: Id, clock: &crate::RuleClock) -> bool {
+        let mut going = Going::default();
+        let acted = self.run_rule_batched(id, rule, clock, &mut going);
+        self.rules_done(going);
+        acted
+    }
+
+    /// [`Mailbox::run_rule`] over one of the messages of a folder: what it deletes for good goes
+    /// once it has run over them all ([`Going`], [`Mailbox::rules_done`]).
+    pub fn run_rule_batched(&mut self, id: Id, rule: Id, clock: &crate::RuleClock, going: &mut Going) -> bool {
         let Some(m) = self.message(id) else { return false };
         let account = m.account;
         if !self.rules_reach(account) {
@@ -3375,47 +3450,65 @@ impl Mailbox {
         if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
             return false;
         }
-        self.act(id, &rule.actions, clock, true);
-        true
+        self.act(id, &rule.actions, clock, true, going)
     }
 
     /// Do what a rule says to a message: change it first, then copy it, then move it, and delete
-    /// it for good last ([`Action::stage`]), unless not `for_good`. Whether a delete for good was
-    /// held back for that.
-    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool) -> bool {
+    /// it for good last ([`Action::stage`]), unless not `for_good`; one deleted for good is noted
+    /// in `going`, and goes when the run is done ([`Mailbox::rules_done`]). Whether the rule did
+    /// anything: not when what it does was refused (a folder gone, a server that keeps the
+    /// message), so that Run Rules Now doesn't count it.
+    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool, going: &mut Going) -> bool {
         let mut ordered: Vec<&Action> = actions.iter().collect();
         ordered.sort_by_key(|a| a.stage());
         // A copy that couldn't be made: the message is then the only one, and isn't deleted.
         let mut no_copy = false;
-        let mut held = false;
+        let mut did = false;
+        // Deleted for good, unless its server keeps it (a JMAP account's: the next run would bring
+        // it back).
+        let gone = |mb: &Mailbox, going: &mut Going| {
+            let goes = !mb.stays_on_server(id);
+            if goes {
+                going.add(id);
+            }
+            goes
+        };
         for action in ordered {
-            if self.message(id).is_none() {
+            if self.message(id).is_none() || going.has(id) {
                 break;
             }
             match action {
                 // A rule pointing at a folder that is gone does nothing, and none puts mail into a
                 // send queue (the next Send/Receive would send it).
                 Action::MoveTo(folder) => {
-                    if !self.is_send_queue(*folder) {
-                        let _ = self.move_message(id, *folder);
-                    }
+                    did |= !self.is_send_queue(*folder) && self.move_message(id, *folder).is_ok();
                 }
                 Action::CopyTo(folder) => {
                     let at = u64::try_from(clock.now).unwrap_or_default();
                     let copied = !self.is_send_queue(*folder) && self.copy_message_marked(id, *folder, at).is_ok();
+                    did |= copied;
                     // A copy of the headers here isn't a copy of the message on the server.
                     no_copy |= !copied || self.message(id).is_some_and(|m| m.partly_here() && !m.unfetched);
                 }
                 Action::Delete | Action::DeleteForGood if no_copy => {}
-                Action::DeleteForGood if !for_good => held = true,
+                // Held back, to be done once the message is here whole.
+                Action::DeleteForGood if !for_good => did = true,
+                // To Deleted Items, or for good from there (or where an account has none), as
+                // [`Mailbox::delete_message`] does.
                 Action::Delete => {
-                    let _ = self.delete_message(id);
+                    let binned = self
+                        .message(id)
+                        .map(|m| (m.account, m.folder))
+                        .and_then(|(account, at)| self.folder_of_kind(account, FolderKind::Deleted).filter(|d| !self.subtree(*d).contains(&at)));
+                    did |= match binned {
+                        Some(d) => self.move_message(id, d).is_ok(),
+                        None => gone(self, going),
+                    };
                 }
-                Action::DeleteForGood => {
-                    let _ = self.remove_message(id);
-                }
+                Action::DeleteForGood => did |= gone(self, going),
                 change => {
                     let Ok(m) = self.message_mut(id) else { break };
+                    did = true;
                     match change {
                         Action::Categorize(c) if !m.has_category(c) => {
                             m.categories.push(c.clone());
@@ -3439,7 +3532,7 @@ impl Mailbox {
                 }
             }
         }
-        held
+        did
     }
 
     // ---- contacts, events, tasks ----

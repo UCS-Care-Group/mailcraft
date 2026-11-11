@@ -525,17 +525,22 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     // part too large to be shown isn't brought in for a rule either.
     let reads_bodies = s.mailbox.rules.iter().any(|r| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.reads_body());
     let clock = s.rule_clock();
-    ids.into_iter()
+    // What the rules delete for good goes together at the end (#566).
+    let mut going = mailcraft_model::Going::default();
+    let matched = ids
+        .into_iter()
         .filter(|id| {
             if reads_bodies {
                 let _ = s.load_where(*id, crate::session::is_readable_calendar_part);
             }
             match only {
-                Some(rule) => s.mailbox.run_rule(*id, rule, &clock),
-                None => !s.mailbox.run_rules(*id, true, &clock).is_empty(),
+                Some(rule) => s.mailbox.run_rule_batched(*id, rule, &clock, &mut going),
+                None => !s.mailbox.run_rules_batched(*id, &clock, &mut going).is_empty(),
             }
         })
-        .count()
+        .count();
+    s.mailbox.rules_done(going);
+    matched
 }
 
 fn run(s: &mut Session, v: &Value) -> CmdResult {

@@ -196,6 +196,8 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
         }
     }
+    // What the rules delete for good goes together, after the page (#566).
+    let mut going = mailcraft_model::Going::default();
     for there in &page.messages {
         if there.server.id.is_empty() {
             continue;
@@ -238,7 +240,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     // A move goes up as the owner's own does (R3.3).
                     let sorted = sorting && mb.sort_junk(m);
                     if ruling && inbox != sorted {
-                        mb.apply_rules(m, &down.rule_clock());
+                        mb.apply_rules_batched(m, &down.rule_clock(), &mut going);
                         // Out of the account: should the page list it again, that is the same
                         // message (#606 review).
                         if mb.message(m).is_some_and(|m| m.account != account) {
@@ -251,6 +253,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
         }
     }
+    mb.rules_done(going);
     held_deletes_seen(mb, account, &page.folder, &held_left, &held_there);
     // A listing afresh that ended without a copy being moved out: it left that folder (#30).
     if page.caught_up {

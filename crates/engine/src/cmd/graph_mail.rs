@@ -280,13 +280,16 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     let clock = s.rule_clock();
     let alerted = |s: &Session, id: Id| s.mailbox.message(id).is_some_and(|m| m.rule_alert);
     let mut alerts = Vec::new();
+    // What they delete for good goes together once they have had their say (#566).
+    let mut going = mailcraft_model::Going::default();
     for id in &taken {
         let before = alerted(s, *id);
-        s.mailbox.run_waiting_rules(*id, &clock);
+        s.mailbox.run_waiting_rules_batched(*id, &clock, &mut going);
         if !before && alerted(s, *id) {
             alerts.push(*id);
         }
     }
+    s.mailbox.rules_done(going);
     // Older than its mail to keep offline (the owner opened it): whole until the mailbox is
     // opened again (#143).
     let window = mailcraft_model::OfflineWindow::of(&s.mailbox, s.now());

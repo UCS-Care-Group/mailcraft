@@ -364,3 +364,53 @@ fn a_size_rule_measures_a_message_as_the_list_shows_it() {
         assert_eq!(here, Some((kept, kb)), "{kind}");
     }
 }
+
+/// A rule for `account`'s mail with "news" in the subject that deletes it for good.
+fn purge(s: &mut Session, account: Id) {
+    let purge = json!({"name": "Purge", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &purge).unwrap();
+}
+
+/// Run Rules Now over a big Inbox of a Microsoft account with a rule that deletes for good, which
+/// queues a delete for its server of each: in proportion to the messages, as
+/// `mail.deletePermanently` of them is (#566).
+#[test]
+fn run_rules_now_deleting_for_good_on_microsoft_takes_time_in_proportion() {
+    use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult, ServerMessage};
+    let n = 20_000u64;
+    let mut s = Session::at(Default::default(), NOW, 0);
+    let ms = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let folders = vec![GraphFolder { id: "in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let listing = GraphMailResult { account: ms, email: ME.into(), listing: Some(FolderListing { folders, complete: true }), ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_mail(&mut s, listing).unwrap();
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    for i in 0..n {
+        let server = Some(ServerMessage { id: format!("M{i}"), folder: "in".into(), ..Default::default() });
+        s.mailbox.add_message(Message { folder: inbox, account: ms, subject: format!("news {i}"), server, ..Default::default() }).unwrap();
+    }
+    purge(&mut s, ms);
+    let started = std::time::Instant::now();
+    let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].as_u64().unwrap();
+    let took = started.elapsed();
+    assert_eq!(matched, n);
+    assert_eq!(s.mailbox.messages_in(inbox).count(), 0);
+    let deletes = s.mailbox.queued.iter().filter(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. })).count();
+    assert_eq!(deletes, n as usize, "one delete for the server of each");
+    assert!(took.as_millis() < 1_500, "{took:?}");
+}
+
+/// A JMAP account: mail its server has isn't deleted here yet, so a rule that deletes it for good
+/// does nothing, and Run Rules Now doesn't count it as changed.
+#[test]
+fn run_rules_now_doesnt_count_what_a_rule_couldnt_do() {
+    let mut s = Session::at(Default::default(), NOW, 0);
+    let jmap = json!({"email": ME, "kind": "jmap", "jmap": {"session": "https://jmap.example.org/jmap/session", "bearer": true}});
+    let a = s.run("account.add", &jmap).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap_or_else(|| s.mailbox.add_folder(a, None, "Inbox").unwrap());
+    let server = Some(mailcraft_model::sync::ServerMessage { id: "E1".into(), folder: "M1".into(), ..Default::default() });
+    let m = s.mailbox.add_message(Message { folder: inbox, account: a, subject: "news".into(), server, ..Default::default() }).unwrap();
+    purge(&mut s, a);
+    let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].clone();
+    assert!(s.mailbox.message(m).is_some(), "stays: the server has it");
+    assert_eq!(matched, 0, "nothing was done to it");
+}
