@@ -9,7 +9,7 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: ['**', '!docs/**', '!**/*.md', '!.github/**', 'ATTRIBUTION.md', '.github/workflows/**']
+    paths: ['**', '!docs/**', '!**/*.md', '!.github/**', 'ATTRIBUTION.md', '.github/workflows/**', '.github/scripts/**']
   pull_request:
   workflow_dispatch:
 
@@ -83,7 +83,7 @@ jobs:
       # Windowing and file-dialog headers the desktop app links against.
       - name: Linux build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
+        run: .github/scripts/apt-mirrors.sh && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
       # Clippy and the wasm check run on Linux only: wasm is the same from any host, and the
       # tests still build every platform's code.
       - run: cargo run --locked --package xtask -- ci
