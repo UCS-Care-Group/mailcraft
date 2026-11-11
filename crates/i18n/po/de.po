@@ -1541,6 +1541,11 @@ msgid "Asking the server…"
 msgstr "Server wird gefragt…"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Asking your domain's DNS…"
+msgstr "Das DNS Ihrer Domain wird gefragt…"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
@@ -1784,6 +1789,11 @@ msgstr ""
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Automatic replies: your organisation doesn't let MailCraft change them"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Automatic setup (Autodiscover)"
+msgstr "Automatische Einrichtung (Autodiscover)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4688,6 +4698,11 @@ msgid "Forward…"
 msgstr "Weiterleiten…"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."
+msgstr "Im DNS Ihrer Domain gefunden. Ihre Anmeldung geht nur mit Ihrer Zustimmung an einen Server außerhalb Ihrer Domain."
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "Found in {path}. Nothing is imported until you press Import."
 msgstr ""
@@ -6661,6 +6676,11 @@ msgid "MailCraft stopped reading the .pst file before it was done: what came in 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "MailCraft tries the usual places for your address."
+msgstr "MailCraft versucht die üblichen Stellen für Ihre Adresse."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone"
 msgid_plural "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
@@ -8039,6 +8059,11 @@ msgstr ""
 #, fuzzy
 msgid "Not allowed by your organisation"
 msgstr "Von Ihrer Organisation nicht erlaubt"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Not an Exchange server? Set it up with IMAP"
+msgstr "Kein Exchange-Server? Mit IMAP einrichten"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -10540,6 +10565,11 @@ msgid "Search Suggestions"
 msgstr "Suchvorschläge"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Search again"
+msgstr "Erneut suchen"
+
+#. interface
 #: crates/ui-egui/src/pick_item.rs
 msgid "Search by subject or sender"
 msgstr ""
@@ -12703,6 +12733,11 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
+msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung von Exchange (Autodiscover); das sieht nach einem Exchange-Server-Konto aus. Geben Sie Ihr Passwort ein und klicken Sie auf Verbinden: MailCraft sucht den Server und prüft das Konto. Bis dahin wird nichts gesendet."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The draft stays in Drafts. {why}"
 msgstr ""
@@ -13701,6 +13736,11 @@ msgstr "Dieser Build kann keine Bilder herunterladen"
 #, fuzzy
 msgid "This build can't download pictures: they stay placeholders."
 msgstr "Dieser Build kann keine Bilder herunterladen: Sie bleiben Platzhalter."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This build can't look anything up. Type the server's address in Server settings."
+msgstr "Diese Version kann nichts nachschlagen. Geben Sie die Adresse des Servers in den Servereinstellungen ein."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -15499,6 +15539,16 @@ msgstr "Ihr Kalender: {day}"
 #: crates/ui-egui/src/security.rs
 msgid "Your certificates and keys"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
+msgstr "Das DNS Ihrer Domain konnte nicht gefragt werden. Prüfen Sie die Netzwerkverbindung und suchen Sie erneut."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
+msgstr "Das DNS Ihrer Domain nennt keinen Server für die automatische Einrichtung. MailCraft versucht trotzdem die üblichen Stellen für Ihre Adresse."
 
 #. interface
 #: crates/ui-egui/src/security.rs

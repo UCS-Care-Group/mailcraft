@@ -344,6 +344,11 @@ pub struct Services {
     /// so account setup can tell whose servers an address at a company's own domain uses. Only
     /// the domain is given, never the mailbox name.
     pub lookup_mx: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
+    /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
+    /// so account setup can tell an address on an Exchange server from one on an IMAP server.
+    /// Only the domain is given, and none of the hosts is asked anything.
+    pub lookup_autodiscover: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.

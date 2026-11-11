@@ -1603,6 +1603,11 @@ msgid "Asking the server…"
 msgstr "Bezig de server te vragen…"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Asking your domain's DNS…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
@@ -1876,6 +1881,11 @@ msgstr "Automatische antwoorden: bezig met lezen…"
 #, fuzzy
 msgid "Automatic replies: your organisation doesn't let MailCraft change them"
 msgstr "Automatische antwoorden: uw organisatie staat MailCraft niet toe ze te wijzigen"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Automatic setup (Autodiscover)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4922,6 +4932,11 @@ msgid "Forward…"
 msgstr "Doorsturen…"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Found in {path}. Nothing is imported until you press Import."
@@ -7020,6 +7035,11 @@ msgid "MailCraft stopped reading the .pst file before it was done: what came in 
 msgstr "MailCraft stopte met het lezen van het .pst-bestand vóór het klaar was: wat er binnenkwam, wordt behouden"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "MailCraft tries the usual places for your address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone"
@@ -8445,6 +8465,11 @@ msgstr "Geen datum"
 #, fuzzy
 msgid "Not allowed by your organisation"
 msgstr "Niet toegestaan door uw organisatie"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Not an Exchange server? Set it up with IMAP"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -11083,6 +11108,11 @@ msgid "Search Suggestions"
 msgstr "Zoeksuggesties"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Search again"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/pick_item.rs
 #, fuzzy
 msgid "Search by subject or sender"
@@ -13385,6 +13415,11 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr "De diagnosegegevens zijn niet opgeslagen, dus de pagina van GitHub is niet geopend. Probeer het opnieuw, of vink Diagnose opnemen uit."
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The draft stays in Drafts. {why}"
@@ -14457,6 +14492,11 @@ msgstr "Deze build kan geen afbeeldingen downloaden"
 #, fuzzy
 msgid "This build can't download pictures: they stay placeholders."
 msgstr "Deze build kan geen afbeeldingen downloaden: ze blijven plaatsaanduidingen."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This build can't look anything up. Type the server's address in Server settings."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -16356,6 +16396,16 @@ msgstr "Uw agenda: {day}"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Your certificates and keys"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
 msgstr ""
 
 #. interface

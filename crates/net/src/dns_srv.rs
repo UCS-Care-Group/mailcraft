@@ -3,8 +3,11 @@
 //! Where a domain's Autodiscover is, by its `_autodiscover._tcp.<domain>` SRV record (RFC 2782;
 //! the third place MS-OXDSCLI looks), asked of the same DNS-over-HTTPS name servers as
 //! [`lookup_mx`](crate::lookup_mx). Only the domain goes out (inside the fixed name of the
-//! service), never a mailbox name, and only when the owner has pressed Connect for an Exchange
-//! server account.
+//! service), never a mailbox name, and only when the owner has pressed Connect.
+//!
+//! [`autodiscover_hosts`] asks that and one more question of the DNS, the alias of
+//! `autodiscover.<domain>`, so that Add Account can tell an address on an Exchange server from
+//! one on an IMAP server before anything is sent to any of the hosts named.
 //!
 //! The answer is a name server's JSON and as hostile as anything from the network: its size is
 //! capped by the HTTP layer, the records looked at and the hosts handed back are capped, and a
@@ -23,6 +26,11 @@ const MAX_HOSTS: usize = 8;
 const SRV: u64 = 33;
 /// The service asked after, whatever the domain.
 const SERVICE: &str = "_autodiscover._tcp";
+/// The record type of an alias.
+const CNAME: u64 = 5;
+/// The host in the domain that Autodiscover is looked for at, and the first label of the alias
+/// that is taken for it.
+const ALIAS: &str = "autodiscover";
 
 /// A place an SRV record names: the host (lower case, without the trailing dot) and the port.
 #[derive(Clone, PartialEq, Eq)]
@@ -70,32 +78,125 @@ pub fn lookup_autodiscover_at(endpoints: &[&str], domain: &str) -> Result<Vec<Sr
     Err(failure.unwrap_or_else(|| NetError::Config("there is no name server to ask".into())))
 }
 
-fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {
-    let endpoint = endpoint.trim();
-    let question = http::form(&[("name", name), ("type", "SRV")]);
-    let url = Url::parse(&format!("{endpoint}{}{question}", if endpoint.contains('?') { '&' } else { '?' }))?;
-    targets(&http::get(&url, &[("Accept", "application/dns-json")], LOOKUP_TIMEOUT)?)
+/// The hosts a domain's DNS names for Autodiscover, best first, without anything being asked of
+/// them: the targets of its `_autodiscover._tcp` SRV record, then the host `autodiscover.<domain>`
+/// is an alias of, when that host is called `autodiscover` too (`autodiscover.mail.example.net`,
+/// as a hoster or Microsoft 365 has it; an alias that a wildcard gives every name in the domain
+/// says nothing). Empty when the domain names none; an error only when neither question could be
+/// answered. Only the domain is sent, as for [`lookup_autodiscover`]. Blocks, for some seconds at
+/// most per question and name server.
+pub fn autodiscover_hosts(domain: &str) -> Result<Vec<String>, NetError> {
+    autodiscover_hosts_at(&RESOLVERS, domain)
 }
 
-/// The targets of a name server's answer: `{"Status":0,"Answer":[{"type":33,"data":"10 60 443 mail.example.org."}]}`.
-/// Whatever else is in there, and whatever isn't a host name, is passed over.
-pub(crate) fn targets(answer: &Answer) -> Result<Vec<SrvTarget>, NetError> {
+/// [`autodiscover_hosts`], asking the name servers at `endpoints` instead.
+pub fn autodiscover_hosts_at(endpoints: &[&str], domain: &str) -> Result<Vec<String>, NetError> {
+    let mut hosts: Vec<String> = Vec::new();
+    for target in autodiscover_targets_at(endpoints, domain)? {
+        if !hosts.contains(&target.host) {
+            hosts.push(target.host);
+        }
+    }
+    Ok(hosts)
+}
+
+/// The places [`autodiscover_hosts`] names, with their ports: the SRV record's targets at the
+/// ports it gives, then the alias's host at 443. The search for an Exchange server asks these
+/// where MS-OXDSCLI asks the SRV record's alone: a domain whose SRV record is only in its own
+/// network's DNS (a split DNS) still names its hoster's Autodiscover by the alias, whose host
+/// has the certificate that `autodiscover.<domain>` itself hasn't.
+pub fn autodiscover_targets(domain: &str) -> Result<Vec<SrvTarget>, NetError> {
+    autodiscover_targets_at(&RESOLVERS, domain)
+}
+
+/// [`autodiscover_targets`], asking the name servers at `endpoints` instead.
+pub fn autodiscover_targets_at(endpoints: &[&str], domain: &str) -> Result<Vec<SrvTarget>, NetError> {
+    let srv = lookup_autodiscover_at(endpoints, domain);
+    let Some(domain) = domain_name(domain) else { return srv.map(|_| Vec::new()) };
+    let name = format!("{ALIAS}.{domain}");
+    let mut alias = None;
+    for endpoint in endpoints.iter().take(MAX_RESOLVERS) {
+        match question(endpoint, &name, "CNAME").and_then(|answer| aliases(&answer)) {
+            Ok(found) => {
+                alias = Some(found);
+                break;
+            }
+            Err(e) => log::debug!("a name server couldn't be asked: {e}"),
+        }
+    }
+    let (srv, alias) = match (srv, alias) {
+        (Err(e), None) => return Err(e),
+        (srv, alias) => (srv.unwrap_or_default(), alias.unwrap_or_default()),
+    };
+    let mut targets: Vec<SrvTarget> = Vec::new();
+    for target in srv.into_iter().chain(alias.into_iter().map(|host| SrvTarget { host, port: 443 })) {
+        if targets.len() < MAX_HOSTS && target.host != name && !targets.contains(&target) {
+            targets.push(target);
+        }
+    }
+    Ok(targets)
+}
+
+fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {
+    targets(&question(endpoint, name, "SRV")?)
+}
+
+/// One question of one name server: `name` and the record type.
+fn question(endpoint: &str, name: &str, kind: &str) -> Result<Answer, NetError> {
+    let endpoint = endpoint.trim();
+    let question = http::form(&[("name", name), ("type", kind)]);
+    let url = Url::parse(&format!("{endpoint}{}{question}", if endpoint.contains('?') { '&' } else { '?' }))?;
+    http::get(&url, &[("Accept", "application/dns-json")], LOOKUP_TIMEOUT)
+}
+
+/// The records of a name server's answer, once its status says there are any to look at.
+fn records(answer: &Answer) -> Result<Vec<Value>, NetError> {
     let nonsense = |text: String| NetError::Proto(ProtoError::Protocol(text.into()));
     if answer.status != 200 {
         return Err(nonsense(format!("the name server answered with status {}", answer.status)));
     }
     let json = serde_json::from_slice::<Value>(&answer.body).ok().filter(Value::is_object);
     let status = json.as_ref().and_then(|json| json.get("Status")).and_then(Value::as_u64);
-    let (Some(json), Some(status)) = (&json, status) else { return Err(nonsense("the name server's answer isn't the JSON it should be".into())) };
+    let (Some(json), Some(status)) = (json, status) else { return Err(nonsense("the name server's answer isn't the JSON it should be".into())) };
     match status {
         NO_ERROR => {}
         NO_SUCH_DOMAIN => return Ok(Vec::new()),
         other => return Err(NetError::Proto(ProtoError::Rejected(format!("the name server couldn't look the domain up (code {other})").into()))),
     }
-    let records = json.get("Answer").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+    let mut records = match json {
+        Value::Object(mut json) => match json.remove("Answer") {
+            Some(Value::Array(records)) => records,
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    };
+    records.truncate(MAX_RECORDS);
+    Ok(records)
+}
+
+/// The hosts called `autodiscover` that an answer about an alias names:
+/// `{"Status":0,"Answer":[{"type":5,"data":"autodiscover.mail.example.net."}]}`. Whatever else is in
+/// there is passed over.
+pub(crate) fn aliases(answer: &Answer) -> Result<Vec<String>, NetError> {
+    let mut hosts: Vec<String> = Vec::new();
+    for record in records(answer)? {
+        if record.get("type").and_then(Value::as_u64) != Some(CNAME) {
+            continue;
+        }
+        let Some(host) = record.get("data").and_then(Value::as_str).and_then(domain_name) else { continue };
+        if host.split('.').next() == Some(ALIAS) && hosts.len() < MAX_HOSTS && !hosts.contains(&host) {
+            hosts.push(host);
+        }
+    }
+    Ok(hosts)
+}
+
+/// The targets of a name server's answer: `{"Status":0,"Answer":[{"type":33,"data":"10 60 443 mail.example.org."}]}`.
+/// Whatever else is in there, and whatever isn't a host name, is passed over.
+pub(crate) fn targets(answer: &Answer) -> Result<Vec<SrvTarget>, NetError> {
     // (priority, weight, target)
     let mut found: Vec<(u16, u16, SrvTarget)> = Vec::new();
-    for record in records.iter().take(MAX_RECORDS) {
+    for record in records(answer)? {
         if record.get("type").and_then(Value::as_u64) != Some(SRV) {
             continue;
         }

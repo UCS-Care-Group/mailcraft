@@ -1714,6 +1714,7 @@ fn services(
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let autodiscover_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
@@ -1775,6 +1776,9 @@ fn services(
         })),
         lookup_mx: Some(Box::new(move |domain| {
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
+        })),
+        lookup_autodiscover: Some(Box::new(move |domain| {
+            background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).

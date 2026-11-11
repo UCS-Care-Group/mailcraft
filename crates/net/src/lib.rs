@@ -104,7 +104,10 @@ mod native {
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
-    pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
+    pub use crate::dns_srv::{
+        SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets, autodiscover_targets_at, lookup_autodiscover,
+        lookup_autodiscover_at,
+    };
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;
     pub use crate::sync::{sync, sync_with, token_may_go_to};

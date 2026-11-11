@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Add Account for an Exchange server account (#252, E7): an explicit choice, nothing sent before Connect, the host's search with the owner's questions, the certificate
+//! Add Account for an Exchange server account (#252, E7): chosen here (found from the domain's Autodiscover records: `tests/autodiscover.rs`), nothing sent before Connect, the host's search with the owner's questions, the certificate
 //! question, a mailbox in Microsoft 365, the password remembered, and File › Info. The host is a
 //! stand-in that records the jobs it is given and says what the test tells it to; nothing here
 //! leaves the machine, and every name, address and fingerprint is invented.

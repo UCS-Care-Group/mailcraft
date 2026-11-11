@@ -6,7 +6,8 @@
 //! **What goes where.** The address, then the password, only to the server Autodiscover found or
 //! the owner named, and only in answer to that server's own challenge during Autodiscover (the
 //! search never sends a credential unasked: `mailcraft_ews::Autodiscover`). The DNS lookups (the
-//! domain's mail exchangers, the `_autodiscover._tcp` SRV record) go over DNS-over-HTTPS with the
+//! domain's mail exchangers, the `_autodiscover._tcp` SRV record and the alias of
+//! `autodiscover.<domain>`) go over DNS-over-HTTPS with the
 //! domain and nothing else. A host outside the owner's domain is asked about first, naming it
 //! (`EwsSetupEvent::Consent`), and no password goes there before a yes. A mailbox in Microsoft 365
 //! is a Microsoft account: the search ends with that said, and nothing is sent there.
@@ -98,9 +99,11 @@ impl World for Real {
     }
 
     fn srv(&self, name: &str) -> Option<Vec<(String, u16)>> {
-        // (The machine asks for `_autodiscover._tcp.<domain>`; the resolver adds the service itself.)
+        // (The machine asks for `_autodiscover._tcp.<domain>`; the resolver adds the service
+        // itself, and the host `autodiscover.<domain>` is an alias of: a split DNS may keep the
+        // SRV record from the public resolvers while the alias is public.)
         let domain = name.strip_prefix("_autodiscover._tcp.")?;
-        mailcraft_net::lookup_autodiscover(domain).ok().map(|targets| targets.into_iter().map(|t| (t.host, t.port)).collect())
+        mailcraft_net::autodiscover_targets(domain).ok().map(|targets| targets.into_iter().map(|t| (t.host, t.port)).collect())
     }
 
     fn probe(&self, url: &str, who: &Who, trusted: &str) -> Probed {
