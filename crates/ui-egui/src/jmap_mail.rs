@@ -103,6 +103,7 @@ impl MailApp {
         self.sync_refused = false;
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
+        self.jmap_made = 0;
         self.sync_rx = Some(MailRun::Jmap { account, opening: self.session.openings(), pieces });
         // (Send/Receive Progress: under way from now, the server's mailboxes first.)
         self.session.sync_progress.phase(account, SyncPhase::Folders);
@@ -182,6 +183,8 @@ impl MailApp {
                     // What the server wouldn't do in a run that went well otherwise (a change it
                     // refused, a message it wouldn't send) stays to be read in its problems.
                     whole &= said["refused"].as_u64().unwrap_or(0) == 0;
+                    let made = said["pushed"].as_u64().unwrap_or(0);
+                    self.jmap_made = self.jmap_made.saturating_add(usize::try_from(made).unwrap_or(usize::MAX));
                 }
                 Err(e) => {
                     self.status(e.to_string());
@@ -209,6 +212,14 @@ impl MailApp {
                 self.note_sync_problems(account, &[], true);
             }
             self.note_pushed(account);
+            // What still waits after a run whose changes were all made never went with it (a
+            // mark made while it ran on a message whose other mark was going, or what came after
+            // as many as a run takes): it isn't something the server turned down, so it goes
+            // with a run of its own at once, not in a few minutes. A run that made nothing
+            // doesn't ask for another, so this ends.
+            if whole && std::mem::take(&mut self.jmap_made) > 0 {
+                self.push_again_soon(account);
+            }
             return;
         }
     }
