@@ -297,3 +297,70 @@ fn long_and_reversed_names_keep_the_chip_bounded() {
     click(&mut h, at, PointerButton::Primary, 1);
     assert_eq!(menus(&h), 1);
 }
+
+#[test]
+fn one_click_previews_the_attachment_and_can_turn_a_page() {
+    use crate::attachment_preview::{Format, Host, Page};
+    use std::sync::mpsc;
+
+    let (mut h, opened_files) = window();
+    let received = Arc::new(Mutex::new(Vec::new()));
+    let recorded = received.clone();
+    let bytes = b"%PDF-1.7 test input".to_vec();
+    let app = h.state_mut();
+    app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new("notes.pdf", "application/pdf", bytes.clone())];
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(move |request| {
+            assert_eq!(request.format, Format::Pdf);
+            recorded.lock().unwrap().push((request.page, request.bytes.to_vec()));
+            let (send, receive) = mpsc::channel();
+            send.send(Ok(Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 2 })).unwrap();
+            receive
+        }),
+    });
+    h.run_steps(4);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(4);
+    let next = h.state().hit.rect("attachmentPreviewNext", A).unwrap().center();
+    click(&mut h, next, PointerButton::Primary, 1);
+    assert_eq!(*received.lock().unwrap(), vec![(1, bytes.clone()), (2, bytes)]);
+    assert!(opened(&opened_files).is_empty());
+    let back = h.state().hit.rect("attachmentPreviewBack", A).unwrap().center();
+    click(&mut h, back, PointerButton::Primary, 1);
+    h.run_steps(2);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+}
+
+#[test]
+fn without_a_helper_single_click_keeps_the_message_and_open_still_works() {
+    let (mut h, opened_files) = window();
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(10);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    assert!(opened(&opened_files).is_empty());
+    let menu = arrow(&h, A, 0).center();
+    click(&mut h, menu, PointerButton::Primary, 1);
+    assert!(entry_nodes(&h, "Preview Attachment").next().is_none());
+    choose(&mut h, "Open");
+    assert_eq!(opened(&opened_files), vec![("notes.pdf".into(), b"a0".to_vec())]);
+}
+
+#[test]
+fn a_disguised_pdf_and_an_oversized_attachment_never_start_the_helper() {
+    use crate::attachment_preview::{Host, MAX_INPUT_BYTES};
+    let (mut h, _) = window();
+    let app = h.state_mut();
+    app.services.attachment_preview =
+        Some(Host { pdf: true, images: false, render: Box::new(|_| panic!("an invalid attachment reached the helper")) });
+    let file = app.session.mailbox.message_mut(A).unwrap().attachments.first_mut().unwrap();
+    file.data = Arc::new(b"<html>not a PDF</html>".to_vec());
+    assert!(app.execute("ui.previewAttachment", json!({"id":A, "index":0})).is_err());
+    let file = app.session.mailbox.message_mut(A).unwrap().attachments.first_mut().unwrap();
+    file.data = Arc::new(Vec::new());
+    file.kept = Some(mailcraft_model::ContentRef { sha256: [0; 32], len: MAX_INPUT_BYTES as u64 + 1 });
+    assert!(app.execute("ui.previewAttachment", json!({"id":A, "index":0})).is_err());
+}
