@@ -5080,7 +5080,7 @@ pub(crate) mod rules {
                             let current = if a.category.is_empty() { tl!("Choose a category").to_string() } else { shown(&a.category, 200) };
                             egui::ComboBox::from_id_salt(("do_category", i)).width(width).selected_text(current).truncate().show_ui(ui, |ui| {
                                 for name in categories {
-                                    if ui.selectable_label(name.eq_ignore_ascii_case(&a.category), shown(name, 200)).clicked() {
+                                    if ui.selectable_label(mailcraft_model::sync::same_category(name, &a.category), shown(name, 200)).clicked() {
                                         a.category = name.clone();
                                     }
                                 }
