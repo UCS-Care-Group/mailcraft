@@ -18211,6 +18211,11 @@ msgid "year"
 msgstr "año"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+msgid "you signed in as somebody else"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "you@example.org"

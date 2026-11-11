@@ -19159,6 +19159,12 @@ msgid "year"
 msgstr "jaar"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "you signed in as somebody else"
+msgstr "u hebt zich aangemeld als iemand anders"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "you@example.org"
@@ -20766,10 +20772,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
 #~ msgstr "De beheerder van uw organisatie moet het bijhouden van taken met Microsoft To Do één keer goedkeuren: Bestand › Info"
-
-#, fuzzy
-#~ msgid "you signed in as somebody else"
-#~ msgstr "u hebt zich aangemeld als iemand anders"
 
 #, fuzzy
 #~ msgid "The signer's certificate isn't in the message."

@@ -506,3 +506,34 @@ fn why_automatic_replies_werent_changed_is_one_heading_and_a_reason() {
     set_current(Lang::English);
     assert_eq!(Unchanged::Failed("{heading}".to_string()).said(), "Your automatic replies weren't changed: {heading}");
 }
+
+#[test]
+fn a_sign_in_as_somebody_else_drops_the_change_that_waited_and_a_later_yes_sends_nothing_of_it() {
+    let (mut app, owner, answers, jobs, _) = window();
+    read(&mut app, owner, &answers);
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_consent_needed: true, ..Default::default() });
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+    app.poll_auto_replies();
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"));
+    // The page signs in another mailbox: the change is dropped and said, as main did.
+    app.dialog = None;
+    app.services.sign_in = Some(Box::new(|_| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(Tokens { email: "someone@example.org".into(), ..tokens("ref-x") })).unwrap();
+        rx
+    }));
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert!(said(&app).contains("weren't changed"), "{}", said(&app));
+    // A later yes, as the owner: nothing of the old change goes.
+    let before = jobs.lock().unwrap().len();
+    app.services.sign_in = Some(Box::new(|_| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(tokens("ref-2"))).unwrap();
+        rx
+    }));
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    app.auto_replies_tick_at(10.0);
+    assert!(jobs.lock().unwrap().iter().skip(before).all(|(_, change)| change.is_none()), "nothing of the old change goes");
+}

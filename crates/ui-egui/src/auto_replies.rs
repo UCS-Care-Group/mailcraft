@@ -564,10 +564,15 @@ impl MailApp {
         }
     }
 
-    /// The page signed in somebody else: what waited waits as it did.
+    /// The page signed in somebody else: the question waits as it did, but a change that waited
+    /// for it is dropped and said, as for a no, so that a later yes never sends a change made long
+    /// before.
     pub(crate) fn auto_replies_sync_waits(&mut self, account: Id) {
         if self.auto_replies.perm.get(&account) == Some(&Permission::Asking) {
             self.auto_replies.perm.insert(account, Permission::Needed);
+        }
+        if self.auto_replies.held.remove(&account).is_some() {
+            self.status(Unchanged::Failed(tl!("you signed in as somebody else").to_string()).said());
         }
     }
 
