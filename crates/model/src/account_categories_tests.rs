@@ -383,6 +383,7 @@ fn the_renames_a_list_waits_on_go_with_its_account_and_a_stray_one_with_the_file
     let (mut mb, a, b) = two_accounts();
     for account in [a, b] {
         mb.start_account_categories(account, &["Old".to_string()]);
+        mb.server_categories.insert(account, vec!["Old".into()]);
         mb.category_renames.insert(account, [("new".to_string(), "Old".to_string())].into());
     }
     mb.remove_account(b).unwrap();
@@ -402,4 +403,21 @@ fn a_file_with_long_lists_of_categories_opens_in_time() {
     let started = std::time::Instant::now();
     opened.repair();
     assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+}
+
+#[test]
+fn a_file_that_says_a_list_is_kept_in_step_without_the_servers_list_sends_nothing() {
+    // A file says the list may be changed and what the server had, but not the server's list:
+    // nothing in it is taken for deleted there, and nothing goes.
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, Vec::new());
+    mb.synced_categories.insert(a, vec![tagged("Red", RED), tagged("Blue", WINE)]);
+    mb.category_writes.insert(a);
+    mb.category_renames.entry(a).or_default().insert("red".into(), "Old".into());
+    let mut back: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    back.repair();
+    assert!(back.category_upload(a).is_empty(), "{:?}", back.category_upload(a));
+    assert!(!back.synced_categories.contains_key(&a) && !back.category_writes.contains(&a) && !back.category_renames.contains_key(&a));
+    // (Even before a repair, nothing goes for a list whose server's wasn't read.)
+    assert!(mb.category_upload(a).is_empty() && mb.categories_to_write(a).is_empty());
 }

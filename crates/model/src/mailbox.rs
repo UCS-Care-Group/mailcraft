@@ -3490,7 +3490,7 @@ impl Mailbox {
     /// of a job. For the agent gate, which asks before an undo writes these there (#661).
     pub fn categories_to_write(&self, owner: Id) -> Vec<(String, bool)> {
         let (Some(list), Some(synced)) = (self.account_categories.get(&owner), self.synced_categories.get(&owner)) else { return Vec::new() };
-        if !self.category_writes.contains(&owner) {
+        if !self.category_writes.contains(&owner) || !self.server_categories.contains_key(&owner) {
             return Vec::new();
         }
         list.iter()
@@ -3514,7 +3514,7 @@ impl Mailbox {
     pub fn category_upload(&self, owner: Id) -> Vec<crate::remote::CategoryChange> {
         use crate::remote::{CategoryChange, CategoryChangeKind};
         let (Some(list), Some(synced)) = (self.account_categories.get(&owner), self.synced_categories.get(&owner)) else { return Vec::new() };
-        if !self.category_writes.contains(&owner) {
+        if !self.category_writes.contains(&owner) || !self.server_categories.contains_key(&owner) {
             return Vec::new();
         }
         let here: Vec<&Category> = list.iter().filter(|c| !self.category_is_local(owner, &c.name)).collect();
@@ -3934,12 +3934,16 @@ impl Mailbox {
     /// Give each Microsoft account's list that was read before it was kept in step with its
     /// server (#661) what that takes: the server's list as last read, in the colours the list here
     /// has for it (they were the server's, as nobody could change them here), and the names only
-    /// here, which stay on this computer. Entries for an account without a list of its own go.
+    /// here, which stay on this computer. Entries for an account without a list of its own go, and
+    /// so do what was known of a server's list and whether it may be changed for one whose server's
+    /// list the file hasn't got: nothing of it is taken for deleted there.
     fn settle_synced_categories(&mut self, own: &HashSet<Id>) {
-        self.synced_categories.retain(|account, _| own.contains(account));
+        let read = |mb: &Self, account: &Id| own.contains(account) && mb.server_categories.contains_key(account);
+        let keep: HashSet<Id> = own.iter().copied().filter(|a| read(self, a)).collect();
+        self.synced_categories.retain(|account, _| keep.contains(account));
         self.local_categories.retain(|account, _| own.contains(account));
-        self.category_writes.retain(|account| own.contains(account));
-        self.category_renames.retain(|account, _| own.contains(account));
+        self.category_writes.retain(|account| keep.contains(account));
+        self.category_renames.retain(|account, _| keep.contains(account));
         let unsettled: Vec<Id> = self.server_categories.keys().copied().filter(|id| !self.synced_categories.contains_key(id)).collect();
         for owner in unsettled {
             let names = self.server_categories.get(&owner).cloned().unwrap_or_default();
