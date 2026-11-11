@@ -99,6 +99,85 @@ fn a_pkcs12_file_is_told_from_a_certificate() {
     assert!(!looks_like(b""));
 }
 
+/// A DER element of `tag` around `content`.
+fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
+    let mut out = vec![tag];
+    let len = content.len();
+    if len < 0x80 {
+        out.push(len as u8);
+    } else {
+        let bytes: Vec<u8> = len.to_be_bytes().into_iter().skip_while(|b| *b == 0).collect();
+        out.push(0x80 | bytes.len() as u8);
+        out.extend(bytes);
+    }
+    out.extend_from_slice(content);
+    out
+}
+
+fn seq(parts: &[Vec<u8>]) -> Vec<u8> {
+    tlv(0x30, &parts.concat())
+}
+
+fn oid(dotted: &str) -> Vec<u8> {
+    use der::Encode;
+    const_oid::ObjectIdentifier::new(dotted).unwrap().to_der().unwrap()
+}
+
+/// A bag of `kind` holding `value`, with the local key id `id`.
+fn bag(kind: &str, value: Vec<u8>, id: &[u8]) -> Vec<u8> {
+    let local_key_id = seq(&[oid("1.2.840.113549.1.9.21"), tlv(0x31, &tlv(0x04, id))]);
+    seq(&[oid(kind), tlv(0xa0, &value), tlv(0x31, &local_key_id)])
+}
+
+/// A PKCS #12 file of one plain safe (no encryption at all) holding `key` in a plain key bag
+/// and `certificate`, both with the local key id `id`, under a SHA-256 MAC with [`PASS`]: what
+/// `openssl pkcs12 -export -keypbe NONE -certpbe NONE` writes, and a file that pairs any key with
+/// any certificate.
+fn plain_p12(key: &[u8], certificate: &[u8], id: &[u8]) -> Vec<u8> {
+    use hmac::{KeyInit, Mac};
+    let key_bag = bag("1.2.840.113549.1.12.10.1.1", key.to_vec(), id);
+    let cert = seq(&[oid("1.2.840.113549.1.9.22.1"), tlv(0xa0, &tlv(0x04, certificate))]);
+    let cert_bag = bag("1.2.840.113549.1.12.10.1.3", cert, id);
+    let safe = seq(&[key_bag, cert_bag]);
+    let data = |content: &[u8]| seq(&[oid("1.2.840.113549.1.7.1"), tlv(0xa0, &tlv(0x04, content))]);
+    let auth_safe = seq(&[data(&safe)]);
+    let salt = b"example salt";
+    let password: Vec<u8> = PASS.encode_utf16().flat_map(u16::to_be_bytes).chain([0, 0]).collect();
+    let mac_key = pkcs12::kdf::derive_key::<sha2::Sha256>(&password, salt, pkcs12::kdf::Pkcs12KeyType::Mac, 2048, 32).unwrap();
+    let mut mac = <hmac::Hmac<sha2::Sha256> as KeyInit>::new_from_slice(&mac_key).unwrap();
+    mac.update(&auth_safe);
+    let digest = mac.finalize().into_bytes();
+    let sha256 = seq(&[oid("2.16.840.1.101.3.4.2.1"), vec![0x05, 0x00]]);
+    let mac_data = seq(&[seq(&[sha256, tlv(0x04, &digest)]), tlv(0x04, salt), tlv(0x02, &[0x08, 0x00])]);
+    seq(&[tlv(0x02, &[3]), data(&auth_safe), mac_data])
+}
+
+/// The private keys of the fixtures, as PKCS #8.
+fn rsa_key() -> Vec<u8> {
+    open(&bytes(MODERN), PASS).unwrap().private_key.to_vec()
+}
+
+fn p256_key() -> Vec<u8> {
+    open(&bytes(EC), PASS).unwrap().private_key.to_vec()
+}
+
+fn p256_certificate() -> Vec<u8> {
+    open(&bytes(EC), PASS).unwrap().certificate
+}
+
+#[test]
+fn the_kind_said_is_the_private_keys_own() {
+    // A P-256 key with its own certificate, in a plain safe: it opens, and is said to be in
+    // clear in the file.
+    let opened = open(&plain_p12(&p256_key(), &p256_certificate(), b"1"), PASS).unwrap();
+    assert_eq!(opened.key_kind, KeyKind::P256);
+    assert!(!opened.key_encrypted, "a plain key bag in a plain safe");
+    assert!(open(&bytes(EC), PASS).unwrap().key_encrypted);
+    assert!(open(&bytes(MODERN), PASS).unwrap().key_encrypted);
+    // An RSA key with a P-256 certificate sharing its local key id: no certificate is its.
+    assert_eq!(open(&plain_p12(&rsa_key(), &p256_certificate(), b"1"), PASS).err(), Some(Error::NoCertificate));
+}
+
 proptest! {
     #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
 

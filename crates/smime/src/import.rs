@@ -31,6 +31,10 @@ pub struct CertificateInfo {
     pub for_mail: bool,
     /// Whether it is a certification authority's.
     pub authority: bool,
+    /// Who it is for (its subject's common name, else its whole subject), cleaned.
+    pub name: String,
+    /// Who issued it (the issuer's common name, else its whole name), cleaned.
+    pub issuer: String,
 }
 
 /// What the certificate `der` says of itself; `None` when it isn't one.
@@ -50,6 +54,8 @@ pub fn certificate_info(der: &[u8]) -> Option<CertificateInfo> {
         not_after: cert.validity().1,
         for_mail: cert.for_mail(),
         authority: cert.is_authority(),
+        name: cert.name(),
+        issuer: cert.issuer_name(),
     })
 }
 

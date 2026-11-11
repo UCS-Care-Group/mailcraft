@@ -10,6 +10,7 @@ mod cost;
 mod hostile;
 mod list_stream;
 mod properties;
+mod recur;
 mod roundtrip;
 mod rtf;
 mod salvage;

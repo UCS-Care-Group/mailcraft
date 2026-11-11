@@ -22,23 +22,23 @@
 //!   (`mailcraft-assuan`). The public key comes from `gpg --export`, run as a program and never
 //!   through a shell, and is matched to the agent's key by its key material.
 //! - An RSA private key is never used in this process; no key MailCraft holds itself signs
-//!   anything yet (an imported Ed25519 or ECDSA key may later, [`imported`]).
+//!   anything yet (an Ed25519 or ECDSA key imported in File › Options › Security may later,
+//!   [`imported`]; the import rules are `mailcraft_engine::private_keys`).
 //!
 //! A PKCS#11 token without a PIN pad needs its PIN: the first message that wants it is held, the
 //! window asks ([`SigningHost::pin_wanted`]), and the PIN is held here in memory for the
 //! session (`key_holders::Pin`, wiped when dropped), never written or logged. Send Again sends it.
 
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use mailcraft_model::digital_signature::SignatureFormat;
 use mailcraft_model::signing::{SigningKey, Unsigned};
 use mailcraft_model::sync::{SendDone, SendOutcome, SendUp};
 use mailcraft_model::{Message, Original};
 use mailcraft_ui_egui::digital_signatures::{SigningChoice, SigningHost};
+use mailcraft_ui_egui::own_keys::KeyPlace;
 
 use crate::key_holders::{self, DigestAlgorithm, HeldCertificate, KeyHolderError, KeyKind, Pin, SignatureScheme, TokenRef};
 
@@ -209,50 +209,56 @@ pub(crate) fn finish(m: &mut Message, entity: &[u8], kind: mailcraft_mime::Signa
     Ok(())
 }
 
-/// An imported key MailCraft holds itself: the key store of #30 part 4. An RSA key never signs
-/// in this process (decided 2026-11-11); an Ed25519 or ECDSA one may, once that store exists.
+/// A key imported in File › Options › Security and kept by MailCraft in the credential store
+/// (`own_keys`; an RSA one is never kept: `mailcraft_engine::private_keys`, decided 2026-11-11).
+/// Such a key doesn't sign yet: Digital Signatures doesn't offer it.
 fn imported(_key: &SigningKey) -> Result<(Vec<u8>, &'static str), String> {
-    // ponytail: no imported keys until part 4's store lands; its Ed25519/ECDSA signer goes here.
+    // ponytail: an Ed25519/ECDSA signer for the keys `own_keys` keeps goes here, in a later part.
     Err("its certificate isn't in the system's certificate store or on a smartcard here".into())
 }
 
 // ---- S/MIME ----
 
-/// A certificate with its private key, and where it is.
-struct Held {
-    certificate: HeldCertificate,
-    place: String,
+/// A certificate with its private key, and where it is. [`held`] is the one listing of them:
+/// File › Options › Security (`own_keys`) lists the same.
+pub(crate) struct Held {
+    pub(crate) certificate: HeldCertificate,
+    pub(crate) place: KeyPlace,
     /// The PKCS#11 token it is on, when it is on one without a PIN pad that needs a login.
     token: Option<TokenRef>,
 }
 
 #[cfg(target_os = "windows")]
-fn held() -> Result<Vec<Held>, KeyHolderError> {
-    let place = mailcraft_ui_egui::digital_signatures::WINDOWS_STORE.to_string();
-    Ok(key_holders::windows_store::certificates()?.into_iter().map(|certificate| Held { certificate, place: place.clone(), token: None }).collect())
+pub(crate) fn held() -> Result<Vec<Held>, KeyHolderError> {
+    Ok(key_holders::windows_store::certificates()?
+        .into_iter()
+        .map(|certificate| Held { certificate, place: KeyPlace::WindowsStore, token: None })
+        .collect())
 }
 
 #[cfg(target_os = "macos")]
-fn held() -> Result<Vec<Held>, KeyHolderError> {
-    let place = mailcraft_ui_egui::digital_signatures::KEYCHAIN.to_string();
-    Ok(key_holders::macos_keychain::certificates()?.into_iter().map(|certificate| Held { certificate, place: place.clone(), token: None }).collect())
+pub(crate) fn held() -> Result<Vec<Held>, KeyHolderError> {
+    Ok(key_holders::macos_keychain::certificates()?
+        .into_iter()
+        .map(|certificate| Held { certificate, place: KeyPlace::Keychain, token: None })
+        .collect())
 }
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-fn held() -> Result<Vec<Held>, KeyHolderError> {
+pub(crate) fn held() -> Result<Vec<Held>, KeyHolderError> {
     let holder = key_holders::pkcs11::open_default()?;
     Ok(holder
         .certificates()?
         .into_iter()
         .map(|c| {
             let token = (c.login_required && !c.protected_path).then(|| c.token.clone());
-            Held { certificate: c.certificate, place: c.token.label.clone(), token }
+            Held { certificate: c.certificate, place: KeyPlace::Token(c.token.label.clone()), token }
         })
         .collect())
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd")))]
-fn held() -> Result<Vec<Held>, KeyHolderError> {
+pub(crate) fn held() -> Result<Vec<Held>, KeyHolderError> {
     Err(KeyHolderError::Unavailable("no certificate store is used on this system".into()))
 }
 
@@ -341,118 +347,30 @@ pub(crate) fn sha256_named(hex: &str) -> Option<[u8; 32]> {
 
 // ---- OpenPGP ----
 
-/// `gpg`, beside the `gpgconf` that names its directory.
-fn gpg() -> Result<PathBuf, String> {
-    let gpgconf = crate::gpg_agent::gpgconf().map_err(|e| e.to_string())?;
-    let line = gpgconf.run(&["--list-dirs", "bindir"], true)?;
-    let dir = crate::gpg_agent::socket_from_output(&line).ok_or("gpgconf names no directory for gpg")?;
-    let program = dir.join(if cfg!(windows) { "gpg.exe" } else { "gpg" });
-    if program.is_file() { Ok(program) } else { Err("GnuPG's gpg wasn't found".into()) }
+/// `gpg`, as File › Options › Security finds it (`own_keys::gnupg`).
+fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
+    use mailcraft_ui_egui::own_keys::Gnupg;
+    crate::own_keys::gnupg::find().map_err(|state| match state {
+        Gnupg::NotWorking(why) => why,
+        _ => "GnuPG isn't installed".to_string(),
+    })
 }
-
-/// The most of the owner's own keys (those with a private key) listed.
-const MAX_OWN_KEYS: usize = 64;
-/// The most bytes of `gpg --list-secret-keys` read.
-const MAX_LISTING: usize = 4 * 1024 * 1024;
 
 /// The public keys GnuPG has for `fingerprints` (`gpg --export`), at most [`MAX_EXPORT`] bytes.
 /// Each is a fingerprint in hex, checked, so nothing else reaches gpg's command line.
-fn exported(fingerprints: &[String]) -> Result<Vec<u8>, String> {
+fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Result<Vec<u8>, String> {
     if fingerprints.is_empty() || fingerprints.iter().any(|f| f.is_empty() || f.len() > 64 || !f.bytes().all(|b| b.is_ascii_hexdigit())) {
         return Ok(Vec::new());
     }
     let mut args = vec!["--batch", "--no-tty", "--export-options", "export-minimal", "--export"];
     args.extend(fingerprints.iter().map(String::as_str));
-    run_capped(&gpg()?, &args, MAX_EXPORT, EXPORT_TIMEOUT)
+    crate::own_keys::gnupg::run_within(gpg.program(), &args, EXPORT_TIMEOUT, MAX_EXPORT)
 }
 
-/// The fingerprints of the owner's own keys: those GnuPG has a private key for
-/// (`gpg --list-secret-keys --with-colons`, the `fpr` record after each `sec`).
-fn own_keys() -> Result<Vec<String>, String> {
-    let listing = run_capped(&gpg()?, &["--batch", "--no-tty", "--with-colons", "--list-secret-keys"], MAX_LISTING, EXPORT_TIMEOUT)?;
-    Ok(own_fingerprints(&listing))
-}
-
-/// [`own_keys`] from what gpg wrote.
-pub(crate) fn own_fingerprints(listing: &[u8]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mut after_sec = false;
-    for line in listing.split(|b| *b == b'\n') {
-        let mut fields = line.split(|b| *b == b':');
-        match fields.next() {
-            Some(b"sec") => after_sec = true,
-            Some(b"fpr") if after_sec => {
-                after_sec = false;
-                let Some(fpr) = fields.nth(8).and_then(|f| std::str::from_utf8(f).ok()) else { continue };
-                let fpr = fpr.trim().to_ascii_uppercase();
-                if (32..=64).contains(&fpr.len()) && fpr.bytes().all(|b| b.is_ascii_hexdigit()) && !out.contains(&fpr) {
-                    out.push(fpr);
-                }
-                if out.len() >= MAX_OWN_KEYS {
-                    break;
-                }
-            }
-            _ => after_sec = false,
-        }
-    }
-    out
-}
-
-/// Run `program` with `args` (never through a shell): what it writes, at most `cap` bytes, in at
-/// most `timeout`.
-fn run_capped(program: &std::path::Path, args: &[&str], cap: usize, timeout: Duration) -> Result<Vec<u8>, String> {
-    use std::io::Read;
-    let mut command = Command::new(program);
-    command.args(args).stdin(Stdio::null()).stderr(Stdio::null()).stdout(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
-    }
-    let mut child = command.spawn().map_err(|e| format!("gpg couldn't be started ({})", e.kind()))?;
-    let Some(stdout) = child.stdout.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("gpg's output couldn't be read".into());
-    };
-    let (tx, rx) = std::sync::mpsc::channel();
-    let reader = std::thread::Builder::new().name("gpg export".into()).spawn(move || {
-        let mut out = Vec::new();
-        let limit = u64::try_from(cap).unwrap_or(u64::MAX).saturating_add(1);
-        let read = stdout.take(limit).read_to_end(&mut out);
-        let _ = tx.send(read.map(|_| out));
-    });
-    if reader.is_err() {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("gpg's output couldn't be read".into());
-    }
-    let deadline = Instant::now() + timeout;
-    let out = match rx.recv_timeout(timeout) {
-        Ok(Ok(out)) => out,
-        Ok(Err(_)) | Err(_) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("gpg's output couldn't be read in time".into());
-        }
-    };
-    if out.len() > cap {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("GnuPG's keyring is larger than is read".into());
-    }
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => return Ok(out),
-            Ok(Some(_)) => return Err("gpg couldn't list the keys".into()),
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
-            Ok(None) | Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err("gpg didn't finish in time".into());
-            }
-        }
-    }
+/// The fingerprints (hex) of the owner's own keys: those GnuPG has a private key for, as
+/// File › Options › Security lists them.
+fn own_keys(gpg: &crate::own_keys::gnupg::Gpg) -> Result<Vec<String>, String> {
+    Ok(gpg.secret_keys()?.into_iter().map(|k| k.fingerprint.chars().filter(char::is_ascii_hexdigit).collect()).collect())
 }
 
 /// The key the agent holds, from its `READKEY` answer: `(public-key (rsa (n …)(e …)))` or
@@ -512,7 +430,7 @@ pub(crate) fn candidates<'a>(keys: &'a [mailcraft_openpgp::SigningKey], key: &Si
 /// An armoured detached signature of `entity` by the OpenPGP key `key` names, made by gpg-agent,
 /// and its `micalg`.
 fn openpgp(entity: &[u8], key: &SigningKey, now: i64) -> Result<(String, &'static str), String> {
-    let keys = mailcraft_openpgp::signing_keys(&exported(std::slice::from_ref(&key.fingerprint))?, u64::try_from(now).unwrap_or(0));
+    let keys = mailcraft_openpgp::signing_keys(&exported(&gpg()?, std::slice::from_ref(&key.fingerprint))?, u64::try_from(now).unwrap_or(0));
     let candidates = candidates(&keys, key);
     if candidates.is_empty() {
         return Err("the OpenPGP key isn't in GnuPG here, or can't sign now".into());
@@ -573,7 +491,13 @@ fn smime_choice(h: Held) -> Option<SigningChoice> {
 
 /// The OpenPGP keys GnuPG has whose private key gpg-agent holds.
 fn openpgp_choices() -> Result<Vec<SigningChoice>, String> {
-    let keys = mailcraft_openpgp::signing_keys(&exported(&own_keys()?)?, u64::try_from(now()).unwrap_or(0));
+    let keys = mailcraft_openpgp::signing_keys(
+        &{
+            let gpg = gpg()?;
+            exported(&gpg, &own_keys(&gpg)?)?
+        },
+        u64::try_from(now()).unwrap_or(0),
+    );
     if keys.is_empty() {
         return Ok(Vec::new());
     }
@@ -588,12 +512,7 @@ fn openpgp_choices() -> Result<Vec<SigningChoice>, String> {
             if out.iter().any(|c| c.key == key) {
                 continue;
             }
-            let place = if info.card_serial.is_some() {
-                mailcraft_ui_egui::digital_signatures::GNUPG_CARD
-            } else {
-                mailcraft_ui_egui::digital_signatures::GNUPG
-            };
-            let place = place.to_string();
+            let place = if info.card_serial.is_some() { KeyPlace::GnupgCard } else { KeyPlace::Gnupg };
             let expires = k.expires().and_then(|e| i64::try_from(e).ok()).unwrap_or(0);
             out.push(SigningChoice { key, addresses: k.addresses().to_vec(), place, expires });
         }

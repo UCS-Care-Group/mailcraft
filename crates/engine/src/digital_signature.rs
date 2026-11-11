@@ -255,6 +255,19 @@ pub(crate) fn fingerprint_digits(text: &str) -> String {
     text.chars().filter(char::is_ascii_hexdigit).map(|c| c.to_ascii_uppercase()).collect()
 }
 
+/// `checked` with the From address said to differ from the key's: a signature that checks is at
+/// best not Verified.
+fn address_differs(mut checked: pgp::Checked) -> pgp::Checked {
+    checked.outcome = match checked.outcome {
+        pgp::Outcome::Verified(signer) => {
+            pgp::Outcome::Valid { signer, why: pgp::NotVerified { address_differs: true, ..pgp::NotVerified::default() } }
+        }
+        pgp::Outcome::Valid { signer, why } => pgp::Outcome::Valid { signer, why: pgp::NotVerified { address_differs: true, ..why } },
+        other => other,
+    };
+    checked
+}
+
 /// What an OpenPGP check came to, as a result of the four (#30 R4).
 fn openpgp_result(checked: &pgp::Checked) -> DigitalSignature {
     let coverage = if checked.coverage.whole { Coverage::Whole } else { Coverage::Part };
@@ -528,6 +541,10 @@ impl Session {
             };
             pgp::verify(bytes, &from, &ring, now, verified)
         };
+        // The keys were found, and what is kept is kept, by the From address the message was read
+        // with; the check went by the one From field of its bytes. When the two aren't one
+        // address, the signature is nobody's word for the sender shown.
+        let checked = checked.map(|c| if pgp::from_address(&from) == address { c } else { address_differs(c) });
         let seen = m.received.max(m.date);
         self.keep_pgp_keys(&address, &brought, &ring, checked.as_ref(), seen);
         let Some(checked) = checked else { return Found::default() };

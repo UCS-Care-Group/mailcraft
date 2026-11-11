@@ -14,3 +14,8 @@ MAILCRAFT_MS_CLIENT_ID = "6e83816e-f26c-455a-9253-494b784e61fa"
 # Google's desktop client "secret" is not confidential, but never place user tokens here.
 MAILCRAFT_GOOGLE_CLIENT_ID = ""
 MAILCRAFT_GOOGLE_CLIENT_SECRET = ""
+
+# Issue #956: where Help › Report a Problem › Send report sends a report the owner wrote, on their
+# click alone: the project's report relay, which files it in a private repository for the
+# maintainers. A fork that sets it empty offers Open on GitHub alone. An address, not a secret.
+MAILCRAFT_REPORT_URL = "https://mailcraft.work/api/report"

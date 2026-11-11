@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use mailcraft_model::digital_signature::SignatureFormat;
 use mailcraft_model::public_keys::{KeySource, MAX_KEY_BYTES, PublicKey};
+use mailcraft_model::{ContactKey, KeyKind};
 use serde_json::{Value, json};
 
 use super::{bad, fail, source};
@@ -152,6 +153,35 @@ fn import(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"imported": imported}))
 }
 
+/// What `keys.import` with `v` would keep, for the owner's question to an agent: each (address,
+/// format, fingerprint), read as the import reads them and kept nowhere; `None` when the import
+/// would be refused. Agents always pass `data` (MCP reads a `--files` path into it), so nothing
+/// is read from a file for this; a `path` alone gives `None`.
+pub(crate) fn preview(s: &Session, v: &Value) -> Option<Vec<(String, &'static str, String)>> {
+    let data = p::str(v, "data")?;
+    if data.len() > MAX_IMPORT_BYTES.saturating_mul(4) / 3 + 1024 {
+        return None;
+    }
+    let only = address_param(v).ok()?;
+    let bytes = super::base64_decode(data).ok()?;
+    if bytes.is_empty() || bytes.len() > MAX_IMPORT_BYTES {
+        return None;
+    }
+    if mailcraft_smime::import::holds_private_key(&bytes) || mailcraft_openpgp::secret::holds_secret(&bytes) {
+        return None;
+    }
+    let mut out = Vec::new();
+    for f in read_keys(&bytes, s.now()).ok()? {
+        let addresses: Vec<String> = match &only {
+            Some(a) if f.addresses.contains(a) => vec![a.clone()],
+            Some(_) => continue,
+            None => f.addresses,
+        };
+        out.extend(addresses.into_iter().map(|a| (a, format_name(f.key.format), f.key.fingerprint.clone())));
+    }
+    Some(out)
+}
+
 /// The Public keys in `bytes`: certificates for mail, else OpenPGP keys. What isn't one is
 /// refused with the reason.
 fn read_keys(bytes: &[u8], now: i64) -> Result<Vec<Found>, crate::CmdError> {
@@ -231,4 +261,130 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     };
     s.mailbox.public_keys.remove(&address, &exact);
     Ok(json!({"address": address, "fingerprint": exact}))
+}
+
+/// A key for a contact's card (vCard `KEY`, #30 R11) from a file the owner added to the card:
+/// a Public key only, with the refusals of `keys.import` (a private key, a certification
+/// authority's certificate, one not for mail), the first certificate or OpenPGP key of the file,
+/// at most [`ContactKey::MAX_BYTES`].
+pub fn card_key_from(bytes: &[u8]) -> Result<ContactKey, crate::CmdError> {
+    if bytes.is_empty() {
+        return Err(fail("the file is empty"));
+    }
+    if bytes.len() > MAX_IMPORT_BYTES {
+        return Err(fail("the file is larger than a file of Public keys can be (1 MB)"));
+    }
+    if mailcraft_smime::import::holds_private_key(bytes) || mailcraft_openpgp::secret::holds_secret(bytes) {
+        return Err(fail(PRIVATE_KEY));
+    }
+    let too_large = || fail("the key is larger than a contact's card keeps one");
+    if let Some(der) = mailcraft_smime::import::certificates_in(bytes).into_iter().next() {
+        let info = mailcraft_smime::import::certificate_info(&der).ok_or_else(|| fail("the certificate can't be read"))?;
+        if info.authority {
+            return Err(fail("the certificate is a certification authority's, not a person's Public key"));
+        }
+        if !info.for_mail {
+            return Err(fail("the certificate isn't for mail: its key usage or extended key usage is for something else"));
+        }
+        if info.der.len() > ContactKey::MAX_BYTES {
+            return Err(too_large());
+        }
+        return Ok(ContactKey { kind: KeyKind::X509, data: info.der, ..ContactKey::default() });
+    }
+    let key = mailcraft_openpgp::PublicKey::parse(bytes)
+        .ok()
+        .and_then(|keys| keys.into_iter().next())
+        .ok_or_else(|| fail("the file holds no Public key that can be read: an X.509 certificate (DER or PEM) or an OpenPGP Public key"))?;
+    let data = key.to_bytes();
+    if data.len() > ContactKey::MAX_BYTES {
+        return Err(too_large());
+    }
+    Ok(ContactKey { kind: KeyKind::OpenPgp, data, ..ContactKey::default() })
+}
+
+/// What a key says of itself, for the window to show: never its bytes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct KeyFacts {
+    /// S/MIME or OpenPGP; `None` for a key that can't be read or isn't either.
+    pub format: Option<SignatureFormat>,
+    /// The certificate's SHA-256 in pairs, or the OpenPGP fingerprint in groups of four.
+    pub fingerprint: String,
+    /// Who it is for: the certificate's subject, or the key's first address.
+    pub name: String,
+    /// Who issued the certificate; empty for OpenPGP.
+    pub issuer: String,
+    /// The addresses it names.
+    pub addresses: Vec<String>,
+    /// Valid until; 0 when it doesn't say.
+    pub not_after: mailcraft_time::Timestamp,
+    /// When the OpenPGP key was made; 0 for a certificate.
+    pub created: mailcraft_time::Timestamp,
+}
+
+/// What a kept Public key's bytes of `format` say of themselves. A key the readers can't read
+/// says nothing (an empty [`KeyFacts`]).
+pub fn key_facts(format: SignatureFormat, data: &[u8]) -> KeyFacts {
+    match format {
+        SignatureFormat::Smime => match mailcraft_smime::import::certificate_info(data) {
+            Some(info) => KeyFacts {
+                format: Some(SignatureFormat::Smime),
+                fingerprint: info.fingerprint,
+                name: info.name,
+                issuer: info.issuer,
+                addresses: info.addresses,
+                not_after: info.not_after,
+                created: 0,
+            },
+            None => KeyFacts::default(),
+        },
+        SignatureFormat::OpenPgp => match mailcraft_openpgp::PublicKey::parse(data).ok().and_then(|k| k.into_iter().next()) {
+            Some(key) => KeyFacts {
+                format: Some(SignatureFormat::OpenPgp),
+                fingerprint: key.fingerprint().grouped(),
+                name: key.addresses().first().cloned().unwrap_or_default(),
+                issuer: String::new(),
+                addresses: key.addresses().iter().take(16).cloned().collect(),
+                not_after: key.expires().map_or(0, |e| i64::try_from(e).unwrap_or(i64::MAX)),
+                created: i64::try_from(key.created()).unwrap_or(i64::MAX),
+            },
+            None => KeyFacts::default(),
+        },
+    }
+}
+
+/// [`key_facts`] for a card's key; a key by address (`KeyKind::Uri`) or of a kind not known says
+/// nothing.
+pub fn card_key_facts(key: &ContactKey) -> KeyFacts {
+    match key.kind {
+        KeyKind::X509 => key_facts(SignatureFormat::Smime, &key.data),
+        KeyKind::OpenPgp => key_facts(SignatureFormat::OpenPgp, &key.data),
+        _ => KeyFacts::default(),
+    }
+}
+
+/// The keys a contact's card is to have after `people.new` or `people.edit` (#30 R11), from the
+/// `keys` param: in order, `{"keep": n}` keeps the card's key at that place, `{"data": base64}`
+/// adds a Public key from a file ([`card_key_from`]). What isn't kept goes. At most
+/// [`mailcraft_model::Contact::MAX_KEYS`].
+pub fn card_keys_param(had: &[ContactKey], list: &Value) -> Result<Vec<ContactKey>, crate::CmdError> {
+    let list = list.as_array().ok_or_else(|| bad("`keys` is a list of {\"keep\": number} and {\"data\": base64}"))?;
+    if list.len() > mailcraft_model::Contact::MAX_KEYS {
+        return Err(fail("a contact's card keeps at most 32 keys"));
+    }
+    let mut out = Vec::with_capacity(list.len());
+    for entry in list {
+        if let Some(n) = entry.get("keep") {
+            let key =
+                n.as_u64().and_then(|n| usize::try_from(n).ok()).and_then(|n| had.get(n)).ok_or_else(|| bad("`keep` names no key of the card"))?;
+            out.push(key.clone());
+        } else if let Some(data) = p::str(entry, "data") {
+            if data.len() > MAX_IMPORT_BYTES.saturating_mul(4) / 3 + 1024 {
+                return Err(fail("the file is larger than a file of Public keys can be (1 MB)"));
+            }
+            out.push(card_key_from(&super::base64_decode(data)?)?);
+        } else {
+            return Err(bad("each of `keys` is {\"keep\": number} or {\"data\": base64}"));
+        }
+    }
+    Ok(out)
 }

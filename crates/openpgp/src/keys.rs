@@ -569,6 +569,13 @@ fn count_packets(bytes: &[u8]) -> usize {
 /// The tags of the first `max` packets of `bytes` (RFC 9580 §4.2), read from their headers
 /// alone: as far as a header reads, and a packet of partial length as the last.
 pub(crate) fn packet_tags(bytes: &[u8], max: usize) -> Vec<u8> {
+    packets(bytes, max).0
+}
+
+/// [`packet_tags`], with where the packets read end: the length of `bytes` when they are all
+/// there is, short of it when something follows that isn't a packet (or a packet of partial or
+/// indeterminate length, or more than `max`), past it when the last says more than is there.
+pub(crate) fn packets(bytes: &[u8], max: usize) -> (Vec<u8>, usize) {
     let mut at = 0usize;
     let mut tags = Vec::new();
     while let Some(&tag) = bytes.get(at) {
@@ -595,7 +602,7 @@ pub(crate) fn packet_tags(bytes: &[u8], max: usize) -> Vec<u8> {
         };
         at = at.saturating_add(header).saturating_add(body);
     }
-    tags
+    (tags, at)
 }
 
 /// Of two revocations of one thing, the one that counts for more: a hard one (it undoes

@@ -80,6 +80,19 @@ pub(crate) fn key_kind(key: &SubjectPublicKeyInfoOwned) -> crate::pkcs12::KeyKin
     KeyKind::Other
 }
 
+/// What kind of private key a PKCS #8 `PrivateKeyInfo` holds, from its own algorithm identifier
+/// (`algorithm`; for EC, its named `curve`, from the identifier's parameters or the key's own)
+/// and, for RSA, its `modulus` (big-endian): never from a certificate that came with it.
+pub(crate) fn private_key_kind(algorithm: ObjectIdentifier, curve: Option<ObjectIdentifier>, modulus: Option<&[u8]>) -> crate::pkcs12::KeyKind {
+    use crate::pkcs12::KeyKind;
+    match (algorithm, curve, modulus) {
+        (RSA, _, Some(modulus)) => KeyKind::Rsa { bits: modulus_bits(modulus) },
+        (EC_KEY, Some(P256), _) => KeyKind::P256,
+        (EC_KEY, Some(P384), _) => KeyKind::P384,
+        _ => KeyKind::Other,
+    }
+}
+
 // ECDSA.
 pub(crate) const EC_KEY: ObjectIdentifier = oid("1.2.840.10045.2.1");
 const SHA1_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.1");

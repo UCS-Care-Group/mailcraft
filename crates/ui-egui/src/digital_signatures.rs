@@ -20,6 +20,7 @@ use mailcraft_model::signing::SigningKey;
 use serde_json::json;
 
 use crate::MailApp;
+use crate::own_keys::KeyPlace;
 use crate::theme::Tokens;
 
 /// How wide the dialog is.
@@ -27,32 +28,14 @@ pub(crate) const WIDTH: f32 = 520.0;
 /// The most keys shown.
 const MAX_SHOWN: usize = 64;
 
-/// Where a key is, as the host names it ([`SigningChoice::place`]); a smartcard's own name
-/// otherwise.
-pub const WINDOWS_STORE: &str = "windows";
-pub const KEYCHAIN: &str = "keychain";
-pub const GNUPG: &str = "gnupg";
-pub const GNUPG_CARD: &str = "gnupg-card";
-
-/// Where a key is, in words.
-fn place(name: &str) -> String {
-    match name {
-        WINDOWS_STORE => tl!("Windows certificate store").to_string(),
-        KEYCHAIN => tl!("Keychain").to_string(),
-        GNUPG => tl!("GnuPG").to_string(),
-        GNUPG_CARD => tl!("GnuPG, on a smartcard").to_string(),
-        other => crate::i18n::fmt(tl!("smartcard {name}"), &[("name", other)]),
-    }
-}
-
 /// One of the owner's keys that can sign, as the host found it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SigningChoice {
     pub key: SigningKey,
     /// The addresses it is for.
     pub addresses: Vec<String>,
-    /// Where it is: [`WINDOWS_STORE`], [`KEYCHAIN`], [`GNUPG`], [`GNUPG_CARD`], or a smartcard's name.
-    pub place: String,
+    /// Where it is, as File › Options › Security says it.
+    pub place: KeyPlace,
     /// Until when it is valid (seconds since 1970); 0 when it doesn't say.
     pub expires: i64,
 }
@@ -144,7 +127,7 @@ impl DigitalSignatures {
                         if ui.radio(picked, format!("{name} — {kind}")).clicked() {
                             self.chosen = Some(choice.key.clone());
                         }
-                        let mut details = vec![place(&choice.place)];
+                        let mut details = vec![crate::security::place_name(&choice.place)];
                         if !choice.addresses.is_empty() {
                             details.push(choice.addresses.join(", "));
                         }

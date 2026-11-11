@@ -438,7 +438,7 @@ pub fn token_may_go_to(account: &Account, server: &Server, google_host: &str) ->
 /// crate's own tests, and in the tests of the crates on it that ask for it on their thread
 /// (`graph::standin::allow_loopback_tokens`, built with the `stand-in` feature alone).
 fn microsoft_loopback_allowed() -> bool {
-    #[cfg(feature = "stand-in")]
+    #[cfg(any(test, feature = "stand-in"))]
     if crate::graph::standin::loopback_tokens_allowed() {
         return true;
     }

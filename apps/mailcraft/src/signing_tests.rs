@@ -107,6 +107,10 @@ fpr:::::::::FEDCBA9876543210FEDCBA9876543210FEDCBA98:\n\
 sec:u:2048:1:CCCCCCCCCCCCCCCC:1700000000:::u:::scESC:::+:::23::0:\n\
 fpr:::::::::not hex at all:\n\
 fpr:::::::::1111111111111111111111111111111111111111:\n";
-    assert_eq!(own_fingerprints(listing), ["0123456789ABCDEF0123456789ABCDEF01234567"], "primary keys only; a subkey's and a broken one aren't");
-    assert!(own_fingerprints(&[0xFF; 64]).is_empty());
+    // The keys signing lists are those File › Options › Security lists (`own_keys::gnupg`).
+    let hex = |l: &[u8]| -> Vec<String> {
+        crate::own_keys::gnupg::secret_in(l, 0).into_iter().map(|k| k.fingerprint.chars().filter(char::is_ascii_hexdigit).collect()).collect()
+    };
+    assert_eq!(hex(listing), ["0123456789ABCDEF0123456789ABCDEF01234567"], "primary keys only; a subkey's and a broken one aren't");
+    assert!(hex(&[0xFF; 64]).is_empty());
 }
