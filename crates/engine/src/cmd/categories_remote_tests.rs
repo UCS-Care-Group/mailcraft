@@ -9,7 +9,10 @@ use mailcraft_model::remote::{
 };
 use mailcraft_model::remote_tasks::{TaskOutcome, TaskResult, TasksUploaded};
 use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome, ServerMessage};
-use mailcraft_model::{Calendar, Category, Contact, Event, FolderKind, GREY_CATEGORY, Id, Mailbox, Message, Origin, Rgb, Rights, Task, TaskFields};
+use mailcraft_model::{
+    Action, Calendar, Category, Condition, Contact, Event, FolderKind, GREY_CATEGORY, Id, Mailbox, Message, Origin, Rgb, Rights, Rule, Task,
+    TaskFields,
+};
 use serde_json::json;
 
 use crate::Session;
@@ -2520,6 +2523,39 @@ fn an_agent_asks_before_a_rule_gives_mail_a_category_that_is_made_in_outlook() {
     // A rule for another account's mail asks nothing about this list.
     let other = s.run("account.add", &json!({"email": "b@example.org"})).unwrap()["id"].as_u64().unwrap();
     assert_eq!(check(&s, "rules.add", &rule("Travel", Some(other)), &[Class::Settings]), Verdict::Run);
+}
+
+/// A rule that moves mail into another account's folder before it gives it a category puts the
+/// category on the list of the account the mail lands in, as the rule runs, and an agent's
+/// question names that list, not the one of the folder it runs over (#661).
+#[test]
+fn a_rule_that_moves_mail_before_it_categorises_it_names_the_list_the_mail_lands_in() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let b = s.run("account.add", &json!({"email": "b@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    read_as(&mut s, b, "b@example.org", vec![tag("Red category", RED)]);
+    s.run("sync.categoryWrites", &json!({"account": b, "allowed": true})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    s.mailbox.rules.push(Rule {
+        id: 900,
+        name: "R".into(),
+        enabled: true,
+        account: a,
+        conditions: vec![Condition::SubjectContains("x".into())],
+        actions: vec![Action::MoveTo(theirs), Action::Categorize("Zed".into())],
+        ..Default::default()
+    });
+    match check(&s, "rules.run", &json!({"folder": inbox}), &[]) {
+        Verdict::Ask(Class::Send, text) => {
+            assert!(text.contains("\u{201c}Zed\u{201d}") && text.contains("b@example.org"), "{text}");
+            assert!(!text.contains("a@example.org"), "{text}");
+        }
+        other => panic!("{other:?}"),
+    }
+    let m = s.mailbox.add_message(Message { folder: inbox, subject: "x".into(), ..Default::default() }).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.message(m).unwrap().account, b);
+    assert!(s.mailbox.category_of(b, "Zed").is_some() && s.mailbox.category_of(a, "Zed").is_none());
 }
 
 #[test]
