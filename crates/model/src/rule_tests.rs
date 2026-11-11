@@ -406,3 +406,26 @@ fn a_server_rules_addresses_read_back_are_kept_once_as_addresses_compare() {
     assert!(same_word(true, "Ünal@example.org", "ÜNAL@EXAMPLE.ORG") && !same_word(true, "Ünal@example.org", "ünal@example.org"));
     assert!(same_word(false, "Büro", "BÜRO"));
 }
+
+/// Recipients and categories left out as a message was read or listed ([`Message::headers_cut`])
+/// can't be told by a condition or an exception that reads them.
+#[test]
+fn recipients_and_categories_left_out_cant_be_told() {
+    let w = || vec!["ada".to_string()];
+    let group = [
+        Condition::ToContains(w()),
+        Condition::SentTo(w()),
+        Condition::SentOnlyToMe,
+        Condition::ToMe,
+        Condition::CcMe,
+        Condition::ToOrCcMe,
+        Condition::NotToMe,
+        Condition::Category(w()),
+    ];
+    let mut m = Message::default();
+    assert!(group.iter().all(|c| !c.unread_in(&m)));
+    m.headers_cut = true;
+    for c in &group {
+        assert!(c.unread_in(&m), "{c:?}");
+    }
+}

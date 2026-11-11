@@ -279,3 +279,25 @@ fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetch
     let got = mb.message(m).unwrap();
     assert!(got.folder == inbox && got.rules_waiting.is_none());
 }
+
+/// Once the message is here, a rule that still can't tell (its exception reads a header past the
+/// fields kept) holds a later delete for good, as it would have as the message arrived.
+#[test]
+fn a_rule_that_still_cant_tell_once_the_message_is_here_holds_a_later_delete_for_good() {
+    let unless = Rule {
+        conditions: vec![Condition::BodyContains(words("invoice"))],
+        exceptions: vec![Condition::HeaderContains(words("x-keep"))],
+        actions: vec![Action::Flag],
+        stop: true,
+        ..Default::default()
+    };
+    let purge = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::DeleteForGood], ..Default::default() };
+    let (mut mb, inbox, _) = mailbox(vec![unless, purge]);
+    let m = listed(&mut mb, inbox);
+    mb.apply_rules(m, &clock());
+    assert!(mb.message(m).unwrap().rules_waiting.is_some());
+    fetched(&mut mb, m, "The invoice, in full.");
+    mb.message_mut(m).unwrap().headers_cut = true;
+    assert!(mb.run_waiting_rules(m, &clock()).is_empty());
+    assert!(mb.message(m).is_some(), "deleted for good behind a rule that still can't tell");
+}

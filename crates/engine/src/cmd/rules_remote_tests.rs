@@ -1632,7 +1632,7 @@ fn an_agent_asks_the_owner_before_changing_the_rules_beside_one_that_deletes_for
     }
     // A yes to the rule from a message deletes nothing yet: the window's question says Allow.
     assert!(!crate::agent::rule_from_message_deletes(&s, &json!({"folder": news, "id": m})));
-    // A rule for every account's mail files this one's too.
+    // A rule made for the account of the folder in view, Purge's here, files this one's mail too.
     assert_eq!(ask(&s, "rules.add", json!({"name": "All", "conditions": [{"type": "toMe"}], "actions": [{"type": "markRead"}]})), delete);
     assert_eq!(ask(&s, "rules.move", json!({"id": purge, "direction": "up"})), delete);
     // Purge itself going off or going only deletes less.
@@ -2279,4 +2279,40 @@ fn keeping_an_every_account_rule_on_one_server_lets_anothers_mail_reach_its_move
     assert_eq!(s.mailbox.apply_rules(m, &s.rule_clock()), ["Mover"]);
     assert_eq!(s.mailbox.message(m).map(|m| m.account), Some(account), "onto the Microsoft account's server");
     assert_eq!(asked, Access::Owner(Class::Send), "asked as {asked:?}");
+}
+
+/// A rule for every account's mail comes from a mailbox saved before rules had accounts (#668).
+/// One that deletes for good, or moves mail onto another account's server, is beside a change to
+/// any account's rules; a change to one is beside every account's rules that do.
+#[test]
+fn a_rule_for_every_account_is_beside_a_change_to_any_accounts_rules() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, _, local, news) = session();
+    let ask = |s: &Session, id: &str, params: Value| classify(s, id, &params);
+    let (delete, send, settings) = (Access::Owner(Class::Delete), Access::Owner(Class::Send), Access::Owner(Class::Settings));
+    let every = |id: Id, name: &str, action: Action| Rule {
+        id,
+        name: name.into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["invoice".into()])],
+        actions: vec![action],
+        ..Default::default()
+    };
+    let read = json!({"name": "Read", "account": local, "conditions": [{"type": "toMe"}], "actions": [{"type": "markRead"}]});
+    let off = json!({"id": 900, "value": false});
+    s.mailbox.rules.push(every(900, "Old", Action::MarkRead));
+    assert_eq!((ask(&s, "rules.add", read.clone()), ask(&s, "rules.enable", off.clone())), (settings, settings));
+    // One account's rule beside a change to the rule for every account.
+    let purge = add(&mut s, local, "Purge", json!([{"type": "subjectContains", "value": "invoice"}]), json!([{"type": "deleteForGood"}]));
+    assert_eq!(ask(&s, "rules.enable", off.clone()), delete);
+    run(&mut s, "rules.remove", json!({"id": purge}));
+    let away = add(&mut s, local, "Away", json!([{"type": "subjectContains", "value": "invoice"}]), json!([{"type": "moveTo", "value": news}]));
+    assert_eq!(ask(&s, "rules.enable", off.clone()), send);
+    run(&mut s, "rules.remove", json!({"id": away}));
+    // The rule for every account beside a change to one account's rules.
+    s.mailbox.rules.push(every(901, "Gone", Action::DeleteForGood));
+    assert_eq!(ask(&s, "rules.add", read.clone()), delete);
+    s.mailbox.rules.retain(|r| r.id != 901);
+    s.mailbox.rules.push(every(902, "Onto", Action::MoveTo(news)));
+    assert_eq!(ask(&s, "rules.add", read), send);
 }
