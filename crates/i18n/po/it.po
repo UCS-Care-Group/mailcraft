@@ -6009,8 +6009,8 @@ msgstr ""
 #, fuzzy
 msgid "Its rule goes too; if its server keeps it, it stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Anche la sua regola viene rimossa; se il suo server la conserva, resta lì."
-msgstr[1] "Anche le sue {n} regole vengono rimosse; quelle che il suo server conserva restano lì."
+msgstr[0] "Anche la regola dell'account viene rimossa; se il suo server la conserva, resta lì."
+msgstr[1] "Anche le {n} regole dell'account vengono rimosse; quelle che il suo server conserva restano lì."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
