@@ -118,7 +118,8 @@ In **Account Settings**, under **Gmail categories**:
 
 - **Show Gmail's categories under the Inbox** (on by default) hides the five when it is off.
 - **Desktop alerts only for mail in Primary** (off by default) keeps new mail that Gmail puts in
-  the other four categories from raising a desktop alert.
+  the other four categories from raising a desktop alert. A rule of yours with **Show a desktop
+  alert** still shows its alert for the mail it acts on, in any category.
 
 ### As tabs above the Inbox
 

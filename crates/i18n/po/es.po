@@ -7725,8 +7725,9 @@ msgstr "Correo nuevo"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr ""
+#, fuzzy
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "El correo nuevo que Gmail pone en Social, Promotions, Updates o Forums llega sin alerta, salvo que una de sus reglas muestre una."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs

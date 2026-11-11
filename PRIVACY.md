@@ -100,9 +100,10 @@ computer, for you, and for nothing else:
   and File › Info shows whether it was given. Until it is, tasks stay on this computer and nothing of them is sent. Even then, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
 - changing the rules your mailbox keeps on Microsoft's servers (the same permission), so that a
   rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
-  phone: the rule's name, what it looks for (words, people's addresses, a size, categories, an
-  importance, a sensitivity, whether the mail has an attachment, is a meeting invitation, an automatic
-  reply or flagged, and whether it was sent to you, to you alone or with you in To or Cc; and its
+  phone: the rule's name, what it looks for (words, a header's among them, people's addresses, a size,
+  categories, an importance, a sensitivity, whether the mail has an attachment, is a meeting invitation,
+  an automatic reply or flagged, and whether it was sent to you, to you alone, with you in To or Cc, or
+  without you in To; and its
   exceptions, of the same kinds) and what it does (with the folder it moves or copies mail to) go to
   your own Microsoft account and nowhere else. It is never asked for on a sign-in page, so signing in for mail never waits on it: it is
   asked for by itself the first time a rule is to go to the server, after the program has asked you, and

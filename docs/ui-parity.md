@@ -87,7 +87,8 @@ the desktop's notification service on Linux and the BSDs, toasts on Windows (for
 `.msi` installed, whose Start menu shortcut names it), the notification centre for the macOS app.
 A click brings the window in front and opens the message or the reminders window (on macOS it
 brings MailCraft in front only). File › Options has a switch for each and says why alerts can't
-be shown when they can't.
+be shown when they can't; a rule's own desktop alert comes with the switch for new mail off, as
+Outlook's does, and for a Gmail account set to alert for Primary alone, in any category (#566).
 
 ## Revision history
 
