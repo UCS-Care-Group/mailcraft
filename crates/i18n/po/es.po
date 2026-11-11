@@ -19829,6 +19829,12 @@ msgstr "«{subject}» llegó de su servidor, pero no se pudo guardar en este equ
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
+msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
+msgstr "«{subject}» es una copia que el servidor de su buzón todavía tiene que hacer, y aún no se ha descargado: muévala cuando esté hecha"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
 msgstr "«{subject}» todavía va de camino al servidor de su buzón, y el mensaje del que se copió se queda en su propio servidor hasta que llegue: muévalo cuando haya llegado"
 

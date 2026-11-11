@@ -777,6 +777,13 @@ fn read_on_its_way(s: &Session, ids: &[Id], folder: Id) -> Result<HashSet<Id>, c
     let Some(to) = s.mailbox.folder(folder).map(|f| f.account) else { return Ok(here) };
     for id in ids {
         let Some(m) = s.mailbox.message(*id).filter(|m| m.folder != folder) else { continue };
+        if m.account != to && s.mailbox.copy_not_made_yet(*id) {
+            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+            return Err(failed!(
+                "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made",
+                subject
+            ));
+        }
         if !s.mailbox.held_on_its_way(*id, to) {
             continue;
         }

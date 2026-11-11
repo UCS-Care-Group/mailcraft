@@ -501,3 +501,51 @@ fn the_undo_of_a_copy_then_a_delete_for_good_says_both_lines_in_the_windows_lang
     assert!(undone.contains("Die Kopie von 'Plan' bleibt"), "{undone}");
     assert!(undone.contains("'Plan' wurde endgültig gelöscht"), "{undone}");
 }
+
+/// New mail of a Microsoft account, listed and not downloaded yet, that a rule copies into another
+/// folder of the account (a copy its server makes) and deletes for good: the delete waits for that
+/// copy. Moved onto this computer before the server has made it, the copy would be only the
+/// headers and preview for good, and the original's delete would go: the move is refused, and
+/// the original stays until the copy is made (#566).
+#[test]
+fn a_rules_copy_its_server_is_still_to_make_isnt_moved_onto_this_computer() {
+    let (mut s, account, kept) = microsoft_and_here();
+    let saved = s.mailbox.add_folder(account, None, "Saved").unwrap();
+    s.mailbox.folder_mut(saved).unwrap().server = Some(ServerFolder { id: "F-saved".into(), caught_up: true, ..Default::default() });
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+            "actions": [{"type": "copyTo", "value": saved}, {"type": "deleteForGood"}]}),
+    );
+    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
+    super::graph_mail::apply_graph_mail(
+        &mut s,
+        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
+    )
+    .unwrap();
+    let copy = s.mailbox.messages.values().find(|m| m.subject == "Plan" && m.folder == saved).map(|m| m.id).expect("the rule copied it");
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert_eq!(graph_deletes(&s, account), [], "the delete waits for the server's copy");
+    let refused = s.run("mail.move", &json!({"ids": [copy], "folder": kept})).expect_err("refused until the server has made it");
+    assert!(refused.to_string().contains("still to make"), "{refused}");
+    // The model refuses it too, whoever moves it (a rule, an agent's script).
+    assert!(s.mailbox.move_message(copy, kept).is_err());
+    assert_eq!(s.mailbox.message(copy).map(|m| m.folder), Some(saved));
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert_eq!(graph_deletes(&s, account), [], "the original stays on its server until the copy is made");
+    // Within its own mailbox it moves: the server makes the copy where it lies then.
+    let other = s.mailbox.add_folder(account, None, "Other").unwrap();
+    s.mailbox.folder_mut(other).unwrap().server = Some(ServerFolder { id: "F-other".into(), caught_up: true, ..Default::default() });
+    run(&mut s, "mail.move", json!({"ids": [copy], "folder": other}));
+    let copies: Vec<String> = super::graph_mail::graph_mail_request(&s, account)
+        .unwrap()
+        .messages
+        .iter()
+        .filter_map(|c| match c {
+            MessageChange::Copy { to, .. } => Some(to.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(copies, ["F-other"]);
+}

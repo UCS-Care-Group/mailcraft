@@ -19829,6 +19829,12 @@ msgstr "« {subject} » est arrivé de son serveur, mais n'a pas pu être conser
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
+msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
+msgstr "« {subject} » est une copie que le serveur de sa boîte aux lettres doit encore faire, et n'est pas encore téléchargée : déplacez-la une fois qu'elle est faite"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
 msgstr "« {subject} » est encore en route vers le serveur de sa boîte aux lettres, et le message dont il a été copié reste sur son propre serveur jusqu'à ce qu'il y soit : déplacez-le une fois qu'il y est"
 

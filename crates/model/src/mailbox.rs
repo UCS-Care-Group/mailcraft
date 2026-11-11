@@ -1367,6 +1367,12 @@ fn subject_said(m: &Message) -> String {
     m.subject.chars().filter(|c| !c.is_control()).take(80).collect()
 }
 
+/// Why a copy its server is still to make, not here whole, stays in its mailbox until it is made
+/// ([`Mailbox::copy_not_made_yet`], #566).
+fn not_made_yet(subject: &str) -> String {
+    format!("\"{subject}\" is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made")
+}
+
 /// Why a message can't go elsewhere before it is fetched whole.
 fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
@@ -2621,6 +2627,12 @@ impl Mailbox {
         if !fresh && !here && self.held_on_its_way(id, to_account) {
             return Err(invalid(on_its_way(&subject_said(m))));
         }
+        // A copy that its server is still to make, of which only a part is here: moved out of its
+        // mailbox, it would be made nowhere, and what is here would be all that is left of it
+        // once the message it was copied from goes (#566).
+        if self.copy_not_made_yet(id) {
+            return Err(invalid(not_made_yet(&subject_said(m))));
+        }
         // Not into an Outbox that would send it, the account it came from's included; an IMAP
         // account's holds it (#607).
         if self.sends_from(folder) {
@@ -2933,6 +2945,14 @@ impl Mailbox {
     pub fn held_on_its_way(&self, id: Id, to: Id) -> bool {
         self.message(id).is_some_and(|m| m.account != to && !self.puts_on_server(to) && m.original.is_some() && !m.original_asked)
             && self.held_for_copy(id).is_some()
+    }
+
+    /// Whether `id` is a copy a Microsoft or an Exchange server account's server is still to make
+    /// of a message there ([`Queued::CopyMessage`]), of which only a part is here (its headers
+    /// and preview, say): nothing but that server's copy can bring the rest (#566).
+    pub fn copy_not_made_yet(&self, id: Id) -> bool {
+        self.message(id).is_some_and(|m| m.server.is_none() && m.partly_here() && self.keeps_changes_for_server(m.account))
+            && self.queued.iter().any(|q| matches!(q, Queued::CopyMessage { copy, .. } if *copy == id))
     }
 
     /// The account whose server still has the message `copy` was copied from, which was deleted
