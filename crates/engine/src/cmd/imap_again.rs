@@ -151,36 +151,41 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
 /// The messages moved out of `account` whose original is asked for from the copy they came from
 /// ([`crate::cmd::mail::check_again::ask_source`]), by that copy's folder here and UID.
 pub(crate) fn moved_out(mb: &Mailbox, account: Id) -> HashMap<(Id, u32), Id> {
-    mb.pending
-        .iter()
-        .filter(|p| p.account() == account)
-        .filter_map(|p| match p {
+    let mut out = HashMap::new();
+    // (Looked for once, when a delete for good waits for a copy, rather than once for each.)
+    let mut asking: Option<HashMap<Id, Id>> = None;
+    for p in mb.pending.iter().filter(|p| p.account() == account) {
+        let (from, uid) = p.source();
+        let m = match p {
             mailcraft_model::Pending::Move { message, .. } => {
-                let (from, uid) = p.source();
-                let m = mb.message(*message).filter(|m| m.refetch && m.original_wanted && m.account != account && uid != 0)?;
-                let folder = mb.folders.iter().find(|f| f.account == account && f.remote == from)?;
-                Some(((folder.id, uid), m.id))
+                mb.message(*message).filter(|m| m.refetch && m.original_wanted && m.account != account && uid != 0).map(|m| m.id)
             }
             // And a copy of one deleted for good here, which goes from the server once the copy is
             // on its own (#566): the first that asks (in this account too, moved back into it).
-            mailcraft_model::Pending::Delete { kept: Some(kept), .. } => {
-                let (from, uid) = p.source();
-                let m = mb
-                    .queued
-                    .iter()
-                    .filter_map(|q| match q {
-                        mailcraft_model::Queued::PlaceMessage { account, message, source: Some(s), .. } if *s == kept.id => {
-                            mb.message(*message).filter(|m| m.account == *account)
-                        }
-                        _ => None,
-                    })
-                    .find(|m| m.refetch && m.original_wanted && uid != 0)?;
-                let folder = mb.folders.iter().find(|f| f.account == account && f.remote == from)?;
-                Some(((folder.id, uid), m.id))
+            mailcraft_model::Pending::Delete { kept: Some(kept), .. } if uid != 0 => {
+                asking.get_or_insert_with(|| copies_asking(mb)).get(&kept.id).copied()
             }
             _ => None,
-        })
-        .collect()
+        };
+        let Some(m) = m else { continue };
+        let Some(folder) = mb.folders.iter().find(|f| f.account == account && f.remote == from) else { continue };
+        out.insert((folder.id, uid), m);
+    }
+    out
+}
+
+/// The copies on their way to a server that ask for the bytes the message they are made from
+/// came as, by that message: the first in the queue for each.
+fn copies_asking(mb: &Mailbox) -> HashMap<Id, Id> {
+    let mut asking = HashMap::new();
+    for q in &mb.queued {
+        if let mailcraft_model::Queued::PlaceMessage { account, message, source: Some(source), .. } = q
+            && let Some(m) = mb.message(*message).filter(|m| m.account == *account && m.refetch && m.original_wanted)
+        {
+            asking.entry(*source).or_insert(m.id);
+        }
+    }
+    asking
 }
 
 /// The server didn't give the bytes `m` came as when asked (#30), at `now`: too large to take

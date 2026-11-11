@@ -996,3 +996,31 @@ fn an_agents_undo_that_puts_a_message_back_on_its_way_into_an_imap_account_is_as
     assert_eq!(waits(&s), 1, "the undo puts it on its way onto the IMAP server again");
     assert!(matches!(verdict, Verdict::Ask(Class::Send, _)), "an agent's undo that does is asked as a send: {verdict:?}");
 }
+
+/// Run Rules Now with a rule that copies onto another account's server and deletes permanently,
+/// over a large IMAP Inbox, leaves a delete waiting beside each copy: what the next Send/Receive
+/// asks the server again is worked out in time in proportion to them, not to their square, and
+/// the copy that asks for its original is still found.
+#[test]
+fn many_imap_deletes_waiting_for_their_copies_keep_send_receive_quick() {
+    let mut s = Session::empty();
+    let from = imap_account(&mut s, "avery@mail.example", vec![]);
+    let to = imap_account(&mut s, "work@mail.example", vec![]);
+    let inbox = s.mailbox.folder_of_kind(from, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let asks = s.mailbox.add_message(Message { account: to, folder: theirs, refetch: true, original_wanted: true, ..Default::default() }).unwrap();
+    for i in 0..40_000u32 {
+        let kept = Box::new(Message { id: 1_000_000 + Id::from(i), ..Default::default() });
+        let (account, from) = (from, "INBOX".to_string());
+        s.mailbox.pending.push(Pending::Delete { account, from, uid: i + 1, message_id: String::new(), seen: None, kept: Some(kept) });
+        let message = if i == 7 { asks } else { 2_000_000 + Id::from(i) };
+        let source = Some(1_000_000 + Id::from(i));
+        let marker = format!("mailcraft-place-{i}");
+        s.mailbox.queued.push(mailcraft_model::Queued::PlaceMessage { account: to, message, marker, copy: true, from: None, source });
+    }
+    let started = std::time::Instant::now();
+    let again = crate::cmd::imap_again::moved_out(&s.mailbox, from);
+    let took = started.elapsed();
+    assert_eq!(again.into_iter().collect::<Vec<_>>(), vec![((inbox, 8), asks)]);
+    assert!(took.as_millis() < 200, "{took:?}");
+}
