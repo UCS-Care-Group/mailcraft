@@ -325,13 +325,15 @@ fn a_hostile_server_never_makes_the_push_panic_and_its_list_is_read_as_far_as_a_
     let list = json!({"value": listed}).to_string();
     let asked: Arc<Mutex<Vec<String>>> = Default::default();
     let log = asked.clone();
-    // Every write is answered "done", with a body that is no answer.
-    let server = FakeHttp::start(move |n, request| {
-        log.lock().unwrap().push(request.lines().next().unwrap_or("").to_string());
-        match (request.starts_with("GET "), n % 3) {
+    // Every write is answered "done", each with another body that is no answer.
+    let server = FakeHttp::start(move |_, request| {
+        let mut asked = log.lock().unwrap();
+        asked.push(request.lines().next().unwrap_or("").to_string());
+        let write = asked.iter().filter(|l| !l.starts_with("GET ")).count();
+        match (request.starts_with("GET "), write) {
             (true, _) => json_answer("200 OK", &list),
-            (false, 0) => json_answer("201 Created", "not json at all {"),
-            (false, 1) => json_answer("200 OK", r#"{"color": 12, "id": ["x"]}"#),
+            (false, 1) => json_answer("201 Created", "not json at all {"),
+            (false, 2) => json_answer("200 OK", r#"{"color": 12, "id": ["x"]}"#),
             (false, _) => json_answer("200 OK", &"[".repeat(50_000)),
         }
     });
@@ -341,11 +343,13 @@ fn a_hostile_server_never_makes_the_push_panic_and_its_list_is_read_as_far_as_a_
         change(CategoryChangeKind::Create, "Ünïcødé\u{202e}", 2),
         // Past what a read of the list goes to: not known here, so nothing is sent for it.
         change(CategoryChangeKind::Delete, "Name 350", 3),
+        change(CategoryChangeKind::Delete, "Name 7", 3),
     ];
     let done = push_categories_at(&server.url(""), TOKEN, &upload(changes));
-    assert_eq!(done.outcomes.len(), 4, "{:?}", done.outcomes);
+    assert_eq!(done.outcomes.len(), 5, "{:?}", done.outcomes);
     let results: Vec<CategoryResult> = done.outcomes.iter().map(|o| o.result).collect();
-    assert_eq!(results, [CategoryResult::Done, CategoryResult::Done, CategoryResult::Done, CategoryResult::Refused]);
+    let expected = [CategoryResult::Done, CategoryResult::Done, CategoryResult::Done, CategoryResult::Refused, CategoryResult::Done];
+    assert_eq!(results, expected);
     // An answer that is no answer leaves the colour that was sent.
     assert_eq!(done.outcomes[0].color, OUTLOOK_COLORS[1]);
     assert_eq!(done.outcomes[1].color, OUTLOOK_COLORS[5]);
@@ -354,6 +358,7 @@ fn a_hostile_server_never_makes_the_push_panic_and_its_list_is_read_as_far_as_a_
     assert!(done.outcomes[3].error.contains("too long"), "{:?}", done.outcomes[3]);
     assert!(done.outcomes.iter().all(|o| !o.error.contains(TOKEN)));
     let writes: Vec<String> = asked.lock().unwrap().iter().filter(|l| !l.starts_with("GET ")).cloned().collect();
-    assert_eq!(writes.len(), 2, "{writes:?}");
+    // Each of the three bodies that are no answer was sent.
+    assert_eq!(writes.len(), 3, "{writes:?}");
     assert!(!writes.iter().any(|w| w.contains("N350")), "{writes:?}");
 }

@@ -535,5 +535,10 @@ fn a_sign_in_as_somebody_else_drops_the_change_that_waited_and_a_later_yes_sends
     app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
     app.auto_replies_tick_at(10.0);
-    assert!(jobs.lock().unwrap().iter().skip(before).all(|(_, change)| change.is_none()), "nothing of the old change goes");
+    // And when the next read is due, it reads, and sends nothing of it either.
+    app.poll_auto_replies();
+    app.auto_replies_tick_at(1e15);
+    let jobs = jobs.lock().unwrap();
+    assert!(jobs.len() > before, "read again when due");
+    assert!(jobs.iter().skip(before).all(|(_, change)| change.is_none()), "nothing of the old change goes");
 }
