@@ -57,6 +57,10 @@ mailcraft-ews = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
 mailcraft-charset = { workspace = true }
+# Keys made in the tests of encrypting (`encrypting_tests`): an OpenPGP key from a seed, and the
+# message read back with its secret half (production code never opens a private key here).
+pgp = { workspace = true }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.

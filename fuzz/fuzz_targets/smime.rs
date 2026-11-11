@@ -18,4 +18,10 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let context = Context { anchors: &anchors, from: "alice@smime.example", now: 1_794_182_400, known: &known, coverage: Coverage::Whole };
     let _ = check(Signed::Opaque(data), &context);
     let _ = check(Signed::Detached { content: b"Content-Type: text/plain\r\n\r\nHello\r\n", signature: data }, &context);
+    // A certificate read for encrypting to (#30 part 7).
+    let _ = mailcraft_smime::can_encrypt_to(data, 1_794_182_400);
+    let _ = mailcraft_smime::encrypt(&mailcraft_smime::EncryptRequest { content: b"Hello\r\n", recipients: &[data.to_vec()], now: 1_794_182_400 }, &mut |buf: &mut [u8]| {
+        buf.fill(7);
+        true
+    });
 });

@@ -3070,6 +3070,8 @@ dependencies = [
  "objc2-user-notifications 0.3.2",
  "p256 0.14.0",
  "p384 0.14.0",
+ "pgp",
+ "rand 0.8.8",
  "rfd",
  "ring",
  "rsa 0.10.0",

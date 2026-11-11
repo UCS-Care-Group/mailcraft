@@ -94,6 +94,11 @@ msgid "'{subject}' couldn't be Digitally signed, so it wasn't sent: {why}. It is
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "'{subject}' couldn't be Encrypted, so it wasn't sent: {why}. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr ""
@@ -558,7 +563,7 @@ msgid ""
 msgstr ""
 
 #. command label, interface, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/signing.rs crates/ui-egui/src/account_setup.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/signing.rs crates/ui-egui/src/account_setup.rs
 msgid "Account Settings"
 msgstr ""
 
@@ -1820,12 +1825,22 @@ msgid "Calibri"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Can't be Encrypted: no Public key for {names}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Can't encrypt for everybody"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Can't sign"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/encryption.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 msgid "Cancel"
 msgstr ""
 
@@ -3553,9 +3568,21 @@ msgstr ""
 msgid "Enable Rule"
 msgstr ""
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/signing.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/ribbon.rs
 msgid "Encrypt"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Encrypted at Send to {n} recipient and you"
+msgid_plural "Encrypted at Send to {n} recipients and you"
+msgstr[0] ""
+msgstr[1] ""
+
+#. command label
+#: crates/engine/src/cmd/encrypting.rs
+msgid "Encryption"
 msgstr ""
 
 #. interface
@@ -3798,7 +3825,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "File"
 msgstr ""
 
@@ -5126,6 +5153,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/signing.rs
 msgid "It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries again."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "It couldn't be Encrypted: {why}. It wasn't sent; Send Again tries again."
 msgstr ""
 
 #. interface
@@ -7698,7 +7730,7 @@ msgid "Optional"
 msgstr ""
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Options"
 msgstr ""
 
@@ -8463,7 +8495,7 @@ msgid "Reminders Window"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/encryption.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 msgid "Remove"
 msgstr ""
 
@@ -8517,6 +8549,11 @@ msgstr ""
 msgid "Remove Public Key"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/encrypting.rs
+msgid "Remove Recipients"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Remove Recurrence"
@@ -8567,6 +8604,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/junk.rs
 msgid "Remove from Safe or Blocked Senders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Remove them, or send the message without encryption: anybody on the way can read it."
 msgstr ""
 
 #. interface
@@ -9533,6 +9575,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Send to {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Send unencrypted"
 msgstr ""
 
 #. interface
@@ -11950,6 +11997,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "These could not be removed. Remove them yourself:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "These recipients have no Public key, so the message can't be Encrypted for them:"
 msgstr ""
 
 #. interface
@@ -14533,6 +14585,11 @@ msgstr ""
 msgid "it was to be Digitally signed and wasn't, so it wasn't sent"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "it was to be Encrypted and wasn't, so it wasn't sent"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "it writes to other people or reaches out to the web"
@@ -14541,6 +14598,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 msgid "its name isn't one a certificate can be checked against"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "keys of {names} came with their mail and weren't checked by you"
 msgstr ""
 
 #. interface
@@ -14639,7 +14701,7 @@ msgid "no account with id {account}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signing.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signing.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -14709,7 +14771,7 @@ msgid "no message being written has the id {id}"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/writing_tools.rs
 msgid "no message is being written"
 msgstr ""
 
@@ -15748,6 +15810,11 @@ msgstr ""
 msgid "there is already a signature named \"{to}\""
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/encrypting.rs
+msgid "there is no Public key for {recipients}, so the message can't be Encrypted: remove them, import their keys, or send it unencrypted"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 msgid "there is no access token to sign in with"
@@ -15824,7 +15891,7 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/signing.rs
+#: crates/engine/src/cmd/encrypting.rs crates/engine/src/cmd/signing.rs
 msgid "this account doesn't send mail from here, so its messages can't be Digitally signed: turn Sign off"
 msgstr ""
 

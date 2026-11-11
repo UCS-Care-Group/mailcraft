@@ -169,9 +169,9 @@ fn key_for<'a>(mb: &'a Mailbox, address: &str, format: SignatureFormat, now: i64
     };
     let mut of_format = mb.public_keys.of(address).iter().filter(|k| k.format == format);
     let all: Vec<&PublicKey> = of_format.by_ref().collect();
-    let owners = all.iter().copied().filter(|k| k.is_owners());
+    let mut owners = all.iter().copied().filter(|k| k.is_owners());
     // (`of` gives the newest seen first.)
-    owners.filter(usable).next().or_else(|| if all.iter().any(|k| k.is_owners()) { None } else { all.iter().copied().filter(usable).next() })
+    owners.find(usable).or_else(|| if all.iter().any(|k| k.is_owners()) { None } else { all.iter().copied().find(usable) })
 }
 
 /// Encrypt: on or off for the message being written, or the other way round from what it would be.

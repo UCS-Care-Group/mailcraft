@@ -113,7 +113,10 @@ fn a_large_message_is_encrypted_whole() {
 #[test]
 fn nothing_is_the_same_twice_and_each_recipient_once() {
     let key = public_bytes(&X25519);
-    let (one, two) = (encrypt(CONTENT, &[key.clone()], NOW, &mut seeded(7)).unwrap(), encrypt(CONTENT, &[key.clone()], NOW, &mut seeded(8)).unwrap());
+    let (one, two) = (
+        encrypt(CONTENT, std::slice::from_ref(&key), NOW, &mut seeded(7)).unwrap(),
+        encrypt(CONTENT, std::slice::from_ref(&key), NOW, &mut seeded(8)).unwrap(),
+    );
     assert_ne!(one, two);
     let doubled = encrypt(CONTENT, &[key.clone(), key.clone()], NOW, &mut seeded(7)).unwrap();
     assert_eq!(doubled, one, "the same recipient twice is one");
@@ -124,7 +127,7 @@ fn a_key_that_cant_be_encrypted_to_stops_it() {
     let t = made_at(&X25519);
     // Signs only: no encryption key at all.
     let signs_only = public_bytes(&secret(ALICE, Make { seed: 56, ..Make::default() }));
-    assert!(matches!(encrypt(CONTENT, &[signs_only.clone()], NOW, &mut seeded(1)), Err(EncryptError::Key(_))));
+    assert!(matches!(encrypt(CONTENT, std::slice::from_ref(&signs_only), NOW, &mut seeded(1)), Err(EncryptError::Key(_))));
     assert!(can_encrypt_to(&signs_only, NOW).is_err());
     // Not yet valid.
     assert!(can_encrypt_to(&public_bytes(&X25519), u64::from(made(&X25519)) - 1).is_err());
@@ -179,7 +182,7 @@ fn a_source_of_random_numbers_that_fails_makes_nothing() {
             calls += 1;
             calls <= allowed && inner(buf)
         };
-        assert_eq!(encrypt(CONTENT, &[key.clone()], NOW, &mut flaky), Err(EncryptError::Random), "after {allowed}");
+        assert_eq!(encrypt(CONTENT, std::slice::from_ref(&key), NOW, &mut flaky), Err(EncryptError::Random), "after {allowed}");
     }
 }
 
@@ -207,7 +210,7 @@ proptest! {
     /// Whatever bytes are given as a key, nothing panics and nothing is made.
     #[test]
     fn hostile_keys_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..2048)) {
-        prop_assert!(encrypt(CONTENT, &[bytes.clone()], NOW, &mut seeded(1)).is_err());
+        prop_assert!(encrypt(CONTENT, std::slice::from_ref(&bytes), NOW, &mut seeded(1)).is_err());
         prop_assert!(can_encrypt_to(&bytes, NOW).is_err());
         let _ = encryption_certificates(&bytes, NOW);
     }

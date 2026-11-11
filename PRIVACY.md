@@ -36,6 +36,11 @@ send ([Problem reports](#problem-reports)).
   message these bytes are the encrypted message itself, as the server holds it. They go when the
   message goes. When they are missing, or were never kept, the message's own server is asked for
   it again at the next Send/Receive, as for any message downloaded; nothing else is sent.
+- **Encrypting** (S/MIME and OpenPGP) uses the Public keys kept in the mailbox for the people you write to,
+  and your own, and nothing else: no key is looked up on a server (Web Key Directory look-ups aren't
+  built), and no revocation is checked online (a revocation already in a kept key is honoured).
+  A draft with Encrypt on is kept on this computer only, as you wrote it (not encrypted), and is
+  never uploaded; the copy of an encrypted message kept in Sent Items here has the text as written.
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how
   many and clears them.

@@ -83,6 +83,8 @@ mod drag_pointer;
 mod drag_pointer_tests;
 pub mod encryption;
 #[cfg(test)]
+mod encryption_tests;
+#[cfg(test)]
 mod ews_info_tests;
 pub mod ews_mail;
 pub mod ews_setup;
