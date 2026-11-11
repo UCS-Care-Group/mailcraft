@@ -292,6 +292,10 @@ impl MailApp {
             FavoritesOutcome::NotPermitted => {
                 self.favorites.missing.insert(account, now);
                 self.favorites.uncovered.insert(account);
+                // (What the owner was told when he asked stays said.)
+                if matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) && why.trim().is_empty() {
+                    return;
+                }
                 if self.favorites.connected.contains(&account) || matches!(why, NEEDS_APPROVAL | REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT) {
                     let by = match why {
                         REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT => why,
