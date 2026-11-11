@@ -265,3 +265,17 @@ fn a_rule_that_shows_a_desktop_alert_marks_the_message_for_it_once_it_acts_after
     assert!(!arrived(&mut mb, "Nothing to pay.", None), "the rule doesn't apply");
     assert!(!arrived(&mut mb, "The invoice, in full.", Some(kept)), "moved by the owner before it was fetched");
 }
+
+#[test]
+fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetched() {
+    let rule = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::DeleteForGood], ..Default::default() };
+    let (mut mb, inbox, kept) = mailbox(vec![rule]);
+    let m = listed(&mut mb, inbox);
+    mb.apply_rules(m, &clock());
+    mb.move_message(m, kept).unwrap();
+    mb.move_message(m, inbox).unwrap();
+    fetched(&mut mb, m, "The invoice, in full.");
+    assert!(mb.run_waiting_rules(m, &clock()).is_empty());
+    let got = mb.message(m).unwrap();
+    assert!(got.folder == inbox && got.rules_waiting.is_none());
+}

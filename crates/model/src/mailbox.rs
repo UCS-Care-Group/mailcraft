@@ -2316,6 +2316,11 @@ impl Mailbox {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
         }
+        if self.message(id).is_some_and(|m| m.rules_waiting.is_some()) {
+            // Moved before it is here whole, by anybody and back again too: the rules that couldn't
+            // tell of it as it arrived let it alone (#566).
+            self.message_mut(id)?.rules_waiting = None;
+        }
         let into_outbox = self.is_imap_outbox(folder);
         if self.move_between_accounts(id, folder, account, &remote, fresh, here)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
@@ -3422,7 +3427,8 @@ impl Mailbox {
 
     /// Once a message is here whole, the rules that couldn't tell of it as it arrived have their
     /// say ([`Message::rules_waiting`], #566), in the order they ran then, and only where they
-    /// left it: one moved since (by the owner, say) is let alone. A rule that acted then isn't run
+    /// left it: one moved since (by the owner, say), even back, is let alone, as a move takes
+    /// what waits for it away ([`Mailbox::move_message`]). A rule that acted then isn't run
     /// again; one that deletes for good and waited on a rule before it acts now, unless that rule
     /// applies after all and stops the rules after it. Returns the names of the rules that
     /// acted. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]), as

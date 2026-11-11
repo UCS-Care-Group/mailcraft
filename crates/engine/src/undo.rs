@@ -273,6 +273,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
+        waiting_as_now(&mut out, touched, now);
         return (out, Vec::new());
     }
     let mut said = Said::default();
@@ -297,7 +298,20 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
+    waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
+}
+
+/// The rules waiting for the messages the change touched to be here whole are as they are now
+/// (#566): a move took them away, and moving the message back by undoing it or redoing a move
+/// doesn't bring them back, nor does it have a rule act a second time.
+fn waiting_as_now(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
+    for id in &touched.changed_messages {
+        let waiting = now.messages.get(id).and_then(|c| c.rules_waiting.clone());
+        if let Some(m) = out.messages.get_mut(id).filter(|m| m.rules_waiting != waiting) {
+            Arc::make_mut(m).rules_waiting = waiting;
+        }
+    }
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name

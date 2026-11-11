@@ -564,3 +564,44 @@ fn a_size_rule_on_microsoft_new_mail_listed_without_a_size_waits_for_the_downloa
     let m = here(&s, account, "N1");
     assert!(!m.unfetched && m.rules_waiting.is_none() && m.flag == FlagStatus::Flagged, "{m:?}");
 }
+
+/// The owner files new mail away before it is downloaded, which lets the rule waiting on it
+/// alone. An agent then moves it back into the Inbox (a move within the account, asked about
+/// nothing), or undoes the owner's move: the rule still lets it alone once it is downloaded,
+/// rather than deleting it permanently here and on the server.
+#[test]
+fn mail_moved_back_after_its_owner_filed_it_isnt_deleted_for_good_by_a_rule_that_waited() {
+    use crate::agent::{Verdict, check};
+    let mut lost = Vec::new();
+    for agent in [None, Some("mail.move"), Some("edit.undo")] {
+        let mut s = Session::empty();
+        let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
+        let gone = json!({"name": "Invoices", "server": false,
+            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "deleteForGood"}]});
+        s.run("rules.add", &gone).unwrap();
+        arrives(&mut s, account, "Plan");
+        let m = here(&s, account, "N1").id;
+        assert!(s.mailbox.message(m).unwrap().rules_waiting.is_some());
+        // The owner files it away before it is downloaded.
+        s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+        assert_eq!(s.mailbox.message(m).unwrap().folder, kept);
+        // The agent moves it back, or undoes the owner's move: asked about nothing.
+        if let Some(id) = agent {
+            let params = if id == "edit.undo" { json!({}) } else { json!({"ids": [m], "folder": inbox}) };
+            assert_eq!(check(&s, id, &params, &[]), Verdict::Run, "{id} isn't asked about");
+            s.agent = Some(Vec::new());
+            s.run(id, &params).unwrap();
+            s.agent = None;
+            let back = s.mailbox.message(m).unwrap();
+            assert!(back.folder == inbox && back.unfetched, "{id}: {back:?}");
+        }
+        let fetched = vec![whole("N1", "Plan", "", "The invoice for May.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let after = s.mailbox.message(m);
+        let deletes = s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. }));
+        if !(after.is_some_and(|x| !x.unfetched) && !deletes) {
+            lost.push(format!("{agent:?}: here {}, delete for the server queued {deletes}", after.is_some()));
+        }
+    }
+    assert!(lost.is_empty(), "the message the owner filed away is deleted for good after: {lost:?}");
+}
