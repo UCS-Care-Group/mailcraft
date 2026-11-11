@@ -127,7 +127,8 @@ impl MailApp {
     pub fn categories_tick_at(&mut self, now: f64) -> bool {
         self.category_sync.clock = now;
         self.categories_ask_tick();
-        if !self.auto_sync || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
+        // (Offline, nothing goes, so what would go isn't looked through either.)
+        if !self.auto_sync || self.offline() || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
             return false;
         }
         // One thing at a time: the calendar's, the to-dos' and the rules' jobs, a Send/Receive and
@@ -211,7 +212,7 @@ impl MailApp {
     }
 
     fn start_categories_job(&mut self, account: Id, now: f64) -> bool {
-        // (Offline, nothing goes: what would go isn't worked out at every frame either.)
+        // (Offline, nothing goes, from here either.)
         if self.offline() || self.services.graph_categories.is_none() {
             return false;
         }

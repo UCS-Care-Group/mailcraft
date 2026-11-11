@@ -631,3 +631,25 @@ fn a_name_outlook_had_already_is_said_in_the_status_bar_and_is_no_problem() {
     assert!(!app.sync_problems.iter().any(|(a, ..)| *a == owner), "no problem");
     assert!(!app.category_sync.failures.contains_key(&owner), "no wait");
 }
+
+#[test]
+fn offline_nothing_is_worked_out_and_nothing_goes() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    let green = OUTLOOK_COLORS[4].hex();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": green})).unwrap();
+    app.session.prefs.offline = true;
+    app.category_sync.ready = None;
+    for at in [10.0, 5_000.0, 60_000.0] {
+        assert!(!app.categories_tick_at(at));
+    }
+    assert!(app.category_sync.ready.is_none(), "what waits isn't looked through while offline");
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    // Back online, the change goes after its quiet moment.
+    app.session.prefs.offline = false;
+    assert!(!app.categories_tick_at(61_000.0));
+    assert!(app.categories_tick_at(70_000.0));
+    assert_eq!(jobs.lock().unwrap()[1].2, 1);
+}

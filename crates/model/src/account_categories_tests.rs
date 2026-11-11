@@ -85,8 +85,7 @@ fn a_shared_mailbox_uses_its_owners_list() {
     assert_eq!(mb.category_list_owner(shared), Some(a));
     assert_eq!(mb.category_color_of(shared, "Red"), RED);
     // Its items are its server's, which has a list of its own: a rename of the owner's list
-    // leaves them as they are (#661), and its mail shows the old name in grey, a name off the list
-    // (Outlook shows such a name without a colour, "not in master list").
+    // leaves them as they are (#661), and its mail shows the old name in grey, a name off the list.
     let m = message_of(&mut mb, shared, &["Red"]);
     let own = message_of(&mut mb, a, &["Red"]);
     mb.rename_category(a, "Red", "Urgent").unwrap();
