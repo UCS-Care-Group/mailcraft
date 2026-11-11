@@ -375,6 +375,7 @@ fn an_undo_while_the_job_is_on_its_way_never_deletes_what_it_found_in_outlook() 
     assert!(app.categories_tick_at(at + 5_000.0));
     // The owner presses Undo while the job is on its way.
     app.execute("edit.undo", json!({})).unwrap();
+    assert!(app.session.mailbox.category_of(owner, "Travel").is_none(), "the undo took it off the list here");
     app.poll_categories();
     let upload = mailcraft_engine::cmd::categories_remote::category_upload(&app.session, owner).unwrap();
     let deletes: Vec<&str> = upload.changes.iter().filter(|c| c.kind == CategoryChangeKind::Delete).map(|c| c.name.as_str()).collect();
@@ -718,9 +719,7 @@ fn an_account_made_an_imap_one_and_a_microsoft_one_again_is_looked_at_afresh() {
     app.execute("account.edit", json!({"id": owner, "kind": "microsoft"})).unwrap();
     remote::apply_categories(&mut app.session, &download(owner, &["Red category"])).unwrap();
     assert!(app.session.mailbox.categories_read_only(owner).is_some());
-    if !app.tokens.contains_key(&owner) {
-        app.tokens.insert(owner, tokens("own-access", "ref-1"));
-    }
+    app.tokens.insert(owner, tokens("own-access", "ref-1"));
     answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
     assert!(app.categories_tick_at(2_000.0), "looked at afresh");
     app.poll_categories();
