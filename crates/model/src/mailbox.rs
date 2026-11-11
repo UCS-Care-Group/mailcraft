@@ -3331,6 +3331,8 @@ impl Mailbox {
 
     fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
         let now = ruling == Ruling::Now;
+        // Run Rules Now over Deleted Items, where a Delete is a delete for good ([`Mailbox::act`]).
+        let from_bin = now && self.in_deleted_items(id);
         let mut ran = Vec::new();
         let Some((account, listed)) = self.message(id).map(|m| (m.account, m.unfetched)) else { return ran };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
@@ -3387,7 +3389,7 @@ impl Mailbox {
                         std::borrow::Cow::Borrowed(&rule.actions)
                     };
                     let for_good = matches!(ruling, Ruling::Arriving | Ruling::Now) && !unsure;
-                    if self.act(id, &actions, clock, for_good, going) {
+                    if self.act(id, &actions, clock, for_good, from_bin, going) {
                         ran.push(rule.name.clone());
                     }
                     copied |= rule.actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
@@ -3455,7 +3457,7 @@ impl Mailbox {
             // refused since, and nothing holds the delete behind it.)
             if !rule.on_server() && !wait.delete_only {
                 alert |= rule.alert;
-                if self.act(id, &rule.actions, clock, !unsure, going) {
+                if self.act(id, &rule.actions, clock, !unsure, false, going) {
                     ran.push(rule.name.clone());
                 }
             }
@@ -3494,7 +3496,13 @@ impl Mailbox {
         if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
             return false;
         }
-        self.act(id, &rule.actions, clock, true, going)
+        let from_bin = self.in_deleted_items(id);
+        self.act(id, &rule.actions, clock, true, from_bin, going)
+    }
+
+    /// Whether message `id` lies in its account's Deleted Items, or a folder under it.
+    fn in_deleted_items(&self, id: Id) -> bool {
+        self.message(id).is_some_and(|m| self.folder_of_kind(m.account, FolderKind::Deleted).is_some_and(|d| self.subtree(d).contains(&m.folder)))
     }
 
     /// Do what a rule says to a message: change it first, then copy it, then move it, and delete
@@ -3502,7 +3510,7 @@ impl Mailbox {
     /// in `going`, and goes when the run is done ([`Mailbox::rules_done`]). Whether the rule did
     /// anything: not when what it does was refused (a folder gone, a server that keeps the
     /// message), so that Run Rules Now doesn't count it.
-    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool, going: &mut Going) -> bool {
+    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool, from_bin: bool, going: &mut Going) -> bool {
         let mut ordered: Vec<&Action> = actions.iter().collect();
         ordered.sort_by_key(|a| a.stage());
         // A copy that couldn't be made: the message is then the only one, and isn't deleted.
@@ -3538,18 +3546,19 @@ impl Mailbox {
                 // Held back, to be done once the message is here whole: nothing done yet, so not
                 // counted as done.
                 Action::DeleteForGood if !for_good => {}
-                // To Deleted Items, or for good from there (or where an account has none), as
-                // [`Mailbox::delete_message`] does.
+                // To Deleted Items, as Outlook's "delete it" does; for good where an account has
+                // none, and from Deleted Items when the rules are run over it (`from_bin`), as
+                // [`Mailbox::delete_message`] does. Mail a rule moved there as it arrived is
+                // deleted already: a delete for good is only ever a rule's "delete permanently"
+                // or the owner's run over Deleted Items (#566).
                 Action::Delete => {
-                    let binned = self
-                        .message(id)
-                        .map(|m| (m.account, m.folder))
-                        .and_then(|(account, at)| self.folder_of_kind(account, FolderKind::Deleted).filter(|d| !self.subtree(*d).contains(&at)));
-                    did |= match binned {
-                        Some(d) => self.move_message(id, d).is_ok(),
-                        // From Deleted Items it is a delete for good, held back as one (#566).
-                        None if !for_good => false,
-                        None => gone(self, going),
+                    let Some((account, at)) = self.message(id).map(|m| (m.account, m.folder)) else { break };
+                    did |= match self.folder_of_kind(account, FolderKind::Deleted) {
+                        Some(d) if !self.subtree(d).contains(&at) => self.move_message(id, d).is_ok(),
+                        Some(_) if !from_bin => false,
+                        // A delete for good, held back as one (#566).
+                        _ if !for_good => false,
+                        _ => gone(self, going),
                     };
                 }
                 Action::DeleteForGood => did |= gone(self, going),

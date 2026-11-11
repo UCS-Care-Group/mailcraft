@@ -968,17 +968,17 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     // nothing, and needs no question.
     let (account, rule, makes, on) = match id {
         "rules.add" => match crate::cmd::rules::rule_from_params(s, params) {
-            Ok(r) => (r.account, 0, for_good(&r), true),
+            Ok(r) => (r.account, 0, for_good(mb, &r), true),
             Err(_) => return false,
         },
         "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {
-            Ok((r, _)) => (r.account, 0, for_good(&r), true),
+            Ok((r, _)) => (r.account, 0, for_good(mb, &r), true),
             Err(_) => return false,
         },
         "rules.enable" => match (p::opt_bool(params, "value"), named()) {
             (Ok(value), Some(r)) => {
                 let on = value.unwrap_or(!r.enabled);
-                (r.account, r.id, on && for_good(r), on)
+                (r.account, r.id, on && for_good(mb, r), on)
             }
             _ => return false,
         },
@@ -997,7 +997,7 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
 /// `account` reaches: for the same mail, and `rule` itself only when it is still on after the
 /// change (`on`).
 fn beside_for_good(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool) -> impl Iterator<Item = &mailcraft_model::Rule> {
-    mb.rules.iter().filter(move |x| deletes_here(x) && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
+    mb.rules.iter().filter(move |x| deletes_here(mb, x) && (on || x.id != rule) && (x.account == 0 || account == 0 || x.account == account))
 }
 
 /// The rules switched on that copy or move mail onto another account's server and that a change
@@ -1057,14 +1057,19 @@ fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on
     )
 }
 
-fn for_good(r: &mailcraft_model::Rule) -> bool {
+/// Whether a rule deletes mail for good as it arrives: "Delete permanently", or a Delete of an
+/// account with no Deleted Items, where it is one (`Mailbox::act`; from Deleted Items it is one
+/// only when the rules are run over it, [`runs_for_good_over`]).
+fn for_good(mb: &Mailbox, r: &mailcraft_model::Rule) -> bool {
     r.actions.contains(&mailcraft_model::Action::DeleteForGood)
+        || (r.actions.contains(&mailcraft_model::Action::Delete)
+            && mb.accounts.iter().any(|a| r.is_for(a.id) && mb.rules_reach(a.id) && mb.folder_of_kind(a.id, FolderKind::Deleted).is_none()))
 }
 
 /// A rule that deletes mail for good when it runs: it has conditions and every part of it is
 /// known here, as a rule that acts on a message has ([`mailcraft_model::Rule::matches_in`]).
-fn runs_for_good(r: &mailcraft_model::Rule) -> bool {
-    for_good(r) && r.known() && !r.conditions.is_empty()
+fn runs_for_good(mb: &Mailbox, r: &mailcraft_model::Rule) -> bool {
+    for_good(mb, r) && r.known() && !r.conditions.is_empty()
 }
 
 /// [`runs_for_good`] over the mail of `folder`: a rule that deletes mail deletes it for good there
@@ -1072,13 +1077,13 @@ fn runs_for_good(r: &mailcraft_model::Rule) -> bool {
 fn runs_for_good_over(mb: &Mailbox, r: &mailcraft_model::Rule, folder: Id) -> bool {
     let binned =
         || mb.folder(folder).is_some_and(|f| mb.folder_of_kind(f.account, FolderKind::Deleted).is_none_or(|d| mb.subtree(d).contains(&folder)));
-    runs_for_good(r) || (r.actions.contains(&mailcraft_model::Action::Delete) && r.known() && !r.conditions.is_empty() && binned())
+    runs_for_good(mb, r) || (r.actions.contains(&mailcraft_model::Action::Delete) && r.known() && !r.conditions.is_empty() && binned())
 }
 
 /// A rule switched on that deletes mail for good here (one its server has runs there, among the
 /// server's rules).
-fn deletes_here(r: &mailcraft_model::Rule) -> bool {
-    r.enabled && runs_for_good(r) && (r.keep.is_here() || !r.on_server())
+fn deletes_here(mb: &Mailbox, r: &mailcraft_model::Rule) -> bool {
+    r.enabled && runs_for_good(mb, r) && (r.keep.is_here() || !r.on_server())
 }
 
 /// Whether an undo or redo from the rules of `now` to those of `to` changes them and leaves one
@@ -1087,7 +1092,7 @@ fn deletes_here(r: &mailcraft_model::Rule) -> bool {
 /// switches it off or takes it away only deletes less.
 pub(crate) fn undo_rules_delete_for_good(now: &Mailbox, to: &Mailbox) -> bool {
     let changed = changed_accounts(now, to);
-    to.rules.iter().any(|r| deletes_here(r) && reached(&changed, r))
+    to.rules.iter().any(|r| deletes_here(to, r) && reached(&changed, r))
 }
 
 /// The accounts whose rules an undo or redo from the rules of `now` to those of `to` changes (0:

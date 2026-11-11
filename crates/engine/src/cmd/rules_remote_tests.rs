@@ -1917,3 +1917,48 @@ fn the_run_rules_question_names_an_account_with_no_address_by_its_name() {
     let said = describe(&s, "rules.run", &json!({"folder": inbox}));
     assert!(said.contains("“Inbox” of “On this computer”"), "{said}");
 }
+
+/// A rule's Delete moves new mail to Deleted Items, as Outlook's "delete it" does, and no
+/// further: not when the same rule, or one before it, moved it there first. Only "Delete
+/// permanently", or Run Rules Now over Deleted Items, deletes for good, and an agent is asked
+/// about each (#566).
+#[test]
+fn a_rules_delete_of_new_mail_moved_to_deleted_items_leaves_it_there() {
+    use crate::agent::{Access, Class, classify};
+    let rule = |account: Id, name: &str, actions: Value| json!({"name": name, "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "x"}], "actions": actions});
+    // One rule that does both, and two rules one after the other.
+    for two in [false, true] {
+        let (mut s, account, _, _) = session();
+        let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let (bin, delete) = (json!({"type": "moveTo", "value": deleted}), json!({"type": "delete"}));
+        let rules = if two {
+            vec![rule(account, "Bin", json!([bin])), rule(account, "Gone", json!([delete]))]
+        } else {
+            vec![rule(account, "Both", json!([bin, delete]))]
+        };
+        for r in rules {
+            assert_eq!(classify(&s, "rules.add", &r), Access::Owner(Class::Settings));
+            run(&mut s, "rules.add", r);
+        }
+        let m = arriving(&mut s, account, "a@example.org", "x");
+        s.mailbox.apply_rules(m, &s.rule_clock());
+        assert_eq!(s.mailbox.message(m).map(|m| m.folder), Some(deleted), "two: {two}");
+        // Run Rules Now over the Inbox: the same.
+        let again = arriving(&mut s, account, "a@example.org", "x");
+        run(&mut s, "rules.run", json!({"folder": inbox}));
+        assert_eq!(s.mailbox.message(again).map(|m| m.folder), Some(deleted), "two: {two}");
+    }
+    // Over Deleted Items, the owner's run deletes for good there, and an agent is asked.
+    let (mut s, account, _, _) = session();
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    run(&mut s, "rules.add", rule(account, "Gone", json!([{"type": "delete"}])));
+    let m = arriving(&mut s, account, "a@example.org", "x");
+    s.mailbox.message_mut(m).unwrap().folder = deleted;
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": deleted})), Access::Owner(Class::Delete));
+    run(&mut s, "rules.run", json!({"folder": deleted}));
+    assert!(s.mailbox.message(m).is_none(), "deleted for good from Deleted Items");
+    // An account with no Deleted Items: a Delete there is one for good, and asked as one.
+    s.mailbox.folders.retain(|f| !(f.account == account && f.kind == FolderKind::Deleted));
+    assert_eq!(classify(&s, "rules.add", &rule(account, "Gone", json!([{"type": "delete"}]))), Access::Owner(Class::Delete));
+}
