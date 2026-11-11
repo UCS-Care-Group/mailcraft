@@ -15657,7 +15657,7 @@ msgstr "In tal caso, nella propria organizzazione solo un amministratore può ap
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
-msgstr "L'amministratore della tua organizzazione deve approvare una volta che MailCraft sincronizzi questa cassetta postale con Outlook: File › Informazioni"
+msgstr "L'amministratore della tua organizzazione deve approvare, una sola volta, che MailCraft sincronizzi questa cassetta postale con Outlook: File › Informazioni"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs

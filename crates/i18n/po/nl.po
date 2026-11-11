@@ -4897,7 +4897,7 @@ msgstr "Voor een account dat zich aanmeldt met Microsoft: de mappen die u onder 
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
-msgstr "Voorlopig blijven taken en regels op deze computer, worden je automatische antwoorden niet gewijzigd en kunnen de categorieën hier niet worden gewijzigd: {error}"
+msgstr "Voorlopig blijven taken en regels op deze computer, worden uw automatische antwoorden niet gewijzigd en kunnen de categorieën hier niet worden gewijzigd: {error}"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

@@ -836,7 +836,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
-msgstr "Añadir esta categoría a la lista de Outlook, con el color de Outlook más cercano"
+msgstr "Agregar esta categoría a la lista de Outlook, con el color de Outlook más cercano"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -864,7 +864,7 @@ msgstr "Agregar a Favoritos"
 #: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Add to Outlook"
-msgstr "Añadir a Outlook"
+msgstr "Agregar a Outlook"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -15659,7 +15659,7 @@ msgstr "En ese caso, en su organización solo un administrador puede aprobar un 
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
-msgstr "El administrador de su organización tiene que aprobar una vez que MailCraft sincronice este buzón con Outlook: Archivo › Información"
+msgstr "El administrador de su organización tiene que aprobar, una sola vez, que MailCraft sincronice este buzón con Outlook: Archivo › Información"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
