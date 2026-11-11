@@ -308,13 +308,14 @@ fn one_click_previews_the_attachment_and_can_turn_a_page() {
     let recorded = received.clone();
     let bytes = b"%PDF-1.7 test input".to_vec();
     let app = h.state_mut();
+    app.ui.attachment_previews = true;
     app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new("notes.pdf", "application/pdf", bytes.clone())];
     app.services.attachment_preview = Some(Host {
         pdf: true,
         images: false,
         render: Box::new(move |request| {
             assert_eq!(request.format, Format::Pdf);
-            recorded.lock().unwrap().push((request.page, request.bytes.to_vec()));
+            recorded.lock().unwrap().push((request.page, request.load().unwrap().to_vec()));
             let (send, receive) = mpsc::channel();
             send.send(Ok(Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 2 })).unwrap();
             receive
@@ -323,7 +324,7 @@ fn one_click_previews_the_attachment_and_can_turn_a_page() {
     h.run_steps(4);
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
-    h.run_steps(4);
+    h.run_steps(30);
     let next = h.state().hit.rect("attachmentPreviewNext", A).unwrap().center();
     click(&mut h, next, PointerButton::Primary, 1);
     assert_eq!(*received.lock().unwrap(), vec![(1, bytes.clone()), (2, bytes)]);
@@ -354,6 +355,7 @@ fn a_disguised_pdf_and_an_oversized_attachment_never_start_the_helper() {
     use crate::attachment_preview::{Host, MAX_INPUT_BYTES};
     let (mut h, _) = window();
     let app = h.state_mut();
+    app.ui.attachment_previews = true;
     app.services.attachment_preview =
         Some(Host { pdf: true, images: false, render: Box::new(|_| panic!("an invalid attachment reached the helper")) });
     let file = app.session.mailbox.message_mut(A).unwrap().attachments.first_mut().unwrap();
@@ -362,5 +364,110 @@ fn a_disguised_pdf_and_an_oversized_attachment_never_start_the_helper() {
     let file = app.session.mailbox.message_mut(A).unwrap().attachments.first_mut().unwrap();
     file.data = Arc::new(Vec::new());
     file.kept = Some(mailcraft_model::ContentRef { sha256: [0; 32], len: MAX_INPUT_BYTES as u64 + 1 });
+    assert!(!crate::attachment_preview::available(app, A, 0));
     assert!(app.execute("ui.previewAttachment", json!({"id":A, "index":0})).is_err());
+}
+
+#[test]
+fn previews_are_off_by_default_and_double_click_only_opens_the_file() {
+    use crate::attachment_preview::Host;
+    let (mut h, opened_files) = window();
+    let bytes = b"%PDF-1.7 test input".to_vec();
+    let app = h.state_mut();
+    app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new("notes.pdf", "application/pdf", bytes.clone())];
+    app.services.attachment_preview = Some(Host { pdf: true, images: false, render: Box::new(|_| panic!("no preview expected")) });
+    h.run_steps(4);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    assert!(opened(&opened_files).is_empty());
+    assert!(!crate::attachment_preview::available(h.state(), A, 0));
+    h.state_mut().ui.attachment_previews = true;
+    click(&mut h, at, PointerButton::Primary, 2);
+    h.run_steps(30);
+    assert_eq!(opened(&opened_files), vec![("notes.pdf".to_string(), bytes)]);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+}
+
+#[test]
+fn junk_requires_the_explicit_attachment_menu() {
+    use crate::attachment_preview::{Host, Page};
+    use std::sync::mpsc;
+
+    let (mut h, _) = window();
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    let message = app.session.mailbox.message(A).unwrap();
+    let junk = app.session.mailbox.folder_of_kind(message.account, mailcraft_model::FolderKind::Junk).unwrap();
+    let message = app.session.mailbox.message_mut(A).unwrap();
+    message.attachments = vec![Attachment::new("notes.pdf", "application/pdf", b"%PDF-1.7".to_vec())];
+    app.execute("mail.move", json!({"id": A, "folder": junk})).unwrap();
+    app.execute("folder.select", json!({"id": junk})).unwrap();
+    app.execute("mail.select", json!({"id": A})).unwrap();
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(|request| {
+            let (send, receive) = mpsc::channel();
+            send.send(request.load().map(|_| Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 1 })).unwrap();
+            receive
+        }),
+    });
+    h.run_steps(4);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    let at = arrow(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    choose(&mut h, "Preview Attachment");
+    h.run_steps(5);
+    assert!(h.state().hit.rect("attachmentPreviewImage", A).is_some());
+}
+
+#[test]
+fn the_latest_preview_retries_busy_and_is_discarded_when_its_attachment_is_removed() {
+    use crate::attachment_preview::{Error, Host, Page, open};
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc;
+
+    let (mut h, _) = window_with(&["one.pdf", "two.pdf"]);
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    for file in &mut app.session.mailbox.message_mut(A).unwrap().attachments {
+        file.data = Arc::new(format!("%PDF-1.7 {}", file.name).into_bytes());
+    }
+    let first = std::sync::atomic::AtomicBool::new(true);
+    let old = Arc::new(Mutex::new(None::<Arc<std::sync::atomic::AtomicBool>>));
+    let cancelled = old.clone();
+    let attempts = Arc::new(Mutex::new(Vec::new()));
+    let recorded = attempts.clone();
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(move |request| {
+            let bytes = request.load().unwrap();
+            let (send, receive) = mpsc::channel();
+            recorded.lock().unwrap().push(bytes.clone());
+            if bytes.ends_with(b"one.pdf") {
+                *cancelled.lock().unwrap() = Some(request.cancel);
+                return receive;
+            }
+            if first.swap(false, Ordering::Relaxed) {
+                send.send(Err(Error::Busy)).unwrap();
+            } else {
+                send.send(Ok(Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 1 })).unwrap();
+            }
+            receive
+        }),
+    });
+    open(app, egui::ViewportId::ROOT, A, 0).unwrap();
+    open(app, egui::ViewportId::ROOT, A, 1).unwrap();
+    assert!(old.lock().unwrap().as_ref().unwrap().load(Ordering::Relaxed));
+    h.run_steps(30);
+    assert_eq!(attempts.lock().unwrap().len(), 3);
+    assert!(h.state().hit.rect("attachmentPreviewImage", A).is_some());
+    h.state_mut().session.mailbox.message_mut(A).unwrap().attachments.remove(0);
+    h.run_steps(4);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
 }

@@ -999,6 +999,7 @@ pub struct UiState {
     /// in the message list, from Gravatar, favicon.im and Google. Off unless the owner turns it on:
     /// asking tells those services whose pictures are looked at.
     pub sender_images: bool,
+    pub attachment_previews: bool,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -1068,6 +1069,7 @@ impl Default for UiState {
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
             sender_images: false,
+            attachment_previews: false,
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -1508,6 +1510,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 /// The application.
 pub struct MailApp {
     attachment_preview: Option<attachment_preview::Preview>,
+    pending_attachment_preview: Option<attachment_preview::Click>,
     pub session: Session,
     /// The system's certification authorities for mail, read off the window's thread by the host
     /// (#30): handed to the session when they come, and the window never waits for them.
@@ -1884,6 +1887,7 @@ impl MailApp {
             security: security::State::default(),
             ui: UiState::default(),
             attachment_preview: None,
+            pending_attachment_preview: None,
             services,
             dialog: None,
             people_picked: Vec::new(),

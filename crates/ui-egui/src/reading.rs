@@ -715,7 +715,7 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 drop.on_hover_text(why);
                 continue;
             }
-            let can_preview = crate::attachment_preview::available(app, m.id, index);
+            let can_preview = crate::attachment_preview::single_click_allowed(app, m.id, index);
             let hint = if can_preview {
                 tl!("Click to preview {name}; double-click to open it")
             } else {
@@ -723,12 +723,10 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             };
             let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", &shown)]));
             if resp.double_clicked() {
+                crate::attachment_preview::cancel_click(app);
                 let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
-            } else if can_preview
-                && resp.clicked()
-                && let Err(error) = crate::attachment_preview::open(app, ui.ctx().viewport_id(), m.id, index)
-            {
-                app.status(error);
+            } else if can_preview && resp.clicked() {
+                crate::attachment_preview::queue_click(app, ui.ctx(), m.id, index);
             }
             resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
             // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
@@ -738,6 +736,7 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
         }
     });
+    crate::attachment_preview::finish_click(app, ui.ctx(), m.id);
 }
 
 /// The key of attachment `index` of message `id` in the hit map (`attachment` for the chip,

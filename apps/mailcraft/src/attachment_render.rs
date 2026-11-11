@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use mailcraft_ui_egui::attachment_preview::{Error, Format, Host, MAX_INPUT_BYTES, MAX_PAGES, MAX_SIDE, Page, Request};
+use mailcraft_ui_egui::attachment_preview::{Error, Format, Host, MAX_PAGES, MAX_SIDE, Page, Request};
 
 const DEADLINE: Duration = Duration::from_secs(12);
 const MAX_PNG_BYTES: u64 = 16 * 1024 * 1024;
@@ -92,10 +92,7 @@ fn absolute_file(path: PathBuf) -> Option<PathBuf> {
 }
 
 fn render(program: &Path, request: Request) -> Result<Page, Error> {
-    if request.bytes.is_empty()
-        || request.bytes.len() > MAX_INPUT_BYTES
-        || !request.format.matches(&request.bytes)
-        || request.page == 0
+    if request.page == 0
         || request.page > MAX_PAGES
         || request.pages.is_some_and(|n| n > MAX_PAGES || request.page > n)
         || request.format != Format::Pdf && request.page != 1
@@ -104,10 +101,14 @@ fn render(program: &Path, request: Request) -> Result<Page, Error> {
     }
 
     let deadline = Instant::now() + DEADLINE;
+    if request.cancel.load(Ordering::Relaxed) {
+        return Err(Error::TimedOut);
+    }
+    let bytes = request.load()?;
     let dir = tempfile::Builder::new().prefix("mailcraft-preview-").tempdir().map_err(|_| Error::Failed)?;
     let input = dir.path().join(format!("attachment.{}", request.format.extension()));
     let output = dir.path().join("preview.png");
-    fs::OpenOptions::new().write(true).create_new(true).open(input).and_then(|mut file| file.write_all(&request.bytes)).map_err(|_| Error::Failed)?;
+    fs::OpenOptions::new().write(true).create_new(true).open(input).and_then(|mut file| file.write_all(&bytes)).map_err(|_| Error::Failed)?;
 
     let run =
         |args: &[OsString], watched: &Path, limit, stdout| run_helper(program, dir.path(), args, watched, limit, stdout, deadline, &request.cancel);

@@ -19,7 +19,7 @@ mailcraft-link = { workspace = true }
 mailcraft-names = { workspace = true }
 image = { workspace = true }
 # A private scratch directory for the optional local attachment renderer.
-tempfile = "3.27"
+tempfile = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
 mailcraft-control-key = { workspace = true }

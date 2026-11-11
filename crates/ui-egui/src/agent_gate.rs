@@ -584,6 +584,7 @@ mod tests {
             ("engine.execute", json!({"command": "sync.apply", "params": {}})),
             ("engine.execute", json!({"command": "ui.copyLinkAddress", "params": {"url": "https://x.example"}})),
             ("engine.execute", json!({"command": "ui.copySelection", "params": {"pane": true}})),
+            ("engine.execute", json!({"command": "ui.previewAttachment", "params": {"id": 13, "index": 0}})),
             ("engine.execute", json!({"command": "no.such"})),
             ("ui.screenshot", json!({"path": "/tmp/evil.png"})),
             ("app.quit", json!({})),

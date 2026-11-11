@@ -4,9 +4,9 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc::Receiver};
+use std::time::Duration;
 
-use mailcraft_engine::Part;
-use mailcraft_model::{Attachment, Id};
+use mailcraft_model::{Attachment, FolderKind, Id};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -14,6 +14,8 @@ use crate::MailApp;
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_PAGES: u32 = 10_000;
 pub const MAX_SIDE: u32 = 3_072;
+const RETRY_DELAY: Duration = Duration::from_millis(25);
+const MAX_RETRIES: u8 = 120;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
@@ -89,12 +91,27 @@ impl Error {
     }
 }
 
+type ReadAttachment = Arc<dyn Fn() -> Result<Arc<Vec<u8>>, Error> + Send + Sync>;
+
 pub struct Request {
-    pub bytes: Arc<Vec<u8>>,
+    read: ReadAttachment,
     pub format: Format,
     pub page: u32,
     pub pages: Option<u32>,
     pub cancel: Arc<AtomicBool>,
+}
+
+impl Request {
+    pub fn load(&self) -> Result<Arc<Vec<u8>>, Error> {
+        let bytes = (self.read)()?;
+        if bytes.len() > MAX_INPUT_BYTES {
+            return Err(Error::TooLarge);
+        }
+        if !self.format.matches(&bytes) {
+            return Err(Error::Invalid);
+        }
+        Ok(bytes)
+    }
 }
 
 pub struct Page {
@@ -120,15 +137,27 @@ pub(crate) struct Preview {
     name: String,
     viewport: egui::ViewportId,
     mailbox: u64,
-    bytes: Arc<Vec<u8>>,
+    attachment: Attachment,
+    read: ReadAttachment,
     format: Format,
     page: u32,
     pages: Option<u32>,
     pending: Option<Receiver<Result<Page, Error>>>,
+    retries: u8,
+    retry_at: Option<f64>,
     cancel: Arc<AtomicBool>,
     texture: Option<egui::TextureHandle>,
     error: Option<Error>,
     zoom: f32,
+}
+
+pub(crate) struct Click {
+    message: Id,
+    index: usize,
+    viewport: egui::ViewportId,
+    mailbox: u64,
+    attachment: Attachment,
+    at: f64,
 }
 
 impl Drop for Preview {
@@ -138,12 +167,82 @@ impl Drop for Preview {
 }
 
 pub(crate) fn available(app: &MailApp, id: Id, index: usize) -> bool {
-    app.session
-        .mailbox
-        .message(id)
-        .and_then(|m| m.attachments.get(index))
-        .and_then(Format::hint)
-        .is_some_and(|format| app.services.attachment_preview.as_ref().is_some_and(|host| host.supports(format)))
+    app.ui.attachment_previews
+        && app
+            .session
+            .mailbox
+            .message(id)
+            .and_then(|m| m.attachments.get(index))
+            .filter(|part| (1..=MAX_INPUT_BYTES).contains(&part.size()))
+            .and_then(Format::hint)
+            .is_some_and(|format| app.services.attachment_preview.as_ref().is_some_and(|host| host.supports(format)))
+}
+
+pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui) {
+    let Some(host) = &app.services.attachment_preview else { return };
+    let label = match (host.pdf, host.images) {
+        (true, true) => tl!("Preview attachments with local PdfCraft and PhotoCraft"),
+        (true, false) => tl!("Preview attachments with local PdfCraft"),
+        (false, true) => tl!("Preview attachments with local PhotoCraft"),
+        (false, false) => return,
+    };
+    let response = ui
+        .checkbox(&mut app.ui.attachment_previews, label)
+        .on_hover_text(tl!("The local program receives the selected attachment and runs with your permissions."));
+    app.hit.add("attachmentPreviewOption", 0, response.rect);
+    if response.changed() && !app.ui.attachment_previews {
+        app.attachment_preview = None;
+        app.pending_attachment_preview = None;
+    }
+}
+
+pub(crate) fn single_click_allowed(app: &MailApp, id: Id, index: usize) -> bool {
+    available(app, id, index) && !in_junk(app, id)
+}
+
+fn in_junk(app: &MailApp, id: Id) -> bool {
+    app.session.mailbox.message(id).and_then(|m| app.session.mailbox.folder(m.folder)).is_some_and(|f| f.kind == FolderKind::Junk)
+}
+
+pub(crate) fn queue_click(app: &mut MailApp, ctx: &egui::Context, id: Id, index: usize) {
+    let Some(attachment) = attachment(app, id, index).cloned() else { return };
+    let delay = ctx.options(|o| o.input_options.max_double_click_delay).clamp(0.0, 2.0);
+    let delay = if delay.is_finite() { delay } else { 0.3 };
+    app.pending_attachment_preview = Some(Click {
+        message: id,
+        index,
+        viewport: ctx.viewport_id(),
+        mailbox: app.session.openings(),
+        attachment,
+        at: ctx.input(|i| i.time) + delay,
+    });
+    ctx.request_repaint_after(Duration::from_secs_f64(delay + 0.001));
+}
+
+pub(crate) fn cancel_click(app: &mut MailApp) {
+    app.pending_attachment_preview = None;
+}
+
+pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
+    let Some(click) = app.pending_attachment_preview.as_ref().filter(|click| click.viewport == ctx.viewport_id() && click.message == id) else {
+        return;
+    };
+    let remaining = click.at - ctx.input(|i| i.time);
+    if remaining >= 0.0 {
+        ctx.request_repaint_after(Duration::from_secs_f64(remaining + 0.001));
+        return;
+    }
+    let Some(click) = app.pending_attachment_preview.take() else { return };
+    if single_click_allowed(app, click.message, click.index)
+        && attachment(app, click.message, click.index) == Some(&click.attachment)
+        && let Err(error) = open(app, click.viewport, click.message, click.index)
+    {
+        app.status(error);
+    }
+}
+
+fn attachment(app: &MailApp, id: Id, index: usize) -> Option<&Attachment> {
+    app.session.mailbox.message(id)?.attachments.get(index)
 }
 
 pub(crate) fn selected(app: &MailApp, viewport: egui::ViewportId, id: Id, index: usize) -> bool {
@@ -151,6 +250,10 @@ pub(crate) fn selected(app: &MailApp, viewport: egui::ViewportId, id: Id, index:
 }
 
 pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index: usize) -> Result<(), String> {
+    cancel_click(app);
+    if !app.ui.attachment_previews {
+        return Err(tl!("Turn on attachment previews in File › Options.").into());
+    }
     let host = app.services.attachment_preview.as_ref().ok_or_else(|| Error::Unavailable.text())?;
     let part = app.session.mailbox.message(id).and_then(|m| m.attachments.get(index)).ok_or_else(|| Error::Invalid.text())?;
     let format = Format::hint(part).filter(|format| host.supports(*format)).ok_or_else(|| Error::Unavailable.text())?;
@@ -161,13 +264,11 @@ pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index:
         return Ok(());
     }
     let name = mailcraft_engine::opening::file_name(&part.name);
-    let bytes = app.session.content(id, Part::Attachment(index)).map_err(|_| Error::Invalid.text())?;
-    if bytes.len() > MAX_INPUT_BYTES {
-        return Err(Error::TooLarge.text().into());
-    }
-    if !format.matches(&bytes) {
+    if !part.data.is_empty() && !format.matches(&part.data) {
         return Err(Error::Invalid.text().into());
     }
+    let read = app.session.attachment_reader(part).map_err(|_| Error::Invalid.text())?;
+    let attachment = part.clone();
     // Dropping a preview tells the worker to stop before the next render starts.
     app.attachment_preview = None;
     let mut preview = Preview {
@@ -176,11 +277,14 @@ pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index:
         name,
         viewport,
         mailbox: app.session.openings(),
-        bytes,
+        attachment,
+        read: Arc::new(move || read().map_err(|_| Error::Invalid)),
         format,
         page: 1,
         pages: None,
         pending: None,
+        retries: 0,
+        retry_at: None,
         cancel: Arc::new(AtomicBool::new(false)),
         texture: None,
         error: None,
@@ -197,6 +301,9 @@ pub(crate) fn command(app: &mut MailApp, params: &Value) -> Result<Value, String
     if app.session.sel.focus() != Some(id) || app.session.sel.messages.len() != 1 {
         return Err(tl!("Select the message before previewing its attachment.").into());
     }
+    if in_junk(app, id) {
+        return Err(tl!("In Junk E-mail, preview an attachment from its menu.").into());
+    }
     open(app, egui::ViewportId::ROOT, id, index)?;
     Ok(json!({"preview": true}))
 }
@@ -206,17 +313,38 @@ impl Preview {
         self.page = page;
         self.texture = None;
         self.error = None;
-        self.pending =
-            Some((host.render)(Request { bytes: self.bytes.clone(), format: self.format, page, pages: self.pages, cancel: self.cancel.clone() }));
+        self.retries = 0;
+        self.retry_at = None;
+        self.submit(host);
     }
 
-    fn poll(&mut self, ctx: &egui::Context) {
+    fn submit(&mut self, host: &Host) {
+        self.pending = Some((host.render)(Request {
+            read: self.read.clone(),
+            format: self.format,
+            page: self.page,
+            pages: self.pages,
+            cancel: self.cancel.clone(),
+        }));
+    }
+
+    fn poll(&mut self, ctx: &egui::Context, host: &Host) {
+        let now = ctx.input(|i| i.time);
+        if let Some(at) = self.retry_at {
+            if now < at {
+                ctx.request_repaint_after_for(Duration::from_secs_f64(at - now), self.viewport);
+                return;
+            }
+            self.retry_at = None;
+            self.submit(host);
+        }
         let Some(pending) = &self.pending else { return };
         let result = match pending.try_recv() {
             Ok(value) => value,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(Error::Failed),
         };
+        ctx.request_repaint_of(self.viewport);
         self.pending = None;
         match result {
             Ok(page) if (self.page..=MAX_PAGES).contains(&page.pages) => {
@@ -224,6 +352,11 @@ impl Preview {
                 self.texture = Some(ctx.load_texture("attachment-preview", page.image, egui::TextureOptions::LINEAR));
             }
             Ok(_) => self.error = Some(Error::Invalid),
+            Err(Error::Busy) if self.retries < MAX_RETRIES => {
+                self.retries += 1;
+                self.retry_at = Some(now + RETRY_DELAY.as_secs_f64());
+                ctx.request_repaint_after_for(RETRY_DELAY, self.viewport);
+            }
             Err(error) => self.error = Some(error),
         }
     }
@@ -233,15 +366,29 @@ pub(crate) fn follow_message(app: &mut MailApp, viewport: egui::ViewportId, id: 
     if app.attachment_preview.as_ref().is_some_and(|p| p.viewport == viewport && Some(p.message) != id) {
         app.attachment_preview = None;
     }
+    if app.pending_attachment_preview.as_ref().is_some_and(|click| click.viewport == viewport && Some(click.message) != id) {
+        cancel_click(app);
+    }
 }
 
 pub(crate) fn poll(app: &mut MailApp, ctx: &egui::Context) {
-    if let Some(preview) = &mut app.attachment_preview {
-        if preview.mailbox == app.session.openings() {
-            preview.poll(ctx);
-        } else {
-            app.attachment_preview = None;
-        }
+    if app.pending_attachment_preview.is_none() && app.attachment_preview.is_none() {
+        return;
+    }
+    let viewports = crate::windows::viewports(app);
+    let window_is_open = |viewport| viewport == egui::ViewportId::ROOT || viewports.contains(&viewport);
+    if app.pending_attachment_preview.as_ref().is_some_and(|click| click.mailbox != app.session.openings() || !window_is_open(click.viewport)) {
+        cancel_click(app);
+    }
+    if app.attachment_preview.as_ref().is_some_and(|preview| {
+        preview.mailbox != app.session.openings()
+            || !window_is_open(preview.viewport)
+            || attachment(app, preview.message, preview.index) != Some(&preview.attachment)
+    }) {
+        app.attachment_preview = None;
+    }
+    if let (Some(preview), Some(host)) = (&mut app.attachment_preview, &app.services.attachment_preview) {
+        preview.poll(ctx, host);
     }
 }
 
@@ -262,7 +409,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
         });
         ui.horizontal_wrapped(|ui| {
             if let Some(pages) = preview.pages.filter(|pages| *pages > 1) {
-                let ready = preview.pending.is_none();
+                let ready = preview.pending.is_none() && preview.retry_at.is_none();
                 if ui.add_enabled(ready && preview.page > 1, egui::Button::new(tl!("Previous Page"))).clicked() {
                     turn = Some(preview.page - 1);
                 }
