@@ -5236,7 +5236,9 @@ pub(crate) mod rules {
                 }
                 ui.horizontal(|ui| {
                     let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_in_view)]);
-                    let any = !(there.is_empty() && here.is_empty());
+                    // (Not over a shared mailbox's folder: the rules leave its mail alone.)
+                    let reach = app.session.mailbox.folder(app.session.view.folder).is_some_and(|f| app.session.mailbox.rules_reach(f.account));
+                    let any = !(there.is_empty() && here.is_empty()) && reach;
                     if ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip).clicked() {
                         run = Some(("rules.run", json!({})));
                     }

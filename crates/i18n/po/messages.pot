@@ -10982,6 +10982,11 @@ msgstr ""
 msgid "The proposed end has to be after the proposed start."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"

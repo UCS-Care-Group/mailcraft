@@ -482,7 +482,9 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
         ui.separator();
         item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
+        // (Not over a shared mailbox's folder: the rules leave its mail alone.)
+        let ruled = app.session.mailbox.rules_reach(app.session.mailbox.folder(id).map_or(0, |f| f.account));
+        item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), ruled);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
             item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);

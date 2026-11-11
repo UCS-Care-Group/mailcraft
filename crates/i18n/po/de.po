@@ -12574,6 +12574,12 @@ msgstr "Der Port; leer lassen für den üblichen"
 msgid "The proposed end has to be after the proposed start."
 msgstr "Das vorgeschlagene Ende muss nach dem vorgeschlagenen Beginn liegen."
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "Die Regeln lassen die E-Mails eines freigegebenen Postfachs unberührt: Es hat eigene Regeln."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy

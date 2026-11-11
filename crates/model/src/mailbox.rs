@@ -3206,10 +3206,19 @@ impl Mailbox {
         crate::Matching { addresses_only: self.rule_reads_addresses(rule), me, zone }
     }
 
+    /// Whether the rules act on the mail of `account` at all: not on a shared mailbox's, whose
+    /// rules are its own, whichever way they are run (#566).
+    pub fn rules_reach(&self, account: Id) -> bool {
+        !self.account(account).is_some_and(|a| a.is_shared())
+    }
+
     /// The rules for the mail of `account`, as positions in [`Mailbox::rules`], in the order they
     /// run: those for its server first (the server runs them before anything here does), then
     /// those of this computer.
     pub fn rules_in_order(&self, account: Id) -> Vec<usize> {
+        if !self.rules_reach(account) {
+            return Vec::new();
+        }
         let server = |r: &Rule| r.account == account && r.keep == crate::Keep::Server;
         let first = self.rules.iter().enumerate().filter(|(_, r)| server(r)).map(|(i, _)| i);
         let then = self.rules.iter().enumerate().filter(|(_, r)| !server(r) && r.is_for(account)).map(|(i, _)| i);
@@ -3317,7 +3326,7 @@ impl Mailbox {
         let Ok(m) = self.message_mut(id) else { return ran };
         let Some(waiting) = m.rules_waiting.take() else { return ran };
         let account = m.account;
-        if m.folder != waiting.folder {
+        if m.folder != waiting.folder || !self.rules_reach(account) {
             return ran;
         }
         let mut unsure = false;
@@ -3359,6 +3368,9 @@ impl Mailbox {
     pub fn run_rule(&mut self, id: Id, rule: Id, clock: &crate::RuleClock) -> bool {
         let Some(m) = self.message(id) else { return false };
         let account = m.account;
+        if !self.rules_reach(account) {
+            return false;
+        }
         let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(account)).cloned() else { return false };
         if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
             return false;

@@ -13274,6 +13274,12 @@ msgstr "De poort; laat deze leeg voor de gebruikelijke"
 msgid "The proposed end has to be after the proposed start."
 msgstr "Het voorgestelde einde moet na het voorgestelde begin liggen."
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "De regels laten de mail van een gedeeld postvak met rust: het heeft eigen regels."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy

@@ -920,7 +920,8 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     let mb = &s.mailbox;
     if id == "rules.run" {
         let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
-        let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account);
+        // (Not over a shared mailbox's folder, which the command refuses.)
+        let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account).filter(|a| mb.rules_reach(*a));
         return from.is_some_and(|a| mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && runs_for_good(r)));
     }
     let named = || p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
@@ -1062,7 +1063,7 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
             let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
-            let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account);
+            let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account).filter(|a| mb.rules_reach(*a));
             from.is_some_and(|a| {
                 mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && rule_onto_server(s, r, Some(a)).is_some())
             })

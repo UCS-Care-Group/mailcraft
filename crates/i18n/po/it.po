@@ -12584,6 +12584,12 @@ msgstr "La porta; lasciare vuoto per quella abituale"
 msgid "The proposed end has to be after the proposed start."
 msgstr "La fine proposta deve essere successiva all'inizio proposto."
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "Le regole non toccano la posta di una cassetta postale condivisa: ha regole proprie."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
