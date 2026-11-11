@@ -1,0 +1,1 @@
+- In the Rules dialog, switching "Rules for" to another account no longer leaves a Move to folder chosen for the first account on that account's folder, which made the new rule move the other account's mail onto the first one's server ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
