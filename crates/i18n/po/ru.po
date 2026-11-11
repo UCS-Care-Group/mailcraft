@@ -1647,7 +1647,7 @@ msgstr "Автоответы для {address}"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Automatic bulleted and numbered lists"
-msgstr ""
+msgstr "Автоматические маркированные и нумерованные списки"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -3506,7 +3506,7 @@ msgstr "Загрузить изображения"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Download Pictures in All Mail"
-msgstr ""
+msgstr "Загружать изображения во всей почте"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3517,7 +3517,7 @@ msgstr "Автоматически загружать изображения в 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Download in all mail"
-msgstr ""
+msgstr "Во всей почте"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3534,12 +3534,12 @@ msgstr "Загрузить изображения"
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Download pictures in all mail"
-msgstr ""
+msgstr "Загружать изображения во всей почте"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
-msgstr ""
+msgstr "Загружать изображения в каждом сообщении без запроса, кроме папки «Спам». Сначала программа спросит; отключить можно в «Файл › Параметры»."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -4431,7 +4431,7 @@ msgstr "Размер шрифта"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
-msgstr ""
+msgstr "Для учётных записей IMAP. В учётных записях Microsoft и сервера Exchange почта хранится по параметру «Почта для автономной работы» в «Файл › Сведения»."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4941,9 +4941,8 @@ msgstr "Графит"
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs
-#, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
-msgstr "Для изображения отправителя Gravatar запрашивается по хешу его адреса; иначе значок его сайта запрашивают favicon.im, а затем Google, сообщая домен отправителя. Так эти службы узнают, чьи изображения вы просматриваете. Это делается только для знакомых вам людей (контактов и тех, кому вы писали) и для писем, изображения которых вы загружаете, никогда для нежелательной почты, а изображение отправителя запрашивается, только если почтовый сервер подтверждает, что письмо от него."
+msgstr "Для изображения отправителя Gravatar запрашивается по хешу его адреса; иначе значок его сайта запрашивают favicon.im, а затем Google, сообщая домен отправителя. Так эти службы узнают, чьи изображения вы просматриваете. Это делается только для знакомых вам людей (контактов и тех, кому вы писали) и для писем, изображения которых вы загружаете, никогда для папки «Спам», а изображение отправителя запрашивается, только если почтовый сервер подтверждает, что письмо от него."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -5822,27 +5821,23 @@ msgstr "июня"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Junk"
-msgstr "Нежелательная почта"
+msgstr "Спам"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Junk E-mail Options"
-msgstr "Параметры нежелательной почты"
+msgstr "Параметры спама"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Junk E-mail Options…"
-msgstr "Параметры нежелательной почты…"
+msgstr "Параметры спама…"
 
 #. name
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgid "Junk Email"
-msgstr "Нежелательная почта"
+msgstr "Спам"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6267,7 +6262,7 @@ msgstr "Почта из общего почтового ящика ожидае�
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
-msgstr ""
+msgstr "Для почты в папке «Спам» запрос сохраняется. Отключить можно в «Файл › Параметры»."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -7094,9 +7089,8 @@ msgstr "Переместить в папку"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Move to Junk"
-msgstr "Переместить в нежелательную почту"
+msgstr "Переместить в спам"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7801,9 +7795,8 @@ msgstr "Обычная"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Not Junk"
-msgstr "Не нежелательная"
+msgstr "Не спам"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -8889,7 +8882,7 @@ msgstr "Изображения из интернета не скачиваютс
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
-msgstr ""
+msgstr "Изображения из интернета будут загружаться в каждом открываемом сообщении. Сервер каждого отправителя узнает, когда вы открыли сообщение и с какого интернет-адреса."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14421,7 +14414,7 @@ msgstr "Введите адрес электронной почты, а оста
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
-msgstr ""
+msgstr "Ввод * или - и пробела в начале строки начинает маркированный список, 1. или 1) — нумерованный. Отмена возвращает набранный текст."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -15864,10 +15857,9 @@ msgstr "Входящие"
 
 #. folder name
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgctxt "folder"
 msgid "Junk Email"
-msgstr "Нежелательная почта"
+msgstr "Спам"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -16243,7 +16235,7 @@ msgstr "ни одна учётная запись Microsoft не синхрон�
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
 msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr ""
+msgstr "ни одна учётная запись Microsoft или сервера Exchange не хранит почту для автономной работы"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17992,7 +17984,7 @@ msgstr "{name} не является учётной записью Microsoft, с
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
 msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr ""
+msgstr "«{name}» — не учётная запись Microsoft или сервера Exchange"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
