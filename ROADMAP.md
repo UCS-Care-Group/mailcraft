@@ -140,7 +140,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
    addressing (gap 17).
-11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); the rest of rules kept on the server: forwarding by a rule (#566 part 3), changing a rule there, a shared mailbox's rules, Sieve (gap 17; a Microsoft account's rules are kept there since #566).
+11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); the rest of rules kept on the server: forwarding by a rule (#566 part 3), Outlook's other conditions and actions, changing a rule there, a shared mailbox's rules, Sieve (gap 17; a Microsoft account's rules are kept there since #566).
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).

@@ -1,0 +1,1 @@
+- A rule that puts a category on new mail and then moves it into another account's folder now adds the category to that account's list of categories, not the first account's ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
