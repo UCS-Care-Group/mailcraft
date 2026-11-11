@@ -406,7 +406,9 @@ fn default_start(s: &Session) -> DateTime {
     }
 }
 
-fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
+/// A new event as `calendar.new` or `calendar.newMeeting` with `v` has it, before the calendar
+/// it goes into is settled.
+fn drafted(s: &Session, v: &Value) -> Result<Event, CmdError> {
     let start = default_start(s);
     let mut e = Event { start, end: start.add_minutes(30), reminder_minutes: s.prefs.default_reminder, ..Default::default() };
     if p::bool(v, "allDay") == Some(true) {
@@ -416,6 +418,11 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         e.show_as = ShowAs::Free;
     }
     apply(s, &mut e, v)?;
+    Ok(e)
+}
+
+fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
+    let mut e = drafted(s, v)?;
     if e.title.is_empty() {
         return Err(bad("`title` is required"));
     }
@@ -647,20 +654,34 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
 /// event the command would refuse.
 pub(crate) fn categories_given(s: &Session, id: &str, v: &Value) -> Option<(Id, Vec<String>, Vec<String>, Id)> {
     let given = p::strings(v, "categories")?;
-    let named = match p::id(v, "calendar") {
-        Some(c) => Some(s.mailbox.calendar(c)?.id),
-        None => None,
-    };
     let account_of = |calendar: Id| s.mailbox.calendar(calendar).map_or(0, |c| c.origin.account);
     match id {
         "calendar.new" | "calendar.newMeeting" => {
-            let account = account_of(named.unwrap_or_else(|| current_calendar(s)));
+            // The calendar it goes into, as `create` finds it: a meeting kept on this computer
+            // (`send`: false) goes into one of this computer's, and one that says neither is
+            // refused.
+            let e = drafted(s, v).ok()?;
+            let calendar = if e.calendar == 0 { current_calendar(s) } else { e.calendar };
+            let people = served(s, calendar) && !e.attendees.is_empty();
+            let account = match p::bool(v, "send") {
+                Some(false) if people => 0,
+                None if people => return None,
+                _ => account_of(calendar),
+            };
             Some((account, given, Vec::new(), account))
         }
         "calendar.edit" => {
             let before = changing(s, v).ok()?;
             let was = s.mailbox.event_account(&before);
-            Some((account_of(named.unwrap_or(before.calendar)), given, before.categories, was))
+            // One day of a series stays in the series' calendar, whatever `calendar` says.
+            let calendar = match part(s, &before, v).ok()? {
+                Part::One(_) => before.calendar,
+                Part::Series => match p::id(v, "calendar") {
+                    Some(c) => s.mailbox.calendar(c)?.id,
+                    None => before.calendar,
+                },
+            };
+            Some((account_of(calendar), given, before.categories, was))
         }
         _ => None,
     }

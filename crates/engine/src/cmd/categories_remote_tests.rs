@@ -2582,3 +2582,54 @@ fn a_name_with_spaces_round_it_is_read_as_the_command_reads_it() {
     assert!(!s.mailbox.category_is_local(a, "Old local"));
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Old local", s.mailbox.category_of(a, "Old local").unwrap().color)]);
 }
+
+/// One day of a series keeps to the series' calendar, whatever `calendar` an agent names: a new
+/// name it is given joins that calendar's list, kept in step with Outlook, and the agent is asked
+/// before, as for the series (#661).
+#[test]
+fn an_agent_asks_before_one_day_of_a_series_makes_a_category_in_outlook() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let series = server_event(&mut s, a, &[]);
+    let e = s.mailbox.event_mut(series).unwrap();
+    e.start = mailcraft_time::parse_iso("2027-01-04T09:00").unwrap().0;
+    e.end = mailcraft_time::parse_iso("2027-01-04T09:30").unwrap().0;
+    e.recurrence = Some(mailcraft_model::Recurrence { count: Some(5), ..mailcraft_model::Recurrence::every(mailcraft_model::Freq::Daily) });
+    let mine = s.mailbox.alloc_id();
+    s.mailbox.calendars.push(Calendar { id: mine, name: "Mine".into(), visible: true, ..Default::default() });
+    for calendar in [Some(json!(mine)), Some(json!(999_999)), None] {
+        let mut params = json!({"id": series, "occurrence": "2027-01-05", "categories": ["Travel"]});
+        if let Some(calendar) = calendar {
+            params["calendar"] = calendar;
+        }
+        match check(&s, "calendar.edit", &params, &[]) {
+            Verdict::Ask(Class::Send, text) => {
+                assert!(text.contains("\u{201c}Travel\u{201d}") && text.contains("made in Outlook too"), "{params}: {text}")
+            }
+            other => panic!("{params}: {other:?}"),
+        }
+    }
+    // What the yes runs makes it there.
+    s.run("calendar.edit", &json!({"id": series, "occurrence": "2027-01-05", "calendar": mine, "categories": ["Travel"]})).unwrap();
+    assert!(changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Create && c.name == "Travel"));
+}
+
+/// A meeting kept on this computer (`send`: false) goes into a calendar of this computer's: a new
+/// name it is given joins the list the accounts share, nothing is made in Outlook, and nothing
+/// is asked for it (#661).
+#[test]
+fn a_meeting_kept_on_this_computer_makes_no_category_in_outlook_and_asks_nothing_for_it() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let event = server_event(&mut s, a, &[]);
+    let calendar = s.mailbox.event(event).unwrap().calendar;
+    for command in ["calendar.new", "calendar.newMeeting"] {
+        let params = json!({"title": "M", "calendar": calendar, "attendees": "pat@example.org", "send": false, "categories": ["Travel"]});
+        assert_eq!(check(&s, command, &params, &[]), Verdict::Run, "{command}");
+    }
+    s.run(
+        "calendar.newMeeting",
+        &json!({"title": "M", "calendar": calendar, "attendees": "pat@example.org", "send": false, "categories": ["Travel"]}),
+    )
+    .unwrap();
+    assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
+    assert!(s.mailbox.category_of(0, "Travel").is_some());
+}
