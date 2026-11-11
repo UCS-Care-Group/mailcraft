@@ -1,0 +1,1 @@
+- A rule that deletes mail no longer deletes it permanently when an earlier rule, or an earlier action of the same rule, moved it into Deleted Items: it stays there, as with any other delete. Run Rules Now over Deleted Items still deletes permanently, as Delete does there ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
