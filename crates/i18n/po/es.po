@@ -16300,7 +16300,7 @@ msgstr "día"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "due"
-msgstr "vence"
+msgstr "vencimiento"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs

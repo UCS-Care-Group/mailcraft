@@ -17179,7 +17179,7 @@ msgstr "dag"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "due"
-msgstr "vervalt"
+msgstr "vervaldatum"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs

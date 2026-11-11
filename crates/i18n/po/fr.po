@@ -5190,7 +5190,7 @@ msgstr "Contient une pièce jointe"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Has the category"
-msgstr "A la catégorie"
+msgstr "Est dans la catégorie"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
