@@ -87,6 +87,11 @@ impl Cert {
         &self.der
     }
 
+    /// The certificate as it was read.
+    pub fn certificate(&self) -> &Certificate {
+        &self.parsed
+    }
+
     fn tbs(&self) -> &[u8] {
         self.der.get(self.tbs.clone()).unwrap_or_default()
     }

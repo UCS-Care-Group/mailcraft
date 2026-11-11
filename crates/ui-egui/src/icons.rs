@@ -709,6 +709,16 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 _ => pen.line_c(&[(7.5, 8.0), (12.5, 8.0)], mark),
             }
         }
+        // Sign (#30): the seal of a Digital signature, empty, with a stroke of a pen across it:
+        // the message is to be signed, not yet checked.
+        "digitalSign" => {
+            pen.circle(10.0, 8.0, 5.75, c);
+            pen.line_c(&[(6.5, 12.5), (5.0, 18.0), (7.5, 16.5), (9.0, 18.0), (9.5, 14.0)], c);
+            pen.line_c(&[(13.5, 12.5), (15.0, 18.0), (12.5, 16.5), (11.0, 18.0), (10.5, 14.0)], c);
+            if !tiny {
+                pen.path().m(&pen, 7.0, 9.0).c(&pen, (8.0, 6.0), (9.0, 6.0), 9.5, 8.5).c(&pen, (10.0, 10.5), (11.5, 10.0), 13.0, 7.0).draw(&pen, a);
+            }
+        }
         // A sender warning: a triangle with an exclamation mark in it.
         "warning" => {
             pen.rounded(&[(10.0, 2.5), (18.0, 16.5), (2.0, 16.5)], true, 1.0, red);
@@ -1381,6 +1391,7 @@ pub const NAMES: &[&str] = &[
     "sealNotVerified",
     "sealChanged",
     "sealUnchecked",
+    "digitalSign",
     "recurrence",
     "repeat",
     "scheduling",

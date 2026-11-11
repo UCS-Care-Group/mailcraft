@@ -23,6 +23,7 @@ mod parse;
 mod protected;
 pub mod rich;
 mod signed;
+mod signing;
 mod transfer;
 mod words;
 mod write;
@@ -39,6 +40,8 @@ mod protected_tests;
 mod read_receipt_tests;
 #[cfg(test)]
 mod signed_tests;
+#[cfg(test)]
+mod signing_tests;
 #[cfg(test)]
 mod tests;
 
@@ -97,8 +100,9 @@ pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use protected::{Protection, crlf, has_binary, is_protected, parse_fetched, protection};
 pub use signed::{SignedKind, SignedParts, signed_parts};
+pub use signing::{LayoutError, NOT_SIGNED, SignatureKind, multipart_signed, signature_missing};
 pub use words::{decode_words, encode_words};
-pub use write::{write, writes_original, written_message_id};
+pub use write::{signable, write, writes_original, written_message_id};
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

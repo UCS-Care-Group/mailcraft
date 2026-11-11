@@ -1012,6 +1012,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         attachments,
         importance: m.importance,
         read_receipt: asked_receipt(m),
+        sign: m.sign,
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
@@ -1228,6 +1229,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         read: true,
         importance: c.importance,
         read_receipt: c.read_receipt,
+        sign: c.sign,
         message_id,
         ..Default::default()
     })
@@ -1383,6 +1385,10 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
             not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
         ));
     }
+    // What it will be is decided now, from the account's setting as it stands and the owner's
+    // choice for this message (#30 R16a): signed with the key the account signs with, or refused
+    // here, never sent unsigned.
+    m.sign_with = super::signing::will_sign(s, &c).map_err(super::signing::send_refused)?;
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();

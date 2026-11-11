@@ -125,6 +125,9 @@ pub mod shared;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;
+pub mod signing;
+#[cfg(test)]
+mod signing_tests;
 pub mod sync_progress;
 pub mod tasks;
 pub mod tasks_remote;
@@ -185,6 +188,7 @@ pub fn registry() -> Registry {
     v.extend(offline::specs());
     v.extend(send_receive::specs());
     v.extend(signature::specs());
+    v.extend(signing::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());

@@ -92,6 +92,9 @@ mod settings_unread_tests;
 mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
+mod signing;
+#[cfg(test)]
+mod signing_tests;
 mod single_instance;
 mod system_locale;
 #[cfg(test)]
@@ -891,6 +894,20 @@ fn log_outcome(outcome: &mailcraft_model::remote::EventOutcome) {
             )
         }
     }
+}
+
+/// [`graph`], with what is to go Digitally signed signed first (#30): what can't be is held and
+/// never sent unsigned.
+fn signed_graph(mut request: GraphRequest) -> GraphResult {
+    let unsigned = signing::sign_outbox(&mut request.outbox);
+    let held = request.mail.as_mut().map(|mail| signing::sign_sends(&mut mail.sends)).unwrap_or_default();
+    let mut out = graph(request);
+    out.unsigned.extend(unsigned);
+    // (A run that brought no mail back leaves them in the Outbox, to be signed at the next.)
+    if let Some(mail) = out.mail.as_mut() {
+        mail.sent.extend(held);
+    }
+    out
 }
 
 /// What Microsoft Graph does for an account before its mail is synchronised: send what waits in
@@ -1724,6 +1741,20 @@ fn services(
             let (wake, cancel) = (sync_ctx.clone(), cancel.clone());
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
+                // What is to go Digitally signed is signed first; what can't be is held (#30).
+                let mut request = request;
+                let unsigned = signing::sign_outbox(&mut request.outbox);
+                if !unsigned.is_empty() {
+                    let piece = mailcraft_model::sync::SyncResult {
+                        account: request.account.id,
+                        email: request.account.email.clone(),
+                        unsigned,
+                        ..Default::default()
+                    };
+                    if tx.send(piece).is_err() {
+                        return;
+                    }
+                }
                 mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
                     // Nobody is listening any more (the window closed): stop.
                     if tx.send(piece).is_err() {
@@ -1743,7 +1774,7 @@ fn services(
             let ctx = sign_in_ctx.clone();
             background(&sign_in_ctx, "sign-in", move || sign_in(&ctx, request))
         })),
-        graph: Some(Box::new(move |request| background(&graph_ctx, "microsoft graph", move || graph(request)))),
+        graph: Some(Box::new(move |request| background(&graph_ctx, "microsoft graph", move || signed_graph(request)))),
         // Messages of a Microsoft account fetched whole, a few at a time (R3.2).
         graph_fetch: Some(Box::new(move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
             background(&fetch_ctx, "message download", move || mailcraft_net::graph::fetch_messages(&job.access, &job.request, &job.cancel))
@@ -1752,6 +1783,8 @@ fn services(
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
         ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
+        // Digital signatures (#30): the owner's keys, and a smartcard's PIN.
+        signing: Some(signing::host()),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))

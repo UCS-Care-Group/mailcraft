@@ -91,7 +91,21 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
                 SEND_TIMEOUT,
                 MAX_PAGE,
             );
-            return settle(graph, asked, done);
+            settle(graph, asked, done)?;
+            // A Digitally signed message saved as a draft went as its own bytes (#30 R19): the
+            // draft the server has goes now. One that couldn't be taken away is named, and goes
+            // with the next run as any other delete; the send is never made again.
+            if done.outcome == SendOutcome::Sent && !send.discard.is_empty() {
+                match discard(graph, &send.discard) {
+                    Ok(true) => {}
+                    Ok(false) => done.draft_left = send.discard.clone(),
+                    Err(e) => {
+                        done.draft_left = send.discard.clone();
+                        return Err(e);
+                    }
+                }
+            }
+            return Ok(());
         }
         (None, None) => return Ok(()),
     };
@@ -145,4 +159,20 @@ fn held_refused(status: u16, code: &str, shared: bool) -> SendOutcome {
         _ => "Microsoft wouldn't take the message".to_string(),
     };
     SendOutcome::Held { lost: false, why }
+}
+
+/// Take away the server's draft of a message that went another way: whether it is gone (or never
+/// was there). Graph's delete keeps it recoverable for the retention period.
+fn discard(graph: &Graph<'_>, id: &str) -> Result<bool, NetError> {
+    let Some(id) = id_of(id).map(|id| http::encode(&id)) else { return Ok(true) };
+    let url = graph.url(&graph.mail_path(&format!("/messages/{id}")));
+    let reply = graph.call(Kind::Same, &url, "DELETE", &[], None, SEND_TIMEOUT, MAX_PAGE)?;
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200..=299 | 404 | 410 => Ok(true),
+        status => {
+            log::info!("graph sending: the draft of a signed message sent couldn't be taken away (status {status}); it goes next run");
+            Ok(false)
+        }
+    }
 }

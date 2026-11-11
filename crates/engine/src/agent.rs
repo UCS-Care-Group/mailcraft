@@ -184,6 +184,8 @@ const SAFE: &[&str] = &[
     "compose.set",
     "compose.replyTo",
     "compose.readReceipt",
+    // Sign (#30 R23): the key is used only at Send, which an agent asks the owner about.
+    "compose.sign",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",

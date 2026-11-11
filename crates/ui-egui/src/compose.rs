@@ -178,6 +178,9 @@ struct Shown {
     /// Each attachment's name, as it is written to a file (a forward carries the sender's), and size.
     attachments: Vec<(String, String)>,
     quote: bool,
+    /// What it will be at Send (#30 R16a): signed with the key named, unsigned (`Ok(None)`), or
+    /// to be signed and it can't be yet (why).
+    signing: Result<Option<String>, &'static str>,
 }
 
 impl Shown {
@@ -199,6 +202,8 @@ impl Shown {
                 .map(|a| (mailcraft_engine::opening::file_name(&a.name), mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64)))
                 .collect(),
             quote: c.quote.is_some(),
+            signing: mailcraft_engine::cmd::signing::will_sign(&app.session, c)
+                .map(|key| key.map(|k| if k.label.is_empty() { k.fingerprint.chars().take(16).collect() } else { k.label })),
         })
     }
 }
@@ -237,6 +242,8 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     } else {
         header(app, ui, &c, focus_to);
     }
+
+    signing_line(app, ui, &c);
 
     // Attachments, each with a way to take it off again.
     if !c.attachments.is_empty() {
@@ -293,6 +300,28 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
             }
         });
     });
+}
+
+/// What the message will be at Send, shown before it (#30 R16a): Digitally signed, with which
+/// key and in which form, or why it can't be yet, with a way to choose the key. Nothing for a
+/// message that goes unsigned.
+fn signing_line(app: &mut MailApp, ui: &mut Ui, c: &Shown) {
+    let t = Tokens::get(ui.ctx());
+    let (text, problem) = match &c.signing {
+        Ok(None) => return,
+        Ok(Some(key)) => (crate::i18n::fmt(tl!("Digitally signed at Send with {key} (clear-signed)"), &[("key", key)]), false),
+        Err(why) => (crate::i18n::t(why).to_string(), true),
+    };
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
+    let icon = Rect::from_center_size(pos2(r.min.x + 24.0, r.center().y), vec2(16.0, 16.0));
+    icons::paint(ui.painter(), icon, "digitalSign", if problem { t.red } else { t.icon }, t.accent);
+    let resp = ui.interact(r, ui.scope_id().with("compose_signing"), Sense::click());
+    let colour = if problem { t.red } else { t.text_dim };
+    paint_clipped(ui.painter(), pos2(r.min.x + 40.0, r.center().y), (r.width() - 52.0).max(0.0), &text, regular(12.0), colour);
+    if resp.on_hover_text(tl!("Digital Signatures")).clicked() {
+        let _ = app.run("ui.dialog", json!({"name": "digitalSignatures", "account": c.account}));
+    }
+    ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
 }
 
 /// What the message is and its actions, over its lines in the reading pane: Send, Attach, Save

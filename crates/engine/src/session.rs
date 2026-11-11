@@ -673,6 +673,10 @@ pub struct Compose {
     /// Request a Read Receipt: the message asks for one, to its sender (`compose.readReceipt`).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub read_receipt: bool,
+    /// Sign (`compose.sign`, #30 R16a): `None` while the owner hasn't set it for this message,
+    /// and the account's Always add a Digital signature holds, as it stands at Send.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sign: Option<bool>,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// The signature put in the body (its paragraphs are marked there): which one, how it lays

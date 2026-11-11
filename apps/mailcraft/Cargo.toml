@@ -27,6 +27,10 @@ mailcraft-net = { workspace = true }
 mailcraft-ews = { workspace = true }
 # OpenPGP keys kept in GnuPG (#30): the conversation with gpg-agent; finding and opening its socket is `gpg_agent.rs`.
 mailcraft-assuan = { workspace = true }
+# Digital signatures made at Send (#30 part 5): the signed layout, CMS and OpenPGP signatures.
+mailcraft-mime = { workspace = true }
+mailcraft-smime = { workspace = true }
+mailcraft-openpgp = { workspace = true }
 # `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
 # we turn the defaults off); without it nothing is copied, on any platform.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }

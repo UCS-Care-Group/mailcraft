@@ -862,6 +862,10 @@ fn mime_body(message: &Message) -> Result<String, NetError> {
 }
 
 fn mime_body_with(message: &Message, options: &SendOptions) -> Result<String, NetError> {
+    // A message to be Digitally signed that isn't goes nowhere (#30 R19).
+    if mailcraft_mime::signature_missing(message) {
+        return Err(NetError::Config("it was to be Digitally signed and wasn't, so it wasn't sent".into()));
+    }
     // Leaving someone out silently would be worse than not sending.
     let mut anyone = false;
     for address in message.recipients() {

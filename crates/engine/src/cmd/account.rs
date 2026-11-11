@@ -1310,6 +1310,8 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // said already that it couldn't send it.)
     let mut said = Vec::new();
     super::graph_send::hold_lost(mb, account, &result.unsure, "the server", s.interface_language, &mut said);
+    // Not Digitally signed as it was to be (#30): it didn't go, and waits for the owner.
+    super::signing::hold_unsigned(mb, account, &result.unsigned, s.interface_language, &mut said);
     for made in &result.created {
         // A folder that only existed here has its mailbox on the server now.
         let free = !made.remote.is_empty() && !mb.folders.iter().any(|f| f.account == account && f.remote == made.remote);

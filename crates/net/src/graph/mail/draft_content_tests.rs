@@ -139,7 +139,7 @@ fn a_saved_draft_is_sent_as_it_is_here_whatever_the_server_has_changed_since() {
     });
     // Sent from here, with everything asserted.
     let draft = whole_draft(&done.id, "Rota", "Hello.", &[], vec![file("rota.pdf", b"ROTA")], synced);
-    let all = run(&server, Vec::new(), vec![SendUp { message: 5, draft: Some(draft), mime: None }]);
+    let all = run(&server, Vec::new(), vec![SendUp { message: 5, draft: Some(draft), mime: None, discard: String::new() }]);
     assert!(matches!(all.sent.as_slice(), [d] if d.outcome == SendOutcome::Sent), "{:?} {:?}", all.sent, all.errors);
     let sent_items = server.state().well_known("sentitems");
     let state = server.state();

@@ -232,6 +232,37 @@ impl mailcraft_ui_egui::SecretStore for StandInSecrets {
 /// Removing MailCraft's data: nothing is kept by this window, so nothing is removed.
 struct StandInWipe;
 
+/// Two keys of the owner's that can sign (#30), and a smartcard that wants its PIN when the
+/// script says `{"host": {"signing": "pin"}}`.
+struct StandInSigning(bool);
+
+impl mailcraft_ui_egui::digital_signatures::SigningHost for StandInSigning {
+    fn keys(&self) -> std::sync::mpsc::Receiver<Result<Vec<mailcraft_ui_egui::digital_signatures::SigningChoice>, String>> {
+        use mailcraft_model::digital_signature::SignatureFormat;
+        use mailcraft_ui_egui::digital_signatures::{GNUPG_CARD, SigningChoice, WINDOWS_STORE};
+        let (tx, rx) = std::sync::mpsc::channel();
+        let choice = |format, fp: &str, label: &str, place: &str| {
+            mailcraft_model::signing::SigningKey::new(format, fp, label).map(|key| SigningChoice {
+                key,
+                addresses: vec![label.to_string()],
+                place: place.to_string(),
+                expires: 1_830_000_000,
+            })
+        };
+        let keys = [
+            choice(SignatureFormat::Smime, &"3F".repeat(32), "you@lumen.example", WINDOWS_STORE),
+            choice(SignatureFormat::OpenPgp, &"9C".repeat(20), "you@lumen.example", GNUPG_CARD),
+        ];
+        let _ = tx.send(Ok(keys.into_iter().flatten().collect()));
+        rx
+    }
+    fn pin_wanted(&self) -> Option<String> {
+        self.0.then(|| "Lumen PIV".to_string())
+    }
+    fn give_pin(&self, _: String) {}
+    fn no_pin(&self) {}
+}
+
 impl mailcraft_ui_egui::data_removal::DataWipe for StandInWipe {
     fn erase(&self, _: Option<&std::path::Path>) -> mailcraft_ui_egui::data_removal::WipeReport {
         Default::default()
@@ -678,6 +709,9 @@ fn main() {
     services.alert = Some(Box::new(StandInAlerts(host.clone())));
     // Remove MailCraft's data (#177): offered, and removes nothing here.
     services.data_wipe = Some(Box::new(StandInWipe));
+    // The owner's keys for Digital signatures (#30), none of them real.
+    let pin = lines.iter().any(|l| l.pointer("/host/signing").and_then(|v| v.as_str()) == Some("pin"));
+    services.signing = Some(Arc::new(StandInSigning(pin)));
     // Open MailCraft's data folder (#460): offered, and opens nothing here.
     services.data_folder = Some(mailcraft_ui_egui::data_removal::DataFolder {
         path: std::path::PathBuf::from("/home/you/.config/mailcraft"),

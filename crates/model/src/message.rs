@@ -402,6 +402,15 @@ pub struct Message {
     /// stopped mid-send.
     #[serde(skip_serializing_if = "is_false")]
     pub sending: bool,
+    /// Sign (#30 R16a), as the owner set it for this message: `None` while they haven't, and
+    /// the account's Always add a Digital signature holds. Kept with a draft.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub sign: Option<bool>,
+    /// For a message queued to be sent: the key it is to be Digitally signed with (#30 R19),
+    /// decided at Send. The host signs it on its way out ([`Message::original`] then holds what
+    /// goes), and nothing sends it unsigned. `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub sign_with: Option<crate::signing::SigningKey>,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
