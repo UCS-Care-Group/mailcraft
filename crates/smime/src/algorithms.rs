@@ -262,7 +262,7 @@ fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
 
 /// The kinds of key a Digital signature can be made with here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum KeyKind {
+pub enum SigningKind {
     /// RSA (`rsaEncryption`), of [`MIN_RSA_BITS`] to [`MAX_RSA_BITS`].
     Rsa,
     /// ECDSA on P-256.
@@ -274,15 +274,15 @@ pub enum KeyKind {
 /// The kind of `key`, when it is one a signature checked here can be made with:
 /// [`Fault::Weak`] for an RSA key under [`MIN_RSA_BITS`], [`Fault::Unknown`] for anything else
 /// (an RSA key restricted to PSS among them: its parameters may bind it to another hash).
-pub fn key_kind(key: &SubjectPublicKeyInfoOwned) -> Result<KeyKind, Fault> {
+pub fn signing_kind(key: &SubjectPublicKeyInfoOwned) -> Result<SigningKind, Fault> {
     match key.algorithm.oid {
-        RSA => rsa_key(key).map(|_| KeyKind::Rsa),
+        RSA => rsa_key(key).map(|_| SigningKind::Rsa),
         EC_KEY => {
             let curve = key.algorithm.parameters.as_ref().and_then(|p| p.decode_as::<ObjectIdentifier>().ok()).ok_or(Fault::Unknown)?;
             let point = key.subject_public_key.as_bytes().ok_or(Fault::Unknown)?;
             match curve {
-                P256 => p256::ecdsa::VerifyingKey::from_sec1_bytes(point).map(|_| KeyKind::P256).map_err(|_| Fault::Malformed),
-                P384 => p384::ecdsa::VerifyingKey::from_sec1_bytes(point).map(|_| KeyKind::P384).map_err(|_| Fault::Malformed),
+                P256 => p256::ecdsa::VerifyingKey::from_sec1_bytes(point).map(|_| SigningKind::P256).map_err(|_| Fault::Malformed),
+                P384 => p384::ecdsa::VerifyingKey::from_sec1_bytes(point).map(|_| SigningKind::P384).map_err(|_| Fault::Malformed),
                 _ => Err(Fault::Unknown),
             }
         }

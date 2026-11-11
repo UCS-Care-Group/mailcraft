@@ -1,1 +1,0 @@
-| 2026-11-11 | minor | #30 part 5: gap 16 says outgoing mail is Digitally signed at Send, how, and what isn't yet |

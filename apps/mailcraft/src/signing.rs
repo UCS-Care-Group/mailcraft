@@ -527,7 +527,11 @@ fn openpgp_choices() -> Result<Vec<SigningChoice>, String> {
             if out.iter().any(|c| c.key == key) {
                 continue;
             }
-            let place = if info.card_serial.is_some() { mailcraft_ui_egui::digital_signatures::GNUPG_CARD } else { mailcraft_ui_egui::digital_signatures::GNUPG };
+            let place = if info.card_serial.is_some() {
+                mailcraft_ui_egui::digital_signatures::GNUPG_CARD
+            } else {
+                mailcraft_ui_egui::digital_signatures::GNUPG
+            };
             let place = place.to_string();
             let expires = k.expires().and_then(|e| i64::try_from(e).ok()).unwrap_or(0);
             out.push(SigningChoice { key, addresses: k.addresses().to_vec(), place, expires });

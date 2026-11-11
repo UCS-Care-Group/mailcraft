@@ -535,6 +535,8 @@ const SETTINGS: &[&str] = &[
 ];
 
 const NEVER: &[&str] = &[
+    // Which key an account Digitally signs with, and whether always (#30): the owner's alone.
+    "account.setSigning",
     // The host's side of a synchronisation: what came from a server is the host's to say.
     "sync.request",
     "sync.apply",

@@ -27,7 +27,7 @@ use spki::AlgorithmIdentifierOwned;
 use x509_cert::attr::Attribute;
 use x509_cert::time::Time;
 
-use crate::algorithms::{self, Fault, Hash, KeyKind};
+use crate::algorithms::{self, Fault, Hash, SigningKind};
 use crate::cert::{Cert, MAX_CERT_BYTES};
 
 /// The largest content signed: a message bigger than any server takes.
@@ -249,7 +249,7 @@ fn carried<E>(signer: &Cert, chain: &[Vec<u8>]) -> Result<Vec<CertificateChoices
 
 /// The signatureAlgorithm for `scheme` with `digest`, when the signer's key is of its kind.
 fn signature_algorithm<E>(signer: &Cert, scheme: SignatureScheme, digest: DigestAlgorithm) -> Result<AlgorithmIdentifierOwned, SignError<E>> {
-    let kind = algorithms::key_kind(signer.public_key()).map_err(|fault| match fault {
+    let kind = algorithms::signing_kind(signer.public_key()).map_err(|fault| match fault {
         Fault::Weak => SignError::Certificate("its RSA key is shorter than 2048 bits"),
         Fault::Malformed => SignError::Certificate("its key can't be read"),
         Fault::Unknown | Fault::Invalid => SignError::Unsupported("its key is of a kind that can't sign here"),
@@ -257,8 +257,8 @@ fn signature_algorithm<E>(signer: &Cert, scheme: SignatureScheme, digest: Digest
     match (scheme, kind) {
         // `rsaEncryption`, the hash given by the digest algorithm (RFC 5754 §3.2): what every
         // reader takes.
-        (SignatureScheme::RsaPkcs1v15, KeyKind::Rsa) => Ok(AlgorithmIdentifierOwned { oid: algorithms::RSA, parameters: Some(Any::null()) }),
-        (SignatureScheme::RsaPss, KeyKind::Rsa) => {
+        (SignatureScheme::RsaPkcs1v15, SigningKind::Rsa) => Ok(AlgorithmIdentifierOwned { oid: algorithms::RSA, parameters: Some(Any::null()) }),
+        (SignatureScheme::RsaPss, SigningKind::Rsa) => {
             let hash = spki::AlgorithmIdentifier::<Any> { oid: digest.oid(), parameters: None };
             let params = rsa::pkcs1::RsaPssParams::<Any> {
                 hash: hash.clone(),
@@ -269,7 +269,7 @@ fn signature_algorithm<E>(signer: &Cert, scheme: SignatureScheme, digest: Digest
             let parameters = Any::encode_from(&params).map_err(|_| SignError::Encoding)?;
             Ok(AlgorithmIdentifierOwned { oid: algorithms::PSS, parameters: Some(parameters) })
         }
-        (SignatureScheme::Ecdsa, KeyKind::P256 | KeyKind::P384) => {
+        (SignatureScheme::Ecdsa, SigningKind::P256 | SigningKind::P384) => {
             let oid = match digest {
                 DigestAlgorithm::Sha256 => algorithms::SHA256_ECDSA,
                 DigestAlgorithm::Sha384 => algorithms::SHA384_ECDSA,
@@ -278,7 +278,7 @@ fn signature_algorithm<E>(signer: &Cert, scheme: SignatureScheme, digest: Digest
             Ok(AlgorithmIdentifierOwned { oid, parameters: None })
         }
         (SignatureScheme::RsaPkcs1v15 | SignatureScheme::RsaPss, _) => Err(SignError::Unsupported("an RSA signature needs an RSA key")),
-        (SignatureScheme::Ecdsa, KeyKind::Rsa) => Err(SignError::Unsupported("an ECDSA signature needs an elliptic-curve key")),
+        (SignatureScheme::Ecdsa, SigningKind::Rsa) => Err(SignError::Unsupported("an ECDSA signature needs an elliptic-curve key")),
     }
 }
 

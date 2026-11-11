@@ -802,8 +802,8 @@ fn options(app: &MailApp) -> Tab {
         g(
             "Encrypt",
             vec![
+                Item::big("digitalSign", "Sign", "compose.sign", no()).checked(sign).at(0, 1),
                 Item::pending("compose.encrypt", "Encrypt", 0),
-                Item::small("digitalSign", "Sign", "Add a Digital signature", "compose.sign", no()).checked(sign).at(0, 1),
             ],
         ),
         g(
@@ -2495,7 +2495,7 @@ mod tests {
             assert!(tab.groups.iter().all(|group| !group.title.is_empty() && !group.items.is_empty()), "{name}");
             seen += 1;
         }
-        assert_eq!(seen, 24);
+        assert_eq!(seen, 25);
     }
 
     /// Mail › Home in the order the simplified row has it, with its split buttons.
