@@ -1712,7 +1712,7 @@ msgid "Attachment options for {name}"
 msgstr "{name} için ek seçenekleri"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Ekler"
@@ -1920,6 +1920,12 @@ msgstr "Geri"
 #, fuzzy
 msgid "Back online"
 msgstr "Yeniden çevrimiçi"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Back to Message"
+msgstr "İletiye Dön"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2682,6 +2688,12 @@ msgstr "Aramayı temizle"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Aramayı temizle (Esc)"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Click to preview {name}; double-click to open it"
+msgstr "Önizlemek için {name} öğesine tıklayın; açmak için çift tıklayın"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -5881,6 +5893,12 @@ msgstr "İçe aktarılıyor…"
 msgid "Importing… {messages} of {total}"
 msgstr "İçe aktarılıyor… {total} öğeden {messages}"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "In Junk E-mail, preview an attachment from its menu."
+msgstr "İstenmeyen E-posta'da bir eki menüsünden önizleyin."
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
@@ -8087,6 +8105,12 @@ msgstr "Sonraki İleti"
 msgid "Next Month"
 msgstr "Gelecek Ay"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Next Page"
+msgstr "Sonraki Sayfa"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8332,6 +8356,12 @@ msgstr "Orada hiçbir ileti okunmuyor"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Kurulmaya hazır yeni sürüm yok."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "No preview helper is available for this attachment."
+msgstr "Bu ek için kullanılabilir bir önizleme yardımcısı yok."
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -9684,6 +9714,12 @@ msgid "Preferences"
 msgstr "Tercihler"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preparing attachment preview…"
+msgstr "Ek önizlemesi hazırlanıyor…"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Press Send/Receive to download your mail."
@@ -9694,6 +9730,30 @@ msgstr "Postanızı indirmek için Gönder/Al'a basın."
 #, fuzzy
 msgid "Preview"
 msgstr "Önizleme"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Preview Attachment"
+msgstr "Eki Önizle"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview attachments with local PdfCraft"
+msgstr "Ekleri yerel PdfCraft ile önizle"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview attachments with local PdfCraft and PhotoCraft"
+msgstr "Ekleri yerel PdfCraft ve PhotoCraft ile önizle"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview attachments with local PhotoCraft"
+msgstr "Ekleri yerel PhotoCraft ile önizle"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9718,6 +9778,12 @@ msgstr "Önceki İleti"
 #, fuzzy
 msgid "Previous Month"
 msgstr "Önceki Ay"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Previous Page"
+msgstr "Önceki Sayfa"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -11262,6 +11328,12 @@ msgstr "Okumak için bir öğe seçin"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Önce bir metin seçin"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Select the message before previewing its attachment."
+msgstr "Ekini önizlemeden önce iletiyi seçin."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -13150,6 +13222,18 @@ msgid "The approval didn't go through."
 msgstr "Onay iletilemedi."
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "The attachment preview could not be opened."
+msgstr "Ek önizlemesi açılamadı."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "The attachment preview timed out."
+msgstr "Ek önizlemesi zaman aşımına uğradı."
+
+#. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "The browser can't read files by path"
@@ -13588,6 +13672,12 @@ msgstr "Etki alanı listesi dolu: Dosya › Seçenekler'den bazılarını kaldı
 #, fuzzy
 msgid "The list of senders is full: remove some in File › Options"
 msgstr "Gönderen listesi dolu: Dosya › Seçenekler'den bazılarını kaldırın"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "The local program receives the selected attachment and runs with your permissions."
+msgstr "Yerel program seçilen eki alır ve izinlerinizle çalışır."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14452,6 +14542,18 @@ msgstr "Bu hesabın takvimi henüz sorgulanamaz: önce Gönder/Al oturum açar."
 #, fuzzy
 msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr "Bu kişiyi bu hesabın sunucusu tutuyor. Burada yapılan değişiklikler henüz geri gönderilmez, bu yüzden burada düzenlenemez veya silinemez. Sık kullanılan ve kategoriler bu bilgisayarda tutulur."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "This attachment could not be previewed."
+msgstr "Bu ek önizlenemedi."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "This attachment is too large to preview."
+msgstr "Bu ek önizlemek için çok büyük."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -15470,6 +15572,12 @@ msgid "Tuesday"
 msgstr "Salı"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Turn on attachment previews in File › Options."
+msgstr "Dosya › Seçenekler'de ek önizlemelerini açın."
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Turned off by your organisation"
@@ -15844,6 +15952,12 @@ msgstr "Kaynağı Görüntüle"
 #, fuzzy
 msgid "Violet"
 msgstr "Menekşe"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Wait for the other attachment preview to finish."
+msgstr "Diğer ek önizlemesinin bitmesini bekleyin."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -16624,7 +16738,7 @@ msgid "Z on top"
 msgstr "Z üstte"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Zoom"
 msgstr "Yakınlaştırma"
@@ -20714,3 +20828,4 @@ msgstr "“{subject}” indirilemeyecek kadar büyüktü: burada yalnızca başl
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "“{subject}” sunucusunda bulunamadı, bu yüzden ek olarak iletilemez"
+

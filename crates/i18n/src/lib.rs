@@ -70,8 +70,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 8] =
-        [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Turkish, Lang::Pseudo];
+    pub const ALL: [Lang; 8] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Turkish, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -410,7 +409,15 @@ mod tests {
         let names: Vec<String> = Lang::available().into_iter().map(Lang::picker_name).collect();
         assert_eq!(
             names,
-            ["English", "Français (aperçu)", "Deutsch (Vorschau)", "Español (versión preliminar)", "Italiano (anteprima)", "Nederlands (voorbeeld)", "Türkçe (önizleme)",]
+            [
+                "English",
+                "Français (aperçu)",
+                "Deutsch (Vorschau)",
+                "Español (versión preliminar)",
+                "Italiano (anteprima)",
+                "Nederlands (voorbeeld)",
+                "Türkçe (önizleme)",
+            ]
         );
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
