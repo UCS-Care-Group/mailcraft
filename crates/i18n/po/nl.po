@@ -19955,13 +19955,3 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
 
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "MailCraft wijzigt daarmee alleen de automatische antwoorden, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
-
