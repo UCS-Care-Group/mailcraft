@@ -105,6 +105,9 @@ fn an_exception_that_holds_leaves_the_message_alone() {
     assert!(!rule.matches_in(&m, &how), "I'm in Cc");
     rule.exceptions = vec![Condition::Flagged, Condition::ToMe];
     assert!(rule.matches_in(&m, &how), "no exception holds");
+    // Of an account with no address of its own, an exception about me can't be told: the rule
+    // leaves the message alone.
+    assert!(!rule.matches_in(&m, &Matching::default()));
     assert_eq!(
         rule.describe(),
         r#"When subject contains "invoice", except if is flagged or my address is in To: mark it as read, show a desktop alert"#

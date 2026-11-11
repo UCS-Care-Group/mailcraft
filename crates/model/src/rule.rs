@@ -276,6 +276,11 @@ impl Condition {
         matches!(self, Condition::BodyContains(_) | Condition::SubjectOrBodyContains(_) | Condition::MeetingRequest)
     }
 
+    /// Whether it reads the address of the account whose mail it is ([`Matching::me`]).
+    pub fn about_me(&self) -> bool {
+        matches!(self, Condition::SentOnlyToMe | Condition::ToMe | Condition::CcMe | Condition::ToOrCcMe | Condition::NotToMe)
+    }
+
     /// [`Condition::matches_in`], and not on a guess: a sensitivity that can't be read yet doesn't
     /// hold, though no header reads as Normal. A word found in what is here of the text holds, as
     /// ever, and a size that can't be told never matches.
@@ -576,8 +581,10 @@ impl Rule {
     /// [`Rule::matches`], by `how` ([`Matching`]). A rule with parts this version doesn't know
     /// matches nothing here: what it would do is not known.
     pub fn matches_in(&self, m: &Message, how: &Matching<'_>) -> bool {
-        // An exception that can't be told yet may hold: a rule doesn't act on a guess.
-        self.reaches(m, how) && !self.exceptions.iter().any(|c| c.unread_in(m) || c.matches_in(m, how))
+        // An exception that can't be told yet may hold: a rule doesn't act on a guess. Nor can one
+        // about "me" be told of an account with no address of its own.
+        let untold = |c: &Condition| c.unread_in(m) || (c.about_me() && how.me.trim().is_empty());
+        self.reaches(m, how) && !self.exceptions.iter().any(|c| untold(c) || c.matches_in(m, how))
     }
 
     /// Whether it may apply to `m`, for what can't be told yet: a condition or an exception that
