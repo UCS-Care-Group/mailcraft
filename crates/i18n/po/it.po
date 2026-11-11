@@ -506,7 +506,7 @@ msgstr "Una regola richiede un nome e qualcosa da cercare."
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
-msgstr "Una regola deve fare qualcosa: un'azione o un avviso sul desktop."
+msgstr "Una regola deve fare qualcosa: un'azione o un avviso desktop."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11379,7 +11379,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Show a desktop alert"
-msgstr "Mostra un avviso sul desktop"
+msgstr "Mostra un avviso desktop"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -17734,7 +17734,7 @@ msgstr "il server non può rimuovere singoli messaggi (non offre UIDPLUS)"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't show a desktop alert"
-msgstr "il server non può mostrare un avviso sul desktop"
+msgstr "il server non può mostrare un avviso desktop"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs

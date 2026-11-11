@@ -506,7 +506,7 @@ msgstr "Une règle a besoin d'un nom et de quelque chose à rechercher."
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
-msgstr "Une règle doit faire quelque chose : une action ou une alerte sur le Bureau."
+msgstr "Une règle doit faire quelque chose : une action ou une alerte sur le bureau."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -2909,7 +2909,7 @@ msgstr "Copier dans un dossier"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Copy to folder"
-msgstr "Copier dans un dossier"
+msgstr "Copier dans le dossier"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -11379,7 +11379,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Show a desktop alert"
-msgstr "Afficher une alerte sur le Bureau"
+msgstr "Afficher une alerte sur le bureau"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -17736,7 +17736,7 @@ msgstr "le serveur ne peut pas supprimer des messages un par un (il ne propose p
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't show a desktop alert"
-msgstr "le serveur ne peut pas afficher d'alerte sur le Bureau"
+msgstr "le serveur ne peut pas afficher d'alerte sur le bureau"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs

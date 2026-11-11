@@ -506,7 +506,7 @@ msgstr "Una regla necesita un nombre y algo que buscar."
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
-msgstr "Una regla necesita algo que hacer: una acción o una alerta en el escritorio."
+msgstr "Una regla necesita algo que hacer: una acción o una alerta de escritorio."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -2909,7 +2909,7 @@ msgstr "Copiar a carpeta"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Copy to folder"
-msgstr "Copiar a carpeta"
+msgstr "Copiar a la carpeta"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -11379,7 +11379,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Show a desktop alert"
-msgstr "Mostrar una alerta en el escritorio"
+msgstr "Mostrar una alerta de escritorio"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -17736,7 +17736,7 @@ msgstr "el servidor no puede quitar mensajes sueltos (no ofrece UIDPLUS)"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't show a desktop alert"
-msgstr "el servidor no puede mostrar una alerta en el escritorio"
+msgstr "el servidor no puede mostrar una alerta de escritorio"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs

@@ -525,7 +525,7 @@ msgstr "Een regel heeft een naam nodig, en iets om naar te zoeken."
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
-msgstr "Een regel moet iets doen: een actie of een bureaubladwaarschuwing."
+msgstr "Een regel moet iets doen: een actie of een bureaubladmelding."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11946,7 +11946,7 @@ msgstr "Agenda's van een gedeeld postvak tonen"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Show a desktop alert"
-msgstr "Een bureaubladwaarschuwing weergeven"
+msgstr "Een bureaubladmelding weergeven"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -18675,7 +18675,7 @@ msgstr "de server kan geen losse berichten verwijderen (hij biedt geen UIDPLUS)"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't show a desktop alert"
-msgstr "de server kan geen bureaubladwaarschuwing weergeven"
+msgstr "de server kan geen bureaubladmelding weergeven"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
