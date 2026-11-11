@@ -200,6 +200,36 @@ fn the_owners_own_keys_are_found_in_an_export() {
     assert!(encryption_certificates(b"junk bytes", NOW).is_empty());
 }
 
+#[test]
+fn a_weak_primary_key_vouches_for_no_subkey() {
+    let mut key = crate::keys::PublicKey::parse(&public_bytes(&X25519)).unwrap().remove(0);
+    assert!(crate::encrypt::usable(&key, NOW).is_ok());
+    key.signing[0].weak = Some("RSA under 2048 bits");
+    assert_eq!(crate::encrypt::usable(&key, NOW).err(), Some("its primary key is too weak to trust"));
+}
+
+#[test]
+fn a_version_6_key_among_version_4_ones_must_say_it_reads_the_older_message() {
+    use crate::encrypt::{Random, write};
+    use crate::keys::PublicKey;
+    let mut v6 = PublicKey::parse(&public_bytes(&V6)).unwrap().remove(0);
+    let v4 = PublicKey::parse(&public_bytes(&KIT)).unwrap().remove(0);
+    let mut fill = seeded(1);
+    let mut rng = Random::new(&mut fill);
+    // Says it does: the older form, which both read.
+    v6.prefs.seipd_v1 = true;
+    let made = write(CONTENT, &[v6.clone(), v4.clone()], NOW, &mut rng).unwrap();
+    assert_eq!(read(&made, &KIT).as_deref(), Some(CONTENT));
+    assert_eq!(read(&made, &V6).as_deref(), Some(CONTENT));
+    // Doesn't say: refused, and nothing made.
+    v6.prefs.seipd_v1 = false;
+    assert!(matches!(write(CONTENT, &[v6.clone(), v4], NOW, &mut rng), Err(EncryptError::Key(_))));
+    // Among version 6 keys alone it isn't asked: they get the newer form.
+    let v6_too = PublicKey::parse(&public_bytes(&V6_TOO)).unwrap().remove(0);
+    let made = write(CONTENT, &[v6, v6_too], NOW, &mut rng).unwrap();
+    assert_eq!(read(&made, &V6_TOO).as_deref(), Some(CONTENT));
+}
+
 fn armoured(secret: &SignedSecretKey) -> String {
     SignedPublicKey::from(secret.clone()).to_armored_string(ArmorOptions::default()).unwrap()
 }

@@ -108,6 +108,127 @@ fn the_structure_is_what_mail_programs_read() {
     assert_eq!(ContentInfo::from_der(&cms).unwrap().to_der().unwrap(), cms);
 }
 
+/// `der` (a DER SEQUENCE tree) with the element whose whole encoding is `old` written as `new`
+/// instead, the lengths of everything round it made right: how a certificate for an RSAES-OAEP key
+/// is had from one for an `rsaEncryption` key (its signature is no longer good, which encrypting
+/// doesn't look at).
+fn patch(der: &[u8], old: &[u8], new: &[u8]) -> Option<Vec<u8>> {
+    let (tag, head, len) = tlv(der)?;
+    let content = der.get(head..head + len)?;
+    if tag & 0x20 == 0 {
+        return None;
+    }
+    let mut out = Vec::new();
+    let mut at = 0;
+    let mut changed = false;
+    while at < content.len() {
+        let (_, h, l) = tlv(&content[at..])?;
+        let child = &content[at..at + h + l];
+        if child == old {
+            out.extend_from_slice(new);
+            changed = true;
+        } else if let Some(inner) = patch(child, old, new) {
+            out.extend_from_slice(&inner);
+            changed = true;
+        } else {
+            out.extend_from_slice(child);
+        }
+        at += h + l;
+    }
+    if !changed {
+        return None;
+    }
+    let mut result = vec![tag];
+    if out.len() < 128 {
+        result.push(out.len() as u8);
+    } else {
+        let bytes: Vec<u8> = out.len().to_be_bytes().iter().copied().skip_while(|b| *b == 0).collect();
+        result.push(0x80 | bytes.len() as u8);
+        result.extend(bytes);
+    }
+    result.extend(out);
+    Some(result)
+}
+
+/// The tag, the size of the header and the size of the content of the element at the start of `d`.
+fn tlv(d: &[u8]) -> Option<(u8, usize, usize)> {
+    let tag = *d.first()?;
+    let first = *d.get(1)?;
+    if first < 128 {
+        return Some((tag, 2, first as usize));
+    }
+    let n = (first & 0x7f) as usize;
+    let len = d.get(2..2 + n)?.iter().fold(0usize, |a, b| (a << 8) | *b as usize);
+    Some((tag, 2 + n, len))
+}
+
+/// A certificate like `cert` whose key is an RSAES-OAEP key with `params` (`None`: none given).
+fn oaep_cert(cert: &[u8], params: Option<Vec<u8>>) -> Vec<u8> {
+    let rsa_alg = [0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00];
+    let mut body = vec![0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x07];
+    body.extend(params.unwrap_or_default());
+    let mut alg = vec![0x30, body.len() as u8];
+    alg.extend(body);
+    patch(cert, &rsa_alg, &alg).unwrap()
+}
+
+/// RSAES-OAEP-params for `hash`: its hash, MGF1 on it, an empty label.
+fn oaep_params(hash: &str) -> Vec<u8> {
+    use der::asn1::{ObjectIdentifier, OctetString};
+    use rsa::pkcs1::RsaOaepParams;
+    let hash_oid = ObjectIdentifier::new_unwrap(hash);
+    let id = |oid: ObjectIdentifier, parameters| spki::AlgorithmIdentifierOwned { oid, parameters };
+    let params = RsaOaepParams::<der::Any> {
+        hash: id(hash_oid, Some(der::Any::null())),
+        mask_gen: spki::AlgorithmIdentifier::<spki::AlgorithmIdentifierOwned> {
+            oid: ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.8"),
+            parameters: Some(id(hash_oid, Some(der::Any::null()))),
+        },
+        p_source: id(
+            ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.9"),
+            Some(der::Any::encode_from(&OctetString::new(Vec::<u8>::new()).unwrap()).unwrap()),
+        ),
+    };
+    params.to_der().unwrap()
+}
+
+#[test]
+fn a_certificate_with_an_oaep_key_is_encrypted_to_with_oaep() {
+    let ca = root("Example Root");
+    let key = rsa_key(2048);
+    let plain = encryption_cert("ada@example.org", key, &ca);
+    let sha256 = oaep_cert(&plain, Some(oaep_params("2.16.840.1.101.3.4.2.1")));
+    assert_eq!(can_encrypt_to(&sha256, NOW), Ok(()));
+    let cms = encrypt(&request(std::slice::from_ref(&sha256)), &mut os).unwrap();
+    let data = ContentInfo::from_der(&cms).unwrap().content.decode_as::<EnvelopedData>().unwrap();
+    let RecipientInfo::Ktri(info) = data.recip_infos.0.iter().next().unwrap() else { panic!("key transport") };
+    assert_eq!(info.key_enc_alg.oid.to_string(), "1.2.840.113549.1.1.7", "RSAES-OAEP");
+    assert!(info.key_enc_alg.parameters.is_some(), "the certificate's own parameters");
+    // The recipient opens it with OAEP on SHA-256, and a key that is for another hash can't.
+    assert!(key.decrypt(rsa::Oaep::<sha2::Sha512>::new(), info.enc_key.as_bytes()).is_err());
+    let cek = key.decrypt(rsa::Oaep::<sha2::Sha256>::new(), info.enc_key.as_bytes()).unwrap();
+    assert_eq!(cek.len(), 32);
+    // The same with SHA-512.
+    let sha512 = oaep_cert(&plain, Some(oaep_params("2.16.840.1.101.3.4.2.3")));
+    let cms = encrypt(&request(std::slice::from_ref(&sha512)), &mut os).unwrap();
+    let data = ContentInfo::from_der(&cms).unwrap().content.decode_as::<EnvelopedData>().unwrap();
+    let RecipientInfo::Ktri(info) = data.recip_infos.0.iter().next().unwrap() else { panic!("key transport") };
+    assert!(key.decrypt(rsa::Oaep::<sha2::Sha512>::new(), info.enc_key.as_bytes()).is_ok());
+}
+
+#[test]
+fn an_oaep_key_that_takes_sha1_is_refused() {
+    let ca = root("Example Root");
+    let plain = encryption_cert("ada@example.org", rsa_key(2048), &ca);
+    // No parameters: RFC 4055's defaults are SHA-1.
+    let defaults = oaep_cert(&plain, None);
+    assert!(can_encrypt_to(&defaults, NOW).is_err());
+    assert!(matches!(encrypt(&request(&[defaults]), &mut os), Err(EncryptError::Certificate(_))));
+    // SHA-1 named.
+    let sha1 = oaep_cert(&plain, Some(oaep_params("1.3.14.3.2.26")));
+    assert!(can_encrypt_to(&sha1, NOW).is_err());
+}
+
 #[test]
 fn nothing_is_the_same_twice() {
     let ca = root("Example Root");

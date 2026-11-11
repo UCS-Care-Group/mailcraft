@@ -118,7 +118,7 @@ impl Hash {
         Hash::by_oid(algorithm.oid)
     }
 
-    fn by_oid(oid: ObjectIdentifier) -> Result<Hash, Fault> {
+    pub(crate) fn by_oid(oid: ObjectIdentifier) -> Result<Hash, Fault> {
         match oid {
             SHA224 => Ok(Hash::Sha224),
             SHA256 => Ok(Hash::Sha256),

@@ -7,9 +7,12 @@
 //! AES-256-CBC (RFC 3565; what mail programs read, Outlook among them), and that key is
 //! encrypted to each recipient's certificate with RSA PKCS #1 v1.5 (`rsaEncryption`, RFC 3370
 //! §4.2.1: the key transport every mail program reads; encrypting needs no private key, and the
-//! attacks on the padding are the recipient's side of it). Each recipient is named by the issuer
-//! and serial number of their certificate. A certificate with an elliptic-curve key isn't
-//! encrypted to yet ([`EncryptError::Certificate`]).
+//! attacks on the padding are the recipient's side of it), or with RSAES-OAEP (RFC 3560) when the
+//! certificate's key is an `id-RSAES-OAEP` one: it says which hash it takes, and only SHA-224 and
+//! the longer ones with MGF1 on the same hash and no label are encrypted to. Each recipient is
+//! named by the issuer and serial number of their certificate. A certificate with an
+//! elliptic-curve key isn't encrypted to yet ([`EncryptError::Certificate`]; RFC 8551 names ECDH
+//! on P-256 for it, which is not built).
 //!
 //! Nothing here asks the system for anything: the random numbers (the content key, the
 //! initialisation vector and the padding) come from the `random` function the host hands in, which
@@ -25,21 +28,27 @@ use cms::content_info::{CmsVersion, ContentInfo};
 use cms::enveloped_data::{EncryptedContentInfo, EnvelopedData, KeyTransRecipientInfo, RecipientIdentifier, RecipientInfo, RecipientInfos};
 use const_oid::ObjectIdentifier;
 use der::asn1::OctetString;
-use der::{Any, Encode};
+use der::{Any, Decode, Encode};
 use spki::AlgorithmIdentifierOwned;
 use zeroize::Zeroizing;
 
 use crate::algorithms::{self, Fault};
 use crate::cert::{Cert, MAX_CERT_BYTES};
 
-/// The largest content encrypted: a message bigger than any server takes.
-pub const MAX_ENCRYPTED_BYTES: usize = 150 * 1024 * 1024;
+/// The largest content encrypted: what, in base64, still fits the bytes a message is kept as
+/// (64 MB), with the copies made along the way (about three times it) kept in reach.
+pub const MAX_ENCRYPTED_BYTES: usize = 40 * 1024 * 1024;
 /// The most recipients one message is encrypted to.
 pub const MAX_RECIPIENTS: usize = 200;
 
 const ENVELOPED_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.3");
 const DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1");
 const AES256_CBC: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.1.42");
+/// `id-RSAES-OAEP` (RFC 4055 §4.1).
+const OAEP: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.7");
+const MGF1: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.8");
+/// The empty label's `pSpecified` (RFC 8017 appendix A.2.1).
+const P_SPECIFIED: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.9");
 
 /// What is to be encrypted, and to whom.
 #[derive(Clone, Copy, Debug)]
@@ -102,12 +111,39 @@ fn certificate(der: &[u8], now: i64) -> Result<Cert, &'static str> {
     if !cert.valid_at(now) {
         return Err("it isn't valid now");
     }
+    if cert.public_key().algorithm.oid == OAEP {
+        oaep_hash(cert.public_key())?;
+        return match algorithms::rsa_key(cert.public_key()) {
+            Ok(_) => Ok(cert),
+            Err(Fault::Weak) => Err("its RSA key is shorter than 2048 bits"),
+            Err(_) => Err("its key can't be read"),
+        };
+    }
     match algorithms::signing_kind(cert.public_key()) {
         Ok(algorithms::SigningKind::Rsa) => Ok(cert),
         Err(Fault::Weak) => Err("its RSA key is shorter than 2048 bits"),
         Err(Fault::Malformed) => Err("its key can't be read"),
         _ => Err("its key isn't an RSA key, the only kind encrypted to here"),
     }
+}
+
+/// The hash a certificate with an RSAES-OAEP key takes (RFC 4055 §4.1): SHA-224 or longer, MGF1 on
+/// the same hash, the empty label. The defaults (SHA-1) and anything else are refused.
+fn oaep_hash(key: &spki::SubjectPublicKeyInfoOwned) -> Result<algorithms::Hash, &'static str> {
+    let params = key.algorithm.parameters.as_ref().ok_or("its key takes SHA-1, which isn't used")?;
+    let der = params.to_der().map_err(|_| "its key's parameters can't be read")?;
+    let params = rsa::pkcs1::RsaOaepParams::<Any>::from_der(&der).map_err(|_| "its key's parameters can't be read")?;
+    let hash = algorithms::Hash::by_oid(params.hash.oid).map_err(|_| "its key takes a hash that isn't used")?;
+    let mgf_hash = params.mask_gen.parameters.as_ref().map(|p| p.oid);
+    if params.mask_gen.oid != MGF1 || mgf_hash.and_then(|oid| algorithms::Hash::by_oid(oid).ok()) != Some(hash) {
+        return Err("its key's mask function isn't MGF1 on the same hash");
+    }
+    let empty_label = params.p_source.oid == P_SPECIFIED
+        && params.p_source.parameters.as_ref().is_some_and(|p| p.decode_as::<OctetString>().is_ok_and(|o| o.as_bytes().is_empty()));
+    if !empty_label {
+        return Err("its key names a label, which isn't used");
+    }
+    Ok(hash)
 }
 
 /// The random numbers the host gave, as the RSA library asks for them. A host that fails once
@@ -197,9 +233,24 @@ pub fn encrypt(request: &EncryptRequest<'_>, random: &mut dyn FnMut(&mut [u8]) -
     let mut infos = Vec::new();
     for cert in &certs {
         let public = rsa_public(cert)?;
-        let wrapped = public
-            .encrypt(&mut random, rsa::Pkcs1v15Encrypt, &*key)
-            .map_err(|_| if random.failed { EncryptError::Random } else { EncryptError::Certificate("its key can't encrypt") })?;
+        let spki = cert.public_key();
+        let (wrapped, key_enc_alg) = if spki.algorithm.oid == OAEP {
+            let hash = oaep_hash(spki).map_err(EncryptError::Certificate)?;
+            let wrapped = match hash {
+                algorithms::Hash::Sha224 => public.encrypt(&mut random, rsa::Oaep::<sha2::Sha224>::new(), &*key),
+                algorithms::Hash::Sha256 => public.encrypt(&mut random, rsa::Oaep::<sha2::Sha256>::new(), &*key),
+                algorithms::Hash::Sha384 => public.encrypt(&mut random, rsa::Oaep::<sha2::Sha384>::new(), &*key),
+                algorithms::Hash::Sha512 => public.encrypt(&mut random, rsa::Oaep::<sha2::Sha512>::new(), &*key),
+            };
+            // (The parameters are the certificate's own: the recipient reads what it asked for.)
+            (wrapped, AlgorithmIdentifierOwned { oid: OAEP, parameters: spki.algorithm.parameters.clone() })
+        } else {
+            (
+                public.encrypt(&mut random, rsa::Pkcs1v15Encrypt, &*key),
+                AlgorithmIdentifierOwned { oid: algorithms::RSA, parameters: Some(Any::null()) },
+            )
+        };
+        let wrapped = wrapped.map_err(|_| if random.failed { EncryptError::Random } else { EncryptError::Certificate("its key can't encrypt") })?;
         let tbs = cert.certificate().tbs_certificate();
         infos.push(RecipientInfo::Ktri(KeyTransRecipientInfo {
             version: CmsVersion::V0,
@@ -207,7 +258,7 @@ pub fn encrypt(request: &EncryptRequest<'_>, random: &mut dyn FnMut(&mut [u8]) -
                 issuer: tbs.issuer().clone(),
                 serial_number: tbs.serial_number().clone(),
             }),
-            key_enc_alg: AlgorithmIdentifierOwned { oid: algorithms::RSA, parameters: Some(Any::null()) },
+            key_enc_alg,
             enc_key: OctetString::new(wrapped).map_err(|_| EncryptError::Encoding)?,
         }));
     }
@@ -224,6 +275,8 @@ pub fn encrypt(request: &EncryptRequest<'_>, random: &mut dyn FnMut(&mut [u8]) -
         unprotected_attrs: None,
     };
     let content = Any::encode_from(&data).map_err(|_| EncryptError::Encoding)?;
+    // (The ciphertext is let go of before the last copy is made: three of the content at most.)
+    drop(data);
     ContentInfo { content_type: ENVELOPED_DATA, content }.to_der().map_err(|_| EncryptError::Encoding)
 }
 

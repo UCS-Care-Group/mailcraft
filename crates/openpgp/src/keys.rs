@@ -240,6 +240,9 @@ pub(crate) struct Encrypting {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Prefs {
     pub(crate) symmetric: Vec<pgp::crypto::sym::SymmetricKeyAlgorithm>,
+    /// Its Features subpacket says it reads the older kind of encrypted message (SEIPD version 1,
+    /// RFC 9580 §5.2.3.32): needed to put a version 6 key in a message made for version 4 keys.
+    pub(crate) seipd_v1: bool,
 }
 
 /// How many signature checks one call that reads keys may cost in all ([`PublicKey::parse`],
@@ -438,7 +441,7 @@ impl PublicKey {
                 weak: weak_key(primary),
             });
         }
-        let prefs = Prefs { symmetric: newest.preferred_symmetric_algs().to_vec() };
+        let prefs = Prefs { symmetric: newest.preferred_symmetric_algs().to_vec(), seipd_v1: newest.features().is_some_and(|f| f.seipd_v1()) };
         let mut subkeys = Vec::new();
         for sub in &key.public_subkeys {
             if !matches!(sub.key.version(), KeyVersion::V4 | KeyVersion::V6) {

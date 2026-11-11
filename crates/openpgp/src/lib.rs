@@ -68,7 +68,7 @@ mod vector_tests;
 
 pub use autocrypt::{Autocrypt, parse_autocrypt};
 pub use check::{CantCheck, Checked, Coverage, Issuer, NotVerified, Outcome, Signer};
-pub use encrypt::{Certificate, EncryptError, MAX_RECIPIENTS, can_encrypt_to, encrypt, encryption_certificates};
+pub use encrypt::{Certificate, EncryptError, MAX_ENCRYPTED_BYTES, MAX_RECIPIENTS, can_encrypt_to, encrypt, encryption_certificates};
 pub use keys::{Fingerprint, KeyId, KeyRing, PublicKey};
 pub use sign::{AgentKey, HashAlgorithm, SignError, SignatureValue, SigningKey, sign_detached, signing_keys};
 

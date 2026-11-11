@@ -21,11 +21,13 @@ use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::KeyVersion;
 use rand_core::{CryptoRng, RngCore};
 
-use crate::MAX_MESSAGE;
 use crate::keys::{Budget, Encrypting, MAX_CHECKS_PER_CALL, PublicKey};
 
 /// The most recipients one message is encrypted to.
 pub const MAX_RECIPIENTS: usize = 200;
+/// The largest content encrypted: what, armoured, still fits the bytes a message is kept as
+/// (64 MB), with the copies made along the way kept in reach.
+pub const MAX_ENCRYPTED_BYTES: usize = 40 * 1024 * 1024;
 
 /// Why nothing was encrypted. Nothing in it is of the content.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,13 +72,17 @@ pub struct Certificate {
 
 /// The key of `key` to encrypt to at `now`: the newest that is valid, strong enough and of an
 /// algorithm rPGP encrypts with; why not when there is none.
-fn usable(key: &PublicKey, now: u64) -> Result<&Encrypting, &'static str> {
+pub(crate) fn usable(key: &PublicKey, now: u64) -> Result<&Encrypting, &'static str> {
     let Some(primary) = key.primary() else { return Err("its primary key can't be read") };
     if primary.revoked.is_some() {
         return Err("it has been revoked");
     }
     if primary.expired_at(now) {
         return Err("it has expired");
+    }
+    // The primary key vouches for every subkey: a weak one doesn't, whatever the subkey is.
+    if primary.weak.is_some() {
+        return Err("its primary key is too weak to trust");
     }
     let mut why = "it has no key to encrypt to";
     let mut best: Option<&Encrypting> = None;
@@ -153,9 +159,15 @@ pub fn encryption_certificates(bytes: &[u8], now: u64) -> Vec<Certificate> {
 
 /// The random numbers the host gave, as rPGP asks for them. When the host fails, what was asked
 /// for is zeros and [`Random::failed`] says so: whatever is made from it is thrown away.
-struct Random<'a> {
+pub(crate) struct Random<'a> {
     fill: &'a mut dyn FnMut(&mut [u8]) -> bool,
     failed: bool,
+}
+
+impl<'a> Random<'a> {
+    pub(crate) fn new(fill: &'a mut dyn FnMut(&mut [u8]) -> bool) -> Random<'a> {
+        Random { fill, failed: false }
+    }
 }
 
 impl Random<'_> {
@@ -207,7 +219,7 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], now: u64, random: &mut dy
     if content.is_empty() {
         return Err(EncryptError::Encoding);
     }
-    if content.len() > MAX_MESSAGE || recipients.len() > MAX_RECIPIENTS {
+    if content.len() > MAX_ENCRYPTED_BYTES || recipients.len() > MAX_RECIPIENTS {
         return Err(EncryptError::TooLarge);
     }
     if recipients.is_empty() {
@@ -245,7 +257,7 @@ macro_rules! add_to {
     }};
 }
 
-fn write(content: &[u8], keys: &[PublicKey], now: u64, rng: &mut Random<'_>) -> Result<String, EncryptError> {
+pub(crate) fn write(content: &[u8], keys: &[PublicKey], now: u64, rng: &mut Random<'_>) -> Result<String, EncryptError> {
     let mut chosen = Vec::new();
     for key in keys {
         chosen.push((key, usable(key, now).map_err(EncryptError::Key)?));
@@ -260,6 +272,11 @@ fn write(content: &[u8], keys: &[PublicKey], now: u64, rng: &mut Random<'_>) -> 
         }
         builder.to_armored_string(&mut *rng, ArmorOptions::default())
     } else {
+        // A version 6 key among version 4 ones is given the older kind of message, which its
+        // Features must say it reads (RFC 9580 §5.2.3.32): else it can't be encrypted to with them.
+        if chosen.iter().any(|(k, e)| e.version == KeyVersion::V6 && !k.prefs.seipd_v1) {
+            return Err(EncryptError::Key("a version 6 key among the others doesn't say it reads the older kind of encrypted message"));
+        }
         let alg = [SymmetricKeyAlgorithm::AES256, SymmetricKeyAlgorithm::AES192]
             .into_iter()
             .find(|a| keys.iter().all(|k| k.prefs.symmetric.contains(a)))
