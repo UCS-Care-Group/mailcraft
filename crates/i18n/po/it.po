@@ -5862,12 +5862,6 @@ msgid "Issued to"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "It can't be undone"
-msgstr "Non si può annullare"
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file."
@@ -5941,6 +5935,12 @@ msgstr "Viene eseguita su questo computer, mentre MailCraft è aperto."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Viene eseguita lì che MailCraft sia aperto o no, e compare in Outlook sul web e sul telefono."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It skips Deleted Items"
+msgstr "Senza passare da Posta eliminata"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -19840,6 +19840,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "It can't be undone"
+#~ msgstr "Non si può annullare"
 
 #, fuzzy
 #~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"

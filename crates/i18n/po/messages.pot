@@ -5159,11 +5159,6 @@ msgid "Issued to"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-msgid "It can't be undone"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file."
 msgstr ""
@@ -5226,6 +5221,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It skips Deleted Items"
 msgstr ""
 
 #. interface

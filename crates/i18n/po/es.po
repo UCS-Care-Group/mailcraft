@@ -5862,12 +5862,6 @@ msgid "Issued to"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "It can't be undone"
-msgstr "No se puede deshacer"
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file."
@@ -5943,6 +5937,12 @@ msgid "It runs there whether MailCraft is open or not, and shows in Outlook on t
 msgstr "Se ejecuta allí tanto si MailCraft está abierto como si no, y aparece en Outlook en la web y en su teléfono."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It skips Deleted Items"
+msgstr "Sin pasar por Elementos eliminados"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "It uses an algorithm MailCraft doesn't know."
 msgstr ""
@@ -6003,8 +6003,8 @@ msgstr ""
 #, fuzzy
 msgid "Its rule goes too; if its server keeps it, it stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Su regla también se va; si la tiene su servidor, se queda allí."
-msgstr[1] "Sus {n} reglas también se van; las que tiene su servidor se quedan allí."
+msgstr[0] "La regla de la cuenta también se elimina; si su servidor la guarda, allí se queda."
+msgstr[1] "Las {n} reglas de la cuenta también se eliminan; las que guarda su servidor se quedan allí."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -19842,6 +19842,10 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "It can't be undone"
+#~ msgstr "No se puede deshacer"
 
 #, fuzzy
 #~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"

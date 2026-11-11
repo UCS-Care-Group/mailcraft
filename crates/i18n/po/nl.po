@@ -6178,12 +6178,6 @@ msgid "Issued to"
 msgstr "Uitgegeven aan"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "It can't be undone"
-msgstr "Dit kan niet ongedaan worden gemaakt"
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file."
@@ -6259,6 +6253,12 @@ msgstr "Hij wordt op deze computer uitgevoerd, zolang MailCraft open is."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Hij wordt daar uitgevoerd, of MailCraft nu open is of niet, en verschijnt in Outlook op het web en op uw telefoon."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It skips Deleted Items"
+msgstr "Zonder via Verwijderde items"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -20864,6 +20864,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "It can't be undone"
+#~ msgstr "Dit kan niet ongedaan worden gemaakt"
 
 #, fuzzy
 #~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"

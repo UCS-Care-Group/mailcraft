@@ -454,7 +454,7 @@ msgstr "Eine Notiz an den Organisator (optional)"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-msgstr "Eine Benachrichtigung für die Mail, auf die diese Regel beim Eintreffen wirkt, wie bei neuer Mail, auch wenn Benachrichtigungen für neue Mail ausgeschaltet sind"
+msgstr "Eine Benachrichtigung für die E-Mails, auf die diese Regel beim Eintreffen wirkt, wie bei neuen E-Mails, auch wenn Benachrichtigungen für neue E-Mails ausgeschaltet sind"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -5860,12 +5860,6 @@ msgid "Issued to"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "It can't be undone"
-msgstr "Das lässt sich nicht rückgängig machen"
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file."
@@ -5939,6 +5933,12 @@ msgstr "Sie läuft auf diesem Computer, solange MailCraft geöffnet ist."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Sie läuft dort, ob MailCraft geöffnet ist oder nicht, und erscheint in Outlook im Web und auf Ihrem Telefon."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It skips Deleted Items"
+msgstr "Ohne den Umweg über „Gelöschte Elemente“"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -6594,7 +6594,7 @@ msgstr "Nur E-Mail"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mail that any one exception holds for is left alone"
-msgstr "Mail, auf die eine der Ausnahmen zutrifft, bleibt unberührt"
+msgstr "E-Mails, auf die eine der Ausnahmen zutrifft, bleiben unberührt"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -12818,15 +12818,15 @@ msgstr "Die Nachrichten der Unterhaltungen in anderen Ordnern bleiben, wo sie si
 #: crates/engine/src/undo.rs
 #, fuzzy
 msgid "The copy made of '{subject}' stays: it is all there is of the message now."
-msgstr "Die Kopie von '{subject}' bleibt: Sie ist jetzt alles, was von der E-Mail da ist."
+msgstr "Die Kopie von '{subject}' bleibt: sie ist jetzt alles, was von der E-Mail da ist."
 
 #. what a command says
 #: crates/engine/src/undo.rs
 #, fuzzy
 msgid "The copy made of {n} message stays: it is all there is of it now."
 msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
-msgstr[0] "Die Kopie von {n} E-Mail bleibt: Sie ist jetzt alles, was davon da ist."
-msgstr[1] "Die Kopien von {n} E-Mails bleiben: Sie sind jetzt alles, was von diesen E-Mails da ist."
+msgstr[0] "Die Kopie von {n} E-Mail bleibt: sie ist jetzt alles, was davon da ist."
+msgstr[1] "Die Kopien von {n} E-Mails bleiben: sie sind jetzt alles, was von diesen E-Mails da ist."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16035,7 +16035,7 @@ msgstr ""
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr "Eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: Sie würden gesendet"
+msgstr "Eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: sie würden gesendet"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -16473,7 +16473,7 @@ msgstr "es klickt oder tippt im Fenster"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it copies mail to more than one folder"
-msgstr "sie kopiert Mail in mehr als einen Ordner"
+msgstr "sie kopiert E-Mails in mehr als einen Ordner"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -16490,7 +16490,7 @@ msgstr "es löscht endgültig"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-msgstr "sie löscht Mail endgültig, und darum bittet MailCraft keinen Server"
+msgstr "sie löscht E-Mails endgültig, und darum bittet MailCraft keinen Server"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17421,19 +17421,19 @@ msgstr "der Ordner ist bereits leer"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the folder it copies mail to is in another account"
-msgstr "der Ordner, in den sie Mail kopiert, gehört zu einem anderen Konto"
+msgstr "der Ordner, in den sie E-Mails kopiert, gehört zu einem anderen Konto"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the folder it copies mail to is on this computer"
-msgstr "der Ordner, in den sie Mail kopiert, ist auf diesem Computer"
+msgstr "der Ordner, in den sie E-Mails kopiert, ist auf diesem Computer"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the folder it copies mail to isn't on the server"
-msgstr "der Ordner, in den sie Mail kopiert, ist nicht auf dem Server"
+msgstr "der Ordner, in den sie E-Mails kopiert, ist nicht auf dem Server"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -17708,7 +17708,7 @@ msgstr "der Server kann die Regeln nicht in dieser Reihenfolge halten: eine Rege
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't look at the day mail came"
-msgstr "der Server kann nicht auf den Tag achten, an dem Mail kam"
+msgstr "der Server kann nicht auf den Tag achten, an dem eine E-Mail kam"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -19826,6 +19826,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "It can't be undone"
+#~ msgstr "Das lässt sich nicht rückgängig machen"
 
 #, fuzzy
 #~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
