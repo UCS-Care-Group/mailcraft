@@ -10,6 +10,7 @@ use super::*;
 /// A mail exchanger that is nobody's this program knows.
 const HOSTED_MX: &str = "mx.hosted.example";
 
+/// Legacy Hotmail MX discovery starts Microsoft sign-in with Outlook.com's settings and no password prompt.
 #[test]
 fn a_legacy_outlook_custom_domain_discovers_outlook_and_starts_microsoft_sign_in() {
     let mut a = app(false);
