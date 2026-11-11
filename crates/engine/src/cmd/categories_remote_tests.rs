@@ -2647,3 +2647,14 @@ fn an_undo_that_puts_back_an_account_and_what_it_sends_needs_send_too() {
     assert_eq!(crate::agent::also(&s, "edit.undo", &json!({}), Class::Accounts), [Class::Send]);
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Accounts, Class::Send]), Verdict::Run);
 }
+
+/// The question about deleting a category says it goes from Outlook only when it does: not for
+/// one kept on this computer only, nor for a name the list hasn't got (#661).
+#[test]
+fn the_question_about_a_deletion_says_outlook_only_when_it_goes_from_there() {
+    let (s, a) = rig_with_local();
+    let says = |name: &str| crate::agent::describe(&s, "category.remove", &json!({"account": a, "name": name})).contains("from Outlook");
+    assert!(says("Red category"));
+    assert!(!says("Old local"));
+    assert!(!says("Not on the list"));
+}

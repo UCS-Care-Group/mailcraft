@@ -1747,9 +1747,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
             let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
             let whose = owner.and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
-            // A list kept in step with its server: the category goes from Outlook too (#661).
-            let outlook = p::id(params, "account").and_then(|a| s.mailbox.synced_list_owner(a)).is_some()
-                && !owner.is_some_and(|o| s.mailbox.category_is_local(o, st("name")));
+            // A list kept in step with its server: the category goes from Outlook too (#661), as
+            // the call is classed.
+            let outlook = removes_in_outlook(s, params);
             let there = if outlook { " and from Outlook" } else { "" };
             format!("delete the category {}{whose}{there}, taking it off everything that has it{shared}", quoted(st("name")))
         }
