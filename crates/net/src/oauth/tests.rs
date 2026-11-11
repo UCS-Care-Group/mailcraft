@@ -2188,6 +2188,11 @@ fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for()
         assert!(sync.split(' ').any(|s| s == TASKS_SCOPE) && sync.split(' ').any(|s| s == SETTINGS_WRITE), "{sync}");
         assert!(!sync.contains("Shared") && !sync.contains("MailboxConfigItem"), "{sync}");
         assert_eq!(sync.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite"), mail_write, "{sync}");
+        // The one question's page asks for exactly that, with nothing less to fall back to.
+        let page = sync_endpoints(&oauth(), mail_write);
+        assert_eq!((page.scope.as_str(), page.consent.as_str(), page.lesser.as_str()), (sync.as_str(), "", ""));
+        let plain = Endpoints::for_resource(&oauth(), if mail_write { Resource::GraphMail } else { Resource::Graph });
+        assert_eq!((page.authorize, page.token), (plain.authorize, plain.token));
     }
     // A refresh for calendar and contacts, as a sign-in from before asks for it, doesn't mention it.
     let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;

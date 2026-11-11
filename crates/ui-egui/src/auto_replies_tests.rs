@@ -25,7 +25,7 @@ const NOW: i64 = 1_791_993_600;
 
 type Jobs = Arc<Mutex<Vec<(Id, Option<AutoReplies>)>>>;
 type Answers = Arc<Mutex<VecDeque<AutoRepliesResult>>>;
-type SignIns = Arc<Mutex<Vec<(Id, bool, bool)>>>;
+type SignIns = Arc<Mutex<Vec<(Id, bool)>>>;
 
 fn tokens(refresh: &str) -> Tokens {
     Tokens { access: "a".into(), refresh: refresh.into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() }
@@ -48,7 +48,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.sync, false));
+        log.lock().unwrap().push((req.account, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("ref-2"))).unwrap();
         rx
@@ -143,7 +143,7 @@ fn a_change_without_the_permission_asks_the_owner_and_goes_once_he_allows_it() {
         ..Default::default()
     });
     app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
-    assert_eq!(sign_ins.lock().unwrap()[0], (owner, true, false));
+    assert_eq!(sign_ins.lock().unwrap()[0], (owner, true));
     app.poll_sign_in();
     // The change that waited goes now, with the new sign-in, and is said.
     let (account, change) = jobs.lock().unwrap().last().cloned().unwrap();

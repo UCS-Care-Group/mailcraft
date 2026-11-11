@@ -23,7 +23,7 @@ const NOW: i64 = 1_791_993_600;
 
 type Jobs = Arc<Mutex<Vec<(Id, usize)>>>;
 type Answers = Arc<Mutex<VecDeque<RulesResult>>>;
-type SignIns = Arc<Mutex<Vec<(Id, bool, bool)>>>;
+type SignIns = Arc<Mutex<Vec<(Id, bool)>>>;
 
 fn tokens(access: &str, refresh: &str) -> Tokens {
     Tokens { access: access.into(), refresh: refresh.into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() }
@@ -44,7 +44,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.sync, false));
+        log.lock().unwrap().push((req.account, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("rules-access", "ref-2"))).unwrap();
         rx
@@ -130,7 +130,7 @@ fn a_rule_waits_here_until_the_owner_allows_changing_the_rules_on_the_server() {
     assert!(app.run("ui.allowRules", json!({"account": 9_999, "confirmed": true})).is_err());
     app.dialog = None;
     assert_eq!(app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap()["account"], owner);
-    assert_eq!(*sign_ins.lock().unwrap(), [(owner, true, false)]);
+    assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
     app.poll_sign_in();
     assert_eq!(app.rules.perm.get(&owner), None);
     // Allowed: the next look sends it.
@@ -213,7 +213,7 @@ fn a_sign_in_for_another_purpose_never_asks_for_the_rules() {
     let (mut app, owner, _, _, sign_ins) = window();
     let oauth = app.session.mailbox.account(owner).unwrap().oauth.clone().unwrap();
     app.begin_sign_in(owner, oauth, OWNER, String::new(), false, true).unwrap();
-    assert_eq!(*sign_ins.lock().unwrap(), [(owner, false, false)]);
+    assert_eq!(*sign_ins.lock().unwrap(), [(owner, false)]);
 }
 
 /// A held Space or Enter on a rule's Delete button deletes that rule alone: its repeats don't

@@ -939,9 +939,14 @@ pub fn sign_in_for_sync(
     open: &dyn Fn(&str),
     cancel: &AtomicBool,
 ) -> Result<Tokens, FavoritesRefusal> {
+    sign_in_for_favorites_within(&sync_endpoints(oauth, mail_write), oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// The page and the tokens [`sign_in_for_sync`] asks for: [`sync_scope`], in one request, with
+/// nothing less to fall back to.
+fn sync_endpoints(oauth: &OAuth, mail_write: bool) -> Endpoints {
     let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
-    let endpoints = Endpoints { scope: sync_scope(mail_write), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+    Endpoints { scope: sync_scope(mail_write), consent: String::new(), lesser: String::new(), ..plain }
 }
 
 /// Tokens for changing the account's list of categories (#661), and for reading it back: asked
