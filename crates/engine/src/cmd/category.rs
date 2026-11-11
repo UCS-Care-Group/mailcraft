@@ -237,7 +237,7 @@ fn tell_events(s: &mut Session, before: &[mailcraft_model::Event]) -> Result<(),
 
 /// Whether a change of `e`'s categories goes to its server ([`tell_events`]): its calendar may be
 /// changed there, and isn't a shared mailbox's.
-fn told(mb: &mailcraft_model::Mailbox, e: &mailcraft_model::Event) -> bool {
+pub(crate) fn told(mb: &mailcraft_model::Mailbox, e: &mailcraft_model::Event) -> bool {
     let shared = mb.calendar(e.calendar).and_then(|c| mb.account(c.origin.account)).is_some_and(|a| a.is_shared());
     !shared && super::remote::writable(mb, e.calendar).is_ok()
 }

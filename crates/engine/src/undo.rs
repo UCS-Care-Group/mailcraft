@@ -52,6 +52,8 @@ pub(crate) struct Touched {
     categories: BTreeMap<Id, CategoryStep>,
     /// The Public keys it imported, removed or changed (#30): an undo puts back only those.
     keys: Vec<mailcraft_model::public_keys::KeyName>,
+    /// The events whose categories it changed, with the categories it left them (#661).
+    event_categories: BTreeMap<Id, Vec<String>>,
 }
 
 /// What a change did to one account's own list of categories (#661): each category it made,
@@ -75,6 +77,11 @@ impl Touched {
     /// Whether the change added, changed or took away the contact `id`.
     pub(crate) fn changed_contact(&self, id: Id) -> bool {
         self.changed_contacts.contains(&id)
+    }
+
+    /// The events whose categories the change changed, with the categories it left them (#661).
+    pub(crate) fn event_categories(&self) -> &BTreeMap<Id, Vec<String>> {
+        &self.event_categories
     }
 }
 
@@ -152,6 +159,30 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
             }
             (_, Some((id, _))) => {
                 t.changed_contacts.insert(**id);
+                is.next();
+            }
+        }
+    }
+    // The events whose categories it changed (one walk of both maps, as for the contacts).
+    let mut was = before.events.iter().peekable();
+    let mut is = after.events.iter().peekable();
+    loop {
+        match (was.peek(), is.peek()) {
+            (None, None) => break,
+            (Some((id, b)), Some((n, a))) if id == n => {
+                if !Arc::ptr_eq(a, b) && a.categories != b.categories {
+                    t.event_categories.insert(**id, a.categories.clone());
+                }
+                was.next();
+                is.next();
+            }
+            (Some((id, _)), Some((n, _))) if id < n => {
+                was.next();
+            }
+            (Some(_), None) => {
+                was.next();
+            }
+            (_, Some(_)) => {
                 is.next();
             }
         }

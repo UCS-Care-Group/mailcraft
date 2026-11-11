@@ -3123,6 +3123,43 @@ impl Session {
 
     /// Go to the mailbox of `u`. A Microsoft account's mail stays in step with its server: what
     /// the server last said is kept, so the next run sends the reverse ([`crate::undo`]).
+    /// The events whose categories the step undone (or redone) changed and whose servers were
+    /// told are told again, the other way (#661): mail and to-dos need nothing of the kind, as
+    /// what differs from the server's copy goes by itself, but an event's change goes only when
+    /// it is noted. One changed since (by its server, say) is left alone, and so is one whose
+    /// change never went: the changes waiting that are put back haven't got it, and its server
+    /// has what is put back. Only the categories go, which writes to nobody.
+    fn tell_events_again(&mut self, now: &Mailbox, touched: &crate::undo::Touched) {
+        use mailcraft_model::remote::EventChangeKind;
+        let offset_at = crate::cmd::remote::offset_of(self);
+        let mut no_room = 0u64;
+        for (id, left) in touched.event_categories() {
+            let (Some(was), Some(is)) = (now.events.get(id), self.mailbox.events.get(id)) else { continue };
+            if was.categories != *left || is.categories == was.categories || !crate::cmd::category::told(&self.mailbox, is) {
+                continue;
+            }
+            let waiting =
+                |c: &mailcraft_model::remote::EventChange| c.kind == EventChangeKind::Update && !c.remote.is_empty() && c.remote == was.origin.id;
+            if now.event_changes.iter().any(waiting) {
+                continue;
+            }
+            let mut there = (**is).clone();
+            there.categories.clone_from(&was.categories);
+            if crate::cmd::remote::note_changed(&mut self.mailbox, &there, &offset_at).is_err() {
+                no_room = no_room.saturating_add(1);
+            }
+        }
+        if no_room > 0 {
+            let lang = self.interface_language;
+            let line = lang.tn(
+                no_room,
+                "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent.",
+                "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent.",
+            );
+            self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &no_room.to_string())]));
+        }
+    }
+
     fn swap(&mut self, u: Undo) -> Undo {
         let now = std::mem::take(&mut self.mailbox);
         let (back, said) = crate::undo::keep_in_step(u.mailbox, &u.touched, &now, self.interface_language);
@@ -3145,6 +3182,7 @@ impl Session {
             .filter(|(at, _)| *at == counted)
             .and_then(|(_, mut counts)| Arc::make_mut(&mut counts).apply(&changes).then_some((after, counts)));
         self.undo_said = said;
+        self.tell_events_again(&now, &u.touched);
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
         self.ews_run_cut.clear();

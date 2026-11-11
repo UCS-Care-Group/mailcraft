@@ -2050,6 +2050,39 @@ fn a_rename_or_a_removal_is_told_to_the_calendar_and_the_old_name_waits_for_it()
     assert!(s.mailbox.event_changes.is_empty());
 }
 
+/// An undo of a rename whose events' server was told tells it the old name again, and a redo
+/// the new one, as mail and to-dos go by themselves; one whose change never went tells nothing,
+/// nor does one its server changed since (#661).
+#[test]
+fn an_undo_of_a_rename_that_reached_the_events_server_tells_it_again() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old"]);
+    let told = |s: &Session| s.mailbox.event_changes.iter().map(|c| c.base.as_ref().map(|b| b.categories.clone())).collect::<Vec<_>>();
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    // Undone before it went: nothing to tell.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
+    assert!(s.mailbox.event_changes.is_empty());
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(told(&s), [Some(vec!["Old".to_string()])]);
+    // Gone, then undone: the server, which has the new name, is told the old one.
+    s.mailbox.event_changes.clear();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
+    assert_eq!(told(&s), [Some(vec!["New".to_string()])]);
+    assert!(s.mailbox.event_changes.iter().all(|c| !c.send), "a change of categories writes to nobody");
+    // Gone, then redone: the new name again.
+    s.mailbox.event_changes.clear();
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["New"]);
+    assert_eq!(told(&s), [Some(vec!["Old".to_string()])]);
+    // Changed by its server since: left alone.
+    s.mailbox.event_changes.clear();
+    s.mailbox.event_mut(e).unwrap().categories = vec!["Green".into()];
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.event_changes.is_empty());
+}
+
 #[test]
 fn other_letters_alone_go_at_once_for_the_items_there_are_the_same_name() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);

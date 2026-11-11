@@ -18970,6 +18970,14 @@ msgid_plural "{n} events in view"
 msgstr[0] "{n} Ereignis in der Ansicht"
 msgstr[1] "{n} Ereignisse in der Ansicht"
 
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
+msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
+msgstr[0] "{n} Ereignis behält seine Kategorien auf seinem Server, wie sie waren: Zu viele Änderungen warten darauf, gesendet zu werden."
+msgstr[1] "{n} Ereignisse behalten ihre Kategorien auf ihren Servern, wie sie waren: Zu viele Änderungen warten darauf, gesendet zu werden."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{n} file left out"
