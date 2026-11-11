@@ -253,6 +253,117 @@ pub(crate) fn run_fetch_with(request: &JmapFetchRequest, secret: &str, stop: &St
     })
 }
 
+// What follows is not in the runner above, and is built on its pieces ([`Transport`], [`Stop`],
+// [`credentials`]): an account's contacts (RFC 9610), read in one answer on a thread of the job's
+// own and never written; and what a job says when it has no credential it could send. The job
+// carries a stop of its own, which is latched as a run's is ([`Stop::new`]). What a job of one kind
+// of an account's data does whatever the kind is in [`on_thread`] and [`signed_in`].
+
+use mailcraft_jmap::{Redactor, failed_contacts, sync_contacts};
+use mailcraft_model::sync::{JmapContactsRequest, JmapContactsResult};
+use mailcraft_ui_egui::jmap_mail::{JmapContactsJob, JmapSideJob};
+
+/// Scrubs `error` of the account's secret, address, session URL and any word containing `@`.
+pub(crate) fn redacted_line(email: &str, session: &str, secret: &str, error: &dyn std::fmt::Display) -> String {
+    let mut redactor = Redactor::new();
+    redactor.add(secret);
+    if !secret.trim().is_empty() {
+        redactor.add(secret.trim());
+    }
+    redactor.add_personal(email);
+    redactor.add_personal(session);
+    let cut = redactor.excerpt(&error.to_string());
+    cut.as_str().split(' ').map(|word| if word.contains('@') || word.contains("%40") { "[redacted]" } else { word }).collect::<Vec<&str>>().join(" ")
+}
+
+/// Why [`credentials`] has none to send for the account, in words free of the secret, the address
+/// and the server's.
+pub(crate) fn unsendable(email: &str, session: &str, bearer: bool, secret: &str) -> String {
+    let why = if bearer { Credentials::bearer(secret).err() } else { Credentials::basic(email.trim(), secret).err() };
+    match why {
+        Some(why) => redacted_line(email, session, secret, &why),
+        None => "there is no password or token to sign in with".to_string(),
+    }
+}
+
+/// Runs `job`, which reads `what` of a JMAP account, on a thread of its own: `run` with the job's
+/// request, its secret and a stop of its own, and the one answer handed back, waking the window.
+fn on_thread<Q, R>(job: JmapSideJob<Q>, wake: &egui::Context, what: &'static str, run: fn(&Q, &str, &Stop) -> R) -> Receiver<R>
+where
+    Q: Send + 'static,
+    R: Send + 'static,
+{
+    let (tx, rx) = std::sync::mpsc::channel();
+    let wake = wake.clone();
+    let spawned = std::thread::Builder::new().name(format!("jmap {what}")).spawn(move || {
+        let JmapSideJob { request, secret, cancel } = job;
+        let _ = tx.send(run(&request, &secret, &Stop::new(cancel)));
+        wake.request_repaint();
+    });
+    if let Err(e) = spawned {
+        log::error!("couldn't start reading the {what} of a JMAP account: {e}");
+    }
+    rx
+}
+
+/// An answer of the kind `$answer` to `$request` that says a line and nothing else, made from the
+/// line: the answers of every kind name the account, its address and its session's the same way.
+macro_rules! only_a_line {
+    ($answer:ident, $request:expr) => {
+        |line| $answer {
+            account: $request.account,
+            email: $request.email.clone(),
+            session: $request.session.clone(),
+            errors: vec![line],
+            ..Default::default()
+        }
+    };
+}
+
+/// Whose data a job reads, as its request says, and the secret it goes with.
+struct Whose<'a> {
+    email: &'a str,
+    session: &'a str,
+    bearer: bool,
+    secret: &'a str,
+}
+
+/// Signs in for a job that reads `what`, and has `read` do the reading over the connection. Without a
+/// credential that could be sent nothing is sent, and the answer is `unsent` of a line that says so; a
+/// sign-in that fails is `failed`'s to tell.
+fn signed_in<R>(
+    whose: &Whose<'_>,
+    stop: &Stop,
+    what: &str,
+    unsent: impl FnOnce(String) -> R,
+    failed: impl FnOnce(&Error) -> R,
+    read: impl AsyncFnOnce(&Connection<Transport>) -> R,
+) -> R {
+    let Some(credentials) = credentials(whose.email, whose.bearer, whose.secret) else {
+        let why = unsendable(whose.email, whose.session, whose.bearer, whose.secret);
+        return unsent(format!("Couldn't read the {what} from the server: {why}"));
+    };
+    crate::block_on::block_on(async {
+        match Connection::connect(Transport::new(stop.clone()), whose.session, credentials).await {
+            Ok(connection) => read(&connection).await,
+            Err(error) => failed(&error),
+        }
+    })
+}
+
+/// Reads the contacts of a JMAP account on a thread of its own.
+pub(crate) fn run_contacts(job: JmapContactsJob, wake: &egui::Context) -> Receiver<JmapContactsResult> {
+    on_thread(job, wake, "contacts", run_contacts_with)
+}
+
+/// [`run_contacts`] on this thread.
+pub(crate) fn run_contacts_with(request: &JmapContactsRequest, secret: &str, stop: &Stop) -> JmapContactsResult {
+    let whose = Whose { email: &request.email, session: &request.session, bearer: request.bearer, secret };
+    let unsent = only_a_line!(JmapContactsResult, request);
+    let failed = |error: &Error| failed_contacts(request, error);
+    signed_in(&whose, stop, "contacts", unsent, failed, async |connection| sync_contacts(connection, request, stop.flag()).await)
+}
+
 #[cfg(test)]
 #[path = "jmap_runner_tests.rs"]
 mod tests;

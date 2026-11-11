@@ -4,7 +4,8 @@
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
 such an account in the desktop app and in the browser build, and takes what you change in its mail
-up to its server. The command line has no way to reach a JMAP server yet: `mailcraft-cli sync`
+up to its server; the desktop app reads its contacts too, where the server offers them (JMAP for
+Contacts, RFC 9610). The command line has no way to reach a JMAP server yet: `mailcraft-cli sync`
 refuses it.
 
 ## What works
@@ -21,6 +22,18 @@ refuses it.
 - **What the server changes comes down**: new mail, read marks, flags, answered and forwarded marks,
   and mail gone from a mailbox small enough to be read whole in a run (no more messages than
   Messages to download per folder, nor than the server takes in one request).
+- **The account's contacts come down**, in the desktop app, from a server that offers JMAP for
+  Contacts (RFC 9610): every contact of every address book of the account, 20,000 at the most, with
+  names, company and title, e-mail addresses, phone numbers, postal addresses, web addresses,
+  birthday and notes. People shows them beside the contacts kept on this computer. They are read by
+  themselves after the account's first Send/Receive and after each one you ask for, and otherwise
+  every quarter of an hour while Send/Receive runs by itself, with the password or token the
+  Send/Receive went with (nothing asks you for one for the contacts alone). A contact the server no
+  longer has goes from here once the whole list could be read; a list read in part only adds and
+  updates. A server that offers no contacts is not asked again until the program starts anew or
+  you ask for the account's Send/Receive. They are read only: a contact the server keeps is not
+  changed or deleted here, as a Microsoft account's is not. A contact's picture is not read, and no
+  address in a contact is fetched. Groups of contacts are passed over.
 
 - **What you change goes up** (#1074): a read mark, a flag, the answered and forwarded marks, a
   move between two of the server's mailboxes (Delete is a move into its Deleted Items) and a
@@ -172,6 +185,16 @@ File › Open, and give the token when Send/Receive asks.
   server it was asked for; it never reaches a server ([control-protocol.md](control-protocol.md)).
 - The window hands a run to its host (`Services::jmap`, `Services::jmap_fetch`) with the
   credential, and takes the pieces in as they come.
+- Contacts are a job of their own (`Services::jmap_contacts`, `crates/ui-egui/src/jmap_contacts.rs`):
+  `mailcraft_jmap::sync_contacts` lists the cards (`ContactCard/query`) and reads them
+  (`ContactCard/get`), each JSContact card (RFC 9553) made into a contact within bounds
+  (`crates/jmap/src/contacts/card.rs`), and the engine merges them as it does a Microsoft account's
+  (`cmd::remote::apply_contacts`). Only the desktop app is a host for it so far. What is the same
+  for every kind of data read this way has one home in each layer: the list page by page and the
+  `get` that is halved until the item that breaks it is found (`crates/jmap/src/reader.rs`,
+  `Calls::read_all`), when such a job is due in the window and how long it waits after one that
+  came to nothing (`crates/ui-egui/src/jmap_side_job.rs`), and the thread and the sign-in of the
+  desktop's job (`on_thread` and `signed_in` in `apps/mailcraft/src/jmap_runner.rs`).
 - The desktop app is that host (`apps/mailcraft/src/jmap_runner.rs`), over `mailcraft_net::https`,
   each job on a thread of its own; Stop is heard before each request.
 - The browser build is that host too (`apps/mailcraft-web/src/jmap.rs`), over `fetch`

@@ -351,3 +351,84 @@ fn a_retry_date_is_no_answer_while_the_clock_is_not_set() {
     // Seconds need no clock.
     assert_eq!(after("45").retry_after(), Some("45"));
 }
+
+// What follows tests what is not in the runner's first part: contacts, and the line a job says
+// without a credential it could send. The server is the one above ([`serve`]).
+
+use mailcraft_model::sync::JmapContactsRequest;
+
+/// A stop nobody has asked for, or one already asked for.
+fn stop(called_off: bool) -> Stop {
+    Stop::new(Arc::new(AtomicBool::new(called_off)))
+}
+
+fn contacts_request(session: &str) -> JmapContactsRequest {
+    JmapContactsRequest { account: ACCOUNT, email: "ada@example.org".into(), session: session.into(), bearer: true }
+}
+
+#[test]
+fn contacts_with_a_credential_that_cannot_be_sent_say_so_without_the_secret_or_the_address() {
+    // (A session address nothing listens at: the run ends before any request.)
+    let session = "https://jmap.example.org/jmap/session?user=ada@example.org";
+    let secret = "bad token with spaces";
+    let result = run_contacts_with(&contacts_request(session), secret, &stop(false));
+    assert_eq!((result.account, result.email.as_str(), result.session.as_str()), (ACCOUNT, "ada@example.org", session));
+    assert!(result.contacts.is_none() && !result.not_offered && !result.auth_refused && !result.stopped);
+    let [line]: [String; 1] = result.errors.try_into().unwrap();
+    assert!(line.starts_with("Couldn't read the contacts from the server: "), "{line}");
+    assert!(!line.contains(secret) && !line.contains("ada@example.org") && !line.contains("jmap.example.org"), "{line}");
+}
+
+#[test]
+fn no_secret_for_contacts_sends_nothing_and_says_so() {
+    let (server, _) = filled();
+    let served = serve(&server);
+    let contacts = run_contacts_with(&contacts_request(&served.session), "", &stop(false));
+    assert!(contacts.contacts.is_none() && !contacts.auth_refused && contacts.errors.len() == 1, "{:?}", contacts.errors);
+    assert_eq!(served.requests.load(Ordering::Relaxed), 0, "no connection was made");
+}
+
+#[test]
+fn contacts_run_over_http_and_a_server_without_them_is_said_to_offer_none() {
+    // (The stand-in keeps mail alone: the sign-in goes through the runner's transport, and the
+    // reader finds that the session names no account for contacts.)
+    let (server, _) = filled();
+    let served = serve(&server);
+    let contacts = run_contacts_with(&contacts_request(&served.session), TOKEN, &stop(false));
+    assert!(contacts.not_offered && contacts.contacts.is_none() && !contacts.auth_refused, "{:?}", contacts.errors);
+    assert!(contacts.errors.is_empty(), "{:?}", contacts.errors);
+    assert_eq!((contacts.account, contacts.session.as_str()), (ACCOUNT, served.session.as_str()));
+    assert!(served.requests.load(Ordering::Relaxed) >= 1, "it signed in");
+}
+
+#[test]
+fn a_secret_the_server_refuses_for_contacts_asks_the_owner_again() {
+    let (server, _) = filled();
+    let served = serve(&server);
+    let contacts = run_contacts_with(&contacts_request(&served.session), "not-the-token", &stop(false));
+    assert!(contacts.auth_refused && contacts.contacts.is_none());
+    assert!(!contacts.errors.iter().any(|line| line.contains("not-the-token")));
+}
+
+#[test]
+fn contacts_called_off_before_they_begin_send_nothing() {
+    let (server, _) = filled();
+    let served = serve(&server);
+    let contacts = run_contacts_with(&contacts_request(&served.session), TOKEN, &stop(true));
+    assert!(contacts.contacts.is_none() && !contacts.auth_refused && !contacts.not_offered);
+    assert_eq!(served.requests.load(Ordering::Relaxed), 0, "no connection was made");
+}
+
+#[test]
+fn a_line_about_a_failure_names_neither_the_secret_nor_the_account_nor_the_server() {
+    let session = "https://jmap.example.org/jmap/session";
+    let said = "ada@example.org could not sign in at https://jmap.example.org/jmap/session with made-up-words (bo@example.net)";
+    let line = redacted_line("ada@example.org", session, " made-up-words ", &said);
+    for hidden in ["ada@example.org", "jmap.example.org", "made-up-words", "bo@example.net"] {
+        assert!(!line.contains(hidden), "{hidden} in {line}");
+    }
+    // What can't be sent is said in words that hold none of it; no secret at all is said plainly.
+    let why = unsendable("ada@example.org", session, true, "two\r\nlines");
+    assert!(!why.is_empty() && !why.contains("two") && !why.contains("ada@example.org"), "{why}");
+    assert!(!unsendable("ada@example.org", session, false, "").is_empty());
+}

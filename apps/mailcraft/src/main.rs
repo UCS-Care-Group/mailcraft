@@ -1707,6 +1707,7 @@ fn services(
     let fetch_ctx = ctx.clone();
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let (jmap_ctx, jmap_fetch_ctx) = (ctx.clone(), ctx.clone());
+    let jmap_contacts_ctx = ctx.clone();
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
@@ -1766,6 +1767,8 @@ fn services(
         // A JMAP account (M6): read over HTTPS, and its messages fetched whole.
         jmap: Some(Box::new(move |job| jmap_runner::run_mail(job, &jmap_ctx))),
         jmap_fetch: Some(Box::new(move |job| jmap_runner::run_fetch(job, &jmap_fetch_ctx))),
+        // Its contacts (RFC 9610), read and never written.
+        jmap_contacts: Some(Box::new(move |job| jmap_runner::run_contacts(job, &jmap_contacts_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))

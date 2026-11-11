@@ -31,6 +31,8 @@
 //!   `Email/set`), and reads its mailboxes and the newest messages in them, as the request the engine
 //!   worked out says; and hands what came of each over in pieces ([`mail`]).
 //! - [`fetch`] brings messages whole: the raw octets an email's blob holds.
+//! - [`sync_contacts`] reads the account's contacts (RFC 9610, cards in JSContact, RFC 9553), when the
+//!   server offers them ([`contacts`]). Read only.
 //!
 //! Everything a server sends is hostile: sizes, counts, nesting and the length of every string are
 //! bounded, ids are held to the JMAP alphabet ([`Id`]), and nothing indexes into what came over the wire.
@@ -102,8 +104,11 @@ mod test_support;
 
 // The mail client.
 pub mod connection;
+pub mod contacts;
 pub mod fetch;
 pub mod mail;
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+mod reader;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin;
 
@@ -111,6 +116,7 @@ pub use address::{Address, AddressError, Origin, Scheme};
 pub use classify::judge_response;
 pub use client::{Client, fetch_session, read_session, session_request};
 pub use connection::{Connection, Failure};
+pub use contacts::{CAPABILITY_CONTACTS, failed_contacts, sync_contacts};
 pub use credentials::{Credentials, CredentialsError};
 pub use discovery::session_address;
 pub use error::{BuildError, Error, LimitName, RequestProblem, Unusable};
