@@ -27,6 +27,8 @@ pub const AVAILABLE: bool = false;
 #[cfg(not(target_arch = "wasm32"))]
 mod anchors;
 #[cfg(not(target_arch = "wasm32"))]
+mod autoconfig;
+#[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
 mod discover;
@@ -105,7 +107,7 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
-    pub use crate::discover::{discover, discover_at};
+    pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
     pub use crate::pinned::pin_check_under_way;

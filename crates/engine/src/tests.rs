@@ -817,6 +817,41 @@ fn accounts_that_sign_in_on_the_providers_page() {
     );
     // A guess is never "outside": it is made from the address's own domain.
     assert_eq!(half["incoming"]["outside"].as_bool(), Some(false));
+    // #1112: what the domain publishes for mail programs or Mozilla's ISP database lists is
+    // taken the same way, and the user name is what the source's placeholders make of the address.
+    let published = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "found": {
+            "incoming": {"host": "mail.lumen.example", "security": "tls", "via": "autoconfig"},
+            "outgoing": {"host": "smtp.hosted.example", "security": "starttls", "via": "ispdb"},
+            "username": "%EMAILLOCALPART%"
+        }}),
+    );
+    assert_eq!(
+        (published["known"].as_bool(), published["via"].as_str(), published["username"].as_str()),
+        (Some(false), Some("autoconfig"), Some("Avery"))
+    );
+    assert_eq!(
+        (published["incoming"]["port"].as_u64(), published["incoming"]["via"].as_str(), published["incoming"]["outside"].as_bool()),
+        (Some(993), Some("autoconfig"), Some(false))
+    );
+    assert_eq!(
+        (published["outgoing"]["port"].as_u64(), published["outgoing"]["via"].as_str(), published["outgoing"]["outside"].as_bool()),
+        (Some(587), Some("ispdb"), Some(true))
+    );
+    // A placeholder nobody knows, or a user name with nothing found beside it: the address.
+    for (records, why) in [
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%@%NOBODY%"}),
+            "unknown placeholder",
+        ),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "\r\n"}), "empty"),
+        (json!({"username": "%EMAILLOCALPART%"}), "nothing found"),
+    ] {
+        let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
+        assert_eq!(odd["username"], "avery@lumen.example", "{why}");
+    }
     // A server without encryption, a host that isn't one, a source nobody knows, a bad port: the
     // usual names stand in.
     for (bad, why) in [

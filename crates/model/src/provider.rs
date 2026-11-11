@@ -272,18 +272,28 @@ pub enum Via {
     /// The domain's own DNS: an `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp` or
     /// `_submission._tcp` SRV record (RFC 6186).
     Srv,
+    /// What the domain publishes for mail programs: `https://autoconfig.<domain>/…` or
+    /// `https://<domain>/.well-known/autoconfig/…` (Thunderbird's autoconfig document, #1112).
+    Autoconfig,
+    /// Mozilla's ISP database (`autoconfig.thunderbird.net`), asked about the domain, or about
+    /// the domain of its mail exchanger (#1112).
+    Ispdb,
 }
 
 impl Via {
     pub fn code(self) -> &'static str {
         match self {
             Via::Srv => "srv",
+            Via::Autoconfig => "autoconfig",
+            Via::Ispdb => "ispdb",
         }
     }
 
     pub fn parse(code: &str) -> Option<Via> {
         match code.trim() {
             "srv" => Some(Via::Srv),
+            "autoconfig" => Some(Via::Autoconfig),
+            "ispdb" => Some(Via::Ispdb),
             _ => None,
         }
     }
@@ -309,7 +319,7 @@ impl std::fmt::Debug for FoundServer {
 
 /// What a host with sockets found out about a domain nobody here knows, once the owner pressed
 /// Connect: its mail exchangers (by which [`by_mx`] may know whose it is), and, when they say
-/// nothing, the servers the domain's own records name, for the owner to confirm.
+/// nothing, the servers the domain's own records or a database name, for the owner to confirm.
 /// Nothing here was looked up by the model: `mailcraft_net::discover` fills it in.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Discovered {
@@ -317,6 +327,9 @@ pub struct Discovered {
     pub exchangers: Vec<String>,
     pub incoming: Option<FoundServer>,
     pub outgoing: Option<FoundServer>,
+    /// How the owner signs in, as the servers' source wrote it: the address or one of its
+    /// parts, `%EMAILADDRESS%`, `%EMAILLOCALPART%` or `%EMAILDOMAIN%`; empty for the address.
+    pub username: String,
 }
 
 /// The hosts are the organisation's own: not for a log.
