@@ -1257,10 +1257,16 @@ pub const IMPORTED: &str = "Imported";
 /// is filed as sent that wasn't.
 pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP account yet";
 
-/// Why a JMAP account's mail stays where its server has it ([`Mailbox::stays_on_server`]): a move
-/// or a deletion reaches the server only once the engine sends changes, and until then the next
-/// run would bring the message back where it was.
-pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back";
+/// Why mail a JMAP account's server has doesn't go into a folder that server hasn't got
+/// ([`Mailbox::stays_out_of`]): a move goes up as a move between two of the server's mailboxes, and
+/// there is none for it to go to. The next run would bring the message back where it was.
+pub const ONLY_SERVER_FOLDERS: &str =
+    "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back";
+
+/// Why a folder holding what a JMAP account's server has isn't deleted, nor Deleted Items emptied
+/// of one ([`Mailbox::folder_stays_on_server`]): the server isn't told of folders yet, and the
+/// next run would bring it back.
+pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back";
 
 /// What a message moved into an IMAP account's Outbox says of why it isn't sent
 /// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
@@ -1926,7 +1932,7 @@ impl Mailbox {
         }
         // Nor one holding what a JMAP account's server has: the next run would bring it back.
         if self.folder_stays_on_server(id) {
-            return Err(invalid(NOT_MOVING_YET));
+            return Err(invalid(FOLDERS_NOT_DELETED_YET));
         }
         let deleted = self.folder_of_kind(f.account, FolderKind::Deleted);
         let in_deleted = deleted.is_some_and(|d| self.subtree(d).contains(&id));
@@ -2124,12 +2130,12 @@ impl Mailbox {
         if fresh { None } else { self.waiting_move(id) }
     }
 
-    /// Move a message to another folder, but not one a JMAP account's server has
-    /// ([`Mailbox::stays_on_server`]): its server isn't told of the move yet.
+    /// Move a message to another folder, but not one a JMAP account's server has into a folder
+    /// that server hasn't got ([`Mailbox::stays_out_of`]): there is no move its server could make.
     pub fn move_message(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
         let moves = self.message(id).is_some_and(|m| m.folder != folder) && self.folder(folder).is_some();
-        if moves && self.stays_on_server(id) {
-            return Err(invalid(NOT_MOVING_YET));
+        if moves && self.stays_out_of(id, folder) {
+            return Err(invalid(ONLY_SERVER_FOLDERS));
         }
         self.move_message_anyway(id, folder)
     }
@@ -2152,8 +2158,8 @@ impl Mailbox {
         let mut moved = Vec::new();
         for id in ids {
             let Some(account) = self.message(*id).filter(|m| m.folder != folder).map(|m| m.account) else { continue };
-            if self.folder(folder).is_some() && self.stays_on_server(*id) {
-                return Err(invalid(NOT_MOVING_YET));
+            if self.folder(folder).is_some() && self.stays_out_of(*id, folder) {
+                return Err(invalid(ONLY_SERVER_FOLDERS));
             }
             self.move_anyway(*id, folder, !waited.contains(id))?;
             moved.push((*id, account));
@@ -2161,15 +2167,33 @@ impl Mailbox {
         Ok(moved)
     }
 
-    /// Whether `id` is a message a JMAP account's server has. It stays where it is until moves and
-    /// deletions go up to the server ([`NOT_MOVING_YET`]); mail only this computer has in such an
-    /// account's folders (a draft saved here, mail imported there) moves and goes as any other.
-    pub fn stays_on_server(&self, id: Id) -> bool {
+    /// Whether `id` is a message a JMAP account's server has: what is done to it here goes up to
+    /// that server, a mark as its keywords, a move as a move between two of its mailboxes, a
+    /// deletion for good as one there. Mail only this computer has in such an account's folders (a
+    /// draft saved here, mail imported there) moves and goes as any other.
+    pub fn on_jmap_server(&self, id: Id) -> bool {
         self.message(id).is_some_and(|m| m.server.is_some() && self.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap))
     }
 
-    /// Whether any account is a JMAP account: without one, nothing stays on a server
-    /// ([`Mailbox::stays_on_server`]), and a selection needn't be walked to know it.
+    /// Whether the message `id` can't go into `folder` because a JMAP account's server has it
+    /// ([`Mailbox::on_jmap_server`]) and `folder` is not one of that account's folders that the
+    /// server has too ([`ONLY_SERVER_FOLDERS`]): a folder made here, a standard folder the server
+    /// has no mailbox for, the Outbox, another account's folder. The server would never hear of
+    /// it, and the next run would bring the message back.
+    pub fn stays_out_of(&self, id: Id, folder: Id) -> bool {
+        let Some(m) = self.message(id).filter(|_| self.on_jmap_server(id)) else { return false };
+        !self.folder(folder).is_some_and(|f| f.account == m.account && f.server.is_some())
+    }
+
+    /// Whether a message deleted for good in `account` waits in the queue for its server to delete
+    /// it too ([`Queued::DeleteMessage`]): an account whose changes are kept for its server
+    /// ([`Mailbox::keeps_changes_for_server`]), and a JMAP account.
+    pub fn queues_deletions(&self, account: Id) -> bool {
+        self.keeps_changes_for_server(account) || self.account(account).is_some_and(|a| a.kind == AccountKind::Jmap)
+    }
+
+    /// Whether any account is a JMAP account: without one, nothing stays out of a folder
+    /// ([`Mailbox::stays_out_of`]), and a selection needn't be walked to know it.
     pub fn has_jmap_account(&self) -> bool {
         self.accounts.iter().any(|a| a.kind == AccountKind::Jmap)
     }
@@ -2182,7 +2206,8 @@ impl Mailbox {
     }
 
     /// Whether the folder `id`, with the folders in it, holds what a JMAP account's server has: a
-    /// mailbox of its, or mail it has. Such a folder isn't deleted here yet.
+    /// mailbox of its, or mail it has. Such a folder isn't deleted here yet
+    /// ([`FOLDERS_NOT_DELETED_YET`]): the changes of messages go up, those of folders don't.
     pub fn folder_stays_on_server(&self, id: Id) -> bool {
         let Some(f) = self.folder(id) else { return false };
         if !self.account(f.account).is_some_and(|a| a.kind == AccountKind::Jmap) {
@@ -2193,12 +2218,12 @@ impl Mailbox {
             || self.messages.values().any(|m| tree.contains(&m.folder) && m.server.is_some())
     }
 
-    /// Whether emptying the folder `id` would take what a JMAP account's server has: mail in it, or,
-    /// in Deleted Items, a folder that holds some ([`Mailbox::folder_stays_on_server`]).
+    /// Whether emptying the folder `id` would take a folder that holds what a JMAP account's
+    /// server has ([`Mailbox::folder_stays_on_server`]): one in Deleted Items. The mail in the
+    /// folder itself goes, and its server is told ([`Mailbox::queues_deletions`]).
     pub fn emptying_stays_on_server(&self, id: Id) -> bool {
         let deleted = self.folder(id).is_some_and(|f| f.kind == FolderKind::Deleted);
-        self.messages_in(id).any(|m| self.stays_on_server(m.id))
-            || (deleted && self.folders.iter().any(|c| c.parent == Some(id) && self.folder_stays_on_server(c.id)))
+        deleted && self.folders.iter().any(|c| c.parent == Some(id) && self.folder_stays_on_server(c.id))
     }
 
     /// Move a message to another folder, once [`Mailbox::move_message`] lets it.
@@ -2731,7 +2756,7 @@ impl Mailbox {
     fn queue_graph_delete(&mut self, id: Id, own: bool) {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
+        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.queues_deletions(m.account)) {
             deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
         }
         if let Some(out) = &m.moving_out {
@@ -2756,10 +2781,6 @@ impl Mailbox {
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
     pub fn remove_message(&mut self, id: Id) -> Result<Message, ModelError> {
-        // Not one a JMAP account's server has: the next run would bring it back.
-        if self.stays_on_server(id) {
-            return Err(invalid(NOT_MOVING_YET));
-        }
         let (was_in, account, uid, message_id, seen) = {
             let m = self.message(id).ok_or(not_found("message", id))?;
             (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))

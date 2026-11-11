@@ -41,7 +41,7 @@ const MAX_ID: usize = 255;
 const MAX_PAGES: usize = 1_000;
 /// Lines of trouble kept of one piece, and the longest, in characters.
 const MAX_LINES: usize = 32;
-const MAX_LINE: usize = 400;
+pub(crate) const MAX_LINE: usize = 400;
 /// Longest subject and `Message-ID` kept, in characters.
 pub(crate) const MAX_TEXT: usize = 998;
 /// Longest preview kept, in characters.
@@ -231,13 +231,11 @@ fn bounded_listing(listing: &mut FolderListing) {
     listing.complete &= whole;
 }
 
-/// A piece of a JMAP run held to its sizes, as the module documentation says. What became of
-/// changes and of mail sent is taken out: nothing goes up yet, so it answers nothing that was
-/// asked. A piece is the end of a run that went well (`whole`) only if it is the last, came whole,
-/// and tells of no trouble.
+/// A piece of a JMAP run held to its sizes, as the module documentation says; what became of
+/// changes too ([`super::jmap_up::bounded`]). A piece is the end of a run that went well (`whole`)
+/// only if it is the last, came whole, and tells of no trouble.
 pub(crate) fn bounded(mut result: JmapMailResult) -> JmapMailResult {
-    result.changes.clear();
-    result.sent.clear();
+    super::jmap_up::bounded(&mut result);
     if let Some(listing) = result.listing.as_mut() {
         bounded_listing(listing);
     }
@@ -318,12 +316,25 @@ fn more_than_marks(there: &GraphMessage) -> bool {
 /// server said of the message: what the message has of that stays (whether it has attachments, for
 /// one not fetched yet). Such an entry for a message that isn't here (removed here while the run was
 /// under way) is passed over, so that no empty message is made of it; the next run, which no longer
-/// says it is here, brings it whole. A window that isn't the first of its mailbox in the run
-/// (`first` false) is taken as one read in part, whatever it says.
+/// says it is here, brings it whole. So is an entry for a message deleted for good here whose
+/// deletion the server hasn't answered yet: it is not brought back while its deletion waits to go
+/// up. A window that isn't the first of its mailbox in the run (`first` false) is taken as one
+/// read in part, whatever it says.
 pub(crate) fn take_window(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, first: bool, down: &mut Down) {
     let mut window = page.clone();
     window.afresh &= first;
+    let going: HashSet<String> = mb
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            mailcraft_model::Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.clone()),
+            _ => None,
+        })
+        .collect();
     window.messages.retain_mut(|there| {
+        if going.contains(&there.server.id) {
+            return false;
+        }
         if more_than_marks(there) {
             return true;
         }
@@ -343,8 +354,8 @@ fn swept(m: &Message, account: Id, read: &HashSet<String>) -> bool {
     m.account == account && m.server.as_ref().is_some_and(|server| server.gone && read.contains(&server.folder))
 }
 
-/// A draft that is here whole: it may have been changed here, and nothing goes up yet, so what the
-/// server does with its copy doesn't take it away.
+/// A draft that is here whole: it may have been changed here, and what is written in a draft
+/// doesn't go up yet, so what the server does with its copy doesn't take it away.
 fn draft_here(m: &Message) -> bool {
     m.draft && !m.unfetched
 }
@@ -374,10 +385,10 @@ const MAX_DEPTH: usize = 64;
 /// Before a complete listing is taken in ([`super::graph_mail::take_listing`], which removes a
 /// folder whose mailbox it doesn't have, with the mail in it): such a folder stays when it is one
 /// of the account's standard folders, or holds mail that only this computer has (moved or
-/// imported here, or a draft that is here whole: nothing goes up yet), and so do the folders above
+/// imported here, or a draft that is here whole: what is written in one doesn't go up yet), and so do the folders above
 /// it whose mailboxes are gone too. It stays as a folder of this computer alone, without what the
 /// server had in that mailbox; and what of such a mailbox lies anywhere else here (moved there
-/// here), or is a draft here whole, is this computer's own from now on. How many messages went.
+/// here, the move not yet gone up), or is a draft here whole, is this computer's own from now on. How many messages went.
 pub(crate) fn keep_what_is_only_here(mb: &mut Mailbox, account: Id, listing: &FolderListing) -> usize {
     if !listing.complete {
         return 0;

@@ -122,8 +122,9 @@ fn can_empty(s: &Session) -> Option<&'static str> {
     if s.mailbox.count(s.view.folder) == 0 {
         return Some("the folder is already empty");
     }
-    // Not of what a JMAP account's server has (M6): the next run would bring it back.
-    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+    // Not of a folder holding what a JMAP account's server has (M6): the next run would bring it
+    // back. (The mail in it goes, and its server is told.)
+    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_NOT_DELETED_YET)
 }
 
 /// Why the folder in view is left as it is, when it is one of its server's own (Conversation
@@ -160,7 +161,7 @@ fn can_delete(s: &Session) -> Option<&'static str> {
     if let r @ Some(_) = server_owned(s) {
         return r;
     }
-    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_NOT_DELETED_YET)
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {

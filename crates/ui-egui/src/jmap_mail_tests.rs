@@ -23,11 +23,11 @@ use crate::{SecretStore, Services};
 const NOW: i64 = 1_791_993_600;
 const SESSION: &str = "https://jmap.example.org/jmap/session";
 
-type Jobs = Arc<Mutex<Vec<(JmapJob, mpsc::Sender<JmapMailResult>)>>>;
+pub(super) type Jobs = Arc<Mutex<Vec<(JmapJob, mpsc::Sender<JmapMailResult>)>>>;
 
 /// A window with JMAP accounts at these addresses, and a host that keeps every job. No round
 /// starts by itself unless a test says so.
-fn window(addresses: &[&str]) -> (MailApp, Vec<Id>, Jobs) {
+pub(super) fn window(addresses: &[&str]) -> (MailApp, Vec<Id>, Jobs) {
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
     (app.autosave, app.auto_sync) = (false, false);
     let jobs: Jobs = Default::default();
@@ -62,7 +62,7 @@ impl SecretStore for Recording {
 }
 
 /// The jobs the host was handed so far, taken.
-fn taken(jobs: &Jobs) -> Vec<(JmapJob, mpsc::Sender<JmapMailResult>)> {
+pub(super) fn taken(jobs: &Jobs) -> Vec<(JmapJob, mpsc::Sender<JmapMailResult>)> {
     std::mem::take(&mut *jobs.lock().unwrap())
 }
 
@@ -102,7 +102,7 @@ fn whole(job: &JmapFetchJob) -> GraphFetchResult {
 }
 
 /// The last piece of a run, as the host sends it.
-fn last(job: &JmapJob, how: JmapMailResult) -> JmapMailResult {
+pub(super) fn last(job: &JmapJob, how: JmapMailResult) -> JmapMailResult {
     JmapMailResult { account: job.request.account, email: job.request.email.clone(), ..how }
 }
 
