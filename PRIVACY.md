@@ -102,10 +102,11 @@ computer, for you, and for nothing else:
 
   These two permissions are on the page of a new sign-in, beside the rest; when Microsoft's page won't have them
   (an organisation may make an administrator approve them), it is asked again without them, so that
-  signing in for mail never waits on them. An account that signed in before is asked once, by the
+  signing in for mail never waits on them. An account that signed in before is asked by the
   program, in one question for both ("Keep in Step with Outlook"), and then on one page of
-  Microsoft's; a question you close is not put again by itself, and File › Info has one line for each
-  Microsoft account (Sync with Outlook: on or off) with Ask again. Until they are given, nothing of your
+  Microsoft's; a question you close is not put again by itself while MailCraft stays open (it comes
+  back the next time MailCraft starts), and File › Info has one line for each Microsoft account (Sync
+  with Outlook: on or off) with Ask again. Until they are given, nothing of your
   tasks and rules is sent and they stay on this computer, the rules already on the server are read with
   your mailbox settings and shown, and your categories are shown as Outlook has them and can't be changed
   here;
