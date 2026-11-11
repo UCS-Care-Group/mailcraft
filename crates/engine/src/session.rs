@@ -3335,6 +3335,11 @@ impl Session {
         if !self.undo_sends_categories(redo).is_empty() {
             return Some(Class::Send);
         }
+        // So does one it has made in Outlook again, or given another colour there: a deletion or
+        // a rename undone after it went there, a new one or a colour redone (#661).
+        if !self.undo_makes_categories(redo).is_empty() {
+            return Some(Class::Send);
+        }
         if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
@@ -3392,6 +3397,34 @@ impl Session {
             }
         }
         names
+    }
+
+    /// The categories of a list kept in step with Outlook that undoing (`redo`: redoing) would
+    /// have the next job make in Outlook (`true`) or give another colour there (`false`), and that
+    /// it wouldn't now (#661): a deletion or a rename undone after it went there, a new one or a
+    /// colour redone. Besides those [`Session::undo_sends_categories`] names, kept on this computer
+    /// only now. Worked out as the undo would, on a copy, as for
+    /// [`Session::undo_deletes_categories`]; each name once.
+    pub fn undo_makes_categories(&self, redo: bool) -> Vec<(String, bool)> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        // (No list written there, now or then: nothing to work out.)
+        if self.mailbox.category_writes.is_empty() && step.mailbox.category_writes.is_empty() {
+            return Vec::new();
+        }
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
+        let same = mailcraft_model::sync::same_category;
+        let mut out: Vec<(String, bool)> = Vec::new();
+        for owner in back.category_writes.iter().filter(|id| back.synced_categories.contains_key(id)) {
+            let already = self.mailbox.categories_to_write(*owner);
+            for (name, made) in back.categories_to_write(*owner) {
+                // Going there anyway, or sent from this computer (said on its own).
+                let going = already.iter().any(|(n, m)| same(n, &name) && *m == made);
+                if !going && !self.mailbox.category_is_local(*owner, &name) && !out.iter().any(|(n, _)| same(n, &name)) {
+                    out.push((name, made));
+                }
+            }
+        }
+        out
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,

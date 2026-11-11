@@ -1614,8 +1614,14 @@ fn an_agents_undo_of_a_rename_both_jobs_took_names_what_it_deletes_in_outlook() 
     let sent = changes(&mut s, a);
     took(&mut s, a, &sent);
     assert_eq!(deletes(&mut s, a), ["New"]);
+    // It makes the old name there again too (#661): asked as `send`, with Delete in the same
+    // question.
     match verdict {
-        Verdict::Ask(Class::Delete, text) => assert!(text.contains("deletes the category \u{201c}New\u{201d} in Outlook"), "{text}"),
+        Verdict::Ask(Class::Send, text) => assert!(
+            text.contains("deletes the category \u{201c}New\u{201d} in Outlook")
+                && text.contains("makes the category \u{201c}Old\u{201d} in Outlook"),
+            "{text}"
+        ),
         other => panic!("{other:?}"),
     }
 }
@@ -2495,4 +2501,54 @@ fn an_agent_asks_before_a_rule_gives_mail_a_category_that_is_made_in_outlook() {
     // A rule for another account's mail asks nothing about this list.
     let other = s.run("account.add", &json!({"email": "b@example.org"})).unwrap()["id"].as_u64().unwrap();
     assert_eq!(check(&s, "rules.add", &rule("Travel", Some(other)), &[Class::Settings]), Verdict::Run);
+}
+
+#[test]
+fn an_agents_undo_or_redo_that_makes_a_category_in_outlook_again_asks_send_and_says_so() {
+    let ask = |s: &Session, command: &str, allow: &[Class], what: &[&str]| match check(s, command, &json!({}), allow) {
+        Verdict::Ask(Class::Send, text) => {
+            for w in what {
+                assert!(text.contains(w), "{command}: {w} in {text}");
+            }
+        }
+        other => panic!("{command}: {other:?}"),
+    };
+    // A deletion undone after it went: the next job makes the category there again.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Theirs", GREEN)], true);
+    s.run("category.remove", &json!({"account": a, "name": "Theirs"})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    ask(&s, "edit.undo", &[], &["makes the category \u{201c}Theirs\u{201d} in Outlook"]);
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Send]), Verdict::Run);
+    // Undone before anything went, nothing is written there: nothing to ask.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Theirs", GREEN)], true);
+    s.run("category.remove", &json!({"account": a, "name": "Theirs"})).unwrap();
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Run);
+    // A new one redone after its undo went there.
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Fresh", "color": "#2E8B57"})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    s.run("edit.undo", &json!({})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    ask(&s, "edit.redo", &[], &["makes the category \u{201c}Fresh\u{201d} in Outlook"]);
+    // A colour undone after it went.
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.run("category.set", &json!({"account": a, "name": "Red category", "color": "#2E8B57"})).unwrap();
+    let sent = changes(&mut s, a);
+    took(&mut s, a, &sent);
+    ask(&s, "edit.undo", &[], &["gives the category \u{201c}Red category\u{201d} another colour in Outlook"]);
+    // A rename undone after it went: the old name is made there again and the new one deleted
+    // there, both said, and asked as one question whose yes covers both.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Theirs", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Theirs", "to": "Trips"})).unwrap();
+    for _ in 0..2 {
+        let sent = changes(&mut s, a);
+        took(&mut s, a, &sent);
+    }
+    assert!(s.mailbox.synced_categories[&a].iter().all(|c| c.name != "Theirs"));
+    ask(&s, "edit.undo", &[], &["makes the category \u{201c}Theirs\u{201d} in Outlook", "deletes the category \u{201c}Trips\u{201d} in Outlook"]);
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[Class::Send]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Send, Class::Delete]), Verdict::Run);
 }

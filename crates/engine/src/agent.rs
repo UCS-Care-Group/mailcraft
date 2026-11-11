@@ -1815,6 +1815,20 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 [one] => does.push(format!("deletes the category {one} in Outlook")),
                 many => does.push(format!("deletes the categories {} in Outlook", some(many, 3))),
             }
+            // What it makes in Outlook again, or gives another colour there (#661).
+            let (made, colored): (Vec<(String, bool)>, Vec<(String, bool)>) = s.undo_makes_categories(redo).into_iter().partition(|(_, made)| *made);
+            let made: Vec<String> = made.iter().map(|(n, _)| quoted(n)).collect();
+            match made.as_slice() {
+                [] => {}
+                [one] => does.push(format!("makes the category {one} in Outlook")),
+                many => does.push(format!("makes the categories {} in Outlook", some(many, 3))),
+            }
+            let colored: Vec<String> = colored.iter().map(|(n, _)| quoted(n)).collect();
+            match colored.as_slice() {
+                [] => {}
+                [one] => does.push(format!("gives the category {one} another colour in Outlook")),
+                many => does.push(format!("gives the categories {} another colour in Outlook", some(many, 3))),
+            }
             let sent: Vec<String> = s.undo_sends_categories(redo).iter().map(|n| quoted(n)).collect();
             match sent.as_slice() {
                 [] => {}

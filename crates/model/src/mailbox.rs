@@ -3485,6 +3485,24 @@ impl Mailbox {
             .collect()
     }
 
+    /// What [`Mailbox::category_upload`] would make in Outlook (a name its server hasn't got in
+    /// any letters) or give another colour there, for `owner`: `(name, made)`, before the limit
+    /// of a job. For the agent gate, which asks before an undo writes these there (#661).
+    pub fn categories_to_write(&self, owner: Id) -> Vec<(String, bool)> {
+        let (Some(list), Some(synced)) = (self.account_categories.get(&owner), self.synced_categories.get(&owner)) else { return Vec::new() };
+        if !self.category_writes.contains(&owner) {
+            return Vec::new();
+        }
+        list.iter()
+            .filter(|c| !self.category_is_local(owner, &c.name))
+            .filter_map(|c| match synced.iter().find(|was| same_category(&was.name, &c.name)) {
+                None => Some((c.name.clone(), true)),
+                Some(was) if was.color != c.color => Some((c.name.clone(), false)),
+                Some(_) => None,
+            })
+            .collect()
+    }
+
     /// What `owner`'s server is to be told of its list of categories (#661): the difference
     /// between the list here and the server's as last synced ([`Mailbox::synced_categories`]),
     /// leaving out what is kept on this computer alone. A name written anew in other letters
