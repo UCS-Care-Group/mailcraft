@@ -539,3 +539,30 @@ fn run_rules_now_stays_quick_with_folders_under_deleted_items() {
     let took = started.elapsed();
     assert!(took.as_millis() < 1_000, "{took:?}");
 }
+
+/// A part of a rule named wrongly (a misspelt `exceptions`, a `form` for a `from` day, a key a
+/// condition or an action doesn't take) is refused, not left out: without it, the rule would act
+/// on more mail than it was to (#566).
+#[test]
+fn a_rule_with_a_part_named_wrongly_is_refused_not_made_without_it() {
+    let (mut s, account, _, _) = session();
+    let rule = |extra: Value| {
+        let mut v = json!({"name": "Odd", "account": account, "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "deleteForGood"}]});
+        if let (Some(v), Some(extra)) = (v.as_object_mut(), extra.as_object()) {
+            v.extend(extra.clone());
+        }
+        v
+    };
+    let wrong = [
+        rule(json!({"exception": [{"type": "fromContains", "value": "boss"}]})),
+        rule(json!({"conditions": [{"type": "receivedBetween", "value": {"form": "2026-01-01", "to": "2026-02-01"}}]})),
+        rule(json!({"conditions": [{"type": "subjectContains", "value": "offer", "except": true}]})),
+        rule(json!({"actions": [{"type": "deleteForGood", "folder": 1}]})),
+    ];
+    for v in wrong {
+        let before = s.mailbox.rules.len();
+        assert!(s.run("rules.add", &v).is_err(), "{v}");
+        assert_eq!(s.mailbox.rules.len(), before, "{v}");
+    }
+    assert!(s.run("rules.add", &rule(json!({"exceptions": [{"type": "fromContains", "value": "boss"}]}))).is_ok());
+}

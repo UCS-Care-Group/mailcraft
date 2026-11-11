@@ -268,6 +268,8 @@ fn kb(v: &Value, key: &str) -> Result<u64, CmdError> {
 }
 
 fn condition(v: &Value) -> Result<Condition, CmdError> {
+    // A part named wrongly is refused, not left out: a rule without it acts on more mail (#566).
+    p::only(v, &["type", "value", "min", "max"])?;
     let value = || p::str(v, "value").unwrap_or("");
     Ok(match p::req_str(v, "type")? {
         "fromContains" => Condition::FromContains(words(v, "words")?),
@@ -308,6 +310,7 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
         "receivedBetween" => {
             let days =
                 v.get("value").filter(|d| d.is_object()).ok_or_else(|| bad("receivedBetween needs `value`: {\"from\"?: date, \"to\"?: date}"))?;
+            p::only(days, &["from", "to"])?;
             let (from, to) = (p::date(days, "from")?, p::date(days, "to")?);
             match (from, to) {
                 (None, None) => return Err(bad("receivedBetween needs `from`, `to` or both")),
@@ -320,6 +323,7 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
 }
 
 fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
+    p::only(v, &["type", "value"])?;
     let folder = || -> Result<Id, CmdError> {
         let folder = p::req_id(v, "value")?;
         refuse_send_queue(s, folder)?;
@@ -397,6 +401,8 @@ fn condition_list(v: &Value, key: &str, required: bool) -> Result<Vec<Condition>
 
 /// The rule `v` asks for, with no id yet (shared by the command and the agent's question).
 pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError> {
+    // (A misspelt `exceptions` would make a rule that leaves nothing alone.)
+    p::only(v, &["name", "conditions", "exceptions", "actions", "stop", "alert", "account", "server"])?;
     let name = clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("`name` is empty"))?;
     let conditions = condition_list(v, "conditions", true)?;
     // Kept as the server keeps them, so that a rule sent there is known again when it is read
