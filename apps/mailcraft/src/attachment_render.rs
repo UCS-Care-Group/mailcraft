@@ -5,7 +5,7 @@
 
 use std::ffi::OsString;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
@@ -114,7 +114,7 @@ fn render(program: &Path, request: Request) -> Result<Page, Error> {
     let dir = tempfile::Builder::new().prefix("mailcraft-preview-").tempdir().map_err(|_| Error::Failed)?;
     let input = dir.path().join(format!("attachment.{}", request.format.extension()));
     let output = dir.path().join("preview.png");
-    fs::OpenOptions::new().write(true).create_new(true).open(input).and_then(|mut file| file.write_all(&bytes)).map_err(|_| Error::Failed)?;
+    mailcraft_engine::mark::write_new_from_mail(&input, &bytes).map_err(|_| Error::Failed)?;
 
     let run =
         |args: &[OsString], watched: &Path, limit, stdout| run_helper(program, dir.path(), args, watched, limit, stdout, deadline, &request.cancel);
@@ -123,8 +123,7 @@ fn render(program: &Path, request: Request) -> Result<Page, Error> {
             let pages = if let Some(n) = request.pages {
                 n
             } else {
-                let info = dir.path().join("info.json");
-                let file = File::create(&info).map_err(|_| Error::Failed)?;
+                let (file, info) = tempfile::NamedTempFile::new_in(dir.path()).map_err(|_| Error::Failed)?.into_parts();
                 run(&["info".into(), "attachment.pdf".into()], &info, MAX_INFO_BYTES, Stdio::from(file))?;
                 pdf_pages(&read_bounded(&info, MAX_INFO_BYTES)?)?
             };
