@@ -2159,6 +2159,27 @@ fn an_agent_asks_before_it_makes_a_category_in_outlook_or_gives_one_another_colo
 }
 
 #[test]
+fn an_agents_deletion_of_a_category_a_shared_to_do_has_needs_delete_too_when_it_goes_from_outlook() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let origin = Origin { account: a, id: "t-1".into(), ..Default::default() };
+    s.mailbox.add_task(Task { title: "Ours".into(), categories: vec!["Red category".into()], origin, list: "l-1".into(), ..Default::default() });
+    s.mailbox.shared_task_lists.insert(a, ["l-1".to_string()].into());
+    let remove = json!({"account": a, "name": "Red category"});
+    // One question names both, and its yes covers both.
+    match check(&s, "category.remove", &remove, &[]) {
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("from Outlook") && text.contains("shared with other people"), "{text}"),
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(check(&s, "category.remove", &remove, &[Class::Send]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(check(&s, "category.remove", &remove, &[Class::Send, Class::Delete]), Verdict::Run);
+    // Kept on this computer alone, it goes from nowhere else: `send` is enough, as before.
+    s.run("category.set", &json!({"account": a, "name": "Mine", "color": "#2E8B57"})).unwrap();
+    s.mailbox.local_categories.entry(a).or_default().push("Mine".into());
+    s.mailbox.task_mut(s.mailbox.tasks.keys().copied().next().unwrap()).unwrap().categories.push("Mine".into());
+    assert_eq!(check(&s, "category.remove", &json!({"account": a, "name": "Mine"}), &[Class::Send]), Verdict::Run);
+}
+
+#[test]
 fn an_agent_is_refused_at_once_a_change_of_a_list_mailcraft_may_not_change_in_outlook() {
     let (mut s, a) = rig_with_local();
     s.run("sync.categoryWrites", &json!({"account": a, "allowed": false})).unwrap();

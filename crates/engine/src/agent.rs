@@ -859,6 +859,17 @@ fn renames_in_outlook(s: &Session, params: &Value) -> bool {
     s.mailbox.category_of(account, from).is_some() && crate::cmd::category::in_outlook(s, account, from) == Some(true)
 }
 
+/// Whether `category.remove` with these params would delete a category in Outlook (#661): one
+/// of a list kept in step with Outlook that MailCraft may change there, and not kept on this
+/// computer alone.
+fn removes_in_outlook(s: &Session, params: &Value) -> bool {
+    let Ok(account) = crate::cmd::category::list_account(s, params) else { return false };
+    let Some(name) = p::str(params, "name") else { return false };
+    s.mailbox.categories_read_only(account).is_none()
+        && s.mailbox.category_of(account, name).is_some()
+        && crate::cmd::category::in_outlook(s, account, name) == Some(true)
+}
+
 /// What a call makes in Outlook of a list of categories kept in step with it (#661), which the
 /// next job writes there: `category.set` with a name the list doesn't have (`made`) or another
 /// colour for one that goes there; a Categorize call that puts on an item a name its list doesn't
@@ -1177,11 +1188,15 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// What a call classed `class` needs besides it, which the question about `class` names and a yes
 /// to it covers: an undo or redo that puts back the accounts (or a change that writes to people)
 /// and takes away messages, drafts, contacts or the like needs Delete too, as `edit.undo` refuses
-/// to take messages without it (#473). Asked about as one question, so that the owner's yes lets
-/// it run.
-pub fn also(s: &Session, id: &str, _params: &Value, class: Class) -> Vec<Class> {
+/// to take messages without it (#473); so does deleting a category a to-do in a shared list has
+/// (asked as `send`) when it goes from Outlook too (#661). Asked about as one question, so that
+/// the owner's yes lets it run.
+pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
+        // A category a to-do in a shared list has is deleted as `send` asks; one that goes from
+        // Outlook too, where an undo only makes it anew, needs Delete as well (#661).
+        "category.remove" if class != Class::Delete && removes_in_outlook(s, params) => vec![Class::Delete],
         _ => Vec::new(),
     }
 }
