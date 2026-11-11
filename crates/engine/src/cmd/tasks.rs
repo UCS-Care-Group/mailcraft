@@ -317,12 +317,19 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"filter": filter, "account": account.code(), "tasks": items}))
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the to-do, the category, the account whose
+/// list the to-do uses, and whether it is put on. The agent gate reads them through this too
+/// (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(Id, String, Id, bool), CmdError> {
     let id = target(s, v)?;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
-    let t = s.mailbox.task_mut(id)?;
+    let t = s.mailbox.task(id).ok_or_else(|| failed!("no task with id {id}", id))?;
     let (account, has) = (t.origin.account, t.categories.iter().any(|x| mailcraft_model::sync::same_category(x, &name)));
-    let on = p::bool(v, "value").unwrap_or(!has);
+    Ok((id, name, account, p::bool(v, "value").unwrap_or(!has)))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (id, name, account, on) = categorizing(s, v)?;
     // The to-do takes the spelling of its account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let t = s.mailbox.task_mut(id)?;

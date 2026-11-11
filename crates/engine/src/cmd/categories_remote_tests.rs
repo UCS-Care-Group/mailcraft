@@ -2116,6 +2116,77 @@ fn an_agent_asks_before_it_sends_a_category_to_outlook_or_renames_one_there() {
 }
 
 #[test]
+fn an_agent_asks_before_it_makes_a_category_in_outlook_or_gives_one_another_colour_there() {
+    let (mut s, a) = rig_with_local();
+    let asks = |s: &Session, command: &str, params: &serde_json::Value, what: &str| match check(s, command, params, &[]) {
+        Verdict::Ask(Class::Send, text) => {
+            assert!(text.contains(what) && text.contains("\u{201c}a@example.org\u{201d}") && text.contains("in Outlook too"), "{command}: {text}")
+        }
+        other => panic!("{command} {params}: {other:?}"),
+    };
+    // New Category with a name the list hasn't got, or another colour for one Outlook has.
+    asks(&s, "category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"}), "\u{201c}Travel\u{201d}");
+    asks(&s, "category.set", &json!({"account": a, "name": "red CATEGORY", "color": "#2E8B57"}), "\u{201c}Red category\u{201d}");
+    assert_eq!(check(&s, "category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"}), &[Class::Send]), Verdict::Run);
+    // The colour it has, or one kept on this computer only: nothing goes to Outlook.
+    assert_eq!(check(&s, "category.set", &json!({"account": a, "name": "Red category", "color": "#D13B3B"}), &[]), Verdict::Run);
+    assert_eq!(check(&s, "category.set", &json!({"account": a, "name": "Old local", "color": "#2F6FD0"}), &[]), Verdict::Run);
+    // What the command refuses asks nothing: a colour Outlook hasn't got, a list named wrongly.
+    assert_eq!(check(&s, "category.set", &json!({"account": a, "name": "Travel", "color": "#123456"}), &[]), Verdict::Run);
+    assert_eq!(check(&s, "category.set", &json!({"account": "a", "name": "Travel", "color": "#2E8B57"}), &[]), Verdict::Run);
+    // Categorize with a name the item's list hasn't got: a message, named or selected.
+    let m = message_of(&mut s, a, &[]);
+    asks(&s, "mail.categorize", &json!({"ids": [m], "category": "Travel"}), "\u{201c}Travel\u{201d}");
+    asks(&s, "mail.categorize", &json!({"id": m, "category": "Travel"}), "\u{201c}Travel\u{201d}");
+    s.sel.messages = vec![m];
+    asks(&s, "mail.categorize", &json!({"category": "Travel"}), "\u{201c}Travel\u{201d}");
+    // One the list has, or a name taken off: nothing is made there.
+    assert_eq!(check(&s, "mail.categorize", &json!({"ids": [m], "category": "red category"}), &[]), Verdict::Run);
+    assert_eq!(check(&s, "mail.categorize", &json!({"ids": [m], "category": "Travel", "value": false}), &[]), Verdict::Run);
+    // On a message of an account whose list isn't Outlook's, nothing goes there either.
+    s.sel.messages.clear();
+    let other = s.run("account.add", &json!({"email": "b@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let here = message_of(&mut s, other, &[]);
+    assert_eq!(check(&s, "mail.categorize", &json!({"ids": [here], "category": "Travel"}), &[]), Verdict::Run);
+    // An event, a contact and a to-do.
+    for (command, id) in items_of(&mut s, a) {
+        asks(&s, command, &json!({"id": id, "category": "Travel"}), "\u{201c}Travel\u{201d}");
+        assert_eq!(check(&s, command, &json!({"id": id, "category": "Red category"}), &[]), Verdict::Run, "{command}");
+    }
+    // Done after the yes, it is made there.
+    s.run("mail.categorize", &json!({"ids": [m], "category": "Travel"})).unwrap();
+    assert!(changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Create && c.name == "Travel"));
+}
+
+#[test]
+fn an_agent_is_refused_at_once_a_change_of_a_list_mailcraft_may_not_change_in_outlook() {
+    let (mut s, a) = rig_with_local();
+    s.run("sync.categoryWrites", &json!({"account": a, "allowed": false})).unwrap();
+    let lists =
+        |mb: &Mailbox| (mb.account_categories.clone(), mb.local_categories.clone(), mb.synced_categories.clone(), mb.category_renames.clone());
+    let before = lists(&s.mailbox);
+    for (command, params) in [
+        ("category.set", json!({"account": a, "name": "Travel", "color": "#2E8B57"})),
+        ("category.rename", json!({"account": a, "from": "Red category", "to": "Urgent"})),
+        ("category.remove", json!({"account": a, "name": "Red category"})),
+        ("category.addToOutlook", json!({"account": a, "name": "Old local"})),
+    ] {
+        match check(&s, command, &params, &[]) {
+            Verdict::Refuse(text) => {
+                assert!(text.contains("no permission to change them there") && !text.contains("Outlook too"), "{command}: {text}")
+            }
+            other => panic!("{command}: {other:?}"),
+        }
+        assert!(s.run(command, &params).is_err(), "{command}");
+    }
+    // Categorize with a name the list hasn't got asks nothing of Outlook: the command refuses it.
+    let m = message_of(&mut s, a, &[]);
+    assert_eq!(check(&s, "mail.categorize", &json!({"ids": [m], "category": "Travel"}), &[]), Verdict::Run);
+    assert!(s.run("mail.categorize", &json!({"ids": [m], "category": "Travel"})).is_err());
+    assert!(lists(&s.mailbox) == before);
+}
+
+#[test]
 fn a_name_another_device_made_in_outlook_meanwhile_keeps_outlooks_colour_and_says_so() {
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);
     s.run("category.set", &json!({"account": a, "name": "Travel", "color": "#2E8B57"})).unwrap();

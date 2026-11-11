@@ -345,12 +345,19 @@ fn favorite(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "favorite": c.favorite}))
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the contact, the category, the account whose
+/// list the contact uses, and whether it is put on. The agent gate reads them through this too
+/// (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(Id, String, Id, bool), CmdError> {
     let id = target(s, v)?;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
-    let c = s.mailbox.contact_mut(id)?;
+    let c = s.mailbox.contact(id).ok_or_else(|| failed!("no contact with id {id}", id))?;
     let (account, has) = (c.origin.account, c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, &name)));
-    let on = p::bool(v, "value").unwrap_or(!has);
+    Ok((id, name, account, p::bool(v, "value").unwrap_or(!has)))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (id, name, account, on) = categorizing(s, v)?;
     // The contact takes the spelling of its account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let c = s.mailbox.contact_mut(id)?;

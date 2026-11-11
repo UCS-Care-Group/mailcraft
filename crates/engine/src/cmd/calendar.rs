@@ -982,17 +982,25 @@ fn private(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "private": private}))
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the event as it is before, the category, the
+/// account whose list the event uses, and whether it is put on. The agent gate reads them
+/// through this too (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(Event, String, Id, bool), CmdError> {
     let before = changing(s, v)?;
-    let id = before.id;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     if kept_by(s, &before).is_some() {
         writable(s, before.calendar)?;
     }
     let has = before.categories.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
     let on = p::bool(v, "value").unwrap_or(!has);
-    // The event takes the spelling of its calendar's account's list; a new name joins that list.
     let account = s.mailbox.event_account(&before);
+    Ok((before, name, account, on))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (before, name, account, on) = categorizing(s, v)?;
+    let id = before.id;
+    // The event takes the spelling of its calendar's account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let e = s.mailbox.event_mut(id)?;
     e.categories.retain(|c| !mailcraft_model::sync::same_category(c, &name));

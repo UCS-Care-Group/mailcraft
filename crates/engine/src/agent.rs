@@ -721,6 +721,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if id == "category.rename" && renames_in_outlook(s, params) {
         return Access::Owner(Class::Send);
     }
+    // So does a category made in Outlook, or given another colour there, as Add to Outlook asks
+    // (#661): the next job writes it there.
+    if makes_in_outlook(s, id, params).is_some() {
+        return Access::Owner(Class::Send);
+    }
     // A rule its server has is deleted there, where undo doesn't reach and MailCraft may not be
     // able to make it again (#566), as `tasks.delete`; so is one that went to be made there and
     // had no answer, which the server may have.
@@ -852,6 +857,105 @@ fn renames_in_outlook(s: &Session, params: &Value) -> bool {
     let Ok(account) = crate::cmd::category::list_account(s, params) else { return false };
     let Some(from) = p::str(params, "from") else { return false };
     s.mailbox.category_of(account, from).is_some() && crate::cmd::category::in_outlook(s, account, from) == Some(true)
+}
+
+/// What a call makes in Outlook of a list of categories kept in step with it (#661), which the
+/// next job writes there: `category.set` with a name the list doesn't have (`made`) or another
+/// colour for one that goes there; a Categorize call that puts on an item a name its list doesn't
+/// have. The name, and the accounts whose Outlook it is. Read as the command reads its params
+/// (through the same function for Categorize); what the command refuses (a list MailCraft may not
+/// change there, a colour Outlook hasn't got, ids named wrongly) makes nothing, and asks nothing.
+struct MadeInOutlook {
+    name: String,
+    owners: Vec<Id>,
+    made: bool,
+}
+
+fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlook> {
+    use crate::cmd;
+    let mb = &s.mailbox;
+    // The account a list kept in step with Outlook is, when MailCraft may change it there.
+    let writable = |account: Id| mb.synced_list_owner(account).filter(|_| mb.categories_read_only(account).is_none());
+    let (name, lists): (String, Vec<Id>) = match id {
+        "category.set" => {
+            let color = p::str(params, "color").and_then(mailcraft_model::Rgb::parse)?;
+            let account = cmd::category::list_account(s, params).ok()?;
+            let name = p::str(params, "name").and_then(mailcraft_model::clean_name)?;
+            let owner = writable(account)?;
+            mailcraft_model::outlook_colors::outlook_preset(color)?;
+            return match mb.category_of(account, &name) {
+                None => Some(MadeInOutlook { name, owners: vec![owner], made: true }),
+                Some(c) if c.color != mailcraft_model::outlook_colors::nearest_outlook_color(color) && !mb.category_is_local(owner, &c.name) => {
+                    Some(MadeInOutlook { name: c.name.clone(), owners: vec![owner], made: false })
+                }
+                Some(_) => None,
+            };
+        }
+        "mail.categorize" => match cmd::mail::categorizing(s, params).ok()? {
+            (name, accounts, true) => (name, accounts.into_iter().collect()),
+            _ => return None,
+        },
+        "tasks.categorize" => match cmd::tasks::categorizing(s, params).ok()? {
+            (_, name, account, true) => (name, vec![account]),
+            _ => return None,
+        },
+        "people.categorize" => match cmd::people::categorizing(s, params).ok()? {
+            (_, name, account, true) => (name, vec![account]),
+            _ => return None,
+        },
+        "calendar.categorize" => match cmd::calendar::categorizing(s, params).ok()? {
+            (_, name, account, true) => (name, vec![account]),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let mut owners: Vec<Id> = Vec::new();
+    for account in lists.into_iter().filter(|a| mb.category_of(*a, &name).is_none()) {
+        if let Some(owner) = writable(account).filter(|o| !owners.contains(o)) {
+            owners.push(owner);
+        }
+    }
+    (!owners.is_empty()).then_some(MadeInOutlook { name, owners, made: true })
+}
+
+/// What [`makes_in_outlook`] makes there, said after what the call does (`on`: what a Categorize
+/// call puts it on); empty for nothing.
+fn made_in_outlook_text(s: &Session, id: &str, params: &Value) -> String {
+    let Some(made) = makes_in_outlook(s, id, params) else { return String::new() };
+    let whose: Vec<String> = made.owners.iter().filter_map(|o| s.mailbox.account(*o)).map(|a| quoted(&a.email)).collect();
+    let whose = if whose.is_empty() { String::new() } else { format!(" of {}", some(&whose, 3)) };
+    let name = quoted(&made.name);
+    let on = match id {
+        "mail.categorize" => messages_text(s, &p::ids_strict(params).ok().flatten().unwrap_or_else(|| s.sel.messages.clone())),
+        "tasks.categorize" => {
+            let t = p::id_strict(params, "id").ok().and_then(|t| t.or(s.sel.task)).and_then(|t| s.mailbox.task(t));
+            format!("the task {}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "people.categorize" => {
+            let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
+            format!("the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "calendar.categorize" => event_title(s, id, params),
+        _ if made.made => {
+            return format!("make the category {name} on the list{whose}, which is kept in step with Outlook: it is made in Outlook too");
+        }
+        _ => return format!("give the category {name}{whose} another colour, in Outlook too"),
+    };
+    format!("put the category {name} on {on}; it is new on the list{whose}, which is kept in step with Outlook, and is made in Outlook too")
+}
+
+/// The text of the refusal a change of a list of categories gets when MailCraft may not change
+/// that list in Outlook (#661), as the command would refuse it: before anything about Outlook is
+/// asked. `None` for any other list, or a call that names no account as the command reads it.
+fn read_only_categories(s: &Session, id: &str, params: &Value) -> Option<String> {
+    let account = match id {
+        "category.set" | "category.rename" | "category.remove" => crate::cmd::category::list_account(s, params).ok()?,
+        "category.addToOutlook" => p::req_id(params, "account").ok()?,
+        _ => return None,
+    };
+    let owner = s.mailbox.categories_read_only(account)?;
+    let address = s.mailbox.account(owner).map(|a| a.email.trim().to_string()).unwrap_or_default();
+    Some(mailcraft_model::categories_read_only_text(&address))
 }
 
 /// Whether `id` renames or deletes a category that a to-do in a shared list has: the to-do is
@@ -1117,6 +1221,11 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         && let Err(e) = crate::cmd::junk::list_account(s, params)
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
+    }
+    // A list MailCraft may not change in Outlook takes no change: refused as the command refuses
+    // it, before anything about Outlook is asked (#661).
+    if let Some(text) = read_only_categories(s, id, params) {
+        return Verdict::Refuse(format!("`{id}`: {text}"));
     }
     let access = classify(s, id, params);
     // What else the call needs besides its class (#473); a yes to the question about the class
@@ -1410,7 +1519,19 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "tasks.edit" | "tasks.complete" | "tasks.categorize" if shared_task(s, id, params).is_some() => {
             let t = shared_task(s, id, params).map(|t| quoted(&t.title)).unwrap_or_default();
-            format!("{} on the task {t}{SHARED_TASK}", run_text(label, id, params))
+            // (A name new on a list kept in step with Outlook is made there too, #661.)
+            let made = match makes_in_outlook(s, id, params) {
+                Some(m) => {
+                    format!("; the category {} is new on the list, which is kept in step with Outlook, and is made in Outlook too", quoted(&m.name))
+                }
+                None => String::new(),
+            };
+            format!("{} on the task {t}{SHARED_TASK}{made}", run_text(label, id, params))
+        }
+        "category.set" | "mail.categorize" | "tasks.categorize" | "people.categorize" | "calendar.categorize"
+            if makes_in_outlook(s, id, params).is_some() =>
+        {
+            made_in_outlook_text(s, id, params)
         }
         "category.remove" => {
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
