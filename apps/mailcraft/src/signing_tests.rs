@@ -56,7 +56,7 @@ fn what_cant_be_signed_is_taken_out_and_said() {
 fn a_send_that_cant_be_signed_is_held() {
     let up = |id| SendUp { message: id, draft: None, mime: Some(Box::new(message(id, true))), discard: String::new() };
     let mut sends = vec![up(1), up(2)];
-    let held = sign_sends_with(&mut sends, &stand_in);
+    let held = held_sends(sign_sends_with(&mut sends, &stand_in));
     assert_eq!(sends.len(), 1);
     assert!(
         matches!(&held[..], [d] if d.message == 2 && matches!(&d.outcome, SendOutcome::Held { lost: false, why } if why.contains("Digitally signed")))
@@ -94,4 +94,19 @@ fn certificates_are_named_by_their_sha256() {
     assert_eq!(sha256_named(&"0A".repeat(32)), Some([0x0A; 32]));
     assert_eq!(sha256_named("0A"), None);
     assert_eq!(sha256_named(&"ZZ".repeat(32)), None);
+}
+
+#[test]
+fn the_owners_own_keys_are_read_from_gpgs_listing() {
+    let listing = b"sec:u:255:22:AAAAAAAAAAAAAAAA:1700000000:::u:::scESC:::+::ed25519:::0:\n\
+fpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:\n\
+grp:::::::::0000000000000000000000000000000000000000:\n\
+uid:u::::1700000000::X::Owner <owner@example.org>::::::::::0:\n\
+ssb:u:255:18:BBBBBBBBBBBBBBBB:1700000000::::::e:::+::cv25519::\n\
+fpr:::::::::FEDCBA9876543210FEDCBA9876543210FEDCBA98:\n\
+sec:u:2048:1:CCCCCCCCCCCCCCCC:1700000000:::u:::scESC:::+:::23::0:\n\
+fpr:::::::::not hex at all:\n\
+fpr:::::::::1111111111111111111111111111111111111111:\n";
+    assert_eq!(own_fingerprints(listing), ["0123456789ABCDEF0123456789ABCDEF01234567"], "primary keys only; a subkey's and a broken one aren't");
+    assert!(own_fingerprints(&[0xFF; 64]).is_empty());
 }

@@ -2075,7 +2075,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::SigningPin(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Smartcard PIN"), crate::digital_signatures::WIDTH, |ui| done = dialog.show(app, ui, enter));
-            if !open {
+            // Escape or the window's X: closed without a PIN, which the host is told (Cancel
+            // told it already).
+            if (close || !open) && !done {
                 dialog.close(app);
             }
             close |= !open || done;

@@ -5896,6 +5896,11 @@ msgstr "Uitgegeven door:"
 msgid "Issued to"
 msgstr "Uitgegeven aan"
 
+#. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -16287,6 +16292,11 @@ msgstr "kan niet in de browser worden gedaan"
 #, fuzzy
 msgid "cancelled"
 msgstr "geannuleerd"
+
+#. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "choose the certificate or key to sign with before turning Always on"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/signing.rs

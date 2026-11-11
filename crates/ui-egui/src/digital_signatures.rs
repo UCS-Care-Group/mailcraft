@@ -192,19 +192,20 @@ impl DigitalSignatures {
 /// The question for a smartcard's PIN.
 pub struct SigningPin {
     pub token: String,
-    pin: String,
+    /// What is typed: overwritten when it is let go of.
+    pin: zeroize::Zeroizing<String>,
 }
 
 impl SigningPin {
     pub(crate) fn new(token: String) -> SigningPin {
-        SigningPin { token, pin: String::new() }
+        SigningPin { token, pin: zeroize::Zeroizing::new(String::new()) }
     }
 
     /// Draw it; whether it is done.
     pub(crate) fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
         ui.label(crate::i18n::fmt(tl!("The smartcard {token} needs its PIN to add a Digital signature."), &[("token", &self.token)]));
-        let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut self.pin).password(true).desired_width(f32::INFINITY)));
+        let resp = crate::text_menu::secret(ui.add(egui::TextEdit::singleline(&mut *self.pin).password(true).desired_width(f32::INFINITY)));
         crate::text_menu::hold(&resp);
         ui.label(
             egui::RichText::new(tl!("It is held in memory until MailCraft closes, and never saved. Send Again sends the message that waits for it."))
@@ -214,7 +215,8 @@ impl SigningPin {
         let (ok, cancel) = crate::dialogs::buttons(ui, tl!("OK"), !self.pin.is_empty());
         if (ok || enter) && !self.pin.is_empty() {
             if let Some(host) = &app.services.signing {
-                host.give_pin(std::mem::take(&mut self.pin));
+                // Moved, not copied: the host keeps it wiped on drop.
+                host.give_pin(std::mem::take(&mut *self.pin));
             }
             return true;
         }

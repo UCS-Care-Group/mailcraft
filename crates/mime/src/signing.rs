@@ -48,6 +48,8 @@ pub enum LayoutError {
     NotArmoured,
     /// Nothing to sign, or nothing signed.
     Empty,
+    /// No boundary was found that occurs in neither part.
+    Boundary,
 }
 
 impl std::fmt::Display for LayoutError {
@@ -56,6 +58,7 @@ impl std::fmt::Display for LayoutError {
             Self::Micalg => "the digest algorithm can't be named",
             Self::NotArmoured => "the OpenPGP signature isn't armoured text",
             Self::Empty => "there is nothing to sign",
+            Self::Boundary => "the parts can't be told apart",
         })
     }
 }
@@ -102,7 +105,7 @@ Content-Disposition: attachment; filename=\"signature.asc\"\r\n\r\n"
             ("application/pgp-signature", part)
         }
     };
-    let boundary = boundary(&[signed, &second]);
+    let boundary = boundary(&[signed, &second]).ok_or(LayoutError::Boundary)?;
     let mut out = Vec::with_capacity(signed.len() + second.len() + 512);
     out.extend_from_slice(b"MIME-Version: 1.0\r\n");
     out.extend_from_slice(
@@ -122,9 +125,12 @@ Content-Disposition: attachment; filename=\"signature.asc\"\r\n\r\n"
     Ok(out)
 }
 
+/// The most boundaries tried: each try that fails needs a part to hold that very boundary.
+const MAX_BOUNDARY_TRIES: u32 = 1024;
+
 /// A boundary in neither part: an FNV-1a hash of them, with a counter that moves on while a
 /// part holds it.
-fn boundary(parts: &[&[u8]]) -> String {
+fn boundary(parts: &[&[u8]]) -> Option<String> {
     const PRIME: u64 = 0x0000_0100_0000_01b3;
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for part in parts {
@@ -133,12 +139,7 @@ fn boundary(parts: &[&[u8]]) -> String {
         }
         hash = (hash ^ 0x1ff).wrapping_mul(PRIME);
     }
-    let mut counter = 0u32;
-    loop {
-        let candidate = format!("=_mc_signed_{hash:016x}_{counter}");
-        counter = counter.wrapping_add(1);
-        if !parts.iter().any(|p| p.windows(candidate.len()).any(|w| w == candidate.as_bytes())) {
-            return candidate;
-        }
-    }
+    (0..MAX_BOUNDARY_TRIES)
+        .map(|counter| format!("=_mc_signed_{hash:016x}_{counter}"))
+        .find(|candidate| !parts.iter().any(|p| p.windows(candidate.len()).any(|w| w == candidate.as_bytes())))
 }

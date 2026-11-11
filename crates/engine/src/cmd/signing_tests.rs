@@ -85,3 +85,29 @@ fn a_message_that_couldnt_be_signed_is_held_with_why() {
     assert!(m.held.contains("PIN"), "{}", m.held);
     assert!(sync_request(&s, a).unwrap().outbox.iter().all(|m| m.id != id), "not sent again by itself");
 }
+
+#[test]
+fn always_signs_what_goes_by_another_way_than_send() {
+    let (mut s, a) = imap();
+    key(&mut s, a, true);
+    // Sent with Sign off, then put back in the Outbox and sent with Send Again (a meeting's
+    // answer goes otherwise than with Send alike): Always signs it.
+    s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Again", "account": a})).unwrap();
+    s.run("compose.sign", &json!({"value": false})).unwrap();
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    s.mailbox.message_mut(id).unwrap().sign = None;
+    let m = sync_request(&s, a).unwrap().outbox.into_iter().find(|m| m.id == id).unwrap();
+    assert!(m.sign_with.is_some(), "the account's Always");
+    s.mailbox.message_mut(id).unwrap().sign = Some(false);
+    let m = sync_request(&s, a).unwrap().outbox.into_iter().find(|m| m.id == id).unwrap();
+    assert!(m.sign_with.is_none(), "Sign off for that message");
+}
+
+#[test]
+fn always_needs_a_key() {
+    let (mut s, a) = imap();
+    assert!(s.run("account.setSigning", &json!({"account": a, "always": true})).is_err());
+    key(&mut s, a, true);
+    assert!(s.run("account.setSigning", &json!({"account": a, "key": null})).is_err(), "not while Always is on");
+    s.run("account.setSigning", &json!({"account": a, "key": null, "always": false})).unwrap();
+}

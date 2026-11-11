@@ -133,9 +133,21 @@ pub(crate) fn sign_outbox(outbox: &mut Vec<Message>) -> Vec<Unsigned> {
 }
 
 /// Sign the messages a Graph or an Exchange run sends as their own bytes; one that can't be is
-/// taken out of the run, and its answer says it is held.
-pub(crate) fn sign_sends(sends: &mut Vec<SendUp>) -> Vec<SendDone> {
+/// taken out of the run and said.
+pub(crate) fn sign_sends(sends: &mut Vec<SendUp>) -> Vec<Unsigned> {
     sign_sends_with(sends, &|m| sign(&host(), m, now()))
+}
+
+/// What a run that answers each send says of one that couldn't be signed: held, with why.
+pub(crate) fn held_sends(unsigned: Vec<Unsigned>) -> Vec<SendDone> {
+    unsigned
+        .into_iter()
+        .map(|u| SendDone {
+            message: u.message,
+            outcome: SendOutcome::Held { lost: false, why: mailcraft_model::signing::held_unsigned(&u.why) },
+            ..SendDone::default()
+        })
+        .collect()
 }
 
 pub(crate) fn sign_outbox_with(outbox: &mut Vec<Message>, sign: &dyn Fn(&mut Message) -> Result<(), String>) -> Vec<Unsigned> {
@@ -150,29 +162,27 @@ pub(crate) fn sign_outbox_with(outbox: &mut Vec<Message>, sign: &dyn Fn(&mut Mes
     unsigned
 }
 
-pub(crate) fn sign_sends_with(sends: &mut Vec<SendUp>, sign: &dyn Fn(&mut Message) -> Result<(), String>) -> Vec<SendDone> {
-    let mut held = Vec::new();
+pub(crate) fn sign_sends_with(sends: &mut Vec<SendUp>, sign: &dyn Fn(&mut Message) -> Result<(), String>) -> Vec<Unsigned> {
+    let mut unsigned = Vec::new();
     sends.retain_mut(|send| {
         let Some(m) = send.mime.as_deref_mut() else { return true };
         match sign(m) {
             Ok(()) => true,
             Err(why) => {
-                let why = mailcraft_model::signing::held_unsigned(&why);
-                held.push(SendDone { message: send.message, outcome: SendOutcome::Held { lost: false, why }, ..SendDone::default() });
+                unsigned.push(Unsigned { message: send.message, why });
                 false
             }
         }
     });
-    held
+    unsigned
 }
 
-/// Sign `m` when it is to be signed and isn't yet: its body becomes the `multipart/signed` it
-/// goes as. Why not, in words, when it can't be.
+/// Sign `m` when it is to be signed: its body becomes the `multipart/signed` it goes as, made
+/// now from the message as it is (whatever bytes it held before, a signature by someone else
+/// among them, are let go of). Why not, in words, when it can't be.
 fn sign(host: &Host, m: &mut Message, now: i64) -> Result<(), String> {
     let Some(key) = m.sign_with.clone() else { return Ok(()) };
-    if !mailcraft_mime::signature_missing(m) {
-        return Ok(());
-    }
+    m.original = None;
     let key = key.checked().ok_or_else(|| "the key it was to be signed with can't be named".to_string())?;
     let entity = mailcraft_mime::signable(m);
     let (kind, micalg, signature) = match key.format {
@@ -340,9 +350,52 @@ fn gpg() -> Result<PathBuf, String> {
     if program.is_file() { Ok(program) } else { Err("GnuPG's gpg wasn't found".into()) }
 }
 
-/// The owner's public keys as GnuPG has them (`gpg --export`), at most [`MAX_EXPORT`] bytes.
-fn exported() -> Result<Vec<u8>, String> {
-    run_capped(&gpg()?, &["--batch", "--no-tty", "--export-options", "export-minimal", "--export"], MAX_EXPORT, EXPORT_TIMEOUT)
+/// The most of the owner's own keys (those with a private key) listed.
+const MAX_OWN_KEYS: usize = 64;
+/// The most bytes of `gpg --list-secret-keys` read.
+const MAX_LISTING: usize = 4 * 1024 * 1024;
+
+/// The public keys GnuPG has for `fingerprints` (`gpg --export`), at most [`MAX_EXPORT`] bytes.
+/// Each is a fingerprint in hex, checked, so nothing else reaches gpg's command line.
+fn exported(fingerprints: &[String]) -> Result<Vec<u8>, String> {
+    if fingerprints.is_empty() || fingerprints.iter().any(|f| f.is_empty() || f.len() > 64 || !f.bytes().all(|b| b.is_ascii_hexdigit())) {
+        return Ok(Vec::new());
+    }
+    let mut args = vec!["--batch", "--no-tty", "--export-options", "export-minimal", "--export"];
+    args.extend(fingerprints.iter().map(String::as_str));
+    run_capped(&gpg()?, &args, MAX_EXPORT, EXPORT_TIMEOUT)
+}
+
+/// The fingerprints of the owner's own keys: those GnuPG has a private key for
+/// (`gpg --list-secret-keys --with-colons`, the `fpr` record after each `sec`).
+fn own_keys() -> Result<Vec<String>, String> {
+    let listing = run_capped(&gpg()?, &["--batch", "--no-tty", "--with-colons", "--list-secret-keys"], MAX_LISTING, EXPORT_TIMEOUT)?;
+    Ok(own_fingerprints(&listing))
+}
+
+/// [`own_keys`] from what gpg wrote.
+pub(crate) fn own_fingerprints(listing: &[u8]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut after_sec = false;
+    for line in listing.split(|b| *b == b'\n') {
+        let mut fields = line.split(|b| *b == b':');
+        match fields.next() {
+            Some(b"sec") => after_sec = true,
+            Some(b"fpr") if after_sec => {
+                after_sec = false;
+                let Some(fpr) = fields.nth(8).and_then(|f| std::str::from_utf8(f).ok()) else { continue };
+                let fpr = fpr.trim().to_ascii_uppercase();
+                if (32..=64).contains(&fpr.len()) && fpr.bytes().all(|b| b.is_ascii_hexdigit()) && !out.contains(&fpr) {
+                    out.push(fpr);
+                }
+                if out.len() >= MAX_OWN_KEYS {
+                    break;
+                }
+            }
+            _ => after_sec = false,
+        }
+    }
+    out
 }
 
 /// Run `program` with `args` (never through a shell): what it writes, at most `cap` bytes, in at
@@ -380,7 +433,7 @@ fn run_capped(program: &std::path::Path, args: &[&str], cap: usize, timeout: Dur
         Ok(Err(_)) | Err(_) => {
             let _ = child.kill();
             let _ = child.wait();
-            return Err("gpg didn't answer in time".into());
+            return Err("gpg's output couldn't be read in time".into());
         }
     };
     if out.len() > cap {
@@ -417,16 +470,11 @@ pub(crate) fn agent_key(sexp: &mailcraft_assuan::Sexp) -> Option<mailcraft_openp
 pub(crate) fn hash_for(agent: &mailcraft_openpgp::AgentKey<'_>) -> mailcraft_openpgp::HashAlgorithm {
     use mailcraft_openpgp::HashAlgorithm as H;
     match agent {
-        mailcraft_openpgp::AgentKey::Ecc { curve, .. } => {
-            let c = curve.to_ascii_lowercase();
-            if c.contains("384") {
-                H::Sha384
-            } else if c.contains("521") {
-                H::Sha512
-            } else {
-                H::Sha256
-            }
-        }
+        mailcraft_openpgp::AgentKey::Ecc { curve, .. } => match curve.trim_matches('"').to_ascii_lowercase().as_str() {
+            "nist p-384" | "nistp384" | "secp384r1" | "1.3.132.0.34" => H::Sha384,
+            "nist p-521" | "nistp521" | "secp521r1" | "1.3.132.0.35" => H::Sha512,
+            _ => H::Sha256,
+        },
         mailcraft_openpgp::AgentKey::Rsa { .. } => H::Sha256,
     }
 }
@@ -448,28 +496,41 @@ fn agent_hash(hash: mailcraft_openpgp::HashAlgorithm) -> mailcraft_assuan::HashA
     }
 }
 
-/// The signing key `key` names: its own fingerprint, or its primary key's (the first of that
-/// key's that may sign).
-fn find_key<'a>(keys: &'a [mailcraft_openpgp::SigningKey], key: &SigningKey) -> Option<&'a mailcraft_openpgp::SigningKey> {
+/// The keys that may sign for what `key` names: that key itself, else every key of the
+/// certificate whose primary key it is, newest first (a primary key kept offline with its
+/// signing subkey on a smartcard is the usual case).
+pub(crate) fn candidates<'a>(keys: &'a [mailcraft_openpgp::SigningKey], key: &SigningKey) -> Vec<&'a mailcraft_openpgp::SigningKey> {
     let named = |f: &mailcraft_openpgp::Fingerprint| f.to_hex().eq_ignore_ascii_case(&key.fingerprint);
-    keys.iter().find(|k| named(k.fingerprint())).or_else(|| keys.iter().find(|k| named(k.primary())))
+    let mut out: Vec<_> = keys.iter().filter(|k| named(k.fingerprint())).collect();
+    if out.is_empty() {
+        out = keys.iter().filter(|k| named(k.primary())).collect();
+        out.sort_by_key(|k| std::cmp::Reverse(k.created()));
+    }
+    out
 }
 
 /// An armoured detached signature of `entity` by the OpenPGP key `key` names, made by gpg-agent,
 /// and its `micalg`.
 fn openpgp(entity: &[u8], key: &SigningKey, now: i64) -> Result<(String, &'static str), String> {
-    let keys = mailcraft_openpgp::signing_keys(&exported()?, u64::try_from(now).unwrap_or(0));
-    let signer = find_key(&keys, key).ok_or("the OpenPGP key isn't in GnuPG here, or can't sign now")?;
+    let keys = mailcraft_openpgp::signing_keys(&exported(std::slice::from_ref(&key.fingerprint))?, u64::try_from(now).unwrap_or(0));
+    let candidates = candidates(&keys, key);
+    if candidates.is_empty() {
+        return Err("the OpenPGP key isn't in GnuPG here, or can't sign now".into());
+    }
     let mut agent = crate::gpg_agent::connect().map_err(|e| e.to_string())?;
-    let mut found = None;
+    // The newest of the certificate's keys that may sign whose private key the agent holds.
+    let mut best: Option<(usize, mailcraft_assuan::Keygrip, mailcraft_openpgp::HashAlgorithm)> = None;
     for info in agent.list_keys().map_err(|e| e.to_string())? {
         let Ok(public) = agent.read_key(&info.keygrip) else { continue };
-        if let Some(held) = agent_key(&public).filter(|a| signer.matches(a)) {
-            found = Some((info.keygrip, hash_for(&held)));
-            break;
+        let Some(found) = agent_key(&public) else { continue };
+        if let Some(at) = candidates.iter().position(|c| c.matches(&found))
+            && best.as_ref().is_none_or(|(b, _, _)| at < *b)
+        {
+            best = Some((at, info.keygrip, hash_for(&found)));
         }
     }
-    let (keygrip, hash) = found.ok_or("gpg-agent doesn't hold the OpenPGP key's private key (insert its smartcard?)")?;
+    let (at, keygrip, hash) = best.ok_or("gpg-agent doesn't hold the OpenPGP key's private key (insert its smartcard?)")?;
+    let signer = *candidates.get(at).ok_or("the OpenPGP key can't be found again")?;
     let created = u32::try_from(now).map_err(|_| "the clock is wrong".to_string())?;
     let armoured = mailcraft_openpgp::sign_detached(entity, signer, created, hash, |digest| {
         let digest = mailcraft_assuan::Digest::new(agent_hash(hash), digest).ok_or_else(|| "a digest of the wrong length".to_string())?;
@@ -512,7 +573,7 @@ fn smime_choice(h: Held) -> Option<SigningChoice> {
 
 /// The OpenPGP keys GnuPG has whose private key gpg-agent holds.
 fn openpgp_choices() -> Result<Vec<SigningChoice>, String> {
-    let keys = mailcraft_openpgp::signing_keys(&exported()?, u64::try_from(now()).unwrap_or(0));
+    let keys = mailcraft_openpgp::signing_keys(&exported(&own_keys()?)?, u64::try_from(now()).unwrap_or(0));
     if keys.is_empty() {
         return Ok(Vec::new());
     }

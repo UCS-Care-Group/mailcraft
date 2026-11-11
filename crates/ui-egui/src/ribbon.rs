@@ -801,10 +801,7 @@ fn options(app: &MailApp) -> Tab {
     Tab::of(vec![
         g(
             "Encrypt",
-            vec![
-                Item::big("digitalSign", "Sign", "compose.sign", no()).checked(sign).at(0, 1),
-                Item::pending("compose.encrypt", "Encrypt", 0),
-            ],
+            vec![Item::big("digitalSign", "Sign", "compose.sign", no()).checked(sign).at(0, 1), Item::pending("compose.encrypt", "Encrypt", 0)],
         ),
         g(
             "Tracking",

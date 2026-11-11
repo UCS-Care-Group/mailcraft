@@ -53,6 +53,12 @@ pub(super) fn sends(graph: &Graph<'_>, sends: &[SendUp], out: &mut Vec<SendDone>
 
 fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetError> {
     let url = match (&send.draft, &send.mime) {
+        // A message to be Digitally signed goes only as its own bytes (#30 R19): sending the
+        // server's draft would have Microsoft build it again, unsigned. Never sent that way.
+        (Some(_), Some(message)) if message.sign_with.is_some() => {
+            done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_SIGNED.to_string() };
+            return Ok(());
+        }
         (Some(draft), _) => {
             let mut up = DraftDone { change: draft.without_data(), id: draft.id.clone(), ..Default::default() };
             let brought = super::drafts::one(graph, draft, &mut up);
@@ -99,9 +105,10 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
                 match discard(graph, &send.discard) {
                     Ok(true) => {}
                     Ok(false) => done.draft_left = send.discard.clone(),
+                    // It went: the rest of the run's sends go on, and the draft goes next run.
                     Err(e) => {
+                        log::info!("graph sending: the draft of a signed message sent couldn't be taken away ({e}); it goes next run");
                         done.draft_left = send.discard.clone();
-                        return Err(e);
                     }
                 }
             }

@@ -60,18 +60,19 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
                 None
             }
         })
+        .map(|m| super::signing::decided(mb, m.as_ref().clone()))
         .map(|m| match m.server_draft.as_ref().and(super::graph_drafts::draft_up_whole(&m)) {
             // A Digitally signed message goes as its own bytes (#30 R19): sending the draft the
             // server has would have Microsoft build the message again, and the signature break.
             // The draft it was saved as is taken away once it has gone.
             Some(draft) if m.sign_with.is_some() && !exchange => {
-                SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())), discard: draft.id }
+                SendUp { message: m.id, draft: None, mime: Some(Box::new(m.clone())), discard: draft.id }
             }
             // An Exchange server account's message always goes as its MIME, with the server filing
             // the copy in Sent Items (not every server files one when a saved draft is sent); the
             // draft it was saved as is named so that the run takes it away once the send is clear
             // (E8).
-            Some(draft) if exchange => SendUp { message: m.id, draft: Some(draft), mime: Some(Box::new(m.as_ref().clone())), discard: String::new() },
+            Some(draft) if exchange => SendUp { message: m.id, draft: Some(draft), mime: Some(Box::new(m.clone())), discard: String::new() },
             // Sent as it is here, every field and attachment written over what the server has:
             // whatever was changed on the server meanwhile is the owner's to lose (AU2-14).
             Some(draft) => SendUp {
@@ -80,7 +81,7 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
                 mime: None,
                 discard: String::new(),
             },
-            None => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())), discard: String::new() },
+            None => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.clone())), discard: String::new() },
         })
         .collect()
 }

@@ -16,7 +16,7 @@
 //! the browser build has none of.
 
 use mailcraft_model::digital_signature::SignatureFormat;
-use mailcraft_model::signing::{SigningKey, Unsigned, held_unsigned};
+use mailcraft_model::signing::{SigningKey, Unsigned};
 use mailcraft_model::{Account, AccountKind, FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
 
@@ -44,6 +44,8 @@ pub fn can_sign(account: &Account) -> bool {
 
 /// Why a message to be signed can't be sent as it is.
 pub const NOT_HERE: &str = "this account doesn't send mail from here, so its messages can't be Digitally signed: turn Sign off";
+/// Why Always can't be on.
+pub const NO_KEY_FOR_ALWAYS: &str = "choose the certificate or key to sign with before turning Always on";
 /// Why a message to be signed can't be sent yet.
 pub const NO_KEY: &str = "choose the certificate or key to sign with first (File › Account Settings › Digital Signatures), or turn Sign off";
 
@@ -109,6 +111,14 @@ fn set_signing(s: &mut Session, v: &Value) -> CmdResult {
     if !can_sign(account) && (always == Some(true) || matches!(key, Some(Some(_)))) {
         return Err(fail(NOT_HERE));
     }
+    // Always needs a key: a message from the account is never to be signed with none.
+    let will_have_key = match &key {
+        Some(k) => k.is_some(),
+        None => account.signing.key.is_some(),
+    };
+    if always.unwrap_or(account.signing.always) && !will_have_key {
+        return Err(fail(NO_KEY_FOR_ALWAYS));
+    }
     let account = s.mailbox.account_mut(id)?;
     if let Some(key) = key {
         account.signing.key = key;
@@ -135,7 +145,8 @@ pub fn hold_unsigned(mb: &mut Mailbox, account: Id, unsigned: &[Unsigned], lang:
         if !m.held.is_empty() {
             continue;
         }
-        m.held = held_unsigned(&u.why);
+        let why: String = u.why.chars().filter(|c| !c.is_control()).take(300).collect();
+        m.held = mailcraft_i18n::fmt(lang.t("It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries again."), &[("why", &why)]);
         let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
         let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
         let why: String = u.why.chars().filter(|c| !c.is_control()).take(300).collect();
@@ -145,6 +156,18 @@ pub fn hold_unsigned(mb: &mut Mailbox, account: Id, unsigned: &[Unsigned], lang:
         ));
     }
     changed
+}
+
+/// A message on its way out of `mb`'s Outbox, with the key it goes signed with when its
+/// account always signs and it wasn't sent with Sign off: whatever queued it (Send, a meeting's
+/// answer, Send Again), it isn't sent unsigned while the account says every message is signed.
+pub fn decided(mb: &Mailbox, mut m: mailcraft_model::Message) -> mailcraft_model::Message {
+    if m.sign_with.is_none()
+        && let Some(account) = mb.account(m.account).filter(|a| can_sign(a) && a.signing.signs(m.sign))
+    {
+        m.sign_with = account.signing.key.as_ref().and_then(SigningKey::checked);
+    }
+    m
 }
 
 /// The error a Send gets when the message can't go as [`will_sign`] says it must.

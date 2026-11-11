@@ -440,7 +440,7 @@ pub(crate) fn run_mail(job: EwsJob, wake: &egui::Context) -> Receiver<EwsMailRes
     let spawned = std::thread::Builder::new().name("exchange send/receive".into()).spawn(move || {
         let EwsJob { mut request, secret, cancel } = job;
         // What is to go Digitally signed is signed first; what can't be is held (#30).
-        let held = crate::signing::sign_sends(&mut request.sends);
+        let held = crate::signing::held_sends(crate::signing::sign_sends(&mut request.sends));
         if !held.is_empty() {
             let piece = EwsMailResult { account: request.account, email: request.email.clone(), sent: held, ..Default::default() };
             if tx.send(piece).is_err() {

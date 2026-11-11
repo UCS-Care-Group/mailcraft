@@ -899,14 +899,11 @@ fn log_outcome(outcome: &mailcraft_model::remote::EventOutcome) {
 /// [`graph`], with what is to go Digitally signed signed first (#30): what can't be is held and
 /// never sent unsigned.
 fn signed_graph(mut request: GraphRequest) -> GraphResult {
-    let unsigned = signing::sign_outbox(&mut request.outbox);
-    let held = request.mail.as_mut().map(|mail| signing::sign_sends(&mut mail.sends)).unwrap_or_default();
+    let mut unsigned = signing::sign_outbox(&mut request.outbox);
+    // (A run kept in step through Graph says them here too: its mail may come back in pieces.)
+    unsigned.extend(request.mail.as_mut().map(|mail| signing::sign_sends(&mut mail.sends)).unwrap_or_default());
     let mut out = graph(request);
     out.unsigned.extend(unsigned);
-    // (A run that brought no mail back leaves them in the Outbox, to be signed at the next.)
-    if let Some(mail) = out.mail.as_mut() {
-        mail.sent.extend(held);
-    }
     out
 }
 

@@ -10,6 +10,8 @@ description = "MailCraft egui front end (Outlook-style ribbon UI); swappable: no
 workspace = true
 
 [dependencies]
+# A smartcard's PIN typed for a Digital signature (#30) is overwritten when let go of.
+zeroize = "1"
 mailcraft-time = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
