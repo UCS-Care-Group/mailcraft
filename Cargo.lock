@@ -3073,6 +3073,7 @@ dependencies = [
  "security-framework",
  "serde_json",
  "sha2 0.11.1",
+ "tempfile",
  "windows",
  "windows-native-keyring-store",
  "winit",
