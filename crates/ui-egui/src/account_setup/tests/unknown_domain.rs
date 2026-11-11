@@ -10,6 +10,25 @@ use super::*;
 /// A mail exchanger that is nobody's this program knows.
 const HOSTED_MX: &str = "mx.hosted.example";
 
+/// Legacy Hotmail MX discovery starts Microsoft sign-in with Outlook.com's settings and no password prompt.
+#[test]
+fn a_legacy_outlook_custom_domain_discovers_outlook_and_starts_microsoft_sign_in() {
+    let mut a = app(false);
+    a.services.microsoft_client_id = APP_ID.into();
+    let asked = lookups(&mut a, Some(Ok(vec!["123456789.pamx1.hotmail.com"])));
+    let signed = sign_ins(&mut a, None);
+    let mut h = open(a, json!({}));
+    connect(&mut h, "noor@example.org");
+    h.run_steps(4);
+    assert_eq!(*asked.lock().unwrap(), ["example.org"]);
+    assert_eq!(page(&h), Some(Page::SignIn));
+    let w = wizard(&h).unwrap();
+    assert_eq!((w.service.as_str(), w.oauth.as_ref().map(|o| o.provider), w.guessed), ("Outlook.com", Some(OAuthProvider::Microsoft), false));
+    assert_eq!((w.incoming.host.as_str(), w.outgoing.host.as_str()), ("outlook.office365.com", "smtp-mail.outlook.com"));
+    assert_eq!(signed.lock().unwrap().first().map(|(email, _, _)| email.as_str()), Some("noor@example.org"));
+    assert!(w.password.0.is_empty());
+}
+
 /// What the host says when a server announces `LOGINDISABLED`, as it says it (#872).
 fn no_password() -> mailcraft_i18n::Text {
     crate::host_said_tests::no_password_here()

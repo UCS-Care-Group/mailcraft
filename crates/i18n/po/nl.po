@@ -6419,6 +6419,11 @@ msgstr "Deze versie behouden"
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Blijf wachten; de overschakeling gaat vanzelf door zodra MailCraft de server kan bereiken. Of schakel over zonder die, als de server niet meer kan worden bereikt (bijvoorbeeld doordat uw organisatie IMAP heeft uitgeschakeld):"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keep {address}"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -8822,6 +8827,11 @@ msgstr "Alleen een vergadering die u organiseert, heeft Een tijd zoeken"
 #, fuzzy
 msgid "Only confirm if you know these servers."
 msgstr "Bevestig alleen als u deze servers kent."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -18502,7 +18512,7 @@ msgstr "de server beëindigde de sessie: {reason}"
 msgid "the server greeted with a refusal: {reason}"
 msgstr "de server groette met een weigering: {reason}"
 
-#. why a command can't run
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
