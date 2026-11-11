@@ -2139,6 +2139,8 @@ fn take_in(
             if inbox != sorted {
                 if fresh {
                     mb.apply_rules(id, clock);
+                } else if reset {
+                    mb.apply_rules_renumbered(id, clock);
                 } else {
                     mb.apply_rules_found(id, clock);
                 }

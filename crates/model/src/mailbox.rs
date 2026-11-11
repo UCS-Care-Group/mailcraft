@@ -3273,6 +3273,13 @@ impl Mailbox {
         self.rules_on(id, Ruling::Found, clock, &mut Going::default())
     }
 
+    /// [`Mailbox::apply_rules_found`] for the mail of a mailbox its server numbered anew, which
+    /// was here as other mail before: nothing is copied either, for the rules copied it as it first
+    /// arrived, and a copy now would be a second one (#566).
+    pub fn apply_rules_renumbered(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, Ruling::Renumbered, clock, &mut Going::default())
+    }
+
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
     /// the server has here too, as Outlook does), and none shows an alert: the mail isn't
     /// arriving.
@@ -3343,7 +3350,14 @@ impl Mailbox {
                     waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
                 } else {
                     alert |= rule.alert && ruling == Ruling::Arriving;
-                    if self.act(id, &rule.actions, clock, ruling != Ruling::Found && !unsure, going) {
+                    // (Copied as it first arrived.)
+                    let actions: std::borrow::Cow<[Action]> = if ruling == Ruling::Renumbered {
+                        rule.actions.iter().filter(|a| !matches!(a, Action::CopyTo(_))).cloned().collect()
+                    } else {
+                        std::borrow::Cow::Borrowed(&rule.actions)
+                    };
+                    let for_good = matches!(ruling, Ruling::Arriving | Ruling::Now) && !unsure;
+                    if self.act(id, &actions, clock, for_good, going) {
                         ran.push(rule.name.clone());
                     }
                     copied |= rule.actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
@@ -4279,6 +4293,8 @@ enum Ruling {
     Arriving,
     /// Mail its server had before it was read here ([`Mailbox::apply_rules_found`]).
     Found,
+    /// Mail of a mailbox its server numbered anew ([`Mailbox::apply_rules_renumbered`]).
+    Renumbered,
     /// Run Rules Now.
     Now,
 }

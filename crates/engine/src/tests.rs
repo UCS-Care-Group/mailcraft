@@ -1971,6 +1971,56 @@ mod two_way {
         assert_eq!(deletes(&s), [RemoteOp::Delete { from: "INBOX".into(), uid: 2 }]);
     }
 
+    /// Older mail below how far the Inbox was read, and an Inbox the server numbered anew, are mail
+    /// that was there before: filed by the rules, never deleted for good by one or alerted of, and
+    /// what was copied as it arrived isn't copied again (#566).
+    #[test]
+    fn older_mail_and_a_renumbered_inbox_arent_deleted_for_good_alerted_of_or_copied_again() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "deleteForGood"}]});
+        let told = json!({"name": "Told", "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        let copied =
+            json!({"name": "Copied", "conditions": [{"type": "subjectContains", "value": "memo"}], "actions": [{"type": "copyTo", "value": kept}]});
+        run(&mut s, "rules.add", gone);
+        run(&mut s, "rules.add", told);
+        run(&mut s, "rules.add", copied);
+        let inbox_news =
+            |id, validity, new, seen| FolderDelta { complete: true, uid_seen: seen, ..news(id, "INBOX", FolderKind::Inbox, validity, new, vec![]) };
+        let first = SyncResult { account: a, folders: vec![inbox_news(None, 7, vec![from_server(10, "Note")], 10)], ..Default::default() };
+        apply(&mut s, first);
+        let memo = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), 7, vec![from_server(11, "Memo")], 11)], ..Default::default() };
+        apply(&mut s, memo);
+        let copies = |s: &Session| s.mailbox.messages_in(kept).filter(|m| m.subject == "Memo").count();
+        assert_eq!(copies(&s), 1, "copied as it arrived");
+        // Older mail, below how far the Inbox was read (a raised limit brings it down).
+        let older = SyncResult {
+            account: a,
+            folders: vec![inbox_news(Some(inbox), 7, vec![from_server(5, "Old offer"), from_server(6, "Old hello")], 11)],
+            ..Default::default()
+        };
+        apply(&mut s, older);
+        assert!(s.mailbox.messages.values().any(|m| m.subject == "Old offer"), "older mail deleted for good");
+        assert!(!s.mailbox.message(titled(&s, a, "Old hello")).unwrap().rule_alert, "older mail alerted of");
+        // Numbered anew.
+        let renumbered = SyncResult {
+            account: a,
+            folders: vec![inbox_news(
+                Some(inbox),
+                8,
+                vec![from_server(1, "Note"), from_server(2, "Memo"), from_server(3, "Renumbered offer"), from_server(4, "Renumbered hello")],
+                4,
+            )],
+            ..Default::default()
+        };
+        apply(&mut s, renumbered);
+        assert!(s.mailbox.messages.values().any(|m| m.subject == "Renumbered offer"), "renumbered mail deleted for good");
+        assert!(!s.mailbox.message(titled(&s, a, "Renumbered hello")).unwrap().rule_alert, "renumbered mail alerted of");
+        assert_eq!(copies(&s), 1, "not copied again");
+    }
+
     #[test]
     fn a_backlog_goes_up_in_batches_and_is_counted_fast() {
         let (mut s, a, inbox, archive) = synced();
