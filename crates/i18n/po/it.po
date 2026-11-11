@@ -6993,6 +6993,11 @@ msgstr "Messaggi su sfondo chiaro"
 msgid "Messages to download per folder"
 msgstr "Messaggi da scaricare per cartella"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Messages with a similar subject are filed here."
+msgstr "Qui sono archiviate mail con un oggetto simile."
+
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -11596,6 +11601,11 @@ msgstr "Accede con {provider}"
 msgid "Signs in with: {how}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Similar messages from this sender are filed here."
+msgstr "Qui sono archiviate mail simili di questo mittente."
+
 #. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -11926,10 +11936,25 @@ msgid "Suggest Account Settings"
 msgstr "Suggerisci impostazioni account"
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Suggest Filing Folders"
+msgstr "Suggerisci cartelle di destinazione"
+
+#. command label
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "Suggest Recipients"
 msgstr "Suggerisci destinatari"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Suggest folders in the Move menu"
+msgstr "Suggerisci cartelle nel menu Sposta"
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Suggested folders"
+msgstr "Cartelle suggerite"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -13018,6 +13043,11 @@ msgstr ""
 #: crates/ui-egui/src/backstage.rs
 msgid "The selected message, as .eml"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "The sender and subject match messages filed here."
+msgstr "Mittente e oggetto corrispondono a quelli di mail archiviate qui."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs

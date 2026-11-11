@@ -6157,6 +6157,11 @@ msgstr ""
 msgid "Messages to download per folder"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Messages with a similar subject are filed here."
+msgstr ""
+
 #. name
 #: crates/model/src/mailbox.rs
 msgid "Microsoft"
@@ -10159,6 +10164,11 @@ msgstr ""
 msgid "Signs in with: {how}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Similar messages from this sender are filed here."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/ribbon.rs
 msgid "Simplified Ribbon"
@@ -10450,8 +10460,23 @@ msgid "Suggest Account Settings"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Suggest Filing Folders"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/compose.rs
 msgid "Suggest Recipients"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Suggest folders in the Move menu"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Suggested folders"
 msgstr ""
 
 #. date and time, name
@@ -11450,6 +11475,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "The selected message, as .eml"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "The sender and subject match messages filed here."
 msgstr ""
 
 #. interface

@@ -112,6 +112,8 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         return err(why);
     }
     match agent::check(&app.session, id, &params, allow) {
+        #[cfg(not(target_arch = "wasm32"))]
+        Verdict::Run if id == "mail.suggestFolders" => crate::control::filing_suggestions(app, req, &params),
         Verdict::Run => run(app, id, params, allow, None),
         Verdict::Refuse(why) => err(why),
         Verdict::Ask(class, what) => {

@@ -1119,7 +1119,23 @@ fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
 /// with the chosen one. Typing narrows the list to the folders whose name matches, each shown
 /// with its place in the tree; the arrow keys and Enter choose, and Escape clears the search
 /// before it closes the menu (#74).
-pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut MailApp, Id)) {
+pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+    folder_menu_items(ui, app, &[], pick);
+}
+
+pub(crate) fn move_message_menu(ui: &mut Ui, app: &mut MailApp) {
+    let suggestions = crate::filing_suggestions::for_menu(app, ui.ctx());
+    folder_menu_items(ui, app, &suggestions, |app, folder| {
+        let _ = app.run("mail.move", json!({"folder": folder}));
+    });
+}
+
+fn folder_menu_items(
+    ui: &mut Ui,
+    app: &mut MailApp,
+    suggestions: &[mailcraft_engine::filing_suggestions::Suggestion],
+    mut pick: impl FnMut(&mut MailApp, Id),
+) {
     let account = app.session.mailbox.folder(app.session.view.folder).map(|f| f.account).or(app.session.mailbox.default_account().map(|a| a.id));
     let Some(account) = account else { return };
     fn walk(app: &MailApp, account: Id, parent: Option<Id>, depth: usize, out: &mut Vec<FolderRow>) {
@@ -1143,6 +1159,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     }
     st.seen = Some(frame);
 
+    let suggested = crate::filing_suggestions::show(app, ui, suggestions);
     let edit = ui.add(egui::TextEdit::singleline(&mut st.text).hint_text(tl!("Search folders")).desired_width(200.0).char_limit(FOLDER_SEARCH_MAX));
     let edit = crate::text_menu::field(edit);
     if fresh {
@@ -1176,7 +1193,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
         }
     }
     let marked = if searching { choosable.get(st.at).copied() } else { None };
-    let mut chosen = if enter { marked.and_then(|i| list.get(i)).map(|row| row.0) } else { None };
+    let mut chosen = suggested.or_else(|| if enter { marked.and_then(|i| list.get(i)).map(|row| row.0) } else { None });
 
     ui.add_space(2.0);
     egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
@@ -1325,9 +1342,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 Some(why) => {
                     ui.label(tl!(why));
                 }
-                None => folder_menu(ui, app, |app, folder| {
-                    let _ = app.run("mail.move", json!({"folder": folder}));
-                }),
+                None => move_message_menu(ui, app),
             }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {

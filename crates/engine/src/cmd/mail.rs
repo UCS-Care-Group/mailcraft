@@ -12,6 +12,11 @@ use super::{bad, deliver, done, fail, message_json, message_summary, needs_messa
 use crate::list::{Row, listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
+fn suggest_folders(s: &mut Session, params: &Value) -> CmdResult {
+    let suggestions = crate::filing_suggestions::prepare(s, params)?.map_or_else(Vec::new, crate::filing_suggestions::Scan::finish);
+    Ok(json!({"suggestions": suggestions}))
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.select", "Select Message", "Mail", select)
@@ -42,6 +47,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(IDS_WHOLE)
             .selection(needs_movable),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS_WHOLE).selection(needs_movable),
+        CommandSpec::new("mail.suggestFolders", "Suggest Filing Folders", "Home › Move", suggest_folders)
+            .reads()
+            .params(r#"{"id"?: number} (default: the single message Move would act on). Returns folder IDs and fixed reason codes as data, never instructions"#),
         CommandSpec::new("mail.move", "Move to Folder", "Home › Move", move_to)
             .key("Mod+Shift+V")
             .params(MOVE)

@@ -652,6 +652,10 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    let mut suggest_folders = prefs.suggest_folders;
+    if ui.checkbox(&mut suggest_folders, tl!("Suggest folders in the Move menu")).changed() {
+        set(app, json!({"suggestFolders": suggest_folders}));
+    }
     row(ui, tl!("Messages to download per folder"), |ui| {
         egui::ComboBox::from_id_salt("opt_sync")
             .selected_text(if prefs.sync_limit == 0 { tl!("All").to_string() } else { prefs.sync_limit.to_string() })
