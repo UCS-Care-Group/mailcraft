@@ -119,6 +119,9 @@ enum Setup {
     /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
     /// with other people, with a category.
     Shared,
+    /// The account is a Microsoft account whose list of categories is kept in step with
+    /// Outlook's, and MailCraft may change it there; the first contact is the account's (#661).
+    Synced,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -248,6 +251,10 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
     ("tasks.fromMessage", "{}", Setup::Shared),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
+    // A category made in Outlook (#661).
+    ("category.set", r##"{"name": "Travel", "color": "#2E8B57", "account": $account}"##, Setup::Synced),
+    ("mail.categorize", r#"{"ids": [$message], "category": "Travel"}"#, Setup::Synced),
+    ("people.categorize", r#"{"id": $contact, "category": "Travel"}"#, Setup::Synced),
 ];
 
 /// Asked about only for a dialog with changes the owner hasn't saved, which a test can't fill in
@@ -326,6 +333,17 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             t.origin.id = "t1".to_string();
             t.list = "L1".to_string();
             t.categories = vec!["Shared".to_string()];
+        }
+        Setup::Synced => {
+            let mb = &mut a.session.mailbox;
+            mb.accounts[0].kind = mailcraft_model::AccountKind::Microsoft;
+            mb.accounts[0].oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+            mb.contact_mut(i.contact).unwrap().origin.account = i.account;
+            let red = mailcraft_model::Category { name: "Red category".into(), color: mailcraft_model::outlook_colors::OUTLOOK_COLORS[0] };
+            let email = mb.accounts[0].email.clone();
+            let download = mailcraft_model::remote::CategoriesDownload { account: i.account, email, categories: vec![red], complete: true };
+            a.session.run("sync.applyCategories", &json!({"download": download})).unwrap();
+            a.session.run("sync.categoryWrites", &json!({"account": i.account, "allowed": true})).unwrap();
         }
         Setup::Step(redo) => {
             a.execute("junk.add", json!({"list": "safe", "entry": "z@example.org"})).unwrap();
