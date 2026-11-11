@@ -173,6 +173,19 @@ fn a_read_follows_the_server_for_what_wasnt_changed_here_and_keeps_what_waits() 
     assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Delete, "Kept", RED), change(CategoryChangeKind::Color, "Mine", GREEN)]);
 }
 
+/// A read that finds several names written otherwise in Outlook gives each item that carries
+/// them every one of Outlook's spellings.
+#[test]
+fn a_read_with_several_names_written_otherwise_respells_them_all_on_the_items() {
+    let (mut s, a) = rig(vec![tag("Client", RED), tag("Travel", GREEN), tag("Home", BLUE)], true);
+    let both = message_of(&mut s, a, &["Client", "Travel", "Home"]);
+    let one = message_of(&mut s, a, &["Travel"]);
+    read(&mut s, a, vec![tag("CLIENT", RED), tag("travel", GREEN), tag("Home", BLUE)]);
+    assert_eq!(names(&s, a), ["CLIENT", "travel", "Home"]);
+    assert_eq!(s.mailbox.message(both).unwrap().categories, ["CLIENT", "travel", "Home"]);
+    assert_eq!(s.mailbox.message(one).unwrap().categories, ["travel"]);
+}
+
 #[test]
 fn a_long_list_still_takes_the_servers_colours_and_new_names() {
     let (mut s, a) = rig(vec![tag("Red category", RED)], true);

@@ -3928,10 +3928,13 @@ impl Mailbox {
             self.found_category(owner, name);
         }
         self.set_synced(owner, synced_now);
-        for name in &respelled {
+        // (All of them in one pass over the items.)
+        if !respelled.is_empty() {
             self.each_category_list(owner, |list| {
-                for c in list.iter_mut().filter(|c| same_category(c, name)) {
-                    c.clone_from(name);
+                for c in list.iter_mut() {
+                    if let Some(name) = respelled.iter().find(|n| same_category(c, n)) {
+                        c.clone_from(name);
+                    }
                 }
             });
         }
