@@ -9,7 +9,8 @@
 //! is read-only here, and says so.
 
 use mailcraft_model::outlook_colors::{OUTLOOK_COLORS, outlook_preset};
-use mailcraft_model::{GREY_CATEGORY, Id, MAX_NAME, Rgb, category_key, clean_name};
+use mailcraft_model::sync::same_category;
+use mailcraft_model::{GREY_CATEGORY, Id, MAX_NAME, Mailbox, Rgb, category_key, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, done};
@@ -62,14 +63,39 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
 /// the name as given for one the list doesn't have yet. With `add` (the category is being put on,
 /// not taken off) that name joins the list in grey, so it can be given a colour.
 pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Result<String, CmdError> {
-    if let Some(c) = s.mailbox.category_of(account, name) {
+    spelled_in(&mut s.mailbox, account, name, add)
+}
+
+fn spelled_in(mb: &mut Mailbox, account: Id, name: &str, add: bool) -> Result<String, CmdError> {
+    if let Some(c) = mb.category_of(account, name) {
         return Ok(c.name.clone());
     }
     if add {
-        check_room(s, account)?;
-        s.mailbox.set_category(account, name, GREY_CATEGORY)?;
+        room_in(mb, account)?;
+        mb.set_category(account, name, GREY_CATEGORY)?;
     }
     Ok(name.to_string())
+}
+
+/// The names [`spelled_all`] would put on the list `account`'s items use (worked out on a copy,
+/// as it would do it), when that list is one MailCraft keeps in step with Outlook and may change
+/// there: what the next job makes in Outlook (#661), for the agent gate. Empty for any other list,
+/// and for a call the command would refuse.
+pub(crate) fn joining(s: &Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Vec<String> {
+    let mb = &s.mailbox;
+    if mb.synced_list_owner(account).is_none() || mb.categories_read_only(account).is_some() {
+        return Vec::new();
+    }
+    // (A copy only when a name is new to the list: most calls give names it has.)
+    if given.iter().filter_map(|g| clean_name(g)).all(|name| mb.category_of(account, &name).is_some()) {
+        return Vec::new();
+    }
+    let mut copy = mb.clone();
+    if spelled_all_in(&mut copy, account, given, had, had_account).is_err() {
+        return Vec::new();
+    }
+    let before = mb.categories_of(account);
+    copy.categories_of(account).iter().filter(|c| !before.iter().any(|b| same_category(&b.name, &c.name))).map(|c| c.name.clone()).collect()
 }
 
 /// The categories an item of `account` carries when `given` is what a new or an edit says it
@@ -84,6 +110,10 @@ pub(super) fn spelled(s: &mut Session, account: Id, name: &str, add: bool) -> Re
 /// first looked for by its whole spelling, so that two the item carries that differ only past
 /// the cut stay two.
 pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
+    spelled_all_in(&mut s.mailbox, account, given, had, had_account)
+}
+
+fn spelled_all_in(mb: &mut Mailbox, account: Id, given: &[String], had: &[String], had_account: Id) -> Result<Vec<String>, CmdError> {
     use std::collections::{HashMap, HashSet};
     // Names are compared as `same_category` compares them (any capitals, as the lists do), through
     // maps made once, so that a long list given against a long list had is no slower than the two
@@ -119,12 +149,12 @@ pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &
         }
         // A name the item had is looked for on a list by its whole spelling: a long one is on
         // none, and its cut beginning (another name) is not it.
-        let listed = |s: &Session, list: Id| s.mailbox.category_of(list, key).is_some();
+        let listed = |mb: &Mailbox, list: Id| mb.category_of(list, key).is_some();
         let spelling = match had_as {
-            Some(c) if !listed(s, account) && !listed(s, had_account) => c.to_string(),
+            Some(c) if !listed(mb, account) && !listed(mb, had_account) => c.to_string(),
             // Else the list's spelling, or the item's as it joins the list.
-            Some(c) => spelled(s, account, c, true)?,
-            None => spelled(s, account, &name, true)?,
+            Some(c) => spelled_in(mb, account, c, true)?,
+            None => spelled_in(mb, account, &name, true)?,
         };
         carried.push(spelling);
     }
@@ -134,7 +164,11 @@ pub(super) fn spelled_all(s: &mut Session, account: Id, given: &[String], had: &
 /// Refuses a new category when the list `account`'s items use is full. (A list that is read-only
 /// here says that instead, when it is asked to change.)
 fn check_room(s: &Session, account: Id) -> Result<(), CmdError> {
-    if s.mailbox.categories_read_only(account).is_none() && s.mailbox.categories_of(account).len() >= MAX_MADE {
+    room_in(&s.mailbox, account)
+}
+
+fn room_in(mb: &Mailbox, account: Id) -> Result<(), CmdError> {
+    if mb.categories_read_only(account).is_none() && mb.categories_of(account).len() >= MAX_MADE {
         return Err(super::fail("there are too many categories"));
     }
     Ok(())

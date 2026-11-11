@@ -891,21 +891,60 @@ fn removes_in_outlook(s: &Session, params: &Value) -> bool {
 
 /// What a call makes in Outlook of a list of categories kept in step with it (#661), which the
 /// next job writes there: `category.set` with a name the list doesn't have (`made`) or another
-/// colour for one that goes there; a Categorize call that puts on an item a name its list doesn't
-/// have. The name, and the accounts whose Outlook it is. Read as the command reads its params
-/// (through the same function for Categorize); what the command refuses (a list MailCraft may not
-/// change there, a colour Outlook hasn't got, ids named wrongly) makes nothing, and asks nothing.
+/// colour for one that goes there; a Categorize call, a new or changed to-do or event, or a
+/// meeting with a contact, that puts on an item a name its list doesn't have; a rule made,
+/// switched on or run that gives mail such a name. The names, and the accounts whose Outlook it
+/// is. Read as the command reads its params (through the same functions); what the command
+/// refuses (a list MailCraft may not change there, a colour Outlook hasn't got, ids named
+/// wrongly) makes nothing, and asks nothing. (A contact's new or changed categories are this
+/// computer's list, or are refused: a contact an account's server keeps isn't edited here.)
 struct MadeInOutlook {
-    name: String,
+    names: Vec<String>,
     owners: Vec<Id>,
     made: bool,
+}
+
+/// The commands that give an item the categories a `categories` list names (#661).
+const GIVES_CATEGORIES: [&str; 6] = ["tasks.new", "tasks.edit", "calendar.new", "calendar.newMeeting", "calendar.edit", "people.meeting"];
+
+/// The commands that make, switch on or run rules, which may give mail a category (#661).
+const RUNS_RULES: [&str; 4] = ["rules.add", "rules.fromMessage", "rules.enable", "rules.run"];
+
+/// The account a list kept in step with Outlook is, for the items of `account`, when MailCraft may
+/// change it there.
+fn writable_list(mb: &Mailbox, account: Id) -> Option<Id> {
+    mb.synced_list_owner(account).filter(|_| mb.categories_read_only(account).is_none())
 }
 
 fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlook> {
     use crate::cmd;
     let mb = &s.mailbox;
-    // The account a list kept in step with Outlook is, when MailCraft may change it there.
-    let writable = |account: Id| mb.synced_list_owner(account).filter(|_| mb.categories_read_only(account).is_none());
+    let writable = |account: Id| writable_list(mb, account);
+    if GIVES_CATEGORIES.contains(&id) {
+        let (account, given, had, was) = match id {
+            "tasks.new" | "tasks.edit" => cmd::tasks::categories_given(s, id, params).map(|(a, given, had)| (a, given, had, a))?,
+            // A meeting with a contact is `calendar.newMeeting` with the same params.
+            "people.meeting" => cmd::calendar::categories_given(s, "calendar.newMeeting", params)?,
+            _ => cmd::calendar::categories_given(s, id, params)?,
+        };
+        let owner = writable(account)?;
+        let names = cmd::category::joining(s, account, &given, &had, was);
+        return (!names.is_empty()).then_some(MadeInOutlook { names, owners: vec![owner], made: true });
+    }
+    if RUNS_RULES.contains(&id) {
+        let made = rules_make_in_outlook(s, id, params);
+        let mut names: Vec<String> = Vec::new();
+        let mut owners: Vec<Id> = Vec::new();
+        for (name, owner) in made {
+            if !names.iter().any(|n| mailcraft_model::sync::same_category(n, &name)) {
+                names.push(name);
+            }
+            if !owners.contains(&owner) {
+                owners.push(owner);
+            }
+        }
+        return (!names.is_empty()).then_some(MadeInOutlook { names, owners, made: true });
+    }
     let (name, lists): (String, Vec<Id>) = match id {
         "category.set" => {
             let color = p::str(params, "color").and_then(mailcraft_model::Rgb::parse)?;
@@ -914,9 +953,9 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
             let owner = writable(account)?;
             mailcraft_model::outlook_colors::outlook_preset(color)?;
             return match mb.category_of(account, &name) {
-                None => Some(MadeInOutlook { name, owners: vec![owner], made: true }),
+                None => Some(MadeInOutlook { names: vec![name], owners: vec![owner], made: true }),
                 Some(c) if c.color != mailcraft_model::outlook_colors::nearest_outlook_color(color) && !mb.category_is_local(owner, &c.name) => {
-                    Some(MadeInOutlook { name: c.name.clone(), owners: vec![owner], made: false })
+                    Some(MadeInOutlook { names: vec![c.name.clone()], owners: vec![owner], made: false })
                 }
                 Some(_) => None,
             };
@@ -945,7 +984,88 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
             owners.push(owner);
         }
     }
-    (!owners.is_empty()).then_some(MadeInOutlook { name, owners, made: true })
+    (!owners.is_empty()).then_some(MadeInOutlook { names: vec![name], owners, made: true })
+}
+
+/// The categories the rules a call makes, switches on or runs give mail and put on a list kept in
+/// step with Outlook that hasn't got them, so that the next job makes them there (#661); each
+/// with that list's account. A rule for one account gives that account's mail its categories; one
+/// for every account, every account's. Read as the commands read their params, as for
+/// [`rules_onto_another_server`].
+fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, Id)> {
+    let mb = &s.mailbox;
+    let mut out = Vec::new();
+    match id {
+        "rules.add" => {
+            if let Ok(r) = crate::cmd::rules::rule_from_params(s, params) {
+                rule_makes_in_outlook(mb, &r, one_account(&r), &mut out);
+            }
+        }
+        "rules.fromMessage" => {
+            if let Ok((r, _)) = crate::cmd::rules::rule_from_message(s, params) {
+                rule_makes_in_outlook(mb, &r, one_account(&r), &mut out);
+            }
+        }
+        "rules.enable" => {
+            let named = p::id(params, "id").and_then(|r| mb.rules.iter().find(|x| x.id == r));
+            if let (Ok(value), Some(r)) = (p::opt_bool(params, "value"), named)
+                && value.unwrap_or(!r.enabled)
+            {
+                rule_makes_in_outlook(mb, r, one_account(r), &mut out);
+            }
+        }
+        "rules.run" => {
+            let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return out };
+            if let Some(a) = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account) {
+                for r in mb.rules.iter().filter(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id)) {
+                    rule_makes_in_outlook(mb, r, Some(a), &mut out);
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+/// [`rules_make_in_outlook`] for one rule, giving the mail of `from` (every account's, `None`) its
+/// categories.
+fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<Id>, out: &mut Vec<(String, Id)>) {
+    let accounts: Vec<Id> = match from {
+        Some(a) => vec![a],
+        None => mb.accounts.iter().map(|a| a.id).collect(),
+    };
+    for action in &r.actions {
+        let mailcraft_model::Action::Categorize(name) = action else { continue };
+        let Some(name) = mailcraft_model::clean_name(name) else { continue };
+        for account in &accounts {
+            let Some(owner) = writable_list(mb, *account) else { continue };
+            let known = out.iter().any(|(n, o)| *o == owner && mailcraft_model::sync::same_category(n, &name));
+            if mb.category_of(*account, &name).is_none() && !known {
+                out.push((name.clone(), owner));
+            }
+        }
+    }
+}
+
+/// What [`makes_in_outlook`] makes there for a call that gives an item or a rule categories, said
+/// after what the call does; empty for nothing.
+fn made_in_outlook_suffix(s: &Session, id: &str, params: &Value) -> String {
+    if !GIVES_CATEGORIES.contains(&id) && !RUNS_RULES.contains(&id) {
+        return String::new();
+    }
+    let Some(made) = makes_in_outlook(s, id, params) else { return String::new() };
+    let whose: Vec<String> = made.owners.iter().filter_map(|o| s.mailbox.account(*o)).map(|a| quoted(&a.email)).collect();
+    let whose = if whose.is_empty() { String::new() } else { format!(" of {}", some(&whose, 3)) };
+    let names: Vec<String> = made.names.iter().map(|n| quoted(n)).collect();
+    let (what, it, is) = match names.as_slice() {
+        [one] => (format!("the category {one}"), "it", "is"),
+        many => (format!("the categories {}", some(many, 3)), "they", "are"),
+    };
+    if RUNS_RULES.contains(&id) {
+        format!("; the rule gives mail {what}, new on the list{whose}, which is kept in step with Outlook, so {it} {is} made in Outlook too")
+    } else {
+        format!("; {what} {is} new on the list{whose}, which is kept in step with Outlook, and {is} made in Outlook too")
+    }
 }
 
 /// What [`makes_in_outlook`] makes there, said after what the call does (`on`: what a Categorize
@@ -954,7 +1074,7 @@ fn made_in_outlook_text(s: &Session, id: &str, params: &Value) -> String {
     let Some(made) = makes_in_outlook(s, id, params) else { return String::new() };
     let whose: Vec<String> = made.owners.iter().filter_map(|o| s.mailbox.account(*o)).map(|a| quoted(&a.email)).collect();
     let whose = if whose.is_empty() { String::new() } else { format!(" of {}", some(&whose, 3)) };
-    let name = quoted(&made.name);
+    let name = made.names.iter().map(|n| quoted(n)).next().unwrap_or_default();
     let on = match id {
         "mail.categorize" => messages_text(s, &p::ids_strict(params).ok().flatten().unwrap_or_else(|| s.sel.messages.clone())),
         "tasks.categorize" => {
@@ -1411,6 +1531,9 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         fields.remove("unsaved");
     }
     let mut what = what_it_does(s, id, &bare);
+    // A category new on a list kept in step with Outlook, which the call gives an item or a rule
+    // gives mail, is made there too (#661).
+    what.push_str(&made_in_outlook_suffix(s, id, &bare));
     // Another mailbox in view closes the message the owner is writing (#494); what isn't saved of
     // it goes to Drafts first, unless it is let go of (`discard`, #470).
     if matches!(id, "file.new" | "file.open") && owner_writing_any(s) {
@@ -1592,10 +1715,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "tasks.edit" | "tasks.complete" | "tasks.categorize" if shared_task(s, id, params).is_some() => {
             let t = shared_task(s, id, params).map(|t| quoted(&t.title)).unwrap_or_default();
             // (A name new on a list kept in step with Outlook is made there too, #661.)
-            let made = match makes_in_outlook(s, id, params) {
-                Some(m) => {
-                    format!("; the category {} is new on the list, which is kept in step with Outlook, and is made in Outlook too", quoted(&m.name))
-                }
+            // (For `tasks.edit`, said after it as for any to-do it changes.)
+            let made = match makes_in_outlook(s, id, params).filter(|_| id != "tasks.edit") {
+                Some(m) => format!(
+                    "; the category {} is new on the list, which is kept in step with Outlook, and is made in Outlook too",
+                    m.names.iter().map(|n| quoted(n)).next().unwrap_or_default()
+                ),
                 None => String::new(),
             };
             format!("{} on the task {t}{SHARED_TASK}{made}", run_text(label, id, params))

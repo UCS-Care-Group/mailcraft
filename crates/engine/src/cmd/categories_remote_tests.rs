@@ -2424,3 +2424,75 @@ fn a_deletion_waits_only_for_an_item_still_to_change_there() {
         assert_eq!(goes, !keeps, "keeps to-dos: {keeps}");
     }
 }
+
+#[test]
+fn an_agent_asks_before_a_new_or_changed_todo_or_event_makes_a_category_in_outlook() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    s.mailbox.accounts.iter_mut().find(|x| x.id == a).unwrap().oauth =
+        Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+    // (Where the owner's to-dos go: a new one there asks nothing for that.)
+    s.mailbox.local_tasks = mailcraft_model::LocalTasks::SendTo(a);
+    let items = items_of(&mut s, a);
+    let (event, task) = (items[0].1, items[2].1);
+    let calendar = s.mailbox.event(event).unwrap().calendar;
+    let asks = |s: &Session, command: &str, params: serde_json::Value, what: &str| match check(s, command, &params, &[]) {
+        Verdict::Ask(Class::Send, text) => assert!(
+            text.contains(what) && text.contains("\u{201c}a@example.org\u{201d}") && text.contains("made in Outlook too"),
+            "{command}: {text}"
+        ),
+        other => panic!("{command} {params}: {other:?}"),
+    };
+    let travel = "the category \u{201c}Travel\u{201d}";
+    asks(&s, "tasks.new", json!({"title": "T", "categories": ["Travel"], "account": a}), travel);
+    asks(&s, "tasks.edit", json!({"id": task, "categories": ["Travel"]}), travel);
+    asks(&s, "calendar.new", json!({"title": "E", "calendar": calendar, "categories": ["Travel"]}), travel);
+    asks(&s, "calendar.edit", json!({"id": event, "categories": ["Red category", "Travel"]}), travel);
+    // Two new names are named both.
+    asks(&s, "tasks.edit", json!({"id": task, "categories": ["Travel", "Trips"]}), "\u{201c}Travel\u{201d}; \u{201c}Trips\u{201d}");
+    // Names the list has, in any letters, a to-do kept on this computer, or a call the command
+    // refuses: nothing is made in Outlook, and nothing is asked.
+    for (command, params) in [
+        ("tasks.new", json!({"title": "T", "categories": ["red CATEGORY"], "account": a})),
+        ("tasks.new", json!({"title": "T", "categories": ["Travel"], "account": 0})),
+        ("tasks.new", json!({"title": "", "categories": ["Travel"], "account": a})),
+        ("tasks.edit", json!({"id": task, "categories": ["Red category"]})),
+        ("tasks.edit", json!({"id": task, "categories": ["Travel"], "account": 0})),
+        ("calendar.edit", json!({"id": event, "categories": ["Travel"], "calendar": 999_999})),
+    ] {
+        assert_eq!(check(&s, command, &params, &[]), Verdict::Run, "{command} {params}");
+    }
+    assert_eq!(check(&s, "tasks.edit", &json!({"id": task, "categories": ["Travel"]}), &[Class::Send]), Verdict::Run);
+    // What the question named is what the yes makes there.
+    s.run("tasks.edit", &json!({"id": task, "categories": ["Travel", "Trips"]})).unwrap();
+    let mut made: Vec<String> = changes(&mut s, a).into_iter().filter(|c| c.kind == CategoryChangeKind::Create).map(|c| c.name).collect();
+    made.sort();
+    assert_eq!(made, ["Travel", "Trips"]);
+}
+
+#[test]
+fn an_agent_asks_before_a_rule_gives_mail_a_category_that_is_made_in_outlook() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let rule = |name: &str, account: Option<Id>| {
+        let mut r = json!({"name": "R", "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "categorize", "value": name}], "server": false});
+        if let Some(account) = account {
+            r["account"] = json!(account);
+        }
+        r
+    };
+    // A rule for this account's mail, or for every account's, with a name its list hasn't got.
+    for params in [rule("Travel", Some(a)), rule("Travel", None)] {
+        match check(&s, "rules.add", &params, &[Class::Settings]) {
+            Verdict::Ask(Class::Send, text) => assert!(text.contains("\u{201c}Travel\u{201d}") && text.contains("made in Outlook too"), "{text}"),
+            other => panic!("{params}: {other:?}"),
+        }
+    }
+    // One the list has: nothing more than the rule.
+    assert_eq!(check(&s, "rules.add", &rule("red category", Some(a)), &[Class::Settings]), Verdict::Run);
+    // Run over the folder, it gives the mail there the name, and the list takes it.
+    s.run("rules.add", &rule("Travel", Some(a))).unwrap();
+    assert!(matches!(check(&s, "rules.run", &json!({"folder": inbox}), &[]), Verdict::Ask(Class::Send, _)));
+    // A rule for another account's mail asks nothing about this list.
+    let other = s.run("account.add", &json!({"email": "b@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(check(&s, "rules.add", &rule("Travel", Some(other)), &[Class::Settings]), Verdict::Run);
+}

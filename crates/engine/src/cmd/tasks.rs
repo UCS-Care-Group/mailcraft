@@ -184,6 +184,24 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "account": account, "keptAt": kept_at}))
 }
 
+/// What `tasks.new` or `tasks.edit` with `v` does to a to-do's categories, read as the commands
+/// read it, for the agent gate (#661): the account whose list it uses, the names given and the
+/// names it had. `None` when it gives none, or the command would refuse the call.
+pub(crate) fn categories_given(s: &Session, id: &str, v: &Value) -> Option<(Id, Vec<String>, Vec<String>)> {
+    let given = p::strings(v, "categories")?;
+    match id {
+        "tasks.new" if p::str(v, "title").is_some_and(|t| !t.trim().is_empty()) => Some((place_of_new(s, v).ok()?.unwrap_or(0), given, Vec::new())),
+        "tasks.edit" => {
+            let t = s.mailbox.task(target(s, v).ok()?)?;
+            if v.get("account").is_some_and(|account| account.as_u64() != Some(t.origin.account)) {
+                return None;
+            }
+            Some((t.origin.account, given, t.categories.clone()))
+        }
+        _ => None,
+    }
+}
+
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let mut t = s.mailbox.task(id).cloned().ok_or_else(|| fail("the task is gone"))?;

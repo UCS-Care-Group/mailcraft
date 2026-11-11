@@ -640,6 +640,32 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     (people > 0 && seen).then_some(Mail::Update(people))
 }
 
+/// What `calendar.new`, `calendar.newMeeting` or `calendar.edit` with `v` does to an event's
+/// categories, read as the commands read it, for the agent gate (#661): the account whose list
+/// they use (that of the calendar the event ends up in), the names given, the names it had and
+/// the account of the calendar it was in. `None` when it gives none, or names a calendar or an
+/// event the command would refuse.
+pub(crate) fn categories_given(s: &Session, id: &str, v: &Value) -> Option<(Id, Vec<String>, Vec<String>, Id)> {
+    let given = p::strings(v, "categories")?;
+    let named = match p::id(v, "calendar") {
+        Some(c) => Some(s.mailbox.calendar(c)?.id),
+        None => None,
+    };
+    let account_of = |calendar: Id| s.mailbox.calendar(calendar).map_or(0, |c| c.origin.account);
+    match id {
+        "calendar.new" | "calendar.newMeeting" => {
+            let account = account_of(named.unwrap_or_else(|| current_calendar(s)));
+            Some((account, given, Vec::new(), account))
+        }
+        "calendar.edit" => {
+            let before = changing(s, v).ok()?;
+            let was = s.mailbox.event_account(&before);
+            Some((account_of(named.unwrap_or(before.calendar)), given, before.categories, was))
+        }
+        _ => None,
+    }
+}
+
 /// The categories `v` gives the event `before` becomes as `e` take the spelling of the list of
 /// the account of the calendar it ends up in, as for a new one; a new name joins that list. Done
 /// after the other refusals, so that a full list isn't what a call that fails anyway is told.
