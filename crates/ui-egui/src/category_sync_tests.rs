@@ -68,8 +68,10 @@ fn covered(owner: Id, names: &[&str]) -> CategoriesResult {
     CategoriesResult { account: owner, covered: Some(true), download: Some(download(owner, names)), ..Default::default() }
 }
 
+/// The host's answer when the sign-in doesn't cover changing the list: that, and nothing else
+/// (the calendar's job reads the list meanwhile).
 fn not_covered(owner: Id) -> CategoriesResult {
-    CategoriesResult { account: owner, covered: Some(false), download: Some(download(owner, &["Red category"])), ..Default::default() }
+    CategoriesResult { account: owner, covered: Some(false), ..Default::default() }
 }
 
 #[test]
@@ -170,18 +172,37 @@ fn without_leave_to_change_it_the_list_is_read_only_and_the_owner_is_asked_once(
 #[test]
 fn a_server_that_wont_let_the_list_be_changed_says_why_and_asks_nobody() {
     let (mut app, owner, answers, jobs, _) = window();
-    answers.lock().unwrap().push_back(CategoriesResult { account: owner, covered: Some(true), denied: true, ..Default::default() });
+    answers.lock().unwrap().push_back(covered(owner, &["Red category"]));
     assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    app.execute("category.set", json!({"account": owner, "name": "Travel", "color": OUTLOOK_COLORS[4].hex()})).unwrap();
+    let at = 60_000.0;
+    assert!(!app.categories_tick_at(at));
+    // The server answered 403 to the change, as the host gives it: the change denied, and the
+    // list read back after it.
+    let denied = CategoryOutcome {
+        kind: CategoryChangeKind::Create,
+        name: "Travel".into(),
+        color: OUTLOOK_COLORS[4],
+        result: CategoryResult::Denied,
+        error: "this account may not change its list of categories".into(),
+        found: false,
+    };
+    let mut answer = covered(owner, &["Red category"]);
+    answer.denied = true;
+    answer.uploaded = Some(CategoriesUploaded { account: owner, outcomes: vec![denied], ..Default::default() });
+    answers.lock().unwrap().push_back(answer);
+    assert!(app.categories_tick_at(at + 5_000.0));
     app.poll_categories();
     assert!(matches!(app.category_sync.perm.get(&owner), Some(Permission::Refused(_))));
     assert!(!app.session.mailbox.category_writes.contains(&owner));
     let (line, allow) = app.categories_read_only_line(owner).unwrap();
     assert!(line.contains("No permission to change them (") && allow, "{line}");
-    for minute in 1..30 {
-        assert!(!app.categories_tick_at(f64::from(minute) * 60_000.0));
+    for minute in 2..30 {
+        assert!(!app.categories_tick_at(at + f64::from(minute) * 60_000.0));
     }
     assert!(app.dialog.is_none());
-    assert_eq!(jobs.lock().unwrap().len(), 1);
+    assert_eq!(jobs.lock().unwrap().len(), 2);
 }
 
 #[test]

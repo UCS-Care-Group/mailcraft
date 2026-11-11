@@ -55,7 +55,7 @@ fn window() -> (MailApp, Id, SignIns, Answer) {
     }));
     app.services.graph_categories = Some(Box::new(move |_: CategoriesJob| {
         let (tx, rx) = mpsc::channel();
-        tx.send(CategoriesResult { account: owner, covered: Some(false), download: Some(download(owner)), ..Default::default() }).unwrap();
+        tx.send(CategoriesResult { account: owner, covered: Some(false), ..Default::default() }).unwrap();
         rx
     }));
     let (sign_ins, answer): (SignIns, Answer) = (Default::default(), Arc::new(Mutex::new(Ok(tokens("sync-access", "ref-2")))));

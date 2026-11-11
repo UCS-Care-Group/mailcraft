@@ -1421,16 +1421,25 @@ fn tasks_job_with(
 /// waits told to the server, then the list read back. Nothing of a category is logged.
 fn categories_job(job: mailcraft_ui_egui::category_sync::CategoriesJob) -> mailcraft_ui_egui::category_sync::CategoriesResult {
     let mail = tasks_mail(&job.account);
-    categories_job_with(job, &move |oauth, refresh| mailcraft_net::oauth::refresh_graph_categories(oauth, refresh, mail))
+    let graph = CategoriesGraph { push: &mailcraft_net::graph::push_categories, read: &mailcraft_net::graph::categories };
+    categories_job_with(job, &move |oauth, refresh| mailcraft_net::oauth::refresh_graph_categories(oauth, refresh, mail), &graph)
 }
 
-/// [`categories_job`], with how the token is had as `renew` (the tests' own, which asks nobody).
+/// How a categories job reaches Microsoft Graph with its token: the changes told, and the list
+/// read back (the tests' own, which ask nobody).
+struct CategoriesGraph<'a> {
+    push: &'a dyn Fn(&str, &mailcraft_model::remote::CategoriesUpload) -> mailcraft_model::remote::CategoriesUploaded,
+    read: &'a dyn Fn(&str) -> Result<mailcraft_model::remote::CategoriesDownload, mailcraft_net::NetError>,
+}
+
+/// [`categories_job`], with how the token is had as `renew` and Graph as `graph`.
 fn categories_job_with(
     job: mailcraft_ui_egui::category_sync::CategoriesJob,
     renew: RenewGraph<'_>,
+    graph: &CategoriesGraph<'_>,
 ) -> mailcraft_ui_egui::category_sync::CategoriesResult {
     use mailcraft_model::remote::CategoryResult;
-    use mailcraft_net::{NetError, graph};
+    use mailcraft_net::NetError;
     let mut out = mailcraft_ui_egui::category_sync::CategoriesResult { account: job.account.id, ..Default::default() };
     let access = match renew(&job.oauth, &job.refresh) {
         Ok(got) => {
@@ -1453,7 +1462,7 @@ fn categories_job_with(
         }
     };
     if !job.upload.changes.is_empty() {
-        let uploaded = graph::push_categories(&access, &job.upload).for_account(&job.account);
+        let uploaded = (graph.push)(&access, &job.upload).for_account(&job.account);
         out.denied = uploaded.outcomes.iter().any(|o| o.result == CategoryResult::Denied);
         let refused = uploaded.token_refused;
         out.uploaded = Some(uploaded);
@@ -1462,7 +1471,7 @@ fn categories_job_with(
             return out;
         }
     }
-    match graph::categories(&access) {
+    match (graph.read)(&access) {
         Ok(download) => out.download = Some(download.for_account(&job.account)),
         // (Reading takes the calendar's permission: its job says what there is to say.)
         Err(NetError::Forbidden(_)) => {}
