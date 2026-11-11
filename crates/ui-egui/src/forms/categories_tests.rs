@@ -297,3 +297,29 @@ fn allow_in_the_window_puts_the_question_and_waits_for_the_answer() {
     assert!(asked, "the owner is asked");
     assert!(!h.state().sync_declined.contains(&a));
 }
+
+/// A held Space or Enter on a category's Delete button deletes that category alone: its repeats
+/// don't reach the button that takes its place, the next category's.
+#[test]
+fn a_held_key_deletes_one_category() {
+    for held in [egui::Key::Space, egui::Key::Enter] {
+        let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+        app.autosave = false;
+        let before: Vec<String> = app.session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
+        assert!(before.len() >= 3);
+        let mut h = dialog(app, json!({}));
+        h.get_all_by_label("Delete this category").next().unwrap().focus();
+        h.run_steps(2);
+        let key = |pressed, repeat| egui::Event::Key { key: held, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
+        h.event(key(true, false));
+        h.step();
+        for _ in 0..6 {
+            h.event(key(true, true));
+            h.step();
+        }
+        h.event(key(false, false));
+        h.run_steps(3);
+        let names: Vec<String> = h.state().session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
+        assert_eq!(names, before[1..], "{held:?}");
+    }
+}

@@ -4248,6 +4248,9 @@ mod categories {
 
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+            // A held Space on a category's Delete is one press: its repeats would reach the button
+            // that takes its place, the next category's, and delete that one too, in Outlook too.
+            ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Space]));
             let t = Tokens::get(ui.ctx());
             let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
             let lists = lists(&app.session.mailbox);
