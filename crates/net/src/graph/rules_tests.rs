@@ -240,6 +240,16 @@ fn every_condition_exception_and_action_of_outlooks_is_read_whole_and_written_ba
     // Graph's sizes are in kilobytes (`sizeRange`), as a rule's are: 10 KB to 500 KB goes up as
     // 10 and 500, never as bytes.
     assert_eq!(body["conditions"]["withinSizeRange"], json!({"minimumSize": 10, "maximumSize": 500}));
+    // Graph's sensitivity values, as it documents them.
+    for (sensitivity, said) in [
+        (Sensitivity::Normal, "normal"),
+        (Sensitivity::Personal, "personal"),
+        (Sensitivity::Private, "private"),
+        (Sensitivity::Confidential, "confidential"),
+    ] {
+        let rule = RemoteRule { conditions: vec![Condition::Sensitivity(sensitivity)], ..rule.clone() };
+        assert_eq!(rule_body(&rule).unwrap()["conditions"]["sensitivity"], json!(said), "{sensitivity:?}");
+    }
 }
 
 #[test]

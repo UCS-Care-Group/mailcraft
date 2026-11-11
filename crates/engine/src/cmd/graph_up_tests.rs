@@ -140,7 +140,10 @@ fn a_message_copied_then_deleted_for_good_comes_back_when_the_copy_is_refused() 
         // As a rule that copies and then deletes for good does, or the owner before a run.
         let copy = s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap()["copies"][0].as_u64().unwrap();
         s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
-        let change = graph_mail_request(&s, account).unwrap().messages.remove(0);
+        let mut asked = graph_mail_request(&s, account).unwrap().messages;
+        // The delete waits for the copy's answer: the copy alone goes.
+        assert!(!asked.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "{asked:?}");
+        let change = asked.remove(0);
         assert!(matches!(change, MessageChange::Copy { .. }), "{change:?}");
         let outcome = if refused {
             MessageOutcome::Refused { status: 403 }

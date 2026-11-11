@@ -313,6 +313,8 @@ fn an_accounts_first_download_shows_no_rules_alert_either() {
     let before = mark(&s.mailbox);
     apply(&mut s, account, vec![inbox_delta(inbox, vec![message(1, "Rowan", "Urgent")])]);
     assert!(arrivals(&s.mailbox, &before).is_empty());
+    // Nor is it marked for one, for later.
+    assert!(s.mailbox.messages.values().all(|m| !m.rule_alert));
 }
 
 #[test]

@@ -417,3 +417,17 @@ fn run_rules_now_doesnt_count_what_a_rule_couldnt_do() {
     assert!(s.mailbox.message(m).is_some(), "stays: the server has it");
     assert_eq!(matched, 0, "nothing was done to it");
 }
+
+/// Run Rules Now acts on mail that is already here: a rule's desktop alert is for mail arriving,
+/// and none is shown for it.
+#[test]
+fn run_rules_now_shows_no_alert() {
+    let (mut s, account, inbox, _) = session();
+    let m = arriving(&mut s, inbox, "boss@example.org", "Urgent");
+    s.mailbox.message_mut(m).unwrap().rule_alert = false;
+    let urgent = json!({"name": "Urgent", "account": account, "conditions": [{"type": "subjectContains", "value": "urgent"}], "actions": [{"type": "markRead"}], "alert": true});
+    s.run("rules.add", &urgent).unwrap();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], 1);
+    let m = s.mailbox.message(m).unwrap();
+    assert!(m.read && !m.rule_alert);
+}

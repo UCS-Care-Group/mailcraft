@@ -1394,16 +1394,15 @@ fn mail_a_rule_couldnt_copy_isnt_deleted() {
 
 #[test]
 fn mail_of_which_only_the_headers_are_here_isnt_deleted_after_a_copy() {
-    let (mut s, _, local, _) = session();
-    let inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
-    let kept = s.mailbox.add_folder(local, None, "Kept").unwrap();
+    // A mail server's message too large to download: its headers are here, and its size there.
+    let (mut s, _, _, _) = session();
+    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let imap = run(&mut s, "account.add", servers)["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
+    let kept = s.mailbox.add_folder(imap, None, "Kept").unwrap();
     let actions = json!([{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]);
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Keep", "account": local, "conditions": [{"type": "subjectContains", "value": "x"}], "actions": actions}),
-    );
-    let m = arriving(&mut s, local, "a@example.org", "x");
+    run(&mut s, "rules.add", json!({"name": "Keep", "account": imap, "conditions": [{"type": "subjectContains", "value": "x"}], "actions": actions}));
+    let m = arriving(&mut s, imap, "a@example.org", "x");
     s.mailbox.message_mut(m).unwrap().not_downloaded = 30_000_000;
     s.mailbox.apply_rules(m, &s.rule_clock());
     assert_eq!(s.mailbox.message(m).map(|m| m.folder), Some(inbox));
