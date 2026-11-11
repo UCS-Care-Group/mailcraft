@@ -4063,6 +4063,11 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
 
 // ---- month ----
 
+/// The Month view: the weeks from `from` to `to` one under the other (six at most), each day a
+/// cell with its number and what happens on it, items of several days as bars across their
+/// days, and what doesn't fit said as more. With week numbers on, a column left of the weeks
+/// has each week's number, and a click on one shows that week. Side by side, every pane of
+/// `panes` has the weeks for its own calendars.
 fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: Date, items: &[Item], panes: &[PaneView]) {
     let t = Tokens::get(ui.ctx());
     // Coming back to a time grid scrolls it to the working day again.
