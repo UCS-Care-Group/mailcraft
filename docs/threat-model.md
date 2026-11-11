@@ -347,7 +347,10 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   is copied or deleted for good of mail its server had before it was read here (a first download,
   older mail, a mailbox the server numbered anew), nor deleted for good by Run Rules Now after a
   rule that can't tell (a Delete in Deleted Items included). An undo of a step that copied a
-  message and deleted it for good leaves the copy, which is then all there is of it.
+  message and deleted it for good brings the original back and takes the copy away, but for a
+  Microsoft or Exchange account's original, which stays deleted: its copy stays then, all there
+  is of it. An IMAP original whose delete was on its way is kept on this computer, in Imported,
+  should the server have deleted it.
   The rules leave a shared mailbox's mail alone, Run Rules Now too. On an IMAP, Microsoft or
   Exchange server account, the server's original of a message copied on this computer and
   deleted for good, by a rule or by hand, goes only once the mailbox file holds the copy.
