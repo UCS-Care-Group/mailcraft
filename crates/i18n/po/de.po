@@ -191,7 +191,7 @@ msgstr "-----Ursprüngliche Nachricht-----"
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid ".pst file ({format})"
-msgstr "PST-Datei ({format})"
+msgstr ".pst-Datei ({format})"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -272,7 +272,7 @@ msgstr "@{login}: {prs} zusammengeführte PRs, {commits} Commits, +{added} / −
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "A .pst file is being imported: try again when it is done"
-msgstr "Eine PST-Datei wird gerade importiert: Versuche es erneut, sobald der Import abgeschlossen ist"
+msgstr "Eine .pst-Datei wird gerade importiert: Versuche es erneut, sobald der Import abgeschlossen ist"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -5308,7 +5308,7 @@ msgstr "Ihr Zertifikat oder Ihren Schlüssel importieren"
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Import a .pst File"
-msgstr "Eine PST-Datei importieren"
+msgstr "Eine .pst-Datei importieren"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -5393,7 +5393,7 @@ msgstr "{what} importiert"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Imported {what} from the .pst file"
-msgstr "{what} aus der PST-Datei importiert"
+msgstr "{what} aus der .pst-Datei importiert"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -6545,7 +6545,7 @@ msgstr "MailCraft hat den Lesevorgang vorzeitig abgebrochen."
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
-msgstr "MailCraft hat das Einlesen der PST-Datei vorzeitig beendet: Bereits importierte Daten bleiben erhalten"
+msgstr "MailCraft hat das Einlesen der .pst-Datei vorzeitig beendet: Bereits importierte Daten bleiben erhalten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -12126,7 +12126,7 @@ msgstr "Am"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The .pst file has {what} to import; nothing was imported"
-msgstr "Die PST-Datei enthält {what} zum Importieren; es wurde nichts importiert"
+msgstr "Die .pst-Datei enthält {what} zum Importieren; es wurde nichts importiert"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -15534,7 +15534,7 @@ msgstr "`verified` ist true oder false"
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
-msgstr "Eine PST-Datei wird gerade in dieses Postfach importiert: Warten Sie, bis der Vorgang abgeschlossen ist, und speichern Sie diese anschließend an einem anderen Ort"
+msgstr "Eine .pst-Datei wird gerade in dieses Postfach importiert: Warten Sie, bis der Vorgang abgeschlossen ist, und speichern Sie diese anschließend an einem anderen Ort"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -15544,7 +15544,7 @@ msgstr "Eine .pst-Datei wird nur in einen Kalender auf diesem Computer importier
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
-msgstr "Eine PST-Datei wird ausschließlich in einen Ordner auf diesem Computer importiert, niemals in ein Konto auf einem Server oder in einen Postausgang"
+msgstr "Eine .pst-Datei wird ausschließlich in einen Ordner auf diesem Computer importiert, niemals in ein Konto auf einem Server oder in einen Postausgang"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -16730,7 +16730,7 @@ msgstr "das steht nicht auf der Liste"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "that isn't the password of this .pst file: nothing was imported"
-msgstr "das ist nicht das Passwort dieser PST-Datei: Es wurde nichts importiert"
+msgstr "das ist nicht das Passwort dieser .pst-Datei: Es wurde nichts importiert"
 
 #. interface
 #: crates/ui-egui/src
@@ -16762,17 +16762,17 @@ msgstr "das wurde nur angesehen, nicht vollständig gelesen"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
-msgstr "die PST-Datei konnte nicht geöffnet werden: {e}"
+msgstr "die .pst-Datei konnte nicht geöffnet werden: {e}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be read: {why}"
-msgstr "die PST-Datei konnte nicht gelesen werden: {why}"
+msgstr "die .pst-Datei konnte nicht gelesen werden: {why}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file's reader stopped before it was done"
-msgstr "das Einlesen der PST-Datei wurde vorzeitig beendet"
+msgstr "das Einlesen der .pst-Datei wurde vorzeitig beendet"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -16982,12 +16982,12 @@ msgstr "der Ordner, in den sie E-Mails verschiebt, ist nicht auf dem Server"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the folder the .pst file was being imported into is gone: the import stopped"
-msgstr "Der Ordner, in den die PST-Datei importiert wurde, ist nicht mehr vorhanden: Der Import wurde abgebrochen"
+msgstr "Der Ordner, in den die .pst-Datei importiert wurde, ist nicht mehr vorhanden: Der Import wurde abgebrochen"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
-msgstr "Der Ordner, in den die PST-Datei importiert wurde, wurde in „Gelöschte Elemente“ verschoben: Der Import wurde abgebrochen"
+msgstr "Der Ordner, in den die .pst-Datei importiert wurde, wurde in „Gelöschte Elemente“ verschoben: Der Import wurde abgebrochen"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
@@ -17611,12 +17611,12 @@ msgstr "diese Einstellungen sind für ein anderes Konto, nicht für {who}"
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this .pst file has a password: give it to import the file"
-msgstr "diese PST-Datei ist passwortgeschützt: Geben Sie das Passwort ein, um die Datei zu importieren"
+msgstr "diese .pst-Datei ist passwortgeschützt: Geben Sie das Passwort ein, um die Datei zu importieren"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
-msgstr "Diese PST-Datei ist zu groß, um sie ohne eine Postfachdatei mit ausreichend Speicherplatz daneben zu importieren: Speichern Sie zuerst das Postfach in einer Datei und starten Sie dann den Import erneut"
+msgstr "Diese .pst-Datei ist zu groß, um sie ohne eine Postfachdatei mit ausreichend Speicherplatz daneben zu importieren: Speichern Sie zuerst das Postfach in einer Datei und starten Sie dann den Import erneut"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -17690,7 +17690,7 @@ msgstr "diese Datei enthält einen privaten Schlüssel, der nicht als öffentlic
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this isn't a .pst file"
-msgstr "dies ist keine PST-Datei"
+msgstr "dies ist keine .pst-Datei"
 
 #. name
 #: crates/model/src/sync.rs
