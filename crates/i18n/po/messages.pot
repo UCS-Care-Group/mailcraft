@@ -1420,7 +1420,7 @@ msgid "Attachment options for {name}"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 msgid "Attachments"
 msgstr ""
 
@@ -1592,6 +1592,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/send_receive.rs
 msgid "Back online"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Back to Message"
 msgstr ""
 
 #. interface
@@ -2223,6 +2228,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Clear search (Esc)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Click to preview {name}; double-click to open it"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -6685,6 +6695,11 @@ msgstr ""
 msgid "Next Month"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Next Page"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Next Week"
@@ -6888,6 +6903,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "No new version is ready to install."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview helper is available for this attachment."
 msgstr ""
 
 #. interface
@@ -8012,6 +8032,11 @@ msgid "Preferences"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preparing attachment preview…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Press Send/Receive to download your mail."
 msgstr ""
@@ -8019,6 +8044,11 @@ msgstr ""
 #. interface, name
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/signatures.rs
 msgid "Preview"
+msgstr ""
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+msgid "Preview Attachment"
 msgstr ""
 
 #. interface
@@ -8039,6 +8069,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/date_picker.rs
 msgid "Previous Month"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Previous Page"
 msgstr ""
 
 #. interface
@@ -9306,6 +9341,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/select.rs
 msgid "Select some text first"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Select the message before previewing its attachment."
 msgstr ""
 
 #. command label, interface, ribbon
@@ -10875,6 +10915,16 @@ msgid "The approval didn't go through."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview could not be opened."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview timed out."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/files.rs
 msgid "The browser can't read files by path"
 msgstr ""
@@ -11955,6 +12005,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/people_view.rs
 msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment could not be previewed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment is too large to preview."
 msgstr ""
 
 #. interface
@@ -13102,6 +13162,11 @@ msgid "Violet"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Wait for the other attachment preview to finish."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Waiting"
 msgstr ""
@@ -13745,7 +13810,7 @@ msgid "Z on top"
 msgstr ""
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
 msgstr ""
 

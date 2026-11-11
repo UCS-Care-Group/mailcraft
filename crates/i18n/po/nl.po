@@ -1699,7 +1699,7 @@ msgid "Attachment options for {name}"
 msgstr "Opties voor bijlagen voor {name}"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Bijlagen"
@@ -1906,6 +1906,11 @@ msgstr "Terug"
 #, fuzzy
 msgid "Back online"
 msgstr "Weer online"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Back to Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2665,6 +2670,11 @@ msgstr "Zoekopdracht wissen"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Zoekopdracht wissen (Esc)"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Click to preview {name}; double-click to open it"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -8012,6 +8022,11 @@ msgstr "Volgend bericht"
 msgid "Next Month"
 msgstr "Volgende maand"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Next Page"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8253,6 +8268,11 @@ msgstr "Er wordt daar geen bericht gelezen"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Er staat geen nieuwe versie klaar om te installeren."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview helper is available for this attachment."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -9602,6 +9622,11 @@ msgid "Preferences"
 msgstr "Voorkeuren"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preparing attachment preview…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Press Send/Receive to download your mail."
@@ -9612,6 +9637,11 @@ msgstr "Druk op Verzenden/ontvangen om uw e-mail te downloaden."
 #, fuzzy
 msgid "Preview"
 msgstr "Voorbeeld"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+msgid "Preview Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9636,6 +9666,11 @@ msgstr "Vorig bericht"
 #, fuzzy
 msgid "Previous Month"
 msgstr "Vorige maand"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Previous Page"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -11165,6 +11200,11 @@ msgstr "Selecteer een item om te lezen"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Selecteer eerst tekst"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Select the message before previewing its attachment."
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -13038,6 +13078,16 @@ msgid "The approval didn't go through."
 msgstr "De goedkeuring is niet doorgekomen."
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview could not be opened."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview timed out."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/files.rs
 msgid "The browser can't read files by path"
 msgstr ""
@@ -14308,6 +14358,16 @@ msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvan
 #, fuzzy
 msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment could not be previewed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment is too large to preview."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -15688,6 +15748,11 @@ msgid "Violet"
 msgstr "Violet"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Wait for the other attachment preview to finish."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Waiting"
@@ -16455,7 +16520,7 @@ msgid "Z on top"
 msgstr "Z bovenaan"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Zoom"
 msgstr "Zoom"
