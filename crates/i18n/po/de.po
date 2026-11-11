@@ -1493,8 +1493,9 @@ msgstr "So, wie Ihre Empfänger es sehen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask again"
-msgstr ""
+msgstr "Erneut fragen"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6721,8 +6722,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-msgstr ""
+msgstr "MailCraft braucht zuerst Ihre Erlaubnis, um Ihre automatischen Antworten zu ändern: Datei › Informationen › Erneut fragen."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -16017,8 +16019,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr ""
+msgstr "Eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: Sie würden gesendet"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17665,8 +17668,9 @@ msgstr "Der Server hat nach mehr gefragt, als der Befehl hatte"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear a flag"
-msgstr ""
+msgstr "der Server kann keine Kennzeichnung löschen"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -18336,9 +18340,10 @@ msgstr "die seine E-Mails sendet: Senden Sie diese Nachricht von einem anderen K
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
+msgstr "MailCraft braucht zuerst Ihre Erlaubnis (Datei › Informationen › Erneut fragen)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs

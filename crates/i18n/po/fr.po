@@ -1495,8 +1495,9 @@ msgstr "Tel que vos correspondants le voient"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask again"
-msgstr ""
+msgstr "Redemander"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4797,7 +4798,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr "De et Envoyé à demandent des adresses complètes, comme quelquun@example.org."
+msgstr "De et Envoyé à demandent des adresses complètes, comme quelqu'un@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6723,8 +6724,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-msgstr ""
+msgstr "MailCraft a d'abord besoin de votre autorisation pour modifier vos réponses automatiques : Fichier › Informations › Redemander."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -16033,8 +16035,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr ""
+msgstr "une règle ne peut pas déplacer ni copier du courrier dans une Boîte d'envoi : cela l'enverrait"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17681,8 +17684,9 @@ msgstr "le serveur a demandé plus que ce que la commande contenait"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear a flag"
-msgstr ""
+msgstr "le serveur ne peut pas effacer un indicateur"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -18352,9 +18356,10 @@ msgstr "qui envoie son courrier : envoyez ce message depuis un autre compte, o
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
+msgstr "MailCraft a d'abord besoin de votre autorisation (Fichier › Informations › Redemander)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs

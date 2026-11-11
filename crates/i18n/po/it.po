@@ -1495,8 +1495,9 @@ msgstr "Come lo vedono le persone a cui si scrive"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask again"
-msgstr ""
+msgstr "Chiedi di nuovo"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6723,8 +6724,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-msgstr ""
+msgstr "MailCraft ha prima bisogno della tua autorizzazione per modificare le tue risposte automatiche: File › Informazioni › Chiedi di nuovo."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -16031,8 +16033,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr ""
+msgstr "una regola non può spostare né copiare la posta in Posta in uscita: la invierebbe"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17679,8 +17682,9 @@ msgstr "il server ha chiesto più di quanto contenesse il comando"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear a flag"
-msgstr ""
+msgstr "il server non può rimuovere un contrassegno"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -18350,9 +18354,10 @@ msgstr "che ne invia la posta: inviare questo messaggio da un altro account, opp
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
+msgstr "MailCraft ha prima bisogno della tua autorizzazione (File › Informazioni › Chiedi di nuovo)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -19802,7 +19807,7 @@ msgstr "«{subject}» è arrivato dal suo server, ma non è stato possibile cons
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
-msgstr "«{subject}» è ancora in viaggio verso il server della sua casella, e il messaggio da cui è stato copiato resta sul proprio server finché non vi arriva: spostalo dopo il prossimo Invia/Ricevi"
+msgstr "«{subject}» è ancora in viaggio verso il server della sua casella, e il messaggio da cui è stato copiato resta sul proprio server finché non vi arriva: spostarlo dopo il prossimo Invia/Ricevi"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

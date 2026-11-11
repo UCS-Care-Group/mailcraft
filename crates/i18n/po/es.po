@@ -1495,8 +1495,9 @@ msgstr "Tal como lo ven las personas a las que escribe"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask again"
-msgstr ""
+msgstr "Volver a preguntar"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3400,7 +3401,7 @@ msgstr "Al eliminar desde la fila de una conversación, se pregunta primero si l
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Delete permanently"
-msgstr "Eliminar permanentemente"
+msgstr "Eliminar definitivamente"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6723,8 +6724,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
-msgstr ""
+msgstr "MailCraft necesita primero su permiso para cambiar sus respuestas automáticas: Archivo › Información › Volver a preguntar."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -16033,8 +16035,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr ""
+msgstr "una regla no puede mover ni copiar correo a una Bandeja de salida: eso lo enviaría"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -16489,7 +16492,7 @@ msgstr "elimina de forma definitiva"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-msgstr "elimina el correo permanentemente, y MailCraft no le pide eso a ningún servidor"
+msgstr "elimina el correo definitivamente, y MailCraft no le pide eso a ningún servidor"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17681,8 +17684,9 @@ msgstr "el servidor pidió más de lo que tenía el comando"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear a flag"
-msgstr ""
+msgstr "el servidor no puede borrar una marca"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -18352,9 +18356,10 @@ msgstr "que envía su correo: envíe este mensaje desde otra cuenta, o guárdelo
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgctxt "why automatic replies weren't changed"
 msgid "MailCraft needs your permission first (File › Info › Ask again)."
-msgstr ""
+msgstr "MailCraft necesita primero su permiso (Archivo › Información › Volver a preguntar)."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs

@@ -6445,7 +6445,7 @@ msgstr "Alleen deze"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "KB"
-msgstr "kB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -10042,7 +10042,7 @@ msgstr "Ontvangen tussen"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr "Ontvangen tussen vraagt één of twee dagen (JJJJ-MM-DD), de eerdere eerst."
+msgstr "Ontvangen tussen vraagt één of twee dagen (YYYY-MM-DD), de eerdere eerst."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -12422,7 +12422,7 @@ msgstr "Grootte ligt tussen"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr "Grootte ligt tussen vraagt twee groottes in kB, de kleinste eerst."
+msgstr "Grootte ligt tussen vraagt twee groottes in KB, de kleinste eerst."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -16902,8 +16902,9 @@ msgstr "een antwoord mag hoogstens {most} tekens lang zijn"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr ""
+msgstr "een regel kan geen e-mail naar een Postvak UIT verplaatsen of kopiëren: die zou dan worden verzonden"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -18622,8 +18623,9 @@ msgstr "de server vroeg om meer dan de opdracht had"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear a flag"
-msgstr ""
+msgstr "de server kan geen markering wissen"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
