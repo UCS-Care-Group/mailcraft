@@ -368,6 +368,11 @@ msgstr ""
 msgid "A meeting that repeats and skips some days can't be put on the server's calendar from here: everyone invited would get a cancellation for each skipped day. Keep it in a calendar on this computer, or make it again without the skipped days."
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "A message Resend received couldn't be downloaded, and is kept as its header: {error}"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -2540,13 +2545,18 @@ msgid "Couldn't change flags in \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/sync.rs crates/net/src/sync/resend.rs
 msgid "Couldn't check for new mail"
 msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
 msgid "Couldn't delete messages from \"{name}\""
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Couldn't download a message Resend received"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -6297,6 +6307,11 @@ msgstr ""
 msgid "More commands"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "More mail came to Resend since the last Send/Receive than MailCraft lists in one ({count} messages): the oldest of it wasn't brought; read it on Resend"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 msgid "More results on the server"
@@ -8658,6 +8673,56 @@ msgstr ""
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Resend Message"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend answered with status {status}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend can't send a message it received again: it is kept as it came"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend didn't take the API key (reading received mail needs a key with full access)"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend named a message by an id that isn't one"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend only keeps the mail it received: what was put in the account goes back where it came from"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend received more than one message in the same eighth of a second: {count} of them weren't brought here; read them on Resend"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend said a message is at {host}, which isn't Resend's"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend sent a message's bytes on too many redirects"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend's list of mail made no sense"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend's word on a message made no sense"
 msgstr ""
 
 #. ribbon
@@ -13729,14 +13794,14 @@ msgstr ""
 msgid "Your organisation's administrator has to approve this once"
 msgstr ""
 
-#. name
-#: crates/ui-egui/src/account_setup.rs
-msgid "Your own domain's mail, with an API key"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your own domain's mail, with an API key"
 msgstr ""
 
 #. interface
@@ -13852,6 +13917,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "a Resend API key is only shown to Resend's API"
 msgstr ""
 
 #. what a command says
@@ -15818,6 +15888,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "type the Resend API key as the account's password"
 msgstr ""
 
 #. why a mail server couldn't be used

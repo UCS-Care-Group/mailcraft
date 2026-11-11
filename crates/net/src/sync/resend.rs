@@ -29,9 +29,10 @@ use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::Fetched;
 use serde_json::Value;
 
-use super::{Run, state_for, too_large};
+use super::{Run, States, too_large};
 use crate::http::{self, MAX_LONG_URL, Request, Url};
 use crate::{NetError, transport};
+use mailcraft_i18n::{Arg, said};
 
 /// The one folder an account at Resend has on the server, as its path is kept.
 const INBOX: &str = "INBOX";
@@ -88,14 +89,14 @@ pub(super) fn exchange(run: &mut Run) {
     let (mut listed, reached) = match list_since(key, inbox(request).1, cancel) {
         Ok(listed) => listed,
         Err(e) => {
-            run.failed("Couldn't check for new mail", &e);
+            run.failed(said!("Couldn't check for new mail"), &e);
             return;
         }
     };
     if !reached {
-        run.out.errors.push(format!(
-            "More mail came to Resend since the last Send/Receive than MailCraft lists in one ({} messages): the oldest of it wasn't brought; read it on Resend",
-            MAX_PAGES * 100
+        run.out.problem(said!(
+            "More mail came to Resend since the last Send/Receive than MailCraft lists in one ({count} messages): the oldest of it wasn't brought; read it on Resend",
+            count = MAX_PAGES * 100
         ));
     }
     let domain = request.account.email.rsplit_once('@').map_or("", |(_, domain)| domain);
@@ -108,7 +109,7 @@ pub(super) fn exchange(run: &mut Run) {
 /// The Inbox as the mailbox knows it, and the highest UID it has of it (0 for none, or for UIDs
 /// made some other way).
 fn inbox(request: &SyncRequest) -> (Option<&FolderState>, u32) {
-    let state = state_for(request, INBOX, FolderKind::Inbox);
+    let state = States::of(request).get(INBOX, FolderKind::Inbox);
     (state, state.filter(|s| s.uid_validity == UID_VALIDITY).map_or(0, |s| s.uid_seen))
 }
 
@@ -138,9 +139,9 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
     let before = new.len();
     new.dedup_by_key(|(uid, _)| *uid);
     if new.len() < before {
-        run.out.errors.push(format!(
-            "Resend received more than one message in the same eighth of a second: {} of them weren't brought here; read them on Resend",
-            before - new.len()
+        run.out.problem(said!(
+            "Resend received more than one message in the same eighth of a second: {count} of them weren't brought here; read them on Resend",
+            count = before - new.len()
         ));
     }
     // The newest so many, when the folder keeps no more.
@@ -186,11 +187,14 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
             }
             Ok(Got::TooLarge) => header_only(&listed.said, None, run.limits.largest),
             Err(e) if is_for_good(&e) => {
-                run.out.errors.push(format!("A message Resend received couldn't be downloaded, and is kept as its header: {e}"));
+                run.out.problem(said!(
+                    "A message Resend received couldn't be downloaded, and is kept as its header: {error}",
+                    error = Arg::said(e.said())
+                ));
                 header_only(&listed.said, Some(&e.to_string()), run.limits.largest)
             }
             Err(e) => {
-                run.failed("Couldn't download a message Resend received", &e);
+                run.failed(said!("Couldn't download a message Resend received"), &e);
                 whole = false;
                 break;
             }
@@ -220,7 +224,7 @@ fn settle_again(run: &mut Run, state: Option<&FolderState>) {
         FolderDelta { id: state.map(|s| s.id), remote: INBOX.into(), kind: FolderKind::Inbox, uid_validity: UID_VALIDITY, ..Default::default() };
     done.refetch_done.clone_from(again);
     run.out.folders.push(done);
-    run.out.errors.push("Resend can't send a message it received again: it is kept as it came".into());
+    run.out.problem(said!("Resend can't send a message it received again: it is kept as it came"));
 }
 
 /// Whether Resend's answer for a message will be the same however often it is asked: an address
@@ -300,7 +304,7 @@ fn settle_changes(run: &mut Run) {
     }
     if !request.places.is_empty() {
         run.out.unplaced.extend(request.places.iter().map(|place| place.message.id));
-        run.out.errors.push("Resend only keeps the mail it received: what was put in the account goes back where it came from".into());
+        run.out.problem(said!("Resend only keeps the mail it received: what was put in the account goes back where it came from"));
     }
 }
 
@@ -327,7 +331,7 @@ fn list_since(key: &str, seen: u32, cancel: &AtomicBool) -> Result<(Vec<Listed>,
             None => "/emails/receiving?limit=100".into(),
         };
         let (page, more) = read_page(&get(key, &path, cancel)?)
-            .ok_or_else(|| NetError::Proto(ProtoError::Rejected("Resend's list of mail made no sense".into())))?;
+            .ok_or_else(|| NetError::Proto(ProtoError::Rejected(said!("Resend's list of mail made no sense"))))?;
         let ended = page.is_empty() || page.iter().any(|listed| listed.secs < from);
         out.extend(page);
         if ended || !more {
@@ -408,10 +412,10 @@ pub(super) fn is_id(id: &str) -> bool {
 /// at most `largest`, following a redirect that stays with Resend.
 fn fetch(key: &str, id: &str, largest: u64, cancel: &AtomicBool) -> Result<Got, NetError> {
     if !is_id(id) {
-        return Err(NetError::Config("Resend named a message by an id that isn't one".into()));
+        return Err(NetError::Config(said!("Resend named a message by an id that isn't one")));
     }
     let said: Value = serde_json::from_slice(&get(key, &format!("/emails/receiving/{id}"), cancel)?)
-        .map_err(|_| NetError::Proto(ProtoError::Rejected("Resend's word on a message made no sense".into())))?;
+        .map_err(|_| NetError::Proto(ProtoError::Rejected(said!("Resend's word on a message made no sense"))))?;
     let mut address = said.pointer("/raw/download_url").and_then(Value::as_str).unwrap_or_default().to_string();
     let max_body = usize::try_from(largest).unwrap_or(usize::MAX).min(http::MAX_LARGE_BODY);
     for _ in 0..=MAX_REDIRECTS {
@@ -431,7 +435,7 @@ fn fetch(key: &str, id: &str, largest: u64, cancel: &AtomicBool) -> Result<Got, 
             (status, _) => return Err(refusal(status)),
         }
     }
-    Err(NetError::Proto(ProtoError::Rejected("Resend sent a message's bytes on too many redirects".into())))
+    Err(NetError::Proto(ProtoError::Rejected(said!("Resend sent a message's bytes on too many redirects"))))
 }
 
 /// GET `path` of Resend's API with the key, and the answer's body when it is a yes. After a "not
@@ -439,7 +443,7 @@ fn fetch(key: &str, id: &str, largest: u64, cancel: &AtomicBool) -> Result<Got, 
 fn get(key: &str, path: &str, cancel: &AtomicBool) -> Result<Vec<u8>, NetError> {
     // A key that isn't one is not sent anywhere; it is also what a header can't carry.
     if key.is_empty() || key.len() > MAX_KEY || !key.bytes().all(|b| b.is_ascii_graphic()) {
-        return Err(NetError::Proto(ProtoError::Auth("type the Resend API key as the account's password".into())));
+        return Err(NetError::Proto(ProtoError::Auth(said!("type the Resend API key as the account's password"))));
     }
     let url = Url { host: RESEND_API_HOST.into(), port: 0, secure: true, path: path.into() };
     may_go_to(&url)?;
@@ -454,9 +458,9 @@ fn get(key: &str, path: &str, cancel: &AtomicBool) -> Result<Vec<u8>, NetError> 
         match reply.status {
             200 => return Ok(reply.body),
             401 | 403 => {
-                return Err(NetError::Proto(ProtoError::Auth(
-                    "Resend didn't take the API key (reading received mail needs a key with full access)".into(),
-                )));
+                return Err(NetError::Proto(ProtoError::Auth(said!(
+                    "Resend didn't take the API key (reading received mail needs a key with full access)"
+                ))));
             }
             429 if asked == 0 => {
                 let said = reply.retry_after.as_deref().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(1);
@@ -490,7 +494,7 @@ fn stop_if(cancel: &AtomicBool) -> Result<(), NetError> {
 fn refusal(status: u16) -> NetError {
     match status {
         429 | 500..=599 => NetError::Busy { text: "Resend is busy; try again later".into(), retry_after: None },
-        _ => NetError::Proto(ProtoError::Rejected(format!("Resend answered with status {status}"))),
+        _ => NetError::Proto(ProtoError::Rejected(said!("Resend answered with status {status}", status))),
     }
 }
 
@@ -500,7 +504,7 @@ pub(super) fn may_go_to(url: &Url) -> Result<(), NetError> {
     if url.secure && url.port == 0 && mailcraft_model::provider::is_resend_host(&url.host) {
         return Ok(());
     }
-    Err(NetError::Config("a Resend API key is only shown to Resend's API".into()))
+    Err(NetError::Config(said!("a Resend API key is only shown to Resend's API")))
 }
 
 /// Whether a message's bytes may be fetched from `url`: Resend's own (`cdn.resend.app` as seen), or the CloudFront address
@@ -512,7 +516,7 @@ pub(super) fn raw_may_come_from(url: &Url) -> Result<(), NetError> {
         return Ok(());
     }
     // The host alone: the signature is in the rest of the address.
-    Err(NetError::Config(format!("Resend said a message is at {host}, which isn't Resend's")))
+    Err(NetError::Config(said!("Resend said a message is at {host}, which isn't Resend's", host)))
 }
 
 #[cfg(test)]

@@ -84,7 +84,7 @@ fn a_call_off_stops_a_wait_for_resend_at_once() {
     let started = Instant::now();
     let e = pause(Duration::from_secs(10), &stopped).unwrap_err();
     assert!(started.elapsed() < Duration::from_secs(1));
-    assert!(matches!(e, NetError::Proto(ProtoError::Io(why)) if why == transport::STOPPED));
+    assert!(matches!(e, NetError::Proto(ProtoError::Io(why)) if why.to_string() == transport::STOPPED));
     // Nothing is asked of Resend once the run is called off, the key checked first.
     assert!(matches!(get("re_key", "/emails/receiving", &stopped), Err(NetError::Proto(ProtoError::Io(_)))));
 }
