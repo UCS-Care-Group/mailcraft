@@ -720,6 +720,7 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
     });
 }
 
+/// Tall HTML line spacing leaves each wrapped link underline next to its own glyphs.
 #[test]
 fn link_underlines_follow_the_baseline_of_each_wrapped_row() {
     in_frame(false, |ctx| {

@@ -201,6 +201,7 @@ fn has_glyphs(fonts: egui::FontDefinitions, chars: &[char]) -> bool {
     all
 }
 
+/// Flatpak exposes host fonts in addition to the fonts in its runtime.
 #[cfg(target_os = "linux")]
 #[test]
 fn linux_font_search_includes_flatpak_host_fonts() {
@@ -208,6 +209,17 @@ fn linux_font_search_includes_flatpak_host_fonts() {
     for path in ["/run/host/user-fonts", "/run/host/local-fonts", "/run/host/fonts"] {
         assert!(dirs.contains(&PathBuf::from(path)), "missing font directory {path}");
     }
+}
+
+/// A host can have just the upstream variable CJK collection installed.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+#[test]
+fn the_variable_noto_collection_is_a_system_fallback() {
+    let dir = FontsDir::new("variable-noto");
+    dir.put("noto/NotoSansCJK-VF.otf.ttc", &collection(A_FONT));
+    let system = SystemFont::none().with_fallbacks_from(&dir.dirs(), super::FALLBACK_FACES);
+    assert_eq!(system.fallback_count(), 1);
+    draws(font_definitions_with(&system));
 }
 
 /// What this system has, whatever that is, goes behind the other fonts and draws text in other

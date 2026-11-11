@@ -615,6 +615,7 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
         "SourceHanSans-Regular.ttc",
         "SourceHanSansSC-Regular.otf",
         "NotoSansCJK-VF.ttc",
+        "NotoSansCJK-VF.otf.ttc",
         "wqy-microhei.ttc",
         "wqy-zenhei.ttc",
         "DroidSansFallbackFull.ttf",
