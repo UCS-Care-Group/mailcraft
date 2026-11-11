@@ -2645,6 +2645,44 @@ fn a_change_of_which_rules_run_asks_for_the_categories_the_rules_may_then_give()
     assert_eq!(check(&s, "rules.remove", &json!({"id": 902}), &[Class::Settings]), Verdict::Run);
 }
 
+/// An agent's undo or redo that puts back rules is asked as the rule call it undoes or redoes:
+/// `send`, while the rules that then run give mail a name new on a list kept in step with
+/// Outlook, and naming it (#661).
+#[test]
+fn an_undo_or_redo_of_a_rule_change_asks_for_the_categories_the_rules_may_then_give() {
+    let (mut s, a) = rig(vec![tag("Red category", RED)], true);
+    let rule = |id: Id, stop: bool, actions: Vec<Action>| Rule {
+        id,
+        name: format!("R{id}"),
+        enabled: true,
+        stop,
+        account: a,
+        conditions: vec![Condition::SubjectContains("y".into())],
+        actions,
+        ..Default::default()
+    };
+    s.mailbox.rules = vec![rule(902, true, vec![Action::Flag]), rule(903, false, vec![Action::Categorize("Zed".into())])];
+    let asked = |s: &Session, command: &str| match check(s, command, &json!({}), &[Class::Settings]) {
+        Verdict::Ask(Class::Send, text) => assert!(text.contains("\u{201c}Zed\u{201d}") && text.contains("a@example.org"), "{command}: {text}"),
+        other => panic!("{command}: {other:?}"),
+    };
+    // The rule that gives the name, deleted and put back.
+    s.run("rules.remove", &json!({"id": 903})).unwrap();
+    asked(&s, "edit.undo");
+    s.run("edit.undo", &json!({})).unwrap();
+    // The one that stops the rest, deleted again.
+    s.run("rules.remove", &json!({"id": 902})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    asked(&s, "edit.redo");
+    // With the name on the list, nothing is asked for it.
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let m = s.mailbox.add_message(Message { folder: inbox, ..Default::default() }).unwrap();
+    s.run("mail.categorize", &json!({"ids": [m], "category": "Zed"})).unwrap();
+    assert!(s.mailbox.category_of(a, "Zed").is_some());
+    s.run("rules.remove", &json!({"id": 903})).unwrap();
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Settings]), Verdict::Run);
+}
+
 /// Deleting a rule its server has is a delete, and while a rule that runs with it gives mail a
 /// name new on a list kept in step with Outlook, a send too: both are asked at once (#661).
 #[test]

@@ -3340,6 +3340,10 @@ impl Session {
         if !self.undo_makes_categories(redo).is_empty() {
             return Some(Class::Send);
         }
+        // And one the rules it puts back give mail, as the rule calls ask.
+        if !self.undo_rules_make_categories(redo).is_empty() {
+            return Some(Class::Send);
+        }
         if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
@@ -3425,6 +3429,18 @@ impl Session {
             }
         }
         out
+    }
+
+    /// The categories the rules that undoing (`redo`: redoing) puts back give mail and put on a list
+    /// kept in step with Outlook that hasn't got them, each with that list's account, so that the
+    /// next job makes them there (#661); none when the step leaves the rules as they are.
+    pub fn undo_rules_make_categories(&self, redo: bool) -> Vec<(String, Id)> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        if step.mailbox.rules == self.mailbox.rules {
+            return Vec::new();
+        }
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
+        crate::agent::rules_in_outlook(&back)
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,

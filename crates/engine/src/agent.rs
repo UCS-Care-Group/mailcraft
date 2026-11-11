@@ -934,18 +934,7 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
         return (!names.is_empty()).then_some(MadeInOutlook { names, owners: vec![owner], made: true });
     }
     if RUNS_RULES.contains(&id) {
-        let made = rules_make_in_outlook(s, id, params);
-        let mut names: Vec<String> = Vec::new();
-        let mut owners: Vec<Id> = Vec::new();
-        for (name, owner) in made {
-            if !names.iter().any(|n| mailcraft_model::sync::same_category(n, &name)) {
-                names.push(name);
-            }
-            if !owners.contains(&owner) {
-                owners.push(owner);
-            }
-        }
-        return (!names.is_empty()).then_some(MadeInOutlook { names, owners, made: true });
+        return gathered(rules_make_in_outlook(s, id, params));
     }
     let (name, lists): (String, Vec<Id>) = match id {
         "category.set" => {
@@ -987,6 +976,39 @@ fn makes_in_outlook(s: &Session, id: &str, params: &Value) -> Option<MadeInOutlo
         }
     }
     (!owners.is_empty()).then_some(MadeInOutlook { names: vec![name], owners, made: true })
+}
+
+/// The names the rules give and the lists they are new on, each name and each list once; `None`
+/// for none.
+fn gathered(made: Vec<(String, Id)>) -> Option<MadeInOutlook> {
+    let mut names: Vec<String> = Vec::new();
+    let mut owners: Vec<Id> = Vec::new();
+    for (name, owner) in made {
+        if !names.iter().any(|n| mailcraft_model::sync::same_category(n, &name)) {
+            names.push(name);
+        }
+        if !owners.contains(&owner) {
+            owners.push(owner);
+        }
+    }
+    (!names.is_empty()).then_some(MadeInOutlook { names, owners, made: true })
+}
+
+/// The categories the rules that run on mail in `mb` give it and put on a list kept in step with
+/// Outlook that hasn't got them (#661): what an undo or a redo that puts back the rules has them
+/// make there, counted as the rule calls count it ([`rules_make_in_outlook`]).
+pub(crate) fn rules_in_outlook(mb: &Mailbox) -> Vec<(String, Id)> {
+    let mut out = Vec::new();
+    for r in mb.rules.iter().filter(|r| runs_on_new_mail(r)) {
+        rule_makes_in_outlook(mb, r, one_account(r), Counted::Alone, &mut out);
+    }
+    out
+}
+
+/// Whether a rule runs here: when it is switched on, or, on new mail, when its server last had it
+/// on.
+fn runs_on_new_mail(r: &mailcraft_model::Rule) -> bool {
+    r.enabled || r.server.as_ref().is_some_and(|s| s.synced_enabled)
 }
 
 /// The categories the rules a call makes, switches on or off, deletes, moves, keeps elsewhere or
@@ -1080,10 +1102,8 @@ fn rule_makes_in_outlook(mb: &Mailbox, r: &mailcraft_model::Rule, from: Option<I
             accounts.push(account);
         }
     }
-    // A rule runs here when it is switched on, or, on new mail, when its server last had it on.
-    let runs = |x: &mailcraft_model::Rule| x.enabled || x.server.as_ref().is_some_and(|s| s.synced_enabled);
     let own = (counted != Counted::Others).then_some(r);
-    let others = mb.rules.iter().filter(|x| counted != Counted::Alone && x.id != r.id && runs(x) && runs_with(x));
+    let others = mb.rules.iter().filter(|x| counted != Counted::Alone && x.id != r.id && runs_on_new_mail(x) && runs_with(x));
     let given = own.into_iter().chain(others).flat_map(|x| x.actions.iter());
     for action in given {
         let mailcraft_model::Action::Categorize(name) = action else { continue };
@@ -1105,6 +1125,11 @@ fn made_in_outlook_suffix(s: &Session, id: &str, params: &Value) -> String {
         return String::new();
     }
     let Some(made) = makes_in_outlook(s, id, params) else { return String::new() };
+    made_suffix(s, &made, RUNS_RULES.contains(&id))
+}
+
+/// [`made_in_outlook_suffix`] for what is made (`by_rules`: what the rules give mail).
+fn made_suffix(s: &Session, made: &MadeInOutlook, by_rules: bool) -> String {
     let whose: Vec<String> = made.owners.iter().filter_map(|o| s.mailbox.account(*o)).map(|a| quoted(&a.email)).collect();
     let whose = if whose.is_empty() { String::new() } else { format!(" of {}", some(&whose, 3)) };
     let names: Vec<String> = made.names.iter().map(|n| quoted(n)).collect();
@@ -1112,7 +1137,7 @@ fn made_in_outlook_suffix(s: &Session, id: &str, params: &Value) -> String {
         [one] => (format!("the category {one}"), "it", "is"),
         many => (format!("the categories {}", some(many, 3)), "they", "are"),
     };
-    if RUNS_RULES.contains(&id) {
+    if by_rules {
         format!("; the rules give mail {what}, new on the list{whose}, which is kept in step with Outlook, so {it} {is} made in Outlook too")
     } else {
         format!("; {what} {is} new on the list{whose}, which is kept in step with Outlook, and {is} made in Outlook too")
@@ -1377,7 +1402,8 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 
 /// What a call classed `class` needs besides it, which the question about `class` names and a yes
 /// to it covers: an undo or redo that puts back the accounts and also what goes to a server
-/// (a change that writes to people, a category for Outlook) needs Send too; one that puts back
+/// (a change that writes to people, a category for Outlook, rules that give mail one) needs Send
+/// too; one that puts back
 /// the accounts (or a change that writes to people) and takes away messages, drafts, contacts or
 /// the like needs Delete too, as `edit.undo` refuses to take messages without it (#473); so does
 /// deleting a category a to-do in a shared list has (asked as `send`) when it goes from Outlook
@@ -1390,7 +1416,12 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             let redo = id == "edit.redo";
             let mut more = Vec::new();
             // (Only the accounts come before what is sent in [`Session::undo_reverts`].)
-            let sends = || s.undo_sends_items(redo) || !s.undo_sends_categories(redo).is_empty() || !s.undo_makes_categories(redo).is_empty();
+            let sends = || {
+                s.undo_sends_items(redo)
+                    || !s.undo_sends_categories(redo).is_empty()
+                    || !s.undo_makes_categories(redo).is_empty()
+                    || !s.undo_rules_make_categories(redo).is_empty()
+            };
             if class == Class::Accounts && sends() {
                 more.push(Class::Send);
             }
@@ -1874,6 +1905,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 _ => Some("the rules, signatures or Safe and Blocked Senders"),
             };
             let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
+            // The categories the rules it puts back give mail and have made in Outlook (#661).
+            if let Some(made) = gathered(s.undo_rules_make_categories(redo)) {
+                does.push(format!("puts the rules back as they were{}", made_suffix(s, &made, true)));
+            }
             // The categories it deletes in Outlook are named below, and not said twice (#661).
             if s.undo_removes_more_than_outlooks(redo) {
                 // Gone for good: they don't go to Deleted Items.
