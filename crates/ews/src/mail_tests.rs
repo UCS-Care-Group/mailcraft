@@ -128,6 +128,37 @@ fn a_server_that_gives_no_class_unless_asked_still_has_its_other_folders_left_ou
     }
 }
 
+/// Exchange leaves the folder above out of the Default shape: it is asked for by name, or every
+/// folder would be at the top.
+#[test]
+fn folders_inside_folders_come_with_the_folder_above_them() {
+    let standin = StandIn::new();
+    let id_of = |n: usize| format!("AAMkAGV4YW1wbGUtb3JnL2V3cy1zdGFuZC1pbgAuAAAAAACq{n:06}+Tk/Zm9sZGVyLWlkAAA=");
+    {
+        let mut s = standin.state();
+        let top = s.folders.iter().find(|f| f.distinguished == "msgfolderroot").unwrap().id.clone();
+        for (n, name, parent) in [(300, "Projects", top.clone()), (301, "Apollo", id_of(300)), (302, "Minutes", id_of(301))] {
+            let folder = crate::standin::Folder {
+                distinguished: String::new(),
+                id: id_of(n),
+                name: name.into(),
+                total: 0,
+                unread: 0,
+                parent,
+                class: "IPF.Note".into(),
+            };
+            s.folders.push(folder);
+        }
+    }
+    let (pieces, _) = run(&standin, &request());
+    let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
+    let parent_of = |name: &str| folders.changed.iter().find(|f| f.name == name).map(|f| f.parent.clone()).unwrap();
+    assert_eq!(parent_of("Projects"), "", "a folder at the top of the mail has none");
+    assert_eq!(parent_of("Inbox"), "");
+    assert_eq!(parent_of("Apollo"), id_of(300));
+    assert_eq!(parent_of("Minutes"), id_of(301));
+}
+
 /// Where each folder goes on from, as the pages of a run say: the last of each folder.
 fn states_of(pieces: &[EwsMailResult]) -> Vec<EwsFolderState> {
     let mut out: Vec<EwsFolderState> = Vec::new();

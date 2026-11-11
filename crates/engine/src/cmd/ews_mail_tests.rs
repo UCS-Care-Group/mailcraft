@@ -579,3 +579,50 @@ fn the_folder_lists_state_is_counted_too() {
     let why = apply_ews_mail(&mut s, EwsMailResult { hierarchy: "JK".into(), folders: Some(Default::default()), ..piece(account) }).unwrap_err();
     assert!(why.to_string().contains("more sync state") && s.mailbox == before, "{why}");
 }
+
+/// A folder list read by a version that asked for no parents had every folder at the top: it is
+/// read afresh once, and the folders go where the server has them.
+#[test]
+fn a_folder_list_read_without_parents_is_read_afresh_once_and_puts_the_folders_inside_each_other() {
+    let (mut s, account) = session();
+    // As an earlier version kept it: every folder at the top, the list going on from "OLD".
+    let flat: Vec<GraphFolder> = folders().into_iter().map(|f| GraphFolder { parent: String::new(), ..f }).collect();
+    apply_ews_mail(
+        &mut s,
+        EwsMailResult {
+            folders: Some(EwsFolderDeltas { changed: flat, afresh: true, ..Default::default() }),
+            hierarchy: "OLD".into(),
+            ..piece(account)
+        },
+    )
+    .unwrap();
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().parents = false;
+    let apollo = s.mailbox.folder_by_server(account, "F3").unwrap();
+    assert_eq!(s.mailbox.folder(apollo).unwrap().parent, None);
+    // Kept in the file as it was: an old file has no mark, and reads as having none.
+    let saved = serde_json::to_value(s.mailbox.account(account).unwrap().ews.as_ref().unwrap()).unwrap();
+    assert!(saved.get("parents").is_none() && saved["hierarchy"] == "OLD");
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(request.hierarchy.is_empty() && request.list_folders, "the list is read from its start");
+    // A list read afresh but cut short keeps its state out, and so the mark.
+    let mut cut = folders();
+    cut.push(folder("F9", "", "", FolderKind::Custom));
+    apply_ews_mail(
+        &mut s,
+        EwsMailResult {
+            folders: Some(EwsFolderDeltas { changed: cut, afresh: true, ..Default::default() }),
+            hierarchy: "CUT".into(),
+            ..piece(account)
+        },
+    )
+    .unwrap();
+    assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().parents);
+    assert!(ews_mail_request(&s, account, false).unwrap().hierarchy.is_empty());
+    // Read whole: Apollo lies in Projects, and the next run goes on from where this one ended.
+    list(&mut s, account);
+    let apollo = s.mailbox.folder_by_server(account, "F3").unwrap();
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    assert_eq!(s.mailbox.folder(apollo).unwrap().parent, Some(projects));
+    assert!(s.mailbox.account(account).unwrap().ews.as_ref().unwrap().parents);
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER-1");
+}
