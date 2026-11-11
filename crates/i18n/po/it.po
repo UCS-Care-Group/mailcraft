@@ -17722,7 +17722,7 @@ msgstr "il server non può contrassegnare la posta"
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
-msgstr "il server non può tenere le regole in quest'ordine: una regola che non consente di modificare non lascia loro alcun posto libero"
+msgstr "il server non può tenere le regole in quest'ordine: una regola che il server non lascia modificare non lascia loro alcun posto libero"
 
 #. name
 #: crates/engine/src/cmd/rules.rs

@@ -1038,10 +1038,11 @@ fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
             }
         }
         let server = servers_named(s, &servers);
-        let (rule, verb, them) = if onto.len() == 1 { ("rule", "puts", "it") } else { ("rules", "put", "them") };
-        said.push_str(&format!(
-            "; the {rule} {}{more}, switched on, {verb} mail onto the server of {server}, and a change to the rules may let more mail reach {them}",
-            names.join(", ")
+        said.push_str(&by_count(
+            onto.len(),
+            "; the rule {names}{more}, switched on, puts mail onto the server of {server}, and a change to the rules may let more mail reach it",
+            "; the rules {names}{more}, switched on, put mail onto the server of {server}, and a change to the rules may let more mail reach them",
+            &[("names", &names.join(", ")), ("more", &more), ("server", &server)],
         ));
     }
     said
@@ -1056,10 +1057,11 @@ fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on
     }
     let more = names.len().saturating_sub(5);
     let more = if more > 0 { format!(" and {more} more") } else { String::new() };
-    let (rule, verb, them) = if names.len() == 1 { ("rule", "deletes", "it") } else { ("rules", "delete", "them") };
-    format!(
-        "; the {rule} {}{more}, switched on here, {verb} mail permanently, and a change to the rules may let more mail reach {them}",
-        names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+    by_count(
+        names.len(),
+        "; the rule {names}{more}, switched on here, deletes mail permanently, and a change to the rules may let more mail reach it",
+        "; the rules {names}{more}, switched on here, delete mail permanently, and a change to the rules may let more mail reach them",
+        &[("names", &names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more)],
     )
 }
 
@@ -1485,6 +1487,13 @@ fn plural(n: usize, one: &str, many: &str) -> String {
     mailcraft_i18n::fmt(mailcraft_i18n::Lang::English.tn(n, one, many), &[("n", &n.to_string())])
 }
 
+/// `one` or `many` as a whole sentence for `n` things, by the language's plural rule, with its
+/// `{…}` filled in from `args` (as [`plural`]).
+fn by_count(n: usize, one: &str, many: &str, args: &[(&str, &str)]) -> String {
+    let n = u64::try_from(n).unwrap_or(u64::MAX);
+    mailcraft_i18n::fmt(mailcraft_i18n::Lang::English.tn(n, one, many), args)
+}
+
 fn messages_text(s: &Session, ids: &[Id]) -> String {
     let subjects: Vec<String> = ids.iter().take(3).filter_map(|id| s.mailbox.message(*id)).map(|m| quoted(&m.subject)).collect();
     let more = if ids.len() > 3 { ", …" } else { "" };
@@ -1790,8 +1799,12 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             if !rule_onto.is_empty() {
                 // Send for the rules (#566): one that files mail onto another server is on after it.
-                let which = if rule_onto.len() == 1 { "one switched on that files" } else { "some switched on that file" };
-                does.push(format!("puts the rules back as they were, with {which} mail onto the server of {}", servers_named(s, &rule_onto)));
+                does.push(by_count(
+                    rule_onto.len(),
+                    "puts the rules back as they were, with one switched on that files mail onto the server of {server}",
+                    "puts the rules back as they were, with some switched on that file mail onto the server of {server}",
+                    &[("server", &servers_named(s, &rule_onto))],
+                ));
             }
             let deleting = s.undo_rules_deleting(redo);
             if !deleting.is_empty() {
@@ -1799,10 +1812,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 let names: Vec<String> = deleting.iter().take(5).map(|n| quoted(n)).collect();
                 let more = deleting.len().saturating_sub(5);
                 let more = if more > 0 { format!(" and {more} more") } else { String::new() };
-                let (rule, verb) = if deleting.len() == 1 { ("rule", "deletes") } else { ("rules", "delete") };
-                does.push(format!(
-                    "puts the rules back as they were, with the {rule} {}{more} switched on, which {verb} mail permanently",
-                    names.join(", ")
+                does.push(by_count(
+                    deleting.len(),
+                    "puts the rules back as they were, with the rule {names}{more} switched on, which deletes mail permanently",
+                    "puts the rules back as they were, with the rules {names}{more} switched on, which delete mail permanently",
+                    &[("names", &names.join(", ")), ("more", &more)],
                 ));
             }
             if s.undo_removes_items(redo) {
@@ -1912,10 +1926,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             if !gone.is_empty() {
                 let more = gone.len().saturating_sub(5);
                 let more = if more > 0 { format!(" and {more} more") } else { String::new() };
-                let (rule, verb) = if gone.len() == 1 { ("rule", "deletes") } else { ("rules", "delete") };
-                text.push_str(&format!(
-                    ", and the {rule} {}{more} {verb} mail permanently",
-                    gone.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                text.push_str(&by_count(
+                    gone.len(),
+                    ", and the rule {names}{more} deletes mail permanently",
+                    ", and the rules {names}{more} delete mail permanently",
+                    &[("names", &gone.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more)],
                 ));
             }
             text
