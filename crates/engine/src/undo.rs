@@ -437,7 +437,9 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
 /// its server last had is as now, never undone: the next job tells it the reverse of what it had
 /// taken. When what comes back leaves no room for what the server added since, that waits, and is
 /// not known there either, so that nothing is deleted there for it; when there is none of that,
-/// what the change would bring back stays out, and the undo says so.
+/// what the change would bring back stays out, and the undo says so. One name it takes off there
+/// for one it brings back is a rename's way back: should the server not make the one, the other
+/// stays there.
 fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&CategoryStep>, said: &mut Said) {
     use mailcraft_model::Category;
     let mut own: Vec<Category> = now.account_categories.get(&account).cloned().unwrap_or_default();
@@ -529,6 +531,17 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
         if let Some(names) = out.server_categories.get_mut(&account) {
             names.retain(|n| !same_category(n, &gone.name));
         }
+    }
+    let has = |list: &[Category], key: &str| list.iter().any(|c| category_key(&c.name) == key);
+    let made: Vec<&String> = keys
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+        .filter(|key| has(&own, key) && !has(&synced, key) && !local.iter().any(|n| category_key(n) == **key))
+        .collect();
+    let gone: Vec<&Category> = synced.iter().filter(|c| touched(&c.name) && !has(&own, &category_key(&c.name))).collect();
+    if let ([made], [gone]) = (made.as_slice(), gone.as_slice()) {
+        out.category_renames.entry(account).or_default().insert((*made).clone(), gone.name.clone());
     }
     out.account_categories.insert(account, own);
     if local.is_empty() {

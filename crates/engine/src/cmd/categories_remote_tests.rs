@@ -525,6 +525,52 @@ fn an_undo_after_the_job_of_a_rename_brings_back_nothing_of_that_rename() {
     assert!(changes(&mut s, a).is_empty(), "nothing deleted there: {:?}", changes(&mut s, a));
 }
 
+/// `sent` was the job, and the server took all of it; the next job is `next`.
+fn job(s: &mut Session, a: Id, sent: &[CategoryChange], next: &[CategoryChange]) {
+    assert_eq!(changes(s, a), sent);
+    took(s, a, sent);
+    assert_eq!(changes(s, a), next);
+}
+
+#[test]
+fn an_undo_of_a_rename_both_jobs_took_keeps_the_new_name_in_outlook_when_the_server_wont_make_the_old_one() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    job(&mut s, a, &[change(CategoryChangeKind::Create, "New", GREEN)], &[change(CategoryChangeKind::Delete, "Old", GREEN)]);
+    took(&mut s, a, &[change(CategoryChangeKind::Delete, "Old", GREEN)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "Old", GREEN)]);
+    let said = answer(&mut s, a, CategoryChangeKind::Create, "Old", GREEN, CategoryResult::Refused);
+    assert!(said["messages"].to_string().contains("\"New\\\" wasn't deleted in Outlook"), "{said}");
+    assert!(changes(&mut s, a).is_empty(), "nothing deleted there: {:?}", changes(&mut s, a));
+    assert!(s.mailbox.category_is_local(a, "Old"));
+
+    // A redo after the undo's jobs: the same the other way.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    job(&mut s, a, &[change(CategoryChangeKind::Create, "New", GREEN)], &[change(CategoryChangeKind::Delete, "Old", GREEN)]);
+    took(&mut s, a, &[change(CategoryChangeKind::Delete, "Old", GREEN)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    job(&mut s, a, &[change(CategoryChangeKind::Create, "Old", GREEN)], &[change(CategoryChangeKind::Delete, "New", GREEN)]);
+    took(&mut s, a, &[change(CategoryChangeKind::Delete, "New", GREEN)]);
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(changes(&mut s, a), [change(CategoryChangeKind::Create, "New", GREEN)]);
+    let said = answer(&mut s, a, CategoryChangeKind::Create, "New", GREEN, CategoryResult::Refused);
+    assert!(said["messages"].to_string().contains("\"Old\\\" wasn't deleted in Outlook"), "{said}");
+    assert!(changes(&mut s, a).is_empty(), "nothing deleted there: {:?}", changes(&mut s, a));
+
+    // Taken, the undo's new name deletes the other there as a rename does.
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    job(&mut s, a, &[change(CategoryChangeKind::Create, "New", GREEN)], &[change(CategoryChangeKind::Delete, "Old", GREEN)]);
+    took(&mut s, a, &[change(CategoryChangeKind::Delete, "Old", GREEN)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    job(&mut s, a, &[change(CategoryChangeKind::Create, "Old", GREEN)], &[change(CategoryChangeKind::Delete, "New", GREEN)]);
+    took(&mut s, a, &[change(CategoryChangeKind::Delete, "New", GREEN)]);
+    assert!(s.mailbox.category_renames.is_empty(), "{:?}", s.mailbox.category_renames);
+    assert_eq!(names(&s, a), ["Red category", "Old"]);
+}
+
 #[test]
 fn a_name_that_left_the_list_is_not_kept_here_alone_so_outlook_keeps_it_when_it_comes() {
     // Its making refused after it was taken off the list again.
