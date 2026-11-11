@@ -4274,6 +4274,15 @@ impl Mailbox {
         let own: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
         self.account_categories.retain(|account, _| own.contains(account));
         self.server_categories.retain(|account, _| own.contains(account));
+        // Outlook's list is a Microsoft account's: one that isn't any more (an older build kept
+        // the list when its kind was changed) has a list of its own to change, as `account.edit`
+        // leaves it now.
+        let stale: Vec<Id> =
+            self.server_categories.keys().copied().filter(|id| self.account(*id).is_none_or(|a| a.kind != AccountKind::Microsoft)).collect();
+        for owner in stale {
+            self.synced_categories.entry(owner).or_default();
+            self.restart_category_sync(owner);
+        }
         self.settle_synced_categories(&own);
         self.tidy_listed_twice();
         // The owner's order names their own accounts (`own`, above), each once (#702): whatever

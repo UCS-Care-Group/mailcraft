@@ -430,3 +430,22 @@ fn a_servers_event_keeps_a_name_in_other_letters_once() {
     event.tidy();
     assert_eq!(event.categories, ["Ärger", "Red"]);
 }
+
+/// A file from an older build that kept Outlook's list for an account that is no longer a
+/// Microsoft account (changed to IMAP there) opens with that account's list its own to change:
+/// nothing keeps it in step with Outlook, and nothing is ever asked or sent for it (#661).
+#[test]
+fn an_account_that_is_no_longer_a_microsoft_account_has_a_list_it_can_change() {
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    mb.server_categories.insert(a, vec!["Red".to_string()]);
+    mb.accounts.iter_mut().find(|x| x.id == a).unwrap().kind = AccountKind::Imap;
+    mb.repair();
+    assert!(mb.synced_list_owner(a).is_none());
+    assert!(mb.categories_read_only(a).is_none());
+    assert!(!mb.server_categories.contains_key(&a));
+    mb.set_category(a, "New", GREY_CATEGORY).unwrap();
+    mb.rename_category(a, "Red", "Urgent").unwrap();
+    assert_eq!(mb.categories_of(a).iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Urgent", "New"]);
+    assert!(mb.category_upload(a).is_empty());
+}
