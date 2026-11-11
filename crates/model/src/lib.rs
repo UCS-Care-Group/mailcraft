@@ -27,6 +27,7 @@ mod message;
 pub mod messages;
 #[cfg(test)]
 mod messages_tests;
+mod note;
 mod offline;
 pub mod pictures;
 pub mod pop;
@@ -36,6 +37,9 @@ pub mod public_keys;
 pub mod remote;
 pub mod remote_rules;
 pub mod remote_tasks;
+pub mod report;
+#[cfg(test)]
+mod report_tests;
 pub mod rich;
 mod rule;
 pub mod search;
@@ -75,6 +79,7 @@ pub use message::{
     text_hash,
 };
 pub use messages::Messages;
+pub use note::{JournalEntry, Note};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
