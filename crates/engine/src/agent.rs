@@ -1905,6 +1905,22 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 && s.mailbox.accounts.iter().all(|x| x.id == account.id || x.shared_of == Some(account.id));
             if only { format!("remove the account {a} (the only account: leaves an empty mailbox)") } else { format!("remove the account {a}") }
         }
+        // The one question for keeping in step with Outlook (#661), which the older ids put too:
+        // Microsoft's page, for everything it covers. (`account` read as the window reads it.)
+        "ui.allowSync" | "ui.allowTasks" | "ui.allowRules" | "ui.allowAutomaticReplies" => {
+            let Some(account) = params.get("account").and_then(Value::as_u64).and_then(|a| s.mailbox.account(a)) else {
+                return "ask for permission to keep an account that isn't there in step with Outlook".to_string();
+            };
+            let what = if s.mailbox.keeps_rules(account.id) {
+                "the tasks, rules, automatic replies and categories"
+            } else {
+                "the tasks and automatic replies"
+            };
+            format!(
+                "open Microsoft's page in the browser to ask for permission to keep {what} of {} in step with Outlook: MailCraft may then change its To Do lists and its mailbox settings",
+                clip(account.email.trim(), 80)
+            )
+        }
         _ => run_text(label, id, params),
     }
 }
