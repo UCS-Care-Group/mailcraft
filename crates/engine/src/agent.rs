@@ -1066,7 +1066,7 @@ fn beside_onto_server(s: &Session, account: Id, rule: Id, on: bool) -> impl Iter
 }
 
 /// What a question about a change to the rules adds for the rules beside it that delete mail for
-/// good ([`beside_for_good_said`]) or put it on another account's server.
+/// good ([`beside_for_good_said_of`]) or put it on another account's server.
 fn beside_said(s: &Session, account: Id, rule: Id, on: bool) -> String {
     beside_said_of(s, account, rule, on, "a change to the rules")
 }
@@ -1096,13 +1096,8 @@ fn beside_said_of(s: &Session, account: Id, rule: Id, on: bool, change: &str) ->
     said
 }
 
-/// What a question about a change to the rules adds when it is asked as a delete because rules
-/// beside it delete mail for good: their names (at most five), and why.
-fn beside_for_good_said(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool) -> String {
-    beside_for_good_said_of(mb, account, rule, on, "a change to the rules")
-}
-
-/// [`beside_for_good_said`], for `change`.
+/// What a question about a change (`change`: "a change to the rules", say) adds when it is asked
+/// as a delete because rules beside it delete mail for good: their names (at most five), and why.
 fn beside_for_good_said_of(mb: &mailcraft_model::Mailbox, account: Id, rule: Id, on: bool, change: &str) -> String {
     let names: Vec<String> = beside_for_good(mb, account, rule, on).map(|r| quoted(&r.name)).collect();
     if names.is_empty() {
