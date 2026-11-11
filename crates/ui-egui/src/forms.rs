@@ -4342,7 +4342,7 @@ mod categories {
                             ui.add_space(ROW_H + ui.spacing().item_spacing.x);
                             match synced {
                                 Some(owner) => {
-                                    let kept = tl!("Not on Outlook's list: mail, events and to-dos you give it still carry its name to Outlook, where it has no colour");
+                                    let kept = tl!("Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour");
                                     ui.label(egui::RichText::new(tl!("Kept on this computer only")).small().color(t.text_dim)).on_hover_text(kept);
                                     let tip = tl!("Add this category to Outlook's list, in the nearest of Outlook's colours");
                                     if read_only.is_none() && ui.small_button(tl!("Add to Outlook")).on_hover_text(tip).clicked() {

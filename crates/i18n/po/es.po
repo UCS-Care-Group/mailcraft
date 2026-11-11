@@ -8239,8 +8239,8 @@ msgstr "Ahora no: se instala al salir de MailCraft."
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to Outlook, where it has no colour"
-msgstr "No está en la lista de Outlook: el correo, los eventos y las tareas a los que se la asigne siguen llevando su nombre a Outlook, donde no tiene color"
+msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
+msgstr "No está en la lista de Outlook: el correo, los eventos y las tareas a los que se la asigne siguen llevando su nombre al servidor de la cuenta, donde no tiene color"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
