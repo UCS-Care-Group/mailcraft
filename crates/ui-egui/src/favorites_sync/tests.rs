@@ -796,3 +796,12 @@ fn file_options_offers_an_organisations_account_the_same_connection_as_any_other
     harness.run_steps(4);
     assert_eq!(host.lock().unwrap().sign_ins, [(true, true)]);
 }
+
+#[test]
+fn an_edited_sign_in_forgets_connected() {
+    let mut rig = Rig::organisation();
+    rig.app.favorites.connected.insert(rig.account);
+    assert!(rig.app.favorites.connected.contains(&rig.account));
+    rig.app.execute("account.edit", json!({"id": rig.account, "tenant": "other.example"})).unwrap();
+    assert!(!rig.app.favorites.connected.contains(&rig.account));
+}

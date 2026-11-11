@@ -140,7 +140,8 @@ pub(crate) struct FavoritesSync {
     /// The accounts whose Graph token in memory is known not to be good for reading them (it
     /// was asked for without those permissions): a job that wants them gets a new one.
     uncovered: HashSet<Id>,
-    /// The accounts whose owner took the offer to show Outlook's Favorites.
+    /// The accounts whose sign-in has a token that covers Outlook's Favorites, or whose owner
+    /// took the offer to show them.
     connected: HashSet<Id>,
     /// The accounts whose Favorites are read at the next chance, whatever the clock says: the
     /// owner asked.
@@ -297,14 +298,7 @@ impl MailApp {
                     if !(matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) && why.trim().is_empty()) {
                         let by = match why {
                             REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT => why,
-                            NEEDS_APPROVAL if self.directory(account) == Directory::Personal => REFUSED_FOR_ACCOUNT,
-                            _ => {
-                                if self.directory(account) == Directory::Personal {
-                                    REFUSED_FOR_ACCOUNT
-                                } else {
-                                    NEEDS_APPROVAL
-                                }
-                            }
+                            _ => if self.directory(account) == Directory::Personal { REFUSED_FOR_ACCOUNT } else { NEEDS_APPROVAL },
                         };
                         self.favorites_refused(account, by);
                     }
