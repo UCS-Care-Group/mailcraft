@@ -765,7 +765,8 @@ fn at_the_cap_two_copies_of_a_signed_message_deleted_for_good_both_get_its_bytes
 }
 
 /// The bytes the message came as whole on the disk here: its waiting copy may be moved onto this
-/// computer, which holds them, and the message then goes from its server.
+/// computer, which holds them, and the message then goes from its server once the mailbox file
+/// holds the copy.
 #[test]
 fn a_waiting_copy_whose_bytes_are_whole_here_may_be_moved_onto_this_computer() {
     let dir = folder("readable-local");
@@ -782,6 +783,9 @@ fn a_waiting_copy_whose_bytes_are_whole_here_may_be_moved_onto_this_computer() {
     let m = s.mailbox.message(copy).unwrap();
     assert_eq!(m.account, local);
     assert!(s.original_readable(m, true), "the bytes it came as are here");
+    assert!(!deletes(&s, from), "not before the file holds the copy");
+    crate::store::save(&path, &s.mailbox).unwrap();
+    s.dirty = false;
     assert!(deletes(&s, from));
     let _ = std::fs::remove_dir_all(dir);
 }

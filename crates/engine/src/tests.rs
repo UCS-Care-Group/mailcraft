@@ -1936,6 +1936,41 @@ mod two_way {
         assert!(s.mailbox.message(titled(&s, a, "Hello again")).unwrap().rule_alert);
     }
 
+    /// On an IMAP account, a rule copies new mail into another folder of the account and deletes
+    /// it for good. The copy is on this computer only, so the server's original waits until the
+    /// mailbox file holds the copy: a quit before then loses nothing (#566).
+    #[test]
+    fn an_imap_rule_that_copies_and_deletes_for_good_leaves_the_original_until_the_copy_is_saved() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let rule = json!({"name": "Keep", "conditions": [{"type": "subjectContains", "value": "offer"}],
+            "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", rule);
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "Hello")], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(2, "An offer")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        let copy: Vec<(u32, bool)> = s.mailbox.messages.values().filter(|m| m.subject == "An offer").map(|m| (m.uid, m.folder == kept)).collect();
+        assert_eq!(copy, [(0, true)], "the copy is on this computer only");
+        let deletes = |s: &Session| request(s, a).ops.into_iter().filter(|op| matches!(op, RemoteOp::Delete { .. })).collect::<Vec<_>>();
+        assert!(!s.file_is_current());
+        assert_eq!(deletes(&s), [], "the server keeps the original while the copy is in no file");
+        assert_eq!(unpushed(&s, a), 1, "it is still counted as waiting to go");
+        // Saved: it goes.
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        assert_eq!(deletes(&s), [RemoteOp::Delete { from: "INBOX".into(), uid: 2 }]);
+    }
+
     #[test]
     fn a_backlog_goes_up_in_batches_and_is_counted_fast() {
         let (mut s, a, inbox, archive) = synced();

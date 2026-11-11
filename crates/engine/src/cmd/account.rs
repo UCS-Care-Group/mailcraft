@@ -993,6 +993,18 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
     let followed = |f: &&Folder| !f.remote.is_empty() && f.uid_validity != 0;
     let mailboxes: HashSet<&str> = folders.values().copied().filter(followed).map(|f| f.remote.as_str()).collect();
     let copied_from = mb.copies_wait_for();
+    // The Message-IDs of the copies that are on this computer only and not in the mailbox file
+    // yet (`saved`): a delete for good of what one was copied from waits for the save, as the
+    // original of a message moved here does, so that a quit before it loses nothing (#566: a rule
+    // that copies within the account, or into an account whose server is given no copy, and
+    // deletes for good). Not one made on another server that hasn't said where (`placed`). Found
+    // when there is a delete to hold, in one pass.
+    let deletes = mb.pending.iter().any(|p| p.account() == account && matches!(p, Pending::Delete { .. }));
+    let here_only: HashSet<&str> = if saved || !deletes {
+        HashSet::new()
+    } else {
+        mb.messages.values().filter(|m| m.uid == 0 && m.server.is_none() && m.placed.is_empty()).map(|m| m.message_id.as_str()).collect()
+    };
     for pending in mb.pending.iter().filter(|p| p.account() == account) {
         let (from, uid) = pending.source();
         if uid == 0 || !mailboxes.contains(from) {
@@ -1001,8 +1013,8 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
         match pending {
             // (Not while a copy of the message is still on its way to another account's server: a
             // refused one puts the original back, which the server must still have, #566.)
-            Pending::Delete { kept, .. } => {
-                let held = kept.as_ref().is_some_and(|m| copied_from.contains(&m.id));
+            Pending::Delete { kept, message_id, .. } => {
+                let held = kept.as_ref().is_some_and(|m| copied_from.contains(&m.id)) || here_only.contains(message_id.as_str());
                 note(&|| (!held).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
             }
             Pending::Move { message, synced, to, .. } => {
