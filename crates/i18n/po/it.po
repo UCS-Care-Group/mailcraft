@@ -3034,7 +3034,7 @@ msgstr "Taglia"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "DOMAIN\\user or you@example.org; empty for your address"
-msgstr "DOMINIO\utente oppure tu@example.org; vuoto per usare il tuo indirizzo"
+msgstr "DOMINIO\\utente oppure tu@example.org; vuoto per usare il tuo indirizzo"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -12678,7 +12678,7 @@ msgstr "Il server ha risposto, ma non come risponde un server Exchange. Controll
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
-msgstr "Il server non ha accettato nome utente e password. Controllali, oppure scrivi il nome utente in Impostazioni server (DOMINIO\utente oppure tu@example.org)."
+msgstr "Il server non ha accettato nome utente e password. Controllali, oppure scrivi il nome utente in Impostazioni server (DOMINIO\\utente oppure tu@example.org)."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
