@@ -1195,6 +1195,17 @@ fn subclasses_and_contacts_among_mail_come_in_and_the_rest_is_still_counted() {
 }
 
 #[test]
+fn a_contacts_category_in_other_letters_of_any_alphabet_comes_in_once() {
+    // As every list of categories compares names (#790): not by A to Z alone.
+    let keywords = multi_unicode(&["Ärger", "ärger", "ÄRGER", "Проект", "проект"]);
+    let pat = contact_item("Pat", vec![(0x3001, w::unicode("Pat")), (CONTACT_KEYWORDS, keywords)]);
+    let mut s = session();
+    import(&mut s, &people_file(vec![pat]), json!({"places": {"contacts": "here"}})).unwrap();
+    let pat = s.mailbox.contacts.values().find(|c| c.name() == "Pat").unwrap();
+    assert_eq!(pat.categories, ["Ärger", "Проект"]);
+}
+
+#[test]
 fn hostile_contacts_are_cut_and_capped() {
     let many: Vec<String> = (0..500).map(|i| format!("+44 20 7946 {i:04}")).collect();
     let many: Vec<&str> = many.iter().map(String::as_str).collect();
