@@ -98,6 +98,7 @@ mod shared_calendar_flow;
 mod shared_send_flow;
 mod single_instance;
 mod system_locale;
+mod system_motion;
 #[cfg(test)]
 mod tasks_job_tests;
 #[cfg(test)]
@@ -1907,6 +1908,8 @@ fn services(
         system_locale: system_locale::system_locale(),
         // And its regional format, whose region English dates are written for (#978).
         system_time_locale: system_locale::system_time_locale(),
+        // Whether the system plays animations, for Options › Animations (#1183).
+        animations_enabled: system_motion::reader(),
         ..Default::default()
     }
 }
