@@ -73,6 +73,21 @@ fn err(e: impl std::fmt::Display) -> Outcome {
 /// A request from an agent: `Some` when the gate settles it (refused, asked about, or run
 /// here), `None` when it goes on as anybody's (looking, a screenshot into the answer).
 pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
+    // What an Encrypted message opened to is for the owner's eyes: a picture of the window is not
+    // given to an agent while one is on screen (#30 part 6, R23).
+    if req.method == "ui.screenshot" && app.decrypted_on_screen() {
+        return Some(err(tl!(
+            "an Encrypted message is open in the window: its text isn't shown to agents, so there is no screenshot until it is closed"
+        )));
+    }
+    let before = app.session.sel.focus();
+    let outcome = screen_request(app, req, allow);
+    // A message an agent selected or named is one it chose: an Encrypted one is not opened for it.
+    app.note_agent_choice(before, &req.params);
+    outcome
+}
+
+fn screen_request(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
     let p = &req.params;
     let given = |k: &str| p.get(k).is_some_and(|v| !v.is_null());
     match req.method.as_str() {

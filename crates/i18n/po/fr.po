@@ -1129,6 +1129,11 @@ msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "An agent selected this message. It isn't opened until you say so."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -5944,6 +5949,11 @@ msgstr "Elle attend sur cet ordinateur que To Do soit autorisé pour ce compte"
 msgid "It was downloaded before MailCraft kept the bytes it came as: Check Again downloads them."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "It was sent with an older encryption that can't tell whether it was changed on the way, so its pictures are never downloaded."
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8575,7 +8585,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Uniquement quand MailCraft n'est pas la fenêtre au premier plan, et uniquement pour les boîtes de réception de vos propres comptes."
 
 #. interface, ribbon
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reading/encrypted.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "Ouvrir"
@@ -8731,6 +8741,11 @@ msgstr "Rouvrir la page"
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 msgid "Open this calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Open this message with your keys"
 msgstr ""
 
 #. interface
@@ -13087,6 +13102,11 @@ msgid "The owner hasn't allowed update checks."
 msgstr "Le propriétaire n'a pas autorisé la recherche de mises à jour."
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "The passphrase or PIN you typed was wrong."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "L'image était trop grande et a été réduite ({w} px de large)."
@@ -13559,6 +13579,23 @@ msgstr "Le Presse-papiers ne contient pas d'image."
 #, fuzzy
 msgid "There is no such account"
 msgstr "Ce compte n'existe pas"
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "There was also text and files that weren't encrypted, and nobody signed them. They aren't shown here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "There was also text that wasn't encrypted, and nobody signed it. It isn't shown here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "There was also {n} file that wasn't encrypted. It isn't shown here."
+msgid_plural "There were also {n} files that weren't encrypted. They aren't shown here."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -14257,6 +14294,11 @@ msgid "This message was changed after it was signed."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "This message was encrypted in a way that can't tell whether it was changed: its pictures are never downloaded"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message was sent with High importance."
@@ -14267,6 +14309,11 @@ msgstr "Ce message a été envoyé avec une importance haute."
 #, fuzzy
 msgid "This message was sent with Low importance."
 msgstr "Ce message a été envoyé avec une importance faible."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "This message was sent with an older encryption that can't tell whether it was changed, so someone could have altered it to send what it says to a web address. Its pictures are never downloaded."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -15079,6 +15126,11 @@ msgid "Waiting for MailCraft's Google registration"
 msgstr "En attente de l’enregistrement Google de MailCraft"
 
 #. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "Waiting for another message to be opened first…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
@@ -15153,6 +15205,11 @@ msgstr "Ce qu'il advient du courrier à son arrivée"
 #, fuzzy
 msgid "What it is made of"
 msgstr "De quoi il est fait"
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "What it opens to is larger than MailCraft keeps open at once."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -16101,6 +16158,11 @@ msgstr "ajoutez d'abord un compte (Fichier › Ajouter un compte)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "ajoutez au moins un destinataire"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs
+msgid "an Encrypted message is open in the window: its text isn't shown to agents, so there is no screenshot until it is closed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

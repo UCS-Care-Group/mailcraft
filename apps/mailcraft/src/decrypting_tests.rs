@@ -44,3 +44,21 @@ fn a_message_that_isnt_what_its_format_says_is_not_opened_and_nothing_panics() {
         assert_eq!(answer.err(), Some(Failure::Failed));
     }
 }
+
+#[test]
+fn the_agents_refusals_are_told_apart_by_who_can_fix_them() {
+    use crate::decrypting::{Step, refusal};
+    use mailcraft_assuan::ErrorKind;
+    assert!(matches!(refusal(Some(ErrorKind::Canceled)), Step::Stop(Failure::Cancelled)));
+    // A wrong passphrase or PIN is the owner's, not the message's.
+    assert!(matches!(refusal(Some(ErrorKind::BadPassphrase)), Step::Stop(Failure::WrongPassphrase)));
+    assert!(matches!(refusal(Some(ErrorKind::BadPin)), Step::Stop(Failure::WrongPassphrase)));
+    // A key the agent has no secret half of: the next is tried, and "no key" is what is said.
+    assert!(matches!(refusal(Some(ErrorKind::NoSecretKey)), Step::Next(Some(Failure::NoKey))));
+    assert!(matches!(refusal(Some(ErrorKind::NoPinentry)), Step::Stop(Failure::Unavailable)));
+    assert!(matches!(refusal(Some(ErrorKind::Timeout)), Step::Stop(Failure::Unavailable)));
+    // Not the agent's own words (the connection went): unreachable.
+    assert!(matches!(refusal(None), Step::Stop(Failure::Unavailable)));
+    // Anything else is one more key tried, and nothing said of it.
+    assert!(matches!(refusal(Some(ErrorKind::Other)), Step::Next(None)));
+}

@@ -36,8 +36,8 @@ ignore = [
     # checks Digital signatures with Public keys, where nothing secret is computed on. Look again
     # before signing or decrypting with a key MailCraft holds itself (#30, later parts), and when
     # rPGP moves to rsa 0.10 / crypto-bigint 0.7.
-    { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack: private-key timing; mailcraft-openpgp verifies with public keys and decrypts in this process only with an X25519-class secret key (rsa and NIST-curve keys go through gpg-agent or the system key stores; part 6 never runs a private-key operation on them); remove or justify again before MailCraft signs or decrypts with an RSA or NIST-curve key it holds (#30)" },
-    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 timing on secret integers; mailcraft-openpgp verifies with public keys and decrypts in this process only with an X25519-class secret key (rsa and NIST-curve keys go through gpg-agent or the system key stores; part 6 never runs a private-key operation on them); remove or justify again before MailCraft signs or decrypts with an RSA or NIST-curve key it holds (#30)" },
+    { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack: private-key timing; mailcraft-openpgp only verifies with public keys and opens mail through gpg-agent or the system key stores (part 6 runs no private-key operation in this process: the in-process path for an X25519-class key was left out); remove or justify again before MailCraft signs or decrypts with a key it holds (#30)" },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 timing on secret integers; mailcraft-openpgp only verifies with public keys and opens mail through gpg-agent or the system key stores (part 6 runs no private-key operation in this process: the in-process path for an X25519-class key was left out); remove or justify again before MailCraft signs or decrypts with a key it holds (#30)" },
 ]
 
 [licenses]

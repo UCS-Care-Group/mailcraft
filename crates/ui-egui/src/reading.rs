@@ -27,6 +27,8 @@ pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
 mod encrypted;
+#[cfg(test)]
+mod encrypted_tests;
 pub(crate) mod fonts;
 #[cfg(test)]
 mod header_tests;
@@ -413,6 +415,12 @@ pub(crate) fn tick(app: &mut MailApp, ctx: &egui::Context) {
     let_go_of_quotes(app, ctx);
     remote::tick(app, ctx);
     encrypted::tick(app, ctx);
+    app.forget_unopened_layouts(ctx);
+}
+
+/// What the layout cache kept of the messages `gone` says are gone is let go of.
+pub(crate) fn forget_layouts(ctx: &egui::Context, gone: impl Fn(&Message) -> bool) {
+    view::forget(ctx, gone);
 }
 
 /// The message's display blocks, from its HTML when it has some, else from its text.

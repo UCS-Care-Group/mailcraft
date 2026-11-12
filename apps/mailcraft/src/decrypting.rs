@@ -131,7 +131,7 @@ fn smime(host: &Host, original: &[u8]) -> Result<Plain, Failure> {
         None => Unwrapped::Refused,
     });
     match opened {
-        Ok(d) => Ok(Plain { data: d.content, inline: false, signatures: Vec::new() }),
+        Ok(d) => Ok(Plain { data: d.content, inline: false, signatures: Vec::new(), authenticated: d.authenticated }),
         Err(mailcraft_smime::DecryptError::NoKey) => Err(Failure::NoKey),
         Err(mailcraft_smime::DecryptError::Unsupported) => Err(Failure::Unsupported),
         Err(mailcraft_smime::DecryptError::Holder(why)) => Err(why),
@@ -179,6 +179,9 @@ fn openpgp(original: &[u8]) -> Result<Plain, Failure> {
     }
     let mut tried = 0usize;
     let mut any = false;
+    // Why nothing opened, when the agent said so: what the owner can fix, said as that.
+    let mut problem: Option<Failure> = None;
+    let mut unsupported = false;
     for recipient in message.recipients() {
         let Some(request) = mailcraft_openpgp::agent_request(recipient) else { continue };
         for (at, keygrip) in &held {
@@ -187,26 +190,55 @@ fn openpgp(original: &[u8]) -> Result<Plain, Failure> {
                 continue;
             }
             any = true;
+            // ECDH on a version 6 key isn't opened (its KDF names a 32-octet fingerprint): said so,
+            // and the agent isn't asked for it.
+            if key.is_v6() && matches!(recipient.esk, mailcraft_openpgp::Esk::Ecdh { .. }) {
+                unsupported = true;
+                continue;
+            }
             tried += 1;
             if tried > MAX_AGENT_TRIES {
                 return Err(Failure::Failed);
             }
             let answer = match agent.decrypt(keygrip, &enc_val(request.clone()), Some(PINENTRY_TEXT)) {
                 Ok(answer) => answer,
-                Err(e) => match e.server().map(mailcraft_assuan::ServerError::kind) {
-                    Some(ErrorKind::Canceled) => return Err(Failure::Cancelled),
-                    Some(ErrorKind::NoPinentry | ErrorKind::Timeout) => return Err(Failure::Unavailable),
-                    // Not this key, a wrong passphrase: the next.
-                    Some(_) => continue,
-                    None => return Err(Failure::Unavailable),
+                Err(e) => match refusal(e.server().map(mailcraft_assuan::ServerError::kind)) {
+                    Step::Stop(failure) => return Err(failure),
+                    Step::Next(why) => {
+                        problem = problem.or(why);
+                        continue;
+                    }
                 },
             };
             let Some(session) = mailcraft_openpgp::session_key(recipient, key, answer.bytes(), answer.padding()) else { continue };
+            // (OpenPGP's data packets are integrity-protected: rPGP refuses the old kind, and checks
+            // the check before it gives anything.)
             return match message.decrypt(&session) {
-                Ok(plain) => Ok(Plain { data: plain.data, inline: message.inline, signatures: plain.signatures }),
+                Ok(plain) => Ok(Plain { data: plain.data, inline: message.inline, signatures: plain.signatures, authenticated: true }),
                 Err(_) => Err(Failure::Failed),
             };
         }
     }
-    Err(if any { Failure::Failed } else { Failure::NoKey })
+    Err(problem.or(unsupported.then_some(Failure::Unsupported)).unwrap_or(if any { Failure::Failed } else { Failure::NoKey }))
+}
+
+/// What to do about gpg-agent refusing (`ERR`) to open a session key.
+pub(crate) enum Step {
+    /// Nothing more is asked: why.
+    Stop(Failure),
+    /// The next key is tried; if none opens it, why that is, when the agent said.
+    Next(Option<Failure>),
+}
+
+/// What gpg-agent's refusal means. These come from the owner's own agent, not from the message,
+/// so naming them tells a sender nothing: a wrong passphrase (the agent has asked three times
+/// already) and a key it hasn't a secret half of are the owner's to deal with.
+pub(crate) fn refusal(kind: Option<ErrorKind>) -> Step {
+    match kind {
+        Some(ErrorKind::Canceled) => Step::Stop(Failure::Cancelled),
+        Some(ErrorKind::NoPinentry | ErrorKind::Timeout) | None => Step::Stop(Failure::Unavailable),
+        Some(ErrorKind::BadPassphrase | ErrorKind::BadPin) => Step::Stop(Failure::WrongPassphrase),
+        Some(ErrorKind::NoSecretKey) => Step::Next(Some(Failure::NoKey)),
+        Some(_) => Step::Next(None),
+    }
 }

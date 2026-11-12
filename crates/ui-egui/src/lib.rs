@@ -1677,6 +1677,14 @@ pub struct MailApp {
     mail_only_next: bool,
     /// A sign-in the host is waiting on (the owner is in the browser).
     signing_in: Option<SigningIn>,
+    /// How long each Encrypted message has been on screen, as (since, last seen) in milliseconds:
+    /// one is opened only after it has stayed (#30 part 6).
+    decrypt_dwell: std::collections::HashMap<Id, (f64, f64)>,
+    /// Messages an agent chose (selected, or named): an Encrypted one among them is opened only
+    /// when the owner says so in the window, never because an agent asked for it to be shown.
+    agent_chose: Vec<Id>,
+    /// How many opened messages the engine had let go of when the layout cache was last cleaned.
+    decryption_gen: u64,
     /// Encrypted messages the host is opening, by message (#30 part 6). Never saved.
     decrypting:
         std::collections::HashMap<Id, std::sync::mpsc::Receiver<Result<mailcraft_engine::decrypt::Plain, mailcraft_engine::decrypt::Failure>>>,
@@ -1955,6 +1963,9 @@ impl MailApp {
             mail_only_next: false,
             signing_in: None,
             decrypting: Default::default(),
+            decrypt_dwell: Default::default(),
+            agent_chose: Vec::new(),
+            decryption_gen: 0,
             setup_sign_in: None,
             approvals: Default::default(),
             sync_rx: None,
