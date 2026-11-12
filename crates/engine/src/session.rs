@@ -3381,9 +3381,6 @@ impl Session {
         self.undo_takes(redo).1
     }
 
-    /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
-    /// the like, a draft (or puts back an earlier version of one), or another message, or it
-    /// changes the rules and leaves one switched on that deletes mail for good (#566).
     /// Whether undoing the last step (or redoing, `redo`) writes to people or puts mail or a rule
     /// on its way onto another account's server, which [`Session::undo_reverts`] asks as Send when
     /// the accounts it puts back don't come first: a yes to those covers this too, as it does a
@@ -3393,6 +3390,9 @@ impl Session {
         writes_to_people(&step.mailbox, &self.mailbox) || !self.undo_places(redo).is_empty() || !self.undo_rules_onto_server(redo).is_empty()
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
+    /// the like, a draft (or puts back an earlier version of one), or another message, or it
+    /// changes the rules and leaves one switched on that deletes mail for good (#566).
     pub fn undo_deletes(&self, redo: bool) -> bool {
         if !self.undo_drafts(redo).is_empty() || self.undo_rules_delete_for_good(redo) {
             return true;
