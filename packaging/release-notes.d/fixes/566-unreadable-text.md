@@ -1,0 +1,1 @@
+- Run Rules Now no longer takes the note MailCraft shows in place of a message's text it couldn't read from the disk for that text: a rule with words in the body could act on such a message by the words of the note ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
