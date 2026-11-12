@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Mail to keep offline (#143): mail of a Microsoft account (and of an IMAP account, #653) older
-//! than its window goes back to its headers and preview, and the content files it kept on disk go
-//! with it.
+//! Mail to keep offline (#143): mail of a Microsoft or Exchange server (#966) account (and of an IMAP account, #653) older than its window goes back to
+//! its headers and preview, and the content files it kept on disk go with it.
 //!
 //! - **What goes back** is mail outside its account's window ([`OfflineWindow`]) that is here
 //!   whole: never mail the server lacks (a local folder's, a draft, the Outbox's, a held
@@ -18,7 +17,7 @@
 
 use std::collections::HashSet;
 
-use mailcraft_model::{Id, KeepOffline, Message, OfflineWindow, has_window, size_label};
+use mailcraft_model::{Id, KeepOffline, Message, OfflineWindow, size_label};
 use serde_json::{Value, json};
 
 use super::{bad, fail, graph_down};
@@ -31,7 +30,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.thinOffline", "Remove Older Mail from This Computer", "File › Info", thin_offline)
             .pure()
-            .params(r#"{"account"?: number (and the shared mailboxes opened through it; default every account), "most"?: number (default and at most 100000)} — mail of a Microsoft or an IMAP account older than its mail to keep offline goes back to its headers and preview here, and its content files leave the disk once the mailbox is saved; it stays on the server and is fetched again when it is opened. Never mail the server lacks (local folders, Drafts, the Outbox, held messages), the message shown, or one fetched this session by opening it (that goes back the next time the mailbox is opened). Not an undo step. The window runs it at start, once a day, and when its owner shortens the window. Answers {"thinned": number, "bytes": number, "left": number (still to go, past "most")}"#)
+            .params(r#"{"account"?: number (and the shared mailboxes opened through it; default every account), "most"?: number (default and at most 100000)} — mail of a Microsoft, Exchange server or IMAP account older than its mail to keep offline goes back to its headers and preview here, and its content files leave the disk once the mailbox is saved; it stays on the server and is fetched again when it is opened. Never mail the server lacks (local folders, Drafts, the Outbox, held messages), the message shown, or one fetched this session by opening it (that goes back the next time the mailbox is opened). Not an undo step. The window runs it at start, once a day, and when its owner shortens the window. Answers {"thinned": number, "bytes": number, "left": number (still to go, past "most")}"#)
             .when(has_window_account),
         CommandSpec::new("account.offlineSize", "Space Older Mail Takes", "File › Info", offline_size)
             .pure()
@@ -40,18 +39,21 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 fn has_window_account(s: &Session) -> Option<&'static str> {
-    if s.mailbox.accounts.iter().any(|a| has_window(a.kind)) { None } else { Some("no account keeps a window of mail on this computer") }
+    if s.mailbox.accounts.iter().any(|a| a.kind.keeps_offline_window()) { None } else { Some("no account keeps a window of mail on this computer") }
 }
 
-/// The Microsoft or IMAP account a command names (not a shared mailbox: it follows its owner).
+/// The Microsoft, Exchange server or IMAP account a command names (not a shared mailbox: it follows its owner).
 fn account_of(s: &Session, v: &Value, required: bool) -> Result<Option<Id>, crate::CmdError> {
     let id = match v.get("account") {
         None | Some(Value::Null) if !required => return Ok(None),
         _ => p::req_id(v, "account")?,
     };
     let a = s.mailbox.account(id).ok_or_else(|| failed!("no account with id {id}", id))?;
-    if !has_window(a.kind) {
-        return Err(failed!("{name} keeps all its mail on this computer: only a Microsoft or an IMAP account keeps a window of it", name = a.name));
+    if !a.kind.keeps_offline_window() {
+        return Err(failed!(
+            "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it",
+            name = a.name
+        ));
     }
     if a.is_shared() {
         return Err(fail("a shared mailbox keeps as much mail offline as the account it is opened through: name that account"));

@@ -807,7 +807,7 @@ fn wait_of(retry_after: Option<&str>, now: Timestamp) -> Option<u32> {
 fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetError {
     let code = || code_of(&reply.body, sent);
     match reply.status {
-        401 => NetError::Proto(ProtoError::Auth(format!("Microsoft Graph didn't take the sign-in{}", code()))),
+        401 => NetError::Proto(ProtoError::Auth(format!("Microsoft Graph didn't take the sign-in{}", code()).into())),
         403 => {
             let what = match doing {
                 Doing::Sending => "this account may not send through Microsoft Graph",
@@ -826,7 +826,7 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
             NetError::Forbidden(format!("{what}{}", code()))
         }
         // A gateway that gave up waiting doesn't say whether a message went.
-        504 if doing == Doing::Sending => NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status 504{}", code()))),
+        504 if doing == Doing::Sending => NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status 504{}", code()).into())),
         429 | 503 | 504 => {
             let retry_after = wait_of(reply.retry_after.as_deref(), now);
             let text = match retry_after {
@@ -837,7 +837,7 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
             NetError::Busy { text, retry_after }
         }
         413 if doing == Doing::Sending => NetError::Proto(ProtoError::Rejected("the message is too large to send through Microsoft Graph".into())),
-        status => NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status {status}{}", code()))),
+        status => NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status {status}{}", code()).into())),
     }
 }
 
@@ -871,7 +871,7 @@ fn mime_body_with(message: &Message, options: &SendOptions) -> Result<String, Ne
         }
         if !is_address(email) {
             let shown: String = email.chars().filter(|c| !c.is_control()).take(80).collect();
-            return Err(NetError::Config(format!("\"{shown}\" isn't an address mail can be sent to")));
+            return Err(NetError::Config(format!("\"{shown}\" isn't an address mail can be sent to").into()));
         }
         anyone = true;
     }
@@ -923,7 +923,7 @@ fn events_in_at(base: &str, token: &str, query: &EventsQuery) -> Result<EventsDo
     for fields in [EVENT_FIELDS_OPTIONS, EVENT_FIELDS_FULL, EVENT_FIELDS, EVENT_FIELDS_PLAIN] {
         listed = events_with(&graph, &listed_calendar, from, to, fields);
         match &listed {
-            Err(NetError::Proto(ProtoError::Rejected(why))) if why.starts_with(BAD_REQUEST) => {
+            Err(NetError::Proto(ProtoError::Rejected(why))) if why.to_string().starts_with(BAD_REQUEST) => {
                 log::debug!("calendar: asked again with fewer fields");
                 // The first refusal costs the newest fields, the next one the categories too.
                 full &= options;
@@ -1547,7 +1547,7 @@ impl Graph<'_> {
                 (EventChangeKind::Create | EventChangeKind::Update, 400) if online => {
                     online = false;
                     no_online = match why() {
-                        NetError::Proto(ProtoError::Rejected(words)) => words,
+                        NetError::Proto(ProtoError::Rejected(words)) => words.to_string(),
                         other => other.to_string(),
                     };
                     continue;
@@ -1564,7 +1564,7 @@ impl Graph<'_> {
             let error = why();
             // In Graph's own words where it has any, without "the server said" before them.
             let words = match &error {
-                NetError::Proto(ProtoError::Rejected(words)) => words.clone(),
+                NetError::Proto(ProtoError::Rejected(words)) => words.to_string(),
                 other => other.to_string(),
             };
             let zone_sent = said_in(zone, own);
@@ -2044,7 +2044,7 @@ fn calendars_of(graph: &Graph<'_>, path: &str, group: &str, download: &mut Calen
         whole =
             graph.list(Doing::Calendar, url, &[], MAX_REMOTE_CALENDARS, &mut |entry: &Value| download.calendars.extend(calendar_of(entry, group)));
         match &whole {
-            Err(NetError::Proto(ProtoError::Rejected(why))) if why.starts_with(BAD_REQUEST) => {
+            Err(NetError::Proto(ProtoError::Rejected(why))) if why.to_string().starts_with(BAD_REQUEST) => {
                 log::debug!("calendars: asked again with fewer fields")
             }
             _ => break,

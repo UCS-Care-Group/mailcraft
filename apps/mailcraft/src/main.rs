@@ -26,6 +26,7 @@ mod alerts;
 mod apple_events;
 #[cfg(test)]
 mod approval_flow;
+mod attachment_render;
 mod block_on;
 mod browser;
 #[cfg(test)]
@@ -39,6 +40,8 @@ mod desktop_icons;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_theme;
 mod diagnostics;
+#[cfg(test)]
+mod diagnostics_problem_tests;
 #[cfg(test)]
 mod ews_mail_flow;
 mod ews_runner;
@@ -67,6 +70,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod key_holders;
 mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
@@ -76,6 +80,7 @@ mod menubar;
 mod opened_files;
 #[cfg(test)]
 mod opened_flow;
+mod own_keys;
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
@@ -1132,7 +1137,7 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 if graph::send_unsure(&e) {
                     out.unsure.push(message.id);
                 }
-                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
+                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim().replace(['"', '\\'], "'")));
             }
         }
     }
@@ -1211,8 +1216,9 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         out.uploaded = Some(uploaded);
     }
     // The wide stretch with the contacts, every quarter of an hour; otherwise the days on screen.
+    // (The window counts the wide stretch from its own clock and says it in `calendar`.)
     let now = mailcraft_time::now();
-    let stretch = if request.directory { Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD)) } else { request.calendar };
+    let stretch = if request.directory { request.calendar.or(Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD))) } else { request.calendar };
     // A shared mailbox's calendars (#70): asked for and written at its own address, and only
     // those that are ticked are asked for (the window says which, in the asks); no contacts,
     // categories or settings of it.
@@ -1707,10 +1713,13 @@ fn services(
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
+    let report_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
+    let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
@@ -1777,7 +1786,8 @@ fn services(
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
-            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.to_string()))
+            // The window says why in its own language (#872).
+            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.said()))
         })),
         // The copy of the mailbox kept before an account switches to Microsoft Graph: a large
         // mailbox takes a while to write, and the window shows a spinner meanwhile (#118).
@@ -1849,7 +1859,14 @@ fn services(
         // folder and opened with the system's program for its kind (#126).
         open_file: opened_files()
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
+        attachment_preview,
         secrets: secrets::store(),
+        // File › Options › Security (#30 R13): the owner's own certificates and keys listed,
+        // GnuPG's valid keys read, and a key file imported, each on a thread of its own.
+        own_keys: Some(Box::new(move |job| {
+            let store = keys_store.clone();
+            background(&keys_ctx, "own keys", move || own_keys::run(job, store))
+        })),
         // File › Info › Remove MailCraft's data from this computer (#177): the folders this
         // program works in, and no others. Not offered by a run that keeps nothing.
         data_wipe: prefs_enabled().then(|| {
@@ -1865,6 +1882,13 @@ fn services(
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
+        // Help › Report a Problem › Send report (#956), on the owner's click alone: the report the
+        // window showed goes to the project's relay, once. A build that names no relay has none.
+        report_send: mailcraft_net::report::relay().map(|_| {
+            Box::new(move |report: mailcraft_model::report::ProblemReport| {
+                background(&report_ctx, "problem report", move || mailcraft_net::report::send(&report))
+            }) as Box<dyn Fn(_) -> _>
+        }),
         microsoft_client_id: microsoft_client_id(),
         google_client_id: google_client_id(),
         google_client_secret: google_client_secret(),
@@ -1882,6 +1906,8 @@ fn services(
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
         // The system's language, for an interface language left on Automatic.
         system_locale: system_locale::system_locale(),
+        // And its regional format, whose region English dates are written for (#978).
+        system_time_locale: system_locale::system_time_locale(),
         ..Default::default()
     }
 }

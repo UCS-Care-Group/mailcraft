@@ -5,6 +5,7 @@
 use std::io::{ErrorKind, Read, Write};
 
 use crate::{MAX_LINE, MAX_LITERAL, ProtoError};
+use mailcraft_i18n::said;
 
 /// How much is asked of the stream in one read.
 const CHUNK: usize = 16 * 1024;
@@ -22,14 +23,15 @@ pub(crate) struct Wire<S> {
 }
 
 fn closed() -> ProtoError {
-    ProtoError::Io("the server closed the connection".into())
+    ProtoError::Io(said!("the server closed the connection"))
 }
 
 fn io_error(e: &std::io::Error) -> ProtoError {
     match e.kind() {
-        ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io("the server took too long to answer".into()),
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io(said!("the server took too long to answer")),
         ErrorKind::UnexpectedEof | ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => closed(),
-        _ => ProtoError::Io(crate::tidy(&e.to_string())),
+        // The system's own words, as it said them.
+        _ => ProtoError::Io(crate::tidy(&e.to_string()).into()),
     }
 }
 
@@ -127,7 +129,7 @@ impl<S: Read + Write> Wire<S> {
     /// Exactly `n` bytes (at most [`MAX_LITERAL`]).
     pub(crate) fn read_block(&mut self, n: usize) -> Result<Vec<u8>, ProtoError> {
         if n > MAX_LITERAL {
-            return Err(ProtoError::Protocol(format!("the server sent {n} bytes in one piece, more than MailCraft accepts")));
+            return Err(ProtoError::Protocol(said!("the server sent {n} bytes in one piece, more than MailCraft accepts", n)));
         }
         // The size is the server's word: memory is taken as the bytes arrive.
         let mut out = Vec::with_capacity(n.min(CHUNK));
@@ -164,7 +166,7 @@ impl<S: Read + Write> Wire<S> {
 }
 
 fn too_long() -> ProtoError {
-    ProtoError::Protocol(format!("the server sent a line longer than {} KB", MAX_LINE / 1024))
+    ProtoError::Protocol(said!("the server sent a line longer than {kb} KB", kb = MAX_LINE / 1024))
 }
 
 /// One read of at least one byte; the end of the stream is an error.
@@ -203,7 +205,7 @@ mod tests {
     fn the_end_of_the_stream_is_an_error() {
         let mut s = Script::new("no line ending");
         let mut w = Wire::new(&mut s);
-        assert_eq!(w.read_line(), Err(ProtoError::Io("the server closed the connection".into())));
+        assert_eq!(w.read_line(), Err(ProtoError::Io(said!("the server closed the connection"))));
         let mut s = Script::new("short");
         assert!(matches!(Wire::new(&mut s).read_block(10), Err(ProtoError::Io(_))));
     }
@@ -225,7 +227,7 @@ mod tests {
     #[test]
     fn stream_errors_become_connection_problems() {
         let mut w = Wire::new(Broken(ErrorKind::TimedOut));
-        assert_eq!(w.read_line(), Err(ProtoError::Io("the server took too long to answer".into())));
+        assert_eq!(w.read_line(), Err(ProtoError::Io(said!("the server took too long to answer"))));
         assert!(matches!(w.write(b"x"), Err(ProtoError::Io(_))));
         // A stream that is interrupted for ever hangs neither the reader nor the writer.
         assert!(matches!(Wire::new(Broken(ErrorKind::Interrupted)).read_line(), Err(ProtoError::Io(_))));

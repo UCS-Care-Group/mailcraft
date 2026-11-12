@@ -281,27 +281,38 @@ fn mail_of_a_mailbox_the_server_no_longer_lists_keeps_its_text() {
 }
 
 #[test]
-fn a_rule_that_cant_move_a_preview_out_of_its_account_says_so() {
+fn a_rule_that_cant_move_a_preview_out_of_its_account_says_so_once() {
     use mailcraft_model::sync::{FolderDelta, SyncResult};
     let (mut s, account, _) = aged("1m", &[]);
     let local = s.run("account.add", &json!({"email": "here@mail.example"})).unwrap()["id"].as_u64().unwrap();
     let local_inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     let rule = json!({"name": "To here", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Old"}], "actions": [{"type": "moveTo", "value": local_inbox}]});
     s.run("rules.add", &rule).unwrap();
-    let start = Message {
-        uid: 9,
-        subject: "Old".into(),
+    let start = |uid: u32| Message {
+        uid,
+        subject: format!("Old {uid}"),
         received: NOW - 400 * DAY,
         unfetched: true,
         body: Body { text: "The start of a long letter. ".repeat(500), html: None },
         ..Default::default()
     };
-    let delta = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 9, new: vec![start], ..Default::default() };
+    // One message: said as it was.
+    let delta =
+        FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 9, new: vec![start(9)], ..Default::default() };
     let result = SyncResult { account, email: "ada@mail.example".into(), folders: vec![delta], ..Default::default() };
     let said = super::account::apply_sync(&mut s, result).unwrap();
     // It stays in its Inbox, as its server has it, and the owner is told why.
-    let m = s.mailbox.messages.values().find(|m| m.subject == "Old").unwrap();
+    let m = s.mailbox.messages.values().find(|m| m.subject == "Old 9").unwrap();
     assert_eq!(m.folder, s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap());
     let errors = said["errors"].as_array().unwrap();
     assert!(errors.iter().any(|e| e.as_str().unwrap().contains("The rule \"To here\" couldn't move a message")), "{said}");
+
+    // Many at once (a first download of old mail): one line for the rule, with how many.
+    let many: Vec<Message> = (10..40).map(start).collect();
+    let delta = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 39, new: many, ..Default::default() };
+    let result = SyncResult { account, email: "ada@mail.example".into(), folders: vec![delta], ..Default::default() };
+    let said = super::account::apply_sync(&mut s, result).unwrap();
+    let lines: Vec<&str> = said["errors"].as_array().unwrap().iter().filter_map(|e| e.as_str()).filter(|e| e.contains("To here")).collect();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines[0].contains("couldn't move 30 messages; the first:"), "{}", lines[0]);
 }

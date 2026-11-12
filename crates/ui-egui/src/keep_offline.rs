@@ -76,7 +76,7 @@ impl MailApp {
             return;
         }
         (self.thinning.opening, self.thinning.at, self.thinning.now) = (Some(opening), now_ms(), false);
-        if !self.session.mailbox.accounts.iter().any(|a| mailcraft_model::has_window(a.kind)) {
+        if !self.session.mailbox.accounts.iter().any(|a| a.kind.keeps_offline_window()) {
             return;
         }
         match self.session.run("account.thinOffline", &json!({"most": BATCH})) {

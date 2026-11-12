@@ -126,12 +126,6 @@ impl KeepOffline {
     }
 }
 
-/// Whether mail of an account of this kind is kept to a window: a Microsoft account's (#143) and
-/// an IMAP account's (#653), whose servers give a message whole again when it is opened.
-pub fn has_window(kind: AccountKind) -> bool {
-    matches!(kind, AccountKind::Microsoft | AccountKind::Imap)
-}
-
 /// Which mail of a mailbox is within its **mail to keep offline** at one time, worked out once
 /// for the whole mailbox.
 ///
@@ -161,8 +155,12 @@ pub struct OfflineWindow {
 
 impl OfflineWindow {
     pub fn of(mb: &Mailbox, now: Timestamp) -> OfflineWindow {
-        let since =
-            mb.accounts.iter().filter(|a| has_window(a.kind)).filter_map(|a| mb.keep_offline_of(a.id).since(now).map(|t| (a.id, t))).collect();
+        let since = mb
+            .accounts
+            .iter()
+            .filter(|a| a.kind.keeps_offline_window())
+            .filter_map(|a| mb.keep_offline_of(a.id).since(now).map(|t| (a.id, t)))
+            .collect();
         OfflineWindow::with(mb, since)
     }
 
@@ -172,7 +170,7 @@ impl OfflineWindow {
         let since = mb
             .accounts
             .iter()
-            .filter(|a| has_window(a.kind))
+            .filter(|a| a.kind.keeps_offline_window())
             .filter_map(|a| {
                 let mine = a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account);
                 let k = if mine { keep } else { mb.keep_offline_of(a.id) };
@@ -292,7 +290,7 @@ mod imap_tests;
 mod tests {
     use super::*;
     use crate::sync::ServerMessage;
-    use crate::{Account, Folder, ServerFolder};
+    use crate::{Account, AccountKind, Folder, ServerFolder};
 
     const NOW: Timestamp = 1_792_000_000; // 2026-10-15
 

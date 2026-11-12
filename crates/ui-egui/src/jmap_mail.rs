@@ -147,6 +147,7 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.run_answered(account);

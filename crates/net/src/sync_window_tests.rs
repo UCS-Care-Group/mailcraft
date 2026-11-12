@@ -156,8 +156,9 @@ fn a_size_said_too_small_does_not_make_a_cut_message_whole() {
     let cut = by_subject(&inbox.new, "Said small");
     assert!(cut.unfetched, "only its start came: {}", cut.body.text.len());
     assert!(cut.body.text.len() < START_BYTES as usize);
-    // The server ended it before the bytes asked for: all of it came, whatever size was said.
-    assert!(!by_subject(&inbox.new, "Short and said large").unfetched);
+    // A short one that came whole, and said to be small: whole. Said to be large, a short reply
+    // isn't taken for the whole message: it errs towards a preview, fetched when opened.
+    assert!(by_subject(&inbox.new, "Short and said large").unfetched);
 }
 
 #[test]
