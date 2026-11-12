@@ -2167,10 +2167,12 @@ fn an_undo_of_a_rename_whose_event_change_was_on_its_way_and_lost_tells_the_old_
 
 /// The same with no older change: the rename's own change of the event is on its way when the
 /// undo comes. Whether its answer is lost or comes, the server may have the new name, so the old
-/// one is told again, and the new name isn't deleted there while the event there may have it.
+/// one is told again, and the new name isn't deleted there while the event there may have it:
+/// once the old one is there, it is. Gone from its server, the event goes here too, and so does
+/// the new name there.
 #[test]
 fn an_undo_of_a_rename_whose_own_event_change_was_on_its_way_tells_the_old_name_again() {
-    for result in [EventResult::Failed, EventResult::Done] {
+    for result in [EventResult::Failed, EventResult::Done, EventResult::Gone] {
         let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
         let e = server_event(&mut s, a, &["Old"]);
         s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
@@ -2183,12 +2185,23 @@ fn an_undo_of_a_rename_whose_own_event_change_was_on_its_way_tells_the_old_name_
         let answer = EventOutcome { op: op.clone(), result, error: "connection lost".into(), ..Default::default() };
         let uploaded = EventsUploaded { account: a, email: "a@example.org".into(), outcomes: vec![answer], ..Default::default() };
         remote::apply_event_outcomes(&mut s, &uploaded).unwrap();
+        if result == EventResult::Gone {
+            assert!(s.mailbox.event(e).is_none());
+            assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
+            assert_eq!(deletes(&mut s, a), ["New"]);
+            continue;
+        }
         assert!(
             !changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Delete && c.name == "New"),
             "{result:?}: deleted while the event there may have it"
         );
         s.mailbox.event_changes.iter_mut().for_each(|c| c.retry_at = 0);
         assert_eq!(event_told(&s, a, e), (vec!["New".to_string()], Some(vec!["Old".to_string()]), None), "{result:?}");
+        // The old name is there: the new one goes.
+        event_answer(&mut s, a);
+        assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"], "{result:?}");
+        assert!(s.mailbox.event_changes.is_empty(), "{result:?}: {:?}", s.mailbox.event_changes);
+        assert_eq!(deletes(&mut s, a), ["New"], "{result:?}");
     }
 }
 

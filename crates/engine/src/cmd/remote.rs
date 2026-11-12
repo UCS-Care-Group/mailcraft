@@ -2539,8 +2539,8 @@ fn updated(
             let name = called(event.and_then(|id| mailbox.event(id)));
             if let (Some(base), Some(Ok(event))) = (change.base, event.map(|id| mailbox.event_mut(id))) {
                 // As the server has it. Categories the base has as this very change sent them
-                // are not there: a change never sends what its base has, so an undo took them to
-                // be there while the change was on its way (#661). The event keeps its own.
+                // are not there: a change never sends what its base has, so an undo or a redo took
+                // them to be there while the change was on its way (#661). The event keeps its own.
                 let guessed = op.fields.categories.as_ref().is_some_and(|sent| *sent == base.categories);
                 let (id, calendar, categories) = (event.id, event.calendar, std::mem::take(&mut event.categories));
                 *event = Event { id, calendar, ..*base };
