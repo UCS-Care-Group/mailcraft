@@ -1010,13 +1010,170 @@ fn the_categories_a_listing_left_out_stay_untold_once_the_message_is_fetched() {
     s.run("rules.add", &rule).unwrap();
     let mut message = listed("N1", "F-in", "Plan");
     message.server.categories = (0..25).map(|i| format!("Tag {i}")).collect();
+    message.categories_cut = true;
+    let page = MessagePage { folder: "F-in".into(), messages: vec![message], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    assert!(here(&s, account, "N1").categories_cut);
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(here(&s, account, "N1").categories_cut, "the fetch said the listing's categories were all there were");
+    assert!(!binned(&s, account, "Plan"), "deleted past an exception for a category the listing may have left out");
+}
+
+/// Two copies of one Message-ID in one Send/Receive of a Microsoft account (a mailing list's after
+/// the one sent to me), which the window takes in two pieces: both are new mail to the rules, each
+/// copied and alerted of; and in a later run, one moved into the Inbox on another device is mail the
+/// account had (#566).
+#[test]
+fn two_copies_in_two_pieces_of_one_run_are_both_new_mail() {
+    let mut s = Session::empty();
+    let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
+    let copies = s.mailbox.add_folder(account, None, "Copies").unwrap();
+    let rule = json!({"name": "Copy news", "account": account, "server": false, "alert": true,
+        "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "copyTo", "value": copies}]});
+    s.run("rules.add", &rule).unwrap();
+    let twin = |id: &str, folder: &str| GraphMessage { message_id: "weekly@list.example".into(), ..listed(id, folder, "Weekly news") };
+    let piece = |messages: Vec<GraphMessage>, partial: bool| GraphMailResult {
+        account,
+        email: ME.into(),
+        pages: vec![MessagePage { folder: "F-in".into(), messages, ..Default::default() }],
+        partial,
+        ..Default::default()
+    };
+    graph_mail::apply_graph_mail(&mut s, piece(vec![twin("N1", "F-in")], true)).unwrap();
+    graph_mail::apply_graph_mail(&mut s, piece(vec![twin("N2", "F-in")], false)).unwrap();
+    let alerted = |s: &Session, id: &str| (here(s, account, id).folder, here(s, account, id).rule_alert);
+    assert_eq!((alerted(&s, "N1"), alerted(&s, "N2")), ((inbox, true), (inbox, true)));
+    assert_eq!(s.mailbox.messages_in(copies).count(), 2, "each copy of the run is copied");
+    // A later run: the one filed in Kept, moved back into the Inbox on another device, is known.
+    let mut filed = listed("OLD1", "F-kept", "Plan news");
+    filed.message_id = "plan-1@example.org".into();
+    let page = MessagePage { folder: "F-kept".into(), messages: vec![filed], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.messages_in(kept).count(), 1);
+    let before = s.mailbox.messages_in(copies).count();
+    let mut back = listed("NEW1", "F-in", "Plan news");
+    back.message_id = "plan-1@example.org".into();
+    graph_mail::apply_graph_mail(&mut s, piece(vec![back], false)).unwrap();
+    assert_eq!((alerted(&s, "NEW1"), s.mailbox.messages_in(copies).count()), ((inbox, false), before), "mail the account had");
+}
+
+/// An Exchange server account in step, with its Inbox read once (folder "F1"): `(account, piece)`.
+fn exchange_read(s: &mut Session) -> (Id, impl Fn() -> EwsMailResult + use<>) {
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+    let piece = move || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+    let inbox = vec![GraphFolder { id: "F1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let deltas = EwsFolderDeltas { changed: inbox, afresh: true, ..Default::default() };
+    ews_mail::apply_ews_mail(s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+    let first = EwsMessagePage { folder: "F1".into(), afresh: true, last: true, state: "S-1".into(), ..Default::default() };
+    ews_mail::apply_ews_mail(s, EwsMailResult { pages: vec![first], ..piece() }).unwrap();
+    ews_mail::apply_ews_mail(s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+    (account, piece)
+}
+
+/// New mail whose subject its server's list cut short (past 998 characters): an exception for a
+/// word past the cut can't be told until it is fetched, so the rule neither deletes the mail nor
+/// moves it onto another account's server meanwhile (#566).
+#[test]
+fn an_exception_for_the_end_of_a_subject_a_listing_cut_waits_for_the_download() {
+    let long = format!("{} confidential", "a".repeat(1_000));
+    for action in ["moveTo", "delete"] {
+        let mut s = Session::empty();
+        let (account, piece) = exchange_read(&mut s);
+        let (to, b) = imap_inbox(&mut s);
+        let actions = if action == "delete" { json!([{"type": "delete"}]) } else { json!([{"type": "moveTo", "value": to}]) };
+        let rule = json!({"name": "Zoe", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+            "exceptions": [{"type": "subjectContains", "value": "confidential"}], "actions": actions});
+        s.run("rules.add", &rule).unwrap();
+        let delta = EwsMessagePage {
+            folder: "F1".into(),
+            messages: vec![listed("N1", "F1", &long)],
+            last: true,
+            from: "S-1".into(),
+            state: "S-2".into(),
+            ..Default::default()
+        };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m = here(&s, account, "N1");
+        assert!(m.headers_cut && m.subject.chars().count() <= 998, "{action}: the listing's subject is said cut");
+        assert_eq!((m.folder, copies(&s, to, b).1), (inbox, 0), "{action}: acted on past an exception the listing cut off");
+    }
+    // A Microsoft account's listing, cut as `mailcraft_net` cuts it.
+    let mut s = Session::empty();
+    let (account, inbox, _) = microsoft_with(&mut s, "Kept");
+    let (to, b) = imap_inbox(&mut s);
+    let rule = json!({"name": "Zoe to Blake", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+        "exceptions": [{"type": "subjectContains", "value": "confidential"}], "actions": [{"type": "moveTo", "value": to}]});
+    s.run("rules.add", &rule).unwrap();
+    let cut = GraphMessage { cut: true, ..listed("N1", "F-in", &long.chars().take(998).collect::<String>()) };
+    let page = MessagePage { folder: "F-in".into(), messages: vec![cut], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    assert_eq!((here(&s, account, "N1").folder, copies(&s, to, b).1), (inbox, 0), "moved out past an exception the listing cut off");
+    assert!(here(&s, account, "N1").rules_waiting.is_some(), "the rule waits for the download");
+    let fetched = vec![whole("N1", &long, "", "The text.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let m = here(&s, account, "N1");
+    assert_eq!((m.folder, m.headers_cut, copies(&s, to, b).1), (inbox, false, 0), "the whole subject has the word: the exception holds");
+}
+
+/// Recipients a Microsoft account's listing left out (past 500 in Cc) come whole with the download,
+/// and then the rules can tell of them: an exception for mail Cc'd to me, which I'm not, lets the
+/// rule act, and so does a sensitivity the header says (#566).
+#[test]
+fn recipients_a_listing_left_out_are_told_once_the_message_is_fetched() {
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let flag = json!({"name": "Zoe", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+        "exceptions": [{"type": "ccMe"}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &flag).unwrap();
+    let private = json!({"name": "Private", "account": account, "server": false, "conditions": [{"type": "sensitivity", "value": "private"}],
+        "actions": [{"type": "categorize", "value": "Private"}]});
+    s.run("rules.add", &private).unwrap();
+    let mut message = listed("N1", "F-in", "Plan");
+    message.cc = (0..500).map(|i| Address::new("", &format!("p{i}@example.org"))).collect();
     message.cut = true;
     let page = MessagePage { folder: "F-in".into(), messages: vec![message], ..Default::default() };
     graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
         .unwrap();
-    assert!(here(&s, account, "N1").headers_cut);
-    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    assert!(here(&s, account, "N1").rules_waiting.is_some());
+    let cc: Vec<String> = (0..550).map(|i| format!("p{i}@example.org")).collect();
+    let headers = format!("Cc: {}\r\nSensitivity: Private\r\n", cc.join(", "));
+    let fetched = vec![whole("N1", "Plan", &headers, "The plan.")];
     graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    assert!(here(&s, account, "N1").headers_cut, "the fetch said the listing's categories were all there were");
-    assert!(!binned(&s, account, "Plan"), "deleted past an exception for a category the listing may have left out");
+    let m = here(&s, account, "N1");
+    assert_eq!((m.cc.len(), m.headers_cut), (550, false), "every recipient came with the download");
+    assert_eq!(m.flag, FlagStatus::Flagged, "I'm not among them: the rule acts");
+    assert_eq!(m.categories, ["Private"], "a sensitivity rule acts too");
+}
+
+/// A recipient an Exchange server account's listing leaves out, as an address that can't be kept
+/// (a quoted local part with a comma: `"x,y"@example.net`), makes the list cut: "sent only to me"
+/// can't tell, as it arrives or at Run Rules Now, and leaves the mail alone (#566).
+#[test]
+fn sent_only_to_me_doesnt_hold_of_a_listing_that_left_a_cc_out() {
+    for now in [false, true] {
+        let mut s = Session::empty();
+        let (account, piece) = exchange_read(&mut s);
+        let rule = json!({"name": "Only me away", "account": account, "server": false, "conditions": [{"type": "sentOnlyToMe"}],
+            "actions": [{"type": "delete"}]});
+        if !now {
+            s.run("rules.add", &rule).unwrap();
+        }
+        let quoted = GraphMessage { cc: vec![Address::new("", "\"x,y\"@example.net")], ..listed("N1", "F1", "Quoted cc") };
+        let plain = GraphMessage { cc: vec![Address::new("", "bo@example.net")], ..listed("N2", "F1", "Plain cc") };
+        let messages = vec![quoted, plain, listed("N3", "F1", "No cc")];
+        let delta = EwsMessagePage { folder: "F1".into(), messages, last: true, from: "S-1".into(), state: "S-2".into(), ..Default::default() };
+        ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+        if now {
+            s.run("rules.add", &rule).unwrap();
+            let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+            s.run("rules.run", &json!({"folder": inbox})).unwrap();
+        }
+        let deleted = ["Quoted cc", "Plain cc", "No cc"].map(|subject| binned(&s, account, subject));
+        assert_eq!(deleted, [false, false, true], "Run Rules Now: {now}");
+    }
 }

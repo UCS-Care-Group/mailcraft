@@ -83,8 +83,8 @@ pub struct Down {
     /// without one, this computer's.
     pub clock: Option<mailcraft_model::RuleClock>,
     /// The `Message-ID`s of the mail an account had before a run's new mail
-    /// ([`super::account::message_ids`]), found once for the run's pages when new mail comes into
-    /// the Inbox or Junk E-mail.
+    /// ([`super::account::message_ids`]), found once for the run when new mail comes into the
+    /// Inbox or Junk E-mail, and kept for its later pieces ([`Down::of_run`]).
     had: Option<(Id, HashSet<String>)>,
 }
 
@@ -92,6 +92,25 @@ impl Down {
     /// Down for a run of `s`, whose rules run by its clock.
     pub fn of(s: &crate::Session) -> Down {
         Down { clock: Some(s.rule_clock()), ..Default::default() }
+    }
+
+    /// [`Down::of`] for a piece of `account`'s run, with what the account had before the run's
+    /// new mail as an earlier piece of the run found it ([`crate::Session::run_had`]).
+    pub(crate) fn of_run(s: &mut crate::Session, account: Id) -> Down {
+        let had = s.run_had.remove(&account).map(|had| (account, had));
+        Down { had, ..Down::of(s) }
+    }
+
+    /// Keep what the account had for the run's next piece, unless this one was its last.
+    pub(crate) fn end_piece(&mut self, s: &mut crate::Session, account: Id, partial: bool) {
+        match self.had.take() {
+            Some((of, had)) if partial && of == account => {
+                s.run_had.insert(account, had);
+            }
+            _ => {
+                s.run_had.remove(&account);
+            }
+        }
     }
 
     /// Whether taking in the pages did anything: the clock is no part of that.
@@ -293,6 +312,7 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         unfetched: true,
         attachments_on_server: there.has_attachments,
         headers_cut: there.cut,
+        categories_cut: there.categories_cut,
         ..Default::default()
     }
 }
@@ -350,8 +370,12 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if m.importance == last.importance {
         m.importance = now.importance;
     }
-    // (Its categories are the server's, and what a listing left out of them stays left out.)
-    m.headers_cut |= there.cut;
+    // (Its categories are the server's, and what a listing left out of them stays left out; its
+    // recipients and subject are the listing's only until it is fetched.)
+    m.categories_cut |= there.categories_cut;
+    if m.unfetched {
+        m.headers_cut |= there.cut;
+    }
     if follows && m.folder != folder {
         m.folder = folder;
         // Moved on another device before it is here whole, and back too: the rules that waited on
@@ -577,6 +601,11 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         (m.unfetched, m.attachments_on_server) = (false, false);
         return Some(here);
     }
+    // What a listing left out of its recipients and subject comes with it whole, but for one of
+    // them the download doesn't give, which stays as the listing said (#566).
+    let listed =
+        (read.to.is_empty() && !m.to.is_empty()) || (read.cc.is_empty() && !m.cc.is_empty()) || (read.subject.is_empty() && !m.subject.is_empty());
+    let listing_cut = m.headers_cut && listed;
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
     m.references = read.references;
@@ -611,8 +640,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.parts_removed = false;
     (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
     m.read_header = read.read_header;
-    // What a listing left out stays left out: its categories are the server's still (#566).
-    m.headers_cut |= read.headers_cut;
+    // (What a listing left out of its categories stays left out: they are the server's still,
+    // [`Message::categories_cut`].)
+    m.headers_cut = read.headers_cut || listing_cut;
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
         mailcraft_model::auth_results::forget_stamps(m);

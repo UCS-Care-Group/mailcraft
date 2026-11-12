@@ -215,14 +215,14 @@ fn a_later_listing_that_cut_the_categories_keeps_a_rule_from_deleting_past_a_cat
     };
     apply(&mut s, listed("N1", "F-in", "Contract"));
     let id = s.mailbox.messages.values().find(|m| m.subject == "Contract").map(|m| m.id).unwrap();
-    assert!(!s.mailbox.message(id).unwrap().headers_cut);
+    assert!(!s.mailbox.message(id).unwrap().categories_cut);
     // On the web it gets more categories than a listing gives.
     let mut again = listed("N1", "F-in", "Contract");
     again.server.change_key = "CK2".into();
     again.server.categories = (0..25).map(|i| format!("Tag {i}")).collect();
-    again.cut = true;
+    again.categories_cut = true;
     apply(&mut s, again);
-    assert!(s.mailbox.message(id).unwrap().headers_cut, "the second listing cut its categories");
+    assert!(s.mailbox.message(id).unwrap().categories_cut, "the second listing cut its categories");
     run(
         &mut s,
         "rules.add",

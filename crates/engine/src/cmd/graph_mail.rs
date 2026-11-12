@@ -434,12 +434,13 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         }
     }
     // Mail down (R3.2): each page with its link; what is still gone once every folder is done.
-    let mut down = Down::of(s);
+    let mut down = Down::of_run(s, account);
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    down.end_piece(s, account, result.partial);
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
     // A rule moved new mail out of the account (#567). An undo of a step from before goes back to

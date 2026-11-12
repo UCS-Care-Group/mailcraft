@@ -532,9 +532,13 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         .and_then(Value::as_array)
         .map(|all| all.iter().filter_map(Value::as_str).take(MAX_CATEGORIES).map(|c| c.chars().take(255).collect()).collect())
         .unwrap_or_default();
-    // Past what is kept of a list, what it said is left out (#566).
-    let more = |name: &str, cap: usize| value.get(name).and_then(Value::as_array).is_some_and(|all| all.len() > cap);
-    let cut = more("toRecipients", MAX_PEOPLE) || more("ccRecipients", MAX_PEOPLE) || more("categories", MAX_CATEGORIES);
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    let listed = |name: &str| value.get(name).and_then(Value::as_array).map_or(0, Vec::len);
+    let (to, cc) = (people(value, "toRecipients"), people(value, "ccRecipients"));
+    let cut =
+        to.len() < listed("toRecipients") || cc.len() < listed("ccRecipients") || capped(value, "subject", MAX_TEXT + 1).chars().count() > MAX_TEXT;
+    let categories_cut = listed("categories") > MAX_CATEGORIES;
     let server = ServerMessage {
         id,
         folder: folder.to_string(),
@@ -565,14 +569,15 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         message_id: capped(value, "internetMessageId", MAX_TEXT),
         subject: capped(value, "subject", MAX_TEXT),
         from: value.get("from").and_then(address_of).unwrap_or_default(),
-        to: people(value, "toRecipients"),
-        cc: people(value, "ccRecipients"),
+        to,
+        cc,
         sent: when("sentDateTime").unwrap_or(received),
         received,
         preview: capped(value, "bodyPreview", MAX_PREVIEW),
         has_attachments: value.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false),
         draft: value.get("isDraft").and_then(Value::as_bool),
         cut,
+        categories_cut,
     })))
 }
 

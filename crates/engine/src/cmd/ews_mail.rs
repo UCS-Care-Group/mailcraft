@@ -297,7 +297,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         s.note_saved();
     }
     let mut taken = Taken::default();
-    let mut down = Down::of(s);
+    let mut down = Down::of_run(s, account);
     // What became of what went up, as for a Microsoft account: the folders, the messages (a
     // refusal is said once per kind and reason), the drafts, and what was sent.
     let mut errors = result.errors.clone();
@@ -370,6 +370,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         }
     }
     s.graph_index = index;
+    down.end_piece(s, account, result.partial);
     // A rule moved new mail out of the account (#567): there is no going back past it
     // ([`super::graph_mail::apply_graph_mail`] says why).
     if down.left > 0 {

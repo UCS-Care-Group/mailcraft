@@ -32,7 +32,7 @@ use mailcraft_model::sync::{
 use mailcraft_model::{FolderKind, Id, Mailbox, Queued};
 
 use super::graph_down::{self, Down, ServerIndex};
-use super::jmap_down::{MAX_BATCH, MAX_BUSY, MAX_FETCHED, MAX_MESSAGE, MAX_PEOPLE, MAX_PREVIEW, MAX_TEXT, line, lines, people, person};
+use super::jmap_down::{MAX_BATCH, MAX_BUSY, MAX_FETCHED, MAX_MESSAGE, MAX_PREVIEW, MAX_TEXT, line, lines, people, person};
 
 /// Longest name of a folder kept, in characters.
 const MAX_NAME: usize = 255;
@@ -52,8 +52,11 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     if !is_id(&m.server.id) {
         return false;
     }
-    // Past what is kept of a list, what it said is left out (#566).
-    m.cut |= m.server.categories.len() > 50 || m.to.len() > MAX_PEOPLE || m.cc.len() > MAX_PEOPLE;
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    m.categories_cut |= m.server.categories.len() > 50;
+    let (to, cc) = (people(&m.to), people(&m.cc));
+    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 1).chars().count() > MAX_TEXT;
     let server = &mut m.server;
     server.folder = folder.to_owned();
     server.gone = false;
@@ -70,8 +73,7 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);
     m.from = person(&m.from).unwrap_or_default();
-    m.to = people(&m.to);
-    m.cc = people(&m.cc);
+    (m.to, m.cc) = (to, cc);
     true
 }
 

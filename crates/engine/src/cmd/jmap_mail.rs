@@ -228,7 +228,7 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     let name = receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded(result);
     let mut taken = Taken::default();
-    let mut down = Down::of(s);
+    let mut down = Down::of_run(s, account);
     if let Some(listing) = &result.listing {
         down.removed = jmap_down::keep_what_is_only_here(&mut s.mailbox, account, listing);
         graph_mail::take_listing(&mut s.mailbox, account, listing, &mut taken);
@@ -248,6 +248,7 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
         jmap_down::take_window(&mut s.mailbox, &mut index, account, page, first, &mut down);
     }
     s.graph_index = index;
+    down.end_piece(s, account, result.partial);
     // The run's end: what its complete windows left out goes, when it went well (and not after a
     // listing cut short: what left a mailbox may be in one it missed). Either way the next run
     // begins afresh.

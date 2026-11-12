@@ -2078,6 +2078,50 @@ mod two_way {
         assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "One" && m.folder == junk).count(), 1);
     }
 
+    /// Two copies of one Message-ID in one Send/Receive (a mailing list's after the one sent to me),
+    /// which the window takes in two pieces, newest first: both are new mail to the rules, each copied
+    /// and alerted of, as when the run is taken whole (#566).
+    #[test]
+    fn two_copies_in_two_pieces_of_one_run_are_both_new_mail() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let copy = json!({"name": "Copy", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "actions": [{"type": "copyTo", "value": kept}], "alert": true});
+        run(&mut s, "rules.add", copy);
+        let twin = |uid: u32, subject: &str| Message { message_id: "weekly@list.example".into(), ..from_server(uid, subject) };
+        let mut totals = cmd::account::SyncTotals::default();
+        let piece1 = SyncResult {
+            account: a,
+            partial: true,
+            folders: vec![FolderDelta {
+                uid_seen: 2,
+                ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![twin(4, "Weekly news (list)")], vec![])
+            }],
+            ..Default::default()
+        };
+        cmd::account::apply_sync_part(&mut s, &mut totals, piece1).unwrap();
+        let piece2 = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![twin(3, "Weekly news (direct)")], vec![])],
+            ..Default::default()
+        };
+        cmd::account::apply_sync_part(&mut s, &mut totals, piece2).unwrap();
+        let alerted = s.mailbox.messages_in(inbox).filter(|m| m.subject.starts_with("Weekly") && m.rule_alert).count();
+        assert_eq!((alerted, s.mailbox.messages_in(kept).count()), (2, 2));
+        assert!(s.run_had.is_empty(), "the run's last piece lets go of what the account had");
+    }
+
     /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes
     /// except if a header says to keep it can't tell, and leaves it alone (#566).
     #[test]

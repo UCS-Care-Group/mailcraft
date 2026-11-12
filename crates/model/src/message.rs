@@ -444,10 +444,16 @@ pub struct Message {
     #[serde(skip_serializing_if = "is_false")]
     pub incomplete: bool,
     /// Some of its header fields, recipients (To, Cc) or categories were left out as it was read,
-    /// past what is kept of one message (`mailcraft_mime`): a rule can't tell from it what they
-    /// said (#566).
+    /// past what is kept of one message (`mailcraft_mime`), or, before it is fetched, some of its
+    /// recipients or its subject as its server listed it ([`crate::sync::GraphMessage::cut`]): a
+    /// rule can't tell from it what they said (#566).
     #[serde(skip_serializing_if = "is_false")]
     pub headers_cut: bool,
+    /// Some of its categories were left out as its server listed it
+    /// ([`crate::sync::GraphMessage::categories_cut`]): they are the server's still once it is
+    /// fetched, so a rule can't tell from it what they said (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub categories_cut: bool,
     /// While it is not fetched: the rules that couldn't tell of it as it arrived, which have
     /// their say once it is ([`crate::RulesWaiting`], #566). `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]

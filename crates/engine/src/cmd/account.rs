@@ -1257,6 +1257,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     run.stopped |= stopped;
     run.finished = !partial;
     if !partial {
+        s.run_had.remove(&account);
         // What nothing will answer any more is let go of (#30).
         super::mail::check_again::settle(&mut s.mailbox);
         let held = super::graph_place::held_for_this_computer(s, account);
@@ -1304,6 +1305,8 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
     let clock = s.rule_clock();
+    // What the account had before the run's new mail, as an earlier piece of it found it.
+    let had = s.run_had.remove(&account);
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
@@ -1321,6 +1324,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         }
     }
     let mut on_server = OnServer::of(mb, account);
+    on_server.had = had;
     flags_pushed(mb, account, &on_server, &result.flagged);
     for moved in &result.moved {
         move_finished(mb, account, &mut on_server, moved);
@@ -1339,6 +1343,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
+    // (For the run's later pieces: its last lets it go, [`apply_sync_part`].)
+    if let Some(had) = on_server.had.take() {
+        s.run_had.insert(account, had);
+    }
     if told {
         s.forget_history();
     }
@@ -1374,7 +1382,8 @@ struct OnServer {
     /// Messages put back as the server's after a refused copy ([`Message::returned`]).
     returned: Vec<Id>,
     /// The Message-IDs of the account's mail in its folders, as the run first needs them
-    /// ([`OnServer::had`]); none of what the owner sent or is writing.
+    /// ([`OnServer::had`]), and as its later pieces have them from the first
+    /// ([`crate::Session::run_had`]); none of what the owner sent or is writing.
     had: Option<HashSet<String>>,
 }
 

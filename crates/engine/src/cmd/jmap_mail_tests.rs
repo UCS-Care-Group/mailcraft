@@ -829,3 +829,18 @@ fn the_host_side_of_a_jmap_run_is_never_an_agents() {
     assert!(!s.enabled("sync.jmapRequest") && !s.enabled("sync.jmapFetchRequest"));
     assert_eq!(s.run("sync.jmapRequest", &json!({})).unwrap_err().to_string(), "not available: no account is kept in step over JMAP");
 }
+
+/// A recipient a JMAP account's listing leaves out, as an address that can't be kept, and a
+/// subject longer than is kept make the message one whose listing was cut (#566): a rule can't
+/// tell from it what they said until it is fetched.
+#[test]
+fn a_window_that_leaves_a_recipient_or_the_end_of_a_subject_out_says_the_message_was_cut() {
+    let (mut s, account) = session();
+    let plain = GraphMessage { cc: vec![Address::new("", "bo@example.net")], ..email("E1", "Plain cc", 1_000) };
+    let quoted = GraphMessage { cc: vec![Address::new("", "\"x,y\"@example.net")], ..email("E2", "Quoted cc", 1_000) };
+    let long = email("E3", &format!("{} confidential", "a".repeat(1_000)), 1_000);
+    run(&mut s, account, vec![window("M1", vec![plain, quoted, long], true)], true);
+    let cut = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.cc.len()));
+    assert_eq!((cut("E1"), cut("E2")), (Some((false, 1)), Some((true, 0))));
+    assert_eq!(here(&s, account, "E3").map(|m| (m.headers_cut, m.subject.chars().count())), Some((true, 998)));
+}

@@ -244,9 +244,13 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
-    // Past what is kept of a list, what it said is left out (#566).
-    let more = |name: &str, cap: usize| item.child_in(TYPES, name).is_some_and(|list| list.children.len() > cap);
-    let cut = more("ToRecipients", MAX_PEOPLE) || more("CcRecipients", MAX_PEOPLE) || more("Categories", MAX_CATEGORIES);
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+    let subject = item.child_in(TYPES, "Subject").map_or("", |n| n.text.as_str());
+    let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients") || line(subject, MAX_SUBJECT + 1).chars().count() > MAX_SUBJECT;
+    let categories_cut = listed("Categories") > MAX_CATEGORIES;
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
@@ -263,16 +267,17 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
             ..ServerMessage::default()
         },
         message_id: message_id.trim_start_matches('<').trim_end_matches('>').to_owned(),
-        subject: line(item.child_in(TYPES, "Subject").map_or("", |n| n.text.as_str()), MAX_SUBJECT),
+        subject: line(subject, MAX_SUBJECT),
         from: people(item, "From").into_iter().next().unwrap_or_default(),
-        to: people(item, "ToRecipients"),
-        cc: people(item, "CcRecipients"),
+        to,
+        cc,
         sent: time(item, "DateTimeSent"),
         received: time(item, "DateTimeReceived"),
         preview: line(item.child_in(TYPES, "Preview").map_or("", |n| n.text.as_str()), MAX_PREVIEW),
         has_attachments: flag(item, "HasAttachments"),
         draft: item.child_in(TYPES, "IsDraft").map(|n| n.text.trim().eq_ignore_ascii_case("true")),
         cut,
+        categories_cut,
     })
 }
 

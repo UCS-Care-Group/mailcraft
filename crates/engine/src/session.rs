@@ -1077,6 +1077,11 @@ pub struct Session {
     /// the run is not made good by one that says all went well). Set by any such piece, cleared
     /// when a run is asked for (`sync.ewsRequest`) and when its last piece has been taken in.
     pub(crate) ews_run_cut: std::collections::HashSet<Id>,
+    /// The `Message-ID`s each account had before its run now under way brought new mail into its
+    /// Inbox or Junk E-mail ([`crate::cmd::account::message_ids`]), as the run first needed them:
+    /// kept for the run's later pieces, so that a second copy of one message in a later piece is
+    /// as new as the first (#566). Let go of with the run's last piece, an undo, or another mailbox.
+    pub(crate) run_had: std::collections::HashMap<Id, std::collections::HashSet<String>>,
     /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
     /// JMAP, said it no longer has), by account and server id: the background passes them over
     /// (opening one still asks). Never saved.
@@ -1292,6 +1297,7 @@ impl Session {
             sync_progress: Default::default(),
             graph_index: Default::default(),
             ews_run_cut: Default::default(),
+            run_had: Default::default(),
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
@@ -2981,6 +2987,7 @@ impl Session {
         self.signatures.forget_messages();
         self.graph_swept.clear();
         self.graph_listed_short.clear();
+        self.run_had.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
         self.openings = self.openings.wrapping_add(1);
@@ -3175,6 +3182,7 @@ impl Session {
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
         self.ews_run_cut.clear();
+        self.run_had.clear();
         let mail = u.mail;
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
         self.rev += 1;

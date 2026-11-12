@@ -96,7 +96,8 @@ fn an_item_with_more_recipients_or_categories_than_are_kept_says_it_cut_them() {
     assert!(!whole.cut && whole.to.len() == 200 && whole.server.categories.len() == 50);
     let cut = read(201, 0);
     assert!(cut.cut && cut.to.len() == 200);
-    assert!(read(0, 51).cut);
+    let categories = read(0, 51);
+    assert!(categories.categories_cut && !categories.cut && !whole.categories_cut);
 }
 
 /// A listing names the Message-ID among the fields it asks for, whatever the Default shape holds:
@@ -108,4 +109,25 @@ fn a_listing_asks_for_the_message_id_by_name() {
         let request = SyncFolderItems::new("FOLDER", "", 10, shape).element().write();
         assert!(request.contains("FieldURI=\"message:InternetMessageId\""), "{request}");
     }
+}
+
+/// A recipient the reader can't keep and a subject longer than it keeps make the item cut as well
+/// (#566): a rule can't tell from it what they said.
+#[test]
+fn an_item_that_leaves_a_recipient_or_the_end_of_its_subject_out_says_it_cut_them() {
+    let read = |subject: &str, cc: &str| {
+        let item = format!(
+            "<t:Create><t:Message><t:ItemId Id=\"ID1\" ChangeKey=\"CK\"/><t:Subject>{subject}</t:Subject><t:CcRecipients>{cc}</t:CcRecipients></t:Message></t:Create>"
+        );
+        page(&item, 10).unwrap().messages.remove(0)
+    };
+    let bo = "<t:Mailbox><t:EmailAddress>bo@example.org</t:EmailAddress></t:Mailbox>";
+    let plain = read("Plan", bo);
+    assert!(!plain.cut && plain.cc.len() == 1);
+    let nobody = read("Plan", &format!("{bo}<t:Mailbox></t:Mailbox>"));
+    assert!(nobody.cut && nobody.cc.len() == 1, "{nobody:?}");
+    let long = format!("{} confidential", "a".repeat(1_000));
+    let cut = read(&long, "");
+    assert!(cut.cut && cut.subject.chars().count() == 998);
+    assert!(!read(&"a".repeat(998), "").cut, "a subject that fits is whole");
 }

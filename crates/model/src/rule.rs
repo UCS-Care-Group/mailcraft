@@ -334,7 +334,9 @@ impl Condition {
             | Condition::CcMe
             | Condition::ToOrCcMe
             | Condition::NotToMe => m.headers_cut || (m.unfetched && m.to.iter().chain(&m.cc).any(|a| a.email.trim().is_empty())),
-            Condition::Category(_) => m.headers_cut,
+            Condition::Category(_) => m.headers_cut || m.categories_cut,
+            // Nor the end of a subject its server's list left out.
+            Condition::SubjectContains(_) => m.unfetched && m.headers_cut,
             // A calendar part kept on disk and not brought in (one too large to be read) doesn't
             // say whether it asks.
             Condition::MeetingRequest => m.partly_here() || m.attachments.iter().any(|a| a.is_calendar() && !a.is_loaded()),

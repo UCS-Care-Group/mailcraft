@@ -469,5 +469,28 @@ fn a_listing_with_more_recipients_or_categories_than_are_kept_says_it_cut_them()
     assert!(!whole.cut && whole.to.len() == 500 && whole.cc.len() == 500 && whole.server.categories.len() == 25);
     let cut = read(600, 0, 0);
     assert!(cut.cut && cut.to.len() == 500);
-    assert!(read(0, 501, 0).cut && read(0, 0, 26).cut);
+    assert!(read(0, 501, 0).cut);
+    let categories = read(0, 0, 26);
+    assert!(categories.categories_cut && !categories.cut && !whole.categories_cut);
+}
+
+/// A recipient the reader can't keep (no address and no name) and a subject longer than it keeps
+/// make the listing cut as well (#566): a rule can't tell from it what they said.
+#[test]
+fn a_listing_that_leaves_a_recipient_or_the_end_of_its_subject_out_says_it_cut_them() {
+    let read = |subject: &str, cc: serde_json::Value| {
+        let entry = serde_json::json!({
+            "id": "AAMk-601", "parentFolderId": "F-in", "receivedDateTime": "2026-10-14T16:00:00Z", "subject": subject,
+            "toRecipients": [{"emailAddress": {"address": "ada@example.org"}}], "ccRecipients": cc,
+        });
+        super::down::message_of(&entry).unwrap()
+    };
+    let plain = read("Plan", serde_json::json!([{"emailAddress": {"address": "bo@example.org"}}]));
+    assert!(!plain.cut && plain.cc.len() == 1);
+    let nobody = read("Plan", serde_json::json!([{"emailAddress": {}}]));
+    assert!(nobody.cut && nobody.cc.is_empty());
+    let long = format!("{} confidential", "a".repeat(1_000));
+    let cut = read(&long, serde_json::json!([]));
+    assert!(cut.cut && cut.subject.chars().count() == 998);
+    assert!(!read(&"a".repeat(998), serde_json::json!([])).cut, "a subject that fits is whole");
 }
