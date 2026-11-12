@@ -1675,9 +1675,6 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
     }
 }
 
-/// Messages moved into the account out of another IMAP account that are this server's messages
-/// now (they have their UID here, #451): the original goes from the other server, by a deletion
-/// there, whatever is done with them here from now on.
 /// The `Message-ID`s of `account`'s mail outside Sent Items, Drafts and the Outbox: what it had,
 /// should one of them turn up in the Inbox as new, moved there on another device (#566).
 pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
@@ -1689,6 +1686,9 @@ pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
         .collect()
 }
 
+/// Messages moved into the account out of another IMAP account that are this server's messages
+/// now (they have their UID here, #451): the original goes from the other server, by a deletion
+/// there, whatever is done with them here from now on.
 fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
     let ids: Vec<Id> = mb
         .pending

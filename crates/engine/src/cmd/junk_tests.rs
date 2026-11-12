@@ -796,3 +796,29 @@ fn a_later_round_left_partway_is_sorted_on_after_a_save_and_a_reopen() {
     assert_eq!(folder_of(&s, "two@shop.example"), Some(archive));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// [`the_rules_leave_a_shared_mailbox_s_mail_as_its_server_has_it`] with a rule for every
+/// account, as a mailbox from before rules had accounts holds: a rule made now without `account`
+/// is the owner's alone, which never reaches a shared mailbox's mail anyway (#566).
+#[test]
+fn a_rule_for_every_account_leaves_a_shared_mailbox_s_arriving_mail_alone() {
+    let (mut s, owner, _) = graph_with_rule(true);
+    let flag = s
+        .run("rules.add", &json!({"name": "Flag", "conditions": [{"type": "fromContains", "value": "shop"}], "actions": [{"type": "flag"}]}))
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == flag).map(|r| r.account), Some(owner), "made for the owner alone");
+    s.mailbox.rules.iter_mut().find(|r| r.id == flag).unwrap().account = 0;
+    let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let folders = vec![GraphFolder { id: "S-in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let listing = FolderListing { folders, complete: true };
+    let listed = GraphMailResult { account: shared, email: "support@example.org".into(), listing: Some(listing), ..Default::default() };
+    apply_graph_mail(&mut s, listed).unwrap();
+    let inbox = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server.as_mut().unwrap().caught_up = true;
+    let page = GraphMailResult { email: "support@example.org".into(), ..graph_page(shared, "S-in", &["offers@shop.example"]) };
+    apply_graph_mail(&mut s, page).unwrap();
+    let m = s.mailbox.messages.values().find(|m| m.subject == "offers@shop.example").unwrap();
+    assert_eq!((m.folder, m.flag), (inbox, FlagStatus::None));
+}
