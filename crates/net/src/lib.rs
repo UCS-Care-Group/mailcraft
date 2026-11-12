@@ -319,3 +319,6 @@ mod anchors_nss_tests;
 #[cfg(test)]
 #[cfg(all(unix, not(target_os = "macos")))]
 mod anchors_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod goa_tests;

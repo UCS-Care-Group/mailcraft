@@ -28,7 +28,7 @@ use mailcraft_proto::imap::{Fetched, FolderStatus, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
 
 use crate::push::push;
-use crate::send::{Envelope, dated, deliver, open_smtp_with, relay_hint};
+use crate::send::{Envelope, dated, deliver, open_smtp_configured, relay_hint};
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, kinds, not_signed_in, scrub};
 use mailcraft_i18n::{Arg, Text, said};
@@ -157,6 +157,12 @@ pub(crate) fn sync_within(request: &SyncRequest, limits: Limits) -> SyncResult {
 /// [`sync_with`], told how far to go and what is known of the server from its name (the tests'
 /// servers are all on this machine).
 pub(crate) fn sync_as(request: &SyncRequest, limits: Limits, host: Host, cancel: &AtomicBool, emit: &mut dyn FnMut(SyncResult)) {
+    if request.account.goa.is_some() {
+        let mut result = blank(request);
+        result.problem(said!("This account is managed by GNOME Online Accounts. Use a GOA-capable MailCraft desktop on Linux."));
+        emit(result);
+        return;
+    }
     let mut run = Run {
         request,
         limits,
@@ -261,10 +267,16 @@ impl Run<'_> {
         // in English or in the texts the window says it with.
         let (password, token) = (&self.request.password, &self.request.access_token);
         for line in &mut piece.errors {
-            *line = scrub(&scrub(line, password), token);
+            *line = scrub(&scrub(&scrub(line, password), token), self.request.smtp_password.as_deref().unwrap_or_default());
         }
-        piece.said =
-            std::mem::take(&mut piece.said).into_iter().map(|said| said.map_plain(&|text: String| scrub(&scrub(&text, password), token))).collect();
+        piece.said = std::mem::take(&mut piece.said)
+            .into_iter()
+            .map(|said| {
+                said.map_plain(&|text: String| {
+                    scrub(&scrub(&scrub(&text, password), token), self.request.smtp_password.as_deref().unwrap_or_default())
+                })
+            })
+            .collect();
         (self.emit)(piece);
         self.handed_over = Instant::now();
     }
@@ -338,10 +350,15 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
     }
     let waiting = request.outbox.len();
     run.hand_over(SyncStep::new(SyncStage::Sending, "", 0, waiting));
-    let mut smtp = match open_smtp_with(&request.account, request.secret(), &run.limits.patience, Some(run.cancel)) {
+    let mut smtp_account = request.account.clone();
+    if let Some(username) = &request.smtp_username {
+        smtp_account.username = username.clone();
+    }
+    let smtp_secret = request.smtp_password.as_deref().unwrap_or_else(|| request.secret());
+    let mut smtp = match open_smtp_configured(&smtp_account, smtp_secret, &run.limits.patience, Some(run.cancel), request.smtp_password.is_some()) {
         Ok(smtp) => smtp,
         Err(e) => {
-            run.failed(said!("Couldn't send mail"), &e);
+            run.failed(said!("Couldn't send mail"), &e.without(smtp_secret));
             return sent;
         }
     };
@@ -427,6 +444,9 @@ pub(crate) fn is_microsoft_host(host: &str) -> bool {
 /// and no build but a test's sends one to this computer (AU3-19): a loopback address is not
 /// Microsoft's, whatever listens there.
 pub fn token_may_go_to(account: &Account, server: &Server, google_host: &str) -> Result<(), NetError> {
+    if account.goa.is_some() {
+        return Err(NetError::Config(said!("Resolve this account through GNOME Online Accounts before connecting.")));
+    }
     match account.oauth.as_ref().map(|oauth| oauth.provider) {
         None => Ok(()),
         Some(OAuthProvider::Google) => crate::google_destination(account, &server.host, google_host),

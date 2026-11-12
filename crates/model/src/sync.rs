@@ -124,6 +124,11 @@ pub struct SyncRequest {
     /// of a password. Never written to disk or logs.
     #[serde(skip)]
     pub access_token: String,
+    /// GOA may expose separate incoming and outgoing passwords/user names. Worker memory only.
+    #[serde(skip)]
+    pub smtp_password: Option<String>,
+    #[serde(skip)]
+    pub smtp_username: Option<String>,
     pub folders: Vec<FolderState>,
     /// Messages waiting in the Outbox, to send first.
     pub outbox: Vec<Message>,

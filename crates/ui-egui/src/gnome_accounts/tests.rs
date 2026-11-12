@@ -1,0 +1,287 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+    mpsc::channel,
+};
+
+use egui_kittest::{Harness, kittest::Queryable as _};
+use mailcraft_engine::Session;
+use serde_json::json;
+
+use super::*;
+use crate::{Services, dialogs::Dialog, forms::Form};
+
+const NOW: i64 = 1_791_993_600;
+
+fn account(provider: Provider, email: &str) -> Account {
+    Account { email: email.into(), name: "Example Owner".into(), provider_name: "Example provider".into(), provider, linked: None }
+}
+
+fn app(services: Services) -> MailApp {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), services);
+    app.autosave = false;
+    app
+}
+
+#[test]
+fn discovery_is_explicit_and_normal_add_account_does_not_query_gnome() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = calls.clone();
+    let mut app = app(Services {
+        gnome_accounts: Some(Box::new(move || {
+            count.fetch_add(1, Ordering::Relaxed);
+            let (tx, rx) = channel();
+            tx.send(Ok(Vec::new())).unwrap();
+            rx
+        })),
+        ..Default::default()
+    });
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    app.execute("ui.dialog", json!({"name": "account"})).unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    let before = app.session.mailbox.accounts.len();
+    app.execute("ui.dialog", json!({"name": "gnomeAccounts"})).unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    app.execute("ui.closeDialog", json!({})).unwrap();
+    assert_eq!(app.session.mailbox.accounts.len(), before);
+}
+
+#[test]
+fn no_service_and_a_disconnected_worker_leave_existing_accounts_untouched() {
+    let mut app = app(Services::default());
+    assert!(app.execute("ui.dialog", json!({"name": "gnomeAccounts"})).is_err());
+    app.services.gnome_accounts = Some(Box::new(|| channel().1));
+    let before = app.session.mailbox.accounts.len();
+    let mut form = Import::open(&app).unwrap();
+    form.poll();
+    assert_eq!(form.error, Some(DiscoveryError::Failed));
+    assert_eq!(app.session.mailbox.accounts.len(), before);
+}
+
+#[test]
+fn only_a_supported_selected_account_can_be_set_up_and_duplicates_are_refused() {
+    let mut app = app(Services::default());
+    app.execute("account.add", json!({"email": "existing@example.org"})).unwrap();
+    let mut form = Import {
+        rx: None,
+        accounts: vec![
+            account(Provider::Google, "owner@example.org"),
+            account(Provider::Unsupported, "other@example.org"),
+            account(Provider::Microsoft365, "EXISTING@example.org"),
+        ],
+        error: None,
+        selected: None,
+        link_error: None,
+    };
+    let before = app.session.mailbox.accounts.len();
+    assert!(form.setup(&app).is_none());
+    for selected in [1, 2, 999] {
+        form.selected = Some(selected);
+        assert!(form.setup(&app).is_none());
+    }
+    form.selected = Some(0);
+    assert!(form.setup(&app).is_some());
+    assert_eq!(app.session.mailbox.accounts.len(), before);
+}
+
+#[test]
+fn selecting_an_account_prefills_setup_without_contacting_a_provider() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = calls.clone();
+    let services = Services {
+        gnome_accounts: Some(Box::new(|| {
+            let (tx, rx) = channel();
+            tx.send(Ok(vec![account(Provider::Microsoft365, "owner@example.org"), account(Provider::Google, "second@example.org")])).unwrap();
+            rx
+        })),
+        microsoft_client_id: "mailcraft-test-client".into(),
+        sign_in: Some(Box::new(move |request| {
+            assert_eq!(request.email, "owner@example.org");
+            assert_eq!(request.oauth.provider, mailcraft_model::OAuthProvider::Microsoft);
+            assert_eq!(request.oauth.client_id, "mailcraft-test-client");
+            assert!(request.refresh.is_empty());
+            count.fetch_add(1, Ordering::Relaxed);
+            channel().1
+        })),
+        ..Default::default()
+    };
+    let mut app = app(services);
+    let before = app.session.mailbox.accounts.len();
+    app.execute("ui.dialog", json!({"name": "gnomeAccounts"})).unwrap();
+    let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1000.0, 760.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    harness.run_steps(3);
+    harness.get_by_label("owner@example.org — Example provider").click();
+    harness.run_steps(2);
+    harness.get_by_label("Set up separately").click();
+    harness.run_steps(3);
+    assert!(matches!(harness.state().dialog, Some(Dialog::Form(Form::Account(_)))));
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    assert_eq!(harness.state().session.mailbox.accounts.len(), before);
+    harness.get_by_label("Connect").click();
+    harness.run_steps(3);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert_eq!(harness.state().session.mailbox.accounts.len(), before);
+}
+
+#[test]
+fn changing_mailbox_discards_the_pending_discovery() {
+    let (tx, rx) = channel();
+    let app = &mut app(Services::default());
+    app.dialog = Some(Dialog::Form(Form::GnomeAccounts(Box::new(Import {
+        rx: Some(rx),
+        accounts: Vec::new(),
+        error: None,
+        selected: None,
+        link_error: None,
+    }))));
+    app.clear_jobs_on_replace();
+    assert!(app.dialog.is_none());
+    assert!(tx.send(Ok(vec![account(Provider::Google, "old@example.org")])).is_err());
+}
+
+/// Optional headless visual check, using only invented accounts.
+#[test]
+#[ignore = "writes screenshots for visual inspection"]
+fn import_dialog_light_and_dark() {
+    let Ok(dir) = std::env::var("MAILCRAFT_GOA_SHOTS") else { return };
+    std::fs::create_dir_all(&dir).unwrap();
+    for theme in ["light", "dark"] {
+        let mut app = app(Services {
+            gnome_accounts: Some(Box::new(|| {
+                let (tx, rx) = channel();
+                tx.send(Ok(vec![
+                    linkable(),
+                    account(Provider::Microsoft365, "work@example.org"),
+                    account(Provider::Unsupported, "other@example.org"),
+                ]))
+                .unwrap();
+                rx
+            })),
+            ..Default::default()
+        });
+        app.execute("ui.theme", json!({"value": theme})).unwrap();
+        app.execute("ui.dialog", json!({"name": "gnomeAccounts"})).unwrap();
+        let mut harness =
+            Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).wgpu().build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
+        harness.input_mut().max_texture_side = Some(8192);
+        harness.run_steps(6);
+        harness.render().unwrap().save(std::path::Path::new(&dir).join(format!("gnome-import-{theme}.png"))).unwrap();
+    }
+}
+
+fn linkable() -> Account {
+    let mut account = account(Provider::Google, "linked@example.org");
+    account.linked = Some(mailcraft_model::Account {
+        email: account.email.clone(),
+        display_name: account.name.clone(),
+        incoming: Some(mailcraft_model::Server { host: "imap.gmail.com".into(), port: 993, security: mailcraft_model::Security::Tls }),
+        outgoing: Some(mailcraft_model::Server { host: "smtp.gmail.com".into(), port: 587, security: mailcraft_model::Security::StartTls }),
+        goa: Some(mailcraft_model::GoaAccount { id: "account_1".into(), provider: "google".into() }),
+        ..Default::default()
+    });
+    account
+}
+
+#[test]
+fn explicit_link_persists_reference_and_syncs_without_mailcraft_credentials() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let mut app = app(Services {
+        sign_in: Some(Box::new(|_| panic!("GOA must never start a MailCraft login"))),
+        gnome_accounts: Some(Box::new(|| channel().1)),
+        sync: Some(Box::new(move |request| {
+            assert!(request.account.goa.is_some());
+            assert!(request.account.oauth.is_none());
+            assert!(request.password.is_empty() && request.access_token.is_empty());
+            observed.fetch_add(1, Ordering::Relaxed);
+            let (_tx, rx) = std::sync::mpsc::sync_channel(1);
+            rx
+        })),
+        ..Default::default()
+    });
+    let form = Import { rx: None, accounts: vec![linkable()], error: None, selected: Some(0), link_error: None };
+    form.link(&mut app).unwrap();
+    let account = app.session.mailbox.accounts.iter().find(|a| a.goa.is_some()).unwrap().clone();
+    let roundtrip: mailcraft_model::Account = serde_json::from_str(&serde_json::to_string(&account).unwrap()).unwrap();
+    assert_eq!(account, roundtrip);
+    assert_eq!(
+        app.execute("account.list", json!({})).unwrap()["accounts"].as_array().unwrap().iter().find(|a| a["id"] == account.id).unwrap()["auth"],
+        "goa"
+    );
+    let original = crate::unconfirmed::fingerprint(&app.session.mailbox);
+    let mut changed = app.session.mailbox.clone();
+    changed.accounts.iter_mut().find(|a| a.id == account.id).unwrap().goa.as_mut().unwrap().id = "different_account".into();
+    assert_ne!(original, crate::unconfirmed::fingerprint(&changed), "a different GOA reference needs confirmation when opening a mailbox file");
+    assert!(form.link(&mut app).is_err(), "no duplicate links");
+    for field in [json!({"incoming": {"host": "evil.example"}}), json!({"auth": "oauth2"}), json!({"goa": {"id": "other", "provider": "google"}})] {
+        let mut params = field;
+        params["id"] = json!(account.id);
+        assert!(app.execute("account.edit", params).is_err());
+    }
+    app.execute("ui.sync", json!({"account": account.id})).unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(app.passwords.is_empty() && app.tokens.is_empty());
+    assert!(app.can_sync_quietly(account.id), "GOA-linked accounts participate in scheduled Send/Receive");
+}
+
+#[test]
+fn link_button_adds_only_the_selected_account_and_starts_its_first_sync() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let mut app = app(Services {
+        gnome_accounts: Some(Box::new(|| {
+            let (tx, rx) = channel();
+            tx.send(Ok(vec![linkable(), account(Provider::Microsoft365, "other@example.org")])).unwrap();
+            rx
+        })),
+        sign_in: Some(Box::new(|_| panic!("linking must not open MailCraft sign-in"))),
+        sync: Some(Box::new(move |request| {
+            assert_eq!(request.account.email, "linked@example.org");
+            assert!(request.account.goa.is_some());
+            observed.fetch_add(1, Ordering::Relaxed);
+            let (tx, rx) = channel();
+            tx.send(mailcraft_model::sync::SyncResult { account: request.account.id, email: request.account.email, ..Default::default() }).unwrap();
+            rx
+        })),
+        ..Default::default()
+    });
+    // Isolate the button's requested run from the sample's independently due automatic round.
+    app.session.prefs.sync_minutes = 0;
+    let before = app.session.mailbox.accounts.len();
+    app.execute("ui.dialog", json!({"name": "gnomeAccounts"})).unwrap();
+    let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1000.0, 760.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    harness.run_steps(3);
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    harness.get_by_label("linked@example.org — Example provider").click();
+    harness.run_steps(2);
+    harness.get_by_label("Link with GNOME").click();
+    harness.run_steps(4);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert_eq!(harness.state().session.mailbox.accounts.len(), before + 1);
+    assert_eq!(harness.state().session.mailbox.accounts.iter().filter(|a| a.goa.is_some()).count(), 1);
+    assert!(harness.state().dialog.is_none());
+}

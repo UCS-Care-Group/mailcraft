@@ -406,6 +406,13 @@ impl AccountKind {
     }
 }
 
+/// A user-selected GNOME Online Accounts reference. No credentials or client registration.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoaAccount {
+    pub id: String,
+    pub provider: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Account {
@@ -440,6 +447,9 @@ pub struct Account {
     /// password. No token is ever stored here.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth: Option<OAuth>,
+    /// Configuration and authentication remain with GOA. Used only by a GOA-capable host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goa: Option<GoaAccount>,
     /// A mailbox written while the owner of an account could choose how its Favorites in
     /// Outlook were read (`favoritesSource`, 0.2.0 to 0.2.1) and had chosen anything but
     /// Microsoft Graph: Exchange Web Services, which is gone, or not now. That choice is no

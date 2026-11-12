@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 mailcraft-time = { workspace = true }
+mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
 mailcraft-link = { workspace = true }
