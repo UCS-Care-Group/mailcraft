@@ -19,7 +19,7 @@ impl Platform for Services {
     fn open_sign_in_page(&self, url: &str) -> Result<(), PlatformError> {
         match &self.open_page {
             Some(open) if open(url) => Ok(()),
-            Some(_) => Err(PlatformError::Failed("no browser could be started".to_string())),
+            Some(_) => Err(PlatformError::Failed("no browser could be started")),
             None => Err(PlatformError::Unsupported),
         }
     }
@@ -36,12 +36,12 @@ impl Platform for Services {
             body: notification.body.clone(),
             opens: Opens::Reminders,
         };
-        host.show(&alert).map_err(PlatformError::Failed)
+        host.show(&alert).map_err(|_| PlatformError::Failed("the alert could not be shown"))
     }
 
     fn open_file(&self, name: &str, bytes: &[u8]) -> Result<(), PlatformError> {
         match &self.open_file {
-            Some(open) => open(name, bytes).map_err(PlatformError::Failed),
+            Some(open) => open(name, bytes).map_err(|_| PlatformError::Failed("the file could not be opened")),
             None => Err(PlatformError::Unsupported),
         }
     }

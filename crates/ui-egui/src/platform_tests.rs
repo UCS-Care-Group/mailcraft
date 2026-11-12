@@ -36,7 +36,7 @@ fn services_hand_the_platform_entries_to_what_the_host_gave_them() {
     assert_eq!(s.open_sign_in_page("https://login.example.org/"), Ok(()));
     assert!(matches!(s.open_sign_in_page("nope"), Err(PlatformError::Failed(_))));
     assert_eq!(opened.borrow().len(), 2);
-    assert_eq!(s.open_file("a.txt", b"x"), Err(PlatformError::Failed("nothing opens it".to_string())));
+    assert_eq!(s.open_file("a.txt", b"x"), Err(PlatformError::Failed("the file could not be opened")));
     // Mail alerts are the window's own.
     assert_eq!(s.notify(&note(NotificationKind::Mail)), Err(PlatformError::Unsupported));
 }

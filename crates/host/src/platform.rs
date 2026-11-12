@@ -20,8 +20,8 @@ use crate::SecretStore;
 pub enum PlatformError {
     /// This platform has no such thing (reminders scheduled for later on a desktop, say).
     Unsupported,
-    /// The system refused or failed; `why` is in our own words.
-    Failed(String),
+    /// The system refused or failed; `why` is a fixed phrase of ours, never what the system said.
+    Failed(&'static str),
     /// A connection or a file failed in the way `kind` says.
     Io(std::io::ErrorKind),
 }
