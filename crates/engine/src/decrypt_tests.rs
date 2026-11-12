@@ -468,3 +468,41 @@ fn a_messages_with_hostile_plaintext_is_read_with_the_usual_caps_and_never_panic
     open(&mut s2, ids2[0], junk);
     assert!(s2.decrypted_message(ids2[0]).is_some());
 }
+
+#[test]
+fn a_file_sent_beside_the_encryption_is_never_a_picture_for_the_encrypted_text() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    let mut extra = mailcraft_model::Attachment::new("logo.png", "image/png", b"ATTACKER".to_vec());
+    extra.content_id = "logo@x".into();
+    extra.inline = true;
+    std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap()).attachments.push(extra);
+    open(&mut s, id, plain(SECRET));
+    let shown = s.decrypted_message(id).unwrap();
+    let outside = shown.attachments.iter().find(|a| a.name == "logo.png").unwrap();
+    assert!(outside.content_id.is_empty() && !outside.inline, "a cid lookup would find it before the encrypted part's own");
+    assert!(shown.listed_attachments().any(|(_, a)| a.name == "logo.png"), "it is listed, as a file");
+}
+
+#[test]
+fn a_save_does_not_make_an_opened_message_ask_again_but_other_bytes_do_and_are_let_go_of() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    open(&mut s, id, plain(SECRET));
+    // The bytes were written to the content folder: the same bytes, now hashed and out of memory.
+    let size = s.mailbox.message(id).unwrap().original.as_ref().unwrap().size();
+    let kept = |hash: u8| mailcraft_model::ContentRef { sha256: [hash; 32], len: size };
+    {
+        let m = std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap());
+        let o = m.original.as_mut().unwrap();
+        o.data = std::sync::Arc::new(Vec::new());
+        o.kept = Some(kept(7));
+    }
+    assert_eq!(s.decryption(id), Decryption::Opened(SignatureFormat::Smime), "asked for the key again after a save");
+    assert!(s.decrypted_message(id).is_some());
+    // Bytes with another hash: not the same message. Its plaintext is let go of, not kept.
+    std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap()).original.as_mut().unwrap().kept = Some(kept(8));
+    let before = s.decryptions_let_go();
+    assert_eq!(s.decryption(id), Decryption::Waiting(SignatureFormat::Smime));
+    assert_eq!(s.decryptions_let_go(), before + 1, "the stale plaintext is still held");
+}

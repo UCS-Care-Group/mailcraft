@@ -235,6 +235,14 @@ fn basis_of(m: &Message) -> Basis {
     m.original.as_ref().filter(|o| o.is_there()).map_or((0, None), |o| (o.size(), o.kept.map(|k| k.sha256)))
 }
 
+/// Whether two bases are those of the same bytes. The hash is there only once the bytes were
+/// written to the content folder: the same bytes in memory (no hash yet) and kept (hashed) are
+/// one message, so a save never makes an opened message ask for its key again; two hashes that
+/// differ, or two sizes, are different bytes.
+fn same_basis(a: Basis, b: Basis) -> bool {
+    a.0 == b.0 && !matches!((a.1, b.1), (Some(x), Some(y)) if x != y)
+}
+
 /// The format of the Encrypted message `bytes`, when it is one.
 pub(crate) fn kind_of(bytes: &[u8]) -> Option<SignatureFormat> {
     use mailcraft_mime::Protection;
@@ -271,7 +279,7 @@ impl Session {
         }
         let basis = basis_of(m);
         if let Some((kept, kind)) = self.decryptions.kinds.get(&id)
-            && *kept == basis
+            && same_basis(*kept, basis)
         {
             return *kind;
         }
@@ -294,11 +302,25 @@ impl Session {
         }
         let basis = basis_of(m);
         let Some(format) = self.encryption_of(id) else { return Decryption::NotEncrypted };
+        // Bytes opened in memory (no hash yet) that have since been written out are the same
+        // bytes now hashed: the hash is learned, so that a replacement later is told.
+        if let Some(Entry::Opened(d)) = self.decryptions.entries.get_mut(&id)
+            && d.basis.0 == basis.0
+            && d.basis.1.is_none()
+            && basis.1.is_some()
+            && let Some(d) = Arc::get_mut(d)
+        {
+            d.basis.1 = basis.1;
+        }
+        // What was opened from other bytes than these is let go of at once (its plaintext, its layout).
+        if matches!(self.decryptions.entries.get(&id), Some(Entry::Opened(d)) if !same_basis(d.basis, basis)) {
+            self.decryptions.drop_entry(id);
+        }
         match self.decryptions.entries.get(&id) {
-            Some(Entry::Pending(f, b)) if *b == basis => Decryption::Opening(*f),
+            Some(Entry::Pending(f, b)) if same_basis(*b, basis) => Decryption::Opening(*f),
             // (A failure for other bytes than these isn't one for these: asked again.)
-            Some(Entry::Failed(f, why, b)) if *b == basis => Decryption::Failed(*f, why.clone()),
-            Some(Entry::Opened(d)) if d.basis == basis => Decryption::Opened(d.format),
+            Some(Entry::Failed(f, why, b)) if same_basis(*b, basis) => Decryption::Failed(*f, why.clone()),
+            Some(Entry::Opened(d)) if same_basis(d.basis, basis) => Decryption::Opened(d.format),
             // (A job for other bytes than these, or none: to be asked again.)
             _ => Decryption::Waiting(format),
         }
@@ -329,7 +351,7 @@ impl Session {
             self.decryptions.drop_entry(id);
             return;
         };
-        if basis_of(&stored) != basis {
+        if !same_basis(basis_of(&stored), basis) {
             self.decryptions.drop_entry(id);
             return;
         }
@@ -366,7 +388,7 @@ impl Session {
     /// opened from (the server replacing them leaves nothing opened).
     fn opened(&self, id: Id) -> Option<&Arc<Decrypted>> {
         let Some(Entry::Opened(d)) = self.decryptions.entries.get(&id) else { return None };
-        (basis_of(self.mailbox.messages.get(&id)?) == d.basis).then_some(d)
+        same_basis(basis_of(self.mailbox.messages.get(&id)?), d.basis).then_some(d)
     }
 
     /// The message `id` opened to, for the reading pane to draw: the stored message as it is now
@@ -549,7 +571,14 @@ pub(crate) fn outside_files(stored: &Message, inline: bool) -> Vec<mailcraft_mod
         .iter()
         .enumerate()
         .filter(|(i, a)| Some(*i) != control && Some(*i) != data && !mime(a).contains("pkcs7-mime"))
-        .map(|(_, a)| a.clone())
+        .map(|(_, a)| {
+            // Files to list, never a picture for the encrypted text: a Content-ID of theirs
+            // would be found before the encrypted part's own (what the window finds first wins).
+            let mut a = a.clone();
+            a.content_id.clear();
+            a.inline = false;
+            a
+        })
         .take(MAX_KINDS)
         .collect()
 }
