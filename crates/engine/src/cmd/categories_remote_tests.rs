@@ -2223,7 +2223,7 @@ fn a_read_of_many_names_in_other_letters_respells_many_items_in_one_pass() {
 fn an_undo_tells_only_its_own_event_when_another_accounts_server_uses_the_same_id() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
     let b = s.run("account.add", &json!({"email": "b@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-    let mut event_of = |s: &mut Session, account: Id, categories: Vec<String>| {
+    let event_of = |s: &mut Session, account: Id, categories: Vec<String>| {
         let calendar = s.mailbox.alloc_id();
         let origin = Origin { account, id: format!("cal-{account}"), ..Default::default() };
         s.mailbox.calendars.push(Calendar { id: calendar, name: "Calendar".into(), visible: true, origin, ..Default::default() });
