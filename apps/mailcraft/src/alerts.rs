@@ -7,7 +7,9 @@
 //!   GNOME's, KDE Plasma's, mako, dunst…) over the session's D-Bus, with the same zbus as the
 //!   light or dark preference (`desktop_theme`). Alerts go out from a thread of their own, so a
 //!   service that is slow to answer never holds the window up; a click is the service's
-//!   `ActionInvoked` for the alert's default action, where the service has actions. The body is
+//!   `ActionInvoked` for the alert's default action, where the service has actions, with the
+//!   `ActivationToken` it sent just before, which brings the window in front on Wayland (#959;
+//!   asking for the focus alone does nothing there). The body is
 //!   escaped where the service reads markup in it, so that what a message says is shown as text
 //!   and nothing in it is fetched. No service: Options says so.
 //! - **Windows**: toasts (`Windows.UI.Notifications`), for the AppUserModelID `MailCraft.MailCraft`
@@ -26,9 +28,9 @@
 //! Nothing of what an alert says is logged. No sound of our own: the system's default, which the
 //! owner controls in the system's settings.
 
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, SyncSender};
 
-use mailcraft_ui_egui::alerts::AlertHost;
+use mailcraft_ui_egui::alerts::{AlertHost, Click};
 
 /// The system's notifications for this window, where it has some. Clicks wake `ctx`.
 pub fn host(ctx: egui::Context) -> Option<Box<dyn AlertHost>> {
@@ -60,30 +62,35 @@ pub fn host(ctx: egui::Context) -> Option<Box<dyn AlertHost>> {
     }
 }
 
-/// Where clicks come back to the window: the alert's key, and the window is woken.
+/// Where clicks come back to the window: the alert's key, with the desktop's token where it gave
+/// one, and the window is woken.
 #[derive(Clone)]
 #[cfg_attr(target_os = "macos", allow(dead_code))]
 struct Clicks {
-    tx: Sender<u64>,
+    tx: SyncSender<Click>,
     ctx: egui::Context,
 }
 
 #[cfg_attr(target_os = "macos", allow(dead_code))]
 impl Clicks {
-    fn new(ctx: egui::Context) -> (Clicks, Receiver<u64>) {
-        let (tx, rx) = std::sync::mpsc::channel();
+    /// How many clicks may wait for the window; more are dropped.
+    const WAITING: usize = 32;
+
+    fn new(ctx: egui::Context) -> (Clicks, Receiver<Click>) {
+        let (tx, rx) = std::sync::mpsc::sync_channel(Self::WAITING);
         (Clicks { tx, ctx }, rx)
     }
 
-    fn clicked(&self, key: u64) {
-        let _ = self.tx.send(key);
+    fn clicked(&self, key: u64, token: Option<String>) {
+        // A full queue drops the click: the window is far behind, or something floods it.
+        let _ = self.tx.try_send(Click { key, token });
         self.ctx.request_repaint();
     }
 }
 
 /// Clicks waiting for the window, at most a few at a time.
 #[cfg_attr(target_os = "macos", allow(dead_code))]
-fn drain(rx: &Receiver<u64>) -> Vec<u64> {
+fn drain(rx: &Receiver<Click>) -> Vec<Click> {
     rx.try_iter().take(20).collect()
 }
 
@@ -112,7 +119,7 @@ mod freedesktop {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use mailcraft_ui_egui::alerts::{AlertHost, AlertKind, AlertTrouble, DesktopAlert};
+    use mailcraft_ui_egui::alerts::{AlertHost, AlertKind, AlertTrouble, Click, DesktopAlert};
     use zbus::zvariant::Value;
 
     use super::{Clicks, drain, escape_markup};
@@ -134,7 +141,7 @@ mod freedesktop {
 
     pub struct Service {
         out: SyncSender<DesktopAlert>,
-        clicks: Receiver<u64>,
+        clicks: Receiver<Click>,
         state: Arc<AtomicU8>,
     }
 
@@ -177,7 +184,7 @@ mod freedesktop {
         fn trouble(&self) -> Option<AlertTrouble> {
             (self.state.load(Ordering::Relaxed) == MISSING).then_some(AlertTrouble::NoService)
         }
-        fn clicked(&self) -> Vec<u64> {
+        fn clicked(&self) -> Vec<Click> {
             drain(&self.clicks)
         }
     }
@@ -236,14 +243,16 @@ mod freedesktop {
                     .interface(SERVICE)?
                     .cache_properties(zbus::proxy::CacheProperties::No)
                     .build()?;
-                for signal in proxy.receive_signal("ActionInvoked")? {
-                    let Ok((id, action)) = signal.body().deserialize::<(u32, String)>() else { continue };
-                    if action != "default" {
-                        continue;
-                    }
+                // The token for a click (`ActivationToken`) comes just before the click itself.
+                let mut heard = Heard::default();
+                for signal in proxy.receive_all_signals()? {
+                    let header = signal.header();
+                    let Some(member) = header.member() else { continue };
+                    let Ok((id, said)) = signal.body().deserialize::<(u32, String)>() else { continue };
+                    let Some((id, token)) = heard.signal(member.as_str(), id, said) else { continue };
                     let key = shown.lock().ok().and_then(|shown| shown.iter().find(|(shown_id, _)| *shown_id == id).map(|(_, key)| *key));
                     if let Some(key) = key {
-                        clicks.clicked(key);
+                        clicks.clicked(key, token);
                     }
                 }
                 Ok(())
@@ -254,6 +263,55 @@ mod freedesktop {
         });
         if let Err(e) = spawned {
             log::debug!("clicks on desktop alerts aren't heard: {e}");
+        }
+    }
+
+    /// What the service said of clicks, put together: the token it sends just before a click
+    /// (`ActivationToken`, notification specification 1.2) goes with that click (#959).
+    #[derive(Default)]
+    pub(super) struct Heard {
+        tokens: VecDeque<(u32, String)>,
+    }
+
+    impl Heard {
+        /// The longest token kept, in bytes.
+        pub(super) const LONGEST: usize = 512;
+        /// How many tokens may wait for their clicks.
+        pub(super) const WAITING: usize = 8;
+
+        /// The service's token for notification `id`.
+        pub(super) fn token(&mut self, id: u32, token: String) {
+            if token.is_empty() || token.len() > Self::LONGEST || !token.chars().all(|c| c.is_ascii_graphic()) {
+                return;
+            }
+            self.tokens.retain(|(waiting, _)| *waiting != id);
+            if self.tokens.len() >= Self::WAITING {
+                self.tokens.pop_front();
+            }
+            self.tokens.push_back((id, token));
+        }
+
+        /// One signal of the service (its name, the notification's id and the string with it): a
+        /// click on the notification itself, with the token that came for it, or nothing.
+        pub(super) fn signal(&mut self, member: &str, id: u32, said: String) -> Option<(u32, Option<String>)> {
+            match member {
+                "ActivationToken" => {
+                    self.token(id, said);
+                    None
+                }
+                // Whichever action it is, the token that came before it was for it.
+                "ActionInvoked" => {
+                    let token = self.invoked(id);
+                    (said == "default").then_some((id, token))
+                }
+                _ => None,
+            }
+        }
+
+        /// A click on notification `id`: the token that came for it, once.
+        pub(super) fn invoked(&mut self, id: u32) -> Option<String> {
+            let at = self.tokens.iter().position(|(waiting, _)| *waiting == id)?;
+            self.tokens.remove(at).map(|(_, token)| token)
         }
     }
 
@@ -284,13 +342,17 @@ mod freedesktop {
     }
 }
 
+#[cfg(all(test, any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly")))]
+#[path = "alerts_tests.rs"]
+mod alerts_tests;
+
 #[cfg(target_os = "windows")]
 mod toasts {
     use std::collections::VecDeque;
     use std::sync::Mutex;
     use std::sync::mpsc::Receiver;
 
-    use mailcraft_ui_egui::alerts::{AlertHost, AlertTrouble, DesktopAlert};
+    use mailcraft_ui_egui::alerts::{AlertHost, AlertTrouble, Click, DesktopAlert};
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::Foundation::TypedEventHandler;
     use windows::UI::Notifications::{NotificationSetting, ToastNotification, ToastNotificationManager, ToastTemplateType};
@@ -306,7 +368,7 @@ mod toasts {
 
     pub struct Toasts {
         clicks: Clicks,
-        rx: Receiver<u64>,
+        rx: Receiver<Click>,
         installed: bool,
         turned_off: Mutex<bool>,
         kept: Mutex<VecDeque<ToastNotification>>,
@@ -340,7 +402,7 @@ mod toasts {
             let toast = ToastNotification::CreateToastNotification(&xml)?;
             let (clicks, key) = (self.clicks.clone(), alert.key);
             toast.Activated(&TypedEventHandler::<ToastNotification, IInspectable>::new(move |_, _| {
-                clicks.clicked(key);
+                clicks.clicked(key, None);
                 Ok(())
             }))?;
             notifier.Show(&toast)?;
@@ -367,7 +429,7 @@ mod toasts {
             }
             self.turned_off.lock().ok().filter(|off| **off).map(|_| AlertTrouble::TurnedOff)
         }
-        fn clicked(&self) -> Vec<u64> {
+        fn clicked(&self) -> Vec<Click> {
             drain(&self.rx)
         }
     }
