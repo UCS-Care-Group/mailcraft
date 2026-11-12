@@ -26,8 +26,12 @@ use crate::{MailApp, icons, widgets};
 pub const DEFAULT_WIDTH: f32 = 280.0;
 pub const MIN_WIDTH: f32 = 200.0;
 pub const MAX_WIDTH: f32 = 480.0;
-/// What the bar leaves for the module beside it, on a narrow window.
-const LEAVES: f32 = 520.0;
+/// What the bar leaves for the module beside it: the folder pane (230), the message list (260,
+/// the most Mail holds it to beside a reading pane in a narrow window) and a reading pane one can
+/// read in (260), Mail being the module that needs the most. On a window with less than this and
+/// [`MIN_WIDTH`] over, the bar isn't drawn at all: it would leave the reading pane a few dozen
+/// pixels.
+const LEAVES: f32 = 750.0;
 
 /// A part's heading.
 const HEAD_H: f32 = 30.0;
@@ -271,9 +275,11 @@ pub fn sane_width(width: f32) -> f32 {
 }
 
 /// The most the bar may take of a window `available` wide: never so much that the module beside
-/// it has less than [`LEAVES`], and never less than [`MIN_WIDTH`].
-pub(crate) fn widest(available: f32) -> f32 {
-    if available.is_finite() { (available - LEAVES).clamp(MIN_WIDTH, MAX_WIDTH) } else { MIN_WIDTH }
+/// it has less than [`LEAVES`]. `None` when that leaves it less than [`MIN_WIDTH`]: a window too
+/// narrow for the bar and the module together shows the module alone.
+pub(crate) fn widest(available: f32) -> Option<f32> {
+    let room = available - LEAVES;
+    (available.is_finite() && room >= MIN_WIDTH).then(|| room.min(MAX_WIDTH))
 }
 
 /// The bar, at the right of the window, when the module in front has one part of it on at least.
@@ -281,15 +287,22 @@ pub(crate) fn widest(available: f32) -> f32 {
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let parts = app.session.view.todo_bar.of(app.session.view.module);
     let frame = ui.ctx().cumulative_frame_nr();
-    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(TAKES_ID), (frame, parts.tasks)));
-    if !parts.any() {
-        return;
-    }
+    // Too narrow a window for both: the bar isn't drawn, nothing is dropped on it, and what the
+    // owner chose stays for a wider one.
+    let room = widest(ui.available_width());
+    let drawn = parts.any() && room.is_some();
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(TAKES_ID), (frame, drawn && parts.tasks)));
+    let Some(max) = room.filter(|_| parts.any()) else { return };
     drag_ghost(ui);
     let t = Tokens::get(ui.ctx());
-    let max = widest(ui.available_width());
-    let shown = egui::Panel::right("todo_bar")
-        .default_size(sane_width(app.ui.todo_bar_width).min(max))
+    let wanted = sane_width(app.ui.todo_bar_width);
+    // A window that leaves less than the width the owner chose has the bar narrower, and the
+    // panel remembers the width it was given: so that it has the chosen width again in a wider
+    // window, the bar is another panel while it is held in, which starts from the chosen width
+    // when the window grows.
+    let held_in = wanted > max;
+    let shown = egui::Panel::right(egui::IdSalt::new(("todo_bar", held_in)))
+        .default_size(wanted.min(max))
         .size_range(MIN_WIDTH..=max)
         .resizable(true)
         .show_separator_line(t.pane_rule)
@@ -313,7 +326,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                 });
             }
         });
-    app.ui.todo_bar_width = sane_width(shown.response.rect.width());
+    // What the owner dragged it to is kept; a narrow window's holding it in is not (it comes back
+    // with the room), and what is dragged meanwhile isn't kept either.
+    let width = shown.response.rect.width();
+    if !held_in && (width - wanted).abs() > 0.5 {
+        app.ui.todo_bar_width = sane_width(width);
+    }
 }
 
 /// The parts that are on, one under the other, as `plan` shares the height out.
@@ -525,7 +543,7 @@ fn upcoming(app: &mut MailApp, ui: &mut Ui, count: usize) {
     let t = Tokens::get(ui.ctx());
     let list = next_appointments_cached(ui.ctx(), &app.session);
     if list.is_empty() {
-        quiet(ui, tl!("No upcoming appointments"));
+        quiet(ui, tl!("Nothing in the next 7 days"));
         return;
     }
     let today = app.session.today();
@@ -665,17 +683,18 @@ fn people_rows(app: &mut MailApp, ui: &mut Ui, list: &[Id]) {
 // ---- tasks ----
 
 /// The open tasks, arranged by due date: each with the heading it is under (Overdue, Today…), in
-/// the order the Tasks module lists them.
+/// the order the Tasks module lists them: the first [`MAX_TASKS`] and one more when there are more
+/// (which the bar says, and doesn't list).
 pub(crate) fn task_rows(s: &mailcraft_engine::Session) -> Vec<(Bucket, Id)> {
     let today = s.today();
     let week_start = s.prefs.week_start;
     let mut rows: Vec<(Bucket, Id)> = tasks::sorted(s, TaskFilter::Active)
         .into_iter()
         .filter_map(|id| s.mailbox.task(id).map(|task| (Bucket::of(task.due, task.is_complete(), today, week_start), id)))
-        .take(MAX_TASKS)
         .collect();
     // (Sorted by due date already; the stable sort keeps that order under each heading.)
     rows.sort_by_key(|(bucket, _)| *bucket);
+    rows.truncate(MAX_TASKS + 1);
     rows
 }
 
@@ -715,12 +734,16 @@ fn task_list(app: &mut MailApp, ui: &mut Ui) {
     }
     let today = app.session.today();
     let mut bucket_shown = None;
-    for (bucket, id) in rows.iter().copied() {
+    for (bucket, id) in rows.iter().copied().take(MAX_TASKS) {
         if bucket_shown != Some(bucket) {
             bucket_shown = Some(bucket);
             group(ui, tl!(bucket.label()));
         }
         task_row(app, ui, id, today);
+    }
+    // Past what the bar lists, the Tasks module has the rest.
+    if rows.len() > MAX_TASKS {
+        quiet(ui, tl!("More tasks are in the Tasks module."));
     }
 }
 
@@ -747,7 +770,7 @@ fn new_task(app: &mut MailApp, ui: &mut Ui) {
     let edit = egui::TextEdit::singleline(&mut text)
         .id(id)
         .frame(egui::Frame::NONE)
-        .hint_text(tl!("Type a new task"))
+        .hint_text(tl!("Add a task…"))
         .font(regular(12.5))
         .char_limit(TITLE_MAX)
         .desired_width(edit_rect.width())

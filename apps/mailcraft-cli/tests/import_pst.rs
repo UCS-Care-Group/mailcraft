@@ -86,7 +86,7 @@ fn a_pst_files_mail_comes_into_a_mailbox_once() {
 
     let (ok, dry, err) = cli(&["import-pst", &mailbox, &pst, "--dry-run"], None);
     assert!(ok, "{err}");
-    assert_eq!((dry["dryRun"].as_bool(), dry["added"].as_u64(), dry["later"].as_u64()), (Some(true), Some(2), Some(1)), "{dry}");
+    assert_eq!((dry["dryRun"].as_bool(), dry["added"].as_u64(), dry["leftOut"].as_u64()), (Some(true), Some(2), Some(1)), "{dry}");
     assert!(!std::path::Path::new(&mailbox).exists(), "a dry run saves nothing");
 
     let (ok, report, err) = cli(&["import-pst", &mailbox, &pst], None);

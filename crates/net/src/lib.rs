@@ -10,7 +10,8 @@
 //! token (SASL XOAUTH2) instead of a password, and [`lookup_mx`] finds out where a domain's mail
 //! goes, which tells its provider. [`graph`] asks Microsoft Graph for what a Microsoft 365
 //! account has that IMAP and SMTP don't reach: sending where SMTP is switched off, the calendar,
-//! the contacts, and which folders the owner keeps under Favorites in Outlook. All of them
+//! the contacts, and which folders the owner keeps under Favorites in Outlook. [`report`] sends
+//! a problem report the owner wrote to the project's report relay, on their click. All of them
 //! block, so a host calls them on a background thread; every connection has timeouts.
 //!
 //! A password or a token is only ever sent inside TLS, or to a server on this machine. It never
@@ -54,6 +55,8 @@ mod pinned;
 #[cfg(not(target_arch = "wasm32"))]
 mod push;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod report;
+#[cfg(not(target_arch = "wasm32"))]
 mod send;
 #[cfg(not(target_arch = "wasm32"))]
 mod sync;
@@ -85,7 +88,9 @@ pub(crate) fn google_destination(account: &mailcraft_model::Account, host: &str,
     if account.oauth.as_ref().is_some_and(|oauth| oauth.provider == mailcraft_model::OAuthProvider::Google) {
         let name = host.trim().trim_end_matches('.');
         if !(name.eq_ignore_ascii_case(expected) || (cfg!(test) && name.eq_ignore_ascii_case("127.0.0.1"))) {
-            return Err(NetError::Config("Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers".into()));
+            return Err(NetError::Config(mailcraft_i18n::said!(
+                "Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers"
+            )));
         }
     }
     Ok(())
@@ -93,6 +98,7 @@ pub(crate) fn google_destination(account: &mailcraft_model::Account, host: &str,
 
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
+    use mailcraft_i18n::{Arg, Text, said};
     use mailcraft_model::Account;
 
     pub use crate::anchors::system_trust_anchors;
@@ -106,61 +112,98 @@ mod native {
     /// Whether this build can talk to mail servers.
     pub const AVAILABLE: bool = true;
 
-    #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+    /// What went wrong. The reasons that are MailCraft's own words are texts the window says in
+    /// its language ([`Text`], made with `said!`); what a server or the system said is kept as it
+    /// said it. The English ([`Display`](std::fmt::Display)) is what the CLI, MCP and the log read
+    /// (#872).
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum NetError {
-        #[error("couldn't reach {host}: {reason}")]
-        Connect { host: String, reason: String },
-        #[error("couldn't make a secure connection to {host}: {reason}")]
-        Tls { host: String, reason: String },
-        #[error(transparent)]
-        Proto(#[from] mailcraft_proto::ProtoError),
-        #[error("{0}")]
-        Config(String),
+        Connect {
+            host: String,
+            reason: Text,
+        },
+        Tls {
+            host: String,
+            reason: Text,
+        },
+        Proto(mailcraft_proto::ProtoError),
+        Config(Text),
         /// The owner called the sign-in on the provider's page off ([`oauth::sign_in`](crate::oauth::sign_in)).
-        #[error("the sign-in was cancelled")]
         SignInCancelled,
         /// The sign-in on the provider's page wasn't finished in the time it is waited for.
-        #[error("the sign-in wasn't finished in time")]
         SignInTimedOut,
         /// The sign-in is good, but it doesn't cover what was asked for until the owner agrees to
         /// that on the provider's page: a token for Microsoft Graph, for an owner who was never
         /// asked ([`oauth::refresh_for`](crate::oauth::refresh_for)). Signing in to mail again is
         /// not the cure; [`oauth::sign_in_for`](crate::oauth::sign_in_for) is.
-        #[error("permission is still to be given: {0}")]
         ConsentNeeded(String),
         /// The service took the sign-in and won't do this for the account all the same (Microsoft
         /// Graph's 403): asking again changes nothing.
-        #[error("{0}")]
         Forbidden(String),
         /// "Not now, later" (Microsoft Graph's 429, 503 and 504). `retry_after` is how many
         /// seconds the service asked to be left alone for, when it said.
-        #[error("{text}")]
-        Busy { text: String, retry_after: Option<u32> },
+        Busy {
+            text: String,
+            retry_after: Option<u32>,
+        },
         /// The system does not trust the server's certificate, or it is one nobody may trust
         /// ([`https`](crate::https)): what setup shows is in it. It holds nothing of the
         /// certificate in its text.
-        #[error("{0}")]
         Certificate(Box<CertificateProblem>),
         /// A shared mailbox Microsoft won't open for the owner of the token (#70), by Graph's own
         /// code: asking again by itself changes nothing.
-        #[error("{}", .0.said())]
         SharedRefused(mailcraft_model::sync::SharedRefusal),
     }
 
+    impl From<mailcraft_proto::ProtoError> for NetError {
+        fn from(e: mailcraft_proto::ProtoError) -> NetError {
+            NetError::Proto(e)
+        }
+    }
+
+    impl std::fmt::Display for NetError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            std::fmt::Display::fmt(&self.said(), f)
+        }
+    }
+
+    impl std::error::Error for NetError {}
+
     impl NetError {
+        /// The error as the owner is told it, in words the window can say in its language: those
+        /// of the mail servers' sign-in and connection, and the account's settings. (What
+        /// Microsoft's sign-in and Graph say is still English for now.)
+        pub fn said(&self) -> Text {
+            match self {
+                NetError::Connect { host, reason } => said!("couldn't reach {host}: {reason}", host, reason = Arg::said(reason.clone())),
+                NetError::Tls { host, reason } => {
+                    said!("couldn't make a secure connection to {host}: {reason}", host, reason = Arg::said(reason.clone()))
+                }
+                NetError::Proto(e) => e.said(),
+                NetError::Config(why) => why.clone(),
+                NetError::SignInCancelled => Text::verbatim("the sign-in was cancelled"),
+                NetError::SignInTimedOut => Text::verbatim("the sign-in wasn't finished in time"),
+                NetError::ConsentNeeded(text) => Text::verbatim(format!("permission is still to be given: {text}")),
+                NetError::Forbidden(text) | NetError::Busy { text, .. } => Text::verbatim(text.clone()),
+                NetError::Certificate(problem) => Text::verbatim(problem.to_string()),
+                NetError::SharedRefused(refusal) => Text::verbatim(refusal.said()),
+            }
+        }
+
         /// The same error with `secret` (a password, a token) blanked out, should a server have written it back.
         pub(crate) fn without(self, secret: &str) -> NetError {
             use mailcraft_proto::ProtoError as P;
             let clean = |text: String| scrub(&text, secret);
+            let blank = |text: Text| text.map_plain(&|said: String| scrub(&said, secret));
             match self {
-                NetError::Connect { host, reason } => NetError::Connect { host, reason: clean(reason) },
-                NetError::Tls { host, reason } => NetError::Tls { host, reason: clean(reason) },
-                NetError::Config(text) => NetError::Config(clean(text)),
+                NetError::Connect { host, reason } => NetError::Connect { host, reason: blank(reason) },
+                NetError::Tls { host, reason } => NetError::Tls { host, reason: blank(reason) },
+                NetError::Config(text) => NetError::Config(blank(text)),
                 NetError::Proto(e) => NetError::Proto(match e {
-                    P::Io(text) => P::Io(clean(text)),
-                    P::Protocol(text) => P::Protocol(clean(text)),
-                    P::Rejected(text) => P::Rejected(clean(text)),
-                    P::Auth(text) => P::Auth(clean(text)),
+                    P::Io(text) => P::Io(blank(text)),
+                    P::Protocol(text) => P::Protocol(blank(text)),
+                    P::Rejected(text) => P::Rejected(blank(text)),
+                    P::Auth(text) => P::Auth(blank(text)),
                 }),
                 NetError::ConsentNeeded(text) => NetError::ConsentNeeded(clean(text)),
                 NetError::Forbidden(text) => NetError::Forbidden(clean(text)),
@@ -186,7 +229,7 @@ mod native {
         /// A Google refresh grant was explicitly revoked or expired; a transient failure
         /// or a denied browser consent must never make us erase an otherwise usable token.
         pub fn is_revoked_google_refresh(&self) -> bool {
-            matches!(self, NetError::Proto(mailcraft_proto::ProtoError::Auth(reason)) if reason == crate::oauth::GOOGLE_REFRESH_REVOKED)
+            matches!(self, NetError::Proto(mailcraft_proto::ProtoError::Auth(reason)) if reason.to_string() == crate::oauth::GOOGLE_REFRESH_REVOKED)
         }
 
         /// Whether the other side couldn't be reached or stopped answering, as against an answer
@@ -210,7 +253,7 @@ mod native {
     /// What an account that signs in with OAuth is told while there is no token for it.
     pub(crate) fn not_signed_in(account: &Account) -> NetError {
         let who: String = account.email.trim().chars().filter(|c| !c.is_control()).take(80).collect();
-        NetError::Config(if who.is_empty() { "sign in to the account first".into() } else { format!("sign in to {who} first") })
+        NetError::Config(if who.is_empty() { said!("sign in to the account first") } else { said!("sign in to {who} first", who) })
     }
 
     /// Check that the account's servers accept the sign-in (IMAP login, then SMTP EHLO/AUTH when an outgoing server is set).
@@ -219,7 +262,7 @@ mod native {
     /// OAuth ([`Account::oauth`]).
     pub fn test_account(account: &Account, secret: &str) -> Result<(), NetError> {
         if account.incoming.is_none() && account.outgoing.is_none() {
-            return Err(NetError::Config("the account has no mail servers to check".into()));
+            return Err(NetError::Config(said!("the account has no mail servers to check")));
         }
         if account.incoming.is_some() {
             let imap = crate::sync::open_imap(account, secret).map_err(|e| e.without(secret))?;
@@ -235,6 +278,13 @@ mod native {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod password_tests;
+
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod report_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod said_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "tls_test_support_tests.rs"]

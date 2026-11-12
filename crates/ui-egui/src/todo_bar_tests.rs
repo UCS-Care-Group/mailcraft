@@ -18,9 +18,88 @@ fn widths_are_kept_within_bounds() {
     assert_eq!(sane_width(10.0), MIN_WIDTH);
     assert_eq!(sane_width(9_000.0), MAX_WIDTH);
     assert_eq!(sane_width(300.0), 300.0);
-    assert_eq!(widest(1280.0), MAX_WIDTH);
-    assert_eq!(widest(600.0), MIN_WIDTH, "a narrow window still has a bar to read");
-    assert_eq!(widest(f32::NAN), MIN_WIDTH);
+    assert_eq!(widest(1280.0), Some(MAX_WIDTH));
+    assert_eq!(widest(LEAVES + 250.0), Some(250.0));
+    assert_eq!(widest(LEAVES + MIN_WIDTH), Some(MIN_WIDTH));
+    assert_eq!(widest(LEAVES + MIN_WIDTH - 1.0), None, "a window too narrow for the bar and the module has none");
+    assert_eq!(widest(600.0), None);
+    assert_eq!(widest(f32::NAN), None);
+}
+
+/// Mail in a window of `width` with the bar on: where the bar is (if it is drawn) and the reading
+/// pane's width.
+fn mail_at(width: f32, bar_on: bool) -> (Option<Rect>, f32) {
+    let mut w = testing::window_sized(mailcraft_engine::sample::mailbox(testing::now(), 0), "view.mail", egui::vec2(width, 700.0));
+    let _ = w.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    if bar_on {
+        bar(&mut w, &["calendar", "people", "tasks"]);
+    }
+    w.run_steps(4);
+    (hit(&w, "todoBar", 0), hit(&w, "readingPane", 0).expect("the reading pane").width())
+}
+
+/// The bar leaves the module what it needs (#831): at the smallest window it isn't drawn and the
+/// reading pane is as wide as without it; at 1024 px it narrows to leave the reading pane a
+/// readable width; with room it is as it was.
+#[test]
+fn the_bar_leaves_the_reading_pane_room_in_a_narrow_window() {
+    let (none, bare) = mail_at(760.0, false);
+    assert!(none.is_none());
+    let (bar, with) = mail_at(760.0, true);
+    assert!(bar.is_none(), "no room for the bar beside the folders, the list and the reading pane: {bar:?}");
+    assert!((with - bare).abs() < 1.0, "{with} {bare}");
+
+    let (bar, with) = mail_at(1024.0, true);
+    let bar = bar.expect("room for a narrow bar");
+    assert!(bar.width() >= MIN_WIDTH - 1.0 && bar.width() < DEFAULT_WIDTH, "{bar:?}");
+    assert!(with >= 255.0, "the reading pane at 1024 px: {with}");
+
+    let (bar, with) = mail_at(1600.0, true);
+    assert!(bar.is_some_and(|b| (b.width() - DEFAULT_WIDTH).abs() < 6.0), "{bar:?}");
+    assert!(with >= 300.0, "{with}");
+}
+
+/// What the owner chose for the bar's width isn't lost to a window that was narrow for a while.
+#[test]
+fn a_narrow_window_does_not_change_the_width_that_was_chosen() {
+    let mut w = testing::window_sized(mailcraft_engine::sample::mailbox(testing::now(), 0), "view.mail", egui::vec2(760.0, 700.0));
+    w.state_mut().ui.todo_bar_width = 400.0;
+    bar(&mut w, &["tasks"]);
+    assert!(hit(&w, "todoBar", 0).is_none());
+    assert_eq!(w.state().ui.todo_bar_width, 400.0);
+}
+
+/// The width the owner chose comes back when a window that held the bar in grows again.
+#[test]
+fn the_chosen_width_comes_back_in_a_wider_window() {
+    let mut w = testing::window_sized(mailcraft_engine::sample::mailbox(testing::now(), 0), "view.mail", egui::vec2(1024.0, 700.0));
+    w.state_mut().ui.todo_bar_width = 400.0;
+    bar(&mut w, &["tasks"]);
+    let held = hit(&w, "todoBar", 0).expect("room for a narrow bar").width();
+    assert!(held < 300.0, "held in at 1024 px: {held}");
+    assert_eq!(w.state().ui.todo_bar_width, 400.0, "what was chosen is kept while it is held in");
+    w.set_size(egui::vec2(1600.0, 700.0));
+    w.run_steps(6);
+    let wide = hit(&w, "todoBar", 0).unwrap().width();
+    assert!((wide - 400.0).abs() < 6.0, "{wide}");
+    assert_eq!(w.state().ui.todo_bar_width, 400.0);
+    // And held in again by a narrow one, and back.
+    w.set_size(egui::vec2(1024.0, 700.0));
+    w.run_steps(6);
+    w.set_size(egui::vec2(1600.0, 700.0));
+    w.run_steps(6);
+    assert!((hit(&w, "todoBar", 0).unwrap().width() - 400.0).abs() < 6.0);
+}
+
+/// More than [`MAX_TASKS`] open tasks: the bar lists that many, and says there are more.
+#[test]
+fn more_open_tasks_than_the_bar_lists_are_left_to_the_tasks_module() {
+    let mut mailbox = mailcraft_engine::sample::mailbox(testing::now(), 0);
+    for n in 0..MAX_TASKS + 5 {
+        mailbox.add_task(mailcraft_model::Task { title: format!("Sand panel {n}"), ..Default::default() });
+    }
+    let w = testing::window_on(mailbox, "view.mail");
+    assert_eq!(task_rows(&w.state().session).len(), MAX_TASKS + 1, "one past the last listed says there are more");
 }
 
 fn window(module: &str) -> Window {

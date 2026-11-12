@@ -819,6 +819,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rect(3.5, 3.5, 16.5, 16.5, c);
             pen.check(10.0, 10.5, 1.0, green);
         }
+        "journal" => {
+            // A bound book with lines on its page.
+            pen.rect(4.5, 3.5, 15.5, 16.5, c);
+            pen.line(&[(7.5, 3.5), (7.5, 16.5)]);
+            pen.line(&[(9.5, 7.5), (13.5, 7.5)]);
+            pen.line(&[(9.5, 10.5), (13.5, 10.5)]);
+        }
         "newTask" => {
             pen.cut_box(3.5, 3.5, 16.5, 16.5, c);
             pen.check(9.0, 9.5, 0.9, green);
@@ -1377,6 +1384,7 @@ pub const NAMES: &[&str] = &[
     "meetingDeclined",
     "tasks",
     "task",
+    "journal",
     "newTask",
     "next",
     "forwardPeriod",

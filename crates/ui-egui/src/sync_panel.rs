@@ -213,7 +213,7 @@ pub(crate) fn timings_report(app: &MailApp) -> String {
 /// The rows, in the run's order; then any account with problems that isn't in it.
 pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     let mb = &app.session.mailbox;
-    let problems = |account: Id| app.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.clone()).unwrap_or_default();
+    let problems = |account: Id| app.account_problem_lines(account);
     let progress = &app.session.sync_progress;
     let (full, paused) = (|account: Id| progress.full(account), progress.full_paused);
     let mut rows: Vec<Row> = app
@@ -229,7 +229,7 @@ pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     for (account, name, _, lines) in &app.sync_problems {
         if !rows.iter().any(|r| r.account == *account) && !lines.is_empty() {
             let name = mb.account(*account).map_or_else(|| name.clone(), |a| a.name.clone());
-            rows.push(Row { account: *account, name, run: None, problems: lines.clone(), full: full(*account), paused });
+            rows.push(Row { account: *account, name, run: None, problems: problems(*account), full: full(*account), paused });
         }
     }
     rows
