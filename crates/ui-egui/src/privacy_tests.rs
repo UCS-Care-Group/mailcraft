@@ -103,3 +103,36 @@ fn the_update_question_names_installing() {
     harness.run_steps(4);
     assert!(harness.query_all_by_label_contains("download and install them when you quit").next().is_some());
 }
+
+/// Uses up the allowance of `account`'s mail, as a run of many problems does.
+fn use_up_allowance(app: &mut MailApp, account: mailcraft_model::Id) {
+    let lines: Vec<String> = (0..crate::problem_log::MAX_LOGGED).map(|i| format!("problem {}", "x".repeat(i + 1))).collect();
+    assert_eq!(app.logged_problems.fresh(account, "mail", &lines).0.len(), lines.len());
+}
+
+/// What a run that stops without an answer leaves behind is not held against the next run.
+#[test]
+fn a_run_whose_thread_ended_early_gives_its_allowance_back() {
+    let mut app = app();
+    let account = app.session.mailbox.accounts[0].id;
+    use_up_allowance(&mut app, account);
+    let (tx, rx) = std::sync::mpsc::channel();
+    drop(tx);
+    app.sync_rx = Some(crate::MailRun::Imap { account, opening: app.session.openings(), rx });
+    app.poll_sync();
+    assert!(app.sync_rx.is_none());
+    assert_eq!(app.logged_problems.fresh(account, "mail", &["a new problem".to_string()]).0.len(), 1);
+}
+
+/// A mailbox that takes the place of the one a run was for starts with a clean memory.
+#[test]
+fn a_run_let_go_of_with_its_mailbox_leaves_no_memory() {
+    let mut app = app();
+    let account = app.session.mailbox.accounts[0].id;
+    use_up_allowance(&mut app, account);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap { account, opening: app.session.openings().wrapping_add(1), rx });
+    app.poll_sync();
+    assert!(app.sync_rx.is_none());
+    assert_eq!(app.logged_problems.fresh(account, "mail", &["problem x".to_string()]).0.len(), 1);
+}

@@ -131,3 +131,12 @@ fn a_servers_code_is_kept_and_its_words_are_not() {
         assert_eq!(masked(&said(words)), want, "{words}");
     }
 }
+
+#[test]
+fn a_value_given_to_a_template_never_keeps_a_code_shape() {
+    let text = Text { template: "Couldn't read \"{name}\"", args: vec![("name", Arg::Plain("[JOHN-SMITH] 2026".into()))] };
+    assert_eq!(masked(&text), "Couldn't read \"…\"");
+    let text =
+        Text { template: "the server said: {reason}", args: vec![("reason", Arg::Said(Box::new(Text::verbatim("[OVERQUOTA] Quota exceeded"))))] };
+    assert_eq!(masked(&text), "the server said: [OVERQUOTA]…");
+}

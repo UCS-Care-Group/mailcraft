@@ -9,7 +9,7 @@
 //! takes quoted text, addresses, links and ids out of every line as it is written
 //! (`diagnostics::scrub`), and the copied report takes out hosts and paths too.
 
-use mailcraft_i18n::Text;
+use mailcraft_i18n::{Arg, Text};
 use mailcraft_model::Id;
 
 /// New texts of one run put in the log at most (a run is one job's answers together).
@@ -86,16 +86,32 @@ fn code_len(words: &str) -> usize {
 }
 
 /// `text` in English with every value it was given put aside as `…`, whatever the value is:
-/// a subject, a folder's name, an address, a count. What a server's words begin with, if it is a
-/// code (`[OVERQUOTA]`, `552 5.3.4`: [`code_len`]), stays, so that a report says what kind of
-/// refusal it was.
+/// a subject, a folder's name, an address, a count. Only in a server's own words (a text that is
+/// [`Text::is_verbatim`]) what they begin with stays if it is a code (`[OVERQUOTA]`, `552 5.3.4`:
+/// [`code_len`]), so that a report says what kind of refusal it was; a value given to a template
+/// (a folder called `[JOHN-SMITH] 2026`) is never kept, whatever it looks like.
 pub(crate) fn masked(text: &Text) -> String {
-    text.clone()
-        .map_plain(&|value: String| match value.get(..code_len(&value)) {
-            Some(code) if !code.is_empty() => format!("{code}…"),
-            _ => "…".to_string(),
+    mask(text).to_string()
+}
+
+fn mask(text: &Text) -> Text {
+    let server = text.is_verbatim();
+    let args = text
+        .args
+        .iter()
+        .map(|(k, arg)| {
+            let arg = match arg {
+                Arg::Plain(value) => match value.get(..code_len(value)) {
+                    Some(code) if server && !code.is_empty() => Arg::Plain(format!("{code}…")),
+                    _ => Arg::Plain("…".to_string()),
+                },
+                Arg::Said(inner) => Arg::Said(Box::new(mask(inner))),
+                other => other.clone(),
+            };
+            (*k, arg)
         })
-        .to_string()
+        .collect();
+    Text { template: text.template, args }
 }
 
 impl ProblemLog {
