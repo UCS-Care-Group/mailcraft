@@ -3253,7 +3253,8 @@ impl Mailbox {
         {
             m.rule_alert |= alert;
             if !waiting.is_empty() && m.unfetched {
-                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, copied }));
+                let marks = Some(crate::RulesWaiting::marks_of(m));
+                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, copied, marks }));
             }
         }
         ran
@@ -3284,12 +3285,14 @@ impl Mailbox {
         let Ok(m) = self.message_mut(id) else { return ran };
         let Some(waiting) = m.rules_waiting.take() else { return ran };
         let account = m.account;
+        // (After a copy made as it arrived, as before the rules that couldn't tell have had their
+        // say, nothing goes for good; nor once its categories, flag or importance were changed
+        // meanwhile, which the rules that acted then may have read.)
+        let changed = waiting.marks.is_some_and(|k| k != crate::RulesWaiting::marks_of(m));
         if m.folder != waiting.folder || !self.rules_reach(account) {
             return ran;
         }
-        // (After a copy made as it arrived, as before the rules that couldn't tell have had their
-        // say, nothing goes for good.)
-        let mut unsure = waiting.copied;
+        let mut unsure = waiting.copied || changed;
         let mut alert = false;
         for wait in waiting.rules.iter().take(MAX_RULES) {
             let Some(m) = self.message(id).filter(|m| m.account == account && !going.has(id)) else { break };

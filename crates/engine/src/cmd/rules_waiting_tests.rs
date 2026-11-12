@@ -762,3 +762,48 @@ fn unblocking_a_sender_beside_a_rule_that_deletes_for_good_asks_as_a_delete() {
     assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Send));
     assert!(crate::agent::describe(&s, "junk.add", &safe).contains("Onto"));
 }
+
+/// The owner's rules: Zoe's mail gets the category Boss; Boss mail whose text says "keep" is
+/// flagged and stops the rules after it (it reads the text, so it waits for the download); mail
+/// about a "Plan" is deleted for good, after it. A Plan from Zoe saying "keep" is kept. An agent's
+/// Clear All Categories on it while it waits for the download (a command asked about nothing)
+/// changes which mail reaches the rule that deletes for good, as a change to the rule before it
+/// would, which is asked as a delete. Once something changed what the rules read of it, those that
+/// waited delete nothing for good.
+#[test]
+fn an_agents_edit_of_mail_waiting_for_its_rules_doesnt_let_a_later_rule_delete_it_for_good() {
+    use crate::agent::{Verdict, check};
+    let mut outcome = Vec::new();
+    for agent in [false, true] {
+        let mut s = Session::empty();
+        let (account, _, _) = microsoft_with(&mut s, "Kept");
+        let boss = json!({"name": "Boss", "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+            "actions": [{"type": "categorize", "value": "Boss"}]});
+        s.run("rules.add", &boss).unwrap();
+        let keep = json!({"name": "Keep", "server": false, "stop": true,
+            "conditions": [{"type": "category", "value": "Boss"}, {"type": "bodyContains", "value": "keep"}], "actions": [{"type": "flag"}]});
+        s.run("rules.add", &keep).unwrap();
+        let plans = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+            "actions": [{"type": "deleteForGood"}]});
+        s.run("rules.add", &plans).unwrap();
+        arrives(&mut s, account, "Plan");
+        let m = here(&s, account, "N1").id;
+        assert!(s.mailbox.message(m).is_some_and(|x| x.rules_waiting.is_some() && x.has_category("Boss")));
+        if agent {
+            let params = json!({"ids": [m]});
+            assert_eq!(check(&s, "mail.clearCategories", &params, &[]), Verdict::Run, "asked about nothing");
+            s.agent = Some(Vec::new());
+            s.run("mail.clearCategories", &params).unwrap();
+            s.agent = None;
+        }
+        let fetched = vec![whole("N1", "Plan", "", "Please keep this.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let deletes = s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1"));
+        outcome.push(format!("agent {agent}: here {}, deleted on the server {deletes}", s.mailbox.message(m).is_some()));
+    }
+    assert_eq!(
+        outcome,
+        ["agent false: here true, deleted on the server false", "agent true: here true, deleted on the server false"],
+        "an agent's unasked Clear All Categories made the rule delete the message for good"
+    );
+}
