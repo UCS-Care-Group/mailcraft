@@ -513,7 +513,7 @@ impl MailApp {
                 self.calendar.failures.remove(&account);
             }
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("calendar", account, &errors, None, false);
     }
 
     /// A Graph token that a job obtained: kept for the session, and its refresh token is the
