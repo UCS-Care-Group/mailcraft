@@ -295,6 +295,20 @@ impl Cert {
         usage && extended
     }
 
+    /// Whether it is for mail at all, to sign it or to encrypt it (RFC 8551 §4.4): its key usage,
+    /// when it has one, allows a Digital signature, non-repudiation, key encipherment or key
+    /// agreement, and its extended key usage, when it has one, names email protection (or any
+    /// use). What a Public key imported for an address must be.
+    pub fn for_mail(&self) -> bool {
+        let tbs = self.parsed.tbs_certificate();
+        let usage = match tbs.get_extension::<KeyUsage>() {
+            Ok(Some((_, ku))) => ku.digital_signature() || ku.non_repudiation() || ku.key_encipherment() || ku.key_agreement(),
+            Ok(None) => true,
+            Err(_) => false,
+        };
+        usage && self.may_vouch_for_mail()
+    }
+
     /// Whether it names itself as its issuer.
     pub fn self_issued(&self) -> bool {
         self.subject == self.issuer
@@ -308,7 +322,7 @@ impl Cert {
 }
 
 /// Whether `address` has only the printable ASCII an address is compared in (and something).
-fn printable(address: &str) -> bool {
+pub(crate) fn printable(address: &str) -> bool {
     !address.is_empty() && address.bytes().all(|b| (0x21..=0x7e).contains(&b))
 }
 

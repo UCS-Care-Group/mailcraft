@@ -21,8 +21,14 @@
 mod algorithms;
 mod cert;
 mod chain;
+pub mod import;
+pub mod pkcs12;
 mod verify;
 
+#[cfg(test)]
+mod import_tests;
+#[cfg(test)]
+mod pkcs12_tests;
 #[cfg(test)]
 mod tests;
 

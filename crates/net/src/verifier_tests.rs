@@ -40,7 +40,7 @@ fn refused(peer: &Fake<ImapWorld>) -> String {
     let NetError::Tls { host, reason } = error else { panic!("refused, but not by the certificate check: {error}") };
     assert_eq!(host, "127.0.0.1");
     assert!(!peer.world().log.iter().any(|s| s.contains("AUTHENTICATE") || s.contains(" LOGIN ")));
-    reason
+    reason.to_string()
 }
 
 #[test]

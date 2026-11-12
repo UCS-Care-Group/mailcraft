@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The import report of a .pst file (#815): for each folder of the file, how many items were
-//! found, brought in, already here, left out and not yet brought in (a later part brings them),
+//! found, brought in, already here and left out,
 //! each item left out with what it is, its folder and why, the folders not brought, and the
 //! damage the reader met. Shown at the end, answered by `file.importPst`, and written as a text
 //! file beside the mailbox.
@@ -31,8 +31,6 @@ pub struct Row {
     pub added: usize,
     pub already: usize,
     pub left_out: usize,
-    /// Calendar items, contacts, tasks, notes and journal entries: a later part brings them.
-    pub later: usize,
     /// The folder its mail went into instead, when it is nested deeper than folders here may be.
     pub into: Option<String>,
 }
@@ -43,12 +41,11 @@ impl Row {
         self.added = self.added.saturating_add(r.added);
         self.already = self.already.saturating_add(r.already);
         self.left_out = self.left_out.saturating_add(r.left_out);
-        self.later = self.later.saturating_add(r.later);
     }
 
     /// Whether every item found is accounted for.
     pub fn adds_up(&self) -> bool {
-        self.added.saturating_add(self.already).saturating_add(self.left_out).saturating_add(self.later) == self.found
+        self.added.saturating_add(self.already).saturating_add(self.left_out) == self.found
     }
 }
 
@@ -87,13 +84,17 @@ pub struct Report {
     pub not_brought_more: usize,
     /// What the reader couldn't read of the file's structure.
     pub damage: Vec<String>,
-    /// Items not yet brought in, by kind.
-    pub later: Vec<(String, usize)>,
     /// The owner called it off: what was brought in stays, and another run brings the rest.
     pub cancelled: bool,
     /// Contacts and distribution lists (kept as contacts) brought in, of the items added.
     pub contacts_added: usize,
     pub lists_added: usize,
+    /// Appointments and tasks found, brought in or not: a file of these alone makes no mail folder.
+    pub plans_seen: usize,
+    pub events_added: usize,
+    pub notes_added: usize,
+    pub journal_added: usize,
+    pub tasks_added: usize,
     /// What the file holds besides: mail items, and contacts (brought, already here or left out),
     /// as far as the run read them: a file of contacts alone makes no mail folder.
     pub mail_seen: usize,
@@ -180,13 +181,6 @@ impl Report {
         }
     }
 
-    pub fn count_later(&mut self, kind: &str) {
-        match self.later.iter_mut().find(|(k, _)| k == kind) {
-            Some((_, n)) => *n = n.saturating_add(1),
-            None => self.later.push((kind.to_string(), 1)),
-        }
-    }
-
     /// The answer of `file.importPst`.
     pub fn to_json(&self) -> Value {
         let t = self.total();
@@ -198,15 +192,17 @@ impl Report {
             "format": self.format,
             "found": t.found,
             "added": t.added,
-            "messages": t.added.saturating_sub(self.contacts_added).saturating_sub(self.lists_added),
+            "messages": t.added.saturating_sub(self.contacts_added).saturating_sub(self.lists_added).saturating_sub(self.events_added).saturating_sub(self.tasks_added).saturating_sub(self.notes_added).saturating_sub(self.journal_added),
             "contacts": self.contacts_added,
             "lists": self.lists_added,
+            "events": self.events_added,
+            "tasks": self.tasks_added,
+            "stickyNotes": self.notes_added,
+            "journalEntries": self.journal_added,
             "already": t.already,
             "leftOut": t.left_out,
-            "later": t.later,
-            "laterKinds": self.later.iter().map(|(k, n)| json!({"kind": k, "count": n})).collect::<Vec<_>>(),
             "folders": self.rows.iter().map(|r| json!({
-                "path": r.path, "found": r.found, "added": r.added, "already": r.already, "leftOut": r.left_out, "later": r.later, "into": r.into,
+                "path": r.path, "found": r.found, "added": r.added, "already": r.already, "leftOut": r.left_out, "into": r.into,
             })).collect::<Vec<_>>(),
             "foldersMore": self.folders_more,
             "leftOutItems": entries(&self.left_out),
@@ -219,7 +215,6 @@ impl Report {
             "cancelled": self.cancelled,
             "categoriesAdded": self.categories_added,
             "report": self.written,
-            "preview": true,
         })
     }
 
@@ -231,10 +226,10 @@ impl Report {
             out.push_str(&s);
             out.push('\n');
         };
-        line(format!("MailCraft: import of the .pst file {} (preview: mail and contacts so far)", short(&self.file)));
+        line(format!("MailCraft: import of the .pst file {} ", short(&self.file)));
         line(format!("When: {when}"));
         if self.name.is_empty() {
-            line("Into: your contacts on this computer".to_string());
+            line("Into: this computer".to_string());
         } else {
             line(format!("Into: the folder \"{}\" on this computer", short(&self.name)));
         }
@@ -246,13 +241,12 @@ impl Report {
             line("Cancelled: what was brought in stays; import the file again to bring in the rest.".to_string());
         }
         line(String::new());
-        line(format!(
-            "Found {} items: {} brought in, {} already here, {} left out, {} not yet brought in.",
-            t.found, t.added, t.already, t.left_out, t.later
-        ));
-        if !self.later.is_empty() {
-            let kinds: Vec<String> = self.later.iter().map(|(k, n)| format!("{n} {k}")).collect();
-            line(format!("Not yet brought in (a later version brings them): {}.", kinds.join(", ")));
+        line(format!("Found {} items: {} brought in, {} already here, {} left out.", t.found, t.added, t.already, t.left_out));
+        if self.events_added > 0 || self.tasks_added > 0 {
+            line(format!("Calendar items brought in: {}; tasks brought in: {}.", self.events_added, self.tasks_added));
+        }
+        if self.notes_added > 0 || self.journal_added > 0 {
+            line(format!("Notes brought in: {}; journal entries brought in: {}.", self.notes_added, self.journal_added));
         }
         if self.contacts_added > 0 || self.lists_added > 0 {
             line(format!(
@@ -264,10 +258,10 @@ impl Report {
             line(format!("Categories added from the file: {}.", self.categories_added));
         }
         line(String::new());
-        line("Folders (found / brought in / already here / left out / not yet)".to_string());
+        line("Folders (found / brought in / already here / left out)".to_string());
         for r in &self.rows {
             let path = if r.path.is_empty() { "(the top of the file)".to_string() } else { r.path.clone() };
-            line(format!("  {path}: {} / {} / {} / {} / {}", r.found, r.added, r.already, r.left_out, r.later));
+            line(format!("  {path}: {} / {} / {} / {}", r.found, r.added, r.already, r.left_out));
             if let Some(into) = &r.into {
                 let into = if into.is_empty() { "the folder it was imported into" } else { into.as_str() };
                 line(format!("    nested deeper than folders here may be: its mail is in {into}"));
@@ -275,7 +269,7 @@ impl Report {
         }
         if self.folders_more > 0 {
             let r = &self.rows_more;
-            line(format!("  and {} more folders: {} / {} / {} / {} / {}", self.folders_more, r.found, r.added, r.already, r.left_out, r.later));
+            line(format!("  and {} more folders: {} / {} / {} / {}", self.folders_more, r.found, r.added, r.already, r.left_out));
         }
         let mut list = |title: &str, entries: &[Entry], more: usize| {
             if entries.is_empty() && more == 0 {

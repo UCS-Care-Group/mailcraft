@@ -2064,6 +2064,9 @@ impl State {
                 "ErrorInvalidUser" => "ErrorInvalidUser",
                 "ErrorQuotaExceeded" => "ErrorQuotaExceeded",
                 "ErrorSendAsDenied" => "ErrorSendAsDenied",
+                "ErrorMoveDistinguishedFolder" => "ErrorMoveDistinguishedFolder",
+                "ErrorDeleteDistinguishedFolder" => "ErrorDeleteDistinguishedFolder",
+                "MethodNotAllowed" => "MethodNotAllowed",
                 _ => "ServiceUnavailable",
             };
             return Err(refuse(status, code, "The stand-in was told to say so."));

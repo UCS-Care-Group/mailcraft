@@ -78,14 +78,17 @@ fn what_is_brought_in_from_disk_is_capped() {
     let wanted = to_bring_in(&files);
     assert_eq!(wanted.len() as u64, MAX_BROUGHT_IN / big);
     assert!(wanted.iter().map(|k| k.len).sum::<u64>() <= MAX_BROUGHT_IN);
-    // What was brought in at an earlier frame counts: the cap holds from frame to frame.
+    // What was brought in at an earlier frame counts: the cap holds from frame to frame. The
+    // session leaves a file it brought in with its bytes and no `kept` (`Session::load_where`).
     let mut heavy = heavy;
-    let brought = MAX_BROUGHT_IN / big;
-    for a in heavy.iter_mut().take(brought as usize) {
-        a.data = Arc::new(vec![0; 1]);
+    let brought = (MAX_BROUGHT_IN / big) as usize;
+    for a in heavy.iter_mut().take(brought) {
+        a.kept = None;
+        a.data = Arc::new(vec![0; big as usize]);
     }
     let files: Vec<(usize, &Attachment)> = heavy.iter().enumerate().collect();
     assert!(to_bring_in(&files).is_empty());
+    // One of them let go of: room for one more.
     let half: Vec<Attachment> = heavy.into_iter().skip(1).collect();
     let files: Vec<(usize, &Attachment)> = half.iter().enumerate().collect();
     assert_eq!(to_bring_in(&files).len(), 1);
@@ -293,4 +296,29 @@ fn in_the_browser_one_picture_a_frame_and_the_next_frame_is_asked_for() {
     // The second waits for the next frame, and the window is asked to draw one.
     assert!(thumbs.texture(&ctx, &b, [20, 20]).is_none());
     assert!(ctx.has_requested_repaint());
+}
+
+#[test]
+fn the_content_compare_for_a_picture_read_again_is_bounded_in_a_frame() {
+    let mut thumbs = Thumbs::default();
+    // Many files of one length that differ only at the end: none is the same as another.
+    let len = 512 * 1024;
+    let all: Vec<Arc<Vec<u8>>> = (0..MAX_PREVIEWS)
+        .map(|i| {
+            let mut bytes = png(4, 4);
+            bytes.resize(len, 0);
+            bytes[len - 1] = i as u8;
+            Arc::new(bytes)
+        })
+        .collect();
+    for a in &all {
+        thumbs.size(a, 1);
+    }
+    // The same files read anew: each is looked up against the others, within the bound.
+    let anew: Vec<Arc<Vec<u8>>> = all.iter().map(|a| Arc::new(a.to_vec())).collect();
+    for a in &anew {
+        thumbs.size(a, 2);
+    }
+    assert!(thumbs.compared_in(2) <= super::attachment_pictures::MAX_COMPARED + len, "{}", thumbs.compared_in(2));
+    assert!(thumbs.compared_in(2) > 0);
 }

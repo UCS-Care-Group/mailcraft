@@ -557,7 +557,7 @@ impl From<Refused> for AdminRefusal {
     fn from(refused: Refused) -> AdminRefusal {
         // What the provider said, without what this program puts before it.
         let words = |error: &NetError| match error {
-            NetError::Proto(ProtoError::Auth(text) | ProtoError::Rejected(text)) => text.clone(),
+            NetError::Proto(ProtoError::Auth(text) | ProtoError::Rejected(text)) => text.to_string(),
             other => other.to_string(),
         };
         match (refused.policy, &refused.error) {
@@ -1043,7 +1043,7 @@ pub fn refresh_for_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str,
         // provider's page is how either is put right, or shown for what it is.
         (Resource::Graph | Resource::GraphMail, About::Consent | About::Scope, NetError::Proto(ProtoError::Auth(why))) => {
             // Said in a code alone, this reads like a sign-in that is over, which it isn't.
-            NetError::ConsentNeeded(if why == STALE { "the sign-in doesn't cover Microsoft Graph".to_string() } else { why })
+            NetError::ConsentNeeded(if why.to_string() == STALE { "the sign-in doesn't cover Microsoft Graph".to_string() } else { why.to_string() })
         }
         (_, _, error) => error,
     })
@@ -1254,10 +1254,10 @@ fn shown(text: &str) -> String {
 fn client_id(oauth: &OAuth) -> Result<&str, NetError> {
     let id = oauth.client_id.trim();
     if id.is_empty() {
-        return Err(NetError::Config(format!("an application (client) id is needed to sign in with {}", oauth.provider.label())));
+        return Err(NetError::Config(format!("an application (client) id is needed to sign in with {}", oauth.provider.label()).into()));
     }
     if id.len() > 200 || !id.bytes().all(|b| b.is_ascii_graphic()) {
-        return Err(NetError::Config(format!("\"{}\" can't be an application (client) id", shown(id))));
+        return Err(NetError::Config(format!("\"{}\" can't be an application (client) id", shown(id)).into()));
     }
     Ok(id)
 }
@@ -1274,11 +1274,14 @@ fn tenant(oauth: &OAuth) -> Result<&str, NetError> {
     if plain && edges(tenant.bytes().next()) && edges(tenant.bytes().next_back()) && !tenant.contains("..") {
         Ok(tenant)
     } else {
-        Err(NetError::Config(format!(
-            "\"{}\" can't be a {} tenant: use common, consumers, organizations, or a directory's id or domain",
-            shown(tenant),
-            oauth.provider.label()
-        )))
+        Err(NetError::Config(
+            format!(
+                "\"{}\" can't be a {} tenant: use common, consumers, organizations, or a directory's id or domain",
+                shown(tenant),
+                oauth.provider.label()
+            )
+            .into(),
+        ))
     }
 }
 
@@ -1348,8 +1351,8 @@ fn refusal(error: &str, description: &str) -> NetError {
     };
     NetError::Proto(match code.as_str() {
         // Not a no: the server can't just now.
-        "server_error" | "temporarily_unavailable" => ProtoError::Rejected(text),
-        _ => ProtoError::Auth(text),
+        "server_error" | "temporarily_unavailable" => ProtoError::Rejected(text.into()),
+        _ => ProtoError::Auth(text.into()),
     })
 }
 

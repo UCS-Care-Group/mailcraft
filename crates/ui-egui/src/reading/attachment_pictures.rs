@@ -11,7 +11,9 @@
 //! The bytes are hostile, as every attachment's: whether a file is a picture is told by its
 //! bytes alone ([`images::probe`], within the reading pane's caps, never by its name or its
 //! declared type), and it is decoded by [`images::decode`] with the same caps, off the window's
-//! thread (one at a time), into a small texture. Nothing is fetched: a file that is kept on disk
+//! thread (one at a time), into a small texture. Only the first [`MAX_PREVIEWS`] files of a message
+//! whose type or name says they may be pictures are looked at, so that a message with a thousand
+//! attachments costs no more a frame than one with a few. Nothing is fetched: a file that is kept on disk
 //! beside the mailbox is brought in when its declared type or name says it may be a picture, at
 //! most [`MAX_PREVIEWS`] of a message and [`MAX_BROUGHT_IN`] bytes, through the session's own
 //! memory budget.
@@ -34,6 +36,9 @@ pub const MAX_BROUGHT_IN: u64 = 96 * 1024 * 1024;
 
 /// Most pictures kept decoded; the least recently shown go first.
 pub const MAX_THUMBS: usize = 64;
+
+/// Most bytes compared by content in a frame to tell a picture read again from one that is new.
+pub const MAX_COMPARED: usize = 4 * 1024 * 1024;
 
 /// The room a picture is fitted into, in points: never wider or taller, never enlarged.
 pub const BOX: Vec2 = Vec2::new(200.0, 140.0);
@@ -77,18 +82,25 @@ pub fn to_bring_in(files: &[(usize, &Attachment)]) -> Vec<ContentRef> {
     let mut total = 0u64;
     let mut out = Vec::new();
     for (_, a) in files.iter().filter(|(_, a)| may_be_picture(a)).take(MAX_PREVIEWS) {
+        let size = a.size() as u64;
+        // What is in memory counts by its length, though a file brought in has no `kept` any more
+        // (`Session::load_where`): the cap holds from one frame to the next.
+        if a.is_loaded() {
+            total = total.saturating_add(size);
+            if total > MAX_BROUGHT_IN {
+                break;
+            }
+            continue;
+        }
         let Some(kept) = a.kept else { continue };
         if kept.len > images::MAX_PICTURE_BYTES as u64 {
             continue;
         }
-        // What was brought in already counts too, so that the cap holds from one frame to the next.
         total = total.saturating_add(kept.len);
         if total > MAX_BROUGHT_IN {
             break;
         }
-        if !a.is_loaded() {
-            out.push(kept);
-        }
+        out.push(kept);
     }
     out
 }
@@ -129,7 +141,19 @@ pub(super) fn looks(app: &mut MailApp, ctx: &egui::Context, m: &Message, place: 
     let thumbs = Thumbs::of(ctx);
     let mut thumbs = thumbs.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     thumbs.pump(ctx);
-    let sizes: Vec<Option<[u32; 2]>> = files.iter().map(|(_, a)| if a.data.is_empty() { None } else { thumbs.size(&a.data, frame) }).collect();
+    // Only the first files that may be pictures and are in memory are looked up: a message with
+    // a thousand attachments costs no more a frame than one with [`MAX_PREVIEWS`].
+    let mut asked = 0;
+    let sizes: Vec<Option<[u32; 2]>> = files
+        .iter()
+        .map(|(_, a)| {
+            if a.data.is_empty() || !may_be_picture(a) || asked >= MAX_PREVIEWS {
+                return None;
+            }
+            asked += 1;
+            thumbs.size(&a.data, frame)
+        })
+        .collect();
     let switch = sizes.iter().any(Option::is_some) || files.iter().any(|(_, a)| !a.is_loaded() && may_be_picture(a));
     if !app.ui.attachment_pictures {
         return chips(switch);
@@ -257,6 +281,8 @@ pub struct Thumbs {
     job: Option<Job>,
     /// The frame in which a picture was last decoded on the window's thread.
     decoded_in: Option<u64>,
+    /// The frame, and how many bytes were compared by content in it ([`MAX_COMPARED`]).
+    compared: (u64, usize),
     /// Decode on the window's thread, one picture a frame, as the browser must: for tests, which
     /// want what they look at at once.
     pub inline: bool,
@@ -269,6 +295,7 @@ impl Default for Thumbs {
             #[cfg(not(target_arch = "wasm32"))]
             job: None,
             decoded_in: None,
+            compared: (0, 0),
             inline: cfg!(test) || cfg!(target_arch = "wasm32"),
         }
     }
@@ -288,7 +315,7 @@ impl Thumbs {
             Some(index) => index,
             // The same picture as new bytes (a message read again is read anew): its entry holds
             // these from now on.
-            None => match self.entries.iter().position(|e| e.data.upgrade().is_some_and(|d| d.len() == data.len() && d == *data)) {
+            None => match self.same_bytes(data, frame) {
                 Some(index) => {
                     let entry = self.entries.get_mut(index)?;
                     entry.data = Arc::downgrade(data);
@@ -309,6 +336,25 @@ impl Thumbs {
         let entry = self.entries.get_mut(index)?;
         entry.used = frame;
         Some(entry)
+    }
+
+    /// The entry whose bytes are equal to `data`, by content. The work is bounded: no more than
+    /// [`MAX_COMPARED`] bytes are compared in a frame, after which the bytes are taken as new.
+    fn same_bytes(&mut self, data: &Arc<Vec<u8>>, frame: u64) -> Option<usize> {
+        if self.compared.0 != frame {
+            self.compared = (frame, 0);
+        }
+        for (index, e) in self.entries.iter().enumerate() {
+            let Some(held) = e.data.upgrade().filter(|d| d.len() == data.len()) else { continue };
+            if self.compared.1 > 0 && self.compared.1.saturating_add(data.len()) > MAX_COMPARED {
+                return None;
+            }
+            self.compared.1 += data.len();
+            if held == *data {
+                return Some(index);
+            }
+        }
+        None
     }
 
     /// The size in pixels of the picture `data`; `None` when it is not one that is shown.
@@ -425,6 +471,12 @@ impl Thumbs {
         }
         #[cfg(target_arch = "wasm32")]
         let _ = ctx;
+    }
+
+    /// How many bytes were compared by content in `frame`.
+    #[cfg(test)]
+    pub fn compared_in(&self, frame: u64) -> usize {
+        if self.compared.0 == frame { self.compared.1 } else { 0 }
     }
 
     /// How many pictures are kept, and how many of them are decoded.

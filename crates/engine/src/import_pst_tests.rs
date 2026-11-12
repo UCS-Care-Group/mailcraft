@@ -110,7 +110,7 @@ fn mailbox_file() -> FileSpec {
         AttachSpec::Message(Box::new(forwarded)),
     ];
     let mut appointment = note("Dentist");
-    appointment.class = "IPM.Appointment".into();
+    appointment.class = "IPM.StickyNote".into();
     let mut contact = note("Fern Ochoa");
     contact.class = "IPM.Contact".into();
     let mut stray = note("A message among contacts");
@@ -138,7 +138,11 @@ fn job(dry_run: bool) -> Job {
         known: HashSet::new(),
         room: 31,
         known_contacts: HashSet::new(),
+        known_plans: HashSet::new(),
+        kept_room: crate::import_pst::item::KEPT_TEXT_BUDGET,
         keep_at: None,
+        calendar: None,
+        here: crate::import_pst::calendar::Here { offset: Some(0), zone: mailcraft_time::Zone::UTC },
     }
 }
 
@@ -175,7 +179,7 @@ fn row<'a>(answer: &'a Json, path: &str) -> &'a Json {
 
 fn adds_up(answer: &Json) {
     for r in answer["folders"].as_array().unwrap() {
-        let sum: u64 = ["added", "already", "leftOut", "later"].iter().map(|k| r[*k].as_u64().unwrap()).sum();
+        let sum: u64 = ["added", "already", "leftOut"].iter().map(|k| r[*k].as_u64().unwrap()).sum();
         assert_eq!(sum, r["found"].as_u64().unwrap(), "{r}");
     }
 }
@@ -187,18 +191,14 @@ fn the_mail_of_every_folder_comes_in_and_every_item_is_accounted_for() {
     let answer = import(&mut s, &bytes, json!({})).unwrap();
     adds_up(&answer);
     assert_eq!(answer["found"], 8, "{answer}");
-    assert_eq!(answer["added"], 7, "{answer}");
+    assert_eq!(answer["added"], 8, "{answer}");
     assert_eq!((answer["messages"].clone(), answer["contacts"].clone(), answer["lists"].clone()), (json!(6), json!(1), json!(0)));
-    assert_eq!(answer["later"], 1, "{answer}");
+    assert_eq!(answer["stickyNotes"], 1, "{answer}");
     assert_eq!(answer["leftOut"], 0, "{answer}");
-    assert_eq!(answer["preview"], true);
     assert_eq!(row(&answer, "Inbox")["added"], 2);
     assert_eq!(row(&answer, "Inbox/Projects")["added"], 1);
-    assert_eq!(row(&answer, "Calendar")["later"], 1);
-    assert_eq!(row(&answer, "Contacts")["later"], 0);
+    assert_eq!(row(&answer, "Calendar")["added"], 1);
     assert_eq!(row(&answer, "Contacts")["added"], 2);
-    let kinds: Vec<&str> = answer["laterKinds"].as_array().unwrap().iter().map(|k| k["kind"].as_str().unwrap()).collect();
-    assert_eq!(kinds, ["appointment"]);
     assert_eq!(s.mailbox.contacts.len(), 1);
     // The file's own folders are named, not brought.
     let not: Vec<&str> = answer["notBrought"].as_array().unwrap().iter().map(|e| e["what"].as_str().unwrap()).collect();
@@ -318,7 +318,7 @@ fn html_inline_pictures_ole_links_and_smime_are_kept_or_named() {
 }
 
 #[test]
-fn rich_text_alone_is_kept_as_an_attachment_and_named() {
+fn rich_text_alone_becomes_the_body_and_is_kept_as_an_attachment() {
     let rtf = b"{\\rtf1 Hello}";
     let mut stored = Vec::new();
     stored.extend_from_slice(&((rtf.len() + 12) as u32).to_le_bytes());
@@ -339,6 +339,8 @@ fn rich_text_alone_is_kept_as_an_attachment_and_named() {
     let rich = inbox.iter().find(|m| m.subject == "Rich").unwrap();
     let file = rich.attachments.iter().find(|a| a.name == "message body.rtf").unwrap();
     assert_eq!(file.data.as_slice(), rtf);
+    assert_eq!(file.mime, "application/rtf");
+    assert_eq!(rich.body.text, "Hello");
     let plain = inbox.iter().find(|m| m.subject == "Plain").unwrap();
     assert!(plain.body.text.starts_with("Plain") && plain.attachments.is_empty(), "{:?}", plain.attachments);
     let notes = answer["notes"].as_array().unwrap();
@@ -382,7 +384,7 @@ fn a_file_with_a_password_imports_nothing_without_it() {
     assert_eq!(s.mailbox.messages.len(), before);
     assert!(folder_id(&s, &["old-mail"]).is_none());
     let answer = import(&mut s, &bytes, json!({"password": "garden-shed"})).unwrap();
-    assert_eq!(answer["added"], 7);
+    assert_eq!(answer["added"], 8);
     assert!(!answer.to_string().contains("garden-shed"));
 }
 
@@ -395,7 +397,7 @@ fn importing_again_skips_what_is_already_here() {
     let folders = s.mailbox.folders.len();
     let again = import(&mut s, &bytes, json!({})).unwrap();
     adds_up(&again);
-    assert_eq!((again["added"].as_u64(), again["already"].as_u64()), (Some(0), Some(7)), "{again}");
+    assert_eq!((again["added"].as_u64(), again["already"].as_u64()), (Some(0), Some(8)), "{again}");
     assert_eq!(s.mailbox.messages.len(), count);
     assert_eq!(s.mailbox.folders.len(), folders, "the same folders are used again");
 }
@@ -406,7 +408,7 @@ fn a_dry_run_counts_and_changes_nothing() {
     let before = (s.mailbox.messages.len(), s.mailbox.folders.len());
     let answer = import(&mut s, &w::build(&mailbox_file()), json!({"dryRun": true})).unwrap();
     adds_up(&answer);
-    assert_eq!((answer["dryRun"].as_bool(), answer["added"].as_u64(), answer["later"].as_u64()), (Some(true), Some(7), Some(1)), "{answer}");
+    assert_eq!((answer["dryRun"].as_bool(), answer["added"].as_u64()), (Some(true), Some(8)), "{answer}");
     assert_eq!((s.mailbox.messages.len(), s.mailbox.folders.len()), before);
     assert!(answer["report"].is_null());
 }
@@ -511,8 +513,8 @@ fn the_report_is_written_beside_the_mailbox() {
     let text = std::fs::read_to_string(path).unwrap();
     std::fs::remove_dir_all(&dir).ok();
     assert!(path.contains("old-mail import report"), "{path}");
-    assert!(text.contains("Found 8 items: 7 brought in, 0 already here, 0 left out, 1 not yet brought in."), "{text}");
-    assert!(text.contains("Inbox/Projects: 1 / 1 / 0 / 0 / 0"), "{text}");
+    assert!(text.contains("Found 8 items: 8 brought in, 0 already here, 0 left out."), "{text}");
+    assert!(text.contains("Inbox/Projects: 1 / 1 / 0 / 0"), "{text}");
     assert!(text.contains("Search Root"), "{text}");
 }
 
@@ -552,7 +554,7 @@ fn a_staged_batch_and_the_report_come_in_through_the_command() {
     }
     s.staged_pst = Some(crate::import_pst::Staged::Done(Box::new(outcome)));
     let answer = s.run("file.importPst", &json!({"staged": true, "name": "old-mail"})).unwrap();
-    assert_eq!(answer["added"], 7);
+    assert_eq!(answer["added"], 8);
     assert_eq!(s.mailbox.messages.len(), 6);
     assert!(s.run("file.importPst", &json!({"staged": true})).is_err());
 }
@@ -1001,7 +1003,6 @@ fn a_contact_keeps_every_field_the_model_has() {
         (json!(1), json!(1), json!(1), json!(0))
     );
     assert_eq!(row(&answer, "Contacts")["added"], 1);
-    assert_eq!(answer["later"], 0);
     let c = s.mailbox.contacts.values().next().unwrap().as_ref().clone();
     assert_eq!((c.display_name.as_str(), c.first.as_str(), c.middle.as_str(), c.last.as_str()), ("Ada Fernsby", "Ada", "Maud", "Fernsby"));
     assert_eq!(
@@ -1122,10 +1123,7 @@ fn a_distribution_list_becomes_a_contact_listing_its_members() {
     let mut s = session();
     let answer = import(&mut s, &people_file(vec![list, ada()]), json!({})).unwrap();
     adds_up(&answer);
-    assert_eq!(
-        (answer["added"].clone(), answer["contacts"].clone(), answer["lists"].clone(), answer["later"].clone()),
-        (json!(2), json!(1), json!(1), json!(0))
-    );
+    assert_eq!((answer["added"].clone(), answer["contacts"].clone(), answer["lists"].clone()), (json!(2), json!(1), json!(1)));
     let c = s.mailbox.contacts.values().find(|c| c.display_name == "Garden committee").unwrap();
     assert_eq!(c.notes, "Members:\nCleo Varga <cleo@example.org>\nDee Halloran <dee@example.org>");
     assert!(c.emails.is_empty());
@@ -1180,13 +1178,10 @@ fn subclasses_and_contacts_among_mail_come_in_and_the_rest_is_still_counted() {
     let mut s = session();
     let answer = import(&mut s, &bytes, json!({})).unwrap();
     adds_up(&answer);
-    assert_eq!(
-        (answer["found"].clone(), answer["added"].clone(), answer["contacts"].clone(), answer["later"].clone()),
-        (json!(4), json!(3), json!(2), json!(1))
-    );
+    assert_eq!((answer["found"].clone(), answer["added"].clone(), answer["contacts"].clone()), (json!(4), json!(4), json!(2)));
     assert_eq!(answer["leftOut"], 0);
     assert_eq!(s.mailbox.contacts.len(), 2);
-    assert_eq!(answer["laterKinds"][0]["kind"], "task");
+    assert_eq!(answer["tasks"], 1);
 }
 
 #[test]
@@ -1400,7 +1395,7 @@ fn deleted_contacts_are_left_out_in_one_line_and_every_other_folders_come_in() {
     // One line for each folder in Deleted Items, not one for each contact.
     let left = texts(&answer, "leftOutItems", "what");
     assert_eq!(left.len(), 2, "{left:?}");
-    assert!(left.iter().any(|w| w.ends_with("lists (3)")) && left.iter().any(|w| w.ends_with("lists (1)")), "{left:?}");
+    assert!(left.iter().any(|w| w.ends_with("tasks (3)")) && left.iter().any(|w| w.ends_with("tasks (1)")), "{left:?}");
     assert!(texts(&answer, "leftOutItems", "why").iter().all(|w| w == "in Deleted Items, left out"));
     // The report names the automatic and the hidden folders the contacts came from.
     let folders = texts(&answer, "notes", "folder");
@@ -1640,6 +1635,151 @@ fn uncompressed_rtf(rtf: &str) -> Vec<u8> {
     v.extend([0u8; 4]);
     v.extend(rtf.bytes());
     v
+}
+
+#[test]
+fn html_kept_in_rich_text_comes_in_as_html() {
+    let mut m = note("Encapsulated");
+    m.body = String::new();
+    m.extra = vec![(0x1009, w::binary(&uncompressed_rtf("{\\rtf1\\fromhtml1 {\\*\\htmltag <p>}Hello{\\*\\htmltag </p>}}")))];
+    let mut s = session();
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m], vec![])])), json!({})).unwrap();
+    adds_up(&answer);
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let got = inbox.iter().find(|m| m.subject == "Encapsulated").unwrap();
+    assert_eq!((got.body.html.as_deref(), got.body.text.as_str()), (Some("<p>Hello</p>"), "Hello"));
+    assert!(got.attachments.is_empty(), "nothing of the rich text is left to keep");
+}
+
+#[test]
+fn what_html_in_rich_text_hides_is_kept_apart_from_its_text() {
+    let mut m = note("Hiding");
+    m.body = String::new();
+    let rtf = "{\\rtf1\\fromhtml1 {\\*\\htmltag <div style=\"display:none\">}Preheader{\\*\\htmltag </div>}\\htmlrtf Only in rich text\\htmlrtf0 {\\*\\htmltag <p>}Hello{\\*\\htmltag </p>}}";
+    m.extra = vec![(0x1009, w::binary(&uncompressed_rtf(rtf)))];
+    let mut s = session();
+    import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m], vec![])])), json!({})).unwrap();
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let got = inbox.iter().find(|m| m.subject == "Hiding").unwrap();
+    assert_eq!((got.body.text.trim(), got.hidden_text.trim()), ("Hello", "Preheader"));
+}
+
+#[test]
+fn compressed_rich_text_alone_is_read_and_broken_rich_text_is_kept_as_it_was() {
+    let rich = |subject: &str, stored: &[u8]| {
+        let mut m = note(subject);
+        m.body = String::new();
+        m.extra = vec![(0x1009, w::binary(stored))];
+        m
+    };
+    let items = vec![
+        rich("Packed", &COMPRESSED_HELLO),
+        rich("Broken", &COMPRESSED_HELLO[..30]),
+        rich("Not rich", &uncompressed_rtf("no rich text here")),
+        rich("Lines", &uncompressed_rtf("{\\rtf1\\ansi First\\par Caf\\'e9 \\u8364?}")),
+    ];
+    let mut s = session();
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", items, vec![])])), json!({})).unwrap();
+    adds_up(&answer);
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let by = |subject: &str| *inbox.iter().find(|m| m.subject == subject).unwrap();
+    let packed = by("Packed");
+    assert_eq!(packed.body.text, "hello world");
+    let file = packed.attachments.iter().find(|a| a.name == "message body.rtf").unwrap();
+    assert_eq!(file.data.as_slice(), b"{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n".as_slice());
+    assert_eq!(by("Lines").body.text, "First\nCaf\u{e9} \u{20ac}");
+    // What can't be read stays whole, and is named.
+    let broken = by("Broken");
+    assert_eq!(broken.body.text, "");
+    let kept = broken.attachments.iter().find(|a| a.name == "message body (compressed rich text).bin").unwrap();
+    assert_eq!(kept.data.as_slice(), &COMPRESSED_HELLO[..30]);
+    let not_rich = by("Not rich");
+    assert_eq!(not_rich.body.text, "");
+    assert_eq!(not_rich.attachments.iter().find(|a| a.name == "message body.rtf").unwrap().data.as_slice(), b"no rich text here".as_slice());
+    let why = texts(&answer, "notes", "why");
+    assert_eq!(why.iter().filter(|w| w.contains("could not be read")).count(), 2, "{why:?}");
+}
+
+#[test]
+fn large_rich_text_damaged_in_the_file_is_named() {
+    // Too large to be read with the item: a damaged block shows only when it is read for itself.
+    let stored = uncompressed_rtf(&format!("{{\\rtf1 {}}}", "q".repeat(5 << 20)));
+    let mut m = note("Torn");
+    m.body = String::new();
+    m.extra = vec![(0x1009, w::binary(&stored))];
+    let mut bytes = w::build(&FileSpec {
+        layout: Layout::new(Format::Unicode, Encryption::None),
+        password: None,
+        password_ansi: false,
+        name: "Personal Folders".into(),
+        folders: vec![folder("Inbox", "IPF.Note", vec![m], vec![])],
+        named: vec![],
+        named_strings: vec![(PS_PUBLIC_STRINGS, "Keywords".into())],
+    });
+    let at = bytes.windows(64).position(|w| w.iter().all(|b| *b == b'q')).unwrap();
+    bytes[at + (2 << 20)] = b'z';
+    let dir = crate::import_pst_memory_tests::Temp::new("rich-text-torn");
+    let mut s = crate::import_pst_memory_tests::kept_session(&dir);
+    let pst = dir.pst(&bytes);
+    let answer = crate::import_pst_memory_tests::import(&mut s, &pst).unwrap();
+    adds_up(&answer);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("rich text is damaged")), "{answer}");
+}
+
+#[test]
+fn empty_rich_text_brings_no_attachment_and_no_note() {
+    let mut m = note("Stub");
+    m.body = "\r\n".into();
+    m.extra = vec![(0x1009, w::binary(&uncompressed_rtf("{\\rtf1\\ansi\\par}")))];
+    let mut pic = note("Picture");
+    pic.body = String::new();
+    pic.extra = vec![(0x1009, w::binary(&uncompressed_rtf("{\\rtf1{\\pict 00}}")))];
+    let mut s = session();
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m, pic], vec![])])), json!({})).unwrap();
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let by = |subject: &str| *inbox.iter().find(|m| m.subject == subject).unwrap();
+    assert!(by("Stub").attachments.is_empty(), "{:?}", by("Stub").attachments);
+    // A picture and no words is still something: kept, and said.
+    assert_eq!(by("Picture").attachments[0].name, "message body.rtf");
+    let why = texts(&answer, "notes", "why");
+    assert_eq!(why.len(), 1, "{why:?}");
+    assert!(why[0].contains("no text of its own"), "{why:?}");
+}
+
+#[test]
+fn a_small_file_of_rich_text_can_not_bring_more_than_the_cap() {
+    // Megabytes that open out past what rich text may be: kept as they are, and said.
+    let head = b"{\\rtf1 x\\par y ";
+    let bomb = repeating_rtf(head, 6, 4_200_000);
+    assert!(bomb.len() < 10 << 20);
+    // Past what a body may be, but within what rich text may: the text is cut, and said.
+    let long = repeating_rtf(head, 6, 2_400_000);
+    let rich = |subject: &str, stored: &[u8]| {
+        let mut m = note(subject);
+        m.body = String::new();
+        m.extra = vec![(0x1009, w::binary(stored))];
+        m
+    };
+    let dir = crate::import_pst_memory_tests::Temp::new("rich-text-cap");
+    let mut s = crate::import_pst_memory_tests::kept_session(&dir);
+    // ("Long" spends most of what one import may take; the one after it is kept as it is.)
+    let items = vec![rich("Bomb", &bomb), rich("Long", &long), rich("Long again", &long)];
+    let pst = dir.pst(&w::build(&folder_list(vec![folder("Inbox", "IPF.Note", items, vec![])])));
+    let answer = crate::import_pst_memory_tests::import(&mut s, &pst).unwrap();
+    adds_up(&answer);
+    let inbox = messages_in(&s, &["old-mail", "Inbox"]);
+    let by = |subject: &str| *inbox.iter().find(|m| m.subject == subject).unwrap();
+    assert_eq!(by("Bomb").body.text, "");
+    assert_eq!(by("Bomb").attachments[0].name, "message body (compressed rich text).bin");
+    assert!(by("Long").body.text.len() <= 32 << 20 && by("Long").body.text.len() > 30 << 20);
+    let why = texts(&answer, "notes", "why");
+    assert!(why.iter().any(|w| w.contains("could not be read")), "{why:?}");
+    assert!(why.iter().any(|w| w.contains("text is cut")), "{why:?}");
+    assert!(by("Long").attachments.iter().any(|a| a.name == "message body.rtf"));
+    // Together they stay within what one import may take from rich text.
+    let total: usize = inbox.iter().map(|m| m.body.text.len()).sum();
+    assert!(total as u64 <= crate::import_pst::item::RTF_TEXT_BUDGET + 4096, "{total}");
 }
 
 #[test]
