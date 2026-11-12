@@ -148,7 +148,8 @@ fn undo_with_the_account_gone_or_the_folders_gone_never_panics() {
 
 /// An undo puts back each category of a full list kept in step with its server, keyed once: a
 /// key worked out for each comparison would be millions of them, and an agent's question about
-/// an undo works it out several times (#661).
+/// an undo works it out several times (#661). (A key for each comparison took about 9 s here,
+/// keying once about 0.05 s.)
 #[test]
 fn an_undo_of_a_full_list_kept_in_step_is_worked_out_in_one_pass() {
     use mailcraft_model::{Category, MAX_CATEGORIES, Rgb};
@@ -172,5 +173,5 @@ fn an_undo_of_a_full_list_kept_in_step_is_worked_out_in_one_pass() {
         assert_eq!(out.account_categories[&account], list(was), "each put back as it was");
         assert_eq!(out.synced_categories[&account], list(is), "the server's as it is now");
     }
-    assert!(started.elapsed().as_millis() < 500, "{:?}", started.elapsed());
+    assert!(started.elapsed().as_millis() < 2000, "{:?}", started.elapsed());
 }

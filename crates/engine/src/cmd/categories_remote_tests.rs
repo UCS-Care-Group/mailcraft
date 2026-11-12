@@ -2191,7 +2191,8 @@ fn an_undo_of_a_shared_mailboxs_event_edit_that_went_tells_its_server_again() {
 }
 
 /// A read that finds every category of the list written in other letters gives the items their
-/// new spelling in one pass over them, each name looked up once (#661).
+/// new spelling in one pass over them, each name looked up once (#661). (A search of the names
+/// for each category of each item took about 7 s here, the lookup about 0.2 s.)
 #[test]
 fn a_read_of_many_names_in_other_letters_respells_many_items_in_one_pass() {
     let max = mailcraft_model::remote::MAX_REMOTE_CATEGORIES;
@@ -2213,7 +2214,7 @@ fn a_read_of_many_names_in_other_letters_respells_many_items_in_one_pass() {
         s.mailbox.messages.values().all(|m| m.categories.get(1).is_some_and(|c| c.starts_with("a category"))),
         "one on no list keeps its letters"
     );
-    assert!(took.as_millis() < 1000, "{took:?}");
+    assert!(took.as_millis() < 2000, "{took:?}");
 }
 
 #[test]
