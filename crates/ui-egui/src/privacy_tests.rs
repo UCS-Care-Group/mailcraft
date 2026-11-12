@@ -17,22 +17,35 @@ fn app() -> MailApp {
 }
 
 /// (A5-3) A Send/Receive problem names a subject, an address, a folder: the owner reads it in the
-/// problems report; the log has how many there were and each text (the log's writer takes the
-/// quoted parts and addresses out, `diagnostics::scrub`; this capture is before that).
+/// problems report; the log has how many there were and each text with every value put aside
+/// (`problem_log::masked`), so that no subject, folder, address, password or token reaches it,
+/// whether or not the quotes round it pair up.
 #[test]
-fn send_receive_problems_are_kept_for_the_owner_and_logged_as_texts() {
+fn send_receive_problems_are_kept_for_the_owner_and_logged_without_their_values() {
+    use mailcraft_i18n::{Arg, Text};
     let logged = crate::graph_switch::tests::logged();
     let mut app = app();
     let account = app.session.mailbox.accounts[0].id;
-    let lines = vec![
-        "Held \"Quarterly figures for Ada\" (ada@example.org): the server said no".to_string(),
-        "Couldn't open \"Private/Taxes\": no".to_string(),
+    let said = |subject: &str, why: &str| Text {
+        template: "Couldn't send \"{subject}\": {why}",
+        args: vec![("subject", Arg::Plain(subject.into())), ("why", Arg::Plain(why.into()))],
+    };
+    let problems = vec![
+        said("Quarterly figures for Ada", "535 5.7.8 password hunter2-secret-pw refused for ada@example.org"),
+        said("Re: \"Offer\" for Bob Smith", "token tok_9f8e7d6c5b4a refused"),
+        said("Bob's \"Secret plan for Carol", "no"),
+        Text { template: "Couldn't open \"{name}\"", args: vec![("name", Arg::Plain("Private/Taxes".into()))] },
     ];
-    app.note_sync_problems(account, &lines, true);
-    assert_eq!(app.sync_problem_lines().iter().filter(|l| l.contains("Quarterly figures") || l.contains("Private/Taxes")).count(), 2);
+    app.note_said_problems(account, problems, true);
+    // The owner's report keeps them whole.
+    assert!(app.sync_problem_lines().iter().any(|l| l.contains("Quarterly figures")));
     let log = logged.lock().unwrap().join("\n");
-    assert!(log.contains("2 problem(s) reported"), "{log}");
-    assert!(log.contains("problem: Couldn't open"), "{log}");
+    assert!(log.contains("problem: Couldn't send"), "{log}");
+    for secret in
+        ["Quarterly", "figures", "Offer", "Bob Smith", "Secret plan", "Carol", "Private", "Taxes", "ada@example.org", "hunter2", "tok_9f8e", "Bob's"]
+    {
+        assert!(!log.contains(secret), "{secret} reached the log: {log}");
+    }
 }
 
 /// (A3-5) The question says what a Yes does: check, download and install.

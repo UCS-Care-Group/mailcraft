@@ -1819,7 +1819,7 @@ pub struct MailApp {
     /// when they are shown (#872).
     sync_problems: Vec<(Id, String, String, Vec<mailcraft_i18n::Text>)>,
     /// The problem texts the log has had from each account's last run (`problem_log`).
-    logged_problems: Vec<(Id, Vec<String>)>,
+    logged_problems: problem_log::ProblemLog,
     /// Send/Receive Progress, when it is open ([`sync_panel`]).
     pub(crate) sync_panel: Option<sync_panel::Panel>,
     /// What runs now was asked for by the owner's own hand: a frame of the window that a press, a
@@ -2016,7 +2016,7 @@ impl MailApp {
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
-            logged_problems: Vec::new(),
+            logged_problems: Default::default(),
             sync_panel: None,
             by_hand: false,
             last_error: None,
@@ -4280,27 +4280,44 @@ impl MailApp {
     /// Keep what a Send/Receive said went wrong (the log gets how many and each new text, cut short); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
+        self.note_problems_from("mail", account, errors, errors, finished);
+    }
+
+    /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, shared
+    /// mailboxes): each keeps its own memory of what the log has said. `logged` is what goes in the
+    /// log for `errors`, line for line.
+    fn note_problems_from(&mut self, source: &'static str, account: Id, errors: &[String], logged: &[String], finished: bool) {
+        // Mail's answers come piece by piece and its run ends with `finished`; another job's
+        // answer is its whole run.
+        let ends = finished || source != "mail";
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
-                problem_log::forget(&mut self.logged_problems, account);
+                self.logged_problems.forget(account, source);
+            }
+            if ends {
+                self.logged_problems.end_run(account, source);
             }
             return;
         }
         // The lines name subjects, addresses and folders: the log gets how many there were and,
-        // for a diagnostics report, each new text cut short (the log's writer takes quoted text,
-        // addresses and links out, and the copied report takes out hosts and paths).
+        // for a diagnostics report, each new text cut short (see `problem_log`).
         log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
-        problem_log::log_new(&mut self.logged_problems, account, errors);
+        self.logged_problems.log_new(account, source, logged);
+        if ends {
+            self.logged_problems.end_run(account, source);
+        }
         self.keep_sync_problems(account, errors);
     }
 
     /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
     /// interface's language (#872). It goes through that, which logs and keeps them in English,
-    /// and then puts the texts in place of the lines it kept.
+    /// and then puts the texts in place of the lines it kept. What is logged has every value of
+    /// the texts put aside.
     fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
         let english: Vec<String> = errors.iter().map(ToString::to_string).collect();
-        self.note_sync_problems(account, &english, finished);
+        let logged: Vec<String> = errors.iter().map(problem_log::masked).collect();
+        self.note_problems_from("mail", account, &english, &logged, finished);
         let Some((.., lines)) = self.sync_problems.iter_mut().find(|(a, ..)| *a == account) else { return };
         // (The newest lines are the last; of a very long run only the last ones were kept.)
         let kept = errors.len().min(lines.len());
@@ -4488,6 +4505,7 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.run_answered(account);

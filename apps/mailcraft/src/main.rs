@@ -1137,7 +1137,7 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 if graph::send_unsure(&e) {
                     out.unsure.push(message.id);
                 }
-                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
+                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim().replace(['"', '\\'], "'")));
             }
         }
     }
