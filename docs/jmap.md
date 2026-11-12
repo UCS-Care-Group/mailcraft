@@ -4,9 +4,9 @@
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
 such an account in the desktop app and in the browser build, and takes what you change in its mail
-up to its server; the desktop app reads its contacts too, where the server offers them (JMAP for
-Contacts, RFC 9610). The command line has no way to reach a JMAP server yet: `mailcraft-cli sync`
-refuses it.
+up to its server; the desktop app reads its contacts too, and writes back what you make, change or
+delete of them, where the server offers them (JMAP for Contacts, RFC 9610). The command line has no
+way to reach a JMAP server yet: `mailcraft-cli sync` refuses it.
 
 ## What works
 
@@ -31,9 +31,32 @@ refuses it.
   Send/Receive went with (nothing asks you for one for the contacts alone). A contact the server no
   longer has goes from here once the whole list could be read; a list read in part only adds and
   updates. A server that offers no contacts is not asked again until the program starts anew or
-  you ask for the account's Send/Receive. They are read only: a contact the server keeps is not
-  changed or deleted here, as a Microsoft account's is not. A contact's picture is not read, and no
-  address in a contact is fetched. Groups of contacts are passed over.
+  you ask for the account's Send/Receive. A contact's picture is not read, and no address in a
+  contact is fetched. Groups of contacts are passed over.
+- **What you do to its contacts goes up**, in the desktop app: a contact made in the account, a
+  change to one of its contacts and a deletion are told to the server by the contacts' own job,
+  before it reads. New Contact makes the contact in the account whose contacts People shows, when
+  that is a JMAP account (else on this computer, as before); it goes into the server's default
+  address book. Of a changed contact only the parts you changed are written (the name, the
+  nickname, company and department, the title, the e-mail addresses, the phone numbers, the postal
+  addresses, the web addresses, the birthday, the notes), so what the server keeps besides stays
+  as it is: other anniversaries, a picture, what another program wrote into the card. While
+  Send/Receive runs by itself a change goes a few seconds after the last one; otherwise it goes
+  with the next Send/Receive of the account that you ask for. A hundred changes go in one job, the
+  rest with the next.
+  - *When both sides changed a contact:* a part you changed here stays and goes up, every other
+    part is the server's. A contact you deleted here is not brought back by a list that still
+    shows it. A contact you changed here that the server no longer has is made again there; one
+    you did not change goes from here.
+  - *What the server refuses* is said where a Send/Receive's problems are, and is not sent again
+    as it is: the refused parts of a change are put back to what the server has, a new contact it
+    won't take stays on this computer, and a contact it won't delete comes back with the next
+    read.
+  - *Refused here, before the server is asked to change anything:* a web address that does not
+    begin with `http://` or `https://` (it would be lost at the next read), and a change to the
+    notes of a contact for which the server keeps several notes (replacing them would lose one).
+  - Once a deletion has gone to the server, Undo no longer reaches back before it. A Microsoft
+    account's contacts stay read-only. A contact's picture, and groups, are not written.
 
 - **What you change goes up** (#1074): a read mark, a flag, the answered and forwarded marks, a
   move between two of the server's mailboxes (Delete is a move into its Deleted Items) and a
@@ -194,7 +217,13 @@ File › Open, and give the token when Send/Receive asks.
   `get` that is halved until the item that breaks it is found (`crates/jmap/src/reader.rs`,
   `Calls::read_all`), when such a job is due in the window and how long it waits after one that
   came to nothing (`crates/ui-egui/src/jmap_side_job.rs`), and the thread and the sign-in of the
-  desktop's job (`on_thread` and `signed_in` in `apps/mailcraft/src/jmap_runner.rs`).
+  desktop's job (`on_thread` and `signed_in` in `apps/mailcraft/src/jmap_runner.rs`). The same job
+  carries what was changed here, first: `sync.contactChanges` (`cmd::contacts_remote::contact_upload`)
+  says what, from the difference between each contact and what its server last said of it
+  (`Contact::synced`) and from the deletions that wait (`Mailbox::contact_gone`);
+  `crates/jmap/src/contacts/changes.rs` makes it `ContactCard/set` calls (a card or a patch written by
+  `contacts/write.rs`); `sync.applyContactChanges` takes in what the server made of each change, and
+  the download read after it is merged part by part (`cmd::contacts_remote::merge_written`).
 - The desktop app is that host (`apps/mailcraft/src/jmap_runner.rs`), over `mailcraft_net::https`,
   each job on a thread of its own; Stop is heard before each request.
 - The browser build is that host too (`apps/mailcraft-web/src/jmap.rs`), over `fetch`

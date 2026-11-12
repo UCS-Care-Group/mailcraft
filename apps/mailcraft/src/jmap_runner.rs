@@ -254,10 +254,11 @@ pub(crate) fn run_fetch_with(request: &JmapFetchRequest, secret: &str, stop: &St
 }
 
 // What follows is not in the runner above, and is built on its pieces ([`Transport`], [`Stop`],
-// [`credentials`]): an account's contacts (RFC 9610), read in one answer on a thread of the job's
-// own and never written; and what a job says when it has no credential it could send. The job
-// carries a stop of its own, which is latched as a run's is ([`Stop::new`]). What a job of one kind
-// of an account's data does whatever the kind is in [`on_thread`] and [`signed_in`].
+// [`credentials`]): an account's contacts (RFC 9610), on a thread of the job's own: what was
+// changed of them here is told to the server, then they are read, all in one answer; and what a
+// job says when it has no credential it could send. The job carries a stop of its own, which is
+// latched as a run's is ([`Stop::new`]). What a job of one kind of an account's data does whatever
+// the kind is in [`on_thread`] and [`signed_in`].
 
 use mailcraft_jmap::{Redactor, failed_contacts, sync_contacts};
 use mailcraft_model::sync::{JmapContactsRequest, JmapContactsResult};
@@ -351,7 +352,9 @@ fn signed_in<R>(
     })
 }
 
-/// Reads the contacts of a JMAP account on a thread of its own.
+/// Tells the server of a JMAP account what was made, changed or deleted of its contacts here (the
+/// request's `changes`, #1076), then reads its contacts, on a thread of its own. The request goes
+/// to `mailcraft-jmap` as it is, and nothing of a contact is logged here.
 pub(crate) fn run_contacts(job: JmapContactsJob, wake: &egui::Context) -> Receiver<JmapContactsResult> {
     on_thread(job, wake, "contacts", run_contacts_with)
 }

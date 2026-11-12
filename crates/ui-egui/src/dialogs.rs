@@ -498,12 +498,15 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             Some(Question::new(tl!("Delete Permanently"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
-        // account's server keeps can't be deleted here, and the command says so without asking.
+        // account's server keeps and only reads out can't be deleted here, and the command says
+        // so without asking; one of an account that writes its contacts goes from its server too.
         "people.delete" => {
             let c = mb.contact(mailcraft_engine::p::id_strict(params, "id").ok()?.or(app.session.sel.contact)?)?;
-            if mailcraft_engine::cmd::remote::keeper(mb, &c.origin).is_some() {
+            let keeper = mailcraft_engine::cmd::remote::keeper(mb, &c.origin);
+            if keeper.is_some_and(|account| !account.writes_contacts()) {
                 return None;
             }
+            let there = keeper.is_some() && !c.origin.id.is_empty();
             let name = c.name();
             let name = name.trim();
             let what = if name.is_empty() {
@@ -511,6 +514,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 crate::i18n::fmt(tl!("\"{name}\" will be permanently deleted."), &[("name", name)])
             };
+            let what = if there { format!("{what} {}", tl!("It is deleted from its account's server too.")) } else { what };
             question(tl!("Delete Contact"), format!("{what} {}", tl!("Contacts don't go to Deleted Items.")), tl!("Delete"))
         }
         "folder.empty" => {

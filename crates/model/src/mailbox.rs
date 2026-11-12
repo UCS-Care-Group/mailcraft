@@ -707,6 +707,13 @@ impl Account {
         self.keeps_tasks() || (self.kind == AccountKind::Jmap && !self.is_shared())
     }
 
+    /// Whether what is made, changed or deleted of its contacts here is told to its server: an
+    /// account kept in step over JMAP (RFC 9610), never a shared mailbox's. A Microsoft account's
+    /// contacts are read and not written.
+    pub fn writes_contacts(&self) -> bool {
+        self.kind == AccountKind::Jmap && !self.is_shared()
+    }
+
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
     /// site so that callers hold a "mailbox" and not an address.
     pub fn shared_mailbox(&self) -> Option<String> {
@@ -1142,6 +1149,10 @@ pub struct Mailbox {
     /// oldest first ([`crate::TaskGone`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub task_gone: Vec<crate::TaskGone>,
+    /// Contacts deleted here that their account's server is yet to be told about, oldest first
+    /// ([`crate::ContactGone`]), at most [`crate::MAX_CONTACT_GONE`].
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub contact_gone: Vec<crate::ContactGone>,
     /// Rules deleted here that a Microsoft account's server is yet to be told about (#566),
     /// oldest first ([`crate::RuleGone`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -1239,6 +1250,7 @@ impl Default for Mailbox {
             pending: Vec::new(),
             event_changes: Vec::new(),
             task_gone: Vec::new(),
+            contact_gone: Vec::new(),
             rule_gone: Vec::new(),
             shared_task_lists: BTreeMap::new(),
             local_tasks: crate::LocalTasks::Unasked,
@@ -1434,6 +1446,13 @@ impl Mailbox {
         self.event_changes.retain(|change| !going.contains(&change.account));
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
+        self.contact_gone.retain(|gone| !going.contains(&gone.account));
+        // A contact its server was yet to be given was made here: it stays, on this computer.
+        for contact in self.contacts.values_mut().filter(|c| going.contains(&c.origin.account) && c.origin.id.is_empty()) {
+            let contact = Arc::make_mut(contact);
+            contact.origin = crate::Origin::default();
+            contact.synced = None;
+        }
         self.rule_gone.retain(|gone| !going.contains(&gone.account));
         // Its rules go with it, as Outlook keeps an account's rules in its mailbox (#566): one
         // left behind would act on the mail of accounts it was never made for. Those for every
@@ -3098,7 +3117,22 @@ impl Mailbox {
         self.contacts.get_mut(&id).map(Arc::make_mut).ok_or(not_found("contact", id))
     }
 
+    /// Delete a contact. One that the server of an account that writes its contacts keeps
+    /// ([`Account::writes_contacts`]) is noted, so that the server is told.
     pub fn remove_contact(&mut self, id: Id) -> Result<(), ModelError> {
+        let contact = self.contacts.remove(&id).ok_or(not_found("contact", id))?;
+        let origin = &contact.origin;
+        let told = !origin.id.is_empty() && self.account(origin.account).is_some_and(Account::writes_contacts);
+        let noted = self.contact_gone.iter().any(|gone| gone.account == origin.account && gone.id == origin.id);
+        if told && !noted && self.contact_gone.len() < crate::MAX_CONTACT_GONE {
+            self.contact_gone.push(crate::ContactGone { account: origin.account, id: origin.id.clone() });
+        }
+        Ok(())
+    }
+
+    /// Remove a contact without telling any server: it is gone from there already, or its
+    /// account is no longer followed.
+    pub fn remove_contact_quietly(&mut self, id: Id) -> Result<(), ModelError> {
         self.contacts.remove(&id).map(|_| ()).ok_or(not_found("contact", id))
     }
 

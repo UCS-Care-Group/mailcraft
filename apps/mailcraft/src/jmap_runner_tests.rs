@@ -363,7 +363,7 @@ fn stop(called_off: bool) -> Stop {
 }
 
 fn contacts_request(session: &str) -> JmapContactsRequest {
-    JmapContactsRequest { account: ACCOUNT, email: "ada@example.org".into(), session: session.into(), bearer: true }
+    JmapContactsRequest { account: ACCOUNT, email: "ada@example.org".into(), session: session.into(), bearer: true, changes: Vec::new() }
 }
 
 #[test]
@@ -417,6 +417,38 @@ fn contacts_called_off_before_they_begin_send_nothing() {
     let contacts = run_contacts_with(&contacts_request(&served.session), TOKEN, &stop(true));
     assert!(contacts.contacts.is_none() && !contacts.auth_refused && !contacts.not_offered);
     assert_eq!(served.requests.load(Ordering::Relaxed), 0, "no connection was made");
+}
+
+/// A request that carries a change (#1076): a contact to be made.
+fn contacts_request_with_a_change(session: &str) -> JmapContactsRequest {
+    use mailcraft_model::remote::{ContactOp, ContactOpKind, RemoteContact};
+    let card = RemoteContact { first: "Dee".into(), ..Default::default() };
+    JmapContactsRequest {
+        changes: vec![ContactOp { kind: ContactOpKind::Create, contact: 9, card, ..Default::default() }],
+        ..contacts_request(session)
+    }
+}
+
+#[test]
+fn a_change_of_contacts_goes_nowhere_without_a_credential_once_called_off_or_where_no_contacts_are_kept() {
+    let (server, _) = filled();
+    let served = serve(&server);
+    let request = contacts_request_with_a_change(&served.session);
+    // No credential, and one that can't be sent: nothing is sent, and no change is said to be done.
+    for secret in ["", "bad token with spaces"] {
+        let result = run_contacts_with(&request, secret, &stop(false));
+        assert!(result.changed.is_empty() && result.contacts.is_none() && result.errors.len() == 1, "{:?}", result.errors);
+    }
+    // Called off before it began.
+    let result = run_contacts_with(&request, TOKEN, &stop(true));
+    assert!(result.changed.is_empty() && result.contacts.is_none());
+    assert_eq!(served.requests.load(Ordering::Relaxed), 0, "no connection was made");
+    // A server that keeps no contacts for the account is not told of the change: it waits, here.
+    let result = run_contacts_with(&request, TOKEN, &stop(false));
+    assert!(result.not_offered && result.changed.is_empty() && result.errors.is_empty(), "{:?}", result.errors);
+    // A secret the server refuses: asked again, and the change is not said to be done.
+    let result = run_contacts_with(&request, "not-the-token", &stop(false));
+    assert!(result.auth_refused && result.changed.is_empty());
 }
 
 #[test]

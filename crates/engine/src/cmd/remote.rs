@@ -67,9 +67,11 @@
 //! not what the server has any more. Should an answer arrive for a change that was undone while
 //! it was on its way, the server is told the opposite ([`apply_event_outcomes`]).
 //!
-//! Contacts and calendars as such are not sent back yet: the commands that would change or
-//! delete one that a server keeps refuse ([`changeable`]). The calendars of an account and its
-//! categories are taken in as the server lists them ([`apply_calendars`], [`apply_categories`]).
+//! The contacts of an account kept in step over JMAP go back to its server too
+//! ([`super::contacts_remote`]). A Microsoft account's contacts, and calendars as such, are not
+//! sent back yet: the commands that would change or delete one that a server keeps refuse
+//! ([`changeable`]). The calendars of an account and its categories are taken in as the server
+//! lists them ([`apply_calendars`], [`apply_categories`]).
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -3439,9 +3441,17 @@ fn adopt(mailbox: &mut Mailbox, account: Id, id: Id, mut fresh: Event, token: &s
 /// - Contacts made here, and those of other accounts, are not looked at. Doing it twice changes
 ///   nothing the second time.
 ///
+/// For an account that writes its contacts to its server ([`Account::writes_contacts`]) the
+/// server's side is merged with what was changed here, part by part
+/// ([`super::contacts_remote`]): a change made here is not lost to a download.
+///
 /// Nothing is changed when this returns an error.
 pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Result<Merged, CmdError> {
-    let account = owner(mailbox, download.account, &download.email)?.id;
+    let owner = owner(mailbox, download.account, &download.email)?;
+    let account = owner.id;
+    if owner.writes_contacts() {
+        return super::contacts_remote::merge_written(mailbox, account, download);
+    }
     let mut merged = Merged::default();
     let mut known: HashMap<String, Id> = HashMap::new();
     let mut extra: Vec<Id> = Vec::new();
@@ -3482,7 +3492,7 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
     if download.complete && download.contacts.len() <= MAX_CONTACTS {
         let gone: Vec<Id> = known.iter().filter(|(remote, _)| !seen.contains(*remote)).map(|(_, id)| *id).chain(extra).collect();
         for id in gone {
-            if mailbox.remove_contact(id).is_ok() {
+            if mailbox.remove_contact_quietly(id).is_ok() {
                 merged.removed += 1;
             }
         }
@@ -3554,7 +3564,15 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
         .filter(|event| event.origin.account == account)
         .partition(|event| event.origin.id.is_empty());
     let (made_here, events): (Vec<Id>, Vec<Id>) = (made_here.iter().map(|event| event.id).collect(), events.iter().map(|event| event.id).collect());
-    let contacts: Vec<Id> = mailbox.contacts.values().filter(|contact| contact.origin.account == account).map(|contact| contact.id).collect();
+    // A contact the server was yet to be given was made here too: it stays, on this computer.
+    let (contacts_made_here, contacts): (Vec<(Id, bool)>, Vec<(Id, bool)>) = mailbox
+        .contacts
+        .values()
+        .filter(|contact| contact.origin.account == account)
+        .map(|contact| (contact.id, contact.origin.id.is_empty()))
+        .partition(|(_, made_here)| *made_here);
+    let (contacts_made_here, contacts): (Vec<Id>, Vec<Id>) =
+        (contacts_made_here.into_iter().map(|(id, _)| id).collect(), contacts.into_iter().map(|(id, _)| id).collect());
     for id in &events {
         let _ = mailbox.remove_event(*id);
     }
@@ -3563,9 +3581,19 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
             event.origin = Origin::default();
         }
     }
+    // (The server isn't told of anything: it is no longer followed. What waited for it goes.)
     for id in &contacts {
-        let _ = mailbox.remove_contact(*id);
+        let _ = mailbox.remove_contact_quietly(*id);
     }
+    for id in &contacts_made_here {
+        if let Ok(contact) = mailbox.contact_mut(*id) {
+            contact.origin = Origin::default();
+            contact.synced = None;
+        }
+    }
+    let contacts_waiting = mailbox.contact_gone.len();
+    mailbox.contact_gone.retain(|gone| gone.account != account);
+    let contacts_told = contacts_waiting - mailbox.contact_gone.len();
     // And its to-dos (the server isn't told: it is no longer followed), with the deletions that
     // waited. A to-do the server has no id for yet was made here, as an event above: it stays.
     let (tasks_made_here, tasks): (Vec<(Id, bool)>, Vec<(Id, bool)>) = mailbox
@@ -3622,6 +3650,8 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     if !events.is_empty()
         || !made_here.is_empty()
         || !contacts.is_empty()
+        || !contacts_made_here.is_empty()
+        || contacts_told > 0
         || calendars > 0
         || unsent > 0
         || tasks_gone > 0

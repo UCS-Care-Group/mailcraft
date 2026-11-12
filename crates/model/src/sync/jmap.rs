@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{FolderListing, GraphProgress, MessagePage, SendDone, SendUp, ThreadOf, is_false};
 use crate::Id;
-use crate::remote::ContactsDownload;
+use crate::remote::{ContactOp, ContactOutcome, ContactsDownload};
 
 /// Most messages of one mailbox that a run reads (the newest ones): what [`JmapMailRequest::window`]
 /// is held to, here and by the host.
@@ -373,6 +373,10 @@ pub struct JmapContactsRequest {
     /// The secret that goes beside this request is a bearer token ([`crate::JmapServer::bearer`]).
     #[serde(skip_serializing_if = "is_false")]
     pub bearer: bool,
+    /// What was made, changed or deleted here and the server is yet to hear: told to it first
+    /// (`ContactCard/set`), then the contacts are read, so that what is read shows it already.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changes: Vec<ContactOp>,
 }
 
 /// What reading a JMAP account's contacts came to. Never an error as a whole: mail goes on either way.
@@ -394,6 +398,11 @@ pub struct JmapContactsResult {
     /// every one of them is here). Its account and address are the request's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contacts: Option<ContactsDownload>,
+    /// What the server made of the request's changes, one for each that was answered. A change
+    /// that is not here (the call failed, the run was cut short) is worked out again for the next.
+    /// To be taken in before the contacts.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changed: Vec<ContactOutcome>,
     /// Problems worth telling the owner; empty when all went well.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
@@ -411,7 +420,11 @@ pub struct JmapContactsResult {
 /// Counts only, as a run's request: no address.
 impl std::fmt::Debug for JmapContactsRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("JmapContactsRequest").field("account", &self.account).field("bearer", &self.bearer).finish()
+        f.debug_struct("JmapContactsRequest")
+            .field("account", &self.account)
+            .field("bearer", &self.bearer)
+            .field("changes", &self.changes.len())
+            .finish()
     }
 }
 
@@ -423,6 +436,7 @@ impl std::fmt::Debug for JmapContactsResult {
             .field("not_offered", &self.not_offered)
             .field("contacts", &self.contacts.as_ref().map(|download| download.contacts.len()))
             .field("complete", &self.contacts.as_ref().map(|download| download.complete))
+            .field("changed", &self.changed.len())
             .field("errors", &self.errors.len())
             .field("busy_for", &self.busy_for)
             .field("stopped", &self.stopped)

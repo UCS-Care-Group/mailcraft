@@ -81,7 +81,7 @@ fn connected(replies: Vec<Reply>) -> Connection<FakeExchange> {
 }
 
 fn asked() -> JmapContactsRequest {
-    JmapContactsRequest { account: 7, email: "ada@example.org".into(), session: SESSION.into(), bearer: true }
+    JmapContactsRequest { account: 7, email: "ada@example.org".into(), session: SESSION.into(), bearer: true, changes: Vec::new() }
 }
 
 fn run<H: HttpExchange>(connection: &Connection<H>) -> JmapContactsResult {

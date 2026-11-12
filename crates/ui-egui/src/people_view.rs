@@ -882,9 +882,10 @@ fn kept_in(app: &MailApp, c: &Contact) -> Option<String> {
 }
 
 /// Whether the contact is a copy of what its account's server keeps, which can't be changed here
-/// (`remote::changeable`): the card says so beside whose it is, before Edit or Delete is tried.
+/// (`people::changeable`): the card says so beside whose it is, before Edit or Delete is tried.
+/// A contact of an account that writes its contacts to its server is changed here like any other.
 fn read_only_here(app: &MailApp, c: &Contact) -> bool {
-    mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &c.origin).is_some()
+    mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &c.origin).is_some_and(|account| !account.writes_contacts())
 }
 
 fn card_account(app: &MailApp, ui: &mut Ui, c: &Contact) {

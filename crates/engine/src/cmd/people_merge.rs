@@ -125,9 +125,10 @@ impl Group {
     }
 }
 
-/// Why `c` can't be merged, when an account's server keeps it.
+/// Why `c` can't be merged, when an account's server keeps it and only reads it out (one of an
+/// account that writes its contacts to its server is merged like any other, and the server told).
 pub fn locked(mailbox: &Mailbox, c: &Contact) -> Option<mailcraft_i18n::Text> {
-    let account = super::remote::keeper(mailbox, &c.origin)?;
+    let account = super::remote::keeper(mailbox, &c.origin).filter(|account| !account.writes_contacts())?;
     let who = super::remote::who(account);
     Some(said!("It is kept by the server of {who}, and changes made here are not sent back yet, so it can't be merged here.", who))
 }
@@ -456,7 +457,7 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
     let all: Vec<Id> = std::iter::once(keep).chain(others.iter().copied()).collect();
     let contacts = members(mailbox, &all)?;
     for c in &contacts {
-        if let Some(account) = super::remote::keeper(mailbox, &c.origin) {
+        if let Some(account) = super::remote::keeper(mailbox, &c.origin).filter(|account| !account.writes_contacts()) {
             let (name, who) = (c.name(), super::remote::who(account));
             return Err(failed!(
                 "\"{name}\" is kept by the server of {who}. Changes made here are not sent back yet, so it can't be merged here.",
@@ -650,7 +651,13 @@ fn merge(s: &mut Session, v: &Value) -> CmdResult {
     if others.len() >= MAX_MERGE {
         return Err(failed!("At most {max} contacts can be merged at once.", max = MAX_MERGE));
     }
-    let contact = merged(&s.mailbox, keep, &others, &picks(v)?)?;
+    let mut contact = merged(&s.mailbox, keep, &others, &picks(v)?)?;
+    // Where a server is told of its account's contacts: the kept one's change goes up (what it
+    // was is what the server has, when nothing says so yet), and the others are deleted there.
+    if let Some(before) = s.mailbox.contact(keep) {
+        super::contacts_remote::remember(&s.mailbox, before, &mut contact);
+    }
+    super::contacts_remote::room_for_deletions(&s.mailbox, others.len())?;
     *s.mailbox.contact_mut(keep)? = contact;
     for id in &others {
         s.mailbox.remove_contact(*id)?;

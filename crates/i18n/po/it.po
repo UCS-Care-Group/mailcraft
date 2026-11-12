@@ -1356,6 +1356,11 @@ msgid "Apply Sent Calendar Changes"
 msgstr "Applica modifiche al calendario inviate"
 
 #. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Apply Sent Contact Changes"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -2778,6 +2783,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/compose.rs
 msgid "Contact Card"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Contact Changes to Send"
 msgstr ""
 
 #. interface
@@ -5868,6 +5878,11 @@ msgstr "Passa al server non appena MailCraft può modificare le regole del serve
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
 msgstr "È un identificatore, non un segreto. MailCraft lo conserva nelle impostazioni (File › Opzioni)."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "It is deleted from its account's server too."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -10848,7 +10863,7 @@ msgid "Send & Receive"
 msgstr "Invia e ricevi"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Invia/Ricevi"
@@ -14735,6 +14750,11 @@ msgid "Too many calendar changes are waiting to be sent to the server. Let Send/
 msgstr "Troppe modifiche al calendario sono in attesa di essere inviate al server. Lasciare prima che Invia/Ricevi le trasmetta."
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Too many deleted contacts are waiting to be told to the server. Let Send/Receive get them through first."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "Too many shared mailboxes are listed twice"
 msgstr ""
@@ -15295,6 +15315,11 @@ msgstr "Esito del precedente Invia/Ricevi: l'ultimo non ha portato nulla di nuov
 #, fuzzy
 msgid "What the people invited are asked for is for its organizer to say."
 msgstr "Cosa viene chiesto agli invitati lo decide l'organizzatore."
+
+#. interface
+#: crates/ui-egui/src/jmap_contacts.rs
+msgid "What the server said of the changed contacts couldn't be taken in: {error}"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs

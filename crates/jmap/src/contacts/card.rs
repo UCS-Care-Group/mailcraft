@@ -6,6 +6,9 @@
 //! as absent. Every map and every list is read for its first few entries only, every string is cut before
 //! it is kept. A card's media (its picture, a logo, a sound) are not read at all, whether written into the
 //! card, named as a blob or as an address on the web: nothing is ever fetched for a card.
+//!
+//! What is read here is what `write` writes: the bounds below and which entry a birthday is read from
+//! ([`birth`]) are shared with it, so that a contact that went up comes back the same.
 
 use mailcraft_model::remote::RemoteContact;
 use mailcraft_model::{Labeled, PostalAddress};
@@ -15,15 +18,15 @@ use serde_json::{Map, Value};
 use crate::reader::cut;
 
 /// Longest name, number, address or label kept, in bytes: the model cuts again, to less.
-const MAX_LINE: usize = 1_024;
+pub(super) const MAX_LINE: usize = 1_024;
 /// Longest note kept of one entry, and of all of them together.
-const MAX_NOTE: usize = 16 << 10;
+pub(super) const MAX_NOTE: usize = 16 << 10;
 const MAX_NOTES: usize = 64 << 10;
 /// Longest web address kept: a longer one is left out, since half an address is none.
-const MAX_URI: usize = 2_048;
+pub(super) const MAX_URI: usize = 2_048;
 /// Most entries of a map that are looked at, and most that are kept of them.
 const MAX_SCAN: usize = 200;
-const MAX_ENTRIES: usize = 50;
+pub(super) const MAX_ENTRIES: usize = 50;
 /// Most components of a name or of a postal address that are read.
 const MAX_PARTS: usize = 64;
 
@@ -55,7 +58,7 @@ pub(crate) fn card(id: &str, value: &Value) -> Option<RemoteContact> {
         .collect();
     contact.addresses = entries(card.get("addresses")).into_iter().map(|(_, address)| postal(address)).filter(|a| !a.is_empty()).collect();
     contact.websites = websites(card);
-    contact.birthday = birthday(card);
+    contact.birthday = birth(card).map(|(_, day)| day);
     contact.notes = notes(card.get("notes"));
     contact.modified =
         card.get("updated").and_then(Value::as_str).filter(|at| at.len() <= 40).and_then(|at| mailcraft_time::iso_to_timestamp(at, 0)).unwrap_or(0);
@@ -160,7 +163,7 @@ fn name(card: &Map<String, Value>, contact: &mut RemoteContact) {
 }
 
 /// A postal address, from its components, or from the one text of it when it has none that are used.
-fn postal(address: &Map<String, Value>) -> PostalAddress {
+pub(super) fn postal(address: &Map<String, Value>) -> PostalAddress {
     let parts = components(address);
     let of = |kind: &str| {
         let mut whole = String::new();
@@ -218,25 +221,28 @@ fn websites(card: &Map<String, Value>) -> Vec<String> {
     out
 }
 
-/// The day of birth: the first anniversary of that kind that names a whole day, as a date of year, month
-/// and day or as a moment in UTC.
-fn birthday(card: &Map<String, Value>) -> Option<Date> {
+/// The day of birth, and the key of the anniversary it is read from: the first anniversary of that kind that
+/// names a whole day, as a date of year, month and day or as a moment in UTC.
+pub(super) fn birth(card: &Map<String, Value>) -> Option<(&str, Date)> {
     entries(card.get("anniversaries"))
         .into_iter()
         .filter(|(_, anniversary)| anniversary.get("kind").and_then(Value::as_str) == Some("birth"))
-        .find_map(|(_, anniversary)| {
-            let date = anniversary.get("date")?.as_object()?;
-            if let Some(utc) = date.get("utc").and_then(Value::as_str) {
-                return utc.get(..10).and_then(Date::parse_iso);
-            }
-            let number = |name: &str| date.get(name).and_then(Value::as_u64);
-            let year = i32::try_from(number("year")?).ok()?;
-            Date::new(year, u8::try_from(number("month")?).ok()?, u8::try_from(number("day")?).ok()?)
-        })
+        .find_map(|(key, anniversary)| day_of(anniversary).map(|day| (key, day)))
+}
+
+/// The day an anniversary names, when it names a whole one.
+fn day_of(anniversary: &Map<String, Value>) -> Option<Date> {
+    let date = anniversary.get("date")?.as_object()?;
+    if let Some(utc) = date.get("utc").and_then(Value::as_str) {
+        return utc.get(..10).and_then(Date::parse_iso);
+    }
+    let number = |name: &str| date.get(name).and_then(Value::as_u64);
+    let year = i32::try_from(number("year")?).ok()?;
+    Date::new(year, u8::try_from(number("month")?).ok()?, u8::try_from(number("day")?).ok()?)
 }
 
 /// The notes, one after the other with an empty line between.
-fn notes(value: Option<&Value>) -> String {
+pub(super) fn notes(value: Option<&Value>) -> String {
     let mut out = String::new();
     for (_, entry) in entries(value) {
         let note = entry.get("note").and_then(Value::as_str).map(|note| cut(note, MAX_NOTE)).unwrap_or_default();

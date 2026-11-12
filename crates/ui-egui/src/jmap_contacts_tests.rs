@@ -11,7 +11,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::Session;
-use mailcraft_model::remote::{ContactsDownload, RemoteContact};
+use mailcraft_model::remote::{ContactField, ContactOpKind, ContactOutcome, ContactResult, ContactsDownload, RemoteContact};
 use mailcraft_model::sync::JmapMailResult;
 use mailcraft_model::{Labeled, Mailbox};
 use serde_json::json;
@@ -268,4 +268,216 @@ fn a_mailbox_from_a_file_has_no_contacts_read_until_its_servers_are_confirmed() 
     assert!(!app.jmap_contacts_tick_at(0.0) && none(&jobs));
     app.execute("ui.confirmServers", json!({})).unwrap();
     assert!(app.jmap_contacts_tick_at(1_000.0));
+}
+
+/// The first reading of `account`'s contacts, with rounds by themselves on: Zoe is here as the
+/// server has her, and nothing waits. The time it ended at.
+fn zoe_read(app: &mut MailApp, account: Id, jobs: &Jobs) -> f64 {
+    app.passwords.insert(account, "typed here".into());
+    app.auto_sync = true;
+    assert!(app.jmap_contacts_tick_at(0.0));
+    let (job, tx) = one(jobs);
+    assert!(job.request.changes.is_empty(), "nothing was changed here yet");
+    tx.send(answer(&job, JmapContactsResult { contacts: zoe(&job), ..Default::default() })).unwrap();
+    app.poll_jmap_contacts_at(1_000.0);
+    assert!(has_zoe(app, account) && !app.jmap_contacts_tick_at(1_500.0));
+    1_500.0
+}
+
+fn zoe_here(app: &MailApp, account: Id) -> mailcraft_model::Contact {
+    app.session.mailbox.contacts.values().find(|c| c.origin.account == account && c.origin.id == "C1").map(|c| c.as_ref().clone()).unwrap()
+}
+
+fn waiting(app: &MailApp, account: Id) -> usize {
+    contacts_remote::contacts_waiting(&app.session.mailbox, account)
+}
+
+/// `job`'s changes, each answered with `result`; a creation that is done is given the id `made`.
+fn outcomes(job: &JmapContactsJob, result: ContactResult, made: &str) -> Vec<ContactOutcome> {
+    let of = |op: &mailcraft_model::remote::ContactOp| ContactOutcome {
+        kind: op.kind,
+        contact: op.contact,
+        id: if op.kind == ContactOpKind::Create && result == ContactResult::Done { made.to_string() } else { op.id.clone() },
+        result,
+        changed: if result == ContactResult::Done { op.changed.clone() } else { Vec::new() },
+        error: String::new(),
+    };
+    job.request.changes.iter().map(of).collect()
+}
+
+#[test]
+fn a_change_made_here_goes_soon_and_what_the_server_said_is_taken_in_before_what_it_has() {
+    let (mut app, ada, jobs, _runs) = window();
+    let t = zoe_read(&mut app, ada, &jobs);
+    let zoe_id = zoe_here(&app, ada).id;
+    app.execute("people.edit", json!({"id": zoe_id, "notes": "Met in May."})).unwrap();
+    let made = app.execute("people.new", json!({"first": "Dee", "email": "dee@example.org", "account": ada})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(waiting(&app, ada), 2);
+    // A moment of quiet first, then it goes: not at the next quarter of an hour.
+    assert!(!app.jmap_contacts_tick_at(t) && !app.jmap_contacts_tick_at(t + QUIET_MS - 1.0));
+    assert!(app.jmap_contacts_tick_at(t + QUIET_MS));
+    let (job, tx) = one(&jobs);
+    let kinds: Vec<(ContactOpKind, Id, &str)> = job.request.changes.iter().map(|op| (op.kind, op.contact, op.id.as_str())).collect();
+    assert_eq!(kinds, [(ContactOpKind::Update, zoe_id, "C1"), (ContactOpKind::Create, made, "")]);
+    assert_eq!((&job.request.changes[0].changed, job.request.changes[0].card.notes.as_str()), (&vec![ContactField::Notes], "Met in May."));
+    assert_eq!(job.request.changes[1].card.first, "Dee");
+    // One at a time, whatever is changed meanwhile.
+    assert!(!app.jmap_contacts_tick_at(t + 10.0 * QUIET_MS) && none(&jobs));
+    // The server took both, and what it has now was read after: Dee under the id it gave her,
+    // with a nickname of the server's own. Were the contacts taken in first, she would be here twice.
+    let mut download = zoe(&job).unwrap();
+    download.contacts[0].notes = "Met in May.".into();
+    download.contacts.push(RemoteContact {
+        id: "C2".into(),
+        first: "Dee".into(),
+        nickname: "Dee from the server".into(),
+        emails: vec![Labeled::new("work", "dee@example.org")],
+        ..Default::default()
+    });
+    let done = outcomes(&job, ContactResult::Done, "C2");
+    tx.send(answer(&job, JmapContactsResult { contacts: Some(download), changed: done, ..Default::default() })).unwrap();
+    let at = t + 11.0 * QUIET_MS;
+    app.poll_jmap_contacts_at(at);
+    let dee = app.session.mailbox.contact(made).unwrap();
+    assert_eq!((dee.origin.account, dee.origin.id.as_str(), dee.nickname.as_str()), (ada, "C2", "Dee from the server"));
+    assert_eq!(app.session.mailbox.contacts.values().filter(|c| c.origin.account == ada).count(), 2, "nobody twice");
+    assert_eq!((zoe_here(&app, ada).notes.as_str(), waiting(&app, ada)), ("Met in May.", 0));
+    assert!(!app.has_sync_problems());
+    // Nothing is left to tell: nothing goes until the next quarter of an hour.
+    assert!(!app.jmap_contacts_tick_at(at + 10.0 * QUIET_MS) && none(&jobs));
+}
+
+#[test]
+fn a_deletion_goes_with_the_job_and_can_no_longer_be_undone() {
+    let (mut app, ada, jobs, _runs) = window();
+    let t = zoe_read(&mut app, ada, &jobs);
+    app.execute("people.delete", json!({"id": zoe_here(&app, ada).id})).unwrap();
+    assert!(app.session.can_undo());
+    assert!(!app.jmap_contacts_tick_at(t));
+    assert!(app.jmap_contacts_tick_at(t + QUIET_MS));
+    let (job, tx) = one(&jobs);
+    assert_eq!((job.request.changes.len(), job.request.changes[0].kind, job.request.changes[0].id.as_str()), (1, ContactOpKind::Delete, "C1"));
+    assert!(!app.session.can_undo(), "the server is being told: the contact would come back here alone");
+    // The server deleted her, and no longer shows her.
+    let empty = ContactsDownload { contacts: Vec::new(), ..zoe(&job).unwrap() };
+    let done = outcomes(&job, ContactResult::Done, "");
+    tx.send(answer(&job, JmapContactsResult { contacts: Some(empty), changed: done, ..Default::default() })).unwrap();
+    app.poll_jmap_contacts_at(t + 2.0 * QUIET_MS);
+    assert!(!has_zoe(&app, ada) && app.session.mailbox.contact_gone.is_empty() && waiting(&app, ada) == 0);
+}
+
+#[test]
+fn what_the_server_refuses_is_said_to_the_owner_put_back_and_not_sent_again() {
+    let (mut app, ada, jobs, _runs) = window();
+    let t = zoe_read(&mut app, ada, &jobs);
+    app.execute("people.edit", json!({"id": zoe_here(&app, ada).id, "notes": "Too much for it."})).unwrap();
+    assert!(!app.jmap_contacts_tick_at(t));
+    assert!(app.jmap_contacts_tick_at(t + QUIET_MS));
+    let (job, tx) = one(&jobs);
+    let mut refused = outcomes(&job, ContactResult::Refused, "");
+    refused[0].error = "invalidProperties".into();
+    tx.send(answer(&job, JmapContactsResult { contacts: zoe(&job), changed: refused, ..Default::default() })).unwrap();
+    let at = t + 2.0 * QUIET_MS;
+    app.poll_jmap_contacts_at(at);
+    assert!(app.has_sync_problems());
+    let lines = app.account_problem_lines(ada);
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains("didn't take a change to the contact \"Zoe Example\"") && lines[0].contains("invalidProperties"), "{lines:?}");
+    // As the server has it again, and nothing more to tell: no job by itself, and no failure
+    // either (the reading itself went well).
+    assert!(zoe_here(&app, ada).notes.is_empty() && waiting(&app, ada) == 0);
+    assert!(!app.jmap_contacts_tick_at(at + 20.0 * QUIET_MS) && !app.jmap_contacts_tick_at(at + 10.0 * MINUTE));
+    assert!(none(&jobs));
+}
+
+#[test]
+fn a_change_goes_by_itself_only_with_rounds_on_a_secret_and_a_server_that_takes_it() {
+    let (mut app, ada, jobs, runs) = window();
+    let t = zoe_read(&mut app, ada, &jobs);
+    app.execute("people.edit", json!({"id": zoe_here(&app, ada).id, "notes": "Changed here."})).unwrap();
+    let later = t + 100.0 * QUIET_MS;
+    // Send/Receive doesn't run by itself: neither does this.
+    app.auto_sync = false;
+    assert!(!app.jmap_contacts_tick_at(later) && !app.jmap_contacts_tick_at(later + QUIET_MS) && none(&jobs));
+    app.auto_sync = true;
+    // No secret at hand: no job, and nobody is asked for one.
+    app.passwords.remove(&ada);
+    assert!(!app.jmap_contacts_tick_at(later) && !app.jmap_contacts_tick_at(later + 2.0 * QUIET_MS) && none(&jobs));
+    assert!(app.dialog.is_none());
+    // The server turned the secret down: nothing by itself, with a secret at hand again too.
+    app.passwords.insert(ada, "typed again".into());
+    app.jmap_refused.insert(ada);
+    assert!(!app.jmap_contacts_tick_at(later + 3.0 * QUIET_MS) && none(&jobs));
+    // The owner's own Send/Receive: the change goes with the contacts job that follows it, rounds
+    // by themselves or not.
+    app.auto_sync = false;
+    app.execute("ui.sync", json!({"account": ada})).unwrap();
+    let (run, tx) = one(&runs);
+    assert!(!app.jmap_contacts_tick_at(later + 4.0 * QUIET_MS), "its Send/Receive goes first");
+    tx.send(JmapMailResult { account: ada, email: run.request.email.clone(), whole: true, ..Default::default() }).unwrap();
+    app.poll_sync();
+    assert!(!app.jmap_refused.contains(&ada));
+    assert!(app.jmap_contacts_tick_at(later + 5.0 * QUIET_MS));
+    let (job, _tx) = one(&jobs);
+    assert_eq!((job.request.changes.len(), job.request.changes[0].card.notes.as_str()), (1, "Changed here."));
+}
+
+#[test]
+fn a_job_that_gets_no_change_through_is_tried_later_each_time_and_a_failed_one_waits_its_turn() {
+    let (mut app, ada, jobs, _runs) = window();
+    let t = zoe_read(&mut app, ada, &jobs);
+    app.execute("people.edit", json!({"id": zoe_here(&app, ada).id, "notes": "Changed here."})).unwrap();
+    assert!(!app.jmap_contacts_tick_at(t));
+    assert!(app.jmap_contacts_tick_at(t + QUIET_MS));
+    // The answer says nothing of the change (the call for it failed): it is worked out again,
+    // and goes again, but not at once.
+    let (job, tx) = one(&jobs);
+    tx.send(answer(&job, JmapContactsResult { contacts: zoe(&job), ..Default::default() })).unwrap();
+    let at = t + 2.0 * QUIET_MS;
+    app.poll_jmap_contacts_at(at);
+    assert_eq!((zoe_here(&app, ada).notes.as_str(), waiting(&app, ada)), ("Changed here.", 1), "the download didn't take it back");
+    assert!(!app.jmap_contacts_tick_at(at + 2.0 * QUIET_MS - 1.0));
+    assert!(app.jmap_contacts_tick_at(at + 2.0 * QUIET_MS));
+    let (job, tx) = one(&jobs);
+    assert_eq!(job.request.changes.len(), 1);
+    // It couldn't be asked: nothing changes, and twice as long again.
+    let failed = outcomes(&job, ContactResult::Failed, "");
+    tx.send(answer(&job, JmapContactsResult { contacts: zoe(&job), changed: failed, ..Default::default() })).unwrap();
+    let at = at + 3.0 * QUIET_MS;
+    app.poll_jmap_contacts_at(at);
+    assert_eq!(waiting(&app, ada), 1);
+    assert!(!app.jmap_contacts_tick_at(at + 4.0 * QUIET_MS - 1.0));
+    assert!(app.jmap_contacts_tick_at(at + 4.0 * QUIET_MS));
+    // A job that came to nothing at all leaves the server alone as ever, changes waiting or not.
+    let (job, tx) = one(&jobs);
+    tx.send(answer(&job, JmapContactsResult { errors: vec!["Couldn't reach the server".into()], ..Default::default() })).unwrap();
+    let at = at + 5.0 * QUIET_MS;
+    app.poll_jmap_contacts_at(at);
+    assert!(!app.jmap_contacts_tick_at(at + FIRST_RETRY_MS - 1.0));
+    assert!(app.jmap_contacts_tick_at(at + FIRST_RETRY_MS));
+    // Through at last: the next change goes after the usual moment again.
+    let (job, tx) = one(&jobs);
+    let mut download = zoe(&job).unwrap();
+    download.contacts[0].notes = "Changed here.".into();
+    let done = outcomes(&job, ContactResult::Done, "");
+    tx.send(answer(&job, JmapContactsResult { contacts: Some(download), changed: done, ..Default::default() })).unwrap();
+    let at = at + FIRST_RETRY_MS + 1_000.0;
+    app.poll_jmap_contacts_at(at);
+    assert_eq!(waiting(&app, ada), 0);
+    app.execute("people.edit", json!({"id": zoe_here(&app, ada).id, "notes": "Changed again."})).unwrap();
+    assert!(!app.jmap_contacts_tick_at(at + 1.0));
+    assert!(app.jmap_contacts_tick_at(at + 1.0 + QUIET_MS));
+}
+
+#[test]
+fn a_contact_of_an_account_that_writes_is_changed_in_people_and_its_deletion_is_asked_about() {
+    let (mut app, ada, jobs, _runs) = window();
+    zoe_read(&mut app, ada, &jobs);
+    let zoe = zoe_here(&app, ada);
+    assert!(mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &zoe.origin).is_some_and(|a| a.writes_contacts()));
+    // Deleting one asks first, as for any contact: nothing goes before the owner says yes.
+    app.execute("people.select", json!({"id": zoe.id})).unwrap();
+    app.run("people.delete", json!({"id": zoe.id})).unwrap();
+    assert!(has_zoe(&app, ada) && app.dialog.is_some(), "asked about first");
+    assert!(app.session.mailbox.contact_gone.is_empty());
 }
