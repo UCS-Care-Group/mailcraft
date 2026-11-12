@@ -585,7 +585,6 @@ fn run(args: &[String]) -> Result<(), Failure> {
                             params["found"] = json!({
                                 "incoming": discovered.incoming.as_ref().map(server),
                                 "outgoing": discovered.outgoing.as_ref().map(server),
-                                "username": discovered.username,
                             });
                         }
                         found = s.run("account.preset", &params)?;

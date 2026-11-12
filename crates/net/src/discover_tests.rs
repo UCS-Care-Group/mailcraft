@@ -65,7 +65,6 @@ fn implicit_tls_records_are_preferred_and_starttls_ones_fall_back() {
     assert_eq!(found.exchangers, ["mx.example.org"]);
     assert_eq!(server_of(&found.incoming), Some(("imap.example.org", 993, Security::Tls, Via::Srv)));
     assert_eq!(server_of(&found.outgoing), Some(("smtp.example.org", 587, Security::StartTls, Via::Srv)));
-    assert!(found.username.is_empty());
     assert_eq!(
         asked(&server),
         ["example.org MX", "_imaps._tcp.example.org SRV", "_submissions._tcp.example.org SRV", "_submission._tcp.example.org SRV"]

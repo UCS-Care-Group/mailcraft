@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! #1063: the servers of an address at a domain nobody knows, found in the domain's own records
-//! (its SRV records, what it publishes for mail programs, Mozilla's ISP database): shown in
-//! Server settings for the owner to check, with where they came from said; a server outside the
+//! #1063: the servers of an address at a domain nobody knows, found in the domain's own SRV
+//! records (RFC 6186): shown in Server settings for the owner to check, with where they came from said; a server outside the
 //! owner's domain is named to the owner before the password goes there, and a no sends nothing.
 
 use mailcraft_model::provider::{FoundServer, Via};
@@ -31,13 +30,15 @@ fn servers_found_in_the_domains_records_are_shown_to_check_and_said_to_be_found(
         exchangers: vec!["mx.lumen.example".into()],
         incoming: found("mail.lumen.example", 993, Security::Tls, Via::Srv),
         outgoing: found("mail.lumen.example", 587, Security::StartTls, Via::Srv),
-        username: "%EMAILLOCALPART%".into(),
     };
     let mut h = with_found(a, discovered);
     let w = wizard(&h).unwrap();
     // Not a guess, and said to come from the domain's DNS; open for the owner to check.
     assert_eq!((w.found, w.guessed, w.settings_open, w.oauth.is_none()), (Some(Via::Srv), false, true, true));
-    assert_eq!((w.username.as_str(), w.incoming.host.as_str(), w.outgoing.host.as_str()), ("noor", "mail.lumen.example", "mail.lumen.example"));
+    assert_eq!(
+        (w.username.as_str(), w.incoming.host.as_str(), w.outgoing.host.as_str()),
+        ("noor@lumen.example", "mail.lumen.example", "mail.lumen.example")
+    );
     assert_eq!(
         (w.incoming.port.as_str(), w.incoming.security, w.outgoing.port.as_str(), w.outgoing.security),
         ("993", Security::Tls, "587", Security::StartTls)
@@ -53,28 +54,31 @@ fn servers_found_in_the_domains_records_are_shown_to_check_and_said_to_be_found(
     let (account, secret) = &asked[0];
     assert_eq!(
         (account.incoming.as_ref().map(|s| s.host.as_str()), account.username.as_str(), secret.as_str()),
-        (Some("mail.lumen.example"), "noor", TYPED)
+        (Some("mail.lumen.example"), "noor@lumen.example", TYPED)
     );
 }
 
 #[test]
 fn a_server_outside_the_domain_is_named_before_the_password_goes_there() {
-    for via in [Via::Srv, Via::Autoconfig, Via::Ispdb] {
+    // A host far longer than a line, and one that ends as it does: each named in full, so that
+    // the two can't be taken for each other.
+    let tail = format!("{}.hosted.example", ["mail"; 40].join("."));
+    let (long_in, long_out) = (format!("imap.{tail}"), format!("smtp.{tail}"));
+    for (incoming, outgoing) in [("imap.hosted.example", "smtp.hosted.example"), (long_in.as_str(), long_out.as_str())] {
         let mut a = app(false);
         let checked = checks(&mut a, None);
         let discovered = Discovered {
             exchangers: vec!["mx.hosted.example".into()],
-            incoming: found("imap.hosted.example", 993, Security::Tls, via),
-            outgoing: found("smtp.hosted.example", 465, Security::Tls, via),
-            username: String::new(),
+            incoming: found(incoming, 993, Security::Tls, Via::Srv),
+            outgoing: found(outgoing, 465, Security::Tls, Via::Srv),
         };
         let mut h = with_found(a, discovered);
-        assert_eq!(wizard(&h).map(|w| w.found), Some(Some(via)));
+        assert_eq!(wizard(&h).map(|w| w.found), Some(Some(Via::Srv)));
         type_password(&mut h);
         press(&mut h, Key::Enter);
         // Asked first, naming every such host whole; nothing was sent.
-        assert_eq!(page(&h), Some(Page::ServerConsent), "{via:?}");
-        assert!(says(&h, "imap.hosted.example, smtp.hosted.example"), "{via:?}: the hosts aren't named");
+        assert_eq!(page(&h), Some(Page::ServerConsent), "{incoming}");
+        assert!(says(&h, &format!("{incoming}, {outgoing}")), "{incoming}: the hosts aren't named whole");
         assert!(says(&h, "Send your password to another server?"));
         assert!(checked.lock().unwrap().is_empty());
         // No: back to the servers, and still nothing sent.
@@ -87,7 +91,7 @@ fn a_server_outside_the_domain_is_named_before_the_password_goes_there() {
         click(&mut h, "Send my sign-in");
         assert_eq!(page(&h), Some(Page::Checking));
         assert_eq!(checked.lock().unwrap().len(), 1);
-        assert_eq!(checked.lock().unwrap()[0].0.incoming.as_ref().map(|s| s.host.clone()), Some("imap.hosted.example".to_string()));
+        assert_eq!(checked.lock().unwrap()[0].0.incoming.as_ref().map(|s| s.host.clone()), Some(incoming.to_string()));
         click(&mut h, "Cancel");
         assert_eq!(page(&h), Some(Page::Password));
         press(&mut h, Key::Enter);
@@ -100,19 +104,14 @@ fn a_host_the_owner_typed_is_their_own_and_what_is_not_found_is_said_to_be_a_gue
     let mut a = app(false);
     let checked = checks(&mut a, None);
     // Only the incoming server was found, outside the domain; the outgoing one is a guess.
-    let discovered = Discovered {
-        exchangers: Vec::new(),
-        incoming: found("imap.hosted.example", 993, Security::Tls, Via::Autoconfig),
-        outgoing: None,
-        username: "%EMAILADDRESS%".into(),
-    };
+    let discovered = Discovered { exchangers: Vec::new(), incoming: found("imap.hosted.example", 993, Security::Tls, Via::Srv), outgoing: None };
     let mut h = with_found(a, discovered);
     let w = wizard(&h).unwrap();
     assert_eq!(
         (w.found, w.guessed, w.outgoing.host.as_str(), w.username.as_str()),
-        (Some(Via::Autoconfig), true, "smtp.lumen.example", "noor@lumen.example")
+        (Some(Via::Srv), true, "smtp.lumen.example", "noor@lumen.example")
     );
-    assert!(says(&h, "publishes for mail programs") && says(&h, "only a guess"));
+    assert!(says(&h, "found in the DNS records") && says(&h, "only a guess"));
     // The owner puts a server of their own choosing in its place: their own, not asked about.
     wizard_mut(&mut h).incoming.host = "imap.other.example".into();
     type_password(&mut h);

@@ -743,7 +743,6 @@ impl AccountSetup {
                 records.insert("outgoing".into(), server(outgoing));
             }
             if !records.is_empty() {
-                records.insert("username".into(), json!(line(&found.username, LINE)));
                 m.insert("found".into(), Value::Object(records));
             }
         }
@@ -1805,14 +1804,11 @@ impl AccountSetup {
     /// outside the owner's domain (#1063): the hosts, whole, and where they were named.
     fn server_consent_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
-        let hosts = self.hosts_to_ask().iter().map(|host| exchange::host_shown(host, 120)).collect::<Vec<_>>().join(", ");
+        // Whole, however long: two hosts that end alike must not look alike here.
+        let hosts = self.hosts_to_ask().join(", ");
         let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
         let why = match self.found.unwrap_or(Via::Srv) {
             Via::Srv => tl!("The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."),
-            Via::Autoconfig => {
-                tl!("What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain.")
-            }
-            Via::Ispdb => tl!("Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."),
         };
         page(ui, &t, |ui| {
             heading(ui, tl!("Send your password to another server?"), &t);
@@ -1960,10 +1956,6 @@ impl AccountSetup {
                 let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
                 let what = match via {
                     Via::Srv => tl!("The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."),
-                    Via::Autoconfig => tl!(
-                        "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
-                    ),
-                    Via::Ispdb => tl!("The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."),
                 };
                 note(ui, &fmt(what, &[("domain", &domain)]), t.text);
             }
@@ -2900,12 +2892,11 @@ mod tests {
                 via: Via::Srv,
             }),
             outgoing: None,
-            username: "%EMAILLOCALPART%".into(),
         };
         let (_, params) = w.preset_command(Some(&found), None).unwrap();
         assert_eq!(
             params,
-            json!({"email": "noor@example.org", "mx": ["mx.example.org"], "found": {"incoming": {"host": "imap.example.org", "port": 993, "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}})
+            json!({"email": "noor@example.org", "mx": ["mx.example.org"], "found": {"incoming": {"host": "imap.example.org", "port": 993, "security": "tls", "via": "srv"}}})
         );
         // A tile of the Choose page names the service; "This device only" adds a mailbox without servers.
         assert_eq!(
@@ -3050,13 +3041,11 @@ mod tests {
             exchangers: vec![long.clone(); 500],
             incoming: Some(provider::FoundServer { server: Server { host: long.clone(), port: 993, security: Security::Tls }, via: Via::Srv }),
             outgoing: None,
-            username: long.clone(),
         };
         let (_, params) = w.preset_command(Some(&hostile), None).unwrap();
         let passed = params["mx"].as_array().unwrap();
         assert!(passed.len() == 20 && passed.iter().all(|host| host.as_str().unwrap().chars().count() <= 255));
         assert!(params["found"]["incoming"]["host"].as_str().unwrap().chars().count() <= HOST);
-        assert!(params["found"]["username"].as_str().unwrap().chars().count() <= LINE);
         let answer = a.session.run("account.preset", &params).unwrap();
         assert_eq!((answer["via"].as_str(), answer["incoming"]["host"].as_str()), (Some("guess"), Some("imap.example.org")));
     }

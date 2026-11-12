@@ -7735,11 +7735,6 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "Door ze te verplaatsen komen ze in de agenda van uw account, waar Outlook en uw andere apparaten ze ook hebben."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -13998,16 +13993,6 @@ msgstr "De naam van de server"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr ""
 
@@ -15984,11 +15969,6 @@ msgstr ""
 #, fuzzy
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "Wat u schreef is te lang voor een koppeling naar GitHub: maak het korter en voeg de rest toe op GitHub"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
-msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs

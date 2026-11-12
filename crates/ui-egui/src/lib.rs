@@ -342,9 +342,8 @@ pub struct Services {
     pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
     /// Desktop: find out about a domain on a background thread, so account setup can tell whose
     /// servers an address at a company's own domain uses: its mail exchangers (best first), and,
-    /// when they name no provider this program knows, the servers its own records name (its SRV
-    /// records, RFC 6186; what it publishes for mail programs; Mozilla's ISP database; #1063),
-    /// for the owner to confirm. Only the domain is given, never the mailbox name.
+    /// when they name no provider this program knows, the servers its own SRV records name
+    /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before

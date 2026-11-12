@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (as the source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts)} (what the host found in the domain's own records, #1063: its SRV records (RFC 6186), the autoconfig document it publishes, or Mozilla's ISP database; taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess) and `known` whether they are a provider's own; what is found or guessed is for the owner to confirm; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"}, "outgoing"?: same} (what the host found in the domain's own SRV records, RFC 6186, #1063; taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063); what is found or guessed is for the owner to confirm; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -172,13 +172,10 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     let known = found.is_some();
     // A domain nobody here knows: the servers a host found in its own records (#1063), for the
     // owner to confirm, and the usual names for whichever it lacks.
-    let (mut incoming, mut outgoing, mut username) = (None, None, email.clone());
+    let (mut incoming, mut outgoing) = (None, None);
     if !known && let Some(records) = v.get("found").filter(|f| f.is_object()) {
         incoming = found_server(records.get("incoming"), (993, 143));
         outgoing = found_server(records.get("outgoing"), (465, 587));
-        if incoming.is_some() || outgoing.is_some() {
-            username = found_username(p::str(records, "username").unwrap_or_default(), &email, &domain);
-        }
     }
     let preset = found.unwrap_or_else(|| provider::guess(&domain));
     let via_of = |server: &Option<(Server, Via)>| server.as_ref().map(|(_, via)| via.code()).unwrap_or("guess");
@@ -188,15 +185,19 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         (false, "guess", other) => other,
         (false, own, _) => own,
     };
-    // In the words `account.add` takes.
-    let server = |s: &Server, via: &str| json!({"host": s.host, "port": s.port, "security": s.security.code(), "via": via});
+    // In the words `account.add` takes, and whether a found host lies outside the address's
+    // domain, so that an agent asks the owner before a password goes there as the window does.
+    let server = |s: &Server, via: &str| {
+        let outside = Via::parse(via).is_some() && !mailcraft_model::is_within(&s.host, &domain);
+        json!({"host": s.host, "port": s.port, "security": s.security.code(), "via": via, "outside": outside})
+    };
     Ok(json!({
         "known": known,
         "via": via,
         "service": preset.service,
         "auth": if preset.oauth.is_some() { "oauth2" } else { "password" },
         "provider": preset.oauth.map(OAuthProvider::code),
-        "username": username,
+        "username": email,
         "incoming": server(incoming.as_ref().map(|(s, _)| s).unwrap_or(&preset.incoming), if known { via } else { incoming_via }),
         "outgoing": server(outgoing.as_ref().map(|(s, _)| s).unwrap_or(&preset.outgoing), if known { via } else { outgoing_via }),
         "note": preset.note,
@@ -231,19 +232,6 @@ fn found_server(v: Option<&Value>, usual: (u16, u16)) -> Option<(Server, Via)> {
     };
     let via = Via::parse(p::str(v, "via")?)?;
     Some((Server { host, port, security }, via))
-}
-
-/// The user name a found source says the owner signs in with: the address, or what the
-/// source's placeholders make of it. Anything else that still has a placeholder in it, or that
-/// no field could hold, is the address.
-fn found_username(template: &str, email: &str, domain: &str) -> String {
-    let template: String = template.trim().chars().filter(|c| !c.is_control()).take(254).collect();
-    if template.is_empty() {
-        return email.to_string();
-    }
-    let local = email.rsplit_once('@').map(|(local, _)| local).unwrap_or(email);
-    let filled = template.replace("%EMAILADDRESS%", email).replace("%EMAILLOCALPART%", local).replace("%EMAILDOMAIN%", domain);
-    if filled.contains('%') || filled.chars().count() > 254 { email.to_string() } else { filled }
 }
 
 fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
