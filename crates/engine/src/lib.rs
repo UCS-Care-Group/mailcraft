@@ -53,6 +53,7 @@ mod opening_tests;
 mod openpgp_signature_tests;
 mod picture_fit;
 pub mod print;
+pub mod print_views;
 pub mod private_keys;
 #[cfg(test)]
 #[allow(dead_code)]

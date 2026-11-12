@@ -20,56 +20,111 @@ pub const MAX_MESSAGES: usize = 100;
 /// How wide a body is laid out for its `@media` rules, in CSS pixels: a printed page's.
 const PAGE_PX: f32 = 650.0;
 
-/// The words of a printed header and page foot, in the interface language.
-#[derive(Clone, Debug)]
-pub struct Labels {
-    pub from: String,
-    pub sent: String,
-    pub to: String,
-    pub cc: String,
-    pub attachments: String,
-    /// `{n}` for the page's number, `{m}` for the count.
-    pub page: String,
-}
-
-impl Default for Labels {
-    fn default() -> Labels {
-        Labels {
-            from: "From:".into(),
-            sent: "Sent:".into(),
-            to: "To:".into(),
-            cc: "Cc:".into(),
-            attachments: "Attachments:".into(),
-            page: "Page {n} of {m}".into(),
+/// The words of a print, in the interface language: field, key in params, English.
+macro_rules! labels {
+    ($($field:ident $key:literal $english:literal,)*) => {
+        /// The words of a printed header, page foot and table heads, in the interface language.
+        #[derive(Clone, Debug)]
+        pub struct Labels {
+            $(pub $field: String,)*
         }
-    }
+
+        impl Default for Labels {
+            fn default() -> Labels {
+                Labels { $($field: $english.into(),)* }
+            }
+        }
+
+        impl Labels {
+            /// The keys params name them by, with the English words.
+            pub const KEYS: &[(&str, &str)] = &[$(($key, $english),)*];
+
+            /// The labels params give (`{"from": …, "page": …}`), each at most 80 characters,
+            /// the rest English.
+            pub fn from_params(v: Option<&serde_json::Value>) -> Labels {
+                let mut l = Labels::default();
+                let Some(v) = v else { return l };
+                let take = |key: &str, slot: &mut String| {
+                    if let Some(text) = v.get(key).and_then(|t| t.as_str()).map(str::trim).filter(|t| !t.is_empty()) {
+                        *slot = text.chars().filter(|c| !c.is_control()).take(80).collect();
+                    }
+                };
+                $(take($key, &mut l.$field);)*
+                l
+            }
+
+            /// The labels as params.
+            pub fn to_params(&self) -> serde_json::Value {
+                let mut map = serde_json::Map::new();
+                $(map.insert($key.into(), serde_json::Value::String(self.$field.clone()));)*
+                serde_json::Value::Object(map)
+            }
+        }
+    };
 }
 
-impl Labels {
-    /// The labels params give (`{"from": …, "page": …}`), each at most 80 characters, the rest
-    /// English.
-    pub fn from_params(v: Option<&serde_json::Value>) -> Labels {
-        let mut l = Labels::default();
-        let Some(v) = v else { return l };
-        let take = |key: &str, slot: &mut String| {
-            if let Some(text) = v.get(key).and_then(|t| t.as_str()).map(str::trim).filter(|t| !t.is_empty()) {
-                *slot = text.chars().filter(|c| !c.is_control()).take(80).collect();
-            }
-        };
-        take("from", &mut l.from);
-        take("sent", &mut l.sent);
-        take("to", &mut l.to);
-        take("cc", &mut l.cc);
-        take("attachments", &mut l.attachments);
-        take("page", &mut l.page);
-        l
+labels! {
+    from "from" "From:",
+    sent "sent" "Sent:",
+    to "to" "To:",
+    cc "cc" "Cc:",
+    attachments "attachments" "Attachments:",
+    page "page" "Page {n} of {m}",
+    calendar "calendar" "Calendar",
+    contacts "contacts" "Contacts",
+    tasks "tasks" "Tasks",
+    all_day "allDay" "All day",
+    nothing "nothing" "Nothing planned",
+    subject "subject" "Subject",
+    due "due" "Due",
+    status "status" "Status",
+    importance "importance" "Importance",
+    categories "categories" "Categories",
+    completed "completed" "Completed",
+    not_completed "notCompleted" "Not completed",
+    high "high" "High",
+    normal "normal" "Normal",
+    low "low" "Low",
+    email "email" "Email",
+    phone "phone" "Phone",
+    address "address" "Address",
+    birthday "birthday" "Birthday",
+    notes "notes" "Notes",
+}
+
+/// What a print takes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum What {
+    /// Messages: those named, else the selected.
+    #[default]
+    Messages,
+    /// The calendar's days `from`–`to` (default the days in view) in a style (default a month
+    /// grid when a month is in view, else each day in turn).
+    Calendar { from: Option<mailcraft_time::Date>, to: Option<mailcraft_time::Date>, style: Option<crate::print_views::CalendarStyle> },
+    /// Contacts: those named, else those the People list shows.
+    Contacts,
+    /// Tasks: those named, else those the Tasks list shows.
+    Tasks,
+}
+
+impl What {
+    /// What the module in view prints.
+    pub fn of_view(s: &Session) -> What {
+        match s.view.module {
+            crate::Module::Mail => What::Messages,
+            crate::Module::Calendar => What::Calendar { from: None, to: None, style: None },
+            crate::Module::People => What::Contacts,
+            crate::Module::Tasks => What::Tasks,
+        }
     }
 }
 
 /// What to print and how.
 #[derive(Clone, Debug, Default)]
 pub struct Request {
-    /// The messages, in their order; empty for the selected ones.
+    pub what: What,
+    /// The messages, contacts or tasks, in their order; empty for the selected messages, or what
+    /// the list shows.
     pub ids: Vec<Id>,
     pub labels: Labels,
     /// `None`: the paper of the owner's region.
@@ -107,8 +162,24 @@ impl Session {
         self.date_region.as_deref().map_or(Paper::A4, Paper::for_region)
     }
 
-    /// The messages of `request` as documents to print.
+    /// What `request` asks for as documents to print.
     pub fn print_docs(&self, request: &Request) -> Result<Vec<Doc>, CmdError> {
+        match request.what {
+            What::Messages => {}
+            What::Calendar { from, to, style } => {
+                let (view_from, view_to) = crate::cmd::view::calendar_range(self);
+                let from = from.unwrap_or(view_from);
+                let to = to.unwrap_or(view_to);
+                let style = style.unwrap_or(if self.view.calendar == crate::CalView::Month {
+                    crate::print_views::CalendarStyle::Month
+                } else {
+                    crate::print_views::CalendarStyle::Agenda
+                });
+                return Ok(vec![self.print_calendar(from, to, style, &request.labels)?]);
+            }
+            What::Contacts => return Ok(vec![self.print_contacts(&request.ids, &request.labels)?]),
+            What::Tasks => return Ok(vec![self.print_tasks(&request.ids, &request.labels)?]),
+        }
         let mut docs = Vec::new();
         for id in self.print_targets(&request.ids)? {
             let m = self.loaded_message(id)?;

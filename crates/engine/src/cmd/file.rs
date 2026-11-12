@@ -31,10 +31,10 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("file.exportMessage", "Save Message As", "File › Save As", export_message).pure().params(r#"{"id"?: number, "path"?: string} — one message as .eml"#),
         CommandSpec::new("file.print", "Print", "File › Print", print).pure().key("Mod+P").params(
-            r#"{"ids"?: [number] (default the selected messages, at most 100), "path"?: string, "paper"?: "a4" | "letter" (default the region's), "labels"?: {"from"?, "sent"?, "to"?, "cc"?, "attachments"?, "page"? (with {n} and {m})}} — the messages laid out for printing, as a PDF written to `path` (without one, answered as base64 `data`), with {"pages", "messages"}. The window shows the Print dialog and prints on the printer the owner picks"#,
+            r#"{"what"?: "messages" | "calendar" | "contacts" | "tasks" (default the module in view), "ids"?: [number] (messages, default the selected, at most 100; contacts or tasks, default what the list shows), "from"?, "to"?: "YYYY-MM-DD" (calendar, default the days in view), "style"?: "month" | "agenda" (calendar), "path"?: string, "paper"?: "a4" | "letter" (default the region's), "labels"?: {"from"?, "page"? (with {n} and {m}), …: the words of the print}} — laid out for printing, as a PDF written to `path` (without one, answered as base64 `data`), with {"pages", "messages"}. The window shows the Print dialog and prints on the printer the owner picks"#,
         ),
         CommandSpec::new("file.saveAsPdf", "Save as PDF", "File › Save As", save_as_pdf).pure().params(
-            r#"{"ids"?: [number] (default the selected messages, at most 100), "path"?: string, "paper"?: "a4" | "letter" (default the region's), "labels"?: {"from"?, "sent"?, "to"?, "cc"?, "attachments"?, "page"?}} — the messages as they print, as .pdf"#,
+            r#"{"what"?, "ids"?, "from"?, "to"?, "style"?, "path"?, "paper"?, "labels"? as file.print} — what the module in view prints, as .pdf"#,
         ),
         CommandSpec::new("file.exportFolder", "Export Folder", "File › Open & Export", export_folder).pure().params(r#"{"id"?: number, "path"?: string} — a folder's messages as .mbox"#),
         CommandSpec::new("file.exportCalendar", "Save Calendar", "File › Save Calendar", export_calendar).pure().params(r#"{"calendar"?: number, "id"?: number (one event), "path"?: string} — .ics"#),
@@ -368,7 +368,7 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// What `file.print` and `file.saveAsPdf` are asked to print.
-fn print_request(v: &Value) -> Result<crate::print::Request, crate::CmdError> {
+fn print_request(s: &Session, v: &Value) -> Result<crate::print::Request, crate::CmdError> {
     let mut ids = p::ids_strict(v)?.unwrap_or_default();
     if ids.is_empty()
         && let Some(id) = p::message_strict(v)?
@@ -381,7 +381,29 @@ fn print_request(v: &Value) -> Result<crate::print::Request, crate::CmdError> {
         Some(p) if p.eq_ignore_ascii_case("letter") => Some(mailcraft_print::Paper::LETTER),
         Some(other) => return Err(bad(format!("unknown paper {other:?}; expected a4 or letter"))),
     };
-    Ok(crate::print::Request { ids, labels: crate::print::Labels::from_params(v.get("labels")), paper })
+    use crate::print::What;
+    use crate::print_views::CalendarStyle;
+    let what = match p::str(v, "what") {
+        None => What::of_view(s),
+        Some("messages") => What::Messages,
+        Some("contacts") => What::Contacts,
+        Some("tasks") => What::Tasks,
+        Some("calendar") => What::Calendar { from: None, to: None, style: None },
+        Some(other) => return Err(bad(format!("unknown `what` {other:?}; expected messages, calendar, contacts or tasks"))),
+    };
+    let what = match what {
+        What::Calendar { .. } => {
+            let style = match p::str(v, "style") {
+                None => None,
+                Some("month") => Some(CalendarStyle::Month),
+                Some("agenda") => Some(CalendarStyle::Agenda),
+                Some(other) => return Err(bad(format!("unknown `style` {other:?}; expected month or agenda"))),
+            };
+            What::Calendar { from: p::date(v, "from")?, to: p::date(v, "to")?, style }
+        }
+        other => other,
+    };
+    Ok(crate::print::Request { what, ids, labels: crate::print::Labels::from_params(v.get("labels")), paper })
 }
 
 /// The name of a print as a file: its first message's subject, as `.pdf`.
@@ -391,17 +413,28 @@ pub fn pdf_name(s: &Session, ids: &[Id]) -> String {
     export_name_or(&subject, "pdf", "message")
 }
 
+/// The name of a print as a file: a message's subject, else what it prints, as `.pdf`.
+pub fn print_name(s: &Session, request: &crate::print::Request) -> String {
+    use crate::print::What;
+    match request.what {
+        What::Messages => pdf_name(s, &request.ids),
+        What::Calendar { .. } => export_name_or(&request.labels.calendar, "pdf", "calendar"),
+        What::Contacts => export_name_or(&request.labels.contacts, "pdf", "contacts"),
+        What::Tasks => export_name_or(&request.labels.tasks, "pdf", "tasks"),
+    }
+}
+
 fn print(s: &mut Session, v: &Value) -> CmdResult {
-    let request = print_request(v)?;
+    let request = print_request(s, v)?;
     let (bytes, pages, messages) = s.print_pdf(&request)?;
-    let r = deliver(v, &pdf_name(s, &request.ids), bytes)?;
+    let r = deliver(v, &print_name(s, &request), bytes)?;
     Ok(with(with(r, "pages", json!(pages)), "messages", json!(messages)))
 }
 
 fn save_as_pdf(s: &mut Session, v: &Value) -> CmdResult {
-    let request = print_request(v)?;
+    let request = print_request(s, v)?;
     let (bytes, pages, _) = s.print_pdf(&request)?;
-    let r = deliver(v, &pdf_name(s, &request.ids), bytes)?;
+    let r = deliver(v, &print_name(s, &request), bytes)?;
     Ok(with(r, "pages", json!(pages)))
 }
 

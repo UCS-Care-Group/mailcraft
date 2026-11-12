@@ -7,10 +7,11 @@
 //! be printed from there, or downloaded in the browser.
 
 use egui::{RichText, Ui, vec2};
-use mailcraft_engine::print::{Labels, Request};
+use mailcraft_engine::print::{Labels, Request, What};
+use mailcraft_engine::print_views::CalendarStyle;
 use mailcraft_model::Id;
 use mailcraft_print::Paper;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::MailApp;
 use crate::dialogs::button_row;
@@ -66,6 +67,26 @@ pub fn labels() -> Labels {
         cc: tl!("Cc:").into(),
         attachments: tl!("Attachments:").into(),
         page: tl!("Page {n} of {m}").into(),
+        calendar: tl!("Calendar").into(),
+        contacts: tl!("Contacts").into(),
+        tasks: tl!("Tasks").into(),
+        all_day: tl!("All day").into(),
+        nothing: tl!("Nothing planned").into(),
+        subject: tl!("Subject").into(),
+        due: tl!("Due").into(),
+        status: tl!("Status").into(),
+        importance: tl!("Importance").into(),
+        categories: tl!("Categories").into(),
+        completed: tl!("Completed").into(),
+        not_completed: tl!("Not completed").into(),
+        high: tl!("High").into(),
+        normal: tl!("Normal").into(),
+        low: tl!("Low").into(),
+        email: tl!("Email").into(),
+        phone: tl!("Phone").into(),
+        address: tl!("Address").into(),
+        birthday: tl!("Birthday").into(),
+        notes: tl!("Notes").into(),
     }
 }
 
@@ -81,8 +102,7 @@ pub fn with_labels(id: &str, params: Value) -> Value {
         other => return other,
     };
     if !map.contains_key("labels") {
-        let l = labels();
-        map.insert("labels".into(), json!({"from": l.from, "sent": l.sent, "to": l.to, "cc": l.cc, "attachments": l.attachments, "page": l.page}));
+        map.insert("labels".into(), labels().to_params());
     }
     Value::Object(map)
 }
@@ -107,6 +127,9 @@ pub fn valid_range(text: &str) -> bool {
 
 /// The Print dialog.
 pub struct PrintDialog {
+    what: What,
+    /// The calendar as month grids rather than day by day; `None` when it isn't the calendar.
+    month: Option<bool>,
     ids: Vec<Id>,
     printers: Vec<Printer>,
     printer: usize,
@@ -116,22 +139,33 @@ pub struct PrintDialog {
     letter: bool,
     two_sided: bool,
     color: bool,
-    /// The page count for the paper it was counted on.
-    pages: Option<(bool, usize)>,
+    /// The page count, and the paper and calendar style it was counted for.
+    pages: Option<(bool, Option<bool>, usize)>,
     error: String,
 }
 
 impl PrintDialog {
-    /// The dialog for the messages `params` names, or the selected ones; `None` when there is
-    /// nothing to print (the command then says why).
+    /// The dialog for what `params` names, else what the module in view prints (the selected
+    /// messages, the calendar's days in view, the contacts or tasks the list shows); `None` when
+    /// there is nothing to print (the command then says why).
     pub fn open(app: &MailApp, params: &Value) -> Option<PrintDialog> {
         let mut ids: Vec<Id> = params.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
         ids.extend(params.get("id").and_then(Value::as_u64));
-        let request = Request { ids: ids.clone(), labels: labels(), paper: None };
+        let what = match params.get("what").and_then(Value::as_str) {
+            Some("messages") => What::Messages,
+            Some("calendar") => What::Calendar { from: None, to: None, style: None },
+            Some("contacts") => What::Contacts,
+            Some("tasks") => What::Tasks,
+            _ => What::of_view(&app.session),
+        };
+        let month = matches!(what, What::Calendar { .. }).then(|| app.session.view.calendar == mailcraft_engine::CalView::Month);
+        let request = Request { what, ids: ids.clone(), labels: labels(), paper: None };
         app.session.print_docs(&request).ok()?;
         let printers = app.services.print.as_ref().map(|h| (h.printers)()).unwrap_or_default();
         let printer = printers.iter().position(|p| p.default).unwrap_or(0);
         Some(PrintDialog {
+            what,
+            month,
             ids,
             printers,
             printer,
@@ -147,15 +181,21 @@ impl PrintDialog {
     }
 
     fn request(&self) -> Request {
-        Request { ids: self.ids.clone(), labels: labels(), paper: Some(if self.letter { Paper::LETTER } else { Paper::A4 }) }
+        let what = match (self.what, self.month) {
+            (What::Calendar { from, to, .. }, Some(month)) => {
+                What::Calendar { from, to, style: Some(if month { CalendarStyle::Month } else { CalendarStyle::Agenda }) }
+            }
+            (what, _) => what,
+        };
+        Request { what, ids: self.ids.clone(), labels: labels(), paper: Some(if self.letter { Paper::LETTER } else { Paper::A4 }) }
     }
 
     /// The dialog's contents; whether it is done.
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
         let mut done = false;
-        if self.pages.is_none_or(|(letter, _)| letter != self.letter) {
-            self.pages = app.session.print_pdf(&self.request()).ok().map(|(_, pages, _)| (self.letter, pages));
+        if self.pages.is_none_or(|(letter, month, _)| letter != self.letter || month != self.month) {
+            self.pages = app.session.print_pdf(&self.request()).ok().map(|(_, pages, _)| (self.letter, self.month, pages));
         }
         let can_print = app.services.print.is_some() && !self.printers.is_empty();
         egui::Grid::new("printDialog").num_columns(2).spacing(vec2(16.0, 8.0)).show(ui, |ui| {
@@ -191,6 +231,16 @@ impl PrintDialog {
                 });
                 ui.end_row();
             }
+            if let Some(month) = self.month.as_mut() {
+                ui.label(tl!("Style"));
+                ui.horizontal(|ui| {
+                    let m = ui.radio_value(month, true, tl!("Month"));
+                    app.hit.add("printMonth", 0, m.rect);
+                    let d = ui.radio_value(month, false, tl!("Day by day"));
+                    app.hit.add("printDays", 0, d.rect);
+                });
+                ui.end_row();
+            }
             ui.label(tl!("Paper"));
             ui.horizontal(|ui| {
                 let a4 = ui.radio_value(&mut self.letter, false, "A4");
@@ -210,7 +260,7 @@ impl PrintDialog {
                 ui.end_row();
             }
         });
-        if let Some((_, pages)) = self.pages {
+        if let Some((_, _, pages)) = self.pages {
             ui.add_space(2.0);
             let text = tln!(pages, "{n} page", "{n} pages");
             ui.label(RichText::new(text).color(t.text_dim));
@@ -241,8 +291,9 @@ impl PrintDialog {
 
     /// Lay the messages out and send them to the printer (or the viewer); what to say.
     fn print(&self, app: &mut MailApp) -> Result<String, String> {
-        let (pdf, pages, _) = app.session.print_pdf(&self.request()).map_err(|e| e.to_string())?;
-        let name = mailcraft_engine::cmd::file::pdf_name(&app.session, &self.ids);
+        let request = self.request();
+        let (pdf, pages, _) = app.session.print_pdf(&request).map_err(|e| e.to_string())?;
+        let name = mailcraft_engine::cmd::file::print_name(&app.session, &request);
         let printer = self.printers.get(self.printer).filter(|_| !self.printers.is_empty());
         match (&app.services.print, printer) {
             (Some(host), Some(printer)) => {

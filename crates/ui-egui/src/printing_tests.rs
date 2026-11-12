@@ -111,3 +111,18 @@ fn page_ranges_and_labels() {
     assert_eq!(with_labels("file.saveAsPdf", json!({"labels": {"from": "Von:"}}))["labels"]["from"], "Von:");
     assert_eq!(with_labels("mail.flag", json!({"id": 3})), json!({"id": 3}));
 }
+
+#[test]
+fn the_calendar_prints_in_the_style_chosen() {
+    let (mut h, jobs, _) = window(true);
+    h.state_mut().run("view.calendar", json!({})).unwrap();
+    h.run_steps(2);
+    h.state_mut().run("file.print", json!({})).unwrap();
+    h.run_steps(3);
+    assert!(h.state().hit.rect_in(0, "printMonth", 0).is_some(), "the calendar asks for its style");
+    press(&mut h, "printMonth");
+    press(&mut h, "printGo");
+    let jobs = jobs.lock().unwrap();
+    assert_eq!(jobs.len(), 1);
+    assert_eq!(jobs[0].title, "Calendar");
+}

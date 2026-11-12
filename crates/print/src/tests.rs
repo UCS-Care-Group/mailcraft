@@ -165,3 +165,25 @@ fn hostile_layouts_print_without_hanging() {
     assert_eq!(pdf(&[], &fonts(), &Options::default()), Err(Error::Empty));
     assert!(Face::new(vec![0u8; 64], 0).is_none());
 }
+
+#[test]
+fn columns_that_ask_for_a_share_get_it() {
+    let html = r#"<table border="1" width="100%"><tr><td width="20%">a</td><td width="20%">b</td><td>a much longer cell of text that would take the room</td></tr></table>"#;
+    let mut f = fonts();
+    f.fallbacks.clear();
+    let mut faces = font::FaceSet::new(&f).unwrap();
+    let mut pictures = picture::Pictures::default();
+    let pages = layout::pages(&[doc(html)], &mut faces, &mut pictures, &Options::default());
+    let xs: Vec<f32> = pages[0]
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            layout::Op::Text { x, text, .. } if text == "a" || text == "b" => Some(*x),
+            _ => None,
+        })
+        .collect();
+    assert!(xs.len() >= 2, "{xs:?}");
+    let width = Paper::A4.width - 2.0 * 54.0;
+    let step = xs[1] - xs[0];
+    assert!((step - width * 0.2).abs() < 6.0, "the second column starts a fifth of the width after the first: {step} of {width}");
+}
