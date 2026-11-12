@@ -62,6 +62,7 @@ pub enum Lang {
     Spanish,
     Italian,
     Dutch,
+    Portuguese,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -69,7 +70,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 7] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Pseudo];
+    pub const ALL: [Lang; 8] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Portuguese, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -80,6 +81,7 @@ impl Lang {
             Lang::Spanish => "es",
             Lang::Italian => "it",
             Lang::Dutch => "nl",
+            Lang::Portuguese => "pt",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -99,6 +101,7 @@ impl Lang {
             "es" => Some(Lang::Spanish),
             "it" => Some(Lang::Italian),
             "nl" => Some(Lang::Dutch),
+            "pt" => Some(Lang::Portuguese),
             _ => None,
         }
     }
@@ -112,13 +115,14 @@ impl Lang {
             Lang::Spanish => "Español",
             Lang::Italian => "Italiano",
             Lang::Dutch => "Nederlands",
+            Lang::Portuguese => "Português",
             Lang::Pseudo => "Pseudo",
         }
     }
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch)
+        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Portuguese)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -363,6 +367,8 @@ mod tests {
         assert_eq!(Lang::from_code("es_MX.UTF-8"), Some(Lang::Spanish));
         assert_eq!(Lang::from_code("it-CH"), Some(Lang::Italian));
         assert_eq!(Lang::from_code("nl-NL"), Some(Lang::Dutch));
+        assert_eq!(Lang::from_code("pt_BR.UTF-8"), Some(Lang::Portuguese));
+        assert_eq!(Lang::from_code("pt-PT"), Some(Lang::Portuguese));
         let fr = if Lang::French.has_catalogue() { Lang::French } else { Lang::English };
         assert_eq!(Lang::from_pref("auto", Some("fr-BE")), fr);
         assert_eq!(Lang::from_pref("fr", None), fr);
@@ -374,11 +380,20 @@ mod tests {
     /// "Archive" the command, and a text said with a folder's name names the folder.
     #[test]
     fn a_context_tells_the_folder_from_the_command() {
-        let said: Vec<(&str, &str)> =
-            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
+        let said: Vec<(&str, &str)> = [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Portuguese]
+            .iter()
+            .map(|l| (l.t("Archive"), l.folder("Archive")))
+            .collect();
         assert_eq!(
             said,
-            [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio"), ("Archiveren", "Archief")]
+            [
+                ("Archiver", "Archives"),
+                ("Archivieren", "Archiv"),
+                ("Archivar", "Archivo"),
+                ("Archivia", "Archivio"),
+                ("Archiveren", "Archief"),
+                ("Arquivar", "Arquivo")
+            ]
         );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
         // A context the catalogue doesn't have is English, never the word of another meaning.
@@ -395,7 +410,15 @@ mod tests {
         let names: Vec<String> = Lang::available().into_iter().map(Lang::picker_name).collect();
         assert_eq!(
             names,
-            ["English", "Français (aperçu)", "Deutsch (Vorschau)", "Español (versión preliminar)", "Italiano (anteprima)", "Nederlands (voorbeeld)",]
+            [
+                "English",
+                "Français (aperçu)",
+                "Deutsch (Vorschau)",
+                "Español (versión preliminar)",
+                "Italiano (anteprima)",
+                "Nederlands (voorbeeld)",
+                "Português (prévia)",
+            ]
         );
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -403,6 +426,8 @@ mod tests {
         assert_eq!(Lang::from_pref("auto", Some("fr-CA")), Lang::French);
         assert_eq!(Lang::from_pref("auto", Some("nl-NL")), Lang::Dutch);
         assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
+        assert_eq!(Lang::from_pref("auto", Some("pt-BR")), Lang::Portuguese);
+        assert_eq!(Lang::from_pref("pt", None), Lang::Portuguese);
     }
 
     #[test]

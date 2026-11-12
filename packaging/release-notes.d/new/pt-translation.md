@@ -1,0 +1,1 @@
+- MailCraft speaks Portuguese: a preview translation in general Portuguese, for readers in Brazil and Portugal, chosen in File › Options (Português, prévia), or followed from the system language.

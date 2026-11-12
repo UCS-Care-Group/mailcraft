@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-10 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian and Dutch. A preview language has every text translated, but no native speaker has reviewed it yet:
+Italian, Dutch and Portuguese. A preview language has every text translated, but no native speaker has reviewed it yet:
 File › Options names it so in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
 one, or adding another, needs no Rust.
 
@@ -11,7 +11,7 @@ one, or adding another, needs no Rust.
 
 - `crates/i18n/po/messages.pot`: the template, every text the window and the engine show. It is
   generated; never edit it by hand.
-- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`), in
+- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `pt.po`), in
   the gettext format any `.po` editor opens. The catalogues are compiled into the program.
 
 `cargo xtask i18n` gathers the texts from the code, rewrites the template, merges it into every
