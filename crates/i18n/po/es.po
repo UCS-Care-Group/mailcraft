@@ -8038,8 +8038,9 @@ msgstr "Ninguno"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "Ninguno de esos mensajes sigue en este buzón."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

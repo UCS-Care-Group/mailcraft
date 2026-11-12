@@ -8034,8 +8034,9 @@ msgstr "Keine"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "Keine dieser Nachrichten ist noch in diesem Postfach."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

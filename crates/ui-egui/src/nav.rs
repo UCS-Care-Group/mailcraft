@@ -140,11 +140,15 @@ pub(crate) fn drop_on_module(app: &mut MailApp, m: Module, dragged: &[Id]) {
     let _ = app.run(DROP, json!({"module": name, "ids": dragged}));
 }
 
-/// The messages of a drop (`ids`) that are still in the mailbox, the row grabbed first.
+/// The first two messages of a drop (`ids`) that are still in the mailbox, the row grabbed first
+/// (a command can name any number: only the first [`MOST_LOOKED_AT`] ids are looked at).
 pub(crate) fn dropped(app: &MailApp, p: &serde_json::Value) -> Vec<Id> {
-    let ids = p.get("ids").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(serde_json::Value::as_u64);
-    ids.filter(|id| app.session.mailbox.message(*id).is_some()).collect()
+    let ids = p.get("ids").and_then(serde_json::Value::as_array).into_iter().flatten().take(MOST_LOOKED_AT).filter_map(serde_json::Value::as_u64);
+    ids.filter(|id| app.session.mailbox.message(*id).is_some()).take(2).collect()
 }
+
+/// The most ids of a drop that are looked at to find the messages still there.
+const MOST_LOOKED_AT: usize = 1_000;
 
 /// `ui.dropOnModule`; `None` for any other command.
 pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &serde_json::Value) -> Option<Result<serde_json::Value, String>> {

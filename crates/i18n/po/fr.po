@@ -8038,8 +8038,9 @@ msgstr "Aucun"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "Aucun de ces messages n'est plus dans cette boîte aux lettres."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

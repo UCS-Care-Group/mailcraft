@@ -248,3 +248,19 @@ fn a_message_dropped_that_cannot_be_downloaded_says_so_and_opens_nothing() {
     let said = w.state().status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
     assert!(said.contains("isn't on this computer yet"), "{said}");
 }
+
+#[test]
+fn a_drop_naming_a_great_many_messages_looks_at_the_first_ones_only() {
+    let (mut w, waiting, jobs) = drawn();
+    // The message that is here comes after more ids than are looked at: none is found.
+    let mut ids: Vec<Id> = (1_000_000..1_002_000).collect();
+    ids.push(waiting);
+    crate::nav::drop_on_module(w.state_mut(), Module::Tasks, &ids);
+    assert!(dropped_form(w.state()).is_none() && jobs.lock().unwrap().is_empty());
+    let said = w.state().status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("None of those messages"), "{said}");
+    // Among the first ones, it is found.
+    ids.insert(0, waiting);
+    crate::nav::drop_on_module(w.state_mut(), Module::Tasks, &ids);
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+}

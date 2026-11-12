@@ -8438,8 +8438,9 @@ msgstr "Geen"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "Geen van deze berichten staat nog in dit postvak."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
