@@ -423,7 +423,8 @@ impl<E: HttpExchange> Run<'_, E> {
         };
         (done.id, done.change_key, done.fields) = (saved.id.clone(), saved.change_key, true);
         for old in earlier.iter().filter(|old| **old != saved.id) {
-            let del = DeleteItem::new(old, DeleteMode::SoftDelete);
+            // For good: an earlier copy may hold the text in the clear.
+            let del = DeleteItem::new(old, DeleteMode::HardDelete);
             match self.ask(&del.element(), &|reply| del.answer(reply)).await {
                 Ok(()) | Err(Asked::Code(ResponseCode::ItemNotFound)) => {}
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),

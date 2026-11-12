@@ -818,6 +818,7 @@ fn a_draft_saved_again_encrypted_is_made_again_and_the_clear_copy_is_deleted() {
     assert!(!made.id.is_empty() && made.id != clear.id && made.fields, "{made:?}");
     let state = standin.state();
     assert!(state.item(&clear.id).is_none(), "the draft with its fields in the clear is gone");
+    assert_eq!(state.deletes, ["HardDelete"], "beyond recovery: it held the text in the clear");
     assert!(state.item(&made.id).is_some());
     assert_eq!(state.items.iter().filter(|i| i.draft).count(), 1);
     assert!(!state.items.iter().any(|i| i.body.1.contains("Dear Zoe")), "nothing of the clear text is left");

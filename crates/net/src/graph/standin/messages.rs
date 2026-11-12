@@ -293,6 +293,10 @@ pub struct Mail {
     pub read_alone: bool,
     /// Uploads of large attachments under way, by the token of their address ([`super::drafts`]).
     pub(super) uploads: HashMap<String, super::drafts::Upload>,
+    /// The ids of messages taken away with `permanentDelete` (not kept recoverable).
+    pub purged: Vec<String>,
+    /// `permanentDelete` is refused (`403`), as a mailbox that doesn't offer it does.
+    pub no_permanent_delete: bool,
 }
 
 impl Mail {

@@ -91,6 +91,24 @@ fn a_draft_saved_again_is_made_again_and_the_earlier_copy_is_taken_away() {
     assert!(!done.id.is_empty() && done.id != clear && done.fields, "{done:?}");
     let state = server.state();
     assert!(!state.mailbox.messages.contains_key(&clear), "the copy with its fields in the clear is gone");
+    assert_eq!(state.mailbox.purged.as_slice(), std::slice::from_ref(&clear), "taken away with permanentDelete, not left in the recoverable items");
     assert!(state.mailbox.messages.contains_key(&done.id));
     assert!(!state.mailbox.messages.values().any(|m| m.preview.contains("4417")), "nothing of the clear text is left on the server");
+}
+
+#[test]
+fn a_mailbox_that_refuses_a_permanent_delete_gets_the_plain_delete() {
+    let server = StandIn::start().unwrap();
+    let first = run(
+        &server,
+        vec![DraftUp { message: 5, marker: "mailcraft-draft-5-1".into(), saves: 1, subject: Some("Plans".into()), ..Default::default() }],
+    );
+    let clear = first.drafts.first().cloned().unwrap().id;
+    server.state().mailbox.no_permanent_delete = true;
+    let all = run(&server, vec![up(&clear)]);
+    let done = all.drafts.first().cloned().unwrap_or_else(|| panic!("an answer: {:?}", all.errors));
+    assert!(!done.id.is_empty() && done.id != clear && done.fields, "{done:?}");
+    let state = server.state();
+    assert!(!state.mailbox.messages.contains_key(&clear), "gone all the same, by the plain delete");
+    assert!(state.mailbox.purged.is_empty());
 }

@@ -257,18 +257,13 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
         Err(e) if e.is_unreachable() => {}
         Err(e) => return Err(e),
     }
-    // The earlier copy goes (Graph's delete keeps it recoverable for the retention period).
+    // The earlier copy goes for good: it may hold the text in the clear, and a delete would leave
+    // it in the recoverable items.
     if !old.is_empty()
         && old != new
         && let Some(was) = piece(&old)
     {
-        let url = graph.url(&format!("{}/{was}", messages(graph)));
-        match graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE) {
-            Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => {}
-            Ok(reply) => refused(graph, &reply, "taking away an earlier copy of a draft"),
-            Err(e) if e.is_unreachable() => {}
-            Err(e) => return Err(e),
-        }
+        remove_for_good(graph, &was)?;
     }
     // Its change key and folder as they are now.
     let query = http::form(&[("$select", "changeKey,parentFolderId")]);
@@ -280,6 +275,28 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
         if let Some(folder) = id_of(text(&json, "parentFolderId")) {
             done.folder = folder;
         }
+    }
+    Ok(())
+}
+
+/// Take an earlier copy of a draft away so that it can't be had back: `POST …/permanentDelete`
+/// (Microsoft's "message: permanentDelete": it goes to the purges folder, which no mail client reads,
+/// for the retention period alone). A mailbox that refuses it gets the plain `DELETE`, which keeps the
+/// copy recoverable for the retention period; that is logged, without the id.
+fn remove_for_good(graph: &Graph<'_>, id: &str) -> Result<(), NetError> {
+    let url = graph.url(&format!("{}/{id}/permanentDelete", messages(graph)));
+    match graph.call(Kind::Same, &url, "POST", &[], None, WRITE_TIMEOUT, MAX_PAGE) {
+        Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => return Ok(()),
+        Ok(reply) => log::info!("graph drafts: a permanent delete was refused (status {}); the plain delete is used", reply.status),
+        Err(e) if e.is_unreachable() => return Ok(()),
+        Err(e) => return Err(e),
+    }
+    let url = graph.url(&format!("{}/{id}", messages(graph)));
+    match graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE) {
+        Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => {}
+        Ok(reply) => refused(graph, &reply, "taking away an earlier copy of a draft"),
+        Err(e) if e.is_unreachable() => {}
+        Err(e) => return Err(e),
     }
     Ok(())
 }
