@@ -373,7 +373,7 @@ impl<E: HttpExchange> Run<'_, E> {
                         }
                         if deltas.afresh && unreadable > 0 {
                             log::info!("ews folders: {unreadable} mail folders couldn't be read; the list is taken as a delta, nothing is removed");
-                            deltas.afresh = false;
+                            (deltas.afresh, deltas.incomplete) = (false, true);
                         }
                         return Ok((deltas, state));
                     }

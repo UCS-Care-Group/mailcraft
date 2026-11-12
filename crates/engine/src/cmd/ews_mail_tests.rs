@@ -621,11 +621,8 @@ fn a_folder_list_read_without_parents_is_read_afresh_once_and_puts_the_folders_i
     // Read from its start past a mail folder that couldn't be read, it comes as a delta: Apollo,
     // not in it, stays, and so does the mark, so the next run reads the list from its start again.
     let part: Vec<GraphFolder> = folders().into_iter().filter(|f| f.id != "F3").collect();
-    apply_ews_mail(
-        &mut s,
-        EwsMailResult { folders: Some(EwsFolderDeltas { changed: part, ..Default::default() }), hierarchy: "PART".into(), ..piece(account) },
-    )
-    .unwrap();
+    let incomplete = |part: Vec<GraphFolder>| EwsFolderDeltas { changed: part, incomplete: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(incomplete(part.clone())), hierarchy: "PART".into(), ..piece(account) }).unwrap();
     assert!(s.mailbox.folder_by_server(account, "F3").is_some(), "a folder missing from a delta isn't taken away");
     assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().parents);
     assert!(ews_mail_request(&s, account, false).unwrap().hierarchy.is_empty());
@@ -636,4 +633,10 @@ fn a_folder_list_read_without_parents_is_read_afresh_once_and_puts_the_folders_i
     assert_eq!(s.mailbox.folder(apollo).unwrap().parent, Some(projects));
     assert!(s.mailbox.account(account).unwrap().ews.as_ref().unwrap().parents);
     assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER-1");
+    // With the mark, the server losing the state and the read from its start passing over a
+    // folder again: the state it ended at isn't gone on from (what was deleted before it would
+    // never be said), so the next run reads the list from its start once more.
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(incomplete(part)), hierarchy: "PART-2".into(), ..piece(account) }).unwrap();
+    assert!(s.mailbox.folder_by_server(account, "F3").is_some());
+    assert!(ews_mail_request(&s, account, false).unwrap().hierarchy.is_empty(), "the list is read from its start again");
 }

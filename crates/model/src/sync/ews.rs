@@ -223,6 +223,12 @@ pub struct EwsFolderDeltas {
     /// removed when the run ends. Otherwise it is a delta and nothing is removed for not being in it.
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// Read from its start, but past a mail folder that couldn't be read: handed on as a delta
+    /// (not `afresh`, so nothing is removed for not being in it), and the state it ends at isn't
+    /// gone on from, so that the next run reads the list from its start again and sees what was
+    /// deleted meanwhile.
+    #[serde(skip_serializing_if = "is_false")]
+    pub incomplete: bool,
     /// The ids of the server's own folders (its distinguished ones: the Inbox and the other
     /// special folders, Conversation History, Sync Issues and the like, #779), whether or not the
     /// delta brings them: such a folder is never renamed, moved or deleted

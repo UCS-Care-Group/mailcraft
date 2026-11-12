@@ -186,6 +186,7 @@ fn a_folder_list_read_afresh_past_a_mail_folder_it_could_not_read_is_handed_on_a
     let (pieces, _) = run(&standin, &request());
     let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
     assert!(!folders.afresh, "a mail folder couldn't be read: nothing may be removed for not being listed");
+    assert!(folders.incomplete, "and the next run reads the list from its start again");
     assert!(folders.changed.iter().any(|f| f.name == "Inbox"), "the folders that could be read still come");
 }
 
