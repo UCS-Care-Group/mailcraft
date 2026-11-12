@@ -150,6 +150,9 @@ pub enum Dialog {
     Pick(Box<crate::pick_item::Pick>),
     /// View Source: a message's source as plain text ([`crate::view_source`]).
     ViewSource(Box<crate::view_source::Source>),
+    /// File › Options › Security's: importing a private key, verifying a Public key (#30;
+    /// [`crate::security`]). Opened by their own window-only commands, never by `ui.dialog`.
+    Security(Box<crate::security::SecurityDialog>),
     /// Find and Replace in the message being written ([`crate::find_replace`]).
     FindReplace(crate::find_replace::FindReplace),
     /// Insert › Symbol ([`crate::symbol`]).
@@ -255,6 +258,7 @@ impl Dialog {
                 crate::pick_item::PickKind::Contact => "businessCard",
             },
             Dialog::ViewSource(_) => "viewSource",
+            Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
             Dialog::FindReplace(d) => {
                 if d.replace {
@@ -342,6 +346,8 @@ impl Dialog {
                 _ => Dialog::About(AboutTab::About),
             },
             "contributors" => Dialog::About(AboutTab::Contributors),
+            // (Never over a report being written or on its way.)
+            "reportProblem" if matches!(&app.dialog, Some(Dialog::ReportProblem(d)) if d.busy()) => return None,
             "reportProblem" => Dialog::ReportProblem(Box::new(crate::report_problem::Draft::new(app, params))),
             "testers" => Dialog::About(AboutTab::Testers),
             // An item that repeats is asked about before it opens: just this one, or the series?
@@ -426,6 +432,18 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         "ui.removeAllData" if app.services.data_wipe.is_some() && !app.data_removed => Some(crate::data_removal::question()),
         // A mailbox from a file: where its accounts connect to.
         "ui.confirmServers" if app.unconfirmed => Some(app.confirm_servers_question()),
+        // Pictures in all mail, switched on from the bar above a message or File › Options (#910):
+        // what it tells every sender. Turning it off asks nothing.
+        "ui.downloadPicturesAutomatically" if !app.ui.download_pictures && params.get("value").and_then(Value::as_bool) != Some(false) => {
+            let text = format!(
+                "{} {}",
+                tl!(
+                    "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+                ),
+                tl!("Mail in Junk E-mail still asks first. File › Options turns this off again.")
+            );
+            question(tl!("Download Pictures in All Mail"), text, tl!("Download in all mail"))
+        }
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
@@ -1422,6 +1440,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     });
     let mut close = escape;
     let mut reopen: Option<Dialog> = None;
+    // The Verify dialog's answer, run with the dialog in its place (`ui.markKeyVerified` does
+    // nothing without it).
+    let mut mark: Option<Value> = None;
     match &mut dialog {
         Dialog::Commands { query, selected } => {
             let open = window(ctx, tl!("Search Commands"), 520.0, |ui| {
@@ -2030,6 +2051,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut done = false;
             let open = window(ctx, tl!("Report a Problem"), crate::report_problem::WIDTH, |ui| done = draft.show(app, ui));
             close |= !open || done;
+            // A report on its way keeps the window until its answer is said (the reference, or why not).
+            close &= draft.sending.is_none();
         }
         // (Enter is nobody's in these: what they send, they send from a button.)
         Dialog::Meeting(dialog) => {
@@ -2074,7 +2097,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::ImportPst(dialog) => {
             let mut done = false;
-            let open = window(ctx, tl!("Import a .pst File (preview)"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, tl!("Import a .pst File"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
             // (Closed, or Escape, while it reads: the reading stops, and what was read goes in and
             // the report is shown first.)
             let asked = close || !open;
@@ -2086,6 +2109,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let title = dialog.title();
             let open = window(ctx, &title, crate::auto_replies::WIDTH, |ui| done = dialog.show(app, ui));
             close |= !open || done;
+        }
+        Dialog::Security(security) => {
+            close |= crate::security::show_dialog(app, ctx, security, enter, &mut mark);
         }
         Dialog::FolderProperties(dialog) => {
             let idle = ctx.memory(|m| m.focused().is_none());
@@ -2100,6 +2126,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
             close |= !open || done;
         }
+    }
+    if let Some(params) = mark {
+        app.dialog = Some(dialog);
+        if let Err(e) = app.run("ui.markKeyVerified", params) {
+            app.status(e);
+        }
+        return;
     }
     if !close {
         // While it stays open the dialog is a modal layer: egui keeps the keyboard and the pointer

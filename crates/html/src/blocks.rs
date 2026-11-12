@@ -15,7 +15,7 @@ use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
 use crate::media::Env;
 use crate::sheet;
-use crate::style::{self, Css, MsoList, Size};
+use crate::style::{self, Css, MsoList, Size, TableDisplay};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
     Align, BgPicture, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT,
@@ -44,6 +44,9 @@ const MAX_SPACE: u8 = 3;
 
 /// The largest picture size a message can ask for, in CSS pixels.
 const MAX_IMAGE_PX: f32 = 8192.0;
+
+/// The original limit for text imported into the composer.
+const MAX_PASTE_FONT_PX: u8 = 32;
 
 /// Most text a cell of a data table holds, in bytes; a table with more in a cell is laying things out.
 const DATA_CELL_TEXT: usize = 240;
@@ -95,7 +98,8 @@ pub struct Read {
 pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
 /// [`parse`], without decoding the pictures written into the message: for when only the text
-/// and the look are wanted (plain text, an HTML draft or a paste in the composer).
+/// and the look are wanted (plain text, an HTML draft or a paste in the composer). It uses
+/// the composer's smaller font limit.
 pub fn parse_text(html: &str) -> Vec<Block> {
     build(html, false, &Env::default(), false).blocks
 }
@@ -348,7 +352,7 @@ impl Delta {
     }
 
     /// The style inside the element.
-    fn apply(&self, parent: &Style) -> Style {
+    fn apply(&self, parent: &Style, max_font_px: u8) -> Style {
         let mut style = parent.clone();
         // A size of nothing is inherited, as in a browser, but not past a class or an id: not
         // by an element that carries one, and not from an element that does.
@@ -394,7 +398,7 @@ impl Delta {
         }
         if let Some(size) = self.size {
             // A share of a size that is nothing is nothing still.
-            let resolved = if parent.tiny && matches!(size, Size::Scale(_)) { None } else { size.resolve(parent.size) };
+            let resolved = if parent.tiny && matches!(size, Size::Scale(_)) { None } else { size.resolve(parent.size, max_font_px) };
             match resolved {
                 Some(px) => {
                     style.size = Some(px);
@@ -486,6 +490,8 @@ struct TableBuild {
     header: bool,
     /// There was no `<table>`: a stray `<tr>` or `<td>` started it.
     implied: bool,
+    /// This implied table came from styled rows or cells inside an ordinary element.
+    css_implied: bool,
     /// Nested too deep to be a grid: its cells are not kept apart.
     flat: bool,
     /// At a cap: no more rows or cells are opened, the last cell takes what follows.
@@ -556,6 +562,8 @@ enum Kind {
     Table(Box<TableBuild>),
     Row(RowBuild),
     Cell(CellBuild),
+    /// A styled row or cell whose text stays in the last cell at the table's cap.
+    CssTableOverflow,
 }
 
 /// An open element.
@@ -616,6 +624,10 @@ struct Builder {
     kind: BlockKind,
     align: Align,
     line_height: Option<LineHeight>,
+    /// The enclosing block's value, when an inline element supplies a tentative override.
+    block_line_height: Option<LineHeight>,
+    /// Stack position and start tag of the inline element that supplied the override.
+    inline_line_height: Option<(usize, usize)>,
     /// Room from the sides, left and right, that the open elements that are not boxes ask for
     /// (the margins and padding of a `<div>` that has no frame of its own), in pixels.
     inset: [u16; 2],
@@ -683,6 +695,8 @@ impl Builder {
             kind: BlockKind::Paragraph,
             align: Align::Left,
             line_height: None,
+            block_line_height: None,
+            inline_line_height: None,
             inset: [0, 0],
             fresh: true,
             nodes: Vec::new(),
@@ -904,7 +918,7 @@ impl Builder {
                 BlockKind::Paragraph
             };
             self.align = self.loose_align();
-            self.line_height = self.style().line_height;
+            self.start_line_height();
             self.fresh = true;
         }
         self.append(c);
@@ -916,11 +930,35 @@ impl Builder {
             Some(node) => &node.style,
             None => &self.base,
         };
+        if let Some((index, start)) = self.inline_line_height
+            && !is_blank(c)
+            && (self.nodes.get(index).is_none_or(|node| node.at.1 != start) || self.line_height != style.line_height)
+        {
+            self.line_height = self.block_line_height;
+            self.inline_line_height = None;
+        }
         match self.spans.last_mut() {
             Some(last) if !self.fresh || style.matches(last) => last.text.push(c),
             _ => self.spans.push(style.span_within(c.to_string(), &mut self.copies)),
         }
         self.fresh = false;
+    }
+
+    /// Use an inline line height for a self-contained run such as a newsletter button.
+    /// If the text goes on beyond that run, the paragraph keeps its own line height.
+    fn start_line_height(&mut self) {
+        self.line_height = self.style().line_height;
+        self.inline_line_height = None;
+        self.block_line_height = self.base.line_height;
+        for (index, node) in self.nodes.iter().enumerate().rev() {
+            if !matches!(node.kind, Kind::Inline | Kind::Format | Kind::Marker) {
+                self.block_line_height = node.style.line_height;
+                break;
+            }
+            if self.inline_line_height.is_none() && node.delta.line_height.is_some() {
+                self.inline_line_height = Some((index, node.at.1));
+            }
+        }
     }
 
     fn line_break(&mut self) {
@@ -1189,7 +1227,13 @@ impl Builder {
                 };
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
-                let block = Block { quote: self.quote_depth(), align: self.loose_align(), beside, ..Block::new(kind, spans) };
+                let block = Block {
+                    quote: self.quote_depth(),
+                    align: if css.centred() { Align::Center } else { self.loose_align() },
+                    beside,
+                    image_padding: css.padding_insets().filter(|padding| padding.any()),
+                    ..Block::new(kind, spans)
+                };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
@@ -1211,7 +1255,7 @@ impl Builder {
         if self.nodes.len() >= MAX_DEPTH {
             return false;
         }
-        let style = delta.apply(self.style());
+        let style = delta.apply(self.style(), self.max_font_px());
         if hidden {
             self.hidden = self.hidden.saturating_add(1);
         }
@@ -1223,16 +1267,22 @@ impl Builder {
 
     /// Work out again the styles of the nodes from `index` up, after the stack changed below them.
     fn restyle(&mut self, index: usize) {
+        let max_font_px = self.max_font_px();
         for i in index..self.nodes.len() {
             let parent = match i.checked_sub(1).and_then(|p| self.nodes.get(p)) {
                 Some(parent) => parent.style.clone(),
                 None => self.base.clone(),
             };
             if let Some(node) = self.nodes.get_mut(i) {
-                node.style = node.delta.apply(&parent);
+                node.style = node.delta.apply(&parent, max_font_px);
             }
         }
         self.fresh = true;
+    }
+
+    /// Keep the composer's original cap when no pictures are being decoded.
+    fn max_font_px(&self) -> u8 {
+        if self.decode { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
     }
 
     /// Close the node at `index` and what is open inside it. Formatting elements opened inside
@@ -1512,6 +1562,7 @@ impl Builder {
                 self.flush();
                 self.end_row(row);
             }
+            Kind::CssTableOverflow => self.flush(),
             Kind::Cell(cell) => {
                 let blocks = self.exit_frame();
                 self.end_cell(cell, blocks);
@@ -1618,15 +1669,6 @@ impl Builder {
             return;
         }
         let mut rows = table.rows;
-        // The one cell of a table that holds nothing has no picture behind it: there is nothing
-        // to read against it, and a picture on the web would only tell its server the message
-        // was read. (An empty cell beside others keeps its own: it is a part of their layout.)
-        if let [row] = &mut rows[..]
-            && let [cell] = &mut row.cells[..]
-            && cell.blocks.is_empty()
-        {
-            cell.bg_picture = None;
-        }
         let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
         rows.retain(|r| !r.cells.iter().all(empty));
@@ -1669,6 +1711,18 @@ impl Builder {
             }
             rows.retain(|r| !r.cells.is_empty());
         }
+        // The one cell left of a table that holds nothing has no picture behind it: there is
+        // nothing to read against it, and a picture on the web would only tell its server the
+        // message was read. (Looked at after the rows and columns that only make room are gone:
+        // a sender can add an empty cell or row beside it. An empty cell beside others that
+        // stay keeps its own: it is a part of their layout.)
+        if let [row] = &mut rows[..]
+            && let [cell] = &mut row.cells[..]
+            && cell.blocks.is_empty()
+        {
+            cell.bg_picture = None;
+            rows.retain(|r| !r.cells.iter().all(empty));
+        }
         if rows.is_empty() {
             return;
         }
@@ -1694,9 +1748,11 @@ impl Builder {
         // alignment says, a share of the line wide or as wide as the floats together, with its
         // text at the left, as in a browser.
         let floated = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if t.float);
-        let stands = table.outer_align.is_some()
-            && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
-                || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
+        let shrink_wrapped = table.width.is_none() && table.align != Align::Left && nested;
+        let stands = shrink_wrapped
+            || table.outer_align.is_some()
+                && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
+                    || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
         if layout && plain && !slices && !stands && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(bare)) {
             let outer = table.outer_align.filter(|_| table.width.is_none());
             for (i, row) in rows.into_iter().enumerate() {
@@ -1748,7 +1804,7 @@ impl Builder {
     }
 
     /// Open a table that a stray `<tr>` or `<td>` implies; its index, or `None` when the stack is full.
-    fn imply_table(&mut self) -> Option<usize> {
+    fn imply_table(&mut self, css_implied: bool) -> Option<usize> {
         self.flush();
         let build = TableBuild {
             rows: Vec::new(),
@@ -1764,6 +1820,7 @@ impl Builder {
             presentation: false,
             header: false,
             implied: true,
+            css_implied,
             flat: self.frames.len() >= MAX_TABLE_DEPTH,
             full: false,
             last_row: false,
@@ -1809,6 +1866,7 @@ impl Builder {
             presentation: matches!(role.as_deref(), Some("presentation" | "none")),
             header: false,
             implied: false,
+            css_implied: false,
             flat: self.frames.len() >= MAX_TABLE_DEPTH,
             full: false,
             last_row: false,
@@ -1828,13 +1886,14 @@ impl Builder {
         }
     }
 
-    fn open_row(&mut self, tag: &Tag<'_>) {
+    /// Start a native or CSS row in the nearest table, making an implied table if needed.
+    fn open_row(&mut self, tag: &Tag<'_>, name: &'static str) {
         if self.overflow > 0 {
             self.overflow = self.overflow.saturating_add(1);
             self.flush();
             return;
         }
-        let Some(table) = self.table_index().or_else(|| self.imply_table()) else {
+        let Some(table) = self.table_index().or_else(|| self.imply_table(false)) else {
             self.overflow = self.overflow.saturating_add(1);
             return;
         };
@@ -1850,24 +1909,26 @@ impl Builder {
             t.last_row = t.rows.len() + 1 >= MAX_TABLE_ROWS;
         }
         let css = css_of(tag);
+        let attr = |attribute| if name == "tr" { tag.attr(attribute) } else { None };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
-        let background = css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
-        let valign = css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v)));
+        delta.or_attr_align(attr("align").and_then(|a| style::attr_align(&a)));
+        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
         let row = RowBuild { cells: Vec::new(), background, valign, full: false };
         let hidden = css.hidden || tag.has("hidden");
-        if !self.push_node("tr", Kind::Row(row), delta, hidden) {
+        if !self.push_node(name, Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
     }
 
-    fn open_cell(&mut self, tag: &Tag<'_>, header: bool) {
+    /// Start a native or CSS cell, with the same limits on the grid, spans and dimensions.
+    fn open_cell(&mut self, tag: &Tag<'_>, name: &'static str, header: bool) {
         if self.overflow > 0 {
             self.overflow = self.overflow.saturating_add(1);
             self.flush();
             return;
         }
-        let Some(table) = self.table_index().or_else(|| self.imply_table()) else {
+        let Some(table) = self.table_index().or_else(|| self.imply_table(false)) else {
             self.overflow = self.overflow.saturating_add(1);
             return;
         };
@@ -1884,7 +1945,7 @@ impl Builder {
                     t.last_row = t.rows.len() + 1 >= MAX_TABLE_ROWS;
                 }
                 if !self.push_node(
-                    "tr",
+                    "",
                     Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false }),
                     Delta::default(),
                     false,
@@ -1911,15 +1972,16 @@ impl Builder {
         }
         self.flush();
         let css = css_of(tag);
-        let source = self.bg_source(tag, &css, true);
+        let attr = |attribute: &str| if matches!(name, "td" | "th") { tag.attr(attribute) } else { None };
+        let source = self.bg_source(tag, &css, matches!(name, "td" | "th"));
         let bg_picture = self.bg_picture(source, &css);
-        let span = |name: &str, max: u16| tag.attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
+        let span = |name: &str, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
         let build = CellBuild {
             header,
             colspan: span("colspan", MAX_TABLE_COLUMNS as u16),
             rowspan: span("rowspan", MAX_ROW_SPAN),
-            background: css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
-            width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
+            background: css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
+            width: sized(&css, attr("width").and_then(|w| style::attr_length(&w))),
             border: {
                 let [top, right, bottom, left] = css.borders;
                 Sides { top, right, bottom, left }
@@ -1927,18 +1989,18 @@ impl Builder {
             lines: css.lines,
             padding: css.padding_insets(),
             radius: css.radius,
-            valign: css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
+            valign: css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
             bg_picture,
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
         delta.bold = delta.bold.or(header.then_some(true));
-        delta.or_attr_align(tag.attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(attr("align").and_then(|a| style::attr_align(&a)));
         if header && delta.align.is_none() && self.style().align_reset {
             delta.align = Some(Align::Center);
         }
         let hidden = css.hidden || tag.has("hidden");
-        if !self.push_node(if header { "th" } else { "td" }, Kind::Cell(build), delta, hidden) {
+        if !self.push_node(name, Kind::Cell(build), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
             return;
         }
@@ -2015,6 +2077,111 @@ impl Builder {
 
     // ---- elements ----
 
+    /// Read a CSS table role only where a grid can stand on its own. Store its source name
+    /// on the table node itself, so closing a native table or cell also forgets the CSS role.
+    fn open_css_table_part(&mut self, tag: &Tag<'_>, name: &'static str) -> bool {
+        if tag.raw_attr("style").is_none() && tag.sheet.as_ref().is_none_or(|applied| applied.css.table_display.is_none()) {
+            return false;
+        }
+        let Some(display) = css_of(tag).table_display else { return false };
+        let parent = self.nodes.last();
+        let in_grid =
+            parent.is_some_and(|n| matches!(n.kind, Kind::Table(_) | Kind::Row(_)) || (matches!(n.kind, Kind::Cell(_)) && n.name.is_empty()));
+        let block = parent.is_none_or(|n| matches!(n.kind, Kind::Block(_)) && n.name != "p");
+        let inline = self
+            .nodes
+            .iter()
+            .rev()
+            .take_while(|n| !matches!(n.kind, Kind::Table(_) | Kind::Row(_) | Kind::Cell(_)))
+            .any(|n| matches!(n.kind, Kind::Inline | Kind::Format | Kind::Marker | Kind::InlineBox(..)));
+        if !(in_grid || block)
+            || inline
+            || self.item_depth().is_some()
+            || self.after_picture
+            || !self.line_is_blank()
+            || self.overflow > 0
+            || self.inline_overflow > 0
+            || self.nodes.len().saturating_add(3) > MAX_DEPTH
+        {
+            return false;
+        }
+        if !in_grid && self.imply_table(true).is_none() {
+            return false;
+        }
+        match display {
+            TableDisplay::Row => self.open_row(tag, name),
+            TableDisplay::Cell => self.open_cell(tag, name, false),
+        }
+        if self.nodes.last().is_none_or(|n| n.at != self.at || n.name != name) {
+            // A capped grid can keep taking text without opening another row or cell. Give
+            // that source element a bounded node so its end tag cannot close the grid's holder.
+            self.push_node(name, Kind::CssTableOverflow, Delta::default(), left_out(tag, &css_of(tag)));
+        }
+        true
+    }
+
+    /// Close a styled row or cell by its source name, or finish the anonymous grid at its holder.
+    fn end_css_table_part(&mut self, name: &str) -> bool {
+        for (index, node) in self.nodes.iter().enumerate().rev() {
+            if node.name == name {
+                match node.kind {
+                    Kind::Row(_) | Kind::Cell(_) => {
+                        let row = matches!(node.kind, Kind::Row(_));
+                        // The table builder can retain a capped row or cell for overflow text.
+                        // Its source tag still ends here.
+                        if let Some(node) = self.nodes.get_mut(index) {
+                            node.name = "";
+                        }
+                        if row {
+                            self.end_row_tag();
+                        } else {
+                            self.end_cell_tag();
+                        }
+                    }
+                    Kind::CssTableOverflow => self.close_at(index, true),
+                    _ => return false,
+                }
+                return true;
+            }
+            if let Kind::Table(table) = &node.kind {
+                if table.css_implied && index.checked_sub(1).and_then(|i| self.nodes.get(i)).is_some_and(|holder| holder.name == name) {
+                    self.close_at(index, true);
+                }
+                break;
+            }
+        }
+        false
+    }
+
+    /// A native end tag belongs to the native table outside an anonymous CSS grid unless
+    /// the grid itself contains the matching native row or cell.
+    fn close_css_grids_before_native_end(&mut self, name: &str) {
+        while let Some(index) = self.table_index()
+            && self.table_at(index).is_some_and(|table| table.css_implied)
+        {
+            let matching = |node: &Node| match name {
+                "td" | "th" => matches!(node.name, "td" | "th"),
+                "tr" => node.name == "tr",
+                _ => false,
+            };
+            if self.nodes.iter().skip(index + 1).any(matching) {
+                break;
+            }
+            self.close_at(index, true);
+        }
+    }
+
+    /// Once the last styled row or cell ends, ordinary siblings belong to the holder.
+    fn finish_css_grid_before_sibling(&mut self) {
+        if self.implied > 0
+            && let Some(index) = self.table_index()
+            && self.table_at(index).is_some_and(|table| table.css_implied)
+            && self.nodes.iter().skip(index + 1).all(|n| matches!(n.kind, Kind::Row(_) | Kind::Cell(_)) && n.name.is_empty())
+        {
+            self.close_at(index, true);
+        }
+    }
+
     /// An inline element: a formatting element (`format`) or a `<span>`.
     fn open_inline(&mut self, name: &'static str, format: bool, tag: &Tag<'_>, mut delta: Delta) {
         let css = css_of(tag);
@@ -2026,6 +2193,7 @@ impl Builder {
         delta.color = own.color.or(delta.color);
         delta.size = own.size.or(delta.size);
         delta.font = own.font.or(delta.font);
+        delta.line_height = own.line_height.or(delta.line_height);
         delta.background = css.background.or(delta.background);
         delta.hooked = hooked(tag);
         let marker = css.mso_list == Some(MsoList::Ignore);
@@ -2317,7 +2485,14 @@ impl Builder {
         }
     }
 
+    /// Route an opening tag to its native builder or its whitelisted CSS table role.
     fn open(&mut self, tag: &Tag<'_>) {
+        if let Some(name) = table_source(&tag.name)
+            && self.open_css_table_part(tag, name)
+        {
+            return;
+        }
+        self.finish_css_grid_before_sibling();
         let on = Some(true);
         match canon(&tag.name) {
             "b" => self.open_inline("b", true, tag, Delta { bold: on, ..Delta::default() }),
@@ -2426,8 +2601,9 @@ impl Builder {
                 self.pre_start = true;
             }
             "table" => self.open_table(tag),
-            "tr" => self.open_row(tag),
-            "td" | "th" => self.open_cell(tag, tag.name == "th"),
+            "tr" => self.open_row(tag, "tr"),
+            "td" => self.open_cell(tag, "td", false),
+            "th" => self.open_cell(tag, "th", true),
             "caption" | "thead" | "tfoot" => self.table_part(true),
             "tbody" | "html" | "head" | "option" | "optgroup" => self.table_part(false),
             name => {
@@ -2438,8 +2614,15 @@ impl Builder {
         }
     }
 
+    /// End an element, using its original tag name even when CSS gave it a table role.
     fn end(&mut self, name: &str) {
         let name = canon(name);
+        if table_source(name).is_some() && self.end_css_table_part(name) {
+            return;
+        }
+        if self.implied > 0 && matches!(name, "td" | "th" | "tr" | "table") {
+            self.close_css_grids_before_native_end(name);
+        }
         match name {
             "b" | "i" | "cite" | "u" | "s" | "code" | "sub" | "small" | "big" | "mark" | "font" | "a" => self.end_format(name),
             "span" | "label" | "abbr" | "acronym" | "q" | "time" | "bdi" | "bdo" | "data" | "nobr" => self.end_inline(name),
@@ -2462,6 +2645,11 @@ impl Builder {
             }
         }
     }
+}
+
+/// Ordinary elements whose styling can supply a row or cell without replacing a native role.
+fn table_source(name: &str) -> Option<&'static str> {
+    if name == "span" { Some("span") } else { block_name(name).filter(|name| *name != "body") }
 }
 
 /// The whitelisted facts of a tag's `style` attribute.

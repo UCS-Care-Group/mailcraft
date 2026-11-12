@@ -243,6 +243,11 @@ fn the_empty_cell_of_a_table_of_one_has_no_picture_behind_it() {
         "<table><tr><td background=\"https://t.example/e.png\"></td></tr></table>",
         "<table><tr><td style=\"background-image:url(https://t.example/e.png)\" width=600 height=300>&nbsp;</td></tr></table>",
         "<table border=1><tr><td background=\"https://t.example/e.png\"></td></tr></table>",
+        // A sender can add an empty cell, or an empty row, beside the one: what only makes room
+        // goes first, and what is left is one empty cell.
+        "<table><tr><td background=\"https://t.example/e.png\"></td><td></td></tr></table>",
+        "<table><tr><td background=\"https://t.example/e.png\"></td></tr><tr><td></td></tr></table>",
+        "<table><tr><td background=\"https://t.example/e.png\"></td><td></td></tr><tr><td></td><td></td></tr></table>",
     ] {
         assert!(srcs(empty).is_empty(), "{empty}");
     }

@@ -9,6 +9,18 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "\"{address}\" can't be used as an address"
+msgstr "\"{address}\" kan niet als adres worden gebruikt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "\"{address}\" isn't an address mail can be sent to"
+msgstr "\"{address}\" is geen adres waarnaar e-mail kan worden verzonden"
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -20,6 +32,36 @@ msgstr "„{address}” is geen e-mailadres"
 #, fuzzy
 msgid "\"{address}\" on the {what} line isn't an e-mail address"
 msgstr "„{address}” op de regel {what} is geen e-mailadres"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{date}\" is not a date and time IMAP can carry"
+msgstr "\"{date}\" is geen datum en tijd die IMAP kan overbrengen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{field}\" is not the name of a header field"
+msgstr "\"{field}\" is niet de naam van een kopregelveld"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{flag}\" can't be used as a flag"
+msgstr "\"{flag}\" kan niet als vlag worden gebruikt"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{line}\" is not an IMAP response"
+msgstr "\"{line}\" is geen IMAP-antwoord"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "\"{line}\" is not an SMTP reply"
+msgstr "\"{line}\" is geen SMTP-antwoord"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -45,6 +87,18 @@ msgstr "„{name}” maakt deel uit van een reeks. Bedoelt u alleen het exemplaa
 msgid "\"{name}\" will be permanently deleted."
 msgstr "„{name}” wordt definitief verwijderd."
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{set}\" doesn't name the messages to change"
+msgstr "\"{set}\" geeft niet de te wijzigen berichten aan"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "\"{set}\" is not a set of messages"
+msgstr "\"{set}\" is geen reeks berichten"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -59,8 +113,9 @@ msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt va
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
-msgstr ""
+msgstr "'{subject}' blijft waar die is verplaatst: die is digitaal ondertekend of versleurd, en de kopie in het postvak waarvandaan die kwam, is verwijderd, terwijl de kopie waaruit die eerst werd verplaatst de bytes behoudt zoals die aankw. Verplaats die terug om die daar weer te zetten."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -70,8 +125,9 @@ msgstr "(Geen titel)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "(as the signer says)"
-msgstr ""
+msgstr "(zoals de ondertekenaar zegt)"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
@@ -85,8 +141,8 @@ msgstr "(geen naam)"
 msgid "(no recipients)"
 msgstr "(geen ontvangers)"
 
-#. interface, what a command says
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#. interface, what a command says, why a mail server couldn't be used
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(geen onderwerp)"
@@ -147,8 +203,9 @@ msgstr "-----Oorspronkelijk bericht-----"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid ".pst file ({format})"
-msgstr ""
+msgstr ".pst-bestand ({format})"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -242,8 +299,9 @@ msgstr "@{login}: {prs} samengevoegde PR's, {commits} commits, +{added} / −{de
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "A .pst file is being imported: try again when it is done"
-msgstr ""
+msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het klaar is"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -269,6 +327,11 @@ msgstr "Een codepunt, geschreven als U+2192 of 2192, of een decimaal getal na #.
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount. Alleen op deze computer bewaard"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A contact's card keeps at most 32 certificates and keys"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -292,6 +355,11 @@ msgstr "Er wordt eerst, zoals altijd, een kopie van uw hele postvak ernaast opge
 #, fuzzy
 msgid "A file dialog is already open."
 msgstr "Er is al een bestandsdialoogvenster geopend."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "A key is marked Verified only in the dialog that shows its fingerprint, by you"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -372,12 +440,6 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Een vergadering die wordt herhaald en sommige dagen overslaat, kan vanaf hier niet op de agenda van de server worden gezet: alle genodigden zouden voor elke overgeslagen dag een annulering ontvangen. Bewaar de vergadering in een agenda op deze computer, of maak de vergadering opnieuw zonder de overgeslagen dagen."
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send."
-msgstr "Een nieuw bericht aan de onderhouders van MailCraft, vanuit uw account: er wordt niets verzonden totdat u op Verzenden drukt."
-
-#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -400,6 +462,11 @@ msgstr "Een notitie aan de organisator (optioneel)"
 #, fuzzy
 msgid "A on top"
 msgstr "A bovenaan"
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "A part of this key is RSA (a subkey for encryption, perhaps), which MailCraft doesn't use by itself: keep the key in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -424,6 +491,11 @@ msgstr "Een afbeelding die u hebt opgevraagd, wordt een maand bewaard, zodat bij
 #, fuzzy
 msgid "A port is a number from 1 to 65535"
 msgstr "Een poort is een getal van 1 tot en met 65535"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "A report is written beside your mailbox."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -750,12 +822,6 @@ msgid "Add an account first"
 msgstr "Voeg eerst een account toe"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "Add an account that sends mail first (File › Add Account)."
-msgstr "Voeg eerst een account toe waarmee u e-mail kunt verzenden (Bestand › Account toevoegen)."
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add another account"
@@ -784,6 +850,11 @@ msgstr "Toevoegen als Microsoft-account"
 #, fuzzy
 msgid "Add filters"
 msgstr "Filters toevoegen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Add from file…"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -830,6 +901,11 @@ msgstr "Toegevoegd door een nieuwere versie van MailCraft: verzend en ontvang in
 #, fuzzy
 msgid "Address"
 msgstr "Adres"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Address:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1054,6 +1130,31 @@ msgid "An Agent Is Asking"
 msgstr "Een agent vraagt"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "An OpenPGP secret key, protected by a passphrase"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An S/MIME certificate with its private key, in a .p12 or .pfx file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this contact's"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -1085,7 +1186,13 @@ msgstr "Een afspraak die als persoonlijk is gemarkeerd, toont alleen dat u bezet
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
+msgstr "Een certificeringsautoriteit op de weg naar een vertrouwde staat het gebruik van dit certificaat niet toe."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An import is under way"
 msgstr ""
 
 #. interface
@@ -1104,8 +1211,9 @@ msgstr[1] "En nog {n} dergelijke koppelingen."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Another mailbox was opened: the import stopped."
-msgstr ""
+msgstr "Er werd een ander postvak geopend: de import werd gestopt."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/meeting_dialogs.rs
@@ -1130,6 +1238,11 @@ msgstr "Andere tijd voorgesteld: {title}"
 #, fuzzy
 msgid "Another time was proposed to {name}"
 msgstr "Er is een andere tijd voorgesteld aan {name}"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Another window is open: the report wasn't filled in."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1383,13 +1496,15 @@ msgstr "Rangschikking"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "As Folders"
-msgstr ""
+msgstr "Als mappen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "As Tabs above the Inbox"
-msgstr ""
+msgstr "Als tabbladen boven het Postvak IN"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -1573,16 +1688,18 @@ msgstr "Trefwoorden voor bijlagen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Attachment options"
-msgstr ""
+msgstr "Opties voor bijlagen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Attachment options for {name}"
-msgstr ""
+msgstr "Opties voor bijlagen voor {name}"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Bijlagen"
@@ -1646,6 +1763,11 @@ msgstr "Automatische antwoorden - {address}"
 #, fuzzy
 msgid "Automatic Replies for {address}"
 msgstr "Automatische antwoorden voor {address}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic bulleted and numbered lists"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -1784,6 +1906,11 @@ msgstr "Terug"
 #, fuzzy
 msgid "Back online"
 msgstr "Weer online"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Back to Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2038,7 +2165,12 @@ msgid "Calibri"
 msgstr "Calibri"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/security.rs
+msgid "Can't sign"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuleren"
@@ -2137,6 +2269,11 @@ msgstr "CC:"
 msgid "Cc: {names}"
 msgstr "CC: {names}"
 
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+msgid "Certificates"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2190,7 +2327,7 @@ msgid "Change email address"
 msgstr "Wijzig e-mailadres"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
 msgstr "De kleur wijzigen"
@@ -2209,8 +2346,9 @@ msgstr "De naam, de aanmelding en de offline te bewaren e-mail van dit account w
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Changed after it was signed"
-msgstr ""
+msgstr "Gewijzigd na het ondertekenen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -2290,8 +2428,9 @@ msgstr "Toegankelijkheid controleren"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Check Again"
-msgstr ""
+msgstr "Opnieuw controleren"
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -2340,6 +2479,11 @@ msgstr "Controleren op nieuwe versies"
 #, fuzzy
 msgid "Check the account's settings"
 msgstr "De instellingen van het account controleren"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Checked with its certification authority"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2527,6 +2671,11 @@ msgstr "Zoekopdracht wissen"
 msgid "Clear search (Esc)"
 msgstr "Zoekopdracht wissen (Esc)"
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Click to preview {name}; double-click to open it"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2534,7 +2683,7 @@ msgid "Clipboard"
 msgstr "Klembord"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Sluiten"
@@ -2606,7 +2755,7 @@ msgid "Collapse the Ribbon"
 msgstr "Het lint samenvouwen"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Colour"
 msgstr "Kleur"
@@ -2628,6 +2777,26 @@ msgstr "Compact"
 #, fuzzy
 msgid "Company"
 msgstr "Bedrijf"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Compare fingerprint…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Compare it with the fingerprint the person gives you another way: in person, by phone, or on their business card. Mark the key as verified only if every character matches."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Compare the key's fingerprint with the person's, and mark it as verified"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Compare the signer's key's fingerprint with theirs, and mark it as verified"
+msgstr ""
 
 #. interface, name, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
@@ -2859,11 +3028,125 @@ msgstr "Kopiëren naar map"
 msgid "Could not open Google sign-in"
 msgstr "Kan de aanmelding met Google niet openen"
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring \"{name}\" up to date"
+msgstr "\"{name}\" kon niet worden bijgewerkt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring \"{name}\" up to date: the folder is not on the server"
+msgstr "\"{name}\" kon niet worden bijgewerkt: de map staat niet op de server"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't bring the server up to date"
+msgstr "De server kon niet worden bijgewerkt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't change flags in \"{name}\""
+msgstr "Vlaggen in \"{name}\" konden niet worden gewijzigd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't check for new mail"
+msgstr "Er kon niet op nieuwe e-mail worden gecontroleerd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't delete messages from \"{name}\""
+msgstr "Berichten in \"{name}\" konden niet worden verwijderd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't download a message from \"{name}\""
+msgstr "Een bericht uit \"{name}\" kon niet worden gedownload"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't download a message from \"{name}\" again"
+msgstr "Een bericht uit \"{name}\" kon niet opnieuw worden gedownload"
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Couldn't find out whether a new version is out: {why}."
 msgstr "Kan niet worden vastgesteld of er een nieuwe versie beschikbaar is: {why}."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't keep a copy of \"{subject}\" on the server: {error}"
+msgstr "Er kon geen kopie van \"{subject}\" op de server worden bewaard: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't look for \"{subject}\" in \"{folder}\" on the server"
+msgstr "Er kon niet naar \"{subject}\" worden gezocht in \"{folder}\" op de server"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make a folder inside \"{name}\": the server keeps no folders inside others"
+msgstr "Er kon geen map in \"{name}\" worden gemaakt: de server houdt geen mappen in andere mappen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make a folder on the server: it has no usable name"
+msgstr "Er kon geen map op de server worden gemaakt: die heeft geen bruikbare naam"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make the folder \"{name}\" on the server"
+msgstr "De map \"{name}\" kon niet op de server worden gemaakt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't make the folder \"{name}\" on the server: it has another folder of that name"
+msgstr "De map \"{name}\" kon niet op de server worden gemaakt: die heeft al een andere map met die naam"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't move messages from \"{name}\" to \"{to}\""
+msgstr "Berichten konden niet van \"{name}\" naar \"{to}\" worden verplaatst"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't move messages to \"{name}\": the folder is no longer on the server"
+msgstr "Berichten konden niet naar \"{name}\" worden verplaatst: de map staat niet meer op de server"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\""
+msgstr "\"{name}\" kon niet worden geopend"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\" to bring it up to date"
+msgstr "\"{name}\" kon niet worden geopend om bij te werken"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't open \"{name}\" to permanently delete messages"
+msgstr "\"{name}\" kon niet worden geopend om berichten definitief te verwijderen"
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -2871,11 +3154,40 @@ msgstr "Kan niet worden vastgesteld of er een nieuwe versie beschikbaar is: {why
 msgid "Couldn't open {name}: {error}"
 msgstr "Kon {name} niet openen: {error}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Couldn't put \"{subject}\" in \"{folder}\" on the server"
+msgstr "\"{subject}\" kon niet in \"{folder}\" op de server worden gezet"
+
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Couldn't reach Microsoft to open the calendar of {address}. Try again in a moment."
 msgstr "Microsoft kon niet worden bereikt om de agenda van {address} te openen. Probeer het zo meteen opnieuw."
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read \"{name}\""
+msgstr "\"{name}\" kon niet worden gelezen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read \"{name}\": the server listed none of its {count} messages"
+msgstr "\"{name}\" kon niet worden gelezen: de server gaf geen van de {count} berichten"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't read Gmail's categories of \"{name}\""
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't read the list of folders"
+msgstr "De lijst met mappen kon niet worden gelezen"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -2889,11 +3201,29 @@ msgstr "Kan het concept '{subject}' niet opslaan op de server: de server meldt {
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Kan het postvak niet opslaan: {error}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": {error}"
+msgstr "\"{subject}\" kon niet worden verzonden: {error}"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "Couldn't send '{subject}': {why}. It is held in the Outbox."
 msgstr "Kan '{subject}' niet verzenden: {why}. Het wordt vastgehouden in Postvak UIT."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send mail"
+msgstr "E-mail kon niet worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send mail: the account has no outgoing server"
+msgstr "E-mail kon niet worden verzonden: het account heeft geen server voor uitgaande e-mail"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3198,6 +3528,11 @@ msgid "Delete this category"
 msgstr "Deze categorie verwijderen"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Delete this key from this computer"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Delete this rule"
@@ -3245,34 +3580,23 @@ msgstr "Bureaubladmeldingen"
 msgid "Desktop alerts"
 msgstr "Bureaubladmeldingen"
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Desktop alerts are turned off for MailCraft in System Settings."
 msgstr "Bureaubladmeldingen voor MailCraft zijn uitgeschakeld in Systeeminstellingen."
 
-#. interface, name
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
-msgid "Desktop alerts can't be shown: no notification service answers on this desktop."
-msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: geen meldingsservice antwoordt op dit bureaublad."
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-#, fuzzy
-msgid "Desktop alerts can't be shown: this copy doesn't run from the MailCraft app."
-msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar wordt niet vanuit de MailCraft-app uitgevoerd."
-
-#. interface, name
-#: crates/ui-egui/src/alerts.rs
-#, fuzzy
-msgid "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
-msgstr "Bureaubladmeldingen kunnen niet worden weergegeven: dit exemplaar van MailCraft is niet met het installatieprogramma (.msi) geïnstalleerd, waardoor Windows het niet herkent."
+msgid "Desktop alerts can't be shown"
+msgstr "Bureaubladmeldingen kunnen niet worden weergegeven"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Desktop alerts only for mail in Primary"
-msgstr ""
+msgstr "Bureaubladmeldingen alleen voor e-mail in Primair"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3300,38 +3624,55 @@ msgstr "Diagram"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Digital Signature"
-msgstr ""
+msgstr "Digitale ondertekening"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digital signature can't be checked"
+msgstr "Digitale ondertekening kan niet worden gecontroleerd"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Digital signatures and encryption"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Digital signatures are checked with these. They are collected from Digitally signed mail you receive, or imported here."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed and verified"
-msgstr ""
+msgstr "Digitaal ondertekend en geverifieerd"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed by {signer}, and verified."
-msgstr ""
+msgstr "Digitaal ondertekend door {signer} en geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed by {signer}, but the signer isn't verified."
-msgstr ""
+msgstr "Digitaal ondertekend door {signer}, maar de ondertekenaar is niet geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed, but the signer isn't verified."
-msgstr ""
+msgstr "Digitaal ondertekend, maar de ondertekenaar is niet geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Digitally signed, signer not verified"
-msgstr ""
+msgstr "Digitaal ondertekend, ondertekenaar niet geverifieerd"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -3513,11 +3854,23 @@ msgstr "Berichten volledig downloaden"
 msgid "Download Pictures"
 msgstr "Afbeeldingen downloaden"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download Pictures in All Mail"
+msgstr "Afbeeldingen in alle e-mail downloaden"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download in all mail"
+msgstr "In alle e-mail downloaden"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3534,13 +3887,26 @@ msgstr "Afbeeldingen downloaden"
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
+msgid "Download pictures in all mail"
+msgstr "Afbeeldingen in alle e-mail downloaden"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
+msgstr "Afbeeldingen in elk bericht zonder te vragen downloaden, behalve in Ongewenste e-mail. Er wordt eerst gevraagd; Bestand › Opties zet het weer uit."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
-msgstr ""
+msgstr "Download de bytes zoals dit bericht binnenkwam opnieuw, om de digitale ondertekening te controleren"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3684,9 +4050,8 @@ msgstr "Vervalt {when}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "During development, Google may restrict sign-in to approved test users. In testing mode, Google refresh tokens may expire after seven days."
-msgstr "Tijdens ontwikkeling beperkt Google de aanmelding mogelijk tot goedgekeurde testgebruikers. In de testmodus kan het ververstoken van Google na zeven dagen verlopen."
+msgstr "Tijdens ontwikkeling beperkt Google de aanmelding mogelijk tot goedgekeurde testgebruikers. In de testmodus kan een verversingstoken van Google na zeven dagen verlopen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -4034,6 +4399,11 @@ msgstr "Agendagroep uitvouwen of samenvouwen"
 msgid "Expand or Collapse Folder"
 msgstr "Map uitvouwen of samenvouwen"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Expired"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4145,7 +4515,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Er zijn nog minder dan twee van deze contactpersonen, dus er is niets om samen te voegen."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Bestand"
@@ -4155,6 +4525,11 @@ msgstr "Bestand"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Bestandsdialoogvensters zijn hier niet beschikbaar"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "File:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -4234,14 +4609,14 @@ msgstr "Bezig uw accountinstellingen te zoeken…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Fingerprint (SHA-256):"
-msgstr ""
+msgstr "Vingerafdruk (SHA-256):"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "Finish or close the message you're writing first."
-msgstr "Maak het bericht dat u schrijft eerst af, of sluit het."
+#: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/security.rs
+msgid "Fingerprint:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -4355,8 +4730,9 @@ msgstr "Mapnaam"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Folder {folder} ({n} of {of})"
-msgstr ""
+msgstr "Map {folder} ({n} van {of})"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -4419,6 +4795,11 @@ msgstr "Tekstkleur"
 #, fuzzy
 msgid "Font Size"
 msgstr "Lettergrootte"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4488,8 +4869,9 @@ msgstr "Opmaken als tekst zonder opmaak"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Forums"
-msgstr ""
+msgstr "Forums"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -4660,10 +5042,20 @@ msgid "Get Event"
 msgstr "Gebeurtenis ophalen"
 
 #. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "Get Journal Entry"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Get Message"
 msgstr "Bericht ophalen"
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "Get Note"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/help.rs
@@ -4686,14 +5078,24 @@ msgstr "Voorbereiden…"
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
-msgid "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
-msgstr "GitHub is openbaar en vereist een GitHub-account. E-mail is privé en gaat vanuit uw eigen account naar de onderhouders van MailCraft."
+msgid "GitHub is public and needs a GitHub account."
+msgstr "GitHub is openbaar en heeft een GitHub-account nodig."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
 msgstr "GitHub-issues zijn openbaar: zet er geen e-mailadressen, namen of iets uit uw berichten in. Beschrijf in uw eigen woorden wat er gebeurde."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub username (optional)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub's page has as much as a link can carry: copy the rest from here into it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -4707,17 +5109,26 @@ msgstr "De pagina van GitHub is open: voeg daar het diagnosebestand toe en dien 
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
 msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. MailCraft heeft niets verzonden."
 
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Give the report a title, on one line and in 200 characters at most."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Gmail\n"
 "Categories"
 msgstr ""
+"Gmail\n"
+"Categorieën"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Gmail Categories"
-msgstr ""
+msgstr "Gmail-categorieën"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4727,27 +5138,46 @@ msgstr "Gmail en Google Workspace"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Gmail categories"
-msgstr ""
+msgstr "Gmail-categorieën"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
-msgstr ""
+msgstr "Gmail heeft de id van dit bericht nog niet gezegd: doe eerst Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
 msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Gmail weigerde {n} bericht tussen de categorieën te verplaatsen; die wordt opnieuw gevraagd bij het volgende Verzenden/ontvangen"
+msgstr[1] "Gmail weigerde {n} berichten tussen de categorieën te verplaatsen; ze worden opnieuw gevraagd bij het volgende Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
 msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Gmail wilde {n} bericht niet verplaatsen; die blijft waar Gmail die"
+msgstr[1] "Gmail wilde {n} berichten niet verplaatsen; ze blijven waar Gmail ze heeft"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG is installed but didn't answer ({why}): OpenPGP signing will work only with a key imported here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG isn't installed: OpenPGP signing will work only with a key imported here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4821,11 +5251,16 @@ msgstr "ID van de Google-bureaubladtoepassing"
 msgid "Google Desktop application ID"
 msgstr "Id van de Google-bureaubladtoepassing"
 
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers"
+msgstr "OAuth-toegangstokens van Google mogen alleen naar de IMAP- en SMTP-servers van Gmail worden verzonden"
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "Google blocked access to MailCraft"
-msgstr "Google heeft toegang tot MailCraft geblokceerd"
+msgstr "Google heeft toegang tot MailCraft geblokkeerd"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -4847,9 +5282,8 @@ msgstr "Google bevestigde dit ongewijzigde account niet. De vorige aanmelding en
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
-msgstr "Google keerde niet terug naar MailCraft. Als u Fout 403 of Toegang geblokceerd zag omdat de app in de testmodus is, vraag de ontwikkelaar u als testgebruiker toe te voegen. Als uw organisatie dit blokkeerde, vraag de Workspace-beheerder ervan. Probeer het anders opnieuw. E-mail en instellingen zijn ongewijzigd."
+msgstr "Google keerde niet terug naar MailCraft. Als u Fout 403 of Toegang geblokkeerd zag omdat de app in de testmodus is, vraag de ontwikkelaar u als testgebruiker toe te voegen. Als uw organisatie dit blokkeerde, vraag de Workspace-beheerder ervan. Probeer het anders opnieuw. E-mail en instellingen zijn ongewijzigd."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4871,15 +5305,8 @@ msgstr "Aanmelden met Google werkt niet"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
-#, fuzzy
 msgid "Google sign-in does not use Microsoft's administrator consent flow"
-msgstr "Aanmelden met Google gebruikt de instroom voor beheerderstoestemming van Microsoft niet"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is not configured for this build"
-msgstr "Aanmelden met Google is niet geconfigureerd voor deze build"
+msgstr "Aanmelden met Google gebruikt Microsoft's toestemmingsprocedure voor beheerders niet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4895,8 +5322,9 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr ""
+msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5020,8 +5448,9 @@ msgstr "Twee keer vermelde agenda verbergen"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Hide Details"
-msgstr ""
+msgstr "Details verbergen"
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -5228,7 +5657,7 @@ msgid "Illustrations"
 msgstr "Illustraties"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Import"
 msgstr "Importeren"
@@ -5246,13 +5675,24 @@ msgid "Import Contacts"
 msgstr "Contactpersonen importeren"
 
 #. command label
-#: crates/engine/src/cmd/file.rs
-msgid "Import a .pst File"
+#: crates/engine/src/cmd/keys.rs
+msgid "Import Public Keys"
 msgstr ""
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Import Your Certificate or Key"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Import a .pst File"
+msgstr "Een .pst-bestand importeren"
+
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
-msgid "Import a .pst File (preview)"
+#: crates/ui-egui/src/security.rs
+msgid "Import a Certificate"
 msgstr ""
 
 #. command label, interface
@@ -5260,6 +5700,31 @@ msgstr ""
 #, fuzzy
 msgid "Import a Folder of Mailboxes"
 msgstr "Een map met postvakken importeren"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Import a Public Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import a Public key…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import a certificate (.p12)…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import an OpenPGP Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import an OpenPGP key (.asc)…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -5299,7 +5764,13 @@ msgstr "Geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "Imported from {file}"
+msgstr "Geïmporteerd uit {file}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Imported here"
 msgstr ""
 
 #. interface
@@ -5310,8 +5781,9 @@ msgstr "{what} geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Imported {what} from the .pst file"
-msgstr ""
+msgstr "Geïmporteerd {what} uit het .pst-bestand"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -5338,8 +5810,24 @@ msgid "Imported {what}; stopped after {count}: the file has more than one import
 msgstr "{what} geïmporteerd; gestopt na {count}: het bestand vergt meer dan één import"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Imported: MailCraft keeps it in the system's credential store, still protected by its passphrase."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Imported: the system keeps it, and it is listed with your certificates."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Importing a .pst file isn't supported in the browser yet."
+msgstr "Een .pst-bestand importeren wordt in de browser nog niet ondersteund."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Importing…"
 msgstr ""
 
 #. interface
@@ -5347,6 +5835,11 @@ msgstr ""
 #, fuzzy
 msgid "Importing… {messages} of {total}"
 msgstr "Importeren… {messages} van {total}"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "In Junk E-mail, preview an attachment from its menu."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -5356,8 +5849,14 @@ msgstr "Wordt uitgevoerd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-msgid "In a new folder called {name} on this computer"
+msgid "In a new calendar named after the file on this computer"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "In a new folder called {name} on this computer"
+msgstr "In een nieuwe map genaamd {name} op deze computer"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -5397,8 +5896,14 @@ msgstr "In de selectie"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
-msgid "In {folder}"
+msgid "In this calendar:"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "In {folder}"
+msgstr "In {folder}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5540,7 +6045,13 @@ msgstr "Thema van de interface"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Into your contacts on this computer, each marked as imported from the file."
+msgstr "Naar uw contactpersonen op deze computer, elk gemarkeerd als geïmporteerd uit het bestand."
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Into your to-do list on this computer. Nothing is sent to anybody."
 msgstr ""
 
 #. interface
@@ -5569,8 +6080,9 @@ msgstr "Uitgegeven door"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Issued by:"
-msgstr ""
+msgstr "Uitgegeven door:"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5595,6 +6107,11 @@ msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijz
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
 msgstr "Het is een identificatie, geen geheim. MailCraft bewaart het in de instellingen (Bestand › Opties)."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "It is held in memory for this import only, and never written down."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -5652,13 +6169,15 @@ msgstr "Hij wordt daar uitgevoerd, of MailCraft nu open is of niet, en verschijn
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "It uses an algorithm MailCraft doesn't know."
-msgstr ""
+msgstr "Het gebruikt een algoritme dat MailCraft niet kent."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "It uses an algorithm that's no longer safe."
-msgstr ""
+msgstr "Het gebruikt een algoritme dat niet meer veilig is."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5770,6 +6289,11 @@ msgstr "Deelnemen aan onlinevergadering"
 msgid "Join {service} Meeting"
 msgstr "Deelnemen aan {service}-vergadering"
 
+#. interface, ribbon location
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
+msgid "Journal"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -5861,6 +6385,11 @@ msgid "Keep on the server of {address}"
 msgstr "Op de server van {address} bewaren"
 
 #. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Keep the notes and journal entries"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Keep this one"
@@ -5890,11 +6419,21 @@ msgstr "Deze versie behouden"
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Blijf wachten; de overschakeling gaat vanzelf door zodra MailCraft de server kan bereiken. Of schakel over zonder die, als de server niet meer kan worden bereikt (bijvoorbeeld doordat uw organisatie IMAP heeft uitgeschakeld):"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keep {address}"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Keeping a copy of what was sent"
 msgstr "Een kopie bewaren van wat is verzonden"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Kept Public key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5919,6 +6458,16 @@ msgstr "Bewaard in {path}, opgeslagen terwijl u werkt."
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Alleen op deze computer bewaard: uitnodigingen en terugkerende gebeurtenissen worden nog niet naar de server verzonden"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Key made:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Keychain"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6005,6 +6554,11 @@ msgid "Leave it empty to look for the server from your address. It must begin wi
 msgstr "Laat het leeg om de server te zoeken aan de hand van uw adres. Het moet beginnen met https://."
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Leave it not verified"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
@@ -6041,7 +6595,7 @@ msgid "Line Spacing"
 msgstr "Regelafstand"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Link"
 msgstr "Koppeling"
@@ -6083,10 +6637,20 @@ msgid "List Folders"
 msgstr "Mappen opsommen"
 
 #. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "List Journal Entries"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "List Messages"
 msgstr "Berichten opsommen"
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+msgid "List Notes"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -6123,6 +6687,11 @@ msgstr "Bekijk het certificaat dat de server nu toont. Er wordt niet aangemeld z
 #, fuzzy
 msgid "Look for This Meeting on the Calendar"
 msgstr "Deze vergadering in de agenda zoeken"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Look for your certificates and keys again"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -6210,8 +6779,9 @@ msgstr "E-mail kan niet in een Postvak UIT worden geïmporteerd: die zou worden 
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file again brings the rest."
-msgstr ""
+msgstr "E-mail wordt binnengehaald zoals die wordt gelezen. Annuleren behoudt wat er al is; het bestand opnieuw importeren haalt de rest binnen."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -6236,6 +6806,12 @@ msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: b
 #, fuzzy
 msgid "Mail from the shared mailbox waits: {error}"
 msgstr "E-mail uit het gedeelde postvak wacht: {error}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr "E-mail in Ongewenste e-mail vraagt nog steeds eerst. Bestand › Opties zet dit weer uit."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -6328,7 +6904,7 @@ msgid "MailCraft doesn't know the settings for this address. The servers below a
 msgstr "MailCraft kent de instellingen voor dit adres niet. De servers hieronder zijn alleen een gok op basis van het domein: controleer ze bij uw provider of beheerder voordat u verbinding maakt."
 
 #. what a command says
-#: crates/model/src/mailbox.rs
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
 #, fuzzy
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
 msgstr "MailCraft verplaatst of verwijdert nog geen e-mail van een JMAP-account: de volgende Verzenden/ontvangen zou die terugbrengen"
@@ -6344,6 +6920,11 @@ msgstr "MailCraft hernoemt of verplaatst nog geen mappen van een JMAP-account: d
 #, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
 msgstr "MailCraft ondersteunt POP nog niet. Gebruik in plaats daarvan de IMAP-server van uw provider (meestal imap.<uw domein>, poort 993)."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -6364,10 +6945,20 @@ msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr "MailCraft mag de agenda's van anderen nog niet lezen."
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr "MailCraft houdt het in het geheugen totdat u de app sluit. Het wordt nooit naar schijf geschreven."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft keeps the file, still protected by its passphrase, in the system's credential store. Only an ECDSA certificate (P-256 or P-384) is kept this way: an RSA one belongs on a smartcard or token (PKCS#11)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6406,6 +6997,11 @@ msgid "MailCraft reaches this account's rules on the server once it switches to 
 msgstr "MailCraft bereikt de regels van dit account op de server zodra het overstapt op Microsoft Graph"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft reads the key without its passphrase and keeps the file, still protected by it, in the system's credential store. The key must have a passphrase and sign with Ed25519 or ECDSA; MailCraft asks for the passphrase when you sign."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -6419,8 +7015,9 @@ msgstr "MailCraft is gestopt met lezen voordat het klaar was."
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
-msgstr ""
+msgstr "MailCraft stopte met het lezen van het .pst-bestand vóór het klaar was: wat er binnenkwam, wordt behouden"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -6483,6 +7080,11 @@ msgstr "De gegevens van MailCraft zijn al verwijderd"
 #, fuzzy
 msgid "MailCraft's data has been removed: nothing is sent or received"
 msgstr "De gegevens van MailCraft zijn verwijderd: er wordt niets verzonden of ontvangen"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft's search for your keys stopped without an answer. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs
@@ -6588,6 +7190,11 @@ msgstr "Als voltooid markeren"
 msgid "Mark Incomplete"
 msgstr "Als niet voltooid markeren"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Mark Key Verified"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -6617,6 +7224,11 @@ msgstr "Als gelezen markeren"
 #, fuzzy
 msgid "Mark as unread"
 msgstr "Als ongelezen markeren"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Mark as verified"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -6718,6 +7330,12 @@ msgstr "Berichten (.eml, .mbox), agenda's (.ics) en contactpersonen (.vcf)"
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "Berichten worden getoond zonder dat er iets in wordt uitgevoerd, en de afbeeldingen die een bericht op het web bewaart, worden alleen gedownload wanneer u erom vraagt. Wachtwoorden blijven alleen in het geheugen zolang de app open is."
 
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages deleted from \"{name}\" are still in \"{trash}\""
+msgstr "Uit \"{name}\" verwijderde berichten staan nog in \"{trash}\""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6747,6 +7365,12 @@ msgstr "Berichten in de map zelf"
 #, fuzzy
 msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
 msgstr "Berichten behouden de kleuren die hun afzenders hebben gekozen, op een witte pagina, terwijl de rest van het venster donker blijft."
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
+msgstr "Van \"{name}\" naar \"{to}\" verplaatste berichten staan ook nog in \"{name}\""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -7048,8 +7672,9 @@ msgstr "Naar agenda verplaatsen"
 
 #. command label, interface
 #: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
+#, fuzzy
 msgid "Move to Category"
-msgstr ""
+msgstr "Verplaatsen naar categorie"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
@@ -7173,8 +7798,9 @@ msgstr "Controleren op nieuwe versies is nodig."
 
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
+#, fuzzy
 msgid "Needs Google sign-in"
-msgstr ""
+msgstr "Heeft aanmelding bij Google nodig"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -7344,8 +7970,9 @@ msgstr "Nieuwe e-mail"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr ""
+msgstr "Nieuwe e-mail die Gmail in Social, Promoties, Updates of Forums zet, komt binnen zonder melding."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -7372,7 +7999,7 @@ msgid "Newest on top"
 msgstr "Nieuwste bovenaan"
 
 #. interface
-#: crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Next"
 msgstr "Volgende"
@@ -7404,6 +8031,11 @@ msgstr "Volgend bericht"
 #, fuzzy
 msgid "Next Month"
 msgstr "Volgende maand"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Next Page"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7446,6 +8078,16 @@ msgstr "Geen datum"
 #, fuzzy
 msgid "No Microsoft account is kept in step by IMAP"
 msgstr "Geen Microsoft-account wordt via IMAP bijgehouden"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "No Public key with that fingerprint is kept for that address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "No Public keys are kept yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7508,15 +8150,27 @@ msgid "No category"
 msgstr "Geen categorie"
 
 #. interface
-#: crates/ui-egui/src/reading/signature.rs
-msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
+#: crates/ui-egui/src/security.rs
+msgid "No certificates or keys of yours were found on this computer."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "No certification authorities for mail could be read on this computer, so no signer can be verified here."
+msgstr "Er werden geen certificeringsautoriteiten voor e-mail op deze computer gelezen, dus geen enkele ondertekenaar kan hier worden geverifieerd."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "No changes are left behind: only mail in the Outbox is waiting."
 msgstr "Er blijven geen wijzigingen achter: alleen e-mail in het Postvak UIT wacht."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No colour"
+msgstr "Geen kleur"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7597,6 +8251,11 @@ msgid "No information"
 msgstr "Geen informatie"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "No key imported here has that fingerprint"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No mailbox is being opened"
@@ -7619,6 +8278,11 @@ msgstr "Er wordt daar geen bericht gelezen"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Er staat geen nieuwe versie klaar om te installeren."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview helper is available for this attachment."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -7801,7 +8465,7 @@ msgid "Not available for this account"
 msgstr "Niet beschikbaar voor dit account"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Not available: {reason}"
 msgstr "Niet beschikbaar: {reason}"
@@ -7820,8 +8484,9 @@ msgstr "Niet verbonden: de rest van dit bericht staat op de server"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Not every layout checked."
-msgstr ""
+msgstr "Niet elke weergave gecontroleerd."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7854,7 +8519,12 @@ msgid "Not saved"
 msgstr "Niet opgeslagen"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/security.rs
+msgid "Not verified"
+msgstr ""
+
+#. interface, ribbon location
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Notes"
 msgstr "Notities"
@@ -7939,8 +8609,9 @@ msgstr "Hier is niets te doen."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
+#, fuzzy
 msgid "Nothing was done: what the agent asked about changed after you were asked."
-msgstr ""
+msgstr "Er werd niets gedaan: waar de agent om vroeg, is veranderd nadat u werd gevraagd."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7950,8 +8621,9 @@ msgstr "Er is niets naar Microsoft verzonden, en uw wachtwoord wordt niet bewaar
 
 #. interface
 #: crates/ui-egui/src/sending.rs
+#, fuzzy
 msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
-msgstr ""
+msgstr "Er werd niets verzonden: het postvak kon niet eerst worden opgeslagen ({error})"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -8020,12 +8692,6 @@ msgid "On"
 msgstr "Op"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."
-msgstr "Op GitHub worden ze opgeslagen in een bestand dat u kiest en aan de issue koppelt; per e-mail worden ze aan het bericht toegevoegd. Ze komen nooit in de koppeling terecht."
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the"
@@ -8084,6 +8750,11 @@ msgstr "Voorlopig op deze computer"
 #, fuzzy
 msgid "On this computer, for the mail of every account"
 msgstr "Op deze computer, voor de e-mail van elk account"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "On this computer. They have no views of their own yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
@@ -8158,6 +8829,11 @@ msgid "Only confirm if you know these servers."
 msgstr "Bevestig alleen als u deze servers kent."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Only my contacts"
@@ -8195,8 +8871,9 @@ msgstr "Alleen op deze computer: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Only one part of this message was signed, and what's shown here holds more than that part: what's outside it could say anything."
-msgstr ""
+msgstr "Alleen één deel van dit bericht was ondertekend, en wat hier wordt getoond, omvat meer dan dat deel: wat erbuiten staat, kan van alles zeggen."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -8221,6 +8898,11 @@ msgstr "Alleen de organisator van de vergadering kan de tijd wijzigen."
 #, fuzzy
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr "Alleen dit certificaat wordt vertrouwd, en alleen voor dit account. Als de server later een ander toont, wordt u opnieuw gevraagd."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Only to mention you if we make the report public on GitHub."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8360,8 +9042,9 @@ msgstr "Openen op GitHub"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Open or save the Digital signature"
-msgstr ""
+msgstr "De digitale ondertekening openen of opslaan"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8478,7 +9161,7 @@ msgid "Optional"
 msgstr "Optioneel"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Opties"
@@ -8508,7 +9191,7 @@ msgid "Organizer: {name}"
 msgstr "Organisator: {name}"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Other"
 msgstr "Overig"
@@ -8627,6 +9310,12 @@ msgstr "Achterstallig: moest klaar zijn op {when}"
 msgid "Overlay"
 msgstr "Overlappen"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "PLAIN needs a user name and password without NUL characters"
+msgstr "PLAIN heeft een gebruikersnaam en wachtwoord zonder NUL-tekens nodig"
+
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -8646,7 +9335,7 @@ msgid "Page Up"
 msgstr "Page Up"
 
 #. interface
-#: crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Page {page} of {pages}"
 msgstr "Pagina {page} van {pages}"
@@ -8677,8 +9366,9 @@ msgstr "Een deel van het postvakbestand is beschadigd en is weggelaten, waardoor
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Part of this message is Digitally signed by {signer}, and verified; the rest isn't signed."
-msgstr ""
+msgstr "Een deel van dit bericht is digitaal ondertekend door {signer} en geverifieerd; de rest is niet ondertekend."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -8700,8 +9390,9 @@ msgstr "Wachtwoord voor {account}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Password:"
-msgstr ""
+msgstr "Wachtwoord:"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -8728,7 +9419,7 @@ msgid "Pattern"
 msgstr "Patroon"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pending development"
 msgstr "In ontwikkeling"
@@ -8848,6 +9539,12 @@ msgid "Pictures on the web aren't downloaded for a message that is not in your m
 msgstr "Afbeeldingen op het web worden niet gedownload voor een bericht dat niet in uw postvak staat: verplaats het eerst naar een map."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr "Afbeeldingen op het web worden gedownload in elk bericht dat u opent. De server van elke afzender weet dan wanneer u het bericht hebt geopend en vanaf welk internetadres."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Pictures: {n} KB of {max} KB"
@@ -8940,6 +9637,11 @@ msgid "Preferences"
 msgstr "Voorkeuren"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preparing attachment preview…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Press Send/Receive to download your mail."
@@ -8951,6 +9653,26 @@ msgstr "Druk op Verzenden/ontvangen om uw e-mail te downloaden."
 msgid "Preview"
 msgstr "Voorbeeld"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+msgid "Preview Attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft and PhotoCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PhotoCraft"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -8958,12 +9680,7 @@ msgid "Preview lines in the message list"
 msgstr "Voorbeeldregels in de berichtenlijst"
 
 #. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Previous"
 msgstr "Vorige"
@@ -8981,14 +9698,21 @@ msgid "Previous Month"
 msgstr "Vorige maand"
 
 #. interface
-#: crates/ui-egui/src/nav.rs
-msgid "Primary"
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Previous Page"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Primary"
+msgstr "Primair"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
-msgstr ""
+msgstr "Primair, Social, Promoties, Updates en Forums, zoals Gmail uw Postvak IN sorteert. Uw e-mail blijft in het Postvak IN."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -8998,8 +9722,9 @@ msgstr "Persoonlijk"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Promotions"
-msgstr ""
+msgstr "Promoties"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
@@ -9073,14 +9798,41 @@ msgstr "Voorgesteld begin"
 msgid "Proposed time"
 msgstr "Voorgestelde tijd"
 
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Public Keys"
+msgstr ""
+
 #. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "Put the contacts"
+#: crates/ui-egui/src/security.rs
+msgid "Public keys kept ({n}):"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Public keys of other people"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+msgid "Put the calendar items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Put the contacts"
+msgstr "De contactpersonen plaatsen"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Put the mail"
+msgstr "De e-mail plaatsen"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "Put the tasks"
 msgstr ""
 
 #. interface
@@ -9255,9 +10007,8 @@ msgstr "Verbind opnieuw met Google"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
-msgstr "Verbind opnieuw met Google als uw aanmelding is verlopen of ingetrokken. De gedownloadde e-mail en de accountinstellingen blijven op hun plek."
+msgstr "Verbind opnieuw met Google als uw aanmelding is verlopen of ingetrokken. De gedownloade e-mail en de accountinstellingen blijven op hun plek."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9282,6 +10033,16 @@ msgstr "Typen opnieuw"
 #, fuzzy
 msgid "Redo {what}"
 msgstr "{what} opnieuw"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Refresh"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Refresh Your Certificates and Keys"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9348,7 +10109,7 @@ msgid "Reminders Window"
 msgstr "Herinneringenvenster"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Verwijderen"
@@ -9407,6 +10168,11 @@ msgstr "Oudere e-mail van deze computer verwijderen"
 msgid "Remove Picture"
 msgstr "Afbeelding verwijderen"
 
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Remove Public Key"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9424,6 +10190,16 @@ msgstr "Gedeelde agenda verwijderen"
 #, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "Gedeeld postvak verwijderen"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Remove Your Imported Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Remove Your Key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9476,6 +10252,11 @@ msgstr "Deze actie verwijderen"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "Deze voorwaarde verwijderen"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -9757,13 +10538,15 @@ msgstr "Certificaat controleren…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Revocation not checked."
-msgstr ""
+msgstr "Intrekking niet gecontroleerd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Revocation:"
-msgstr ""
+msgstr "Intrekking:"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
@@ -10180,6 +10963,11 @@ msgid "Say what happened (`what`)"
 msgstr "Geef op wat er gebeurde (`what`)"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Say what happened in 6,000 characters at most, what you expected included."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
@@ -10190,6 +10978,11 @@ msgstr "Zeg wat er moet worden geopend: `message` of `event` op het id, `compose
 #, fuzzy
 msgid "Say what went wrong. MailCraft sends nothing by itself: you check the report and send it."
 msgstr "Zeg wat er misging. MailCraft verzendt zelf niets: u controleert het rapport en verzendt het."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Say what went wrong. Nothing is sent until you press Send report, and then only what this window shows."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10355,6 +11148,11 @@ msgstr "Bezig met zoeken op de server…"
 msgid "Second time zone"
 msgstr "Tweede tijdzone"
 
+#. interface, ribbon location
+#: crates/engine/src/cmd/keys.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Security"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -10432,6 +11230,11 @@ msgstr "Selecteer een item om te lezen"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Selecteer eerst tekst"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Select the message before previewing its attachment."
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -10528,12 +11331,6 @@ msgid "Send automatic replies"
 msgstr "Automatische antwoorden verzenden"
 
 #. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "Send by Email"
-msgstr "Verzenden per e-mail"
-
-#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Send from a Shared Mailbox"
@@ -10544,6 +11341,16 @@ msgstr "Verzenden vanuit een gedeeld postvak"
 #, fuzzy
 msgid "Send my sign-in"
 msgstr "Mijn aanmelding verzenden"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Send report"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Send report sends them as shown. Open on GitHub saves them to a file you attach there; they are never put in the link."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -10702,6 +11509,11 @@ msgid "Sending and receiving…"
 msgstr "Bezig met verzenden en ontvangen…"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sending the report…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Sending what is waiting for the server first; then {account} switches to Microsoft Graph."
@@ -10728,6 +11540,11 @@ msgid "Sending…"
 msgstr "Bezig met verzenden…"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sends the report to the MailCraft team, as this window shows it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Sent"
@@ -10751,11 +11568,21 @@ msgstr "Verzonden zoals geschreven, zonder iets dat wordt uitgevoerd of u volgt.
 msgid "Sent to"
 msgstr "Verzonden aan"
 
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sent to the MailCraft team privately. If it's a real problem we may make it public on GitHub, with what you wrote and the diagnostics, so we can track it. Leave out anything private."
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Sent {done} of {total}"
 msgstr "{done} van {total} verzonden"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Sent, reference R-{reference}."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -10929,8 +11756,9 @@ msgstr "Bijdragers weergeven"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Show Gmail's categories under the Inbox"
-msgstr ""
+msgstr "De categorieën van Gmail onder het Postvak IN tonen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -11141,6 +11969,12 @@ msgid "Shown as text: nothing in it runs, opens or is downloaded."
 msgstr "Weergegeven als tekst: er wordt niets in uitgevoerd, geopend of gedownload."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
+msgstr "Getoond naast de naam van het account, en bij de e-mail ervan waar e-mail van meerdere accounts samen wordt weergegeven."
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Shows the signature as it was designed again, as long as its text is unchanged"
@@ -11332,8 +12166,9 @@ msgstr "Handtekening"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Signature file:"
-msgstr ""
+msgstr "Ondertekingsbestand:"
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
@@ -11355,13 +12190,15 @@ msgstr "Handtekeningen…"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Signed at:"
-msgstr ""
+msgstr "Ondertekend op:"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Signed by:"
-msgstr ""
+msgstr "Ondertekend door:"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11472,6 +12309,11 @@ msgid "Smallest on top"
 msgstr "Kleinste bovenaan"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Smartcard {label}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Snooze"
@@ -11485,8 +12327,9 @@ msgstr "Herinneringen uitstellen"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Social"
-msgstr ""
+msgstr "Social"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -11651,6 +12494,11 @@ msgid "Stop"
 msgstr "Stoppen"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Stop keeping this Public key"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Stop opening it; the mailbox that is open stays"
@@ -11688,8 +12536,9 @@ msgstr "Gestopt ({line})"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Stopped before the end. Import the file again to bring the rest."
-msgstr ""
+msgstr "Gestopt vóór het einde. Importeer het bestand opnieuw om de rest binnen te halen."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -11705,8 +12554,9 @@ msgstr "Bezig met stoppen…"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "Stopping… what has come in stays."
-msgstr ""
+msgstr "Bezig met stoppen… wat er binnenkwam, blijft."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11800,9 +12650,8 @@ msgstr "Overschakelen zonder deze"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Switching to Google sign-in keeps your downloaded messages and folders. Your current app password stays in use unless Google signs in as this same account."
-msgstr "Bij het overschakelen naar aanmelden met Google blijven uw gedownloadde berichten en mappen. Het huidige app-wachtwoord blijft in gebruik, tenzij Google u aanmeldt als dezelfde account."
+msgstr "Bij het overschakelen naar aanmelden met Google blijven uw gedownloade berichten en mappen. Het huidige app-wachtwoord blijft in gebruik, tenzij Google u met hetzelfde account aanmeldt."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -11847,6 +12696,11 @@ msgid "Tags"
 msgstr "Labels"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Take back that you verified it"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "Take everything MailCraft keeps here with you when you are done: for a shared or work computer, or before deleting a portable copy."
@@ -11857,6 +12711,11 @@ msgstr "Neem alles wat MailCraft hier bewaart mee wanneer u klaar bent: voor een
 #, fuzzy
 msgid "Take the meeting that was called off out of your calendar. Nobody is written to."
 msgstr "Haal de vergadering die is afgezegd uit uw agenda. Niemand wordt aangeschreven."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Take this key off the card"
+msgstr ""
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -12033,6 +12892,11 @@ msgid "Text to look for"
 msgstr "Tekst om naar te zoeken"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Thank you. The MailCraft team has it under this reference."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
@@ -12061,6 +12925,16 @@ msgstr "Die agenda is niet op adres geopend: die staat in de eigen lijst van het
 #, fuzzy
 msgid "That can't be opened in a window of its own"
 msgstr "Dat kan niet in een eigen venster worden geopend"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "That file is larger than a key file can be."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "That file isn't a key file: it is empty, or larger than one is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -12093,6 +12967,11 @@ msgid "That is too long for a report: shorten it"
 msgstr "Dat is te lang voor een rapport: maak het korter"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "That isn't a shared mailbox"
@@ -12100,7 +12979,13 @@ msgstr "Dat is geen gedeeld postvak"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "That isn't the password of this file."
+msgstr "Dat is niet het wachtwoord van dit bestand."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "That key is on the card already"
 msgstr ""
 
 #. interface
@@ -12117,12 +13002,19 @@ msgstr "De"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The .pst file has {what} to import; nothing was imported"
-msgstr ""
+msgstr "Het .pst-bestand heeft {what} om te importeren; er werd niets geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The Digital signature can't be read."
+msgstr "De digitale ondertekening kan niet worden gelezen."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The Digital signature has expired."
 msgstr ""
 
 #. interface
@@ -12214,6 +13106,21 @@ msgstr "De server van het account maakt deze aan wanneer de vergadering wordt ve
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "De goedkeuring is niet doorgekomen."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview could not be opened."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview timed out."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "The browser can't read files by path"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -12355,18 +13262,21 @@ msgstr "De categorieën konden niet worden opgehaald: {error}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate is for another address than the sender's."
-msgstr ""
+msgstr "Het certificaat is voor een ander adres dan dat van de afzender."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate is out of date."
-msgstr ""
+msgstr "Het certificaat is verlopen."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate isn't for signing mail."
-msgstr ""
+msgstr "Het certificaat is niet bedoeld om e-mail te ondertekenen."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -12376,8 +13286,9 @@ msgstr "Het certificaat van de server van {name} heeft uw akkoord nodig"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate signed itself, and this computer doesn't trust it."
-msgstr ""
+msgstr "Het certificaat ondertekende zichzelf, en deze computer vertrouwt het niet."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12387,8 +13298,9 @@ msgstr "Het certificaat dat de server op {host} toont, is niet het certificaat d
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
-msgstr ""
+msgstr "Het certificaat werd niet uitgegeven door een certificeringsautoriteit die deze computer vertrouwt."
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -12413,6 +13325,11 @@ msgstr "De contactpersoon {id} wordt zowel behouden als met zichzelf samengevoeg
 #, fuzzy
 msgid "The contact {id} is named twice."
 msgstr "De contactpersoon {id} is twee keer genoemd."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The contact's form was closed: open it again to add the key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -12452,6 +13369,11 @@ msgstr "De dag van deze vergadering is geen dag waarover de agenda van het accou
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+msgid "The diagnostics are too long for a report. Untick Include diagnostics, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The diagnostics couldn't be saved: {error}"
 msgstr "De diagnosegegevens konden niet worden opgeslagen: {error}"
@@ -12475,6 +13397,31 @@ msgid "The e-mail address of the person whose calendar you want to open"
 msgstr "Het e-mailadres van de persoon van wie u de agenda wilt openen"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The file couldn't be read ({why})"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The file holds more than one key, or something besides the key: export only the one secret key to import (gpg --armor --export-secret-keys <key>)."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The file holds no OpenPGP secret key that can be read."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The file is larger than an OpenPGP key can be."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The file's passphrase:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The folder \"{folder}\" and everything in it will be deleted."
@@ -12482,10 +13429,11 @@ msgstr "De map „{folder}” en alles daarin worden verwijderd."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
 msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
 msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "De map „{name}” werd niet verwijderd: de server heeft {n} nieuw item erin dat u niet had gezien. Ze komt terug ermee; verwijder haar opnieuw als u haar nog wilt laten verdwijnen."
+msgstr[1] "De map „{name}” werd niet verwijderd: de server heeft {n} nieuwe items erin die u niet had gezien. Ze komt terug met die items; verwijder haar opnieuw als u haar nog wilt laten verdwijnen."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12501,12 +13449,24 @@ msgstr "Het doorsturen van meerdere berichten dat wachtte, is geannuleerd: een a
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "The full report is in:"
+msgstr "Het volledige rapport staat in:"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The import gave back something that isn't a key's name in the credential store."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "The import stopped unexpectedly. What came in stays; import the file again for the rest."
+msgstr "De import werd onverwacht gestopt. Wat er binnenkwam, blijft; importeer het bestand opnieuw voor de rest."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The import stopped without an answer. Try again."
 msgstr ""
 
 #. interface
@@ -12534,6 +13494,31 @@ msgid "The kept contact is always merged"
 msgstr "De behouden contactpersoon wordt altijd samengevoegd"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key couldn't be removed from the system's credential store."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key is marked as verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key is not marked as verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The key that made it isn't one that may sign."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key was removed from this computer."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
@@ -12558,21 +13543,26 @@ msgid "The list of senders is full: remove some in File › Options"
 msgstr "De lijst met afzenders is vol: verwijder er enkele via Bestand › Opties"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The local program receives the selected attachment and runs with your permissions."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "The logo is the signature's first picture: add one with Insert Picture."
 msgstr "Het logo is de eerste afbeelding van de handtekening: voeg er een toe met Afbeelding invoegen."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "The mail of a .pst file, into a folder on this computer"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "The mail of this account is then downloaded again from Microsoft. The newest messages show within minutes; the rest follows in the background."
 msgstr "De e-mail van dit account wordt dan opnieuw van Microsoft gedownload. De nieuwste berichten verschijnen binnen enkele minuten; de rest volgt op de achtergrond."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The mail, contacts, calendar, tasks and notes of a .pst file, onto this computer"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -12588,8 +13578,9 @@ msgstr "De vergadering waarvoor deze voorstellen zijn, staat niet in uw agenda."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
 msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
-msgstr ""
+msgstr "De samengevoegde contactpersoon zou meer certificaten en sleutels hebben dan een contactpersoon bevat (maximaal {max}, de behouden contactpersoon heeft {had}), dus de contactpersonen worden niet samengevoegd."
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -12617,8 +13608,9 @@ msgstr "Het bericht is er niet meer"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
-msgstr ""
+msgstr "Het bericht werd gedownload voordat MailCraft de bytes behield. Opnieuw controleren haalt ze opnieuw binnen."
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
@@ -12716,11 +13708,56 @@ msgstr "De afbeelding was te groot en is daarom kleiner gemaakt ({w} px breed)."
 msgid "The port; leave it empty for the usual one"
 msgstr "De poort; laat deze leeg voor de gebruikelijke"
 
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The private key in this file isn't encrypted, so MailCraft doesn't keep it: export it again with its key encrypted (AES), protected by a passphrase."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "Het voorgestelde einde moet na het voorgestelde begin liggen."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service couldn't be reached. Check that you're online and try again, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service couldn't file the report. Try again, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service didn't answer in time, so the report may have arrived. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service didn't take the report as it is. Shorten it and try again, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service has taken as many reports as it can for now. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service isn't taking reports just now. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service isn't working just now. Try again later, or open it on GitHub."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -12754,8 +13791,9 @@ msgstr "Het zoeken naar uw Exchange-server is doorgestuurd naar {host}, dat niet
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The selected message, as .eml"
-msgstr ""
+msgstr "Het geselecteerde bericht, als .eml"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -12799,6 +13837,18 @@ msgstr "De server antwoordde, maar niet zoals een Exchange-server dat doet. Cont
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr "De server heeft de gebruikersnaam en het wachtwoord niet geaccepteerd. Controleer ze, of typ uw gebruikersnaam bij Serverinstellingen (DOMAIN\\user of naam@example.org)."
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over 1 message of \"{name}\""
+msgstr "De server heeft 1 bericht uit \"{name}\" niet gegeven"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over {count} messages of \"{name}\""
+msgstr "De server heeft {count} berichten uit \"{name}\" niet gegeven"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -12816,6 +13866,21 @@ msgstr "De server heeft de berichten niet verzonden. Probeer het over een paar m
 #, fuzzy
 msgid "The server doesn't let this rule be changed"
 msgstr "De server staat niet toe dat deze regel wordt gewijzigd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has at least {total} folders: one run reads the first {max}, and leaves out the rest, from \"{first}\" on"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has at least {total} folders: their list was too long to read whole, and the folders after them were left out"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12975,12 +14040,23 @@ msgstr "De handtekening wordt dan verzonden als de eenvoudigere tekst die hier w
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-msgid "The signer's certificate isn't in the message."
+msgid "The signer's Public key (certificate) isn't in the message or kept on this computer."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key had expired when the message was signed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "The signer's key hasn't been marked verified."
+msgstr "De sleutel van de ondertekenaar is niet als geverifieerd gemarkeerd."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key was revoked by its owner."
 msgstr ""
 
 #. interface
@@ -13129,8 +14205,9 @@ msgstr "Er is niet zo'n account"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "There's more in this Digital signature than MailCraft checks for one message."
-msgstr ""
+msgstr "Deze digitale ondertekening bevat meer dan MailCraft in één bericht controleert."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -13205,6 +14282,12 @@ msgid "They are removed from the mail server too."
 msgstr "Ze worden ook van de e-mailserver verwijderd."
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
+msgstr "Ze worden in een bestand naar keuze opgeslagen, dat u bij het GitHub-issue voegt. Ze komen nooit in de koppeling."
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "They share {what}."
@@ -13218,9 +14301,8 @@ msgstr "Deze week"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "This account does not use Google sign-in."
-msgstr "Dit account gebruikt aanmelden met Google niet."
+msgstr "Dit account gebruikt geen aanmelding met Google."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -13311,6 +14393,16 @@ msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvan
 #, fuzzy
 msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment could not be previewed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment is too large to preview."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -13420,6 +14512,11 @@ msgstr "Deze agenda kan alleen worden gelezen: nieuwe items kunnen er niet naart
 msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
 msgstr "Deze agenda is nog niet verbonden met uw account. Wat elders verandert, wordt hier niet weergegeven, en wat u hier wijzigt, blijft op deze computer."
 
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -13428,8 +14525,9 @@ msgstr "Deze computer vertrouwt het certificaat niet dat de server op {host} too
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
-msgstr ""
+msgstr "De certificeringsautoriteiten van deze computer zijn nog niet gelezen: de ondertekening wordt gecontroleerd zodra ze zijn gelezen."
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -13454,12 +14552,6 @@ msgstr "Deze contactpersoon wordt definitief verwijderd."
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "Dit exemplaar van MailCraft werkt zichzelf niet bij."
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "This copy of MailCraft has no address to send reports to."
-msgstr "Dit exemplaar van MailCraft heeft geen adres om rapporten naartoe te verzenden."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13529,13 +14621,15 @@ msgstr "Deze gebeurtenis wordt bewaard door de server van {who}. Deze kan worden
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "This file can't be imported: {why}"
-msgstr ""
+msgstr "Dit bestand kan niet worden geïmporteerd: {why}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "This file has a password. Nothing is imported without it."
-msgstr ""
+msgstr "Dit bestand heeft een wachtwoord. Er wordt niets geïmporteerd zonder het."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -13557,8 +14651,9 @@ msgstr "Deze uitnodiging vermeldt niet over welke vergadering het gaat, dus deze
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
 msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
-msgstr ""
+msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar komt niet van de organisator ervan, dus kan die vergadering niet worden gewijzigd. Om te antwoorden, opent u de vergadering in uw agenda en antwoordt u daar."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -13583,6 +14678,16 @@ msgstr "Dit gaat over één exemplaar van een reeks."
 #, fuzzy
 msgid "This is about the occurrence on {day} only."
 msgstr "Dit gaat alleen over het exemplaar op {day}."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This is an RSA certificate, which MailCraft doesn't use by itself on this system: put it on a smartcard or token (PKCS#11), where MailCraft finds it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This is an RSA key, which MailCraft doesn't use by itself: keep it in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -13625,6 +14730,21 @@ msgstr "Dit item heeft de server van {who} nog niet bereikt. Stuur het door zodr
 #, fuzzy
 msgid "This item is still on its way to the account's server. Move it once it is there (in a moment)."
 msgstr "Dit item is nog onderweg naar de server van het account. Verplaats het zodra het daar is (zo meteen)."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This key can't make Digital signatures: none of its keys may sign, or its secret parts aren't in the file."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This key has no passphrase, so MailCraft doesn't keep it. Add one in GnuPG (gpg --edit-key <key>, then passwd) and import it again."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This key signs with an algorithm MailCraft doesn't use: only Ed25519 and ECDSA keys are imported here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -13802,8 +14922,9 @@ msgstr "Dit bericht staat nog niet op deze computer. Het wordt gedownload wannee
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
-msgstr ""
+msgstr "Dit bericht kan zich in meer weergaven opmaken dan MailCraft kon controleren, dus een koppeling in een van die weergaven kan ergens anders naartoe gaan dan de tekst ervan zegt."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -13813,8 +14934,9 @@ msgstr "Dit bericht is mogelijk niet wat het lijkt."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "This message was changed after it was signed."
-msgstr ""
+msgstr "Dit bericht werd na het ondertekenen gewijzigd."
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -13836,8 +14958,9 @@ msgstr "Dit bericht wordt definitief verwijderd."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "This message's Digital signature can't be checked."
-msgstr ""
+msgstr "De digitale ondertekening van dit bericht kan niet worden gecontroleerd."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -13882,6 +15005,11 @@ msgid "This removes everything MailCraft keeps on this computer: every account's
 msgstr "Hiermee verwijdert u alles wat MailCraft op deze computer bewaart: de e-mail, bijlagen, contactpersonen, agenda en instellingen van elk account, de aanmeldingen die in de referentieopslag van het systeem zijn onthouden, gedownloade afbeeldingen, geopende bijlagen en logboeken."
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "This report is too long to send: shorten what you wrote, or untick Include diagnostics."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
@@ -13904,6 +15032,11 @@ msgstr "Het account van dit gedeelde postvak is verdwenen"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Het account van dit gedeelde postvak is verdwenen: verwijder het gedeelde postvak en voeg het opnieuw toe"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -14137,9 +15270,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "To switch, first save Google's standard IMAP and SMTP servers and an email-matching user name."
-msgstr "Zet voor het overschakelen eerst de standaardserver van Google voor IMAP en SMTP op, en een gebruikersnaam die bij het e-mailadres past."
+msgstr "Sla voor het overschakelen eerst de standaard-IMAP- en SMTP-servers van Google op, en een gebruikersnaam die bij het e-mailadres past."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14262,7 +15394,7 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
@@ -14278,6 +15410,11 @@ msgstr "di"
 #, fuzzy
 msgid "Tuesday"
 msgstr "dinsdag"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Turn on attachment previews in File › Options."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -14305,13 +15442,15 @@ msgstr "Twee weken geleden"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
 msgid "Two or more accounts in this mailbox have the same address. Its accounts connect to:"
-msgstr ""
+msgstr "Twee of meer accounts in dit postvak hebben hetzelfde adres. De accounts verbinden met:"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
 msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
-msgstr ""
+msgstr "Twee of meer van deze accounts hebben hetzelfde adres. Bevestig alleen als elke server van hen de uwe is."
 
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
@@ -14344,9 +15483,15 @@ msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Out
 msgstr "Typ uw e-mailadres en MailCraft zoekt de rest: Microsoft 365, Outlook.com, Google en andere providers, of een postvak alleen op dit apparaat"
 
 #. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "Under a folder on this computer:"
+#: crates/ui-egui/src/backstage.rs
+msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Under a folder on this computer:"
+msgstr "Onder een map op deze computer:"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -14563,15 +15708,36 @@ msgid "Valid"
 msgstr "Geldig"
 
 #. interface
-#: crates/ui-egui/src/reading/signature.rs
-msgid "Valid:"
+#: crates/ui-egui/src/security.rs
+msgid "Valid until {date}"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "Valid:"
+msgstr "Geldig:"
 
 #. name
 #: crates/model/src/rich.rs
 #, fuzzy
 msgid "Verdana"
 msgstr "Verdana"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Verified"
+msgstr ""
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/security.rs
+msgid "Verify a Public Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Verify…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -14620,6 +15786,11 @@ msgstr "Bron weergeven"
 #, fuzzy
 msgid "Violet"
 msgstr "Violet"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Wait for the other attachment preview to finish."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -14694,6 +15865,11 @@ msgid "What happened"
 msgstr "Wat er gebeurde"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What happened and what you expected come to {n} characters together: a report takes {max}."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What happens to mail as it arrives"
@@ -14749,7 +15925,13 @@ msgstr "Wat u verwachtte (optioneel)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
+msgstr "Wat u ziet, is niet wat werd ondertekend: ga er voorzichtig mee om."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What you wrote has been cleared from this window."
 msgstr ""
 
 #. interface
@@ -14799,6 +15981,11 @@ msgid "Where"
 msgstr "Waar"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Where the card says the key is: MailCraft doesn't fetch it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
@@ -14809,6 +15996,11 @@ msgstr "Waar ze verschillen, heeft de behouden contactpersoon:"
 #, fuzzy
 msgid "Whether it is held online is for its organizer to say."
 msgstr "Of het online plaatsvindt, is aan de organisator."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14824,8 +16016,9 @@ msgstr "Wie er wordt uitgenodigd, is aan de organisator."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Who signed this message, and the certificate"
-msgstr ""
+msgstr "Wie dit bericht ondertekende, en het certificaat"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -14838,6 +16031,16 @@ msgstr "Breedte"
 #, fuzzy
 msgid "Window"
 msgstr "Venster"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Windows certificate store"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Windows keeps the certificate and its private key in your certificate store, and asks you before MailCraft uses it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15068,6 +16271,11 @@ msgid "You haven't answered this invitation yet."
 msgstr "U hebt deze uitnodiging nog niet beantwoord."
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "You marked this key as verified."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "You may be asked to sign in with Microsoft again, to let MailCraft read and change your mail there."
@@ -15140,52 +16348,20 @@ msgid "Your automatic replies weren't changed"
 msgstr "Uw automatische antwoorden zijn niet gewijzigd"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: MailCraft needs your permission first (File › Info › Ask again)."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Opnieuw vragen)."
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: MailCraft wasn't allowed to change them."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: MailCraft mocht ze niet wijzigen."
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: Microsoft no longer takes your sign-in."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: Microsoft accepteert uw aanmelding niet meer."
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: sign in again to let MailCraft read them (File › Info)."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: meld u opnieuw aan zodat MailCraft ze kan lezen (Bestand › Info)."
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: you are working offline."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: u werkt offline."
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: your organisation doesn't let MailCraft change them."
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: uw organisatie staat MailCraft niet toe ze te wijzigen."
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
-msgid "Your automatic replies weren't changed: {error}"
-msgstr "Uw automatische antwoorden zijn niet gewijzigd: {error}"
-
-#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Your calendar: {day}"
 msgstr "Uw agenda: {day}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your certificates and keys"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your keychain keeps the certificate and its private key, and macOS asks you before MailCraft uses it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15362,16 +16538,20 @@ msgid "Your organisation's administrator has to approve this once"
 msgstr "De beheerder van uw organisatie moet dit één keer goedkeuren"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your own key is removed only by you, in the window"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Your own name."
 msgstr "Uw eigen naam."
-
-#. interface
-#: crates/ui-egui/src/report_problem.rs
-#, fuzzy
-msgid "Your report is ready in a new message: check it, then press Send."
-msgstr "Uw rapport staat klaar in een nieuw bericht: controleer het en druk daarna op Verzenden."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -15380,7 +16560,7 @@ msgid "Z on top"
 msgstr "Z bovenaan"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Zoom"
 msgstr "Zoom"
@@ -15428,6 +16608,11 @@ msgid "`answer.outcome` is read, missing, notPermitted, refused, approval or fai
 msgstr "`answer.outcome` is read, missing, notPermitted, refused, approval of failed"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "`format` is \"smime\" or \"openpgp\""
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "`keepOffline` is 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y or all"
@@ -15457,21 +16642,39 @@ msgstr "`notice` is installsItself of didntStart"
 msgid "`value` is true or false"
 msgstr "`value` is true of false"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "`verified` is true or false"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
+msgstr "er wordt een .pst-bestand in dit postvak geïmporteerd: wacht tot het klaar is, en sla het daarna op een andere plaats op"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
 msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
-msgstr ""
+msgstr "een .pst-bestand wordt alleen in een map op deze computer geïmporteerd, nooit in een account op een server of in de Outbox"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
 msgstr "de server en het adres van een JMAP-account kunnen niet meer worden gewijzigd zodra de e-mail ervan hier is: verwijder het en voeg het andere toe"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
+msgstr "een aanmelding bij Microsoft wordt alleen gebruikt met de eigen mailservers van Microsoft: dit account noemt een andere server"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -15496,6 +16699,11 @@ msgstr "een kleur wordt geschreven als #rrggbb"
 #, fuzzy
 msgid "a contact needs a name, a company or an e-mail address"
 msgstr "een contact heeft een naam, een bedrijf of een e-mailadres nodig"
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "a contact's card keeps at most 32 keys"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -15538,6 +16746,12 @@ msgstr "een lijst bevat hoogstens {n} vermeldingen"
 #, fuzzy
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr "een bericht wordt op de achtergrond alleen door de eigen timer van het venster opgeslagen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "a message that isn't on the server has no flags there"
+msgstr "een bericht dat niet op de server staat, heeft daar geen vlaggen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -15684,6 +16898,11 @@ msgid "an HTML signature shows pictures from their web address: switch it to ric
 msgstr "een HTML-handtekening toont afbeeldingen vanaf hun webadres: schakel over naar tekst met opmaak om er een toe te voegen"
 
 #. what a command says
+#: crates/engine/src/digital_signature.rs
+msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
@@ -15751,7 +16970,13 @@ msgstr "agenda"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "can't be done in the browser"
+msgstr "kan niet in de browser worden gedaan"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "can't be read"
 msgstr ""
 
 #. what a command says
@@ -15766,10 +16991,22 @@ msgstr "geannuleerd"
 msgid "close a conversation first: each of the 1,000 open has a message selected"
 msgstr "vouw eerst een gesprek samen: in elk van de 1.000 uitgevouwen gesprekken is een bericht geselecteerd"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "collected from mail"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "comes once Google has reviewed MailCraft"
-msgstr ""
+msgstr "komt zodra Google MailCraft heeft beoordeeld"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "connection problem: {reason}"
+msgstr "verbindingsprobleem: {reason}"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -15777,11 +17014,35 @@ msgstr ""
 msgid "contact"
 msgstr "contact"
 
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "couldn't make a secure connection to {host}: {reason}"
+msgstr "er kon geen beveiligde verbinding met {host} worden gemaakt: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "couldn't reach {host}: {reason}"
+msgstr "{host} kon niet worden bereikt: {reason}"
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
 msgid "day"
 msgstr "dag"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a password to sign in"
+msgstr "voer een wachtwoord in om u aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a user name to sign in"
+msgstr "voer een gebruikersnaam in om u aan te melden"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -15881,10 +17142,16 @@ msgstr "iCloud"
 msgid "icloud.com, me.com and mac.com"
 msgstr "icloud.com, me.com en mac.com"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "imported"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "importing a .pst file isn't supported in the browser yet"
-msgstr ""
+msgstr "een .pst-bestand importeren wordt in de browser nog niet ondersteund"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -15933,6 +17200,11 @@ msgstr "is geen map waarin MailCraft de gegevens bewaart: ongemoeid gelaten"
 #, fuzzy
 msgid "isn't a folder: left alone"
 msgstr "is geen map: ongemoeid gelaten"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "issued by {issuer}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -16060,6 +17332,12 @@ msgstr "het duurde te lang"
 msgid "it writes to other people or reaches out to the web"
 msgstr "het schrijft naar andere mensen of benadert het web"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "its name isn't one a certificate can be checked against"
+msgstr "de naam is er geen waartegen een certificaat kan worden gecontroleerd"
+
 #. interface
 #: crates/ui-egui/src/opened_message.rs
 #, fuzzy
@@ -16068,8 +17346,9 @@ msgstr "groter dan {mb} MB: haal het binnen via Bestand › Importeren"
 
 #. what a command says
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "message {id} keeps no original"
-msgstr ""
+msgstr "bericht {id} behoudt geen origineel"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -16091,18 +17370,21 @@ msgstr "maand"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "more than {max} folders"
-msgstr ""
+msgstr "meer dan {max} mappen"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "needs Google sign-in"
-msgstr ""
+msgstr "heeft aanmelding bij Google nodig"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "needs a Gmail account"
-msgstr ""
+msgstr "heeft een Gmail-account nodig"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -16115,6 +17397,16 @@ msgstr "nooit"
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "geen Microsoft-account wordt via IMAP bijgehouden"
+
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
+msgid "no Public key with that fingerprint is kept for that address"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -16147,7 +17439,7 @@ msgid "no account is kept in step over JMAP"
 msgstr "geen account wordt via JMAP bijgehouden"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "geen account wordt via Microsoft Graph bijgehouden"
@@ -16164,6 +17456,12 @@ msgstr "geen account met id {account}"
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "no address was found for the name"
+msgstr "er is geen adres voor de naam gevonden"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -16177,7 +17475,7 @@ msgid "no calendar was opened by address"
 msgstr "geen agenda is op adres geopend"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "geen agenda met id {id}"
@@ -16208,14 +17506,20 @@ msgstr "geen map met id {id}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "no free name for the folder {name}"
-msgstr ""
+msgstr "geen vrije naam voor de map {name}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "no incoming server"
 msgstr "geen inkomende server"
+
+#. what a command says
+#: crates/engine/src/cmd/notes.rs
+msgid "no journal entry with that id"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/edit.rs
@@ -16246,6 +17550,11 @@ msgstr "geen bericht met id {id}"
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "geen bericht met id {id} in {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/notes.rs
+msgid "no note with id {id}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16330,6 +17639,12 @@ msgstr "geen map {folder}"
 #, fuzzy
 msgid "nobody else is invited to this appointment"
 msgstr "er is niemand anders uitgenodigd voor deze afspraak"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "not a set of messages"
+msgstr "geen reeks berichten"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -16417,13 +17732,15 @@ msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
+#, fuzzy
 msgid "only mail in a Gmail account's Inbox is in one of Gmail's categories"
-msgstr ""
+msgstr "alleen e-mail in het Postvak IN van een Gmail-account zit in een van Gmail's categorieën"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
-msgstr ""
+msgstr "alleen het Postvak IN van een Gmail-account waarvan de categorieën worden getoond en door Gmail worden gesorteerd, heeft de categorieën van Gmail"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -16545,11 +17862,23 @@ msgstr "gedeelde postvakken worden geopend onder een via Microsoft Graph bijgeho
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "gedeelde postvakken worden geopend onder een account dat via Microsoft Graph wordt bijgehouden"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
 #, fuzzy
-msgid "sign-in failed: the server doesn't take a password on this connection"
-msgstr "aanmelden mislukt: de server accepteert geen wachtwoord op deze verbinding"
+msgid "sign in to the account first"
+msgstr "meld u eerst aan bij het account"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "sign in to {who} first"
+msgstr "meld u eerst aan bij {who}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "sign-in failed: {reason}"
+msgstr "aanmelden mislukt: {reason}"
 
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
@@ -16589,8 +17918,9 @@ msgstr "dat staat niet op de lijst"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "that isn't the password of this .pst file: nothing was imported"
-msgstr ""
+msgstr "dat is niet het wachtwoord van dit .pst-bestand: er werd niets geïmporteerd"
 
 #. interface
 #: crates/ui-egui/src
@@ -16624,18 +17954,21 @@ msgstr "dat is alleen bekeken, niet volledig gelezen"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the .pst file couldn't be opened: {e}"
-msgstr ""
+msgstr "het .pst-bestand kon niet worden geopend: {e}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the .pst file couldn't be read: {why}"
-msgstr ""
+msgstr "het .pst-bestand kon niet worden gelezen: {why}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the .pst file's reader stopped before it was done"
-msgstr ""
+msgstr "de lezer van het .pst-bestand stopte voordat die klaar was"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -16644,10 +17977,51 @@ msgid "the Inbox of this account hasn't been read yet"
 msgstr "het Postvak IN van dit account is nog niet gelezen"
 
 #. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the OpenPGP key is larger than a Public key is kept"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the account has no incoming server"
+msgstr "het account heeft geen server voor inkomende e-mail"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "the account has no mail servers to check"
+msgstr "het account heeft geen mailservers om te controleren"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "the account has no outgoing server"
+msgstr "het account heeft geen server voor uitgaande e-mail"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "the account has no usable e-mail address to send from"
+msgstr "het account heeft geen bruikbaar e-mailadres om vanaf te verzenden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "the account has no user name or e-mail address to sign in with"
+msgstr "het account heeft geen gebruikersnaam of e-mailadres om mee aan te melden"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "het account is verdwenen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the account's server has no usable name"
+msgstr "de server van het account heeft geen bruikbare naam"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -16679,11 +18053,43 @@ msgstr "de browser kan mappen niet via een pad lezen"
 msgid "the calendar is gone"
 msgstr "de agenda is verdwenen"
 
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "the calendar the .pst file was being imported into was removed: the import stopped"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the certificate can't be read"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the certificate is a certification authority's, not a person's Public key"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the certificate isn't for mail: its key usage or extended key usage is for something else"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the check stopped unexpectedly"
 msgstr "de controle is onverwacht gestopt"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the command was refused"
+msgstr "de opdracht is geweigerd"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the connection couldn't be set up"
+msgstr "de verbinding kon niet worden opgezet"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
@@ -16733,6 +18139,26 @@ msgstr "het einde van de periode moet na het begin liggen"
 msgid "the event is gone"
 msgstr "de gebeurtenis is verdwenen"
 
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file holds no Public key that can be read: an X.509 certificate (DER or PEM) or OpenPGP Public keys"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file holds no Public key that can be read: an X.509 certificate (DER or PEM) or an OpenPGP Public key"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file is empty"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file is larger than a file of Public keys can be (1 MB)"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -16759,13 +18185,15 @@ msgstr "de map waarnaar hij e-mail verplaatst, staat niet op de server"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the folder the .pst file was being imported into is gone: the import stopped"
-msgstr ""
+msgstr "de map waar het .pst-bestand in werd geïmporteerd, is weg: de import werd gestopt"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the folder the .pst file was being imported into was moved to Deleted Items: the import stopped"
-msgstr ""
+msgstr "de map waar het .pst-bestand in werd geïmporteerd, werd verplaatst naar Verwijderde items: de import werd gestopt"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
@@ -16775,17 +18203,25 @@ msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the import couldn't account for every item of {path}"
-msgstr ""
+msgstr "de import kon niet elk item van {path} verwerken"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the import has no folder to put mail in"
-msgstr ""
+msgstr "de import heeft geen map om e-mail in te zetten"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "the import was stopped"
+msgstr "de import werd gestopt"
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the key is larger than a contact's card keeps one"
 msgstr ""
 
 #. what a command says
@@ -16842,6 +18278,18 @@ msgstr "het bericht heeft geen bijlage {index}"
 msgid "the message has no attachments to save"
 msgstr "het bericht heeft geen bijlagen om op te slaan"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the message has no recipients"
+msgstr "het bericht heeft geen geadresseerden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the message has too many recipients"
+msgstr "het bericht heeft te veel geadresseerden"
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -16853,6 +18301,18 @@ msgstr "het bericht is platte tekst; zet het eerst om naar HTML"
 #, fuzzy
 msgid "the messages to forward are larger than {mb} MB together"
 msgstr "de berichten om door te sturen zijn samen groter dan {mb} MB"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the name couldn't be looked up"
+msgstr "de naam kon niet worden opgezocht"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the network couldn't get there"
+msgstr "het netwerk kon er niet komen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -16920,11 +18380,52 @@ msgstr "de afzender heeft geen bruikbaar e-mailadres"
 msgid "the series doesn't happen on {date}"
 msgstr "de reeks vindt niet plaats op {date}"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server accepted a password that was not sent"
+msgstr "de server accepteerde een wachtwoord dat niet was verzonden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server answered a command that wasn't sent"
+msgstr "de server antwoordde op een opdracht die niet was verzonden"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server answered {status}"
 msgstr "de server antwoordde {status}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server asked for more than a sign-in has"
+msgstr "de server vroeg om meer dan een aanmelding heeft"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server asked for more than a user name and access token"
+msgstr "de server vroeg om meer dan een gebruikersnaam en toegangstoken"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server asked for more than a user name and password"
+msgstr "de server vroeg om meer dan een gebruikersnaam en wachtwoord"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server asked for more than the command had"
+msgstr "de server vroeg om meer dan de opdracht had"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -16932,11 +18433,41 @@ msgstr "de server antwoordde {status}"
 msgid "the server can't flag mail"
 msgstr "de server kan e-mail niet markeren"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
+msgstr "de server kan geen losse berichten verwijderen (hij biedt geen UIDPLUS)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs crates/proto/src/line.rs
+#, fuzzy
+msgid "the server closed the connection"
+msgstr "de server heeft de verbinding gesloten"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server continued a cancelled password authentication"
+msgstr "de server ging door met een geannuleerde wachtwoordverificatie"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "de server kon niet worden bereikt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server didn't answer"
+msgstr "de server antwoordde niet"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server didn't greet like an IMAP server"
+msgstr "de server groette niet zoals een IMAP-server"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16956,11 +18487,88 @@ msgstr "de server staat niet toe dat de regel ernaast wordt verplaatst"
 msgid "the server doesn't let this rule be changed"
 msgstr "de server staat niet toe dat deze regel wordt gewijzigd"
 
-#. why a command can't run
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs crates/net/src/sync.rs
+#, fuzzy
+msgid "the server doesn't offer STARTTLS"
+msgstr "de server biedt geen STARTTLS"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server doesn't take a password on this connection"
+msgstr "de server accepteert geen wachtwoord via deze verbinding"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server ended the command early"
+msgstr "de server beëindigde de opdracht te vroeg"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server ended the session: {reason}"
+msgstr "de server beëindigde de sessie: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server greeted with a refusal: {reason}"
+msgstr "de server groette met een weigering: {reason}"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of verwijderd"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server offers no way to sign in with a password"
+msgstr "de server biedt geen manier om met een wachtwoord aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server offers no way to sign in with an access token"
+msgstr "de server biedt geen manier om met een toegangstoken aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server refused the connection"
+msgstr "de server weigerde de verbinding"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server reported more messages than the mailbox holds"
+msgstr "de server meldde meer berichten dan het postvak bevat"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the server requested more than one PLAIN response"
+msgstr "de server vroeg om meer dan één PLAIN-antwoord"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the server said: {reason}"
+msgstr "de server zei: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent a line longer than {kb} KB"
+msgstr "de server stuurde een regel van meer dan {kb} kB"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -16968,17 +18576,88 @@ msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of
 msgid "the server sent a web page instead of a picture"
 msgstr "de server stuurde een webpagina in plaats van een afbeelding"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server sent data before the secure connection started"
+msgstr "de server stuurde gegevens voordat de beveiligde verbinding begon"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
 msgid "the server sent nothing"
 msgstr "de server stuurde niets"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent too many responses to one command"
+msgstr "de server stuurde te veel antwoorden op één opdracht"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent too much in answer to one command"
+msgstr "de server stuurde te veel als antwoord op één opdracht"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server sent {claimed} bytes in one piece, more than the {mb} MB MailCraft accepts"
+msgstr "de server stuurde {claimed} bytes in één stuk, meer dan de {mb} MB die MailCraft accepteert"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent {n} bytes in one piece, more than MailCraft accepts"
+msgstr "de server stuurde {n} bytes in één stuk, meer dan MailCraft accepteert"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server took too long"
+msgstr "de server deed er te lang over"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server took too long to answer"
+msgstr "de server deed er te lang over om te antwoorden"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "de server wilde „{subject}” niet heel verzenden, dus het kan niet als bijlage worden doorgestuurd"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "the server's answer was longer than {kb} KB"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the server's reply has too many lines"
+msgstr "het antwoord van de server heeft te veel regels"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server's response has too many parts"
+msgstr "het antwoord van de server heeft te veel delen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/parse.rs
+#, fuzzy
+msgid "the server's response is nested too deeply"
+msgstr "het antwoord van de server is te diep genest"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the server's response is too long"
+msgstr "het antwoord van de server is te lang"
 
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
@@ -17004,6 +18683,18 @@ msgstr "de handtekening is bewerkt als tekst: die kopie is wat wordt verzonden"
 msgid "the task is gone"
 msgstr "de taak is verdwenen"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the text can't be looked for on the server"
+msgstr "naar de tekst kan niet op de server worden gezocht"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "the text has a character that can't be sent"
+msgstr "de tekst bevat een teken dat niet kan worden verzonden"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -17015,6 +18706,30 @@ msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, d
 #, fuzzy
 msgid "the top level"
 msgstr "het bovenste niveau"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the user name or access token has a character that can't be sent"
+msgstr "de gebruikersnaam of het toegangstoken bevat een teken dat niet kan worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "the user name or access token is too long to be sent"
+msgstr "de gebruikersnaam of het toegangstoken is te lang om te worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#, fuzzy
+msgid "the user name or password has a character that can't be sent"
+msgstr "de gebruikersnaam of het wachtwoord bevat een teken dat niet kan worden verzonden"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "the user name or password is too long"
+msgstr "de gebruikersnaam of het wachtwoord is te lang"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -17033,6 +18748,11 @@ msgstr "er zijn te veel accounts"
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "er zijn te veel agenda's"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+msgid "there are too many calendars to make one for this file"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -17057,6 +18777,12 @@ msgstr "er zijn te veel handtekeningen"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "er is al een handtekening met de naam „{to}”"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "there is no access token to sign in with"
+msgstr "er is geen toegangstoken om mee aan te melden"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -17089,6 +18815,11 @@ msgid "there is no search"
 msgstr "er is geen zoekopdracht"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is nothing to take in"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
@@ -17108,13 +18839,15 @@ msgstr "deze instellingen zijn voor een ander account, niet voor {who}"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "this .pst file has a password: give it to import the file"
-msgstr ""
+msgstr "dit .pst-bestand heeft een wachtwoord: geef het om het bestand te importeren"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "this .pst file is too large to import without a mailbox file with room beside it: save the mailbox to a file first, then import again"
-msgstr ""
+msgstr "dit .pst-bestand is te groot om te importeren zonder een postvakbestand met ruimte erbij: sla het postvak eerst op in een bestand en importeer het daarna opnieuw"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -17183,9 +18916,15 @@ msgid "this draft isn't downloaded yet: open it once you're online, then edit it
 msgstr "dit concept is nog niet gedownload: open het zodra u online bent en bewerk het daarna"
 
 #. what a command says
-#: crates/engine/src/import_pst.rs
-msgid "this isn't a .pst file"
+#: crates/engine/src/cmd/keys.rs
+msgid "this file holds a private key, which isn't imported as a Public key: import your own keys in File › Options › Security"
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+#, fuzzy
+msgid "this isn't a .pst file"
+msgstr "dit is geen .pst-bestand"
 
 #. name
 #: crates/model/src/sync.rs
@@ -17195,8 +18934,9 @@ msgstr "dit postvak is niet bereikbaar via Microsoft Graph (MailboxNotEnabledFor
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
-msgstr ""
+msgstr "dit postvak is te groot ({mb} MB) om als één zelfstandig bestand op te slaan: sla het in een andere map op, die de inhoud in een map naast het bestand bewaart"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -17266,11 +19006,28 @@ msgstr "er wachten te veel verwijderingen om naar Microsoft To Do te worden verz
 msgid "too many files of one name"
 msgstr "te veel bestanden met dezelfde naam"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "too many flags for one command"
+msgstr "te veel vlaggen voor één opdracht"
+
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
 msgstr "typ een adres, zoals naam@example.org, of een domein, zoals @example.org"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/lib.rs
+#, fuzzy
+msgid "unexpected server response: {reason}"
+msgstr "onverwacht antwoord van de server: {reason}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "valid until {date}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17289,6 +19046,13 @@ msgstr "is behouden omdat het postvakbestand ernaast niet kon worden verwijderd:
 #, fuzzy
 msgid "week"
 msgstr "week"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgctxt "what didn't happen, then why"
+msgid "{heading}: {reason}"
+msgstr "{heading}: {reason}"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -17325,6 +19089,69 @@ msgstr "die de e-mail verzendt: beantwoord de uitnodiging daar, of hier zonder e
 #, fuzzy
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "die de e-mail verzendt: verzend dit bericht vanaf een ander account, of sla het op als concept om het vanuit die versie te verzenden"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft needs your permission first (File › Info › Ask again)."
+msgstr "MailCraft heeft eerst uw toestemming nodig (Bestand › Info › Opnieuw vragen)."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft wasn't allowed to change them."
+msgstr "MailCraft mocht ze niet wijzigen."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "Microsoft no longer takes your sign-in."
+msgstr "Microsoft accepteert uw aanmelding niet meer."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "sign in again to let MailCraft read them (File › Info)."
+msgstr "meld u opnieuw aan zodat MailCraft ze kan lezen (Bestand › Info)."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "you are working offline."
+msgstr "u werkt offline."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "your organisation doesn't let MailCraft change them."
+msgstr "uw organisatie staat MailCraft niet toe ze te wijzigen."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "no notification service answers on this desktop."
+msgstr "geen meldingsservice antwoordt op dit bureaublad."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy doesn't run from the MailCraft app."
+msgstr "dit exemplaar wordt niet vanuit de MailCraft-app uitgevoerd."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgctxt "why desktop alerts can't be shown"
+msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
+msgstr "dit exemplaar van MailCraft is niet met het installatieprogramma (.msi) geïnstalleerd, waardoor Windows het niet herkent."
 
 #. name
 #: crates/model/src/calendar.rs
@@ -17384,8 +19211,9 @@ msgstr "{account} · Geen toegang"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{added} brought in, of {found} found."
-msgstr ""
+msgstr "{added} binnengehaald, van {found} gevonden."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -17551,8 +19379,9 @@ msgstr "{folder}: {done} van {total}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "{from} to {until}"
-msgstr ""
+msgstr "{from} tot {until}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17568,8 +19397,15 @@ msgstr "{host} (niet versleuteld)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
 msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
-msgstr ""
+msgstr "{host} zit in het eigen domein van uw adres, maar het is niet de Autodiscover-server die uw domein noemt. Het kan een webpagina zijn in plaats van de mailserver van uw organisatie."
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} is ingesteld zonder versleuteling, waardoor het wachtwoord voor iedereen op het netwerk zichtbaar zou zijn; kies TLS of STARTTLS"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -17672,6 +19508,11 @@ msgstr "{name} heeft deze vergadering geaccepteerd."
 #, fuzzy
 msgid "{name} answered this invitation."
 msgstr "{name} heeft deze uitnodiging beantwoord."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} couldn't be read"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -17782,6 +19623,11 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} is geen Microsoft-account dat via IMAP wordt bijgehouden"
 
 #. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} isn't a Microsoft or Exchange server account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -17824,7 +19670,7 @@ msgid "{name} isn't kept in step over JMAP"
 msgstr "{name} wordt niet via JMAP bijgehouden"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
+#: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step through Microsoft Graph"
 msgstr "{name} wordt niet via Microsoft Graph bijgehouden"
@@ -17920,6 +19766,13 @@ msgid "{n} KB"
 msgstr "{n} KB"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "{n} Public key was imported."
+msgid_plural "{n} Public keys were imported."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "{n} Reminder"
@@ -17958,6 +19811,13 @@ msgid "{n} byte"
 msgid_plural "{n} bytes"
 msgstr[0] "{n} byte"
 msgstr[1] "{n} bytes"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} calendar item"
+msgid_plural "{n} calendar items"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18015,10 +19875,11 @@ msgstr[1] "{n} afgewezen"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} distribution list, kept as a contact listing its members"
 msgid_plural "{n} distribution lists, kept as contacts listing their members"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} verdelingslijst, bewaard als een contactpersoon die haar leden opnoemt"
+msgstr[1] "{n} verdelingslijsten, bewaard als contactpersonen die hun leden opnoemen"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -18094,10 +19955,11 @@ msgstr[1] "{n} items"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} item couldn't be read and is left out"
 msgid_plural "{n} items couldn't be read and are left out"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} item kon niet worden gelezen en werd weggelaten"
+msgstr[1] "{n} items konden niet worden gelezen en werden weggelaten"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18106,13 +19968,6 @@ msgid "{n} item here is only on this computer: not in your Outlook calendar. A c
 msgid_plural "{n} items here are only on this computer: not in your Outlook calendar. A change to one of them stays here."
 msgstr[0] "{n} item hier staat alleen op deze computer: niet in uw Outlook-agenda. Een wijziging ervan blijft hier."
 msgstr[1] "{n} items hier staan alleen op deze computer: niet in uw Outlook-agenda. Een wijziging van een ervan blijft hier."
-
-#. interface
-#: crates/ui-egui/src/import_pst.rs
-msgid "{n} item is left for a later version"
-msgid_plural "{n} items are left for a later version"
-msgstr[0] ""
-msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18137,6 +19992,13 @@ msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "{n} item geselecteerd"
 msgstr[1] "{n} items geselecteerd"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} journal entry"
+msgid_plural "{n} journal entries"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -18172,17 +20034,19 @@ msgstr[1] "{n} berichten naar het account gekopieerd: Verzenden/ontvangen zet ze
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht kon niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen: Gmail weigerde {m} ervan; de rest wacht op het volgende Verzenden/ontvangen"
+msgstr[1] "{n} berichten konden niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen: Gmail weigerde {m} ervan; de rest wacht op het volgende Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht kon niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen; die wacht op het volgende Verzenden/ontvangen"
+msgstr[1] "{n} berichten konden niet tussen Gmail's categorieën worden verplaatst bij deze Verzenden/ontvangen; die wachten op het volgende Verzenden/ontvangen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -18234,18 +20098,18 @@ msgstr[1] "{n} berichten verwijderd"
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} bericht blijft waar die is verplaatst: die is digitaal ondertekend of versleurd, en de kopie in het postvak waarvandaan die kwam, is verwijderd, terwijl de kopie waaruit die eerst werd verplaatst de bytes behoudt zoals die aankw. Verplaats die terug om die daar weer te zetten."
+msgstr[1] "{n} berichten blijven waar die zijn verplaatst: die zijn digitaal ondertekend of versleurd, en de kopieën in het postvak waarvandaan die kwamen, zijn verwijderd, terwijl de kopieën waaruit die eerst werden verplaatst de bytes behouden zoals die aankwamen. Verplaats die terug om die daar weer te zetten."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "{n} message that came back empty after a refused delete is being downloaded again."
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
-msgstr[0] "{n} bericht dat leeg terugkwam na een geweigerd verwijderen, wordt opnieuw gedownload."
-msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerd verwijderen, worden opnieuw gedownload."
+msgstr[0] "{n} bericht dat leeg terugkwam na een geweigerde verwijdering, wordt opnieuw gedownload."
+msgstr[1] "{n} berichten die leeg terugkwamen na een geweigerde verwijdering, worden opnieuw gedownload."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18348,6 +20212,13 @@ msgid "{n} not answered"
 msgid_plural "{n} not answered"
 msgstr[0] "{n} niet beantwoord"
 msgstr[1] "{n} niet beantwoord"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+msgid "{n} note"
+msgid_plural "{n} notes"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18486,7 +20357,7 @@ msgstr[0] "{n} blijft op deze computer"
 msgstr[1] "{n} blijven op deze computer"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} task"
 msgid_plural "{n} tasks"
@@ -18535,10 +20406,11 @@ msgstr[1] "{n} ongelezen op de server"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{n} was here already"
 msgid_plural "{n} were here already"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} was hier al"
+msgstr[1] "{n} waren hier al"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18714,8 +20586,9 @@ msgstr "{who} is toegevoegd door een nieuwere versie van MailCraft, {then}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
+#, fuzzy
 msgid "{why} What came in before stays; import the file again for the rest."
-msgstr ""
+msgstr "{why} Wat er eerder binnenkwam, blijft; importeer het bestand opnieuw voor de rest."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18752,6 +20625,72 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "The signer's certificate isn't in the message."
+#~ msgstr "Het certificaat van de ondertekenaar staat niet in het bericht."
+
+#, fuzzy
+#~ msgid "Import a .pst File (preview)"
+#~ msgstr "Een .pst-bestand importeren (voorbeeld)"
+
+#, fuzzy
+#~ msgid "The mail of a .pst file, into a folder on this computer"
+#~ msgstr "De e-mail van een .pst-bestand, in een map op deze computer"
+
+#, fuzzy
+#~ msgid "{n} item is left for a later version"
+#~ msgid_plural "{n} items are left for a later version"
+#~ msgstr[0] "{n} item wordt voor een latere versie overgelaten"
+#~ msgstr[1] "{n} items worden voor een latere versie overgelaten"
+
+#, fuzzy
+#~ msgid "Preview: the mail and the contacts are brought in for now. Calendar items, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
+#~ msgstr "Voorbeeld: alleen de e-mail en de contactpersonen worden nu binnengehaald. Agenda-items, taken en notities worden in het rapport geteld en voor een latere versie overgelaten. Een rapport wordt naast uw postvak geschreven."
+
+#, fuzzy
+#~ msgid "The server has {count} folders; only the first {max} were read"
+#~ msgstr "De server heeft {count} mappen; alleen de eerste {max} zijn gelezen"
+
+#, fuzzy
+#~ msgid "sign-in failed: the server doesn't take a password on this connection"
+#~ msgstr "aanmelden mislukt: de server accepteert geen wachtwoord op deze verbinding"
+
+#, fuzzy
+#~ msgid "Google sign-in is not configured for this build"
+#~ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build"
+
+#, fuzzy
+#~ msgid "A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send."
+#~ msgstr "Een nieuw bericht aan de onderhouders van MailCraft, vanuit uw account: er wordt niets verzonden totdat u op Verzenden drukt."
+
+#, fuzzy
+#~ msgid "Add an account that sends mail first (File › Add Account)."
+#~ msgstr "Voeg eerst een account toe waarmee u e-mail kunt verzenden (Bestand › Account toevoegen)."
+
+#, fuzzy
+#~ msgid "Finish or close the message you're writing first."
+#~ msgstr "Maak het bericht dat u schrijft eerst af, of sluit het."
+
+#, fuzzy
+#~ msgid "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
+#~ msgstr "GitHub is openbaar en vereist een GitHub-account. E-mail is privé en gaat vanuit uw eigen account naar de onderhouders van MailCraft."
+
+#, fuzzy
+#~ msgid "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."
+#~ msgstr "Op GitHub worden ze opgeslagen in een bestand dat u kiest en aan de issue koppelt; per e-mail worden ze aan het bericht toegevoegd. Ze komen nooit in de koppeling terecht."
+
+#, fuzzy
+#~ msgid "Send by Email"
+#~ msgstr "Verzenden per e-mail"
+
+#, fuzzy
+#~ msgid "This copy of MailCraft has no address to send reports to."
+#~ msgstr "Dit exemplaar van MailCraft heeft geen adres om rapporten naartoe te verzenden."
+
+#, fuzzy
+#~ msgid "Your report is ready in a new message: check it, then press Send."
+#~ msgstr "Uw rapport staat klaar in een nieuw bericht: controleer het en druk daarna op Verzenden."
 
 #, fuzzy
 #~ msgid "MailCraft couldn't find the settings for this address. Check the servers below before you connect."
@@ -18858,14 +20797,4 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "MailCraft wijzigt daarmee alleen de automatische antwoorden, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
 

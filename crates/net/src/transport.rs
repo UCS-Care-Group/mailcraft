@@ -20,6 +20,7 @@ use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::NetError;
+use mailcraft_i18n::{Text, said};
 
 /// How long connecting may take, over all of a server's addresses.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -216,11 +217,12 @@ pub(crate) fn is_loopback(host: &str) -> bool {
 pub(crate) fn checked_host(server: &Server) -> Result<String, NetError> {
     let host = bare(&server.host);
     if host.is_empty() || host.chars().any(|c| c.is_whitespace() || c.is_control()) {
-        return Err(NetError::Config("the account's server has no usable name".into()));
+        return Err(NetError::Config(said!("the account's server has no usable name")));
     }
     if server.security == Security::None && !is_loopback(host) {
-        return Err(NetError::Config(format!(
-            "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+        return Err(NetError::Config(said!(
+            "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS",
+            host
         )));
     }
     Ok(host.to_string())
@@ -271,10 +273,10 @@ pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str) -> Result<Stream<'a>, 
 /// and `io` for each read and write after. With `loopback_only`, whatever the name resolves to,
 /// only addresses of this machine are connected to.
 fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Duration) -> Result<TcpStream, NetError> {
-    let failed = |reason: &str| NetError::Connect { host: host.to_string(), reason: reason.to_string() };
+    let failed = |reason: Text| NetError::Connect { host: host.to_string(), reason };
     let addresses: Vec<SocketAddr> = (host, port)
         .to_socket_addrs()
-        .map_err(|_| failed("the name couldn't be looked up"))?
+        .map_err(|_| failed(said!("the name couldn't be looked up")))?
         .filter(|a| !loopback_only || a.ip().is_loopback())
         .take(MAX_ADDRESSES)
         .collect();
@@ -284,14 +286,14 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
     // Without timeouts a silent server would hang the thread: no connection then.
     let ready = tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io));
     if ready.is_err() {
-        return Err(failed("the connection couldn't be set up"));
+        return Err(failed(said!("the connection couldn't be set up")));
     }
     let _ = tcp.set_nodelay(true);
     Ok(tcp)
 }
 
 /// Connect using the bounded fallback loop shared with the deterministic regressions.
-fn connect_first(addresses: &[SocketAddr], connect: Duration) -> Result<TcpStream, &'static str> {
+fn connect_first(addresses: &[SocketAddr], connect: Duration) -> Result<TcpStream, Text> {
     let started = Instant::now();
     connect_resolved(addresses, connect, TcpStream::connect_timeout, || started.elapsed())
 }
@@ -306,13 +308,13 @@ fn connect_resolved<T>(
     connect: Duration,
     mut connector: impl FnMut(&SocketAddr, Duration) -> std::io::Result<T>,
     elapsed: impl Fn() -> Duration,
-) -> Result<T, &'static str> {
-    let mut reason = "no address was found for the name";
+) -> Result<T, Text> {
+    let mut reason = said!("no address was found for the name");
     let count = addresses.len().min(MAX_ADDRESSES);
     for (index, address) in addresses.iter().take(count).enumerate() {
         let left = connect.saturating_sub(elapsed());
         if left.is_zero() {
-            reason = "the server didn't answer";
+            reason = said!("the server didn't answer");
             break;
         }
         // One unreachable DNS result must not consume the entire connection deadline. Divide
@@ -324,9 +326,9 @@ fn connect_resolved<T>(
             Ok(connection) => return Ok(connection),
             Err(error) => {
                 reason = match error.kind() {
-                    ErrorKind::ConnectionRefused => "the server refused the connection",
-                    ErrorKind::TimedOut | ErrorKind::WouldBlock => "the server didn't answer",
-                    _ => "the network couldn't get there",
+                    ErrorKind::ConnectionRefused => said!("the server refused the connection"),
+                    ErrorKind::TimedOut | ErrorKind::WouldBlock => said!("the server didn't answer"),
+                    _ => said!("the network couldn't get there"),
                 };
             }
         }
@@ -342,26 +344,27 @@ fn tls_config() -> Result<Arc<ClientConfig>, String> {
 
 /// Shake hands over `tcp` and check the server's certificate against `host`.
 fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) -> Result<Stream<'a>, NetError> {
-    let failed = |reason: String| NetError::Tls { host: host.to_string(), reason };
+    let failed = |reason: Text| NetError::Tls { host: host.to_string(), reason };
     let config = match tls {
         Some(config) => config,
-        None => tls_config().map_err(failed)?,
+        // (The system's own words, as it said them.)
+        None => tls_config().map_err(|e| failed(e.into()))?,
     };
-    let name = ServerName::try_from(host.to_string()).map_err(|_| failed("its name isn't one a certificate can be checked against".into()))?;
-    let mut connection = ClientConnection::new(config, name).map_err(|e| failed(e.to_string()))?;
+    let name = ServerName::try_from(host.to_string()).map_err(|_| failed(said!("its name isn't one a certificate can be checked against")))?;
+    let mut connection = ClientConnection::new(config, name).map_err(|e| failed(e.to_string().into()))?;
     // Shake hands now, so that a bad certificate is reported as one, and within a time limit: no
     // wait in it is longer than what is left of that. Afterwards the connection waits as it did
     // before (never for ever, whatever it was handed over with).
     let io = tcp.read_timeout().ok().flatten().unwrap_or(IO_TIMEOUT).min(IO_TIMEOUT);
     let waits = |tcp: &TcpStream, wait: Duration| {
         let wait = Some(wait.max(Duration::from_millis(1)));
-        tcp.set_read_timeout(wait).and_then(|()| tcp.set_write_timeout(wait)).map_err(|_| failed("the connection couldn't be set up".into()))
+        tcp.set_read_timeout(wait).and_then(|()| tcp.set_write_timeout(wait)).map_err(|_| failed(said!("the connection couldn't be set up")))
     };
     let deadline = Instant::now() + HANDSHAKE_TIMEOUT;
     while connection.is_handshaking() {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
-            return Err(failed("the server took too long".into()));
+            return Err(failed(said!("the server took too long")));
         }
         waits(&tcp, io.min(left))?;
         connection.complete_io(&mut tcp).map_err(|e| failed(handshake_problem(&e)))?;
@@ -371,14 +374,41 @@ fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) ->
 }
 
 /// Why a handshake failed, in a few words.
-fn handshake_problem(e: &std::io::Error) -> String {
+fn handshake_problem(e: &std::io::Error) -> Text {
     match e.kind() {
-        ErrorKind::TimedOut | ErrorKind::WouldBlock => "the server took too long".into(),
-        ErrorKind::UnexpectedEof | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => "the server closed the connection".into(),
-        // rustls says what is wrong with the certificate or the protocol.
-        _ => e.to_string().chars().filter(|c| !c.is_control()).take(200).collect(),
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => said!("the server took too long"),
+        ErrorKind::UnexpectedEof | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => said!("the server closed the connection"),
+        // No suite in common: an old server that offers only CBC suites, which are not used here (#977).
+        _ if no_suite_in_common(e) => {
+            said!("the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites")
+        }
+        // The server's alert has other causes too (a version, a curve), so the suites are said as the likely one.
+        _ if refused_handshake(e) => said!(
+            "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+        ),
+        // rustls says what is wrong with the certificate or the protocol, in its own words.
+        _ => Text::verbatim(e.to_string().chars().filter(|c| !c.is_control()).take(200).collect::<String>()),
     }
 }
+
+/// Whether the library itself found no cipher suite in common.
+fn no_suite_in_common(e: &std::io::Error) -> bool {
+    use rustls::{Error, PeerIncompatible};
+    matches!(e.get_ref().and_then(|inner| inner.downcast_ref::<Error>()), Some(Error::PeerIncompatible(PeerIncompatible::NoCipherSuitesInCommon)))
+}
+
+/// Whether the server answered the handshake with an alert that most often means no suite in common.
+fn refused_handshake(e: &std::io::Error) -> bool {
+    use rustls::{AlertDescription, Error};
+    matches!(
+        e.get_ref().and_then(|inner| inner.downcast_ref::<Error>()),
+        Some(Error::AlertReceived(AlertDescription::HandshakeFailure | AlertDescription::InsufficientSecurity))
+    )
+}
+
+#[cfg(test)]
+#[path = "transport_tls_error_tests.rs"]
+mod tls_error_tests;
 
 #[cfg(test)]
 #[path = "transport_dial_tests.rs"]
@@ -448,7 +478,7 @@ mod tests {
         let Err(NetError::Config(why)) = open(&server("mail.example.org", 0, Security::None), Service::Imap, &Patience::default()) else {
             panic!("an unencrypted connection was allowed")
         };
-        assert!(why.contains("mail.example.org") && why.contains("no encryption"), "{why}");
+        assert!(why.to_string().contains("mail.example.org") && why.to_string().contains("no encryption"), "{why}");
     }
 
     #[test]
@@ -459,7 +489,7 @@ mod tests {
             panic!("connected to a closed port")
         };
         assert_eq!(host, "127.0.0.1");
-        assert!(!reason.is_empty());
+        assert!(!reason.to_string().is_empty());
     }
 
     #[test]
@@ -625,7 +655,7 @@ mod tests {
             panic!("a handshake with a plain-text server succeeded")
         };
         assert_eq!(host, "localhost");
-        assert!(!reason.is_empty());
+        assert!(!reason.to_string().is_empty());
     }
 }
 

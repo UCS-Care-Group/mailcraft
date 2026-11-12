@@ -683,6 +683,31 @@ fn an_administrator_who_has_to_approve_it_is_said_with_what_the_owner_can_do_abo
 }
 
 #[test]
+fn a_forbidden_read_from_an_organisations_server_says_approval_needed_instead_of_asking_again() {
+    let mut rig = Rig::organisation();
+    rig.host.lock().unwrap().unconsented = true;
+    rig.app.graph_tokens.clear();
+    rig.look(0.0);
+    assert_eq!(rig.note(), Some(Note::Offer));
+
+    // The owner takes the offer: the sign-in on the provider's page succeeds and returns tokens.
+    assert_eq!(rig.app.execute("ui.connectFavorites", json!({})).unwrap()["pending"], "signIn");
+    rig.host.lock().unwrap().unconsented = false;
+    // But when reading the Favorites from Microsoft Graph, the server returns 403 Forbidden.
+    rig.host.lock().unwrap().outcome = FavoritesOutcome::NotPermitted;
+    rig.settle();
+    rig.look(SECOND);
+
+    // It should say an administrator has to approve it, instead of asking the owner to connect again (#986).
+    assert_eq!(rig.note(), Some(Note::Approval));
+    let state = rig.state();
+    assert_eq!(
+        (state["line"].clone(), state["text"].clone(), state["steps"].clone()),
+        (json!("approval"), json!(NEEDS_APPROVAL), json!(["copyMessage", "help"]))
+    );
+}
+
+#[test]
 fn the_admin_commands_take_anything_and_say_what_they_cannot_do() {
     let mut plain = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     assert!(plain.execute("ui.copyAdminConsentLink", json!({})).unwrap_err().contains("Microsoft"));
@@ -770,4 +795,13 @@ fn file_options_offers_an_organisations_account_the_same_connection_as_any_other
     click(&mut harness, connect.center());
     harness.run_steps(4);
     assert_eq!(host.lock().unwrap().sign_ins, [(true, true)]);
+}
+
+#[test]
+fn an_edited_sign_in_forgets_connected() {
+    let mut rig = Rig::organisation();
+    rig.app.favorites.connected.insert(rig.account);
+    assert!(rig.app.favorites.connected.contains(&rig.account));
+    rig.app.execute("account.edit", json!({"id": rig.account, "tenant": "other.example"})).unwrap();
+    assert!(!rig.app.favorites.connected.contains(&rig.account));
 }
