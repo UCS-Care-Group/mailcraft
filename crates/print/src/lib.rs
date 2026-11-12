@@ -22,6 +22,18 @@ use std::sync::Arc;
 pub use font::{Face, Fonts, MAX_FACE_BYTES, MAX_FACES};
 pub use mailcraft_html::Block;
 
+/// The faces MailCraft bundles (`assets/fonts`, ATTRIBUTION.md): Inter, regular and semibold,
+/// and JetBrains Mono. The window draws its own text in the same bytes.
+pub static INTER_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
+pub static INTER_MEDIUM: &[u8] = include_bytes!("../../../assets/fonts/Inter-Medium.ttf");
+pub static INTER_SEMIBOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
+pub static JETBRAINS_MONO: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Regular.ttf");
+
+/// The bundled faces to print in, with `fallbacks` behind them.
+pub fn bundled(fallbacks: Vec<Face>) -> Option<Fonts> {
+    Some(Fonts { regular: Face::new(INTER_REGULAR, 0)?, bold: Face::new(INTER_SEMIBOLD, 0), mono: Face::new(JETBRAINS_MONO, 0), fallbacks })
+}
+
 /// The most pages a document may have; what is past them is left out.
 pub const MAX_PAGES: usize = 2000;
 

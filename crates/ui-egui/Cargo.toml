@@ -10,6 +10,7 @@ description = "MailCraft egui front end (Outlook-style ribbon UI); swappable: no
 workspace = true
 
 [dependencies]
+mailcraft-print = { workspace = true }
 mailcraft-time = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }

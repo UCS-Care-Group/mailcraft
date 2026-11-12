@@ -1176,6 +1176,10 @@ pub struct Session {
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
     pub content_source: Option<Arc<dyn crate::io::ContentSource>>,
+    /// The system's font files that print the scripts the bundled faces lack (Chinese, Arabic…),
+    /// best first, read when something is printed ([`crate::print`], #32). The host fills it;
+    /// empty, a print has the bundled faces alone.
+    pub print_fallbacks: Vec<std::path::PathBuf>,
     /// Counts the parts brought into memory (caches that read bodies key on it with `rev`).
     loads: u64,
     /// Messages the last search left out because their bodies weren't in memory and loading them
@@ -1326,6 +1330,7 @@ impl Session {
             sender_checks: Default::default(),
             signatures: Default::default(),
             content_source: None,
+            print_fallbacks: Vec::new(),
             loads: 0,
             unsearched: 0,
             search_time: SEARCH_TIME,

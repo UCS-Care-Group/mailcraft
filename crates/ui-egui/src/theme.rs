@@ -1081,11 +1081,11 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     let add = |fonts: &mut FontDefinitions, name: &str, bytes: &'static [u8]| {
         fonts.font_data.insert(name.into(), Arc::new(FontData::from_static(bytes)));
     };
-    add(&mut fonts, "Inter", include_bytes!("../../../assets/fonts/Inter-Regular.ttf"));
-    add(&mut fonts, "InterMedium", include_bytes!("../../../assets/fonts/Inter-Medium.ttf"));
-    add(&mut fonts, "InterSemiBold", include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf"));
+    add(&mut fonts, "Inter", mailcraft_print::INTER_REGULAR);
+    add(&mut fonts, "InterMedium", mailcraft_print::INTER_MEDIUM);
+    add(&mut fonts, "InterSemiBold", mailcraft_print::INTER_SEMIBOLD);
     add(&mut fonts, "SourceSans", include_bytes!("../../../assets/fonts/SourceSans3-Regular.ttf"));
-    add(&mut fonts, "Mono", include_bytes!("../../../assets/fonts/JetBrainsMono-Regular.ttf"));
+    add(&mut fonts, "Mono", mailcraft_print::JETBRAINS_MONO);
     // The system's faces, each under its own name, when there is a regular one to go with them.
     let mut system_face = |name: &str, face: &Option<Arc<FontData>>| -> Option<String> {
         let face = face.as_ref().filter(|_| system.is_present())?;
