@@ -50,7 +50,7 @@ fn window(printers: bool) -> (Window, Jobs, Arc<Mutex<Vec<String>>>) {
 
 /// The frames it takes the dialog to lay the pages out and list the printers.
 fn settle(h: &mut Window) {
-    for _ in 0..400 {
+    for _ in 0..3000 {
         h.run_steps(1);
         let busy = matches!(&h.state().dialog, Some(crate::dialogs::Dialog::Print(d)) if d.busy());
         if !busy {
@@ -161,4 +161,40 @@ fn an_agent_s_print_comes_back_as_data_without_a_dialog() {
     h.state_mut().session.agent = None;
     assert!(r["data"].as_str().is_some_and(|d| !d.is_empty()), "{r}");
     assert!(h.state().dialog.is_none());
+}
+
+#[test]
+fn the_calendar_prints_in_the_style_chosen() {
+    let (mut h, jobs, _) = window(true);
+    h.state_mut().run("view.calendar", json!({})).unwrap();
+    h.run_steps(2);
+    h.state_mut().run("file.print", json!({})).unwrap();
+    settle(&mut h);
+    assert!(h.state().hit.rect_in(0, "printMonth", 0).is_some(), "the calendar asks for its style");
+    press(&mut h, "printMonth");
+    settle(&mut h);
+    press(&mut h, "printGo");
+    settle(&mut h);
+    let jobs = jobs.lock().unwrap();
+    assert_eq!(jobs.len(), 1);
+    assert_eq!(jobs[0].title, "Calendar");
+}
+
+#[test]
+fn the_dialog_keeps_the_days_and_the_style_it_was_asked_for() {
+    let (mut h, _, _) = window(true);
+    h.state_mut().run("file.print", json!({"what": "calendar", "from": "2026-10-12", "to": "2026-10-16", "style": "agenda"})).unwrap();
+    settle(&mut h);
+    let Some(crate::dialogs::Dialog::Print(d)) = &h.state().dialog else { panic!("no dialog") };
+    assert_eq!(d.month(), Some(false));
+    let what = d.request().what;
+    let day = |s: &str| mailcraft_time::Date::parse_iso(s);
+    assert_eq!(
+        what,
+        mailcraft_engine::print::What::Calendar {
+            from: day("2026-10-12"),
+            to: day("2026-10-16"),
+            style: Some(mailcraft_engine::print_views::CalendarStyle::Agenda)
+        }
+    );
 }

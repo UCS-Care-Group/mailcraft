@@ -975,7 +975,7 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "由较新版本的 MailCraft 添加：请使用该版本发送和接收邮件"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Address"
 msgstr "地址"
@@ -1053,7 +1053,7 @@ msgid "All accounts"
 msgstr "所有账户"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "All day"
 msgstr "全天"
@@ -2114,7 +2114,7 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr "进行任何更改前，会先在原邮箱文件旁保存一份完整副本，并在文件名中注明今天的日期。"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Birthday"
 msgstr "生日"
@@ -2238,7 +2238,7 @@ msgid "By Subject"
 msgstr "按主题"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "日历"
@@ -2404,7 +2404,7 @@ msgid "Cancelled"
 msgstr "已取消"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "类别"
@@ -2996,7 +2996,7 @@ msgid "Compare the signer's key's fingerprint with theirs, and mark it as verifi
 msgstr "将签名者的密钥指纹与其提供的指纹进行比较，并标记为已验证"
 
 #. interface, name, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Completed"
 msgstr "已完成"
@@ -3094,6 +3094,11 @@ msgstr "联系与会者"
 #, fuzzy
 msgid "Contact Card"
 msgstr "联系人名片"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3596,6 +3601,11 @@ msgstr "收到日期"
 #, fuzzy
 msgid "Day"
 msgstr "日"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Day by day"
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -4261,7 +4271,7 @@ msgid "Drop Cap"
 msgstr "首字下沉"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Due"
 msgstr "到期"
@@ -4413,7 +4423,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "无论选择哪个按钮，都会向 {name} 写入您的答复和建议的时间。"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "电子邮件"
@@ -5828,7 +5838,7 @@ msgid "Hide this message's warning again"
 msgstr "再次隐藏此邮件的警告"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "High"
 msgstr "高"
@@ -6100,7 +6110,7 @@ msgid_plural "Import {n} messages from {name} into {folder}?"
 msgstr[0] ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Importance"
 msgstr "重要性"
@@ -7171,7 +7181,7 @@ msgid "Looks like a brand."
 msgstr "看起来像某个品牌。"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Low"
 msgstr "低"
@@ -8074,8 +8084,8 @@ msgstr "周一"
 msgid "Monday"
 msgstr "星期一"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Month"
 msgstr "月份"
@@ -8749,7 +8759,7 @@ msgid "No categories yet"
 msgstr "还没有类别"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "没有类别"
@@ -9045,7 +9055,7 @@ msgid "None yet."
 msgstr "还没有。"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Normal"
 msgstr "正常"
@@ -9107,6 +9117,11 @@ msgstr "不适用于该账户"
 #, fuzzy
 msgid "Not available: {reason}"
 msgstr "不可用：{reason}"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Not completed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
@@ -9174,7 +9189,7 @@ msgid "Not verified"
 msgstr "未验证"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Notes"
 msgstr "注释"
@@ -9269,6 +9284,11 @@ msgstr "服务器上没有找到更多结果"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Nothing planned"
 msgstr ""
 
 #. interface
@@ -10193,7 +10213,7 @@ msgid "Permissions"
 msgstr "权限"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Phone"
 msgstr "电话"
@@ -13417,6 +13437,11 @@ msgstr "创建一封包含您选择的日历日期的新邮件。由您指定收
 msgid "State or region"
 msgstr "州或地区"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Status"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -13525,6 +13550,11 @@ msgstr "街道"
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr "在浅色或深色主题中，文本和边缘更清晰。"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Style"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13538,7 +13568,7 @@ msgid "Subfolders"
 msgstr "子文件夹"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Subject"
 msgstr "主题"
@@ -13713,8 +13743,8 @@ msgstr "任务状态报告："
 msgid "Task:"
 msgstr "任务："
 
-#. android, command label, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "任务"
@@ -18926,7 +18956,7 @@ msgid "no calendar with id {id}"
 msgstr "没有 ID 为 {id} 的日历"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/print_views.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "没有 ID 为 {id} 的联系人"
@@ -19070,7 +19100,7 @@ msgid "no such paragraph"
 msgstr "没有此段落"
 
 #. what a command says
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs crates/engine/src/print_views.rs
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "没有 ID 为 {id} 的任务"
@@ -19241,6 +19271,21 @@ msgstr "过去"
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "无法下载网络图片：请先保存图片，再从文件添加"
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} contacts at a time"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} days of the calendar at a time"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} tasks at a time"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -20278,6 +20323,16 @@ msgstr "用户名或密码太长"
 #, fuzzy
 msgid "there are no contacts to export"
 msgstr "没有要导出的联系人"
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no contacts to print"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no tasks to print"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/shared.rs

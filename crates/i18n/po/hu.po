@@ -982,7 +982,7 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "Hozzáadva egy újabb verziója MailCraft: küldje el és fogadja ott"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Address"
 msgstr "Cím"
@@ -1060,7 +1060,7 @@ msgid "All accounts"
 msgstr "Minden fiók"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "All day"
 msgstr "Egész nap"
@@ -2126,7 +2126,7 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr "Mielőtt bármi megváltozna, az egész postafiókád egy példánya a közelében marad, a mai dátummal a nevében."
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Birthday"
 msgstr "Születésnap"
@@ -2251,7 +2251,7 @@ msgid "By Subject"
 msgstr "Tárgy szerint"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Naptár"
@@ -2417,7 +2417,7 @@ msgid "Cancelled"
 msgstr "Lemondva"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "Kategóriák"
@@ -3010,7 +3010,7 @@ msgid "Compare the signer's key's fingerprint with theirs, and mark it as verifi
 msgstr "Hasonlítsd össze a jeladó kulcsának ujjlenyomatát az övékkel, és jelöld meg, ahogy azt ellenőrizték."
 
 #. interface, name, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Completed"
 msgstr "Befejezve"
@@ -3106,6 +3106,11 @@ msgstr "Kapcsolatfelvétel a résztvevőkkel"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Kapcsolattartó kártya"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3611,6 +3616,11 @@ msgstr "Beérkezés dátuma"
 #, fuzzy
 msgid "Day"
 msgstr "Nap"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Day by day"
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -4276,7 +4286,7 @@ msgid "Drop Cap"
 msgstr "Iniciálé"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Due"
 msgstr "Esedékesség"
@@ -4428,7 +4438,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "Mindkét gomb elküldi a választ és a javasolt időpontot ennek a résztvevőnek: {name}."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "E-mail"
@@ -5841,7 +5851,7 @@ msgid "Hide this message's warning again"
 msgstr "Rejtsd el az üzenet figyelmeztetését újra!"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "High"
 msgstr "Magas"
@@ -6119,7 +6129,7 @@ msgstr[0] "Importálja ezt a(z) {n} üzenetet innen: „{name}”, a következő
 msgstr[1] "Importálja ezt a(z) {n} üzenetet innen: „{name}”, a következő mappába: „{folder}”?"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Importance"
 msgstr "Fontosság"
@@ -7192,7 +7202,7 @@ msgid "Looks like a brand."
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Low"
 msgstr "Alacsony"
@@ -8104,8 +8114,8 @@ msgstr "H"
 msgid "Monday"
 msgstr "hétfő"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Month"
 msgstr "Hónap"
@@ -8786,7 +8796,7 @@ msgid "No categories yet"
 msgstr "Még nincsenek kategóriák"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "Nincs kategória"
@@ -9083,7 +9093,7 @@ msgid "None yet."
 msgstr "Még nincs."
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Normal"
 msgstr "Normál"
@@ -9146,6 +9156,11 @@ msgstr "Ennél a fióknál nem érhető el"
 #, fuzzy
 msgid "Not available: {reason}"
 msgstr "Nem áll rendelkezésre: {reason}"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Not completed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
@@ -9213,7 +9228,7 @@ msgid "Not verified"
 msgstr "Nem ellenőrzött"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Notes"
 msgstr "Megjegyzések"
@@ -9311,6 +9326,11 @@ msgstr "Semmi mást nem találtak a szerveren."
 #, fuzzy
 msgid "Nothing new imported: {already}"
 msgstr "Semmi új import: {already}"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Nothing planned"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -10234,7 +10254,7 @@ msgid "Permissions"
 msgstr "Engedélyek"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Phone"
 msgstr "Telefon"
@@ -13470,6 +13490,11 @@ msgstr "Új üzenet kezdődik a naptárat kiválasztó napokkal. Ha megmondja, k
 msgid "State or region"
 msgstr "Állam vagy régió"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Status"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -13578,6 +13603,11 @@ msgstr "Utca, házszám"
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr "Erősebb kontrasztú szöveg és körvonalak világos és sötét témában."
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Style"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13591,7 +13621,7 @@ msgid "Subfolders"
 msgstr "Almappák"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Subject"
 msgstr "Tárgy"
@@ -13767,8 +13797,8 @@ msgstr "Feladatállapot-jelentés:"
 msgid "Task:"
 msgstr "Feladat:"
 
-#. android, command label, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Feladatok"
@@ -18998,7 +19028,7 @@ msgid "no calendar with id {id}"
 msgstr "nincs ilyen azonosítójú naptár: {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/print_views.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "nincs ilyen azonosítójú névjegy: {id}"
@@ -19142,7 +19172,7 @@ msgid "no such paragraph"
 msgstr "nincs ilyen bekezdés"
 
 #. what a command says
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs crates/engine/src/print_views.rs
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "nincs feladat az id {id}-val"
@@ -19314,6 +19344,21 @@ msgstr "múlt"
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "A képek nem kerülnek letöltésre: mentse el a képet és add hozzá a fájlból"
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} contacts at a time"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} days of the calendar at a time"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} tasks at a time"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -20360,6 +20405,16 @@ msgstr "a felhasználónév vagy jelszó túl hosszú"
 #, fuzzy
 msgid "there are no contacts to export"
 msgstr "nincs kapcsolat az exporttal"
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no contacts to print"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no tasks to print"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/shared.rs

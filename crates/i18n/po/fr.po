@@ -943,7 +943,7 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "Ajouté par une version plus récente de MailCraft : envoyez et recevez avec celle-ci"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Address"
 msgstr "Adresse"
@@ -1018,7 +1018,7 @@ msgid "All accounts"
 msgstr "Tous les comptes"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "All day"
 msgstr "Toute la journée"
@@ -2012,7 +2012,7 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr "Avant toute modification, une copie de toute votre boîte aux lettres est enregistrée à côté d'elle, avec la date du jour dans son nom."
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Birthday"
 msgstr "Anniversaire"
@@ -2133,7 +2133,7 @@ msgid "By Subject"
 msgstr "Par objet"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendrier"
@@ -2287,7 +2287,7 @@ msgid "Cancelled"
 msgstr "Annulé"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "Catégories"
@@ -2847,7 +2847,7 @@ msgid "Compare the signer's key's fingerprint with theirs, and mark it as verifi
 msgstr ""
 
 #. interface, name, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Completed"
 msgstr "Terminé"
@@ -2939,6 +2939,11 @@ msgstr "Contacter les participants"
 #. command label
 #: crates/engine/src/cmd/compose.rs
 msgid "Contact Card"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Contacts"
 msgstr ""
 
 #. interface
@@ -3431,6 +3436,11 @@ msgstr ""
 #, fuzzy
 msgid "Day"
 msgstr "Jour"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Day by day"
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -4072,7 +4082,7 @@ msgid "Drop Cap"
 msgstr "Lettrine"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Due"
 msgstr "Échéance"
@@ -4218,7 +4228,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "Les deux boutons écrivent à {name} : votre réponse et l'horaire que vous proposez."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "E-mail"
@@ -5548,7 +5558,7 @@ msgid "Hide this message's warning again"
 msgstr "Masquer à nouveau l'avertissement de ce message"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "High"
 msgstr "Haute"
@@ -5796,7 +5806,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Importance"
 msgstr "Importance"
@@ -6806,7 +6816,7 @@ msgid "Looks like a brand."
 msgstr "Ressemble à une marque."
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Low"
 msgstr "Faible"
@@ -7672,8 +7682,8 @@ msgstr "lun."
 msgid "Monday"
 msgstr "lundi"
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Month"
 msgstr "Mois"
@@ -8340,7 +8350,7 @@ msgid "No categories yet"
 msgstr "Aucune catégorie pour l'instant"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "Aucune catégorie"
@@ -8622,7 +8632,7 @@ msgid "None yet."
 msgstr "Aucune pour l'instant."
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Normal"
 msgstr "Normale"
@@ -8682,6 +8692,11 @@ msgstr "Non disponible pour ce compte"
 #, fuzzy
 msgid "Not available: {reason}"
 msgstr "Non disponible : {reason}"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Not completed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
@@ -8748,7 +8763,7 @@ msgid "Not verified"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Notes"
 msgstr "Notes"
@@ -8839,6 +8854,11 @@ msgstr "Rien de plus n'a été trouvé sur le serveur"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Nothing planned"
 msgstr ""
 
 #. interface
@@ -9717,7 +9737,7 @@ msgid "Permissions"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Phone"
 msgstr "Téléphone"
@@ -12790,6 +12810,11 @@ msgstr ""
 msgid "State or region"
 msgstr "État ou région"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Status"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 msgid "Status bar"
@@ -12890,6 +12915,11 @@ msgstr "Rue"
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Style"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Styles"
@@ -12901,7 +12931,7 @@ msgid "Subfolders"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Subject"
 msgstr "Objet"
@@ -13066,8 +13096,8 @@ msgstr ""
 msgid "Task:"
 msgstr ""
 
-#. android, command label, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Tâches"
@@ -17943,7 +17973,7 @@ msgid "no calendar with id {id}"
 msgstr "aucun calendrier avec l'id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/print_views.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "aucun contact avec l'id {id}"
@@ -18081,7 +18111,7 @@ msgid "no such paragraph"
 msgstr "paragraphe introuvable"
 
 #. what a command says
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs crates/engine/src/print_views.rs
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "aucune tâche avec l'id {id}"
@@ -18243,6 +18273,21 @@ msgstr "past"
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "les images du web ne sont pas téléchargées : enregistrez l'image et ajoutez-la à partir du fichier"
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} contacts at a time"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} days of the calendar at a time"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "print at most {n} tasks at a time"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -19239,6 +19284,16 @@ msgstr "le nom d'utilisateur ou le mot de passe est trop long"
 #, fuzzy
 msgid "there are no contacts to export"
 msgstr "il n'y a aucun contact à exporter"
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no contacts to print"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no tasks to print"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/shared.rs

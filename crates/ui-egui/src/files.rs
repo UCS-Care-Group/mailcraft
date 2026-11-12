@@ -71,10 +71,18 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
             message.map_or_else(|| clean("message", "eml"), mailcraft_engine::cmd::file::eml_name)
         }
         "file.saveAsPdf" => {
-            let ids: Vec<u64> = params.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
-            let mut ids = ids;
+            let mut ids: Vec<u64> =
+                params.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
             ids.extend(params.get("id").and_then(Value::as_u64));
-            mailcraft_engine::cmd::file::pdf_name(s, &ids)
+            use mailcraft_engine::print::{Request, What};
+            let what = match params.get("what").and_then(Value::as_str) {
+                Some("messages") => What::Messages,
+                Some("calendar") => What::Calendar { from: None, to: None, style: None },
+                Some("contacts") => What::Contacts,
+                Some("tasks") => What::Tasks,
+                _ => What::of_view(s),
+            };
+            mailcraft_engine::cmd::file::print_name(s, &Request { what, ids, labels: crate::printing::labels(), paper: None })
         }
         "file.exportFolder" => clean(&s.mailbox.folder(s.view.folder).map(|f| f.name.clone()).unwrap_or_default(), "mbox"),
         "file.exportCalendar" => clean(
