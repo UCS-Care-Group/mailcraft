@@ -175,19 +175,25 @@ pub(crate) enum Became {
     Made,
     /// The server didn't: what is here was brought in step with that.
     PutBack,
+    /// No message here was changed, but what waits to go to the server was (a deletion that
+    /// waits is now of the id the server gave the message): the mailbox is to be saved.
+    Waits,
 }
 
 /// A move was made for a message that was deleted for good here while the move was on its way:
 /// the deletion that waits for the server is of the message where, and under the id, the server
 /// has it now. Without this a server that gives a moved message an id of its own would be asked to
 /// delete the old id, answer that it has none such, and keep the message.
-fn moved_while_deleted(mb: &mut Mailbox, account: Id, id: &str, to: &str, outcome: &JmapOutcome) {
-    let JmapOutcome::Done { id: now } = outcome else { return };
+/// Whether a deletion that waits was changed by it.
+fn moved_while_deleted(mb: &mut Mailbox, account: Id, id: &str, to: &str, outcome: &JmapOutcome) -> bool {
+    let JmapOutcome::Done { id: now } = outcome else { return false };
+    let mut changed = false;
     for queued in &mut mb.queued {
         let Queued::DeleteMessage { account: a, id: waiting, kept } = queued else { continue };
         if *a != account || waiting != id {
             continue;
         }
+        changed = true;
         if let Some(server) = kept.as_mut().and_then(|kept| kept.server.as_mut()) {
             server.folder = to.to_string();
             if !now.is_empty() {
@@ -198,6 +204,7 @@ fn moved_while_deleted(mb: &mut Mailbox, account: Id, id: &str, to: &str, outcom
             *waiting = now.clone();
         }
     }
+    changed
 }
 
 /// Take in what became of one change of a message of `account`.
@@ -252,8 +259,8 @@ pub(crate) fn change_done(mb: &mut Mailbox, account: Id, done: &JmapChangeDone, 
         JmapChange::Move { message, id, to, .. } => {
             let to_name = graph_up::folder_name(mb, account, to, None);
             let Some(m) = graph_up::mine(mb, account, *message, id) else {
-                moved_while_deleted(mb, account, id, to, &done.outcome);
-                return Became::Nothing;
+                let waits = moved_while_deleted(mb, account, id, to, &done.outcome);
+                return if waits { Became::Waits } else { Became::Nothing };
             };
             let (subject, lies_in) = (m.subject.clone(), m.folder);
             let Some(server) = m.server.as_mut() else { return Became::Nothing };

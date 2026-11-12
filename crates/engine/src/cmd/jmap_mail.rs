@@ -248,12 +248,17 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     // What became of the changes: the marks before the moves, since a move may give a message a
     // new id, by which an answer about its marks would no longer find it.
     let mut told = Told::default();
+    let mut waits_changed = false;
     let moves_last =
         |moves: bool| result.changes.iter().filter(move |done| matches!(done.change, mailcraft_model::sync::JmapChange::Move { .. }) == moves);
     for done in moves_last(false).chain(moves_last(true)) {
         match jmap_up::change_done(&mut s.mailbox, account, done, &mut told) {
             Became::Made => taken.pushed += 1,
             Became::PutBack => taken.updated += 1,
+            Became::Waits => {
+                waits_changed = true;
+                continue;
+            }
             Became::Nothing => continue,
         }
         // A message's server id may be new, or the message back: where each is, is looked at afresh.
@@ -293,7 +298,7 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     }
     // The threads of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded {
+    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded || waits_changed {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

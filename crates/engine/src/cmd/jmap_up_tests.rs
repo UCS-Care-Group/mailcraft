@@ -347,7 +347,10 @@ fn a_message_deleted_for_good_while_its_move_is_on_its_way_is_deleted_where_the_
     // The server made the move and gave the message a new id: that is the one to delete, and what
     // was kept of the message says where the server has it, should the server refuse.
     let outcomes = moved.into_iter().map(|change| (change, JmapOutcome::Done { id: "E9".into() }));
+    // (That alone is a change of the mailbox, to be saved: nothing else came with the answer.)
+    let before = s.rev();
     answered(&mut s, account, outcomes.collect());
+    assert!(s.rev() > before, "the deletion that waits changed, so the mailbox did");
     assert_eq!(up(&s, account), [JmapChange::Destroy { id: "E9".into() }]);
     let kept = s.mailbox.queued.iter().find_map(|queued| match queued {
         Queued::DeleteMessage { kept, .. } => kept.as_ref().and_then(|kept| kept.server.clone()),
