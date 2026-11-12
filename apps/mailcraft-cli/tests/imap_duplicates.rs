@@ -371,3 +371,32 @@ fn moved_to_this_computer_before_its_copy_came_down_leaves_the_server_once_safe(
     assert_eq!(kept.len(), 1, "{kept:?}");
     assert!(r.s.mailbox.message(kept[0]).is_some_and(|m| m.account == local));
 }
+
+#[test]
+fn undo_of_one_of_two_deletions_of_the_same_mail_keeps_the_other_deletion_only() {
+    // The same mail delivered twice (INBOX UIDs 7 and 8: one Message-ID, one identity), each
+    // deleted for good in a step of its own: an undo gives back the one it undoes, never the
+    // other's deletion.
+    let mut w = world(true, true);
+    w.mailboxes[0].messages = vec![message(7, "", "Dup"), message(8, "", "Dup")];
+    let mut r = Rig::with(w);
+    r.sync();
+    let by_uid = |r: &Rig, uid: u32| r.titled("Dup").into_iter().find(|id| r.s.mailbox.message(*id).is_some_and(|m| m.uid == uid)).unwrap();
+    let (seven, eight) = (by_uid(&r, 7), by_uid(&r, 8));
+    r.run("mail.deletePermanently", json!({"ids": [seven]}));
+    r.run("mail.deletePermanently", json!({"ids": [eight]}));
+    let deletes = |r: &Rig| -> Vec<u32> {
+        let mut request = sync_request(&r.s, r.account).unwrap();
+        request.password = PASSWORD.into();
+        request.ops.iter().filter_map(|op| if let mailcraft_model::sync::RemoteOp::Delete { uid, .. } = op { Some(*uid) } else { None }).collect()
+    };
+    assert_eq!(deletes(&r), [7, 8]);
+    r.run("edit.undo", json!({}));
+    assert_eq!(deletes(&r), [7], "the second deletion is undone, the first still goes");
+    r.run("edit.undo", json!({}));
+    assert_eq!(deletes(&r), Vec::<u32>::new());
+    r.run("edit.redo", json!({}));
+    assert_eq!(deletes(&r), [7]);
+    r.run("edit.redo", json!({}));
+    assert_eq!(deletes(&r), [7, 8]);
+}
