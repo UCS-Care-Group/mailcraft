@@ -4658,17 +4658,8 @@ pub(crate) mod rules {
     }
 
     impl Do {
-        const ALL: [Do; 9] = [
-            Do::Move,
-            Do::Copy,
-            Do::Categorize,
-            Do::ClearCategories,
-            Do::Flag,
-            Do::ClearFlag,
-            Do::MarkRead,
-            Do::SetImportance,
-            Do::Delete,
-        ];
+        const ALL: [Do; 9] =
+            [Do::Move, Do::Copy, Do::Categorize, Do::ClearCategories, Do::Flag, Do::ClearFlag, Do::MarkRead, Do::SetImportance, Do::Delete];
 
         fn label(self) -> &'static str {
             match self {
