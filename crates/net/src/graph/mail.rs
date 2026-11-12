@@ -430,6 +430,13 @@ fn folders_in(graph: &Graph<'_>, request: &GraphMailRequest, gate: &Arc<Gate>, m
             return out;
         }
     }
+    // The drafts that copies for Bcc recipients left behind, of messages no longer in the Outbox
+    // (#30 part 7): best effort, once a run.
+    if let Some(keep) = &request.bcc_keep
+        && let Err(e) = drafts::purge_orphan_copies(graph, keep)
+    {
+        log::info!("graph drafts: the drafts left by Bcc copies couldn't be looked for ({e})");
+    }
     marks.sent = Some((started.elapsed(), graph.requests_asked()));
     match listing(graph, &known) {
         Ok(listing) => {

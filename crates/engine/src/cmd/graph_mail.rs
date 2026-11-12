@@ -81,6 +81,7 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         background: false,
         messages: graph_up::message_changes(s, account, MAX_MESSAGE_CHANGES).0,
         drafts,
+        bcc_keep: Some(outbox_message_ids(s, account)),
         sends,
         // Mail moved or copied here from another mailbox of the same owner's (#70).
         places: super::graph_place::place_changes(s, account, MAX_PLACES).0,
@@ -89,6 +90,13 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         // The conversation ids of mail listed before they were asked for (#795).
         threads: super::thread_ids::to_ask(&s.mailbox, account),
     })
+}
+
+/// The Message-IDs of what waits in `account`'s Outbox (at most a thousand): the messages whose
+/// Bcc copies' drafts are not to be taken away.
+fn outbox_message_ids(s: &Session, account: Id) -> Vec<String> {
+    let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return Vec::new() };
+    s.mailbox.messages_in(outbox).filter(|m| !m.message_id.is_empty()).map(|m| m.message_id.clone()).take(1_000).collect()
 }
 
 /// How long after a full sweep of an account's folders the next one is due (#276).

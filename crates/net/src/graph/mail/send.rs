@@ -242,7 +242,12 @@ pub(in crate::graph) fn send_unfiled(graph: &Graph<'_>, body: &str, message_id: 
 
 /// Mark the draft `id` to go without a copy, and send it.
 fn send_made(graph: &Graph<'_>, id: &str, done: &mut SendDone) -> Result<(), NetError> {
-    let mark = serde_json::json!({"singleValueExtendedProperties": [{"id": DELETE_AFTER_SUBMIT, "value": "true"}]}).to_string();
+    // (And our marker, so that a draft this leaves behind is found by a later run: `drafts::purge_orphan_copies`.)
+    let mark = serde_json::json!({"singleValueExtendedProperties": [
+        {"id": DELETE_AFTER_SUBMIT, "value": "true"},
+        {"id": super::up::MARKER, "value": super::drafts::BCC_COPY_MARKER},
+    ]})
+    .to_string();
     let url = graph.url(&graph.mail_path(&format!("/messages/{id}")));
     match graph.call(Kind::Same, &url, "PATCH", &[("Content-Type", "application/json")], Some(&mark), SEND_TIMEOUT, MAX_PAGE) {
         Ok(reply) if matches!(reply.status, 200..=299) => {}

@@ -344,3 +344,55 @@ fn an_encrypted_drafts_message_id_is_its_own_and_never_the_messages() {
         assert!(!is_sealed_draft_message_id(not), "{not}");
     }
 }
+
+/// A draft in Drafts as a Bcc copy leaves it: our marker for those, a Message-ID `internet_id`.
+fn bcc_draft(server: &StandIn, internet_id: &str, draft: bool) -> String {
+    let id = clear_draft(server);
+    let property = server.state().mailbox.messages.get(&id).map(|m| m.extended[0].0.clone()).unwrap();
+    server.state().mailbox.update(&id, |m| {
+        m.draft = draft;
+        m.internet_id = internet_id.into();
+        m.extended = vec![(property, "mailcraft-bcc-copy".into())];
+    });
+    id
+}
+
+fn sweep(server: &StandIn, keep: Vec<&str>) -> GraphMailResult {
+    run(server, GraphMailRequest { bcc_keep: Some(keep.into_iter().map(String::from).collect()), ..Default::default() })
+}
+
+#[test]
+fn a_bcc_copys_draft_whose_message_is_gone_from_the_outbox_is_taken_away_by_the_next_run() {
+    let server = StandIn::start().unwrap();
+    let orphan = bcc_draft(&server, "<rota.1-b2@example.org>", true);
+    sweep(&server, Vec::new());
+    let state = server.state();
+    assert!(!state.mailbox.messages.contains_key(&orphan));
+    assert_eq!(state.mailbox.purged.as_slice(), std::slice::from_ref(&orphan));
+}
+
+#[test]
+fn a_bcc_copys_draft_whose_message_is_still_in_the_outbox_is_kept() {
+    let server = StandIn::start().unwrap();
+    let waiting = bcc_draft(&server, "<rota.1-b2@example.org>", true);
+    sweep(&server, vec!["rota.1@example.org"]);
+    assert!(server.state().mailbox.messages.contains_key(&waiting));
+}
+
+#[test]
+fn what_is_not_a_bcc_copys_draft_is_left_alone_by_that_run() {
+    let server = StandIn::start().unwrap();
+    // The marker's, but a Message-ID of no shape this program makes: not looked at.
+    let other = bcc_draft(&server, "<rota.1@example.org>", true);
+    // Of the shape, but no draft any more.
+    let sent = bcc_draft(&server, "<rota.2-b1@example.org>", false);
+    sweep(&server, Vec::new());
+    let state = server.state();
+    assert!(state.mailbox.messages.contains_key(&other) && state.mailbox.messages.contains_key(&sent));
+    assert!(state.mailbox.purged.is_empty());
+    // And a run that doesn't ask for the sweep makes none.
+    drop(state);
+    let orphan = bcc_draft(&server, "<rota.3-b1@example.org>", true);
+    run(&server, GraphMailRequest::default());
+    assert!(server.state().mailbox.messages.contains_key(&orphan));
+}

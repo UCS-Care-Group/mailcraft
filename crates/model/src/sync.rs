@@ -1109,6 +1109,11 @@ pub struct GraphMailRequest {
     /// (R3.4.1, S23–S25).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub drafts: Vec<DraftUp>,
+    /// The Message-IDs of the messages in the account's Outbox, when the run is to take away the
+    /// drafts that the copies for Bcc recipients of an Encrypted message left behind and whose message
+    /// is no longer here (#30 part 7). `None`: not looked for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bcc_keep: Option<Vec<String>>,
     /// What waits in the Outbox, sent after the drafts (R3.4.2).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sends: Vec<SendUp>,

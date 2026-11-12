@@ -60,3 +60,12 @@ fn a_message_that_goes_unencrypted_keeps_the_bcc_recipients_who_have_not_had_the
     let main = m.for_main();
     assert_eq!(main.bcc.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["finn@example.org"]);
 }
+
+#[test]
+fn a_bcc_copys_message_id_names_its_message() {
+    assert_eq!(blind_copy_base_message_id("<rota.1-b2@example.org>").as_deref(), Some("<rota.1@example.org>"));
+    assert_eq!(blind_copy_base_message_id("rota-b10@example.org").as_deref(), Some("<rota@example.org>"));
+    for not in ["<rota.1@example.org>", "<-b1@example.org>", "<rota-bx@example.org>", "<rota-b@example.org>", ""] {
+        assert!(blind_copy_base_message_id(not).is_none(), "{not}");
+    }
+}

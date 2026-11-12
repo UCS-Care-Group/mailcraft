@@ -162,6 +162,21 @@ fn blind_message_id(id: &str, at: usize) -> String {
     }
 }
 
+/// The message a Bcc copy's Message-ID ([`blind_message_id`]) belongs to: its Message-ID without the
+/// `-b{n}` before the `@`, in angle brackets as a server holds it. `None` for any other shape.
+pub fn blind_copy_base_message_id(id: &str) -> Option<String> {
+    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
+    let (local, host) = id.rsplit_once('@').map_or((id, None), |(l, h)| (l, Some(h)));
+    let (base, n) = local.rsplit_once("-b")?;
+    if base.is_empty() || n.is_empty() || n.len() > 10 || !n.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some(match host {
+        Some(host) => format!("<{base}@{host}>"),
+        None => format!("<{base}>"),
+    })
+}
+
 /// The Message-ID an Encrypted draft is written with for its `saves`th save: that of the message
 /// with `-s{saves}` before its `@`, so that the copies a server may hold of it are told from any other
 /// draft that shares the message's own Message-ID (a conflict copy, a copy made in Outlook): only this

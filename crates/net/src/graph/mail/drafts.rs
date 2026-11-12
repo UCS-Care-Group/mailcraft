@@ -297,6 +297,9 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
 /// How many pages of a list of drafts are read (fifty each) before it is said to be unfinished.
 const MAX_LIST_PAGES: usize = 20;
 
+/// The marker of the drafts the copies for Bcc recipients are made as (every one the same).
+pub(super) const BCC_COPY_MARKER: &str = "mailcraft-bcc-copy";
+
 /// The filter for the messages with `marker`.
 fn marker_filter(marker: &str) -> String {
     format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')")
@@ -314,8 +317,8 @@ pub(super) fn by_internet_id(id: &str) -> Option<String> {
 /// take away. A message that is no draft (sent from another device since, which keeps its id), or is
 /// not in Drafts (moved), is not among them, and is never touched. Whether the whole list was read
 /// (it is followed page by page, within bounds) is said with it.
-fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<String>, bool), NetError> {
-    let query = http::form(&[("$filter", filter), ("$select", "id,isDraft"), ("$top", "50")]);
+fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<(String, String)>, bool), NetError> {
+    let query = http::form(&[("$filter", filter), ("$select", "id,isDraft,internetMessageId"), ("$top", "50")]);
     let mut url = graph.url(&format!("{}?{query}", graph.mail_path("/mailFolders/drafts/messages")));
     let (mut drafts, mut left) = (Vec::new(), 0usize);
     let mut whole = false;
@@ -327,7 +330,7 @@ fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<String>, bool), 
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         for m in json.get("value").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default() {
             match (m.get("isDraft").and_then(Value::as_bool), id_of(text(m, "id"))) {
-                (Some(true), Some(id)) => drafts.push(id),
+                (Some(true), Some(id)) => drafts.push((id, text(m, "internetMessageId").to_string())),
                 _ => left += 1,
             }
         }
@@ -364,7 +367,7 @@ fn still_a_draft(graph: &Graph<'_>, at: &str) -> Result<bool, NetError> {
 pub(super) fn purge_matching(graph: &Graph<'_>, filter: &str, keep: &str) -> Result<bool, NetError> {
     let keep = id_of(keep).unwrap_or_default();
     let (found, whole) = drafts_where(graph, filter)?;
-    for id in found {
+    for (id, _) in found {
         if id == keep {
             continue;
         }
@@ -376,6 +379,28 @@ pub(super) fn purge_matching(graph: &Graph<'_>, filter: &str, keep: &str) -> Res
         remove_for_good(graph, &at)?;
     }
     Ok(whole)
+}
+
+/// Take away, beyond recovery, the drafts the copies for Bcc recipients left behind (a send that was
+/// stopped, the owner's message deleted from the Outbox since) whose message is not in `keep` (the
+/// Message-IDs of what waits in the Outbox). Found by the marker they carry and a Message-ID of the
+/// shape only this program makes; each checked to be a draft, in Drafts, just before. One listing,
+/// within bounds; what is left is looked for by the next run.
+pub(super) fn purge_orphan_copies(graph: &Graph<'_>, keep: &[String]) -> Result<(), NetError> {
+    let keep: Vec<String> = keep.iter().map(|id| format!("<{}>", id.trim().trim_start_matches('<').trim_end_matches('>'))).collect();
+    let (found, _) = drafts_where(graph, &marker_filter(BCC_COPY_MARKER))?;
+    for (id, internet_id) in found {
+        let Some(base) = mailcraft_model::encrypting::blind_copy_base_message_id(&internet_id) else { continue };
+        if keep.contains(&base) {
+            continue;
+        }
+        let Some(at) = piece(&id) else { continue };
+        if !still_a_draft(graph, &at)? {
+            continue;
+        }
+        remove_for_good(graph, &at)?;
+    }
+    Ok(())
 }
 
 /// Take away every earlier copy of the draft marked `marker` but `keep`: `done.purged` says they
