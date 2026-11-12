@@ -1,0 +1,1 @@
+- Renaming a category renames it in the rules on this computer too: a rule kept putting on the old name ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

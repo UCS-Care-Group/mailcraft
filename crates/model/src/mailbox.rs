@@ -3672,7 +3672,8 @@ impl Mailbox {
         Ok(())
     }
 
-    /// Rename a category on the list `account`'s items use, and on the items that use that list.
+    /// Rename a category on the list `account`'s items use, on the items that use that list, and in
+    /// the rules for them.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
         if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
@@ -3689,6 +3690,14 @@ impl Mailbox {
                 *c = to.clone();
             }
         });
+        // The rules for the mail that uses this list follow it (#566): else an exception for the
+        // category stops leaving that mail alone. One its account's server has is the server's,
+        // read from it again, and keeps the name the server gave it.
+        let list = self.category_list_owner(account);
+        let follow: Vec<bool> = self.rules.iter().map(|r| r.server.is_none() && self.category_list_owner(r.account) == list).collect();
+        for (rule, _) in self.rules.iter_mut().zip(follow).filter(|(_, follow)| *follow) {
+            rule.rename_category(from.trim(), &to);
+        }
         Ok(())
     }
 

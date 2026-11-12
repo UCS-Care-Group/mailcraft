@@ -696,6 +696,34 @@ impl Rule {
         if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
     }
 
+    /// The category `from` called `to` wherever it names it, matched as the mail's own categories
+    /// are renamed ([`Mailbox::rename_category`](crate::Mailbox::rename_category)), each name once:
+    /// an exception for it still leaves that mail alone, a condition still takes it, and
+    /// Categorize puts it on by its new name (#566).
+    pub fn rename_category(&mut self, from: &str, to: &str) {
+        for c in self.conditions.iter_mut().chain(self.exceptions.iter_mut()) {
+            if let Condition::Category(names) = c
+                && names.iter().any(|n| n.eq_ignore_ascii_case(from))
+            {
+                let mut kept: Vec<String> = Vec::with_capacity(names.len());
+                for n in names.drain(..) {
+                    let n = if n.eq_ignore_ascii_case(from) { to.to_string() } else { n };
+                    if !kept.iter().any(|k| k.eq_ignore_ascii_case(&n)) {
+                        kept.push(n);
+                    }
+                }
+                *names = kept;
+            }
+        }
+        for a in &mut self.actions {
+            if let Action::Categorize(name) = a
+                && name.eq_ignore_ascii_case(from)
+            {
+                *name = to.to_string();
+            }
+        }
+    }
+
     /// Whether it reads the body of a message, which has to be in memory for it.
     pub fn reads_body(&self) -> bool {
         self.conditions.iter().chain(&self.exceptions).any(Condition::reads_body)
