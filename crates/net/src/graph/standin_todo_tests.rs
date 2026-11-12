@@ -112,6 +112,9 @@ fn a_task_takes_only_what_a_task_has() {
         json!({"dueDateTime": "tomorrow"}),
         json!({"dueDateTime": {"dateTime": "tomorrow", "timeZone": "UTC"}}),
         json!({"dueDateTime": {"dateTime": "2026-09-21T00:00:00", "timeZone": ""}}),
+        json!({"dueDateTime": {"dateTime": "20260921T00:00:00", "timeZone": "UTC"}}),
+        json!({"dueDateTime": {"dateTime": "2026-09-21T00:00:00", "timeZone": "Mars/Olympus_Mons"}}),
+        json!({"reminderDateTime": {"dateTime": "2026-09-21T00:00:00", "timeZone": "Mars/Olympus_Mons"}}),
         json!({"categories": [1]}),
     ] {
         let (status, body) = call(&server, "POST", &tasks, Some(&bad.to_string()));

@@ -306,6 +306,7 @@ impl State {
                         (Value::Object(_), Some(time @ Value::String(text)), Some(zone @ Value::String(name)))
                             if text.len() <= 64
                                 && mailcraft_time::parse_iso(text).is_some()
+                                && crate::graph::tasks::readable(value)
                                 && !name.is_empty()
                                 && name.len() <= 64
                                 && !name.chars().any(char::is_control) =>
