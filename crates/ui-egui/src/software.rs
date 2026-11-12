@@ -52,12 +52,20 @@ pub fn spinner(ui: &mut Ui, size: f32, color: Option<egui::Color32>) {
 /// [`spinner`] in a rectangle already given.
 pub fn spinner_at(ui: &Ui, rect: egui::Rect, color: Option<egui::Color32>) {
     let color = color.unwrap_or_else(|| ui.visuals().strong_text_color());
-    if is_software() {
+    if let Some(wait) = spinner_wake(is_software()) {
+        // egui's spinner kept the window looking again every frame, which polls for what the
+        // indicator waits on; the still ring asks for the same, a few times a second.
+        ui.ctx().request_repaint_after(wait);
         let r = rect.width().min(rect.height()) * 0.35;
         ui.painter().circle_stroke(rect.center(), r, egui::Stroke::new(1.5, color));
     } else {
         egui::Spinner::new().size(rect.width().min(rect.height())).color(color).paint_at(ui, rect);
     }
+}
+
+/// How soon a still spinner asks for the next look: `None` when the real spinner is drawn.
+pub(crate) fn spinner_wake(software: bool) -> Option<Duration> {
+    software.then_some(SOFTWARE_MIN_WAIT)
 }
 
 /// Whether the line should be on screen.

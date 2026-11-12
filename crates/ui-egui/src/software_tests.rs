@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde_json::json;
 
-use super::{SOFTWARE_MIN_WAIT, capped, notice_due};
+use super::{SOFTWARE_MIN_WAIT, capped, notice_due, spinner_wake};
 use crate::people_view::testing;
 
 #[test]
@@ -37,4 +37,11 @@ fn dismissing_the_line_is_kept_in_the_settings() {
     assert_eq!(w.state_mut().execute("ui.dismissSoftwareNotice", json!({})).unwrap()["dismissed"], true);
     assert!(w.state_mut().prefs().software_told);
     assert_eq!(w.state_mut().execute("ui.dismissSoftwareNotice", json!({})).unwrap()["dismissed"], false);
+}
+
+#[test]
+fn a_still_spinner_keeps_the_window_looking() {
+    // Polling that rode on the real spinner's every-frame repaint goes on, four times a second.
+    assert_eq!(spinner_wake(true), Some(SOFTWARE_MIN_WAIT));
+    assert_eq!(spinner_wake(false), None);
 }
