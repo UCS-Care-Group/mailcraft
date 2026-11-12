@@ -109,5 +109,25 @@ fn every_value_of_a_text_is_put_aside_but_a_number() {
             ("why", Arg::Said(Box::new(Text { template: "refused {who}", args: vec![("who", Arg::Plain("ada@example.org".into()))] }))),
         ],
     };
-    assert_eq!(masked(&text), "Couldn't send \"…\" (3): refused …");
+    assert_eq!(masked(&text), "Couldn't send \"…\" (…): refused …");
+}
+
+#[test]
+fn a_servers_code_is_kept_and_its_words_are_not() {
+    let said = |words: &str| Text { template: "the server said: {reason}", args: vec![("reason", Arg::Said(Box::new(Text::verbatim(words))))] };
+    for (words, want) in [
+        ("[OVERQUOTA] Quota exceeded for ada@example.org", "the server said: [OVERQUOTA]…"),
+        ("[TRYCREATE] no folder Taxes", "the server said: [TRYCREATE]…"),
+        ("[AUTHENTICATIONFAILED] bad", "the server said: [AUTHENTICATIONFAILED]…"),
+        ("552 5.3.4 Message too big for Bob", "the server said: 552 5.3.4…"),
+        ("550 No such user ada@example.org", "the server said: 550…"),
+        ("450 5.1.1.1 odd", "the server said: 450…"),
+        ("[lower] no", "the server said: …"),
+        ("[ada@example.org] no", "the server said: …"),
+        ("5501 no", "the server said: …"),
+        ("Taxes is gone [OVERQUOTA]", "the server said: …"),
+        ("[é] no", "the server said: …"),
+    ] {
+        assert_eq!(masked(&said(words)), want, "{words}");
+    }
 }

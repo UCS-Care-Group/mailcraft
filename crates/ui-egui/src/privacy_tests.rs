@@ -48,6 +48,44 @@ fn send_receive_problems_are_kept_for_the_owner_and_logged_without_their_values(
     }
 }
 
+/// (A5-3) A problem told as a free string (Graph, calendar, tasks, rules, sign-in) names its
+/// subjects in quotes nothing can be sure of: the log has the count and the job, never the text.
+#[test]
+fn free_string_problems_are_counted_in_the_log_and_never_quoted() {
+    let logged = crate::graph_switch::tests::logged();
+    let mut app = app();
+    let account = app.session.mailbox.accounts[0].id;
+    let lines = vec![
+        "Couldn't send \"Re: \"Offer\" for Bob Smith through Microsoft: refused".to_string(),
+        "Couldn't move \"Taxes 2026 for ada@example.org".to_string(),
+    ];
+    app.note_sync_problems(account, &lines, true);
+    app.note_problems_from("calendar", account, &lines, None, false);
+    assert!(app.sync_problem_lines().iter().any(|l| l.contains("Offer")));
+    let log = logged.lock().unwrap().join("\n");
+    assert!(log.contains("(mail): 2 problem(s) reported") && log.contains("(calendar): 2 problem(s) reported"), "{log}");
+    for secret in ["Offer", "Bob Smith", "Taxes 2026", "ada@example.org"] {
+        assert!(!log.contains(secret), "{secret} reached the log: {log}");
+    }
+}
+
+/// A job that ends without problems forgets what the log said of it, whether or not it is the
+/// kind that clears the window's report.
+#[test]
+fn a_job_with_no_problems_makes_a_returning_one_new() {
+    let logged = crate::graph_switch::tests::logged();
+    let mut app = app();
+    let account = app.session.mailbox.accounts[0].id;
+    let said = vec!["calendar-forget-marker …".to_string()];
+    let count = || logged.lock().unwrap().iter().filter(|l| l.contains("calendar-forget-marker")).count();
+    app.note_problems_from("calendar", account, &said, Some(&said), false);
+    app.note_problems_from("calendar", account, &said, Some(&said), false);
+    assert_eq!(count(), 1);
+    app.note_problems_from("calendar", account, &[], None, false);
+    app.note_problems_from("calendar", account, &said, Some(&said), false);
+    assert_eq!(count(), 2);
+}
+
 /// (A3-5) The question says what a Yes does: check, download and install.
 #[test]
 fn the_update_question_names_installing() {

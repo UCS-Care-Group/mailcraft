@@ -56,11 +56,45 @@ fn key_of(line: &str) -> String {
     key
 }
 
+/// The length of the code a server's words begin with: an IMAP response code (`[OVERQUOTA]`,
+/// letters, digits and `-`, 32 at most) or an SMTP reply's three digits and enhanced status
+/// (`552 5.3.4`). Nothing else: no word of the server's own is a code.
+fn code_len(words: &str) -> usize {
+    if let Some(rest) = words.strip_prefix('[') {
+        return match rest.find(']') {
+            Some(n) if (1..=32).contains(&n) && rest.bytes().take(n).all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-') => n + 2,
+            _ => 0,
+        };
+    }
+    let bytes = words.as_bytes();
+    if bytes.len() < 3 || !bytes.iter().take(3).all(u8::is_ascii_digit) || bytes.get(3).is_some_and(|b| !b.is_ascii_whitespace()) {
+        return 0;
+    }
+    // ` d.ddd.ddd` after it: one digit, then one to three, then one to three.
+    let status = words.get(3..).and_then(|rest| rest.strip_prefix(' ')).and_then(|rest| rest.split(' ').next()).unwrap_or("");
+    let parts: Vec<&str> = status.split('.').collect();
+    let digits = |p: &str, max: usize| (1..=max).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit());
+    if parts.len() == 3
+        && digits(parts.first().copied().unwrap_or(""), 1)
+        && digits(parts.get(1).copied().unwrap_or(""), 3)
+        && digits(parts.get(2).copied().unwrap_or(""), 3)
+    {
+        4 + status.len()
+    } else {
+        3
+    }
+}
+
 /// `text` in English with every value it was given put aside as `…`, whatever the value is:
-/// a subject, a folder's name, an address. A number alone stays.
+/// a subject, a folder's name, an address, a count. What a server's words begin with, if it is a
+/// code (`[OVERQUOTA]`, `552 5.3.4`: [`code_len`]), stays, so that a report says what kind of
+/// refusal it was.
 pub(crate) fn masked(text: &Text) -> String {
     text.clone()
-        .map_plain(&|value: String| if !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()) { value } else { "…".to_string() })
+        .map_plain(&|value: String| match value.get(..code_len(&value)) {
+            Some(code) if !code.is_empty() => format!("{code}…"),
+            _ => "…".to_string(),
+        })
         .to_string()
 }
 

@@ -4280,30 +4280,34 @@ impl MailApp {
     /// Keep what a Send/Receive said went wrong (the log gets how many and each new text, cut short); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
-        self.note_problems_from("mail", account, errors, errors, finished);
+        self.note_problems_from("mail", account, errors, None, finished);
     }
 
     /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, shared
     /// mailboxes): each keeps its own memory of what the log has said. `logged` is what goes in the
-    /// log for `errors`, line for line.
-    fn note_problems_from(&mut self, source: &'static str, account: Id, errors: &[String], logged: &[String], finished: bool) {
+    /// log for `errors`, line for line: only texts told as [`mailcraft_i18n::Text`] have any (with
+    /// their values put aside); a free text names subjects and folders in quotes that nothing
+    /// here can be sure of, so of those the log has the count alone.
+    fn note_problems_from(&mut self, source: &'static str, account: Id, errors: &[String], logged: Option<&[String]>, finished: bool) {
         // Mail's answers come piece by piece and its run ends with `finished`; another job's
         // answer is its whole run.
         let ends = finished || source != "mail";
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
-                self.logged_problems.forget(account, source);
             }
             if ends {
+                self.logged_problems.forget(account, source);
                 self.logged_problems.end_run(account, source);
             }
             return;
         }
         // The lines name subjects, addresses and folders: the log gets how many there were and,
-        // for a diagnostics report, each new text cut short (see `problem_log`).
-        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
-        self.logged_problems.log_new(account, source, logged);
+        // for a text told with its values apart, each new text cut short (see `problem_log`).
+        log::warn!("send/receive, account {account} ({source}): {} problem(s) reported", errors.len());
+        if let Some(logged) = logged {
+            self.logged_problems.log_new(account, source, logged);
+        }
         if ends {
             self.logged_problems.end_run(account, source);
         }
@@ -4317,7 +4321,7 @@ impl MailApp {
     fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
         let english: Vec<String> = errors.iter().map(ToString::to_string).collect();
         let logged: Vec<String> = errors.iter().map(problem_log::masked).collect();
-        self.note_problems_from("mail", account, &english, &logged, finished);
+        self.note_problems_from("mail", account, &english, Some(&logged), finished);
         let Some((.., lines)) = self.sync_problems.iter_mut().find(|(a, ..)| *a == account) else { return };
         // (The newest lines are the last; of a very long run only the last ones were kept.)
         let kept = errors.len().min(lines.len());
@@ -4453,6 +4457,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
+                    self.logged_problems.end_run(*whose, "mail");
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
