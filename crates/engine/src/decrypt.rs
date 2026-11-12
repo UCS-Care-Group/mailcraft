@@ -146,8 +146,13 @@ pub struct Decrypted {
     pub format: SignatureFormat,
     /// See [`Plain::authenticated`].
     pub authenticated: bool,
-    /// What was beside it, not shown.
+    /// What was beside it, not shown as text.
     pub outside: Outside,
+    /// The files that were beside it, unencrypted: listed first among the files, and told apart
+    /// by [`Outside::files`] (the window marks them as not encrypted).
+    outside_files: Vec<mailcraft_model::Attachment>,
+    /// The bytes it was opened from: what it rests on.
+    basis: Basis,
     bytes: usize,
     /// The view last made: the stored message it was made from, and it.
     view: Mutex<Option<(Arc<Message>, Arc<Message>)>>,
@@ -175,21 +180,37 @@ pub(crate) struct Decryptions {
     kinds: HashMap<Id, (Basis, Option<SignatureFormat>)>,
     /// How many opened messages were let go of: the window drops what it kept of them when it changes.
     gone: u64,
+    /// The messages whose opened view was let go of and whose layout the window may still hold
+    /// (until it says it has dropped it, [`Session::layouts_dropped`]).
+    released: std::collections::HashSet<Id>,
 }
 
 impl Decryptions {
     pub(crate) fn forget_messages(&mut self) {
         self.gone = self.gone.wrapping_add(1);
+        let opened: Vec<Id> = self.entries.iter().filter(|(_, e)| matches!(e, Entry::Opened(_))).map(|(id, _)| *id).collect();
+        self.release(opened);
         self.entries.clear();
         self.order.clear();
         self.bytes = 0;
         self.kinds.clear();
     }
 
+    /// Note that these messages' views are let go of (bounded: past the bound, all are dropped).
+    fn release(&mut self, ids: impl IntoIterator<Item = Id>) {
+        for id in ids {
+            if self.released.len() >= MAX_KINDS {
+                self.released.clear();
+            }
+            self.released.insert(id);
+        }
+    }
+
     fn drop_entry(&mut self, id: Id) {
         if let Some(Entry::Opened(d)) = self.entries.remove(&id) {
             self.bytes = self.bytes.saturating_sub(d.bytes);
             self.gone = self.gone.wrapping_add(1);
+            self.release([id]);
         }
         self.order.retain(|o| *o != id);
     }
@@ -201,6 +222,7 @@ impl Decryptions {
             if let Some(Entry::Opened(d)) = self.entries.remove(&oldest) {
                 self.bytes = self.bytes.saturating_sub(d.bytes);
                 self.gone = self.gone.wrapping_add(1);
+                self.release([oldest]);
             }
         }
         self.bytes = self.bytes.saturating_add(decrypted.bytes);
@@ -276,7 +298,7 @@ impl Session {
             Some(Entry::Pending(f, b)) if *b == basis => Decryption::Opening(*f),
             // (A failure for other bytes than these isn't one for these: asked again.)
             Some(Entry::Failed(f, why, b)) if *b == basis => Decryption::Failed(*f, why.clone()),
-            Some(Entry::Opened(d)) => Decryption::Opened(d.format),
+            Some(Entry::Opened(d)) if d.basis == basis => Decryption::Opened(d.format),
             // (A job for other bytes than these, or none: to be asked again.)
             _ => Decryption::Waiting(format),
         }
@@ -340,11 +362,19 @@ impl Session {
         }
     }
 
+    /// What message `id` opened to, when it is opened and the message still has the bytes it was
+    /// opened from (the server replacing them leaves nothing opened).
+    fn opened(&self, id: Id) -> Option<&Arc<Decrypted>> {
+        let Some(Entry::Opened(d)) = self.decryptions.entries.get(&id) else { return None };
+        (basis_of(self.mailbox.messages.get(&id)?) == d.basis).then_some(d)
+    }
+
     /// The message `id` opened to, for the reading pane to draw: the stored message as it is now
     /// (its flag, categories, answered marks) with the text and files from the encryption in the
-    /// place of the encrypted ones. No command, search, rule or agent reads it (#30 R22, R23).
+    /// place of the encrypted ones, after the files that were beside it unencrypted. No command,
+    /// search, rule or agent reads it (#30 R22, R23).
     pub fn decrypted_message(&self, id: Id) -> Option<Arc<Message>> {
-        let Some(Entry::Opened(d)) = self.decryptions.entries.get(&id) else { return None };
+        let d = self.opened(id)?;
         let stored = self.mailbox.messages.get(&id)?;
         let mut cached = d.view.lock().unwrap_or_else(|e| e.into_inner());
         if let Some((from, view)) = cached.as_ref()
@@ -357,7 +387,7 @@ impl Session {
         view.kept = None;
         view.unfetched = false;
         view.hidden_text = d.hidden_text.clone();
-        view.attachments = d.attachments.clone();
+        view.attachments = d.outside_files.iter().chain(d.attachments.iter()).cloned().collect();
         view.body = d.body.clone();
         let view = Arc::new(view);
         *cached = Some((stored.clone(), view.clone()));
@@ -368,18 +398,12 @@ impl Session {
     /// that detects changes allows that (and then only on the owner's word, never by a switch or
     /// a rule: what is opened is the owner's own mail). `None` when it isn't opened.
     pub fn decrypted_authenticated(&self, id: Id) -> Option<bool> {
-        match self.decryptions.entries.get(&id) {
-            Some(Entry::Opened(d)) => Some(d.authenticated),
-            _ => None,
-        }
+        self.opened(id).map(|d| d.authenticated)
     }
 
-    /// What message `id` had beside what was encrypted, which isn't shown.
+    /// What message `id` had beside what was encrypted.
     pub fn decrypted_outside(&self, id: Id) -> Outside {
-        match self.decryptions.entries.get(&id) {
-            Some(Entry::Opened(d)) => d.outside,
-            _ => Outside::default(),
-        }
+        self.opened(id).map_or_else(Outside::default, |d| d.outside)
     }
 
     /// How many opened messages were let go of so far: the window drops what it kept of them
@@ -390,30 +414,30 @@ impl Session {
 
     /// The messages that are opened now.
     pub fn opened_decryptions(&self) -> Vec<Id> {
-        self.decryptions.order.iter().copied().collect()
+        self.decryptions.order.iter().copied().filter(|id| self.opened(*id).is_some()).collect()
     }
 
     /// Whether `m` is the view of a message that was opened and has since been let go of.
     pub fn decrypted_view_gone(&self, m: &Message) -> bool {
-        m.original.is_none()
-            && self.decryptions.kinds.get(&m.id).is_some_and(|(_, kind)| kind.is_some())
-            && !matches!(self.decryptions.entries.get(&m.id), Some(Entry::Opened(_)))
+        m.original.is_none() && self.decryptions.released.contains(&m.id) && self.opened(m.id).is_none()
+    }
+
+    /// The window dropped what it kept of the views that were let go of.
+    pub fn layouts_dropped(&mut self) {
+        self.decryptions.released.clear();
     }
 
     /// The Digital signature that was inside message `id`'s encryption, when it was opened and
     /// carried one.
     pub fn decrypted_signature(&self, id: Id) -> Option<Arc<DigitalSignature>> {
-        match self.decryptions.entries.get(&id) {
-            Some(Entry::Opened(d)) => d.signature.clone(),
-            _ => None,
-        }
+        self.opened(id).and_then(|d| d.signature.clone())
     }
 
     /// Whether `m` is a message made by [`Session::decrypted_message`] (the reading pane draws its
     /// files differently: their numbers are not the stored message's). Told by what the stored
     /// message of an Encrypted message always has and the view never has: the bytes it came as.
     pub fn is_decrypted_view(&self, m: &Message) -> bool {
-        m.original.is_none() && matches!(self.decryptions.entries.get(&m.id), Some(Entry::Opened(_)))
+        m.original.is_none() && self.opened(m.id).is_some()
     }
 
     /// Read what the host opened `stored` to, check what is signed inside, and keep what is to be
@@ -428,6 +452,7 @@ impl Session {
         });
         let entity: &[u8] = inline_entity.as_ref().map_or(plain.data.as_slice(), |e| e.as_slice());
         let read = mailcraft_mime::parse(entity);
+        let outside_files = outside_files(stored, plain.inline);
         let mut outside = outside_of(stored, plain.inline);
         let body = read.body;
         // What is signed inside the encryption. (With text around an inline block, which nobody
@@ -440,11 +465,13 @@ impl Session {
             !(mime.contains("pkcs7-signature") || mime.contains("pgp-signature"))
         });
         outside.files = outside.files.min(MAX_KINDS);
-        // (What is kept: the text, the files and the words that were hidden; not the entity.)
+        // (What is kept: the text, the files and the words that were hidden; not the entity. The
+        // view made for the window holds a second copy of the text: counted twice.)
         let bytes = body
             .text
             .len()
             .saturating_add(body.html.as_ref().map_or(0, String::len))
+            .saturating_mul(2)
             .saturating_add(read.hidden_text.len())
             .saturating_add(attachments.iter().map(|a| a.data.len()).sum::<usize>());
         Some(Decrypted {
@@ -455,6 +482,8 @@ impl Session {
             format,
             authenticated: plain.authenticated,
             outside,
+            outside_files,
+            basis: basis_of(stored),
             bytes,
             view: Mutex::new(None),
         })
@@ -483,7 +512,7 @@ impl Session {
 }
 
 /// What `stored` had beside what was encrypted. Inline: any text but white space outside the
-/// armoured block. PGP/MIME or S/MIME: text, or files that aren't the encrypted file, that the
+/// armoured block. PGP/MIME or S/MIME: text, or files that aren't the encrypted part, that the
 /// message had besides it (a list's footer, files sent in the clear).
 pub(crate) fn outside_of(stored: &Message, inline: bool) -> Outside {
     if inline {
@@ -496,28 +525,63 @@ pub(crate) fn outside_of(stored: &Message, inline: bool) -> Outside {
         });
         return Outside { text: around.is_none_or(|(before, after)| !(before && after)), files: 0 };
     }
-    let encrypted_file = |a: &mailcraft_model::Attachment| {
-        let mime = a.mime.to_ascii_lowercase();
-        mime.contains("pgp-encrypted") || mime.contains("pkcs7-mime") || a.name.eq_ignore_ascii_case("encrypted.asc")
-    };
     Outside {
         text: !stored.body.text.trim().is_empty() || stored.body.html.as_ref().is_some_and(|h| !h.trim().is_empty()),
-        files: stored.attachments.iter().filter(|a| !encrypted_file(a)).count(),
+        files: outside_files(stored, false).len().min(MAX_KINDS),
     }
 }
 
-/// The charset the message's own header names for its text (an inline OpenPGP message's text is
-/// in that), made of letters, digits and `-_:.` alone; `None` when it names none.
+/// The files of `stored` that were beside what was encrypted, unencrypted. The encrypted part is
+/// told by its place, never by its name (senders name it `encrypted.asc`, `msg.asc`, or nothing):
+/// in PGP/MIME it is the `application/octet-stream` part right after the `application/pgp-encrypted`
+/// control part (RFC 3156 §4); in S/MIME it is the `application/pkcs7-mime` part.
+pub(crate) fn outside_files(stored: &Message, inline: bool) -> Vec<mailcraft_model::Attachment> {
+    if inline {
+        return Vec::new();
+    }
+    let mime = |a: &mailcraft_model::Attachment| a.mime.trim().to_ascii_lowercase();
+    let control = stored.attachments.iter().position(|a| mime(a).starts_with("application/pgp-encrypted"));
+    let data = control
+        .and_then(|i| i.checked_add(1))
+        .filter(|i| stored.attachments.get(*i).is_some_and(|a| mime(a).starts_with("application/octet-stream")));
+    stored
+        .attachments
+        .iter()
+        .enumerate()
+        .filter(|(i, a)| Some(*i) != control && Some(*i) != data && !mime(a).contains("pkcs7-mime"))
+        .map(|(_, a)| a.clone())
+        .take(MAX_KINDS)
+        .collect()
+}
+
+/// The charset the text part holding an inline OpenPGP block names (the nearest `Content-Type`
+/// header before the block, the message's own header for a message that is one part), made of
+/// letters, digits and `-_:.` alone; `None` when it names none.
 pub(crate) fn outer_charset(original: &[u8]) -> Option<String> {
-    let head = original.get(..original.len().min(64 << 10))?;
-    let end = head.windows(4).position(|w| w == b"\r\n\r\n").or_else(|| head.windows(2).position(|w| w == b"\n\n")).unwrap_or(head.len());
-    let text = String::from_utf8_lossy(head.get(..end)?).replace("\r\n", "\n").replace("\n ", " ").replace("\n\t", " ");
-    let line = text.lines().find(|l| l.get(..13).is_some_and(|p| p.eq_ignore_ascii_case("content-type:")))?;
-    let lower = line.to_ascii_lowercase();
-    let at = lower.find("charset=")?.checked_add(8)?;
-    let rest = line.get(at..)?.trim_start().trim_start_matches('"');
-    let value: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || "-_:.".contains(*c)).collect();
+    const BEGIN: &[u8] = b"-----BEGIN PGP MESSAGE-----";
+    const LOOK: usize = 64 << 10;
+    let at = original.windows(BEGIN.len()).position(|w| w == BEGIN).unwrap_or(0);
+    let from = at.saturating_sub(LOOK);
+    let before = original.get(from..at.max(from))?;
+    let text = String::from_utf8_lossy(before).replace("\r\n", "\n").replace("\n ", " ").replace("\n\t", " ");
+    let value = if at == 0 {
+        // No block to look before: the message's own header.
+        let head = original.get(..original.len().min(LOOK))?;
+        let end = head.windows(4).position(|w| w == b"\r\n\r\n").or_else(|| head.windows(2).position(|w| w == b"\n\n")).unwrap_or(head.len());
+        let header = String::from_utf8_lossy(head.get(..end)?).replace("\r\n", "\n").replace("\n ", " ").replace("\n\t", " ");
+        header.lines().find(|l| l.get(..13).is_some_and(|p| p.eq_ignore_ascii_case("content-type:"))).map(str::to_string)
+    } else {
+        // The last such header line: that of the part the block is in, when it names its type.
+        text.lines().rev().find(|l| l.get(..13).is_some_and(|p| p.eq_ignore_ascii_case("content-type:"))).map(str::to_string)
+    }?;
+    let lower = value.to_ascii_lowercase();
+    if !lower.trim_start_matches("content-type:").trim_start().starts_with("text/") {
+        return None;
+    }
+    let start = lower.find("charset=")?.checked_add(8)?;
+    let rest = value.get(start..)?.trim_start().trim_start_matches('"');
+    let name: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || "-_:.".contains(*c)).collect();
     // (A name that goes on with anything but the end of the parameter isn't one.)
-    let ends = rest.get(value.len()..).and_then(|r| r.chars().next()).is_none_or(|c| c == '"' || c == ';' || c.is_whitespace());
-    (ends && !value.is_empty() && value.len() <= 40).then_some(value)
+    let ends = rest.get(name.len()..).and_then(|r| r.chars().next()).is_none_or(|c| c == '"' || c == ';' || c.is_whitespace());
+    (ends && !name.is_empty() && name.len() <= 40).then_some(name)
 }

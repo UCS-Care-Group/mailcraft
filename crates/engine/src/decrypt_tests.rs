@@ -308,18 +308,91 @@ fn an_inline_message_is_read_in_the_charset_its_mail_names() {
 }
 
 #[test]
-fn text_and_files_beside_an_encrypted_part_are_counted_for_the_note() {
-    use crate::decrypt::outside_of;
+fn the_encrypted_part_is_told_by_its_place_and_never_by_its_name() {
+    use crate::decrypt::{outside_files, outside_of};
+    let part = |name: &str, mime: &str| mailcraft_model::Attachment { name: name.into(), mime: mime.into(), ..Default::default() };
     let mut m = mailcraft_model::Message::default();
     assert!(!outside_of(&m, false).any());
-    m.attachments.push(mailcraft_model::Attachment { name: "encrypted.asc".into(), mime: "application/octet-stream".into(), ..Default::default() });
-    m.attachments.push(mailcraft_model::Attachment { name: "smime.p7m".into(), mime: "application/pkcs7-mime".into(), ..Default::default() });
+    // As mutt and KMail write it (`msg.asc`), as some senders do (no name), as most do (`encrypted.asc`).
+    for name in ["msg.asc", "", "encrypted.asc", "whatever.bin"] {
+        m.attachments = vec![part("", "application/pgp-encrypted"), part(name, "application/octet-stream")];
+        assert!(!outside_of(&m, false).any(), "{name:?}");
+        assert!(outside_files(&m, false).is_empty());
+    }
+    // S/MIME's one part.
+    m.attachments = vec![part("smime.p7m", "application/pkcs7-mime")];
     assert!(!outside_of(&m, false).any());
-    m.attachments.push(mailcraft_model::Attachment { name: "price list.pdf".into(), mime: "application/pdf".into(), ..Default::default() });
+    // A file sent in the clear beside it, and a footer of text: said, and the file kept for the list.
+    m.attachments =
+        vec![part("", "application/pgp-encrypted"), part("msg.asc", "application/octet-stream"), part("price list.pdf", "application/pdf")];
     m.body.text = "Sent through the list".into();
     let outside = outside_of(&m, false);
     assert!(outside.text);
     assert_eq!(outside.files, 1);
+    assert_eq!(outside_files(&m, false).first().map(|a| a.name.as_str()), Some("price list.pdf"));
+    // A second octet-stream part isn't the encrypted one.
+    m.attachments.push(part("extra.bin", "application/octet-stream"));
+    assert_eq!(outside_of(&m, false).files, 2);
+}
+
+#[test]
+fn files_beside_an_encrypted_part_are_listed_first_and_the_view_says_how_many() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    let mut extra = mailcraft_model::Attachment { name: "price list.pdf".into(), mime: "application/pdf".into(), ..Default::default() };
+    extra.data = std::sync::Arc::new(b"%PDF".to_vec());
+    std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap()).attachments.push(extra);
+    open(&mut s, id, plain(SECRET));
+    assert_eq!(s.decrypted_outside(id).files, 1);
+    let shown = s.decrypted_message(id).unwrap();
+    assert_eq!(shown.attachments.first().map(|a| a.name.as_str()), Some("price list.pdf"));
+}
+
+#[test]
+fn what_the_window_kept_of_every_opened_message_goes_when_another_mailbox_is_opened() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    open(&mut s, id, plain(SECRET));
+    let view = s.decrypted_message(id).unwrap();
+    assert!(!s.decrypted_view_gone(&view));
+    s.decryptions.forget_messages();
+    assert!(s.decrypted_view_gone(&view), "the layout of a mailbox that was closed is kept");
+    s.layouts_dropped();
+    assert!(!s.decrypted_view_gone(&view));
+}
+
+#[test]
+fn an_opened_message_whose_bytes_were_replaced_is_not_shown_as_opened() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    open(&mut s, id, plain(SECRET));
+    assert!(s.decrypted_message(id).is_some());
+    let mut again = mailcraft_mime::parse_fetched(&smime("alice@smime.example", "Vault, sent again"));
+    again.id = id;
+    again.folder = s.mailbox.message(id).unwrap().folder;
+    *s.mailbox.messages.get_mut(&id).unwrap() = std::sync::Arc::new(again);
+    assert!(s.decrypted_message(id).is_none(), "the old plaintext under the new headers");
+    assert_eq!(s.decrypted_authenticated(id), None);
+    assert_eq!(s.decryption(id), Decryption::Waiting(SignatureFormat::Smime));
+}
+
+#[test]
+fn an_inline_block_in_a_part_of_a_multipart_is_read_in_that_parts_charset() {
+    use crate::decrypt::outer_charset;
+    let top = String::from_utf8(inline_pgp("", "", "utf-8")).unwrap();
+    let block = &top[top.find("-----BEGIN PGP MESSAGE-----").unwrap()..];
+    let mail = format!(
+        "From: alice@example.org\r\nTo: bob@smime.example\r\nSubject: Hi\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"b1\"\r\n\r\n--b1\r\nContent-Type: text/plain; charset=iso-8859-1\r\n\r\n{block}--b1--\r\n"
+    );
+    assert_eq!(outer_charset(mail.as_bytes()).as_deref(), Some("iso-8859-1"));
+    let (mut s, ids) = session_with(&[mail.as_bytes()]);
+    if s.encryption_of(ids[0]).is_some() {
+        open(&mut s, ids[0], inline_plain(b"caf\xe9 au lait"));
+        assert!(s.decrypted_message(ids[0]).unwrap().body.text.contains("café au lait"));
+    }
+    // A header that isn't the text part's is not believed.
+    let other = "From: a@example.org\r\nContent-Type: application/pdf; charset=bogus\r\n\r\n-----BEGIN PGP MESSAGE-----\r\n";
+    assert_eq!(outer_charset(other.as_bytes()), None);
 }
 
 #[test]
