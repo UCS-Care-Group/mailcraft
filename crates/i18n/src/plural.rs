@@ -14,6 +14,9 @@ pub enum Rule {
     NotOne,
     /// Singular for 0 and 1 (`plural=(n > 1)`): French.
     AboveOne,
+    /// Three forms (`plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`):
+    /// 1, 21, 101… / 2–4, 22–24… / the rest, 11–14 among them. Russian.
+    Slavic,
 }
 
 impl Rule {
@@ -23,6 +26,16 @@ impl Rule {
             Rule::Single => 0,
             Rule::NotOne => usize::from(n != 1),
             Rule::AboveOne => usize::from(n > 1),
+            Rule::Slavic => {
+                let (r10, r100) = (n % 10, n % 100);
+                if r10 == 1 && r100 != 11 {
+                    0
+                } else if (2..=4).contains(&r10) && !(12..=14).contains(&r100) {
+                    1
+                } else {
+                    2
+                }
+            }
         }
     }
 
@@ -31,6 +44,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
+            Rule::Slavic => 3,
         }
     }
 
@@ -50,10 +64,14 @@ impl Rule {
         match (nplurals, plural.as_deref()) {
             (Some(1), Some("0")) => Rule::Single,
             (Some(2), Some("n>1" | "n>=2" | "n>1?1:0")) => Rule::AboveOne,
+            (Some(3), Some(SLAVIC)) => Rule::Slavic,
             _ => Rule::NotOne,
         }
     }
 }
+
+/// The Russian rule as `normalise` leaves it.
+const SLAVIC: &str = "n%10==1&&n%100!=11?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2";
 
 /// The expression without blanks and without the brackets around the whole of it.
 fn normalise(expr: &str) -> String {
@@ -89,6 +107,11 @@ mod tests {
         assert_eq!(Rule::from_header("nplurals=2; plural=(n != 1);"), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=1; plural=0;"), Rule::Single);
         assert_eq!(Rule::from_header("nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : 2);"), Rule::NotOne);
+        let ru = "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);";
+        assert_eq!(Rule::from_header(ru), Rule::Slavic);
+        assert_eq!(Rule::Slavic.forms(), 3);
+        let forms: Vec<usize> = [0, 1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111, 112].iter().map(|n| Rule::Slavic.index(*n)).collect();
+        assert_eq!(forms, [2, 0, 1, 1, 2, 2, 2, 2, 0, 1, 2, 0, 2, 2]);
         assert_eq!(Rule::from_header("garbage((("), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n>1)+(n>2);"), Rule::NotOne);
         assert_eq!((Rule::AboveOne.index(0), Rule::AboveOne.index(1), Rule::AboveOne.index(2)), (0, 0, 1));

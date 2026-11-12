@@ -17368,6 +17368,78 @@ msgstr "komt niet overeen"
 msgid "month"
 msgstr "maand"
 
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "April"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "August"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "December"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "February"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "January"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "July"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "June"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "March"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "May"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "November"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "October"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "September"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
