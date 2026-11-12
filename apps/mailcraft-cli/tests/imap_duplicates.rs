@@ -400,3 +400,28 @@ fn undo_of_one_of_two_deletions_of_the_same_mail_keeps_the_other_deletion_only()
     r.run("edit.redo", json!({}));
     assert_eq!(deletes(&r), [7, 8]);
 }
+
+#[test]
+fn undo_of_a_deletion_that_waited_for_its_copy_leaves_the_deletion_of_a_like_mail_with_its_own_uid() {
+    // Projects holds X (UID 5); Y, the same mail, is moved up from the Inbox with no UIDPLUS, so
+    // it waits for its copy. X is deleted for good, then Y: undoing Y's deletion must not hand Y
+    // X's UID, and redoing it must not give Y's deletion X's.
+    let mut w = world(true, false);
+    w.mailboxes[1].messages = vec![message(5, "", "Two")];
+    let mut r = Rig::with(w);
+    r.sync();
+    let projects = r.folder_named("Projects");
+    let x = r.titled("Two").into_iter().find(|id| r.s.mailbox.message(*id).is_some_and(|m| m.folder == projects)).unwrap();
+    let y = r.titled("Two").into_iter().find(|id| *id != x).unwrap();
+    r.run("mail.move", json!({"ids": [y], "folder": projects}));
+    r.sync_called_off(|piece| !piece.moved.is_empty());
+    r.run("mail.deletePermanently", json!({"ids": [x]}));
+    r.run("mail.deletePermanently", json!({"ids": [y]}));
+    let uids = |r: &Rig| -> Vec<u32> { r.s.mailbox.pending.iter().map(|p| p.source().1).collect() };
+    assert_eq!(uids(&r), [5, 0]);
+    r.run("edit.undo", json!({}));
+    assert_eq!(uids(&r), [5], "X's deletion stays");
+    assert!(r.s.mailbox.message(y).is_some_and(|m| m.uid == 0), "Y is not given X's UID");
+    r.run("edit.redo", json!({}));
+    assert_eq!(uids(&r), [5, 0], "each deletion has its own UID");
+}

@@ -452,14 +452,18 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
     }
     // The waiting changes of the Microsoft accounts are as the mailbox goes back to (`queue`'s
     // business); the others are as now, but for the change's own.
+    let then = std::mem::take(&mut out.pending);
+    // A change the mailbox goes back to has its UID there already: it is not one a copy's UID was
+    // given to since, however alike its mail is to one that waited.
+    let then_keys: HashSet<String> = then.iter().map(key).collect();
+    let loose = |p: &Pending| p.source().1 != 0 && !then_keys.contains(&key(p)) && touched.waiting.contains(&loose_key_of_attached(p));
     let owned = |p: &Pending| {
         let k = key(p);
         touched.pending_added.contains(&k)
             || touched.pending_removed.contains(&k)
-            || (p.source().1 != 0 && touched.waiting.contains(&loose_key_of_attached(p)))
+            || loose(p)
             || matches!(p, Pending::Move { message, .. } if touched.changed_messages.contains(message))
     };
-    let then = std::mem::take(&mut out.pending);
     let mut pending: Vec<Pending> = then.iter().filter(|p| g.contains(&p.account())).cloned().collect();
     pending.extend(now.pending.iter().filter(|p| !g.contains(&p.account()) && !owned(p)).cloned());
     pending.extend(then.iter().filter(|p| !g.contains(&p.account()) && owned(p)).cloned());
@@ -500,8 +504,7 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
     for attached in attached {
         // (Only a change that was waiting for its copy when the step was made is known by its
         // mail: two copies of one mail are told apart by their UIDs, which a change has.)
-        let loose = touched.waiting.contains(&loose_key_of_attached(attached));
-        keep_attached(out, attached, loose, &waiting, &awaiting);
+        keep_attached(out, attached, loose(attached), &waiting, &awaiting);
     }
 }
 
