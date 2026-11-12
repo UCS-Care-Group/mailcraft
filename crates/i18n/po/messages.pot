@@ -1321,6 +1321,11 @@ msgid "Ask for permission to keep your tasks, rules, automatic replies and categ
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
 msgstr ""
@@ -10705,6 +10710,11 @@ msgid "Tasks"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "Tasks stay on this computer for now: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: Microsoft no longer takes the sign-in"
 msgstr ""
@@ -12788,6 +12798,14 @@ msgid ""
 "To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid ""
+"To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
 msgstr ""
 
 #. interface

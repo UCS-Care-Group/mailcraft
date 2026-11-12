@@ -89,8 +89,23 @@ impl MailApp {
         self.tasks.perm.get(&account) == Some(&crate::task_sync::Permission::Given)
     }
 
+    /// Whether `account`'s sign-in lets MailCraft change its mailbox settings already (its rules,
+    /// automatic replies or categories were changed with it, as an older version asked it by
+    /// itself) while its to-dos wait: the question and its texts then say only the to-dos.
+    fn sync_only_tasks(&self, account: Id) -> bool {
+        let settings = matches!(self.rules.perm.get(&account), Some(crate::rule_sync::Permission::Given))
+            || matches!(self.auto_replies.perm.get(&account), Some(crate::auto_replies::Permission::Given))
+            || matches!(self.category_sync.perm.get(&account), Some(crate::task_sync::Permission::Given));
+        settings && !self.sync_tasks_kept(account)
+    }
+
     /// File › Info's tip for Ask again, saying only what `account` keeps in step.
     pub(crate) fn sync_tip(&self, account: Id) -> &'static str {
+        if self.sync_only_tasks(account) {
+            return tl!(
+                "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+            );
+        }
         match (self.sync_covers_lists(account), self.sync_tasks_kept(account)) {
             (true, false) => tl!(
                 "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
@@ -110,6 +125,9 @@ impl MailApp {
     fn put_sync_question(&mut self, account: Id) -> bool {
         let Some(address) = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()) else { return false };
         let text = match (self.sync_covers_lists(account), self.sync_tasks_kept(account)) {
+            _ if self.sync_only_tasks(account) => tl!(
+                "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+            ),
             (true, false) => tl!(
                 "To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
             ),
@@ -224,6 +242,7 @@ impl MailApp {
             }
             Err(e) if e == NO_BROWSER => {
                 let said = match (self.sync_covers_lists(account), self.sync_tasks_kept(account)) {
+                    _ if self.sync_only_tasks(account) => tl!("Tasks stay on this computer for now: {error}"),
                     (true, false) => tl!(
                         "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
                     ),

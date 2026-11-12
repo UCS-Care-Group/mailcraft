@@ -1526,6 +1526,12 @@ msgid "Ask for permission to keep your tasks, rules, automatic replies and categ
 msgstr "Chiedi il permesso di sincronizzare con Outlook le tue attività, regole, risposte automatiche e categorie: la pagina di Microsoft si apre nel browser. Senza di esso, attività e regole restano su questo computer e le categorie non si possono modificare qui."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr "Chiedi il permesso di leggere e modificare i tuoi elenchi di To Do e le tue attività: la pagina di Microsoft si apre nel browser. Senza di esso, le attività restano su questo computer."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
 msgstr ""
@@ -12229,6 +12235,12 @@ msgid "Tasks"
 msgstr "Attività"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Tasks stay on this computer for now: {error}"
+msgstr "Per ora le attività restano su questo computer: {error}"
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: Microsoft no longer takes the sign-in"
 msgstr ""
@@ -14540,6 +14552,18 @@ msgstr ""
 "Per sincronizzare con Outlook le attività e le risposte automatiche di {address}, MailCraft ha bisogno del tuo permesso per modificare i tuoi elenchi di To Do e le impostazioni della tua cassetta postale. La pagina di Microsoft si apre nel browser per chiedertelo, una sola volta.\n"
 "\n"
 "Finché non lo consenti, le attività restano su questo computer e nulla di esse viene inviato a Microsoft, e le risposte automatiche non vengono modificate."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+msgstr ""
+"Per sincronizzare con Microsoft To Do le attività di {address}, MailCraft ha bisogno del tuo permesso per leggere e modificare i tuoi elenchi di To Do e le tue attività. La pagina di Microsoft si apre nel browser per chiedertelo, una sola volta.\n"
+"\n"
+"Finché non lo consenti, le attività restano su questo computer e nulla di esse viene inviato a Microsoft."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

@@ -1579,6 +1579,12 @@ msgid "Ask for permission to keep your tasks, rules, automatic replies and categ
 msgstr "Toestemming vragen om uw taken, regels, automatische antwoorden en categorieën gelijk te houden met Outlook: de pagina van Microsoft wordt in uw browser geopend. Zonder toestemming blijven taken en regels op deze computer en kunnen de categorieën hier niet worden gewijzigd."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr "Vraag toestemming om uw To Do-lijsten en taken te lezen en te wijzigen: de pagina van Microsoft opent in uw browser. Zonder die toestemming blijven taken op deze computer."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
@@ -12840,6 +12846,12 @@ msgid "Tasks"
 msgstr "Taken"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Tasks stay on this computer for now: {error}"
+msgstr "Taken blijven voorlopig op deze computer: {error}"
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Tasks: Microsoft no longer takes the sign-in"
@@ -15310,6 +15322,18 @@ msgstr ""
 "Om de taken en automatische antwoorden van {address} gelijk te houden met Outlook, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en uw postvakinstellingen te wijzigen. De pagina van Microsoft wordt in uw browser geopend om het u eenmalig te vragen.\n"
 "\n"
 "Tot u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden, en worden uw automatische antwoorden niet gewijzigd."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
+msgstr ""
+"Om de taken van {address} bij te houden met Microsoft To Do, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en taken te lezen en te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"\n"
+"Totdat u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20786,10 +20810,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #~ msgstr "Vraag toestemming om uw automatische antwoorden te wijzigen: de pagina van Microsoft opent in uw browser. Het lezen ervan heeft die toestemming niet nodig."
 
 #, fuzzy
-#~ msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
-#~ msgstr "Vraag toestemming om uw To Do-lijsten en taken te lezen en te wijzigen: de pagina van Microsoft opent in uw browser. Zonder die toestemming blijven taken op deze computer."
-
-#, fuzzy
 #~ msgid "Keep Rules on the Server"
 #~ msgstr "Regels op de server bewaren"
 
@@ -20804,10 +20824,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "Rules weren't allowed on the server: {error}"
 #~ msgstr "Regels werden niet toegestaan op de server: {error}"
-
-#, fuzzy
-#~ msgid "Tasks stay on this computer for now: {error}"
-#~ msgstr "Taken blijven voorlopig op deze computer: {error}"
 
 #, fuzzy
 #~ msgid "Tasks weren't allowed to be kept in step: {error}"
@@ -20836,16 +20852,6 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #~ "Om de regels van {address} op de server te bewaren, waar ze ook worden uitgevoerd terwijl MailCraft gesloten is en in Outlook op het web en op uw telefoon verschijnen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen, waar Microsoft de regels bewaart. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n"
 #~ "\n"
 #~ "Tot u het toestaat, blijven uw regels op deze computer en wordt er niets van naar Microsoft verzonden."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Om de taken van {address} bij te houden met Microsoft To Do, heeft MailCraft uw toestemming nodig om uw To Do-lijsten en taken te lezen en te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "Totdat u het toestaat, blijven taken op deze computer en wordt er niets van naar Microsoft verzonden."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"

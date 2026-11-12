@@ -256,6 +256,39 @@ fn to_dos_kept_in_step_already_are_left_out_of_the_question() {
     assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Given));
 }
 
+/// An owner who let MailCraft change their mailbox settings already (their rules, automatic
+/// replies or categories were changed with it, as an older version asked it by itself) is asked
+/// only for their to-dos: neither the question, File › Info's tip nor the status bar says that
+/// the rest waits for it.
+#[test]
+fn mailbox_settings_allowed_already_are_left_out_of_the_question() {
+    for given in ["rules", "automatic replies", "categories"] {
+        let (mut app, owner, _, answer) = window();
+        *answer.lock().unwrap() = Err(crate::approval::NO_BROWSER.into());
+        match given {
+            "rules" => drop(app.rules.perm.insert(owner, crate::rule_sync::Permission::Given)),
+            "automatic replies" => drop(app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Given)),
+            _ => drop(app.category_sync.perm.insert(owner, Permission::Given)),
+        }
+        assert!(app.tasks_tick_at(0.0));
+        app.poll_tasks();
+        app.tasks_tick_at(1.0);
+        let Some(Dialog::Confirm { command, ask, .. }) = &app.dialog else { panic!("{given}: asked") };
+        assert_eq!(command, "ui.allowSync");
+        let tip = app.sync_tip(owner);
+        for said in [ask.text.as_str(), tip] {
+            assert!(said.contains("To Do lists and tasks"), "{given}: {said}");
+            assert!(!said.contains("rules") && !said.contains("automatic replies") && !said.contains("categories"), "{given}: {said}");
+        }
+        app.dialog = None;
+        app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+        app.poll_sign_in();
+        let (said, _) = app.status_msg.clone().unwrap();
+        assert!(said.contains("Tasks stay on this computer") && said.contains(crate::approval::NO_BROWSER), "{given}: {said}");
+        assert!(!said.contains("rules") && !said.contains("automatic replies") && !said.contains("categories"), "{given}: {said}");
+    }
+}
+
 /// An organisation whose administrator has to approve first: File › Info's tip and the Categories
 /// window say the reason whole, with where to go next, not cut before it.
 #[test]
