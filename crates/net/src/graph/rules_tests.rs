@@ -147,13 +147,15 @@ fn parts_this_version_does_not_know_are_named() {
         "id": "A2", "displayName": "Forward", "sequence": 1, "isEnabled": true,
         "conditions": {"senderContains": ["a@example.org"], "isEncrypted": true, "messageActionFlag": "call"},
         "exceptions": {"subjectContains": ["private"], "isSigned": true},
-        "actions": {"forwardTo": [{"emailAddress": {"address": "c@example.org"}}], "delete": true}
+        "actions": {"forwardTo": [{"emailAddress": {"address": "c@example.org"}}], "delete": true, "permanentDelete": true}
     }))
     .unwrap();
-    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "forwardTo"] {
+    // (Deleting for good isn't an action of a rule here, #566: a server's rule that does is one with
+    // a part not known here.)
+    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "forwardTo", "permanentDelete"] {
         assert!(rule.unknown.iter().any(|u| u == part), "{part} in {:?}", rule.unknown);
     }
-    assert_eq!(rule.unknown.len(), 4, "{:?}", rule.unknown);
+    assert_eq!(rule.unknown.len(), 5, "{:?}", rule.unknown);
     assert_eq!(rule.conditions, vec![Condition::FromContains(vec!["a@example.org".into()])]);
     assert_eq!(rule.exceptions, vec![Condition::SubjectContains(vec!["private".into()])]);
     assert_eq!(rule.actions, vec![Action::Delete]);
