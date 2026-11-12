@@ -1512,6 +1512,25 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
         (Some(Pending::Delete { message_id, seen, .. }), Some((from, uid))) => {
             mb.pending.push(Pending::Delete { account, from, uid, message_id, seen })
         }
+        // Moved on, or deleted for good, while this run moved it, and the server didn't say where
+        // it put it: the change waits for the copy to come down, as one made after the run does
+        // ([`waited_for`]).
+        (Some(Pending::Move { message, synced, to, .. }), None) => {
+            let from = mb.folder(moved.to_folder).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
+            // (In another account that keeps it, it is being moved out of this one: the original goes
+            // once the message is safe there, as for any such move.)
+            let findable =
+                mb.message(message).is_some_and(|m| (m.account == account || mb.takes_over(account, m.account)) && !m.message_id.is_empty());
+            if let (Some(from), true) = (from, findable) {
+                mb.pending.push(Pending::Move { account, message, from, uid: 0, synced: synced.map(|flags| flags.at(0)), to });
+            }
+        }
+        (Some(Pending::Delete { message_id, seen: Some(seen), .. }), None) if !message_id.is_empty() => {
+            let from = mb.folder(moved.to_folder).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
+            if let Some(from) = from {
+                mb.pending.push(Pending::Delete { account, from, uid: 0, message_id, seen: Some(seen) });
+            }
+        }
         // Put back meanwhile: the next run moves it back on the server too.
         (None, Some((from, uid))) => {
             let back = on_server.by_remote.get(&moved.from).copied().filter(|folder| *folder != moved.to_folder);
@@ -1906,7 +1925,7 @@ fn waited_for(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
     mb.pending = pending;
     if dropped {
         counts.notes.push(
-            "A change made here to a message could not be matched to its new copy for certain (no message, or more than one, has its Message-ID, or the copy differs), so it was not made on the server."
+            "A change made here to a message could not be matched to its new copy for certain (no message, or more than one, has its Message-ID, or the copy differs), so it was not made on the server, and the message will be shown again."
                 .to_string(),
         );
     }

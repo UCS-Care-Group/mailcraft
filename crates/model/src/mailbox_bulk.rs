@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use super::{MailIdentity, Mailbox, NOT_MOVING_YET, Pending, Queued, invalid, kept_for_put_back, not_found};
+use super::{MailIdentity, Mailbox, NOT_MOVING_YET, Pending, Queued, awaits_its_copy, invalid, kept_for_put_back, not_found};
 use crate::{FolderKind, Id, Message, ModelError};
 
 /// What a removal of many messages looks up once rather than for each message.
@@ -125,9 +125,9 @@ impl Mailbox {
         if self.stays_on_server(id) {
             return Err(invalid(NOT_MOVING_YET));
         }
-        let (was_in, account, uid, message_id, seen) = {
+        let (was_in, account, uid, message_id, seen, awaiting) = {
             let m = self.message(id).ok_or(not_found("message", id))?;
-            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
+            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)), awaits_its_copy(m, m.synced))
         };
         self.queue_graph_delete_in(id, true, r);
         // (Where the removal found it; should it not be there, it is looked for.)
@@ -145,7 +145,8 @@ impl Mailbox {
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
-                if let (Some(from), true) = (from, uid != 0) {
+                // (Or one whose copy hasn't come down yet: deleted there once it is matched.)
+                if let Some(from) = from.filter(|_| uid != 0 || (awaiting && seen.is_some())) {
                     self.pending.push(Pending::Delete { account, from, uid, message_id, seen });
                 }
             }
