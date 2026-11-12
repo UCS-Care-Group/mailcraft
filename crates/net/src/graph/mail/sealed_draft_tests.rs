@@ -44,7 +44,19 @@ fn sealed() -> Vec<u8> {
 }
 
 fn up(id: &str) -> DraftUp {
-    DraftUp { message: 5, id: id.into(), marker: "mailcraft-draft-5-1".into(), saves: 1, sealed: Arc::new(sealed()), ..Default::default() }
+    up_with_key(id, "")
+}
+
+fn up_with_key(id: &str, key: &str) -> DraftUp {
+    DraftUp {
+        message: 5,
+        id: id.into(),
+        change_key: key.into(),
+        marker: "mailcraft-draft-5-1".into(),
+        saves: 1,
+        sealed: Arc::new(sealed()),
+        ..Default::default()
+    }
 }
 
 #[test]
@@ -83,10 +95,10 @@ fn a_draft_saved_again_is_made_again_and_the_earlier_copy_is_taken_away() {
             ..Default::default()
         }],
     );
-    let clear = first.drafts.first().cloned().unwrap().id;
+    let (clear, key) = (first.drafts[0].id.clone(), first.drafts[0].change_key.clone());
     assert!(server.state().mailbox.messages.contains_key(&clear));
     // Encrypt is on, and the draft is saved: the Encrypted one is made, the clear one goes.
-    let all = run(&server, vec![up(&clear)]);
+    let all = run(&server, vec![DraftUp { purge: true, ..up_with_key(&clear, &key) }]);
     let done = all.drafts.first().cloned().unwrap_or_else(|| panic!("an answer: {:?}", all.errors));
     assert!(!done.id.is_empty() && done.id != clear && done.fields, "{done:?}");
     let state = server.state();
@@ -103,9 +115,9 @@ fn a_mailbox_that_refuses_a_permanent_delete_gets_the_plain_delete() {
         &server,
         vec![DraftUp { message: 5, marker: "mailcraft-draft-5-1".into(), saves: 1, subject: Some("Plans".into()), ..Default::default() }],
     );
-    let clear = first.drafts.first().cloned().unwrap().id;
+    let (clear, key) = (first.drafts[0].id.clone(), first.drafts[0].change_key.clone());
     server.state().mailbox.no_permanent_delete = true;
-    let all = run(&server, vec![up(&clear)]);
+    let all = run(&server, vec![DraftUp { purge: true, ..up_with_key(&clear, &key) }]);
     let done = all.drafts.first().cloned().unwrap_or_else(|| panic!("an answer: {:?}", all.errors));
     assert!(!done.id.is_empty() && done.id != clear && done.fields, "{done:?}");
     let state = server.state();

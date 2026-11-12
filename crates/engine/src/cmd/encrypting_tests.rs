@@ -836,3 +836,33 @@ fn a_run_that_stopped_after_some_bcc_copies_is_remembered_and_the_message_stays_
     // (A message of another account is not touched.)
     assert!(!crate::cmd::graph_send::note_blind_sent(&mut s.mailbox, a + 1, id, &["x@example.net".into()]));
 }
+
+#[test]
+fn a_draft_that_came_down_from_elsewhere_has_its_clear_copy_taken_away_when_it_is_kept_encrypted() {
+    for sealer in [true, false] {
+        let mut s = Session::empty();
+        s.clock.now = Some(NOW);
+        if sealer {
+            s.sealer = Some(std::sync::Arc::new(TestSealer));
+        }
+        let a = microsoft_draft(&mut s, "Plan");
+        let id = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+        // As if it had been begun on a phone: the server has it, and nothing of ours is on it.
+        {
+            let m = s.mailbox.message_mut(id).unwrap();
+            m.server = Some(mailcraft_model::sync::ServerMessage {
+                id: "AAMkAD-phone".into(),
+                folder: "drafts".into(),
+                change_key: "CK1".into(),
+                ..Default::default()
+            });
+            m.server_draft = None;
+        }
+        s.run("compose.encrypt", &json!({"value": true})).unwrap();
+        s.run("compose.saveDraft", &json!({})).unwrap();
+        let (ups, _) = crate::cmd::graph_drafts::draft_changes(&s, a, 10);
+        let up = &ups[0];
+        assert!(up.purge && up.id == "AAMkAD-phone" && up.change_key == "CK1" && !up.marker.is_empty(), "{sealer}: {up:?}");
+        assert_eq!(up.purge_only, !sealer, "{sealer}");
+    }
+}

@@ -1190,6 +1190,9 @@ pub struct Session {
     /// `None` where there is no host that can (the browser, the command line, tests): such a draft
     /// stays on this computer as it was written.
     pub sealer: Option<std::sync::Arc<dyn crate::cmd::encrypting::Sealer>>,
+    /// A value this install keeps in its settings (random, made once, never a secret): drafts kept
+    /// Encrypted are given Message-IDs that no other install's share (#30 part 7). Empty: none.
+    pub install_tag: String,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -1344,6 +1347,7 @@ impl Session {
             sender_checks: Default::default(),
             signatures: Default::default(),
             sealer: None,
+            install_tag: String::new(),
             content_source: None,
             loads: 0,
             unsearched: 0,

@@ -36,6 +36,13 @@ fn random(buf: &mut [u8]) -> bool {
     ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), buf).is_ok()
 }
 
+/// A random value for this install to keep in its settings (never a secret): 128 bits, in hex. Empty
+/// when the system has none to give.
+pub(crate) fn new_install_tag() -> String {
+    let mut bytes = [0u8; 16];
+    if random(&mut bytes) { bytes.iter().map(|b| format!("{b:02x}")).collect() } else { String::new() }
+}
+
 /// Encrypt `m` when it is to be: its body becomes the encrypted message it goes as, made now from
 /// the message as it is (the signed body when it was signed first), and each Bcc recipient has
 /// their own. Why not, in words, when it can't be.

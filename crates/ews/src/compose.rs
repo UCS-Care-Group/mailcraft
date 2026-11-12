@@ -299,6 +299,53 @@ impl FindDraft {
     }
 }
 
+/// `GetItem` for the copy of a draft that an Encrypted save takes the place of: its change key, whether
+/// it is a draft, and the folder it is in.
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetEarlier {
+    id: String,
+}
+
+/// What [`GetEarlier`] reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EarlierItem {
+    /// Its change key now.
+    pub change_key: String,
+    /// Whether it is a draft.
+    pub is_draft: bool,
+    /// The server's id of its folder.
+    pub parent: String,
+}
+
+impl GetEarlier {
+    /// Reads item `id`.
+    pub fn new(id: &str) -> Self {
+        Self { id: id.to_owned() }
+    }
+
+    /// The operation: the default shape holds the folder and `IsDraft`.
+    pub fn element(&self) -> Element {
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default"));
+        Element::new("m:GetItem").child(shape).child(Element::new("m:ItemIds").child(id_element("t:ItemId", &self.id, None)))
+    }
+
+    /// The item now, or `ItemNotFound`.
+    pub fn answer(&self, reply: &Reply) -> Result<EarlierItem, Error> {
+        let messages = reply.messages("GetItem")?;
+        let [message] = messages.as_slice() else { return Err(Error::Unexpected) };
+        let node = message.ok()?;
+        let items = node.child_in(MESSAGES, "Items").ok_or(Error::Unexpected)?;
+        let item = items.children.iter().find(|c| *c.namespace == *TYPES).ok_or(Error::Unexpected)?;
+        let take =
+            |node: Option<&Node>, name: &str| node.and_then(|n| n.attribute(name)).filter(|v| valid_id(v)).map(str::to_owned).unwrap_or_default();
+        Ok(EarlierItem {
+            change_key: take(item.child_in(TYPES, "ItemId"), "ChangeKey"),
+            is_draft: item.child_in(TYPES, "IsDraft").is_some_and(|n| n.text.trim().eq_ignore_ascii_case("true")),
+            parent: take(item.child_in(TYPES, "ParentFolderId"), "Id"),
+        })
+    }
+}
+
 /// `CreateAttachment` on a draft.
 #[derive(Clone, PartialEq, Eq)]
 pub struct AddAttachments {

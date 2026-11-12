@@ -188,16 +188,17 @@ pub fn marker_tag(marker: &str) -> String {
 }
 
 /// The Message-ID an Encrypted draft is written with for its `saves`th save: that of the message
-/// with `-s{tag}n{saves}` before the `@` (`tag` from [`marker_tag`]), so that the copies a server may
+/// with `-s{tag}n{saves}` before the `@` (`tag` from [`marker_tag`] of the install's own value and the draft's marker), so that the copies a server may
 /// hold of it are told from any other draft that shares the message's own Message-ID (a conflict copy,
 /// a copy made in Outlook) and from another install's: only this program writes one, and only such a
 /// one is ever looked for by it.
-pub fn sealed_draft_message_id(id: &str, marker: &str, saves: u32) -> String {
+pub fn sealed_draft_message_id(id: &str, install: &str, marker: &str, saves: u32) -> String {
     let id = id.trim();
     if id.is_empty() {
         return String::new();
     }
-    let tag = marker_tag(marker);
+    // (`install`: a value this install keeps in its settings, never a secret.)
+    let tag = marker_tag(&format!("{install}/{marker}"));
     match id.rsplit_once('@') {
         Some((local, host)) => format!("{local}-s{tag}n{saves}@{host}"),
         None => format!("{id}-s{tag}n{saves}"),

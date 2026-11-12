@@ -125,7 +125,7 @@ fn sealed() -> Vec<u8> {
         to: vec![Address::new("Kit", "kit@example.net")],
         subject: "Plans".into(),
         date: NOW,
-        message_id: mailcraft_model::encrypting::sealed_draft_message_id("plans.1@example.org", MARKER, 1),
+        message_id: mailcraft_model::encrypting::sealed_draft_message_id("plans.1@example.org", "", MARKER, 1),
         original: Some(body(1)),
         ..Message::default()
     };
@@ -133,6 +133,11 @@ fn sealed() -> Vec<u8> {
 }
 
 fn clear_draft(server: &StandIn) -> String {
+    clear_draft_with_key(server).0
+}
+
+/// A draft the server has in the clear, and its change key.
+fn clear_draft_with_key(server: &StandIn) -> (String, String) {
     let first = run(
         server,
         GraphMailRequest {
@@ -140,7 +145,8 @@ fn clear_draft(server: &StandIn) -> String {
             ..Default::default()
         },
     );
-    first.drafts.first().cloned().unwrap().id
+    let made = first.drafts.first().cloned().unwrap();
+    (made.id, made.change_key)
 }
 
 fn purge_only() -> GraphMailRequest {
@@ -200,10 +206,18 @@ fn what_is_no_longer_a_draft_or_is_not_in_drafts_is_never_taken_away() {
 #[test]
 fn a_sealed_create_the_server_refuses_still_takes_the_clear_copy_away() {
     let server = StandIn::start().unwrap();
-    let clear = clear_draft(&server);
+    let (clear, key) = clear_draft_with_key(&server);
     server.state().fail_next.push(("POST /v1.0/me/messages".into(), 413, "ErrorInvalidRequest".into()));
-    let up =
-        DraftUp { message: 5, id: clear.clone(), marker: MARKER.into(), saves: 2, purge: true, sealed: Arc::new(sealed()), ..Default::default() };
+    let up = DraftUp {
+        message: 5,
+        id: clear.clone(),
+        change_key: key,
+        marker: MARKER.into(),
+        saves: 2,
+        purge: true,
+        sealed: Arc::new(sealed()),
+        ..Default::default()
+    };
     let all = run(&server, GraphMailRequest { drafts: vec![up], ..Default::default() });
     let done = all.drafts.first().cloned().unwrap_or_else(|| panic!("an answer: {:?}", all.errors));
     assert!(done.refused.is_some(), "{done:?}");
@@ -301,7 +315,7 @@ fn the_one_shot_send_of_an_encrypted_message_files_one_copy_and_says_who_had_the
 #[test]
 fn another_draft_that_shares_the_messages_own_message_id_is_never_swept() {
     let server = StandIn::start().unwrap();
-    let clear = clear_draft(&server);
+    let (clear, key) = clear_draft_with_key(&server);
     let mut mark = server.state().mailbox.messages.get(&clear).map(|m| m.extended.clone()).unwrap();
     for entry in &mut mark {
         entry.1 = "mailcraft-draft-9-9".into();
@@ -320,6 +334,7 @@ fn another_draft_that_shares_the_messages_own_message_id_is_never_swept() {
             drafts: vec![DraftUp {
                 message: 5,
                 id: clear,
+                change_key: key,
                 marker: MARKER.into(),
                 saves: 1,
                 purge: true,
@@ -338,11 +353,13 @@ fn another_draft_that_shares_the_messages_own_message_id_is_never_swept() {
 #[test]
 fn an_encrypted_drafts_message_id_is_its_own_and_never_the_messages() {
     use mailcraft_model::encrypting::{is_sealed_draft_message_id, sealed_draft_message_id};
-    let mine = sealed_draft_message_id("plans.1@example.org", MARKER, 3);
+    let mine = sealed_draft_message_id("plans.1@example.org", "", MARKER, 3);
     assert!(mine.starts_with("plans.1-s") && mine.ends_with("n3@example.org"), "{mine}");
     assert!(is_sealed_draft_message_id(&format!("<{mine}>")));
     // Another install's draft (another marker) at the same save count has another one.
-    assert_ne!(mine, sealed_draft_message_id("plans.1@example.org", "mailcraft-draft-9-9", 3));
+    assert_ne!(mine, sealed_draft_message_id("plans.1@example.org", "", "mailcraft-draft-9-9", 3));
+    // And the same draft and save count on another install (its own value) has another.
+    assert_ne!(mine, sealed_draft_message_id("plans.1@example.org", "install-b", MARKER, 3));
     for not in ["plans.1@example.org", "<plans-s@example.org>", "plans.1-s1@example.org", "plans-sx1@example.org", ""] {
         assert!(!is_sealed_draft_message_id(not), "{not}");
     }
@@ -404,7 +421,7 @@ fn what_is_not_a_bcc_copys_draft_is_left_alone_by_that_run() {
 fn an_other_installs_encrypted_copy_at_the_same_save_count_is_not_swept() {
     let server = StandIn::start().unwrap();
     let clear = clear_draft(&server);
-    let theirs = mailcraft_model::encrypting::sealed_draft_message_id("plans.1@example.org", "mailcraft-draft-9-9", 1);
+    let theirs = mailcraft_model::encrypting::sealed_draft_message_id("plans.1@example.org", "", "mailcraft-draft-9-9", 1);
     let drafts = server.state().well_known("drafts");
     let other = server.state().mailbox.add(&drafts, "Plans", NOW);
     server.state().mailbox.update(&other, |m| {
@@ -477,4 +494,68 @@ fn a_bcc_copys_draft_made_a_moment_ago_is_not_taken_for_one_left_behind() {
     server.state().mailbox.update(&fresh, |m| m.received = now);
     sweep(&server, Vec::new());
     assert!(server.state().mailbox.messages.contains_key(&fresh));
+}
+
+/// A draft that came down from another device: in the clear, and with no marker of ours.
+fn foreign_draft(server: &StandIn) -> (String, String) {
+    let (id, key) = clear_draft_with_key(server);
+    server.state().mailbox.update(&id, |m| {
+        m.extended.clear();
+        m.preview = "The vault code is 4417.".into();
+    });
+    // (Its change key as it is now: what the owner's program saw when it came down.)
+    let key = server.state().mailbox.messages.get(&id).map(|m| m.change_key()).unwrap_or(key);
+    (id, key)
+}
+
+fn sealed_up(id: &str, key: &str) -> DraftUp {
+    DraftUp {
+        message: 5,
+        id: id.into(),
+        change_key: key.into(),
+        marker: "mailcraft-draft-7-7".into(),
+        saves: 1,
+        purge: true,
+        sealed: Arc::new(sealed()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_clear_draft_that_came_down_from_elsewhere_is_taken_away_when_it_is_kept_encrypted() {
+    let server = StandIn::start().unwrap();
+    let (id, key) = foreign_draft(&server);
+    let all = run(&server, GraphMailRequest { drafts: vec![sealed_up(&id, &key)], ..Default::default() });
+    let done = all.drafts.first().cloned().unwrap_or_else(|| panic!("an answer: {:?}", all.errors));
+    assert!(done.fields && !done.id.is_empty() && done.id != id && done.purged, "{done:?}");
+    let state = server.state();
+    assert!(!state.mailbox.messages.contains_key(&id), "its clear text is not left on the server");
+    assert_eq!(state.mailbox.purged.as_slice(), std::slice::from_ref(&id));
+    assert!(!state.mailbox.messages.values().any(|m| m.preview.contains("4417")));
+}
+
+#[test]
+fn that_save_leaves_a_draft_that_was_sent_from_elsewhere_alone() {
+    let server = StandIn::start().unwrap();
+    let (id, key) = foreign_draft(&server);
+    server.state().mailbox.update(&id, |m| m.draft = false);
+    run(&server, GraphMailRequest { drafts: vec![sealed_up(&id, &key)], ..Default::default() });
+    assert!(server.state().mailbox.messages.contains_key(&id));
+    assert!(server.state().mailbox.purged.is_empty());
+}
+
+#[test]
+fn a_copy_whose_change_key_isnt_known_is_kept_and_nothing_is_taken_away() {
+    let server = StandIn::start().unwrap();
+    let (id, _) = foreign_draft(&server);
+    let all = run(&server, GraphMailRequest { drafts: vec![sealed_up(&id, "")], ..Default::default() });
+    assert!(all.drafts.first().is_some_and(|d| d.conflict && !d.purged && !d.fields), "{:?}", all.drafts);
+    assert!(server.state().mailbox.messages.contains_key(&id));
+    assert!(server.state().mailbox.purged.is_empty());
+    // And a copy that can't be read, but for "not found", is kept the same.
+    let (id, key) = foreign_draft(&server);
+    server.state().fail_next.push(("GET /v1.0/me/messages/*".into(), 403, "ErrorAccessDenied".into()));
+    let all = run(&server, GraphMailRequest { drafts: vec![sealed_up(&id, &key)], ..Default::default() });
+    assert!(all.drafts.first().is_some_and(|d| d.conflict && !d.purged), "{:?} {:?}", all.drafts, all.errors);
+    assert!(server.state().mailbox.messages.contains_key(&id));
 }

@@ -1036,3 +1036,41 @@ fn an_encrypted_save_over_a_draft_changed_elsewhere_keeps_both_and_takes_nothing
         assert_eq!(state.items.iter().filter(|i| i.draft).count(), 1, "{purge_only}: and no second one was made");
     }
 }
+
+#[test]
+fn a_clear_draft_that_came_down_from_elsewhere_is_taken_away_when_it_is_kept_encrypted() {
+    for purge_only in [false, true] {
+        let standin = StandIn::new();
+        let clear = run(&standin, &EwsMailRequest { drafts: vec![draft("mark-x", "Plans")], ..base() }).drafts[0].clone();
+        // (Begun elsewhere: it has no marker of ours.)
+        for item in standin.state().items.iter_mut() {
+            item.marker.clear();
+        }
+        let up = DraftUp { id: clear.id.clone(), change_key: clear.change_key.clone(), purge: true, purge_only, ..sealed_draft("") };
+        let result = run(&standin, &EwsMailRequest { drafts: vec![up], ..base() });
+        let done = &result.drafts[0];
+        assert!(done.purged && !done.conflict, "{purge_only}: {done:?}");
+        let state = standin.state();
+        assert!(state.item(&clear.id).is_none(), "{purge_only}: its clear text is not left on the server");
+        assert_eq!(state.deletes, ["HardDelete"], "{purge_only}");
+        assert_eq!(state.items.iter().filter(|i| i.draft).count(), usize::from(!purge_only), "{purge_only}");
+    }
+}
+
+#[test]
+fn a_copy_that_cant_be_read_or_whose_change_key_isnt_known_is_kept_and_nothing_is_taken_away() {
+    let standin = StandIn::new();
+    let clear = run(&standin, &EwsMailRequest { drafts: vec![draft("mark-s", "Plans")], ..base() }).drafts[0].clone();
+    // No change key known here.
+    let none = DraftUp { id: clear.id.clone(), purge: true, ..sealed_draft("") };
+    let result = run(&standin, &EwsMailRequest { drafts: vec![none], ..base() });
+    assert!(result.drafts[0].conflict && !result.drafts[0].purged, "{:?}", result.drafts[0]);
+    // The read is refused.
+    let refusing = Refusing { inner: &standin, operation: "GetItem", code: "ErrorAccessDenied" };
+    let up = DraftUp { id: clear.id.clone(), change_key: clear.change_key.clone(), purge: true, ..sealed_draft("") };
+    let (pieces, _) = run_with(&refusing, &EwsMailRequest { drafts: vec![up], ..base() });
+    let drafts: Vec<_> = pieces.iter().flat_map(|p| &p.drafts).collect();
+    assert!(drafts[0].conflict && !drafts[0].purged, "{:?}", drafts[0]);
+    let state = standin.state();
+    assert!(state.item(&clear.id).is_some() && state.deletes.is_empty());
+}

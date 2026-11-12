@@ -1540,7 +1540,8 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
             .unwrap_or_default();
         stash = (earlier, earlier_key);
         (m.server, m.uid, m.synced) = (None, 0, None);
-        if m.local_only && !marker.is_empty() {
+        // (A draft that came down from elsewhere has no marker of ours yet: it is given one below.)
+        if m.local_only {
             m.server_draft =
                 Some(ServerDraft { marker, purge: true, saves: 1, earlier: stash.0.clone(), earlier_key: stash.1.clone(), ..Default::default() });
         }
@@ -1569,7 +1570,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
             sd.synced = Some(DraftState::of(old));
         }
         sd.pending = true;
-        sd.purge |= purge_earlier && !sd.marker.is_empty();
+        sd.purge |= purge_earlier;
         if purge_earlier && sd.earlier.is_empty() {
             (sd.earlier, sd.earlier_key) = stash;
         }

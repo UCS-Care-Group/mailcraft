@@ -1017,6 +1017,9 @@ pub struct UiState {
     pub update_asked: u8,
     /// When a check for a new version last got an answer (seconds since 1970; 0: never).
     pub update_checked: i64,
+    /// A random value this install made once, for the Message-IDs of its Encrypted drafts (never a
+    /// secret, and never leaves this computer but in them).
+    pub install_tag: String,
     /// The last newer version the owner was told of (`0.4.3`), so it is said once.
     pub update_told: String,
     /// Whether a copy that updates itself downloads a new version by itself, while the daily
@@ -1081,6 +1084,7 @@ impl Default for UiState {
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
+            install_tag: String::new(),
             update_checked: 0,
             update_told: String::new(),
             update_install: true,

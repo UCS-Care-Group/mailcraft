@@ -118,15 +118,21 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
         return Ok(());
     }
     if d.purge_only || d.is_sealed() {
-        // Changed elsewhere since it was last seen (an edit in another program, or on another
-        // computer): kept beside this one, and nothing is taken away (S26).
-        if changed_elsewhere(graph, d)? {
-            log::info!("graph drafts: a draft was changed elsewhere too; nothing of it is taken away");
-            done.conflict = true;
-            return Ok(());
+        // The copy the server had when this was saved: changed elsewhere since (an edit in another
+        // program, or on another computer), or not known to be as it was, it is kept beside this one and
+        // nothing is taken away (S26). One that came down from elsewhere has no marker of ours: it is
+        // given it, so that it is found with the rest.
+        match earlier_copy(graph, d)? {
+            Earlier::Changed => {
+                log::info!("graph drafts: a draft was changed elsewhere too, or isn't known to be as it was; nothing of it is taken away");
+                done.conflict = true;
+                return Ok(());
+            }
+            Earlier::Draft if d.purge => mark_earlier(graph, d)?,
+            Earlier::Draft | Earlier::Leave => {}
         }
         if d.purge_only {
-            return purge_copies(graph, &d.marker, &d.id, done);
+            return purge_copies(graph, &d.marker, "", done);
         }
         return sealed(graph, d, done);
     }
@@ -216,20 +222,55 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
     Ok(())
 }
 
-/// Whether the server's copy `d.id` has another change key than `d.change_key`, the one last seen. No
-/// id or key known, or the copy gone: not changed.
-fn changed_elsewhere(graph: &Graph<'_>, d: &DraftUp) -> Result<bool, NetError> {
-    let Some(at) = piece(&d.id).filter(|_| !d.change_key.is_empty()) else { return Ok(false) };
-    let query = http::form(&[("$select", "changeKey")]);
+/// What the server has of the copy `d.id` that an Encrypted save is to take the place of.
+enum Earlier {
+    /// None is known, or it is gone, or it is no draft any more (sent from elsewhere): left alone.
+    Leave,
+    /// It is a draft whose change key is the one last seen.
+    Draft,
+    /// Changed elsewhere since, or not known to be as it was: kept, and nothing is taken away.
+    Changed,
+}
+
+/// Look at the copy `d.id`, just before the Encrypted draft is made and the earlier copies go. Fails
+/// closed: a change key that isn't known here or there, or a read that failed (but "not found"), means
+/// the copy may hold somebody's edit, and it is `Changed`. (A few milliseconds lie between this read and
+/// the delete that follows; nothing here can close them.)
+fn earlier_copy(graph: &Graph<'_>, d: &DraftUp) -> Result<Earlier, NetError> {
+    let Some(at) = piece(&d.id) else { return Ok(Earlier::Leave) };
+    let query = http::form(&[("$select", "changeKey,isDraft")]);
     let reply = graph.call(Kind::Read, &graph.url(&format!("{}/{at}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
     super::refusing(graph, &reply)?;
     match reply.status {
         200 => {
-            let now = change_key(&serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null));
-            Ok(!now.is_empty() && now != d.change_key)
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            let now = change_key(&json);
+            if d.change_key.is_empty() || now.is_empty() || now != d.change_key {
+                return Ok(Earlier::Changed);
+            }
+            Ok(if json.get("isDraft").and_then(Value::as_bool) == Some(true) { Earlier::Draft } else { Earlier::Leave })
         }
-        404 | 410 => Ok(false),
-        _ => Err(graph.refusal(Doing::Mail, &reply, "")),
+        404 | 410 => Ok(Earlier::Leave),
+        // (Not read: not known to be as it was.)
+        _ => Ok(Earlier::Changed),
+    }
+}
+
+/// Put the marker on the earlier copy, which has none when the draft was begun elsewhere, so that the
+/// purge by marker (which lists Drafts, and checks each is a draft) finds it. Best effort: a copy that
+/// can't be marked stays, and is said in the log.
+fn mark_earlier(graph: &Graph<'_>, d: &DraftUp) -> Result<(), NetError> {
+    let Some(at) = piece(&d.id) else { return Ok(()) };
+    let body = json!({"singleValueExtendedProperties": [{"id": MARKER, "value": d.marker}]}).to_string();
+    let url = graph.url(&format!("{}/{at}", messages(graph)));
+    match graph.call(Kind::Same, &url, "PATCH", &[("Content-Type", "application/json")], Some(&body), WRITE_TIMEOUT, MAX_PAGE) {
+        Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => Ok(()),
+        Ok(reply) => {
+            refused(graph, &reply, "marking an earlier copy of a draft");
+            Ok(())
+        }
+        Err(e) if e.is_unreachable() => Ok(()),
+        Err(e) => Err(e),
     }
 }
 

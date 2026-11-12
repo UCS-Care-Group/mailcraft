@@ -38,9 +38,10 @@ use mailcraft_model::sync::{
 use mailcraft_model::{FolderKind, Id, Importance};
 
 use crate::changes::{CreateFolder, DeleteFolder, DeleteItem, DeleteMode, GetItemNow, ItemUpdate, MoveFolder, MoveItem, RenameFolder, UpdateItem};
-use crate::compose::{AddAttachments, CreateDraft, CreateSealedDraft, DraftContent, FindDraft, RemoveAttachments, SendMessage};
+use crate::compose::{AddAttachments, CreateDraft, CreateSealedDraft, DraftContent, FindDraft, GetEarlier, RemoveAttachments, SendMessage};
 use crate::delete_check::Found;
 use crate::error::ResponseCode;
+use crate::folder::{DistinguishedFolder, GetFolder};
 use crate::http::HttpExchange;
 use crate::run::{Asked, Run, base};
 
@@ -323,24 +324,40 @@ impl<E: HttpExchange> Run<'_, E> {
 
     async fn draft_into(&mut self, up: &DraftUp, done: &mut DraftDone) -> Result<(), Asked> {
         if up.purge_only || up.is_sealed() {
-            // Changed elsewhere since it was last seen: kept beside this one, and nothing is taken away.
-            if !up.id.is_empty() && !up.change_key.is_empty() {
-                let now = GetItemNow::new(&up.id);
-                match self.ask(&now.element(), &|reply| now.answer(reply)).await {
-                    Ok(item) if !item.change_key.is_empty() && item.change_key != up.change_key => {
-                        log::info!("ews up: a draft was changed elsewhere too; nothing of it is taken away");
+            // The copy the server had when this was saved: changed elsewhere since (an edit in another
+            // program, or on another computer), or not known to be as it was, it is kept beside this
+            // one and nothing is taken away. Fails closed: only "not found" means it is gone. (A few
+            // milliseconds lie between this read and the delete that follows.)
+            let mut earlier = None;
+            if !up.id.is_empty() {
+                let get = GetEarlier::new(&up.id);
+                match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+                    Ok(item) if up.change_key.is_empty() || item.change_key.is_empty() || item.change_key != up.change_key => {
+                        log::info!("ews up: a draft was changed elsewhere too, or isn't known to be as it was; nothing of it is taken away");
                         done.conflict = true;
                         return Ok(());
                     }
+                    Ok(item) if item.is_draft => earlier = Some(item.parent),
+                    // (Not a draft any more: sent from elsewhere, and left alone.)
+                    Ok(_) | Err(Asked::Code(ResponseCode::ItemNotFound)) => {}
                     Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                    // (Gone, or not read: what is there is dealt with as before.)
-                    _ => {}
+                    Err(_) => {
+                        log::info!("ews up: a draft couldn't be read; nothing of it is taken away");
+                        done.conflict = true;
+                        return Ok(());
+                    }
                 }
             }
-            if up.purge_only {
-                return self.purge_copies(&up.marker, &up.id, done).await;
+            let ended = if up.purge_only { self.purge_copies(&up.marker, "", done).await } else { self.sealed_draft(up, done).await };
+            ended?;
+            // One that came down from elsewhere has no marker of ours: it is taken away by its id, once
+            // the Encrypted draft is there (or it stays here alone), and only if it is in Drafts.
+            if let Some(parent) = earlier
+                && (up.purge_only || (!done.id.is_empty() && done.id != up.id) || done.refused.is_some())
+            {
+                self.delete_earlier(&up.id, &up.change_key, &parent, done).await?;
             }
-            return self.sealed_draft(up, done).await;
+            return Ok(());
         }
         let (mut id, mut key) = (up.id.clone(), up.change_key.clone());
         let mut adopted = false;
@@ -434,6 +451,47 @@ impl<E: HttpExchange> Run<'_, E> {
         };
         (done.id, done.change_key, done.fields) = (saved.id.clone(), saved.change_key, true);
         if purge { self.purge_copies(&up.marker, &saved.id, done).await } else { Ok(()) }
+    }
+
+    /// Takes away beyond recovery the earlier copy `id` of a draft, which has no marker of ours, when
+    /// it is in `parent` and that is the server's Drafts. `done.purged` is false when it stays.
+    async fn delete_earlier(&mut self, id: &str, change_key: &str, parent: &str, done: &mut DraftDone) -> Result<(), Asked> {
+        // Read again right before: already gone (taken with the copies that carry the marker), or
+        // changed or no draft since, it is left as it is. (A few milliseconds lie between this read and
+        // the delete that follows.)
+        let again = GetEarlier::new(id);
+        match self.ask(&again.element(), &|reply| again.answer(reply)).await {
+            Ok(item) if item.is_draft && item.change_key == change_key && item.parent == parent => {}
+            Ok(_) => {
+                done.purged = false;
+                return Ok(());
+            }
+            Err(Asked::Code(ResponseCode::ItemNotFound)) => return Ok(()),
+            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+            Err(_) => {
+                done.purged = false;
+                return Ok(());
+            }
+        }
+        let get = GetFolder::new(&[DistinguishedFolder::Drafts]);
+        let drafts = match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+            Ok(mut all) => all.pop().and_then(Result::ok).map(|f| f.id.as_str().to_owned()),
+            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+            Err(_) => None,
+        };
+        if drafts.as_deref() != Some(parent) {
+            done.purged = false;
+            return Ok(());
+        }
+        let del = DeleteItem::new(id, DeleteMode::HardDelete);
+        match self.ask(&del.element(), &|reply| del.answer(reply)).await {
+            Ok(()) | Err(Asked::Code(ResponseCode::ItemNotFound)) => Ok(()),
+            Err(Asked::Stop(stop)) => Err(Asked::Stop(stop)),
+            Err(_) => {
+                done.purged = false;
+                Ok(())
+            }
+        }
     }
 
     /// Takes away beyond recovery (`HardDelete`) every draft in Drafts that carries `marker` but

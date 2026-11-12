@@ -33,7 +33,7 @@ pub fn draft_changes(s: &Session, account: Id, limit: usize) -> (Vec<DraftUp>, u
         .into_iter()
         .take(limit)
         .filter_map(|m| match s.loaded_message(m.id) {
-            Ok(m) => draft_up(&m),
+            Ok(m) => draft_up_for(&m, &s.install_tag),
             Err(e) => {
                 log::warn!("draft {} waits to go up: {e}", m.id);
                 None
@@ -58,6 +58,11 @@ fn waits(m: &Message) -> bool {
 
 /// What of `m` goes up: what differs from what the server last had.
 pub fn draft_up(m: &Message) -> Option<DraftUp> {
+    draft_up_for(m, "")
+}
+
+/// [`draft_up`] for the install whose own value (kept in its settings) is `install`.
+pub fn draft_up_for(m: &Message, install: &str) -> Option<DraftUp> {
     let sd = m.server_draft.as_ref()?;
     let id = m.server.as_ref().filter(|s| !s.gone).map(|s| s.id.clone()).unwrap_or_default();
     // Nothing of it goes up (it stays on this computer, or the server has all of it), and earlier
@@ -85,7 +90,8 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         // draft) and the Encrypted body.
         let options = mailcraft_mime::WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(m.date) };
         // (With a Message-ID of its own for this save: what a server holds of an earlier try is found by it.)
-        let written = Message { message_id: mailcraft_model::encrypting::sealed_draft_message_id(&m.message_id, &sd.marker, sd.saves), ..m.clone() };
+        let written =
+            Message { message_id: mailcraft_model::encrypting::sealed_draft_message_id(&m.message_id, install, &sd.marker, sd.saves), ..m.clone() };
         let bytes = mailcraft_mime::write(&written, &options);
         return Some(DraftUp {
             message: m.id,

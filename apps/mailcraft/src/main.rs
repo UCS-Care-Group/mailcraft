@@ -2302,6 +2302,12 @@ fn main() -> eframe::Result {
                     Some(ui) => app.apply_prefs(ui),
                     None => app.fresh_prefs(),
                 }
+                // The value this install keeps for the Message-IDs of its Encrypted drafts (#30): made
+                // once, kept with the settings, never a secret.
+                if app.ui.install_tag.is_empty() {
+                    app.ui.install_tag = encrypting::new_install_tag();
+                }
+                app.session.install_tag = app.ui.install_tag.clone();
                 app.settings_unread = settings_unread;
                 app.ui.window = restored;
                 app.integrated_titlebar = cfg!(target_os = "macos");
