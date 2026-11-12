@@ -334,7 +334,7 @@ impl MailApp {
                 self.tasks.failures.insert(account, (n.saturating_add(1), started));
             }
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("tasks", account, &errors, None, false);
     }
 
     /// Ask the owner, once, when a job found the sign-in doesn't cover to-dos: a question first,

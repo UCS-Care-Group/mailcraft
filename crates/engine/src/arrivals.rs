@@ -17,7 +17,9 @@
 //!   added, which no run here keeps in step (nothing arrives in either by itself);
 //! - an Inbox the server numbered anew during the run (UIDVALIDITY changed), whose mail all comes
 //!   down again;
-//! - mail already read (on another device, or by a rule).
+//! - mail already read (on another device, or by a rule);
+//! - for a Gmail account whose owner asked for alerts for Primary alone (#911), mail Gmail put in
+//!   another of its categories.
 //!
 //! Nothing here shows anything: it only says which messages, and who they are from. The text is
 //! the message's own, hostile, and the window cleans it before it goes anywhere.
@@ -82,10 +84,18 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
         .messages
         .range(from..)
         .map(|(_, m)| m)
-        .filter(|m| !m.read && !m.draft && watched(m.folder) && own(mailbox, m.account))
+        .filter(|m| !m.read && !m.draft && watched(m.folder) && own(mailbox, m.account) && alerted(mailbox, m))
         .take(MOST)
         .map(|m| Arrival { message: m.id, account: m.account, folder: m.folder, sender: m.from.display().to_string(), subject: m.subject.clone() })
         .collect()
+}
+
+/// Whether `m` is mail its account alerts for: any, but for a Gmail account that alerts for
+/// Primary alone (#911), mail Gmail put in another category. One whose category isn't known yet
+/// is alerted for: better told once too often than not at all.
+fn alerted(mailbox: &Mailbox, m: &mailcraft_model::Message) -> bool {
+    let primary_only = mailbox.account(m.account).is_some_and(|a| a.is_gmail() && a.alert_primary_only);
+    !primary_only || m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)
 }
 
 #[cfg(test)]

@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Which way a paragraph reads, and so which side it stands at (#603).
 //!
-//! A paragraph's direction is the one its message gives (`dir`, `direction`), or else the one its
-//! first strong letter gives (UAX #9, rules P2 and P3): Hebrew, Arabic, Syriac, Thaana, N'Ko and
-//! the other scripts written from the right make it right to left, any other letter left to
-//! right, and digits, punctuation and white space say nothing. A paragraph that reads from the
-//! right stands at the right, unless the message aligns it to a side of its own: `text-align`
+//! In HTML a paragraph's direction is the one its message gives (`dir`, `direction`), as in a
+//! browser: with neither it reads left to right, so English mail whose paragraph begins with an
+//! Arabic or Hebrew name stays where it was, and Outlook and Word, which write `dir="rtl"` on a
+//! right-to-left paragraph, are covered. Only `dir="auto"` asks for the first strong letter. In
+//! plain text, which has no markup to say it, the first strong letter decides (UAX #9, rules P2
+//! and P3): Hebrew, Arabic, Syriac, Thaana, N'Ko and the other scripts written from the right
+//! make it right to left, any other letter left to right, and digits, punctuation and white
+//! space say nothing. A paragraph that reads from the right stands at the right, unless the message aligns it to a side of its own: `text-align`
 //! `start`, `end` and `justify`, and no alignment at all, follow the direction; `left`, `right`
 //! and `center` don't. Nothing here reorders a line: the text stays as it was written, which is
 //! what a copy gives. egui 0.37 shapes each run of text in the direction its script suggests, so
@@ -25,11 +28,11 @@ use crate::Align;
 /// The direction an element asks for (`dir`, `direction`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Dir {
+    /// Left to right: what an HTML paragraph is when nothing says otherwise.
+    #[default]
     Ltr,
     Rtl,
-    /// From the paragraph's own first strong letter: `dir="auto"`, and what a message that says
-    /// nothing gets.
-    #[default]
+    /// From the paragraph's own first strong letter: `dir="auto"`, and a plain-text paragraph.
     Auto,
 }
 

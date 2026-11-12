@@ -54,6 +54,7 @@ pub mod approval;
 #[cfg(test)]
 mod attachment_menu_tests;
 mod attachment_open;
+pub mod attachment_preview;
 pub mod auto_replies;
 #[cfg(test)]
 mod auto_replies_tests;
@@ -97,6 +98,12 @@ pub mod forms;
 mod forms_date_tests;
 #[cfg(test)]
 mod frame_bench_tests;
+mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
+mod gmail_tabs;
+#[cfg(test)]
+mod gmail_tabs_tests;
 #[cfg(test)]
 #[path = "google_credential_security_tests.rs"]
 mod google_credential_security_tests;
@@ -104,6 +111,8 @@ mod google_credential_security_tests;
 mod google_registration_tests;
 pub mod graph_fetch;
 mod graph_switch;
+#[cfg(test)]
+mod host_said_tests;
 pub mod i18n;
 pub mod icons;
 pub mod import_pst;
@@ -138,12 +147,14 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+mod problem_log;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -172,6 +183,13 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+pub mod security;
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../engine/src/private_keys_fixtures_tests.rs"]
+mod security_fixtures_tests;
+#[cfg(test)]
+mod security_tests;
 mod send_receive;
 mod sender_images;
 mod sending;
@@ -259,6 +277,7 @@ pub struct Services {
     /// programs and scripts and asked about macros. An error means nothing was opened. Absent in
     /// the browser (the file is downloaded instead) and the tests.
     pub open_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
+    pub attachment_preview: Option<attachment_preview::Host>,
     /// Web: hand bytes to the browser as a download. An error means no download started.
     pub download: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
     /// Web: told whether there are unsaved changes after each pass, for the leave-page guard.
@@ -329,12 +348,18 @@ pub struct Services {
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
-    pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), String>>>>,
+    pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), mailcraft_i18n::Text>>>>,
     /// Desktop: the operating system's credential store (Windows Credential Manager, the macOS
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
     pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
+    /// Desktop: the owner's own certificates and keys (#30 R13; [`own_keys`]), on a background
+    /// thread: list them where the system keeps them (the Windows certificate store, the macOS
+    /// keychain, PKCS#11 tokens, GnuPG), read which OpenPGP keys GnuPG trusts fully, import a
+    /// `.p12` or an OpenPGP secret key. Public facts come back, never a key or a passphrase.
+    /// Absent in the browser and the tests: signing and decrypting need the desktop program.
+    pub own_keys: Option<Box<dyn Fn(own_keys::OwnKeysJob) -> Receiver<own_keys::OwnKeysAnswer>>>,
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
@@ -343,6 +368,10 @@ pub struct Services {
     /// Desktop registration supplied by the host's build or process environment. Kept in
     /// memory, never in UI preferences; not an owner access or refresh token.
     pub google_client_secret: String,
+    /// While Google reviews the project's registration (Testing mode), only the testers added to
+    /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
+    /// a new Gmail account starts on an app password, Google sign-in second with how to join.
+    pub google_testers_only: bool,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -441,6 +470,14 @@ pub struct Services {
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
     /// the copy then has the version and the platform only.
     pub diagnostics: Option<Box<dyn Fn() -> String>>,
+    /// Desktop, in a build that names the project's report relay (`MAILCRAFT_REPORT_URL`): send
+    /// a problem report on a background thread (`mailcraft_net::report::send`), one `POST` of
+    /// what the Report a Problem window showed, and nothing else. Run only by the owner's own
+    /// click on Send report ([`report_problem`]), never by a command, an agent or by itself. The
+    /// reference the relay filed it under, or why it wasn't sent, arrives through the channel
+    /// and the host wakes the UI. Absent in the browser, the tests and a fork's build: the window
+    /// then offers Open on GitHub alone.
+    pub report_send: Option<Box<dyn Fn(mailcraft_model::report::ProblemReport) -> Receiver<Result<u64, mailcraft_model::report::NotSent>>>>,
     /// Desktop: ask, on a background thread, which is the newest release of MailCraft
     /// ([`updates`]): GitHub alone is asked, about this build's repository, and is told nothing of
     /// the owner (`mailcraft_net::update::latest`). The argument says whether a pre-release will
@@ -475,6 +512,10 @@ pub struct Services {
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
+    /// The system's regional format for dates and times (`en-GB`: `LC_TIME` on Unix, the
+    /// browser's language in the browser build), whose region English dates are written for
+    /// (#978). `None` (the tests, scripts): the language's own way.
+    pub system_time_locale: Option<String>,
     /// Web: told the interface language's code (`en`) whenever it changes, for the page's
     /// `<html lang>`.
     pub on_language: Option<Box<dyn Fn(&str)>>,
@@ -959,6 +1000,7 @@ pub struct UiState {
     /// in the message list, from Gravatar, favicon.im and Google. Off unless the owner turns it on:
     /// asking tells those services whose pictures are looked at.
     pub sender_images: bool,
+    pub attachment_previews: bool,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -984,6 +1026,9 @@ pub struct UiState {
     pub alert_reminders: bool,
     /// The filters Advanced Search's Add filters puts in its panel (#329).
     pub advanced_filters: advanced_search::Filters,
+    /// The public facts of the private keys imported in File › Options › Security (#30): never
+    /// a key or a passphrase, which the system's credential store holds ([`own_keys`]).
+    pub imported_keys: Vec<own_keys::ImportedKey>,
 }
 
 impl Default for UiState {
@@ -1025,6 +1070,7 @@ impl Default for UiState {
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
             sender_images: false,
+            attachment_previews: false,
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -1035,6 +1081,7 @@ impl Default for UiState {
             update_install_told: false,
             alert_new_mail: true,
             alert_reminders: true,
+            imported_keys: Vec::new(),
         }
     }
 }
@@ -1049,6 +1096,12 @@ fn fresh_options() -> mailcraft_engine::Prefs {
 
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
 const SAVING_SHOWN_AFTER_MS: u64 = 700;
+
+/// How long one frame goes on taking in the pieces of a Send/Receive that are waiting
+/// ([`MailApp::poll_sync`]): once at least, then again while this lasts.
+const SYNC_FRAME_BUDGET: std::time::Duration = std::time::Duration::from_millis(8);
+/// Most new messages in the pieces taken in together: a batch stops growing once it has these.
+const SYNC_BATCH_MESSAGES: usize = 500;
 
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
@@ -1079,8 +1132,14 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
+    (
+        "ui.previewAttachment",
+        "Preview Attachment",
+        "Message › Attachments",
+        r#"{"id"?: number (the selected message), "index": number (zero-based attachment index)} — preview the file using an installed helper, if supported"#,
+    ),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
         "ui.advancedSearch",
@@ -1177,7 +1236,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.keepOffline",
         "Mail to Keep Offline",
         "File › Info",
-        r#"{"account": number (a Microsoft account, not a shared mailbox), "keepOffline": "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all", "confirmed"?: true} — the slider's: how far back the account's mail (and its shared mailboxes') is kept in full on this computer. Shorter asks first, saying how much space it frees (`account.offlineSize`), unless "confirmed"; then the mail now outside goes back to its headers and preview at once (`account.thinOffline`, a few hundred messages a frame) and its files leave the disk with the next save. It stays on the server. Longer fetches the newly covered mail in the background, newest first. Answers {"account", "keepOffline", "changed": bool}"#,
+        r#"{"account": number (a Microsoft or Exchange server account, not a shared mailbox), "keepOffline": "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all", "confirmed"?: true} — the slider's: how far back the account's mail (and its shared mailboxes') is kept in full on this computer. Shorter asks first, saying how much space it frees (`account.offlineSize`), unless "confirmed"; then the mail now outside goes back to its headers and preview at once (`account.thinOffline`, a few hundred messages a frame) and its files leave the disk with the next save. It stays on the server. Longer fetches the newly covered mail in the background, newest first. Answers {"account", "keepOffline", "changed": bool}"#,
     ),
     (
         "ui.connectMicrosoft",
@@ -1255,6 +1314,42 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    (
+        "ui.importPrivateKey",
+        "Import Your Certificate or Key",
+        "File › Options › Security",
+        r#"{"format": "smime"|"openpgp"} — opens the file picker for a .p12/.pfx (S/MIME) or an OpenPGP secret key, then a dialog that asks for the .p12's passphrase in the window; the file and the passphrase go to the desktop program's key store and never through a command. Window only, never for an agent"#,
+    ),
+    (
+        "ui.removePrivateKey",
+        "Remove Your Imported Key",
+        "File › Options › Security",
+        r#"{"fingerprint": string, "confirmed"?: true} — deletes a key imported in File › Options › Security from the system's credential store; asks first. Window only, never for an agent"#,
+    ),
+    (
+        "ui.refreshOwnKeys",
+        "Refresh Your Certificates and Keys",
+        "File › Options › Security",
+        "{} — looks for the owner's certificates and keys again (and GnuPG's fully trusted keys). Window only, never for an agent",
+    ),
+    (
+        "ui.importPublicKey",
+        "Import a Public Key",
+        "File › Options › Security",
+        "{} — opens the file picker for a Public key (an X.509 certificate or an OpenPGP Public key), which `keys.import` keeps. Window only (an agent passes `data` to `keys.import`)",
+    ),
+    (
+        "ui.verifyKey",
+        "Verify a Public Key",
+        "File › Options › Security",
+        r#"{"address": string, "fingerprint": string} — the dialog that shows an OpenPGP key's whole fingerprint, to compare with the one its owner gives another way, and marks it Verified on the owner's word. Window only, never for an agent"#,
+    ),
+    (
+        "ui.markKeyVerified",
+        "Mark Key Verified",
+        "File › Options › Security",
+        r#"{"address": string, "fingerprint": string, "verified": bool} — the Verify dialog's buttons: refused unless that dialog is open for that very key. Window only, never for an agent"#,
+    ),
     (
         "ui.desktopAlerts",
         "Desktop Alerts",
@@ -1348,7 +1443,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.reportProblem",
         "Report a Problem",
         "Help",
-        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github"|"email" (default github), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. email: starts a new message to MailCraft's maintainers from an account that sends mail, with the diagnostics attached when asked; nothing is sent until Send is pressed. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url"?, "length"?, "saved"?, "attached"?}"#,
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github" (the default) | "send", "username"?: string (send), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. send: the window, filled in with the title, what was typed and the GitHub username, for the owner to read and send with Send report; nothing is sent (only the owner's own click sends a report, never a script or an agent). Answers {"via": "send", "draft": true, "sent": false}. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url", "length", "saved"?, "name"?, "data"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
@@ -1415,7 +1510,18 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 
 /// The application.
 pub struct MailApp {
+    attachment_preview: Option<attachment_preview::Preview>,
+    pending_attachment_preview: Option<attachment_preview::Click>,
     pub session: Session,
+    /// The system's certification authorities for mail, read off the window's thread by the host
+    /// (#30): handed to the session when they come, and the window never waits for them.
+    pub trust_anchors_arriving: Option<std::sync::mpsc::Receiver<Vec<Vec<u8>>>>,
+    /// How many rows of the list may still have their Digital signature checked this frame, and
+    /// whether one was left for the next (#30: the list never checks many in one frame).
+    pub(crate) row_checks_left: u32,
+    pub(crate) row_checks_wanted: bool,
+    /// The owner's own keys and the work on them under way (#30, File › Options › Security).
+    pub(crate) security: security::State,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
@@ -1709,8 +1815,11 @@ pub struct MailApp {
     /// The reminders window: what is due, what was put off.
     pub(crate) reminders: reminders::State,
     /// What went wrong in each account's last Send/Receive, until a run of it goes through:
-    /// the account, its name, when, and the lines.
-    sync_problems: Vec<(Id, String, String, Vec<String>)>,
+    /// the account, its name, when, and the lines, as texts said in the interface's language
+    /// when they are shown (#872).
+    sync_problems: Vec<(Id, String, String, Vec<mailcraft_i18n::Text>)>,
+    /// The problem texts the log has had from each account's last run (`problem_log`).
+    logged_problems: problem_log::ProblemLog,
     /// Send/Receive Progress, when it is open ([`sync_panel`]).
     pub(crate) sync_panel: Option<sync_panel::Panel>,
     /// What runs now was asked for by the owner's own hand: a frame of the window that a press, a
@@ -1775,7 +1884,13 @@ impl MailApp {
         let own_mailbox = session.path.as_ref().map(|p| unconfirmed::kept_path(&p.to_string_lossy()));
         MailApp {
             session,
+            trust_anchors_arriving: None,
+            row_checks_left: 1,
+            row_checks_wanted: false,
+            security: security::State::default(),
             ui: UiState::default(),
+            attachment_preview: None,
+            pending_attachment_preview: None,
             services,
             dialog: None,
             people_picked: Vec::new(),
@@ -1901,6 +2016,7 @@ impl MailApp {
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
+            logged_problems: Default::default(),
             sync_panel: None,
             by_hand: false,
             last_error: None,
@@ -1993,6 +2109,8 @@ impl MailApp {
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        // Gmail's categories as folders or as tabs (#911).
+        v.gmail_tabs = saved.gmail_tabs;
         // One account's tasks and contacts only in the mailbox they were chosen in: in another,
         // the same id is somebody else's account, or none, and the list starts on All accounts.
         let mailbox = &self.session.mailbox;
@@ -2110,6 +2228,11 @@ impl MailApp {
             updates::CHECK => self.check_for_updates(true),
             updates::RESTART => self.restart_to_update(),
             updates::GO_BACK => self.go_back_a_version(),
+            // Marking a key Verified and removing the owner's own key: the owner's press alone.
+            "ui.markKeyVerified" | "ui.removePrivateKey" => match security::owners_press(self, id, &params) {
+                Some(r) => r,
+                None => self.execute(id, params),
+            },
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => {
@@ -2319,6 +2442,7 @@ impl MailApp {
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
+            self.forget_favorites(before.id);
             self.jmap_refused.remove(&before.id);
             self.ews_signed_in.remove(&before.id);
             self.ews_certificate.remove(&before.id);
@@ -2358,6 +2482,9 @@ impl MailApp {
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
+        if let Some(r) = security::command(self, id, p) {
+            return Some(r);
+        }
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
             "ui.openDataFolder" => self.open_data_folder(),
@@ -2492,6 +2619,7 @@ impl MailApp {
                 None => Err("`value` is a percentage from 80 to 200".into()),
             },
             "ui.advancedSearch" => advanced_search::command(self, p),
+            "ui.previewAttachment" => attachment_preview::command(self, p),
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;
@@ -4139,45 +4267,102 @@ impl MailApp {
         let mut out = Vec::new();
         for (_, name, at, lines) in &self.sync_problems {
             out.push(format!("{name} — {at}"));
-            out.extend(lines.iter().map(|l| format!("  {l}")));
+            out.extend(lines.iter().map(|l| format!("  {}", problem_line(l))));
         }
         out
     }
 
-    /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
+    /// The problems kept for `account`, as lines to show.
+    pub(crate) fn account_problem_lines(&self, account: Id) -> Vec<String> {
+        self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.iter().map(problem_line).collect()).unwrap_or_default()
+    }
+
+    /// Keep what a Send/Receive said went wrong (the log gets how many and each new text, cut short); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
+        self.note_problems_from("mail", account, errors, None, finished);
+    }
+
+    /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, shared
+    /// mailboxes): each keeps its own memory of what the log has said. `logged` is what goes in the
+    /// log for `errors`, line for line: only texts told as [`mailcraft_i18n::Text`] have any (with
+    /// their values put aside); a free text names subjects and folders in quotes that nothing
+    /// here can be sure of, so of those the log has the count alone.
+    fn note_problems_from(&mut self, source: &'static str, account: Id, errors: &[String], logged: Option<&[String]>, finished: bool) {
+        // Mail's answers come piece by piece and its run ends with `finished`; another job's
+        // answer is its whole run.
+        let ends = finished || source != "mail";
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
             }
+            if ends {
+                self.logged_problems.forget(account, source);
+                self.logged_problems.end_run(account, source);
+            }
             return;
         }
-        // The lines name subjects, addresses and folders: they are for the owner to read in the
-        // problems report, and the log says only how many there were.
-        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
+        // The lines name subjects, addresses and folders: the log gets how many there were and,
+        // for a text told with its values apart, each new text cut short (see `problem_log`).
+        log::warn!("send/receive, account {account} ({source}): {} problem(s) reported", errors.len());
+        if let Some(logged) = logged {
+            self.logged_problems.log_new(account, source, logged);
+        }
+        if ends {
+            self.logged_problems.end_run(account, source);
+        }
         self.keep_sync_problems(account, errors);
+    }
+
+    /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
+    /// interface's language (#872). It goes through that, which logs and keeps them in English,
+    /// and then puts the texts in place of the lines it kept. What is logged has every value of
+    /// the texts put aside.
+    fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
+        let english: Vec<String> = errors.iter().map(ToString::to_string).collect();
+        let logged: Vec<String> = errors.iter().map(problem_log::masked).collect();
+        self.note_problems_from("mail", account, &english, Some(&logged), finished);
+        let Some((.., lines)) = self.sync_problems.iter_mut().find(|(a, ..)| *a == account) else { return };
+        // (The newest lines are the last; of a very long run only the last ones were kept.)
+        let kept = errors.len().min(lines.len());
+        let from = lines.len() - kept;
+        for (slot, said) in lines[from..].iter_mut().zip(errors.into_iter().skip(english.len() - kept)) {
+            *slot = bounded_problem(said);
+        }
     }
 
     /// Keep lines for the Send/Receive problems report without putting them in the log: what
     /// names an item (a line about an appointment, with its title) is for the owner to read,
     /// and whoever wrote it has logged what kind of thing happened.
     pub(crate) fn keep_sync_problems(&mut self, account: Id, errors: &[String]) {
-        if errors.is_empty() {
+        self.keep_said_problems(account, errors.iter().map(|e| mailcraft_i18n::Text::verbatim(e.clone())).collect());
+    }
+
+    /// [`MailApp::keep_sync_problems`] for problems a host told as texts.
+    fn keep_said_problems(&mut self, account: Id, problems: Vec<mailcraft_i18n::Text>) {
+        if problems.is_empty() {
             return;
         }
         let name = self.session.mailbox.account(account).map(|a| a.name.clone()).unwrap_or_default();
         let at = crate::dates::clock(self.session.local_now(), self.session.prefs.twelve_hour);
-        let clip = |e: &String| e.chars().take(600).collect::<String>();
+        let problems: Vec<mailcraft_i18n::Text> = problems.into_iter().map(bounded_problem).collect();
         match self.sync_problems.iter_mut().find(|(a, ..)| *a == account) {
             Some((_, _, when, lines)) => {
                 *when = at;
-                lines.extend(errors.iter().map(clip));
+                lines.extend(problems);
                 let extra = lines.len().saturating_sub(60);
                 lines.drain(..extra);
             }
-            None => self.sync_problems.push((account, name, at, errors.iter().take(60).map(clip).collect())),
+            None => self.sync_problems.push((account, name, at, problems.into_iter().take(60).collect())),
         }
+    }
+
+    /// What the status bar says when a Send/Receive of `account` is over: `summary`, or, when
+    /// that is the English of a problem kept for the account, the problem in the interface's
+    /// language (#872).
+    fn sync_summary_said(&self, account: Id, summary: String) -> String {
+        let kept = self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.as_slice()).unwrap_or_default();
+        kept.iter().find(|said| said.to_string() == summary).map_or(summary, problem_line)
     }
 
     /// Whether a job of Microsoft Graph is under way for an account.
@@ -4243,8 +4428,12 @@ impl MailApp {
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
     pub fn poll_sync(&mut self) {
-        // A few pieces a frame: each one redraws the lists, and the window should stay quick.
-        for _ in 0..4 {
+        // What is waiting, taken in together, for as long as a frame can spare (#991): each time
+        // reads the whole account and has the lists made again, whatever the pieces bring, and a
+        // run with thousands of folders hands over a piece or more for each.
+        let started = std::time::Instant::now();
+        let mut first = true;
+        while std::mem::take(&mut first) || started.elapsed() < SYNC_FRAME_BUDGET {
             // (A JMAP account's run has pieces of its own: [`jmap_mail`].)
             if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
                 return self.poll_jmap();
@@ -4261,6 +4450,8 @@ impl MailApp {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 (self.sync_rx, self.sync_run, self.sync_password, self.sync_refused) = (None, None, None, false);
                 self.sync_totals = Default::default();
+                // Its accounts are other accounts: what the log said of the old ones isn't theirs.
+                self.logged_problems = Default::default();
                 return;
             }
             let piece = match rx.try_recv() {
@@ -4268,15 +4459,29 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
+                    self.logged_problems.end_run(*whose, "mail");
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
             };
-            let (account, last) = (piece.account, !piece.partial);
-            let downloading = !piece.folders.is_empty();
-            let signed_in = piece.step.as_ref().is_some_and(|step| step.stage.signed_in());
-            let refused = piece.errors.iter().any(|e| {
+            // And the pieces that came after it, up to the last, while they bring little mail:
+            // taking in what came is what takes the time.
+            let mut new = piece.new_count();
+            let mut pieces = vec![piece];
+            while pieces.len() < mailcraft_engine::cmd::account::MAX_PIECES_TOGETHER
+                && new < SYNC_BATCH_MESSAGES
+                && pieces.last().is_some_and(|piece| piece.partial)
+                && let Ok(piece) = rx.try_recv()
+            {
+                new = new.saturating_add(piece.new_count());
+                pieces.push(piece);
+            }
+            let account = pieces.first().map_or(*whose, |piece| piece.account);
+            let last = pieces.last().is_some_and(|piece| !piece.partial);
+            let downloading = pieces.iter().any(|piece| !piece.folders.is_empty());
+            let signed_in = pieces.iter().any(|piece| piece.step.as_ref().is_some_and(|step| step.stage.signed_in()));
+            let refused = pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
                 let e = e.to_lowercase();
                 // Microsoft's word for a token that ran out during the run.
                 e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
@@ -4285,8 +4490,10 @@ impl MailApp {
             if signed_in {
                 self.keep_accepted_password(account);
             }
-            self.note_sync_problems(account, &piece.errors, false);
-            match mailcraft_engine::cmd::account::apply_sync_part(&mut self.session, &mut self.sync_totals, piece) {
+            for piece in &pieces {
+                self.note_said_problems(account, piece.problems(), false);
+            }
+            match mailcraft_engine::cmd::account::apply_sync_parts(&mut self.session, &mut self.sync_totals, pieces) {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
@@ -4305,6 +4512,7 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.run_answered(account);
@@ -4336,7 +4544,8 @@ impl MailApp {
                 self.note_sync_problems(account, &[], true);
             }
             self.sync_password = None;
-            self.status(totals.summary_in(i18n::current()));
+            let summary = self.sync_summary_said(account, totals.summary_in(i18n::current()));
+            self.status(summary);
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
             return;
@@ -4428,12 +4637,18 @@ impl MailApp {
     }
 
     /// Put the interface language in force: the window's text, the engine's, and the host's
-    /// (`<html lang>` in the browser) when it changed.
+    /// (`<html lang>` in the browser) when it changed; its dates written the way of the system's
+    /// region, and the clock and first day of the week the owner never chose theirs (#978).
     fn apply_language(&mut self) {
         let lang = self.language();
+        let region = self.services.system_time_locale.as_deref().and_then(mailcraft_i18n::date::region_of);
         i18n::set_current(lang);
+        i18n::set_region(region);
         self.session.interface_language = lang;
-        self.session.prefs.follow_language(lang);
+        if self.session.date_region.as_deref() != region {
+            self.session.date_region = region.map(str::to_string);
+        }
+        self.session.prefs.follow_conventions(lang.conventions_in(region));
         if self.applied_language != Some(lang) {
             self.applied_language = Some(lang);
             if let Some(tell) = &self.services.on_language {
@@ -4445,7 +4660,25 @@ impl MailApp {
     /// Per-frame logic before layout: control requests, screenshots, background results, file
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        attachment_preview::poll(self, ctx);
         self.apply_language();
+        // The system's authorities for mail, once the host has read them: what was checked
+        // without them is checked again (#30).
+        if let Some(rx) = &self.trust_anchors_arriving {
+            match rx.try_recv() {
+                Ok(ders) => {
+                    self.session.set_trust_anchors(&ders);
+                    self.trust_anchors_arriving = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.trust_anchors_arriving = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        // One row's Digital signature a frame (#30); one left over asks for the next frame.
+        self.row_checks_left = 1;
+        if std::mem::take(&mut self.row_checks_wanted) {
+            ctx.request_repaint();
+        }
         // A .pst import whose window went while it read (closed, or another dialog put in its
         // place) has stopped: what came in is one step to undo, and Undo is free again.
         if self.session.importing_pst() && !matches!(&self.dialog, Some(dialogs::Dialog::ImportPst(d)) if d.is_importing()) {
@@ -4542,6 +4775,7 @@ impl MailApp {
             self.shared_check_tick();
         }
         self.check_secret_store();
+        security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
             // Whether a new version is out, when the owner wants that known ([`updates`]).
@@ -4559,6 +4793,8 @@ impl MailApp {
             self.auto_replies_tick(ctx);
         }
         reminders::tick(self, ctx);
+        // What was done in the Reminders window, which has passes of its own (#771).
+        reminders::carry_out(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
             self.dialog = dialogs::Dialog::open("account", self, &json!({}));
         }
@@ -5249,6 +5485,22 @@ fn owner_input(ctx: &egui::Context) -> bool {
 /// window's own commands (`ui.*`) say what they need where they are; and a command that wasn't
 /// available (`not available: …`), was given what it can't take, or had nothing to do is no
 /// refusal: those stay in the status bar.
+/// A problem of a Send/Receive as it is shown: in the interface's language, where it is
+/// MailCraft's own words, and not too long.
+fn problem_line(said: &mailcraft_i18n::Text) -> String {
+    said.in_lang(i18n::current()).chars().take(MAX_PROBLEM).collect()
+}
+
+/// A problem not too long to keep: each value said as it is (a server's reason, a folder's name)
+/// is cut to what is ever shown, and the line is still said in the interface's language
+/// ([`problem_line`] cuts the whole of it).
+fn bounded_problem(said: mailcraft_i18n::Text) -> mailcraft_i18n::Text {
+    said.map_plain(&|value: String| if value.chars().count() > MAX_PROBLEM { value.chars().take(MAX_PROBLEM).collect() } else { value })
+}
+
+/// The most characters of a Send/Receive problem that are kept and shown.
+const MAX_PROBLEM: usize = 600;
+
 pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
     let quiet = ["not available:", "unknown command", "bad parameters:", "nothing "];
     let lower = error.trim_start().to_lowercase();
@@ -5412,6 +5664,8 @@ pub fn now_ms() -> f64 {
 
 #[cfg(test)]
 mod privacy_tests;
+#[cfg(test)]
+mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
 #[cfg(test)]

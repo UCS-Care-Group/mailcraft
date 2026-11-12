@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! #603: Hebrew and Arabic mail stands at the right in the reading pane. A paragraph reads the
-//! way `dir`, `direction` or its first strong letter says, and one that reads from the right is
+//! #603: Hebrew and Arabic mail stands at the right in the reading pane. In HTML a paragraph reads
+//! the way `dir` or `direction` says, as in a browser, and none says left to right; in plain text,
+//! where there is no markup, its first strong letter says. One that reads from the right is
 //! aligned right unless the message names a side. The text is kept as it was written. The
 //! messages are made up.
 
@@ -15,19 +16,29 @@ fn align_of(html: &str, text: &str) -> Align {
 }
 
 #[test]
-fn a_hebrew_or_arabic_paragraph_stands_at_the_right_without_being_told() {
-    let html = "<p>שלום רב, הפגישה ביום שני ב-10:30.</p><p>مرحبا، الاجتماع يوم 3 مايو.</p><p>Thanks, Dana</p>";
+fn a_hebrew_or_arabic_paragraph_stands_at_the_right_where_the_message_says_rtl() {
+    // (What Outlook and Word write.)
+    let html = "<p dir=\"rtl\">שלום רב, הפגישה ביום שני ב-10:30.</p><p dir=\"rtl\">مرحبا، الاجتماع يوم 3 مايو.</p><p>Thanks, Dana</p>";
     assert_eq!(align_of(html, "שלום רב, הפגישה ביום שני ב-10:30."), Align::Right);
     assert_eq!(align_of(html, "مرحبا، الاجتماع يوم 3 مايو."), Align::Right);
     assert_eq!(align_of(html, "Thanks, Dana"), Align::Left);
 }
 
 #[test]
-fn a_paragraph_that_starts_with_a_number_or_a_latin_word_goes_by_its_first_letter() {
-    let html = "<p>2024 דוח שנתי</p><p>Invoice INV-42 עבור מרץ</p><p>«ACME» ١٢٣ قسيمة</p>";
-    assert_eq!(align_of(html, "2024 דוח שנתי"), Align::Right, "digits are weak");
-    assert_eq!(align_of(html, "Invoice INV-42 עבור מרץ"), Align::Left, "a Latin word first");
-    assert_eq!(align_of(html, "«ACME» ١٢٣ قسيمة"), Align::Left);
+fn an_html_paragraph_with_no_direction_stays_at_the_left_whatever_its_letters_are() {
+    let html = "<p>عمر Smith wrote the minutes.</p><p>שלום רב</p><pre>שלום
+Hello again</pre><p><span dir=ltr>ACME</span> שלום</p>";
+    assert_eq!(align_of(html, "عمر Smith wrote the minutes."), Align::Left);
+    assert_eq!(align_of(html, "שלום רב"), Align::Left);
+    assert_eq!(
+        align_of(
+            html,
+            "שלום
+Hello again"
+        ),
+        Align::Left
+    );
+    assert_eq!(align_of(html, "ACME שלום"), Align::Left);
 }
 
 #[test]
@@ -47,7 +58,7 @@ fn dir_rtl_puts_even_latin_text_at_the_right_and_dir_ltr_keeps_hebrew_at_the_lef
 }
 
 #[test]
-fn dir_auto_takes_the_paragraphs_first_letter() {
+fn dir_auto_takes_the_paragraphs_first_letter_where_the_message_asks_for_it() {
     let html = "<div dir=rtl><div dir=auto>Hello עולם</div><div dir=auto>עולם Hello</div></div>";
     assert_eq!(align_of(html, "Hello עולם"), Align::Left);
     assert_eq!(align_of(html, "עולם Hello"), Align::Right);
@@ -80,12 +91,14 @@ fn a_direction_on_a_span_does_not_turn_its_paragraph_round() {
 }
 
 #[test]
-fn hebrew_in_a_table_cell_and_a_list_stands_at_the_right() {
-    let html = "<table><tr><td>מוצר</td><td>Price</td></tr></table><ul><li>פריט ראשון</li><li>First item</li></ul>";
+fn hebrew_in_a_table_cell_and_a_list_stands_at_the_right_where_the_message_says_rtl() {
+    let html =
+        "<table><tr><td dir=rtl>מוצר</td><td>Price</td></tr></table><ul dir=rtl><li>פריט ראשון</li></ul><ul><li>First item</li><li>שלום</li></ul>";
     assert_eq!(align_of(html, "מוצר"), Align::Right);
     assert_eq!(align_of(html, "Price"), Align::Left);
     assert_eq!(align_of(html, "פריט ראשון"), Align::Right);
     assert_eq!(align_of(html, "First item"), Align::Left);
+    assert_eq!(align_of(html, "שלום"), Align::Left, "no direction, no side");
 }
 
 #[test]
@@ -100,6 +113,30 @@ fn a_picture_and_its_text_keep_to_one_side_where_the_message_says_it_reads_from_
     let blocks = parse("<p dir=rtl><img src='cid:logo' width=20 height=20> שלום</p>");
     let got: Vec<(bool, Align)> = blocks.iter().map(|b| (b.beside, b.align)).collect();
     assert_eq!(got, [(false, Align::Right), (true, Align::Right)]);
+}
+
+#[test]
+fn text_after_a_picture_keeps_the_side_of_its_paragraph_however_long_it_is() {
+    let long = "שלום ".repeat(120);
+    let html = format!("<p dir=rtl>שלום <img src='cid:logo' width=16 height=16> {long}</p>");
+    let blocks = parse(&html);
+    let sides: Vec<Align> = blocks.iter().filter(|b| matches!(b.kind, crate::BlockKind::Paragraph)).map(|b| b.align).collect();
+    assert!(sides.len() >= 2, "text before and after the picture: {sides:?}");
+    assert!(sides.iter().all(|a| *a == Align::Right), "{sides:?}");
+    // With no direction the paragraph is left to right, whole.
+    let blocks = parse(&format!("<p>שלום <img src='cid:logo' width=16 height=16> {long}</p>"));
+    assert!(blocks.iter().all(|b| b.align == Align::Left));
+}
+
+#[test]
+fn align_justify_as_an_attribute_names_no_side() {
+    assert_eq!(align_of("<p dir=rtl align=justify>Hello</p>", "Hello"), Align::Right);
+    assert_eq!(align_of("<div dir=rtl align=JUSTIFY><p>Hello</p></div>", "Hello"), Align::Right);
+    assert_eq!(align_of("<table dir=rtl><tr><td align=justify>Hello</td></tr></table>", "Hello"), Align::Right);
+    assert_eq!(align_of("<ul dir=rtl align=justify><li>Hello</li></ul>", "Hello"), Align::Right);
+    assert_eq!(align_of("<p align=justify>Hello</p>", "Hello"), Align::Left);
+    // A side named by the attribute still is one.
+    assert_eq!(align_of("<p dir=rtl align=left>Hello</p>", "Hello"), Align::Left);
 }
 
 #[test]

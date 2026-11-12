@@ -365,6 +365,8 @@ fn what_a_run_says_of_trouble_is_told_and_a_certificate_asks() {
 #[test]
 fn messages_are_fetched_whole_within_what_the_account_keeps() {
     let (mut s, account) = session();
+    // (Mail of 1970: kept whole only when the account keeps all of it, #966.)
+    s.run("account.edit", &json!({"id": account, "keepOffline": "all"})).unwrap();
     list(&mut s, account);
     read(&mut s, account, page("F1", vec![mail("A1", "Kickoff", 1_000), mail("A2", "Budget", 2_000)], true, true), "S-1");
     let queue = ews_fetch_request(&s, account, None, 10).unwrap();

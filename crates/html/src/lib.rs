@@ -9,7 +9,8 @@
 //! [`text_blocks`] and [`from_text`] do the same for plain-text bodies. [`preview`] and
 //! [`text_preview`] give the first words of a message on one line, for a message list.
 //! [`quotable`] writes a message's HTML out again for the original under a reply or forward: its
-//! look, without anything that runs, embeds or tracks.
+//! look, without anything that runs, embeds or tracks; [`quotable_with_pictures`] with the
+//! pictures written into it, each to go as a part of its own.
 //!
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
@@ -53,8 +54,8 @@ pub fn media_lists(html: &str) -> Vec<String> {
     sheet::media_lists(html)
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
-pub use quote::quotable;
-pub use style::MAX_FAMILIES;
+pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
+pub use style::{MAX_FAMILIES, MAX_FONT_PX};
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
@@ -71,9 +72,9 @@ pub const MAX_SHEET_BYTES: usize = sheet::MAX_SHEET;
 pub const MAX_SHEET_RULES: usize = sheet::MAX_RULES;
 
 /// Longest input [`parse`], [`to_text`], [`text_blocks`], [`from_text`], [`preview`],
-/// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored. [`parse`] and
-/// [`to_text`] don't count the pictures written into the message (`data:`) against it, and read
-/// as much more as the most those may take.
+/// [`text_preview`], [`quotable`] and [`quotable_with_pictures`] read, in bytes; the rest is
+/// ignored. [`parse`], [`to_text`] and [`quotable_with_pictures`] don't count the pictures written
+/// into the message (`data:`) against it, and read as much more as the most those may take.
 pub const MAX_INPUT: usize = 2 * 1024 * 1024;
 
 /// The most of a document [`parse`] looks at, in bytes: [`MAX_INPUT`], and what the pictures
@@ -103,9 +104,6 @@ pub const MAX_ROW_SPAN: u16 = 200;
 /// The smallest font size a message can ask for, in CSS pixels. Smaller text is shown at this
 /// size (text of 2 pixels or less is a hiding trick and is not shown at all).
 pub const MIN_FONT_PX: u8 = 10;
-
-/// The largest font size a message can ask for, in CSS pixels.
-pub const MAX_FONT_PX: u8 = 32;
 
 /// A colour a message asks for (sRGB).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -260,7 +258,8 @@ pub struct Span {
     /// A highlight behind the text.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<Rgb>,
-    /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`]; `None` for the reader's own size.
+    /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`] (32 for [`parse_text`]).
+    /// `None` uses the reader's own size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
     /// The font families asked for, lower case and joined by commas in their order
@@ -373,6 +372,9 @@ pub struct Block {
     /// elements round it that have no frame of their own, saturating at 255.
     #[serde(default, skip_serializing_if = "is_no_inset")]
     pub inset: [u8; 2],
+    /// Padding around a picture, inside its place in a line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_padding: Option<Insets>,
     /// How a rule looks, where the source draws it with a border (a `Rule` block only).
     #[serde(default, skip_serializing_if = "is_default_line")]
     pub line: Line,
@@ -393,7 +395,19 @@ fn is_zero_u8(n: &u8) -> bool {
 impl Block {
     /// A block of `kind` with no quoting, alignment or gap.
     pub fn new(kind: BlockKind, spans: Vec<Span>) -> Block {
-        Block { kind, spans, quote: 0, align: Align::Left, space: 0, beside: false, gap: 0, line_height: None, inset: [0, 0], line: Line::default() }
+        Block {
+            kind,
+            spans,
+            quote: 0,
+            align: Align::Left,
+            space: 0,
+            beside: false,
+            gap: 0,
+            line_height: None,
+            inset: [0, 0],
+            image_padding: None,
+            line: Line::default(),
+        }
     }
 
     /// The block's text without formatting (not what is inside a table: see [`has_text`]).

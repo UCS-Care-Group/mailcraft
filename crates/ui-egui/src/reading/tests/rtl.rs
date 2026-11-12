@@ -9,8 +9,9 @@ use serde_json::json;
 use super::super::layout::ItemKind;
 use super::{app_with, copy_key, copy_of, drag, find, gap, html_message, in_frame, lay_out, message, select, whole, window};
 
-const HTML: &str = "<p>שלום דנה, הפגישה ב-10:30 עם ACME נקבעה.</p>\
-                    <p>مرحبا، رقم الطلب 4521 جاهز.</p>\
+// (A paragraph reads from the right where the message says so, as Outlook and Word write it.)
+const HTML: &str = "<p dir=\"rtl\">שלום דנה, הפגישה ב-10:30 עם ACME נקבעה.</p>\
+                    <p dir=\"rtl\">مرحبا، رقم الطلب 4521 جاهز.</p>\
                     <p>Thanks, Dana</p>";
 
 fn rtl_message() -> mailcraft_model::Message {
@@ -70,5 +71,29 @@ fn a_drag_across_a_right_aligned_paragraph_copies_it_in_written_order() {
             Some("שלום דנה, הפגישה ב-10:30 עם ACME נקבעה.\n\nمرحبا، رقم الطلب 4521 جاهز.\n\nThanks"),
             "{theme}"
         );
+    }
+}
+
+#[test]
+fn an_item_at_the_right_has_its_marker_at_the_right_too_and_a_left_one_keeps_it_at_the_left() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let html = "<ul dir=rtl><li>פריט ראשון</li></ul><ol dir=rtl><li>פריט שני</li></ol>                        <ul><li>First item</li></ul><ol><li>Second item</li></ol>";
+            let laid = lay_out(ctx, &html_message(0, ("Dana Levi", "dana@example.org"), "רשימה", html), 600.0);
+            let bullets: Vec<egui::Rect> = laid.items.iter().filter(|i| matches!(i.kind, ItemKind::Bullet { .. })).map(|i| i.rect).collect();
+            assert_eq!(bullets.len(), 2);
+            let (he, he_text) = (bullets[0], find(&laid, "פריט ר").rect);
+            // Beside the text, past its right edge and inside the pane.
+            assert!(he.center().x >= he_text.max.x && he.max.x <= laid.size.x + 0.5, "{he:?} {he_text:?}");
+            let (en, en_text) = (bullets[1], find(&laid, "First").rect);
+            assert!(en.center().x <= en_text.min.x && en.min.x >= -0.5, "{en:?} {en_text:?}");
+            let numbers: Vec<egui::Rect> =
+                laid.items.iter().filter(|i| matches!(&i.kind, ItemKind::Text(t) if t.job.text == "1.")).map(|i| i.rect).collect();
+            assert_eq!(numbers.len(), 2, "{numbers:?}");
+            let text = find(&laid, "פריט ש").rect;
+            assert!(numbers[0].min.x >= text.max.x - 0.5 && numbers[0].max.x <= laid.size.x + 0.5, "{:?} {text:?}", numbers[0]);
+            let text = find(&laid, "Second").rect;
+            assert!(numbers[1].max.x <= text.min.x + 0.5, "{:?} {text:?}", numbers[1]);
+        });
     }
 }

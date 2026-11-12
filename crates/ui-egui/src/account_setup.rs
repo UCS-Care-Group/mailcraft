@@ -26,7 +26,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
-use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
+use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;
@@ -203,6 +203,8 @@ pub enum Action {
     NotNow,
     /// Set up the account that signed in, rather than the address that was typed.
     UseSignedIn,
+    /// Confirm that the entered custom-domain address is an alias of the signed-in mailbox.
+    KeepAlias,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -271,18 +273,11 @@ pub fn address(text: &str) -> Option<(&str, &str)> {
     ok.then_some((text, domain))
 }
 
-/// What `mailcraft-proto`'s IMAP LOGIN says when the server announces LOGINDISABLED (RFC 3501
-/// §6.2.3): no password on this connection, an app password included.
+/// What `mailcraft-proto`'s IMAP LOGIN says, in English, when the server announces LOGINDISABLED
+/// (RFC 3501 §6.2.3): no password on this connection, an app password included. (The window
+/// says it in its own language from the text the host hands over, #872; this is only to know it
+/// by.)
 const NO_PASSWORD_HERE: &str = "sign-in failed: the server doesn't take a password on this connection";
-
-/// What the host said went wrong, in the interface language where it is one of the host's own
-/// sentences; what a server said for itself is left as it said it.
-fn in_own_words(error: &str) -> String {
-    match error {
-        NO_PASSWORD_HERE => tl!("sign-in failed: the server doesn't take a password on this connection").to_string(),
-        _ => error.to_string(),
-    }
-}
 
 /// Whether `id` can be an application (client) ID: letters, digits, dots and dashes.
 fn is_identifier(id: &str, max: usize) -> bool {
@@ -394,6 +389,20 @@ struct Editing {
     baseline: Map<String, Value>,
 }
 
+/// The two switches of a Gmail account's settings (#911), each as it was and as its box has it now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GmailSwitches {
+    show: (bool, bool),
+    primary_only: (bool, bool),
+}
+
+impl GmailSwitches {
+    /// Whether either was changed.
+    fn changed(self) -> bool {
+        self.show.0 != self.show.1 || self.primary_only.0 != self.primary_only.1
+    }
+}
+
 /// The Add Account wizard, and Account Settings for an account that exists.
 pub struct AccountSetup {
     page: Page,
@@ -401,6 +410,9 @@ pub struct AccountSetup {
     app_passwords: bool,
     /// A new Google account starts with OAuth; its password field appears only on request.
     google_app_password_selected: bool,
+    /// Google sign-in is open only to the project's testers ([`Services::google_testers_only`]):
+    /// a new Gmail account starts on an app password.
+    google_testers_only: bool,
     email: String,
     /// The owner's name, as recipients see it.
     name: String,
@@ -435,7 +447,7 @@ pub struct AccountSetup {
     /// The domain's mail exchangers, once the host has them.
     lookup: Option<Receiver<Result<Vec<String>, String>>>,
     /// Whether the servers took the password, once the host knows.
-    check: Option<Receiver<Result<(), String>>>,
+    check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
     waiting: bool,
     /// This is a reconnect of an existing Google OAuth account, not an app-password conversion.
@@ -468,6 +480,12 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of an account: its colour as it was and as the swatch has it now (#893).
+    color: Option<(Option<Rgb>, Option<Rgb>)>,
+    /// For the settings of a Gmail account: whether Gmail's categories are shown under its Inbox,
+    /// and whether desktop alerts are for Primary alone (#911), each as it was and as its box has
+    /// it now.
+    gmail: Option<GmailSwitches>,
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
@@ -544,6 +562,7 @@ impl AccountSetup {
             picked: false,
             app_passwords: false,
             google_app_password_selected: false,
+            google_testers_only: false,
             service: String::new(),
             note: String::new(),
             oauth: None,
@@ -574,6 +593,8 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            color: None,
+            gmail: None,
             graph: false,
             newer: false,
             ctx: None,
@@ -610,6 +631,8 @@ impl AccountSetup {
     fn new(app: &MailApp, p: &Value) -> AccountSetup {
         let text = |k: &str| line(p.get(k).and_then(Value::as_str).unwrap_or_default(), LINE);
         let mut w = AccountSetup::blank(Page::Address);
+        w.google_testers_only = app.services.google_testers_only;
+        w.google_app_password_selected = w.google_testers_only;
         w.email = text("email");
         w.name = text("displayName");
         if w.name.is_empty() {
@@ -632,15 +655,22 @@ impl AccountSetup {
         }
         w.oauth = a.oauth.clone();
         w.edit = Some(Editing { id: a.id, baseline: w.fields() });
-        if a.kind == AccountKind::Microsoft && !a.is_shared() {
+        if a.kind.has_offline_window() && !a.is_shared() {
             w.keep_offline = Some((a.keep_offline, a.keep_offline));
         }
         // (A shared mailbox asks as its owner does.)
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
         }
+        if a.is_gmail() {
+            let (show, primary) = (!a.hide_gmail_categories, a.alert_primary_only);
+            w.gmail = Some(GmailSwitches { show: (show, show), primary_only: (primary, primary) });
+        }
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
+        if !w.newer {
+            w.color = Some((a.color, a.color));
+        }
         if a.kind == AccountKind::Exchange {
             w.ews = Some(a.ews.clone().unwrap_or_default());
         }
@@ -833,7 +863,7 @@ impl AccountSetup {
 
     /// Take over what `account.preset` answered.
     fn take(&mut self, preset: Preset) {
-        self.google_app_password_selected = false;
+        self.google_app_password_selected = self.google_testers_only;
         self.service = preset.service;
         self.note = preset.note;
         self.oauth = preset.oauth.map(|provider| OAuth { provider, ..Default::default() });
@@ -947,6 +977,7 @@ impl AccountSetup {
                 self.error = tl!("To add another Google address, go back and start a new account setup.").to_string();
             }
             (Page::SomeoneElse, Action::UseSignedIn) => self.use_signed_in(app),
+            (Page::SomeoneElse, Action::KeepAlias) => self.keep_alias(app),
             (Page::SomeoneElse, Action::GooglePassword) => {
                 self.someone_else = None;
                 self.oauth = None;
@@ -1150,11 +1181,11 @@ impl AccountSetup {
         } else if !google_conversion_ready(existing) {
             self.error = tl!("First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods.")
                 .to_string();
-        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+        } else if !self.unchanged() {
             // A switch must not silently save unrelated edits or drop a newly typed password.
             self.error = tl!("Save or discard changes to this account before switching to Google sign-in.").to_string();
         } else if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured for this build").to_string();
+            self.error = tl!("Google sign-in is not configured for this build.").to_string();
         } else {
             self.reconnecting_google = false;
             self.oauth = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
@@ -1174,8 +1205,8 @@ impl AccountSetup {
             return;
         };
         if !app.google_registration_ready() {
-            self.error = tl!("Google sign-in is not configured for this build").to_string();
-        } else if self.fields() != edit.baseline || !self.password.0.is_empty() {
+            self.error = tl!("Google sign-in is not configured for this build.").to_string();
+        } else if !self.unchanged() {
             self.error = tl!("Save or discard changes to this account before reconnecting with Google.").to_string();
         } else {
             self.oauth = Some(oauth);
@@ -1319,13 +1350,18 @@ impl AccountSetup {
 
     /// Add the account the owner just signed in to, with the tokens that brought back. One that
     /// signed in as somebody other than the address typed is not added: the owner is asked
-    /// whether to sign in again or to set up the account that signed in (#103).
+    /// whether to sign in again, set up that account, or confirm a personal custom-domain alias.
     fn add_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
         if tokens.someone_else(self.email.trim(), "") {
             self.someone_else = Some(tokens);
             self.go(Page::SomeoneElse);
             return;
         }
+        self.add_confirmed_signed_in(app, tokens);
+    }
+
+    /// Add the identity already checked against the address, or explicitly confirmed as its alias.
+    fn add_confirmed_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
         // Which kind of Microsoft account it is: the directory the sign-in named says; without
         // that, whose servers the address was found to use (work or school mail, or Outlook.com).
         self.directory = match Directory::of_tenant(&tokens.tenant) {
@@ -1351,6 +1387,37 @@ impl AccountSetup {
             }
             Ok(None) => self.error = tl!("The account couldn't be added").to_string(),
             Err(e) => self.error = e,
+        }
+    }
+
+    /// Offer alias confirmation only for custom-domain Outlook.com setup and a personal Microsoft identity.
+    fn can_keep_alias(&self) -> bool {
+        self.edit.is_none()
+            && self.service == "Outlook.com"
+            && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Microsoft)
+            && address(&self.email).is_some_and(|(_, domain)| provider::by_domain(domain).is_none())
+            && self.someone_else.as_ref().is_some_and(|tokens| {
+                Directory::of_tenant(&tokens.tenant) == Directory::Personal
+                    && address(tokens.email.trim()).is_some()
+                    && tokens.someone_else(self.email.trim(), "")
+            })
+    }
+
+    /// Keep the entered sending address after explicit alias confirmation, using Microsoft's identity for authentication.
+    fn keep_alias(&mut self, app: &mut MailApp) {
+        if !self.can_keep_alias() {
+            return;
+        }
+        let Some(tokens) = self.someone_else.take() else { return };
+        let previous_username = std::mem::replace(&mut self.username, tokens.email.trim().to_string());
+        let kept = tokens.clone();
+        self.add_confirmed_signed_in(app, tokens);
+        if self.page != Page::Done {
+            let error = std::mem::take(&mut self.error);
+            self.username = previous_username;
+            self.someone_else = Some(kept);
+            self.go(Page::SomeoneElse);
+            self.error = error;
         }
     }
 
@@ -1391,6 +1458,15 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
+    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
+    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
+    /// until this holds.
+    fn unchanged(&self) -> bool {
+        self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
+            && self.password.0.is_empty()
+            && self.color.is_none_or(|(was, color)| was == color)
+    }
+
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
     fn save(&mut self, app: &mut MailApp) -> bool {
         if let Some(problem) = self.settings_problem(false) {
@@ -1410,6 +1486,21 @@ impl AccountSetup {
                 return false;
             }
             self.ask_conversation = Some((ask, ask));
+        }
+        if let Some((_, color)) = self.color.filter(|(was, color)| was != color) {
+            if let Err(e) = app.execute("account.edit", json!({"id": id, "color": color.map(Rgb::hex)})) {
+                self.error = e;
+                return false;
+            }
+            self.color = Some((color, color));
+        }
+        if let Some(gmail) = self.gmail.filter(|g| g.changed()) {
+            let params = json!({"id": id, "showGmailCategories": gmail.show.1, "alertPrimaryOnly": gmail.primary_only.1});
+            if let Err(e) = app.execute("account.edit", params) {
+                self.error = e;
+                return false;
+            }
+            self.gmail = Some(GmailSwitches { show: (gmail.show.1, gmail.show.1), primary_only: (gmail.primary_only.1, gmail.primary_only.1) });
         }
         // A window of mail kept offline: a shorter one asks first, in a question of its own (#143).
         if let Some(keep) = self.keep_offline.filter(|(was, keep)| was != keep).map(|(_, keep)| keep) {
@@ -1514,23 +1605,23 @@ impl AccountSetup {
         let answer = match self.check.as_ref().map(Receiver::try_recv) {
             Some(Err(TryRecvError::Empty)) => return,
             Some(Ok(answer)) => answer,
-            Some(Err(TryRecvError::Disconnected)) | None => Err(tl!("Checking the account stopped unexpectedly").to_string()),
+            Some(Err(TryRecvError::Disconnected)) | None => Err(mailcraft_i18n::Text::verbatim(tl!("Checking the account stopped unexpectedly"))),
         };
         self.check = None;
         match answer {
             Ok(()) => self.add_with_password(app),
-            Err(e) => {
-                // The dialog says it once; the log keeps it for a problem report.
+            Err(said) => {
+                // The dialog says it once, in the interface's language; the log keeps the English
+                // for a problem report, and the English is what the kind of refusal is known by.
+                let e = said.to_string();
                 log::warn!("add account: the servers couldn't be checked: {e}");
                 let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
-                self.refuse(e);
+                self.refuse(said.in_lang(crate::i18n::current()));
                 // (A connection that takes no password takes no app password either: that is
                 // said as it is, Google's or not.)
-                if google && self.error.starts_with("sign-in failed") && self.error != NO_PASSWORD_HERE {
+                if google && e.starts_with("sign-in failed") && e != NO_PASSWORD_HERE {
                     self.error = tl!("Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password.").to_string();
                     self.app_passwords = true;
-                } else {
-                    self.error = in_own_words(&self.error);
                 }
             }
         }
@@ -1773,7 +1864,11 @@ impl AccountSetup {
             }
             if oauth_first {
                 note(ui, tl!("Sign in securely with Google in your browser. Your Google password is never entered in MailCraft."), t.text);
-                note(ui, tl!("Recommended"), t.accent);
+                if self.google_testers_only {
+                    note(ui, google_testers_note(), t.orange);
+                } else {
+                    note(ui, tl!("Recommended"), t.accent);
+                }
                 ui.add_space(4.0);
                 if button(ui, tl!("Use an app password instead"), false, true).clicked() {
                     change_method = Some(Action::GooglePassword);
@@ -1782,8 +1877,13 @@ impl AccountSetup {
                 if google {
                     if !configured {
                         note(ui, tl!("Google sign-in is not configured for this build. Use an app password instead."), t.orange);
-                    } else if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
-                        change_method = Some(Action::GooglePreferSignIn);
+                    } else {
+                        if button(ui, tl!("Use Google sign-in instead"), false, true).clicked() {
+                            change_method = Some(Action::GooglePreferSignIn);
+                        }
+                        if self.google_testers_only {
+                            note(ui, google_testers_note(), t.text_dim);
+                        }
                     }
                     note(ui, tl!("Use a Google app password, not your everyday Google account password."), t.text_dim);
                 }
@@ -1832,12 +1932,13 @@ impl AccountSetup {
         }
     }
 
-    /// The owner signed in as somebody other than the address typed (#103): who, and the two
-    /// ways on. Nothing is added until they say.
+    /// Explain the identity mismatch and offer explicit choices; nothing is added until the owner chooses.
     fn someone_else_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let who = self.someone_else.as_ref().map(|tokens| line(&tokens.email, LINE)).unwrap_or_default();
         let typed = self.email.trim();
+        let can_keep_alias = self.can_keep_alias();
+        let mut keep_alias = false;
         page(ui, &t, |ui| {
             heading(ui, tl!("This isn't the account you typed"), &t);
             let said = fmt(tl!("You signed in as {signedIn}, not {typed}."), &[("signedIn", &shown(&who, 120)), ("typed", &shown(typed, 120))]);
@@ -1857,6 +1958,12 @@ impl AccountSetup {
                 )
             };
             note(ui, &next, t.text_dim);
+            if can_keep_alias {
+                ui.add_space(4.0);
+                note(ui, tl!("Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."), t.text_dim);
+                let label = fmt(tl!("Keep {address}"), &[("address", &shown(typed, 40))]);
+                keep_alias = button(ui, &label, false, true).clicked();
+            }
             ui.add_space(4.0);
         });
         problem(ui, &self.error);
@@ -1873,7 +1980,9 @@ impl AccountSetup {
                 take = button(ui, &use_label, false, usable).clicked();
             }
         });
-        if alternative {
+        if keep_alias {
+            Some(Action::KeepAlias)
+        } else if alternative {
             Some(Action::GooglePassword)
         } else if back {
             Some(Action::Back)
@@ -1941,7 +2050,7 @@ impl AccountSetup {
         let can_reconnect =
             self.edit.is_some() && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) && app.services.sign_in.is_some();
         let compatible = saved_google.is_some_and(google_conversion_ready);
-        let unchanged = self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline) && self.password.0.is_empty();
+        let unchanged = self.unchanged();
         let configured = app.google_registration_ready();
         let how = match &self.oauth {
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
@@ -2032,6 +2141,20 @@ impl AccountSetup {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
+            if let Some((_, color)) = self.color.as_mut() {
+                caption(ui, tl!("Colour"), &t);
+                if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
+                    *color = picked;
+                }
+                note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
+            }
+            if let Some(gmail) = self.gmail.as_mut() {
+                caption(ui, tl!("Gmail categories"), &t);
+                ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
+                    .on_hover_text(tl!("Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."));
+                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary"))
+                    .on_hover_text(tl!("New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."));
             }
         });
         problem(ui, &self.error);
@@ -2249,6 +2372,10 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 /// Where a Google account's app passwords are made.
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
 
+fn google_testers_note() -> &'static str {
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+}
+
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).
 fn is_google(host: &str) -> bool {
     let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
@@ -2366,6 +2493,8 @@ mod tests {
     mod google_signin_outcome_tests;
     /// What the wizard says about a sign-in on Microsoft's page, and the approval help (M4.4).
     mod help;
+    /// Explicit confirmation of personal Outlook.com custom-domain aliases.
+    mod legacy_alias;
     /// The password's eye (#438).
     mod reveal;
     /// An address at a domain nobody here knows (#761).
@@ -2444,10 +2573,16 @@ mod tests {
     /// A host that tries accounts on their servers: it answers `answer`, or keeps trying. The log
     /// is the accounts it was handed, each with its secret.
     fn checks(app: &mut MailApp, answer: Option<Result<(), &str>>) -> Log<(Account, String)> {
+        let answer = answer.map(|a| a.map_err(mailcraft_i18n::Text::verbatim));
+        checks_said(app, answer)
+    }
+
+    /// [`checks`] with the answer as the host says it: a text for the window to say in its
+    /// language.
+    fn checks_said(app: &mut MailApp, answer: Option<Result<(), mailcraft_i18n::Text>>) -> Log<(Account, String)> {
         let asked: Log<(Account, String)> = Default::default();
         let log = asked.clone();
-        let answer = answer.map(|a| a.map_err(str::to_string));
-        let silent: Log<mpsc::Sender<Result<(), String>>> = Default::default();
+        let silent: Log<mpsc::Sender<Result<(), mailcraft_i18n::Text>>> = Default::default();
         app.services.test_account = Some(Box::new(move |account, secret| {
             log.lock().unwrap().push((account, secret));
             let (tx, rx) = mpsc::channel();

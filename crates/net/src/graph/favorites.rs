@@ -285,7 +285,7 @@ impl Graph<'_> {
                     }
                     Slot::Later(_, 0) => return Err(nonsense("Microsoft Graph left a question about a folder unanswered")),
                     Slot::Later(_, status) => {
-                        return Err(NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status {status}"))));
+                        return Err(NetError::Proto(ProtoError::Rejected(format!("Microsoft Graph answered with status {status}").into())));
                     }
                 }
             }

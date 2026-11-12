@@ -178,8 +178,8 @@ pub struct TextItem {
     /// Where the text's origin is, from the left of the item (centred and right-aligned text is
     /// laid out around its origin).
     pub anchor: f32,
-    /// The parts that lead somewhere: character ranges and their addresses.
-    pub links: Vec<(Range<usize>, Arc<str>)>,
+    /// The linked spans, in character order.
+    pub links: Vec<TextLink>,
     /// What is painted behind it: what its colours were checked against (and are, by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub paper: Color32,
@@ -189,6 +189,14 @@ pub struct TextItem {
     pub join: Join,
     /// What a copy that starts at its beginning writes in front of it: a list item's marker.
     pub lead: String,
+}
+
+/// A linked span and the ink used to underline it.
+#[derive(Clone, Debug)]
+pub struct TextLink {
+    pub range: Range<usize>,
+    pub url: Arc<str>,
+    pub ink: Color32,
 }
 
 /// A picture: one of the message's own, or one from the web that the owner asked for.
@@ -646,7 +654,7 @@ fn text_job(
     align: Align,
     line_height: Option<LineHeight>,
     zoom: f32,
-) -> (LayoutJob, Vec<(Range<usize>, Arc<str>)>, usize) {
+) -> (LayoutJob, Vec<TextLink>, usize) {
     let (base, line) = type_scale(kind);
     let pre = matches!(kind, BlockKind::Preformatted);
     let mut job = LayoutJob { wrap: TextWrapping { max_width: wrap, ..TextWrapping::default() }, halign: halign(align), ..LayoutJob::default() };
@@ -673,7 +681,7 @@ fn text_job(
             font_id: font,
             color: ink,
             italics: span.italic,
-            underline: if span.underline || span.link.is_some() { stroke } else { Stroke::NONE },
+            underline: if span.underline && span.link.is_none() { stroke } else { Stroke::NONE },
             strikethrough: if span.strike { stroke } else { Stroke::NONE },
             background,
             line_height: Some(line_height.map_or(size * line, |lh| lh.of(size)).round()),
@@ -681,7 +689,7 @@ fn text_job(
         };
         let count = span.text.chars().count();
         if let Some(url) = &span.link {
-            links.push((chars..chars + count, Arc::clone(url)));
+            links.push(TextLink { range: chars..chars + count, url: Arc::clone(url), ink });
         }
         chars += count;
         job.append(&span.text, 0.0, format);
@@ -766,7 +774,11 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
         let wide = cx.ctx.fonts_mut(|f| f.layout_no_wrap(label, regular(size), Color32::WHITE).size().x) + 10.0;
         indent = indent.max(wide).min((width - MIN_WIDTH * 1.5).max(0.0));
     }
-    let (x, width) = (x + indent, (width - indent).max(MIN_CELL.min(width)));
+    // An item at the right edge hangs its marker there too, so that the two stay together: its
+    // text is indented from the right instead of the left (#603).
+    let hung_right = matches!(block.kind, BlockKind::ListItem { .. }) && block.align == Align::Right;
+    let (edge, room) = (x + width, (width - indent).max(MIN_CELL.min(width)));
+    let (x, width) = if hung_right { (x, room) } else { (x + indent, room) };
     let quoted = block.quote > 0;
     let mut y = y;
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
@@ -792,7 +804,8 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
             let first = piece.first();
             let size = first.and_then(|s| s.size).map_or(BASE_SIZE, f32::from) * cx.zoom;
             let ink = paper.ink(&cx.t, first.and_then(|s| s.color).filter(|_| first.is_some_and(|s| s.link.is_none())), false, quoted);
-            list_marker(cx, marker, *depth, pos2(x, y), left, row, size, ink, paper.fill);
+            let side = if hung_right { Hang::Right { text: x + width, edge } } else { Hang::Left { text: x, edge: left } };
+            list_marker(cx, marker, *depth, y, side, row, size, ink, paper.fill);
         }
         let anchor = match block.align {
             Align::Left => 0.0,
@@ -841,13 +854,25 @@ fn copied_marker(marker: &Marker, depth: u8) -> String {
     }
 }
 
-/// What stands in front of a list item whose text starts at `at`: a bullet or a number, never
-/// further left than `left`.
-fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left: f32, row: f32, size: f32, ink: Color32, paper: Color32) {
+/// Which edge a list item's marker hangs at, with the edge of its text beside it and the limit it
+/// may not pass (the item's own edge).
+#[derive(Clone, Copy)]
+enum Hang {
+    Left { text: f32, edge: f32 },
+    Right { text: f32, edge: f32 },
+}
+
+/// What stands in front of a list item: a bullet or a number, beside its text at `side`, never
+/// past the item's edge.
+fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, y: f32, side: Hang, row: f32, size: f32, ink: Color32, paper: Color32) {
     let Some(label) = marker_label(marker) else {
         if matches!(marker, Marker::Bullet) {
             let r = (size * 0.19).clamp(2.0, 4.0);
-            let center = pos2((at.x - 11.0).max(left + r), at.y + row / 2.0);
+            let cx_at = match side {
+                Hang::Left { text, edge } => (text - 11.0).max(edge + r),
+                Hang::Right { text, edge } => (text + 11.0).min(edge - r),
+            };
+            let center = pos2(cx_at, y + row / 2.0);
             cx.push(Rect::from_center_size(center, Vec2::splat(r * 2.0)), ItemKind::Bullet { depth, color: ink });
         }
         return;
@@ -855,7 +880,11 @@ fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left
     let format = TextFormat { font_id: regular(size), color: ink, line_height: Some((size * LINE).round()), ..TextFormat::default() };
     let job = LayoutJob { wrap: TextWrapping { max_width: f32::INFINITY, ..TextWrapping::default() }, ..LayoutJob::single_section(label, format) };
     let galley = cx.measure(job.clone());
-    let rect = Rect::from_min_size(pos2((at.x - 6.0 - galley.size().x).max(left), at.y), galley.size());
+    let at_x = match side {
+        Hang::Left { text, edge } => (text - 6.0 - galley.size().x).max(edge),
+        Hang::Right { text, edge } => (text + 6.0).min(edge - galley.size().x),
+    };
+    let rect = Rect::from_min_size(pos2(at_x, y), galley.size());
     // Not a text of the message: it is not selected, and a copy writes it with its item.
     let number = TextItem { job: Arc::new(job), anchor: 0.0, links: Vec::new(), paper, chars: 0, join: Join::default(), lead: String::new() };
     cx.push(rect, ItemKind::Text(number));
@@ -874,6 +903,7 @@ fn run_length(blocks: &[Block], index: usize) -> usize {
 struct Tile<'a> {
     size: Vec2,
     block: &'a Block,
+    padding: Option<Pad>,
     /// The picture's bytes when it is one of the message's own and can be shown.
     data: Option<Arc<Vec<u8>>>,
     label: String,
@@ -885,8 +915,29 @@ struct Tile<'a> {
 
 /// What a picture block comes to in `room` points of width. `shown` counts it; measuring a column does not.
 fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'a> {
+    let Some(padding) = block.image_padding else { return picture_tile(cx, block, room, 0.0, shown) };
+    let mut pad = Pad::from_insets(padding);
+    let wanted_padding = pad.across();
+    let mut tile = picture_tile(cx, block, room, wanted_padding, shown);
+    // Keep space for the picture or placeholder mark, and give the padding what is left.
+    tile.size.x = tile.size.x.min(room);
+    let padding_room = (room - tile.size.x).max(0.0);
+    if wanted_padding > padding_room {
+        let scale = padding_room / wanted_padding;
+        pad.left *= scale;
+        pad.right *= scale;
+    }
+    tile.size += vec2(pad.across(), pad.top + pad.bottom);
+    tile.wanted += wanted_padding;
+    tile.padding = Some(pad);
+    tile
+}
+
+/// Measure the picture in the full slot. An unsized stand-in can use less width for its label
+/// to leave room for padding around its mark.
+fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, shown: bool) -> Tile<'a> {
     let BlockKind::Image { src, width, height, data, .. } = &block.kind else {
-        return Tile { size: Vec2::ZERO, block, data: None, label: String::new(), described: false, wanted: 0.0 };
+        return Tile { size: Vec2::ZERO, block, padding: None, data: None, label: String::new(), described: false, wanted: 0.0 };
     };
     let alt = block.text();
     let alt = alt.trim();
@@ -918,7 +969,7 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
         if shown {
             cx.stats.pictures += 1;
         }
-        return Tile { size, block, data: Some(data), label: alt.to_string(), described: !alt.is_empty(), wanted };
+        return Tile { size, block, padding: None, data: Some(data), label: alt.to_string(), described: !alt.is_empty(), wanted };
     }
     // Not shown: a stand-in the size of its description, or just a mark for a small picture without one.
     let small = width.is_some_and(|w| w <= 48) || height.is_some_and(|h| h <= 48);
@@ -946,10 +997,10 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     if let (true, Some(w), Some(h)) = (asked_for, asked(width), asked(height)) {
         let scale = (room / w).min(MAX_PICTURE_HEIGHT / h).min(1.0);
         let size = vec2((w * scale).max(1.0), (h * scale).max(1.0));
-        return Tile { size, block, data: None, label, described, wanted: w.min(super::MAX_BODY_WIDTH) };
+        return Tile { size, block, padding: None, data: None, label, described, wanted: w.min(super::MAX_BODY_WIDTH) };
     }
     let wanted = CHIP_HEIGHT + text;
-    Tile { size: vec2(wanted.min(room.max(CHIP_HEIGHT)), CHIP_HEIGHT), block, data: None, label, described, wanted }
+    Tile { size: vec2(wanted.min((room - padding).max(CHIP_HEIGHT)), CHIP_HEIGHT), block, padding: None, data: None, label, described, wanted }
 }
 
 /// Lay out pictures that stand in one line, wrapping to more lines as needed; the bottom.
@@ -993,6 +1044,7 @@ fn pictures(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: P
 /// same line was given its place in a copy already.
 fn put_tile(cx: &mut Cx<'_>, tile: &Tile<'_>, rect: Rect, paper: Paper, said: &mut bool) {
     let BlockKind::Image { src, link, .. } = &tile.block.kind else { return };
+    let rect = tile.padding.map_or(rect, |pad| Rect::from_min_max(rect.min + vec2(pad.left, pad.top), rect.max - vec2(pad.right, pad.bottom)));
     let link = link.as_deref().map(Arc::from);
     match &tile.data {
         Some(data) => cx.push_seg(rect, ItemKind::Picture(PictureItem { data: data.clone(), alt: tile.label.clone(), link, paper })),
@@ -1497,6 +1549,10 @@ struct Pad {
 }
 
 impl Pad {
+    fn from_insets(pad: mailcraft_html::Insets) -> Pad {
+        Pad { left: f32::from(pad.left), top: f32::from(pad.top), right: f32::from(pad.right), bottom: f32::from(pad.bottom) }
+    }
+
     fn both(v: Vec2) -> Pad {
         Pad { left: v.x, top: v.y, right: v.x, bottom: v.y }
     }
@@ -1511,7 +1567,7 @@ impl Pad {
 fn padding(table: &Table, ruled: bool, cell: &Cell) -> Pad {
     if let Some(asked) = cell.padding {
         // The message says how much (a cell that is only a colour or a line too).
-        return Pad { left: f32::from(asked.left), top: f32::from(asked.top), right: f32::from(asked.right), bottom: f32::from(asked.bottom) };
+        return Pad::from_insets(asked);
     }
     Pad::both(if !table.layout {
         DATA_PADDING
@@ -1625,10 +1681,10 @@ fn table_extent(cx: &mut Cx<'_>, table: &Table, depth: usize) -> Extent {
     if table.layout && grid.columns > 1 {
         extent.min = columns.min.iter().copied().fold(0.0, f32::max);
     }
-    match table.width {
-        Some(Length::Px(w)) => extent.max = f32::from(w).max(extent.min),
-        Some(Length::Percent(_)) => extent.max = WIDE,
-        None => {}
+    // A percentage sets the drawn width once there is a containing width. It doesn't make
+    // the table's contents wider when measuring an auto-sized parent.
+    if let Some(Length::Px(w)) = table.width {
+        extent.max = f32::from(w).max(extent.min);
     }
     Extent { min: extent.min.min(WIDE), max: extent.max.clamp(extent.min.min(WIDE), WIDE) }
 }

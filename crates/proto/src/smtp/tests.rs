@@ -12,7 +12,7 @@ const EHLO: &str =
 
 fn rejected(r: Result<(), ProtoError>) -> String {
     match r {
-        Err(ProtoError::Rejected(text)) => text,
+        Err(ProtoError::Rejected(text)) => text.to_string(),
         other => panic!("expected a rejection, got {other:?}"),
     }
 }
@@ -214,7 +214,7 @@ fn a_token_needs_a_server_that_takes_one_and_sendable_text() {
     let mut s = Script::new("250-x\r\n250 AUTH PLAIN LOGIN\r\n");
     let mut smtp = Smtp::resume(&mut s);
     smtp.hello("localhost").unwrap();
-    assert_eq!(smtp.auth_xoauth2("ada", "tok.en-123"), Err(ProtoError::Auth("the server offers no way to sign in with an access token".into())));
+    assert_eq!(smtp.auth_xoauth2("ada", "tok.en-123"), Err(ProtoError::Auth(said!("the server offers no way to sign in with an access token"))));
     assert_eq!(s.sent(), "EHLO localhost\r\n");
 
     let mut s = Script::new("250-x\r\n250 AUTH XOAUTH2\r\n235 ok\r\n");
@@ -374,7 +374,7 @@ fn junk_replies_are_protocol_errors() {
     }
     // A reply that never ends.
     let mut s = Script::whole("250-more\r\n".repeat(MAX_REPLY_LINES + 1));
-    assert_eq!(Smtp::resume(&mut s).hello("localhost"), Err(ProtoError::Protocol("the server's reply has too many lines".into())));
+    assert_eq!(Smtp::resume(&mut s).hello("localhost"), Err(ProtoError::Protocol(said!("the server's reply has too many lines"))));
     // A greeting that is a success code but not 220.
     let mut s = Script::new("250 hello\r\n");
     assert!(matches!(Smtp::connect(&mut s), Err(ProtoError::Protocol(_))));
@@ -383,7 +383,7 @@ fn junk_replies_are_protocol_errors() {
 #[test]
 fn a_dead_connection_is_an_io_error() {
     let mut s = Script::new("250-half a rep");
-    assert_eq!(Smtp::resume(&mut s).hello("localhost"), Err(ProtoError::Io("the server closed the connection".into())));
+    assert_eq!(Smtp::resume(&mut s).hello("localhost"), Err(ProtoError::Io(said!("the server closed the connection"))));
     assert!(matches!(Smtp::connect(Broken(ErrorKind::TimedOut)), Err(ProtoError::Io(_))));
     assert!(matches!(Smtp::resume(Broken(ErrorKind::ConnectionReset)).send("a@example.org", &["b@example.org"], b"x"), Err(ProtoError::Io(_))));
 }
