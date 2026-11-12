@@ -38,6 +38,9 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
+    /// it was run without one; runs `mail.move` or `mail.copy`.
+    MoveItems(crate::move_items::MoveItems),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -230,6 +233,7 @@ impl Dialog {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
+            Dialog::MoveItems(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
@@ -301,6 +305,7 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -1247,6 +1252,10 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        // Move to Folder and Copy to Folder without a folder (their keys, the menu bar) ask which
+        // (#1176).
+        "mail.move" if !has("folder") => Some("moveItems"),
+        "mail.copy" if !has("folder") => Some("copyItems"),
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
@@ -1546,6 +1555,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     Err(e) => *error = e,
                 }
             }
+        }
+        Dialog::MoveItems(d) => {
+            let mut outcome = crate::move_items::Outcome::Open;
+            let open = window(ctx, d.title(), 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::move_items::Outcome::Close);
         }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;
