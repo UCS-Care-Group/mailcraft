@@ -1064,7 +1064,7 @@ fn renamed_rules<'a>(s: &'a Session, params: &Value) -> Vec<&'a mailcraft_model:
 fn rename_beside_said(s: &Session, params: &Value) -> String {
     let mut said = String::new();
     for r in renamed_rules(s, params) {
-        let more = beside_said_of(s, r.account, r.id, true, "renaming it in the rules");
+        let more = beside_said_of(s, r.account, r.id, true, "renaming the category in the rules");
         if !said.contains(&more) {
             said.push_str(&more);
         }
@@ -2023,11 +2023,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             if !rule_onto.is_empty() {
                 // Send for the rules (#566): one that files mail onto another server is on after it.
-                does.push(by_count(
-                    rule_onto.len(),
-                    "puts the rules back as they were, with one switched on that files mail onto the server of {server}",
-                    "puts the rules back as they were, with some switched on that file mail onto the server of {server}",
-                    &[("server", &servers_named(s, &rule_onto))],
+                // (Whatever the number of rules: `rule_onto` holds the servers.)
+                does.push(format!(
+                    "puts the rules back as they were, so that new mail is filed onto the server of {} again",
+                    servers_named(s, &rule_onto)
                 ));
             }
             let deleting = s.undo_rules_deleting(redo);

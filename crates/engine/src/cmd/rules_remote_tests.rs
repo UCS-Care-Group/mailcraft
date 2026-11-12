@@ -1744,7 +1744,7 @@ fn an_agents_undo_that_brings_back_a_rule_filing_onto_another_server_is_asked_as
         found.push(format!("{kind}: {undo:?}, said: {said}"));
     }
     assert!(found.iter().all(|f| f.contains("Owner(Send)")), "an agent's undo that brings the rule back is asked as a send: {found:#?}");
-    assert!(found.iter().all(|f| f.contains("one switched on that files mail onto the server of")), "{found:#?}");
+    assert!(found.iter().all(|f| f.contains("so that new mail is filed onto the server of")), "{found:#?}");
 }
 
 /// A rule that copies this computer's mail onto the Microsoft account's server: another change to
@@ -2071,7 +2071,7 @@ fn an_undos_send_question_names_the_meeting_change_beside_a_rule_onto_another_se
     s.history.last_mut().unwrap().mailbox.event_changes.push(change);
     assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Send));
     let said = describe(&s, "edit.undo", &json!({}));
-    assert!(said.contains("a change to a meeting") && said.contains("files mail onto the server of"), "{said}");
+    assert!(said.contains("a change to a meeting") && said.contains("filed onto the server of"), "{said}");
 }
 
 /// The owner's yes to an agent's Run Rules Now reaches the mail that was in the folder when asked:

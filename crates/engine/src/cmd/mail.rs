@@ -779,20 +779,18 @@ fn read_on_its_way(s: &Session, ids: &[Id], folder: Id) -> Result<HashSet<Id>, c
     for id in ids {
         let Some(m) = s.mailbox.message(*id).filter(|m| m.folder != folder) else { continue };
         if m.account != to && s.mailbox.copy_not_made_yet(*id) {
-            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
             return Err(failed!(
                 "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made",
-                subject
+                subject = super::compose::subject_of(m)
             ));
         }
         if !s.mailbox.held_on_its_way(*id, to) {
             continue;
         }
         if !s.original_readable(m, true) {
-            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
             return Err(failed!(
                 "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is",
-                subject
+                subject = super::compose::subject_of(m)
             ));
         }
         here.insert(*id);
