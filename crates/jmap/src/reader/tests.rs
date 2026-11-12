@@ -80,11 +80,12 @@ fn kind() -> Kind {
     kind_of(1_000, json!({}), json!({}))
 }
 
-/// A thing is its word; one without a word is none.
+/// A thing is its word; one without a word is none, and one whose word is no text can not be read.
 fn made(_: &str, entry: &Value) -> Made<String> {
     match entry.get("word") {
         Some(Value::String(word)) => Made::Item(word.clone()),
-        _ => Made::Other,
+        Some(_) => Made::Unreadable,
+        None => Made::Other,
     }
 }
 
@@ -364,12 +365,14 @@ fn only_what_was_asked_for_is_read_and_each_once() {
 }
 
 #[test]
-fn what_is_no_item_is_answered_for() {
+fn what_is_no_item_is_answered_for_and_what_can_not_be_read_is_not() {
     let list = json!([{"id": "T1"}, {"id": "T2", "word": 7}, thing("T3")]);
     let connection = connected(500, vec![page(json!(["T1", "T2", "T3"])), page(json!([])), things(list)]);
     let (ended, out) = read(&connection, &kind());
-    assert!(ended.is_ok() && out.clean());
+    assert!(ended.is_ok());
     assert_eq!(out.items, words(&["T3"]));
+    assert_eq!(out.unread, 1, "the one that could not be read");
+    assert!(!out.clean() && out.why.is_none() && !out.short);
 }
 
 #[test]

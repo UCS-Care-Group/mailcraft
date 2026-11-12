@@ -34,7 +34,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{FolderListing, GraphProgress, MessagePage, SendDone, SendUp, ThreadOf, is_false};
 use crate::Id;
-use crate::remote::ContactsDownload;
+use crate::remote::{CalendarsDownload, ContactsDownload, EventsDownload};
+use mailcraft_time::Timestamp;
 
 /// Most messages of one mailbox that a run reads (the newest ones): what [`JmapMailRequest::window`]
 /// is held to, here and by the host.
@@ -423,6 +424,96 @@ impl std::fmt::Debug for JmapContactsResult {
             .field("not_offered", &self.not_offered)
             .field("contacts", &self.contacts.as_ref().map(|download| download.contacts.len()))
             .field("complete", &self.contacts.as_ref().map(|download| download.complete))
+            .field("errors", &self.errors.len())
+            .field("busy_for", &self.busy_for)
+            .field("stopped", &self.stopped)
+            .field("auth_refused", &self.auth_refused)
+            .finish()
+    }
+}
+
+/// What a host is asked to read of a [`crate::AccountKind::Jmap`] account's calendars (JMAP for
+/// Calendars, events as JSCalendar, RFC 8984): the list of them, and the events of each in a
+/// stretch of time, a repeating event as its occurrences in the stretch. It says where the server
+/// is, as a [`JmapMailRequest`] does; the secret that opens the server goes beside it.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapCalendarRequest {
+    pub account: Id,
+    /// The account's address: what the answer is checked against.
+    pub email: String,
+    /// The address of the server's session resource ([`crate::JmapServer::session`]). It may carry
+    /// the account's address, so it is never logged.
+    pub session: String,
+    /// The secret that goes beside this request is a bearer token ([`crate::JmapServer::bearer`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub bearer: bool,
+    /// The stretch whose events are read (Unix seconds, UTC): from `from` up to, not including, `to`.
+    pub from: Timestamp,
+    pub to: Timestamp,
+}
+
+/// What reading a JMAP account's calendars came to. Never an error as a whole: mail goes on either way.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapCalendarResult {
+    pub account: Id,
+    /// The address of the account the request was for, and the session's address it named: an
+    /// answer is not taken in by another account, nor once the account names another server.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
+    /// The server does not offer calendars for this account (no `urn:ietf:params:jmap:calendars`):
+    /// nothing was read, nothing is wrong, and there is no need to ask again soon.
+    #[serde(skip_serializing_if = "is_false")]
+    pub not_offered: bool,
+    /// The account's calendars, when they could be listed. Exactly one is its main one
+    /// ([`crate::remote::RemoteCalendar::main`]), and each is one the account only reads here
+    /// ([`crate::Rights::Read`]) until changes go up. Its account and address are the request's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub calendars: Option<CalendarsDownload>,
+    /// The events of the stretch, one download for each calendar that could be read, in the order
+    /// of the list: [`EventsDownload::calendar`] is empty for the main one and the server's id of
+    /// the calendar otherwise, as the engine names them. To be taken in after the list.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<EventsDownload>,
+    /// Problems worth telling the owner; empty when all went well.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
+    /// The server said it was busy and to stay away this many seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub busy_for: Option<u32>,
+    /// The reading was called off before it ended.
+    #[serde(skip_serializing_if = "is_false")]
+    pub stopped: bool,
+    /// The server turned the secret down.
+    #[serde(skip_serializing_if = "is_false")]
+    pub auth_refused: bool,
+}
+
+/// Counts only, as a run's request: no address.
+impl std::fmt::Debug for JmapCalendarRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JmapCalendarRequest")
+            .field("account", &self.account)
+            .field("bearer", &self.bearer)
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .finish()
+    }
+}
+
+/// Counts only: no address, and nothing of a calendar or an event.
+impl std::fmt::Debug for JmapCalendarResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let events: usize = self.events.iter().map(|download| download.events.len()).sum();
+        f.debug_struct("JmapCalendarResult")
+            .field("account", &self.account)
+            .field("not_offered", &self.not_offered)
+            .field("calendars", &self.calendars.as_ref().map(|download| download.calendars.len()))
+            .field("downloads", &self.events.len())
+            .field("events", &events)
             .field("errors", &self.errors.len())
             .field("busy_for", &self.busy_for)
             .field("stopped", &self.stopped)

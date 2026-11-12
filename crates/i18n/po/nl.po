@@ -13235,6 +13235,11 @@ msgstr "De agenda „{name}” kan alleen worden gelezen: de eigenaar heeft dit 
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "De agenda „{name}” toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
@@ -13628,7 +13633,7 @@ msgid "The link is on the clipboard: send it to your organisation's administrato
 msgstr "De koppeling staat op het klembord: stuur deze naar de beheerder van uw organisatie"
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/jmap_calendar.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "De lijst met agenda's kon niet worden opgehaald: {error}"

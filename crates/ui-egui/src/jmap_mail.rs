@@ -36,7 +36,7 @@ use std::sync::mpsc::TryRecvError;
 
 use mailcraft_engine::cmd::jmap_mail::apply_jmap_mail;
 use mailcraft_model::Id;
-use mailcraft_model::sync::{JmapContactsRequest, JmapFetchRequest, JmapMailRequest, SyncPhase};
+use mailcraft_model::sync::{JmapCalendarRequest, JmapContactsRequest, JmapFetchRequest, JmapMailRequest, SyncPhase};
 use serde_json::{Value, json};
 
 use crate::{MailApp, MailRun, dialogs};
@@ -73,6 +73,9 @@ pub struct JmapSideJob<Q> {
 /// What the host is asked to read of an account's contacts ([`crate::Services::jmap_contacts`]).
 pub type JmapContactsJob = JmapSideJob<JmapContactsRequest>;
 
+/// What the host is asked to read of an account's calendars ([`crate::Services::jmap_calendar`]).
+pub type JmapCalendarJob = JmapSideJob<JmapCalendarRequest>;
+
 impl MailApp {
     /// The secret a job of the JMAP account `account` goes with, when one is at hand: the one
     /// typed this session, or none (empty) when the host holds the credential.
@@ -95,6 +98,8 @@ impl MailApp {
             self.jmap_refused.remove(&account);
             // And its contacts follow the run, whatever came of asking for them before.
             self.jmap_contacts.by_hand(account);
+            // And so do its calendars.
+            self.jmap_calendar.by_hand(account);
         }
         let Some(secret) = self.jmap_secret(account) else {
             self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
@@ -194,6 +199,8 @@ impl MailApp {
                 }
                 // Its contacts are read next, by themselves ([`crate::jmap_contacts`]).
                 self.jmap_contacts.after_run(account);
+                // And its calendars after them ([`crate::jmap_calendar`]).
+                self.jmap_calendar.after_run(account);
             }
             self.note_pushed(account);
             // What still waits after a run whose changes were all made never went with it (a

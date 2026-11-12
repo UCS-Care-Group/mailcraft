@@ -12594,6 +12594,11 @@ msgstr "El calendario «{name}» es de solo lectura: su propietario no ha permit
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 
@@ -12953,7 +12958,7 @@ msgid "The link is on the clipboard: send it to your organisation's administrato
 msgstr "El vínculo está en el Portapapeles: envíeselo al administrador de su organización"
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/jmap_calendar.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "No se pudo incorporar la lista de calendarios: {error}"

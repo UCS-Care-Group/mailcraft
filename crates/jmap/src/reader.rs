@@ -205,6 +205,8 @@ pub(crate) enum Made<T> {
     Item(T),
     /// Answered for, and nothing that is kept: a group among the cards, say.
     Other,
+    /// It can not be read (an event whose time can not be told, say): it counts as not answered for.
+    Unreadable,
 }
 
 /// What was read of one list, and what could not be.
@@ -343,7 +345,7 @@ impl<H: HttpExchange> Calls<'_, H> {
     }
 
     /// `<Type>/get` of `ids`. Only what was asked for is read, each once; an id the answer has no object for
-    /// and does not say is gone counts as not read.
+    /// and does not say is gone counts as not read, and so does an object that can not be read.
     async fn get<T>(&self, kind: &Kind, ids: &[String], out: &mut Outcome<T>, make: &impl Fn(&str, &Value) -> Made<T>) -> Result<(), Stop> {
         let mut args = kind.reading.clone();
         args.insert("accountId".into(), json!(self.account.as_str()));
@@ -362,6 +364,7 @@ impl<H: HttpExchange> Calls<'_, H> {
             .collect();
         let mut found: HashSet<&str> = HashSet::new();
         let mut read: Vec<T> = Vec::new();
+        let mut untold = 0usize;
         for entry in list.iter().take(ids.len()) {
             let Some(id) = entry.get("id").and_then(Value::as_str).and_then(|id| asked.get(id).copied()) else { continue };
             if !found.insert(id) {
@@ -370,6 +373,7 @@ impl<H: HttpExchange> Calls<'_, H> {
             match make(id, entry) {
                 Made::Item(item) => read.push(item),
                 Made::Other => {}
+                Made::Unreadable => untold = untold.saturating_add(1),
             }
         }
         // A server that says everything of a call is gone has more likely lost what holds it (the address
@@ -377,7 +381,7 @@ impl<H: HttpExchange> Calls<'_, H> {
         // the list was read: none of it is taken for gone.
         let all_gone = ids.len() > 1 && found.is_empty() && ids.iter().all(|id| gone.contains(id.as_str()));
         let short = if all_gone { ids.len() } else { ids.iter().filter(|id| !found.contains(id.as_str()) && !gone.contains(id.as_str())).count() };
-        out.unread = out.unread.saturating_add(short);
+        out.unread = out.unread.saturating_add(short).saturating_add(untold);
         out.items.append(&mut read);
         Ok(())
     }

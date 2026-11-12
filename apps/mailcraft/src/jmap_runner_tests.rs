@@ -352,10 +352,10 @@ fn a_retry_date_is_no_answer_while_the_clock_is_not_set() {
     assert_eq!(after("45").retry_after(), Some("45"));
 }
 
-// What follows tests what is not in the runner's first part: contacts, and the line a job says
-// without a credential it could send. The server is the one above ([`serve`]).
+// What follows tests what is not in the runner's first part: contacts, calendars, and the line a
+// job says without a credential it could send. The server is the one above ([`serve`]).
 
-use mailcraft_model::sync::JmapContactsRequest;
+use mailcraft_model::sync::{JmapCalendarRequest, JmapContactsRequest};
 
 /// A stop nobody has asked for, or one already asked for.
 fn stop(called_off: bool) -> Stop {
@@ -364,6 +364,17 @@ fn stop(called_off: bool) -> Stop {
 
 fn contacts_request(session: &str) -> JmapContactsRequest {
     JmapContactsRequest { account: ACCOUNT, email: "ada@example.org".into(), session: session.into(), bearer: true }
+}
+
+fn calendar_request(session: &str) -> JmapCalendarRequest {
+    JmapCalendarRequest {
+        account: ACCOUNT,
+        email: "ada@example.org".into(),
+        session: session.into(),
+        bearer: true,
+        from: 1_789_315_200,
+        to: 1_823_616_000,
+    }
 }
 
 #[test]
@@ -380,42 +391,66 @@ fn contacts_with_a_credential_that_cannot_be_sent_say_so_without_the_secret_or_t
 }
 
 #[test]
-fn no_secret_for_contacts_sends_nothing_and_says_so() {
+fn calendars_with_a_credential_that_cannot_be_sent_say_so_without_the_secret_or_the_address() {
+    // (A session address nothing listens at: the run ends before any request.)
+    let session = "https://jmap.example.org/jmap/session?user=ada@example.org";
+    let secret = "bad token with spaces";
+    let result = run_calendar_with(&calendar_request(session), secret, &stop(false));
+    assert_eq!((result.account, result.email.as_str(), result.session.as_str()), (ACCOUNT, "ada@example.org", session));
+    assert!(result.calendars.is_none() && result.events.is_empty());
+    assert!(!result.not_offered && !result.auth_refused && !result.stopped && result.busy_for.is_none());
+    let [line]: [String; 1] = result.errors.try_into().unwrap();
+    assert!(line.starts_with("Couldn't read the calendars from the server: "), "{line}");
+    assert!(!line.contains(secret) && !line.contains("ada@example.org") && !line.contains("jmap.example.org"), "{line}");
+}
+
+#[test]
+fn no_secret_for_contacts_or_calendars_sends_nothing_and_says_so() {
     let (server, _) = filled();
     let served = serve(&server);
     let contacts = run_contacts_with(&contacts_request(&served.session), "", &stop(false));
     assert!(contacts.contacts.is_none() && !contacts.auth_refused && contacts.errors.len() == 1, "{:?}", contacts.errors);
+    let calendars = run_calendar_with(&calendar_request(&served.session), "", &stop(false));
+    assert!(calendars.calendars.is_none() && !calendars.auth_refused && calendars.errors.len() == 1, "{:?}", calendars.errors);
     assert_eq!(served.requests.load(Ordering::Relaxed), 0, "no connection was made");
 }
 
 #[test]
-fn contacts_run_over_http_and_a_server_without_them_is_said_to_offer_none() {
+fn contacts_and_calendars_run_over_http_and_a_server_without_them_is_said_to_offer_none() {
     // (The stand-in keeps mail alone: the sign-in goes through the runner's transport, and the
-    // reader finds that the session names no account for contacts.)
+    // readers find that the session names no account for contacts or calendars.)
     let (server, _) = filled();
     let served = serve(&server);
     let contacts = run_contacts_with(&contacts_request(&served.session), TOKEN, &stop(false));
     assert!(contacts.not_offered && contacts.contacts.is_none() && !contacts.auth_refused, "{:?}", contacts.errors);
     assert!(contacts.errors.is_empty(), "{:?}", contacts.errors);
     assert_eq!((contacts.account, contacts.session.as_str()), (ACCOUNT, served.session.as_str()));
-    assert!(served.requests.load(Ordering::Relaxed) >= 1, "it signed in");
+    let calendars = run_calendar_with(&calendar_request(&served.session), TOKEN, &stop(false));
+    assert!(calendars.not_offered && calendars.calendars.is_none() && !calendars.auth_refused, "{:?}", calendars.errors);
+    assert!(calendars.errors.is_empty(), "{:?}", calendars.errors);
+    assert!(served.requests.load(Ordering::Relaxed) >= 2, "each signed in");
 }
 
 #[test]
-fn a_secret_the_server_refuses_for_contacts_asks_the_owner_again() {
+fn a_secret_the_server_refuses_for_contacts_or_calendars_asks_the_owner_again() {
     let (server, _) = filled();
     let served = serve(&server);
     let contacts = run_contacts_with(&contacts_request(&served.session), "not-the-token", &stop(false));
     assert!(contacts.auth_refused && contacts.contacts.is_none());
     assert!(!contacts.errors.iter().any(|line| line.contains("not-the-token")));
+    let calendars = run_calendar_with(&calendar_request(&served.session), "not-the-token", &stop(false));
+    assert!(calendars.auth_refused && calendars.calendars.is_none());
+    assert!(!calendars.errors.iter().any(|line| line.contains("not-the-token")));
 }
 
 #[test]
-fn contacts_called_off_before_they_begin_send_nothing() {
+fn contacts_and_calendars_called_off_before_they_begin_send_nothing() {
     let (server, _) = filled();
     let served = serve(&server);
     let contacts = run_contacts_with(&contacts_request(&served.session), TOKEN, &stop(true));
     assert!(contacts.contacts.is_none() && !contacts.auth_refused && !contacts.not_offered);
+    let calendars = run_calendar_with(&calendar_request(&served.session), TOKEN, &stop(true));
+    assert!(calendars.calendars.is_none() && !calendars.auth_refused && !calendars.not_offered);
     assert_eq!(served.requests.load(Ordering::Relaxed), 0, "no connection was made");
 }
 

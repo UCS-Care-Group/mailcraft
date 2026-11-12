@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! What the window's small jobs beside a JMAP account's Send/Receive share: one kind of the
-//! account's data read from its server by itself ([`crate::jmap_contacts`]), one job at a time for
-//! each kind.
+//! account's data read from its server by itself ([`crate::jmap_contacts`],
+//! [`crate::jmap_calendar`]), one job at a time for each kind.
 //!
 //! [`SideJob`] is what the app remembers of one kind: the job in flight, when each account was
 //! last asked, which are asked as soon as may be, and which are left alone and until when.
@@ -164,6 +164,11 @@ impl<R: Answer> SideJob<R> {
     /// Whether a job is in flight.
     pub(crate) fn running(&self) -> bool {
         self.job.is_some()
+    }
+
+    /// Whether the job in flight is `account`'s.
+    pub(crate) fn reading(&self, account: Id) -> bool {
+        self.job.as_ref().is_some_and(|(job, _)| job.account == account)
     }
 
     /// Whether the job in flight was started for another opening of a mailbox than `opening`: its

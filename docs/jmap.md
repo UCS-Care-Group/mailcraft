@@ -4,9 +4,9 @@
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
 such an account in the desktop app and in the browser build, and takes what you change in its mail
-up to its server; the desktop app reads its contacts too, where the server offers them (JMAP for
-Contacts, RFC 9610). The command line has no way to reach a JMAP server yet: `mailcraft-cli sync`
-refuses it.
+up to its server; the desktop app reads its contacts (JMAP for Contacts, RFC 9610) and its calendars
+(JMAP for Calendars) too, where the server offers them. The command line has no way to reach a JMAP
+server yet: `mailcraft-cli sync` refuses it.
 
 ## What works
 
@@ -34,6 +34,19 @@ refuses it.
   you ask for the account's Send/Receive. They are read only: a contact the server keeps is not
   changed or deleted here, as a Microsoft account's is not. A contact's picture is not read, and no
   address in a contact is fetched. Groups of contacts are passed over.
+- **The account's calendars are shown**, in the desktop app, from a server that offers JMAP for
+  Calendars: the calendars the account subscribes to and may read (100 at the most, the events of 64), each with
+  its
+  name and colour, and their events from a month back to a year ahead (20,000 of a calendar at
+  the most): subject, place, notes, start and end with the time zone, whole-day events, show-as,
+  private, categories, the reminder, and the people invited with what they answered. They are read
+  after the contacts, at the same times, and also when you bring the calendar to the front and the
+  last reading is more than two minutes old. An event the server no longer has in that stretch goes
+  from here once the calendar's whole list could be read. They are read only: every such calendar
+  is one you can't change here, nothing made here goes into one, and nothing of an event is written
+  to the server. A repeating event comes as its occurrences in the stretch,
+  each an event of its own (the server works them out); the series as one repeating event is
+  [#1090](https://github.com/UCS-Care-Group/mailcraft/issues/1090).
 
 - **What you change goes up** (#1074): a read mark, a flag, the answered and forwarded marks, a
   move between two of the server's mailboxes (Delete is a move into its Deleted Items) and a
@@ -195,6 +208,15 @@ File › Open, and give the token when Send/Receive asks.
   `Calls::read_all`), when such a job is due in the window and how long it waits after one that
   came to nothing (`crates/ui-egui/src/jmap_side_job.rs`), and the thread and the sign-in of the
   desktop's job (`on_thread` and `signed_in` in `apps/mailcraft/src/jmap_runner.rs`).
+- Calendars are a job of their own too (`Services::jmap_calendar`,
+  `crates/ui-egui/src/jmap_calendar.rs`): `mailcraft_jmap::sync_calendar` lists the calendars
+  (`Calendar/get`), then for each lists the events of the stretch with what repeats expanded by
+  the server (`CalendarEvent/query`) and reads them (`CalendarEvent/get`), each JSCalendar event
+  (RFC 8984) made into an event within bounds (`crates/jmap/src/calendars/event.rs`); the engine
+  takes the list and the events in as it does a Microsoft account's (`cmd::remote::apply_calendars`,
+  `apply_events`), every calendar as one the account only reads. The events of a calendar are
+  listed and read by the code the contacts are (`reader.rs`), and the job in the window and on the
+  desktop goes through the same `jmap_side_job.rs`, `on_thread` and `signed_in`.
 - The desktop app is that host (`apps/mailcraft/src/jmap_runner.rs`), over `mailcraft_net::https`,
   each job on a thread of its own; Stop is heard before each request.
 - The browser build is that host too (`apps/mailcraft-web/src/jmap.rs`), over `fetch`

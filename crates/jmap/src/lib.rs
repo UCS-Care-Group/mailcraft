@@ -33,6 +33,9 @@
 //! - [`fetch`] brings messages whole: the raw octets an email's blob holds.
 //! - [`sync_contacts`] reads the account's contacts (RFC 9610, cards in JSContact, RFC 9553), when the
 //!   server offers them ([`contacts`]). Read only.
+//! - [`sync_calendar`] reads the account's calendars and the events of a stretch of them (JMAP for
+//!   Calendars, draft-ietf-jmap-calendars; events in JSCalendar, RFC 8984), when the server offers them
+//!   ([`calendars`]). Read only.
 //!
 //! Everything a server sends is hostile: sizes, counts, nesting and the length of every string are
 //! bounded, ids are held to the JMAP alphabet ([`Id`]), and nothing indexes into what came over the wire.
@@ -103,6 +106,8 @@ mod hostile_tests;
 mod test_support;
 
 // The mail client.
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod calendars;
 pub mod connection;
 pub mod contacts;
 pub mod fetch;
@@ -113,6 +118,7 @@ mod reader;
 pub mod standin;
 
 pub use address::{Address, AddressError, Origin, Scheme};
+pub use calendars::{CAPABILITY_CALENDARS, failed_calendar, sync_calendar};
 pub use classify::judge_response;
 pub use client::{Client, fetch_session, read_session, session_request};
 pub use connection::{Connection, Failure};

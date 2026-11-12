@@ -254,14 +254,15 @@ pub(crate) fn run_fetch_with(request: &JmapFetchRequest, secret: &str, stop: &St
 }
 
 // What follows is not in the runner above, and is built on its pieces ([`Transport`], [`Stop`],
-// [`credentials`]): an account's contacts (RFC 9610), read in one answer on a thread of the job's
-// own and never written; and what a job says when it has no credential it could send. The job
-// carries a stop of its own, which is latched as a run's is ([`Stop::new`]). What a job of one kind
-// of an account's data does whatever the kind is in [`on_thread`] and [`signed_in`].
+// [`credentials`]): an account's contacts (RFC 9610) and its calendars (JMAP for Calendars), each
+// read in one answer on a thread of the job's own and never written; and what a job says when it
+// has no credential it could send. Their jobs carry a stop of their own, which is latched as a
+// run's is ([`Stop::new`]). What a job of one kind of an account's data does whatever the kind is in
+// [`on_thread`] and [`signed_in`].
 
-use mailcraft_jmap::{Redactor, failed_contacts, sync_contacts};
-use mailcraft_model::sync::{JmapContactsRequest, JmapContactsResult};
-use mailcraft_ui_egui::jmap_mail::{JmapContactsJob, JmapSideJob};
+use mailcraft_jmap::{Redactor, failed_calendar, failed_contacts, sync_calendar, sync_contacts};
+use mailcraft_model::sync::{JmapCalendarRequest, JmapCalendarResult, JmapContactsRequest, JmapContactsResult};
+use mailcraft_ui_egui::jmap_mail::{JmapCalendarJob, JmapContactsJob, JmapSideJob};
 
 /// Scrubs `error` of the account's secret, address, session URL and any word containing `@`.
 pub(crate) fn redacted_line(email: &str, session: &str, secret: &str, error: &dyn std::fmt::Display) -> String {
@@ -362,6 +363,20 @@ pub(crate) fn run_contacts_with(request: &JmapContactsRequest, secret: &str, sto
     let unsent = only_a_line!(JmapContactsResult, request);
     let failed = |error: &Error| failed_contacts(request, error);
     signed_in(&whose, stop, "contacts", unsent, failed, async |connection| sync_contacts(connection, request, stop.flag()).await)
+}
+
+/// Reads the calendars of a JMAP account and their events in the stretch asked for, on a thread
+/// of its own. The request goes to `mailcraft-jmap` as it is, and nothing of it is logged here.
+pub(crate) fn run_calendar(job: JmapCalendarJob, wake: &egui::Context) -> Receiver<JmapCalendarResult> {
+    on_thread(job, wake, "calendars", run_calendar_with)
+}
+
+/// [`run_calendar`] on this thread.
+pub(crate) fn run_calendar_with(request: &JmapCalendarRequest, secret: &str, stop: &Stop) -> JmapCalendarResult {
+    let whose = Whose { email: &request.email, session: &request.session, bearer: request.bearer, secret };
+    let unsent = only_a_line!(JmapCalendarResult, request);
+    let failed = |error: &Error| failed_calendar(request, error);
+    signed_in(&whose, stop, "calendars", unsent, failed, async |connection| sync_calendar(connection, request, stop.flag()).await)
 }
 
 #[cfg(test)]

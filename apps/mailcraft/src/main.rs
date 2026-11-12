@@ -1708,6 +1708,7 @@ fn services(
     let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let (jmap_ctx, jmap_fetch_ctx) = (ctx.clone(), ctx.clone());
     let jmap_contacts_ctx = ctx.clone();
+    let jmap_calendar_ctx = ctx.clone();
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
@@ -1769,6 +1770,8 @@ fn services(
         jmap_fetch: Some(Box::new(move |job| jmap_runner::run_fetch(job, &jmap_fetch_ctx))),
         // Its contacts (RFC 9610), read and never written.
         jmap_contacts: Some(Box::new(move |job| jmap_runner::run_contacts(job, &jmap_contacts_ctx))),
+        // Its calendars and their events (JMAP for Calendars), read and never written.
+        jmap_calendar: Some(Box::new(move |job| jmap_runner::run_calendar(job, &jmap_calendar_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
