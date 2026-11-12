@@ -1989,8 +1989,8 @@ fn paint_bar(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, sta
     }
 }
 
-/// A timed event in a month cell: a chip tinted like its block in the hours, with the same
-/// edge on its left, then the time and the title.
+/// A timed event in a month cell. Its title stays visible in narrow columns; the time
+/// appears beside it when both can fit and stays available in the tooltip.
 fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, selected: bool, hovered: bool) {
     let look = look(&item.ev, item.color, item.edge, t, hovered, item.dim);
     p.rect_filled(rect, 3.0, look.fill);
@@ -2007,8 +2007,17 @@ fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, se
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
     let y = rect.center().y;
     let mut left = rect.min.x + EDGE_W + 5.0;
-    let stop = paint_marks(&p, item, &look, rect.max.x - 3.0, left + 40.0, y);
-    left += paint_clipped(&p, pos2(left, y), stop - left, &crate::dates::clock(item.occ.start, twelve), regular(10.5), look.dim) + 5.0;
+    let right = rect.max.x - 3.0;
+    let time = crate::dates::clock(item.occ.start, twelve);
+    let time_font = regular(10.5);
+    let time_width = p.layout_no_wrap(time.clone(), time_font.clone(), look.dim).size().x;
+    let show_time = right - left >= time_width + 5.0 + 48.0;
+    // In compact chips, give the title the room that would otherwise go to marks.
+    let text_room = if show_time { time_width + 5.0 } else { 28.0 };
+    let stop = paint_marks(&p, item, &look, right, left + text_room, y);
+    if show_time {
+        left += paint_clipped(&p, pos2(left, y), stop - left, &time, time_font, look.dim) + 5.0;
+    }
     paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, item.ev.cancelled);
 }
 

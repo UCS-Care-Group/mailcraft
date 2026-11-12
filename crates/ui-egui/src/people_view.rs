@@ -293,7 +293,10 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
     mut row: impl FnMut(&mut Ui, Id, u16, Rect),
 ) {
     let t = Tokens::get(ui.ctx());
+    let plain = ui.style().clone();
+    crate::widgets::overlay_scroll_style(ui, &t);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+        ui.set_style(plain.clone());
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), layout.height), Sense::hover());
         let (origin, width) = (area.min, area.width());
         if let Some(r) = reveal.and_then(|row| layout.position(row)).and_then(|i| layout.rows.get(i)) {
@@ -309,6 +312,7 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
             row(ui, r.id, r.copy, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
         }
     });
+    ui.set_style(plain);
 }
 
 /// The contact list as laid out, with the names of the categories its headings stand for when it

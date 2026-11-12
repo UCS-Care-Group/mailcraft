@@ -1745,7 +1745,7 @@ pub struct MailApp {
     pub auto_sync: bool,
     /// Scroll bars float over what they scroll, slim, and show only while it moves or the pointer
     /// is over it, as a Mac's do: the message list keeps no lane for its bar and has no arrows.
-    /// On a Mac only; tests and screenshots turn it on anywhere.
+    /// On by default; tests and screenshots can select the scroll lane.
     pub overlay_scroll_bars: bool,
     /// The window is drawn for headless screenshots (`examples/ui_shot`): a password shown with
     /// its eye is drawn as dots all the same, as while `ui.screenshot` waits for a frame (#438).
@@ -1986,7 +1986,7 @@ impl MailApp {
             graph_switch_copy: None,
             graph_switch_waiting_shown: Default::default(),
             auto_sync: true,
-            overlay_scroll_bars: cfg!(target_os = "macos"),
+            overlay_scroll_bars: true,
             headless_shots: false,
             driven: false,
             last_auto_sync: 0.0,

@@ -15,8 +15,8 @@
 //! any line; `{"scale": 1}` is a screen at 100 %, where the fonts' hinting shows) and opens the
 //! sample mailbox, as of a fixed Wednesday afternoon so shots compare, unless the first line is
 //! `{"empty": true}`. `{"overlayScrollBars": true}` (or `false`) on any line has the message
-//! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
-//! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
+//! list's scroll bar float over the rows (the default) or keep its lane.
+//! The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
 //! in another). The system has no language or regional format unless a line names one
 //! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are

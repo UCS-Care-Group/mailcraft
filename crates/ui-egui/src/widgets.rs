@@ -219,6 +219,37 @@ pub fn mi_check(ui: &mut Ui, app: &mut MailApp, label: &str, checked: bool, id: 
     }
 }
 
+const OVERLAY_SCROLL_HOVER_WIDTH: f32 = 9.0;
+const OVERLAY_SCROLL_MARGIN: f32 = 2.0;
+/// The room needed to keep controls clear of the widest scrollbar thumb.
+pub(crate) const OVERLAY_SCROLL_INSET: f32 = OVERLAY_SCROLL_HOVER_WIDTH + OVERLAY_SCROLL_MARGIN;
+
+/// A slim scrollbar shared by lists, with no lane and a larger thumb under the pointer.
+pub(crate) fn overlay_scroll_style(ui: &mut Ui, t: &Tokens) {
+    let style = ui.style_mut();
+    style.spacing.scroll = egui::style::ScrollStyle {
+        bar_width: OVERLAY_SCROLL_HOVER_WIDTH,
+        floating_width: 7.0,
+        bar_inner_margin: 0.0,
+        bar_outer_margin: OVERLAY_SCROLL_MARGIN,
+        handle_min_length: 24.0,
+        foreground_color: false,
+        dormant_background_opacity: 0.0,
+        active_background_opacity: 0.0,
+        interact_background_opacity: 0.0,
+        dormant_handle_opacity: 0.0,
+        active_handle_opacity: 0.85,
+        interact_handle_opacity: 1.0,
+        ..egui::style::ScrollStyle::floating()
+    };
+    let ink = t.surface.lerp_to_gamma(t.text, 0.53);
+    let round = egui::CornerRadius::same(5);
+    let widgets = &mut style.visuals.widgets;
+    (widgets.inactive.bg_fill, widgets.inactive.corner_radius) = (ink, round);
+    (widgets.hovered.bg_fill, widgets.hovered.corner_radius) = (ink.lerp_to_gamma(t.text, 0.35), round);
+    (widgets.active.bg_fill, widgets.active.corner_radius) = (ink.lerp_to_gamma(t.text, 0.6), round);
+}
+
 /// A bare icon button (pane toolbars, the title bar). `true` on the frame it is clicked.
 pub fn icon_button(ui: &mut Ui, icon: &str, tip: &str, size: f32, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
@@ -258,8 +289,7 @@ pub fn icon_text_button(ui: &mut Ui, icon: &str, label: &str, enabled: bool) -> 
 /// A filled button in the app colour (Send, Save, the default answer of a dialog).
 pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let w = text_w(ui, label, 12.5).max(44.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w + 26.0, 26.0), if enabled { Sense::click() } else { Sense::hover() });
+    let (r, resp) = ui.allocate_exact_size(vec2(primary_button_width(ui, label), 26.0), if enabled { Sense::click() } else { Sense::hover() });
     let fill = if !enabled {
         t.pressed
     } else if resp.hovered() {
@@ -272,6 +302,11 @@ pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     // (Named for screen readers, as a button.)
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     resp
+}
+
+/// How wide a filled button is with this label.
+pub(crate) fn primary_button_width(ui: &Ui, label: &str) -> f32 {
+    text_w(ui, label, 12.5).max(44.0) + 26.0
 }
 
 /// A button with an outline, for what leaves a dialog without committing anything (Close).
