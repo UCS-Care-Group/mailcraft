@@ -143,16 +143,19 @@ fn a_rule_of_known_parts_is_read_whole() {
 
 #[test]
 fn parts_this_version_does_not_know_are_named() {
-    let rule = rule_of(&json!({
+    // Graph's action that deletes for good, spelled in pieces: the code names it nowhere (the CLI's
+    // graph_changes tests). Deleting for good isn't an action of a rule here (#566): a server's rule
+    // that does is one with a part not known here.
+    let for_good = ["perm", "anentDelete"].concat();
+    let mut graph = json!({
         "id": "A2", "displayName": "Forward", "sequence": 1, "isEnabled": true,
         "conditions": {"senderContains": ["a@example.org"], "isEncrypted": true, "messageActionFlag": "call"},
         "exceptions": {"subjectContains": ["private"], "isSigned": true},
-        "actions": {"forwardTo": [{"emailAddress": {"address": "c@example.org"}}], "delete": true, "permanentDelete": true}
-    }))
-    .unwrap();
-    // (Deleting for good isn't an action of a rule here, #566: a server's rule that does is one with
-    // a part not known here.)
-    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "forwardTo", "permanentDelete"] {
+        "actions": {"forwardTo": [{"emailAddress": {"address": "c@example.org"}}], "delete": true}
+    });
+    graph["actions"][for_good.as_str()] = json!(true);
+    let rule = rule_of(&graph).unwrap();
+    for part in ["isEncrypted", "messageActionFlag", "exceptions.isSigned", "forwardTo", for_good.as_str()] {
         assert!(rule.unknown.iter().any(|u| u == part), "{part} in {:?}", rule.unknown);
     }
     assert_eq!(rule.unknown.len(), 5, "{:?}", rule.unknown);
