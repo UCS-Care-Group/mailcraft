@@ -128,10 +128,21 @@ pub trait AlertHost {
     fn trouble(&self) -> Option<AlertTrouble> {
         None
     }
-    /// The alerts clicked since the last call, by their [`DesktopAlert::key`]. Returns at once.
-    fn clicked(&self) -> Vec<u64> {
+    /// The alerts clicked since the last call. Returns at once.
+    fn clicked(&self) -> Vec<Click> {
         Vec::new()
     }
+}
+
+/// A click on an alert, as the system hands it back.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Click {
+    /// The alert's [`DesktopAlert::key`].
+    pub key: u64,
+    /// What the desktop gave with the click for the window to come in front with (an
+    /// xdg-activation token on Wayland), when it gave one: without it a window there may not
+    /// raise itself (#959).
+    pub token: Option<String>,
 }
 
 /// The window's part.
@@ -145,6 +156,9 @@ pub struct State {
     idle_rev: u64,
     /// The mark a Send/Receive under way started from.
     run: Option<(InboxMark, Option<std::path::PathBuf>)>,
+    /// The token of the last click that came with one, for the host to bring the window in front
+    /// with ([`take_activation`]).
+    activation: Option<String>,
 }
 
 /// Text from a message (or an appointment) made fit for an alert, as a name is shown (#454): one
@@ -280,11 +294,20 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
 /// Clicks on alerts: the window comes in front, and what the alert was about is opened.
 fn clicks(app: &mut MailApp, ctx: &egui::Context) {
     let Some(host) = &app.services.alert else { return };
-    let keys = host.clicked();
-    for key in keys.into_iter().take(20) {
-        let Some(opens) = app.alerts.shown.iter().find(|a| a.key == key).map(|a| a.opens) else { continue };
+    let clicks = host.clicked();
+    for click in clicks.into_iter().take(20) {
+        let Some(opens) = app.alerts.shown.iter().find(|a| a.key == click.key).map(|a| a.opens) else { continue };
+        if click.token.is_some() {
+            app.alerts.activation = click.token;
+        }
         open(app, ctx, opens);
     }
+}
+
+/// The token the last click on an alert came with, once: the host brings the window in front with
+/// it, where asking for the focus alone isn't enough (Wayland, #959).
+pub fn take_activation(app: &mut MailApp) -> Option<String> {
+    app.alerts.activation.take()
 }
 
 /// Bring the window in front and open what an alert was about.
