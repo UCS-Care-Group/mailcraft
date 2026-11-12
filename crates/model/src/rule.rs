@@ -22,6 +22,10 @@ use crate::{Address, FlagStatus, Id, Importance, Message, ModelError, Sensitivit
 /// Most words one condition looks for, any of which is enough.
 pub const MAX_WORDS_EACH: usize = 20;
 
+/// Most characters of a word a condition looks for: a longer one is refused, not cut, since a
+/// part of it is found in more mail (#566).
+pub const MAX_WORD: usize = 200;
+
 /// The words of a condition, any of which is enough (Outlook's Search Text): one is written as
 /// text, as rules had it before they took several (#566), so that an earlier MailCraft still
 /// reads it; either is read.

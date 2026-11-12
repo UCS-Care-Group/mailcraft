@@ -141,10 +141,17 @@ fn rules_and_folders_read_as_people_know_them() {
     let junk = "\u{0}\u{202e}é\n".repeat(40_000);
     let mut f = RulesForm::new(&s, &json!({}));
     f.name.clone_from(&junk);
+    f.acts[0] = Act { kind: Do::Categorize, category: "Purple category".into(), ..f.fresh_action() };
+    // A word longer than a rule keeps is refused, not cut: a part of it is found in more mail.
     f.conds[0].text.clone_from(&junk);
-    f.acts[0] = Act { kind: Do::Categorize, category: junk.clone(), ..f.fresh_action() };
+    let (command, params) = f.command();
+    assert!(s.run(command, &params).is_err());
+    // As many hostile words as a condition takes, each as long as one can be.
+    let word = "\u{0}\u{202e}é".repeat(66);
+    f.conds[0].text = (10..30).map(|i| format!("{word}{i}")).collect::<Vec<_>>().join("; ");
     // A category's name longer than a category keeps is refused, not cut: the rule would put on
     // another category than the one named (the dialog offers the names on the list).
+    f.acts[0].category.clone_from(&junk);
     let (command, params) = f.command();
     assert!(s.run(command, &params).is_err());
     f.acts[0].category = "Purple category".into();

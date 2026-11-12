@@ -662,3 +662,30 @@ fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alon
         [("signed", signed), ("urgent", urgent)].into_iter().filter(|(_, id)| s.mailbox.message(*id).is_none()).map(|(k, _)| k).collect();
     assert!(gone.is_empty(), "deleted for good past their exception: {gone:?}");
 }
+
+/// A word longer than a rule keeps is refused, not cut, as a long address or category is: cut, the
+/// condition looks for less of it, and a rule that deletes for good takes mail it was to leave
+/// alone.
+#[test]
+fn a_long_word_is_refused_not_cut() {
+    assert_eq!(mailcraft_model::MAX_WORD, 200, "the Rules dialog's reason says 200");
+    let word = "x".repeat(200);
+    let asked = format!("{word}-2026");
+    for kind in ["subjectOrBodyContains", "subjectContains", "headerContains", "fromContains"] {
+        let (mut s, account, inbox, _) = session();
+        let rule = |value: &str| json!({"name": "Old reports", "account": account, "conditions": [{"type": kind, "value": value}], "actions": [{"type": "deleteForGood"}]});
+        let made = s.run("rules.add", &rule(&asked));
+        let other = arriving(&mut s, inbox, "ada@example.org", &format!("{word}-2025"));
+        if made.is_ok() {
+            s.run("rules.run", &json!({"folder": inbox})).unwrap();
+            assert!(s.mailbox.message(other).is_some(), "{kind}: deleted for good by a word cut short");
+        }
+        assert!(made.is_err(), "{kind}: a word of {} characters was taken", asked.chars().count());
+        assert!(s.run("rules.add", &rule(&word)).is_ok(), "{kind}: 200 characters are taken");
+    }
+    // An address longer than one can be is refused too.
+    let (mut s, account, _, _) = session();
+    let long = format!("{}@example.org", "a".repeat(mailcraft_model::MAX_ADDRESS));
+    let rule = json!({"name": "Ada", "account": account, "conditions": [{"type": "from", "value": long}], "actions": [{"type": "markRead"}]});
+    assert!(s.run("rules.add", &rule).is_err());
+}

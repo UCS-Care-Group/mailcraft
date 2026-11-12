@@ -4356,7 +4356,7 @@ pub(crate) mod rules {
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
-    use mailcraft_model::{Action, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
+    use mailcraft_model::{Action, FolderKind, FollowUp, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
@@ -4575,7 +4575,13 @@ pub(crate) mod rules {
                     }
                     !words.is_empty()
                 }
-                kind if kind.takes_text() => !words.is_empty(),
+                kind if kind.takes_text() => {
+                    // As `rules.add` takes them: a longer word is refused, not cut.
+                    if words.iter().any(|w| w.chars().count() > MAX_WORD) {
+                        return Some(tl!("A word to look for is at most 200 characters."));
+                    }
+                    !words.is_empty()
+                }
                 When::Size => {
                     if self.sizes().is_none() {
                         return Some(tl!("Size is between takes two sizes in KB, the smaller first."));

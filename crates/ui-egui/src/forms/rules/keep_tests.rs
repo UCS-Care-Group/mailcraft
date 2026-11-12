@@ -262,6 +262,27 @@ fn a_rule_looks_for_no_more_words_than_rules_add_takes_and_the_box_for_the_serve
 }
 
 #[test]
+fn a_word_longer_than_rules_add_takes_is_said_not_cut() {
+    // The reason says 200.
+    assert_eq!(MAX_WORD, 200);
+    let mut s = session();
+    let mut f = RulesForm::new(&s, &json!({}));
+    f.name = "Old reports".into();
+    let word = "x".repeat(200);
+    for kind in [When::From, When::To, When::Subject, When::Body, When::SubjectOrBody, When::Header] {
+        f.conds = vec![Cond { kind, text: format!("short; {word}-2026"), ..Default::default() }];
+        assert_eq!(f.lacks(), Some(tl!("A word to look for is at most 200 characters.")), "{kind:?}");
+        let (command, params) = f.command();
+        assert!(s.run(command, &params).is_err(), "{kind:?}: as `rules.add` refuses it");
+        f.conds[0].text = format!("short; {word}");
+        assert_eq!(f.lacks(), None, "{kind:?}");
+    }
+    // An exception too.
+    f.unless = vec![Cond { kind: When::Body, text: format!("{word}y"), ..Default::default() }];
+    assert_eq!(f.lacks(), Some(tl!("A word to look for is at most 200 characters.")));
+}
+
+#[test]
 fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     let mut s = session();
     let mut f = RulesForm::new(&s, &json!({}));
