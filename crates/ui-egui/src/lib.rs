@@ -1101,6 +1101,8 @@ fn fresh_options() -> mailcraft_engine::Prefs {
 }
 
 /// How long a save runs before the status bar says how far it has got ([`MailApp::saving_text`]).
+/// Most screenshots waiting for their picture at once; one more is refused.
+const MAX_SHOTS: usize = 16;
 const SAVING_SHOWN_AFTER_MS: u64 = 700;
 
 /// How long one frame goes on taking in the pieces of a Send/Receive that are waiting
@@ -1682,17 +1684,13 @@ pub struct MailApp {
     decrypt_dwell: std::collections::HashMap<Id, (f64, f64)>,
     /// Messages the owner chose with input of their own (a click or key on a row, the Open
     /// button, a window they opened): an Encrypted message is opened only if it is one of these.
-    /// Nothing the control channel or an agent does adds to it ([`MailApp::track_choice`]).
+    /// Nothing the control channel or an agent does adds to it (see `MailApp::owner_picks`).
     owner_chose: Vec<Id>,
-    /// The message that had the focus when the window last looked.
-    last_focus: Option<Id>,
     /// Frames the window has begun; the frame the control channel last did something in.
     epoch: u64,
     control_epoch: Option<u64>,
-    /// The frame an opened message's text was last drawn in; the frames agents' screenshots were
-    /// asked in, as (token, frame).
+    /// The frame an opened message's text was last drawn in.
     decrypted_drawn: Option<u64>,
-    agent_shots: Vec<(u64, u64)>,
     /// How many opened messages the engine had let go of when the layout cache was last cleaned.
     decryption_gen: u64,
     /// Encrypted messages the host is opening, by message (#30 part 6). Never saved.
@@ -1723,7 +1721,10 @@ pub struct MailApp {
     queued_shots: Vec<(u64, f64, u32)>,
     /// Frames the integration handed back, by the token they were asked with.
     shot_images: std::sync::Arc<std::sync::Mutex<Vec<(u64, std::sync::Arc<egui::ColorImage>)>>>,
-    pending_shots: Vec<(u64, Option<String>, bool, std::sync::mpsc::Sender<Value>, f64)>,
+    /// Screenshots waiting for their picture: (token, path, inline, reply, deadline, and for an
+    /// agent's the frame it was asked in). The agent's mark is part of the entry, so it can't be
+    /// lost while the shot waits.
+    pending_shots: Vec<(u64, Option<String>, bool, std::sync::mpsc::Sender<Value>, f64, Option<u64>)>,
     pub(crate) synthetic: Vec<egui::Event>,
     /// What agents want that waits for the owner's yes ([`agent_gate`]).
     pub(crate) asking: agent_gate::Questions,
@@ -1975,11 +1976,9 @@ impl MailApp {
             decrypting: Default::default(),
             decrypt_dwell: Default::default(),
             owner_chose: Vec::new(),
-            last_focus: None,
             epoch: 0,
             control_epoch: None,
             decrypted_drawn: None,
-            agent_shots: Vec::new(),
             decryption_gen: 0,
             setup_sign_in: None,
             approvals: Default::default(),
@@ -2299,6 +2298,15 @@ impl MailApp {
         // And closing a conversation, which may select its row (#503).
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
+        }
+        // The owner's own click or key on a row picks the message in focus ([`MailApp::owner_picks`]).
+        if r.is_ok()
+            && (id == "mail.select" || keys::MOVES_IN_LIST.contains(&id))
+            && !self.driven
+            && !self.control_recent()
+            && let Some(focus) = self.session.sel.focus()
+        {
+            self.owner_picks(focus);
         }
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
@@ -5371,16 +5379,16 @@ impl MailApp {
                     let _ = reply.send(v);
                 }
                 control::Outcome::Screenshot { path, inline } => {
+                    // (Each waiting one costs a connection's thread: past the cap it is refused.)
+                    if self.pending_shots.len() >= MAX_SHOTS {
+                        let _ = reply.send(json!({"ok": false, "error": "too many screenshots are waiting: ask again in a moment"}));
+                        continue;
+                    }
                     self.shot_token += 1;
                     let token = self.shot_token;
-                    if req.agent.is_some() {
-                        if self.agent_shots.len() >= 64 {
-                            self.agent_shots.remove(0);
-                        }
-                        self.agent_shots.push((token, self.epoch));
-                    }
+                    let agent = req.agent.is_some().then_some(self.epoch);
                     self.queued_shots.push((token, now_ms() + 120.0, 0));
-                    self.pending_shots.push((token, path, inline, reply, now_ms() + 8000.0));
+                    self.pending_shots.push((token, path, inline, reply, now_ms() + 8000.0, agent));
                 }
                 // The owner is asked first; the answer goes back from there.
                 control::Outcome::Pending => {}
@@ -5392,7 +5400,8 @@ impl MailApp {
     fn issue_screenshots(&mut self, ctx: &egui::Context) {
         let now = now_ms();
         let sink = self.shot_images.clone();
-        let (drawn, agent_shots) = (self.decrypted_drawn, self.agent_shots.clone());
+        let drawn = self.decrypted_drawn;
+        let agents: Vec<(u64, u64)> = self.pending_shots.iter().filter_map(|p| p.5.map(|asked| (p.0, asked))).collect();
         let mut refused = Vec::new();
         self.queued_shots.retain_mut(|(token, at, frames)| {
             *frames += 1;
@@ -5400,7 +5409,7 @@ impl MailApp {
                 let token = *token;
                 // An agent's picture is not taken of a frame that showed what an Encrypted message
                 // opened to, however the message came to be on screen after it was asked for.
-                if agent_shots.iter().any(|(t, asked)| *t == token && drawn.is_some_and(|d| d >= *asked)) {
+                if agents.iter().any(|(t, asked)| *t == token && drawn.is_some_and(|d| d >= *asked)) {
                     refused.push(token);
                     return false;
                 }
@@ -5425,9 +5434,8 @@ impl MailApp {
 
     /// An agent's screenshot is answered with a refusal: an Encrypted message's text is on screen.
     fn refuse_shot(&mut self, token: u64) {
-        self.agent_shots.retain(|(t, _)| *t != token);
         if let Some(i) = self.pending_shots.iter().position(|(t, ..)| *t == token) {
-            let (_, _, _, reply, _) = self.pending_shots.remove(i);
+            let (_, _, _, reply, ..) = self.pending_shots.remove(i);
             let _ = reply.send(json!({"ok": false, "error": "an Encrypted message was opened in the window while the screenshot was waiting: its text isn't shown to agents, so there is no screenshot"}));
         }
     }
@@ -5439,18 +5447,18 @@ impl MailApp {
         let events: Vec<_> = std::mem::take(&mut *self.shot_images.lock().unwrap_or_else(|poisoned| poisoned.into_inner()));
         for (token, image) in events {
             // (The picture was taken after the frame; plaintext drawn since it was asked for counts.)
-            if self.agent_shots.iter().any(|(t, asked)| *t == token && self.decrypted_drawn.is_some_and(|d| d >= *asked)) {
+            let asked = self.pending_shots.iter().find(|p| p.0 == token).and_then(|p| p.5);
+            if asked.is_some_and(|asked| self.decrypted_drawn.is_some_and(|d| d >= asked)) {
                 self.refuse_shot(token);
                 continue;
             }
-            self.agent_shots.retain(|(t, _)| *t != token);
             if let Some(i) = self.pending_shots.iter().position(|(t, ..)| *t == token) {
-                let (_, path, inline, reply, _) = self.pending_shots.remove(i);
+                let (_, path, inline, reply, ..) = self.pending_shots.remove(i);
                 let _ = reply.send(if inline { control::inline_screenshot(&image) } else { control::save_screenshot(&image, path.as_deref()) });
             }
         }
         let now = now_ms();
-        self.pending_shots.retain(|(_, _, _, reply, deadline)| {
+        self.pending_shots.retain(|(_, _, _, reply, deadline, _)| {
             if now < *deadline {
                 return true;
             }

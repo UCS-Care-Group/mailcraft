@@ -12,7 +12,7 @@
 //! **What starts an opening, and what doesn't.** A message is opened only when the owner is
 //! looking at it: the owner chose it with input of their own (a click or key on its row, the Open
 //! button, a window they opened: `owner_chose`, which nothing the control channel does adds to,
-//! nested params and windows included, [`MailApp::track_choice`]), it has stayed on screen for
+//! nested params and windows included), it has stayed on screen for
 //! [`DWELL_MS`] (so that arrowing through a folder of Encrypted messages opens none of them), and
 //! no other is being opened (one at a time: one decryption in memory, one question for a PIN or
 //! passphrase on the screen at once). Any other message waits, and its bar offers Open.
@@ -136,17 +136,11 @@ impl MailApp {
         self.control_epoch.is_some_and(|c| self.epoch.saturating_sub(c) <= CONTROL_FRAMES)
     }
 
-    /// At the start of a frame: a message that took the focus without the control channel's hand
-    /// in it is one the owner chose (a click or key on a row).
+    /// A frame begins. (What the owner chose is recorded where the owner's input picks a row, in
+    /// [`MailApp::run`], never inferred from the focus having moved: an Undo, a selection that
+    /// shrinks and the window's start all move it without anybody choosing.)
     pub(crate) fn track_choice(&mut self) {
         self.epoch += 1;
-        let focus = self.session.sel.focus();
-        if focus != self.last_focus {
-            self.last_focus = focus;
-            if let Some(id) = focus.filter(|_| !self.control_recent() && !self.driven) {
-                self.owner_picks(id);
-            }
-        }
     }
 
     /// The owner chose message `id` themselves: an Encrypted message may be opened.

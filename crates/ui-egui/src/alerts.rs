@@ -297,6 +297,10 @@ pub fn open(app: &mut MailApp, ctx: &egui::Context, opens: Opens) {
             if app.session.mailbox.message(message).is_some_and(|m| m.folder == folder) {
                 let _ = app.execute("folder.select", json!({"id": folder}));
                 let _ = app.execute("mail.select", json!({"id": message, "elsewhere": true}));
+                // (The owner's click on the notification, not a script's.)
+                if !app.driven && !app.control_recent() {
+                    app.owner_picks(message);
+                }
                 app.reveal_selection = true;
             } else if app.session.mailbox.folder(folder).is_some() {
                 // Moved or gone since: its folder, at least.

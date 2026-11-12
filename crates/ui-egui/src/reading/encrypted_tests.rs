@@ -91,10 +91,10 @@ fn agent(app: &mut MailApp, method: &str, params: serde_json::Value) -> serde_js
     }
 }
 
-/// The owner selects message `id` with their own input (a click or an arrow key on its row), and
-/// the window takes a frame.
+/// The owner selects message `id` with their own input (a click on its row, which the window
+/// runs as `mail.select`), and the window takes a frame.
 fn owner_selects(app: &mut MailApp, id: Id) {
-    app.session.run("mail.select", &json!({"id": id})).unwrap();
+    app.run("mail.select", json!({"id": id})).unwrap();
     frame(app);
 }
 
@@ -170,25 +170,61 @@ fn a_window_an_agent_opens_through_engine_execute_never_opens_the_message() {
 #[test]
 fn a_click_or_key_the_control_channel_injected_is_not_the_owners_choice() {
     let (mut app, ids, host) = app_with(2);
-    // A click on a row, as `ui.click` injects it: events queued, and the frame takes them in.
+    // A click on a row, as `ui.click` injects it: events queued, and the frame takes them in; the
+    // row's handler runs `mail.select` in that frame.
     app.synthetic.push(egui::Event::PointerMoved(egui::pos2(10.0, 10.0)));
     app.raw_input_hook(&mut egui::RawInput::default());
-    owner_selects(&mut app, ids[0]);
-    // The arrow key, as `ui.key` injects it, a frame later.
+    app.run("mail.select", json!({"id": ids[1]})).unwrap();
+    // The arrow key, as `ui.key` injects it, a frame later (the list is newest first).
     app.synthetic.push(egui::Event::PointerMoved(egui::pos2(10.0, 10.0)));
     app.raw_input_hook(&mut egui::RawInput::default());
-    owner_selects(&mut app, ids[1]);
+    app.run("mail.next", json!({})).unwrap();
     idle(&mut app, 8);
     stays_closed(&mut app, &host, ids[0]);
     assert!(app.decryption_needs_owner(ids[0]) && app.decryption_needs_owner(ids[1]));
-    // The owner's own click, after the channel has been quiet, is theirs.
+    // The owner's own click, after the channel has been quiet, is theirs: also on the row that
+    // is the one in focus already (the one the injected input left selected).
     idle(&mut app, 8);
+    assert_eq!(app.session.sel.focus(), Some(ids[0]));
     owner_selects(&mut app, ids[0]);
     assert!(!app.decryption_needs_owner(ids[0]));
+    // And the owner's own arrow key.
+    app.run("mail.previous", json!({})).unwrap();
+    assert_eq!(app.session.sel.focus(), Some(ids[1]));
+    assert!(!app.decryption_needs_owner(ids[1]));
     let ctx = egui::Context::default();
     app.opened_view_at(&ctx, ids[0], 9_000.0);
     app.opened_view_at(&ctx, ids[0], 9_000.0 + DWELL_MS + 1.0);
     assert_eq!(host.opened.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_selection_nobody_chose_is_not_the_owners_choice_whatever_moved_it() {
+    // Undo puts back the selection an agent made.
+    let (mut app, ids, host) = app_with(2);
+    let (e, p) = (ids[0], ids[1]);
+    agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"id": e}}));
+    agent(&mut app, "engine.execute", json!({"command": "mail.flag", "params": {"id": e}}));
+    agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"id": p}}));
+    idle(&mut app, 8);
+    app.run("edit.undo", json!({})).unwrap();
+    frame(&mut app);
+    assert_eq!(app.session.sel.focus(), Some(e), "the undo did not put the selection back: this shows nothing");
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, e);
+    // A selection of two that shrinks leaves the other in focus.
+    let (mut app, ids, host) = app_with(2);
+    agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"ids": [ids[0], ids[1]]}}));
+    app.session.run("mail.delete", &json!({"ids": [ids[1]]})).unwrap();
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, ids[0]);
+    assert!(app.decryption_needs_owner(ids[0]));
+    // A message in focus when the window starts.
+    let (mut app, ids, host) = app_with(1);
+    app.session.run("mail.select", &json!({"id": ids[0]})).unwrap();
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, ids[0]);
+    assert!(app.decryption_needs_owner(ids[0]));
 }
 
 #[test]
@@ -236,8 +272,7 @@ fn a_screenshot_asked_for_before_a_message_opened_is_refused_when_it_would_be_ta
     assert!(app.pending_shots.is_empty());
     // A frame that was taken before the refusal is not handed over either.
     let (tx, reply) = channel();
-    app.pending_shots.push((99, None, true, tx, f64::MAX));
-    app.agent_shots.push((99, 0));
+    app.pending_shots.push((99, None, true, tx, f64::MAX, Some(0)));
     app.shot_images.lock().unwrap().push((99, Arc::new(egui::ColorImage::example())));
     app.collect_screenshots();
     assert_eq!(reply.try_recv().expect("no answer")["ok"], false);
@@ -318,4 +353,76 @@ fn the_layout_kept_of_a_message_goes_when_the_message_does() {
     app.forget_unopened_layouts(&ctx);
     let store = super::view::entries_for_tests(&ctx);
     assert_eq!(store, 0, "the text of a message that was let go of is still in the layout cache");
+}
+
+#[test]
+fn an_agents_screenshots_cannot_outnumber_what_the_window_waits_for() {
+    let (mut app, ids, host) = app_with(1);
+    let ctx = egui::Context::default();
+    let id = ids[0];
+    let (tx, rx_requests) = channel();
+    app.control_rx = Some(rx_requests);
+    // Seventy agents ask while nothing is open (a connection each).
+    let replies: Vec<_> = (0..70)
+        .map(|_| {
+            let (req, reply) = ControlRequest::new("ui.screenshot", json!({}));
+            tx.send(req.from_agent(Vec::new())).unwrap();
+            reply
+        })
+        .collect();
+    app.drain_control(&ctx);
+    let refused_at_once = replies.iter().filter(|r| r.try_recv().is_ok_and(|v| v["ok"] == false)).count();
+    assert_eq!(refused_at_once, 70 - app.pending_shots.len(), "the queue has no end");
+    assert!(app.pending_shots.len() <= 16);
+    // A message opens before any is taken: none of those waiting, the first included, is handed over.
+    idle(&mut app, 8);
+    owner_selects(&mut app, id);
+    app.opened_view_at(&ctx, id, 1_000.0);
+    app.opened_view_at(&ctx, id, 1_000.0 + DWELL_MS + 1.0);
+    answer_all(&mut app, &host, true);
+    assert!(app.opened_view_at(&ctx, id, 2_000.0).is_some());
+    for q in &mut app.queued_shots {
+        q.1 = 0.0;
+    }
+    for _ in 0..4 {
+        app.issue_screenshots(&ctx);
+    }
+    assert!(app.pending_shots.is_empty(), "a screenshot was left to be taken");
+    let handed_over = replies.iter().filter(|r| r.try_recv().is_ok_and(|v| v["ok"] == true)).count();
+    assert_eq!(handed_over, 0);
+}
+
+#[test]
+fn an_injected_click_on_download_pictures_does_nothing_on_an_opened_message_and_the_owners_does() {
+    let (mut app, ids, host) = app_with(1);
+    let id = ids[0];
+    app.run("mail.select", json!({"id": id})).unwrap();
+    app.ui.download_pictures = false;
+    let mut harness = super::tests::window(app, (1280.0, 1000.0));
+    harness.run_steps(4);
+    // The owner has stayed on it: it opens (in real time: the dwell is the clock's).
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    harness.run_steps(3);
+    let waiting: Vec<_> = host.answers.lock().unwrap().drain(..).collect();
+    assert_eq!(waiting.len(), 1, "the message was not asked for");
+    for (_, tx) in waiting {
+        tx.send(Ok(plain(true))).unwrap();
+    }
+    harness.run_steps(6);
+    let view = harness.state().session.decrypted_message(id).expect("not opened");
+    assert_eq!(access(harness.state(), &view), Access::Blocked);
+    let at = harness.state().hit.rect("downloadPictures", id).expect("no way to ask for the pictures").center();
+    // The control channel's click, as `ui.click` by kind makes it.
+    let (req, _reply) = ControlRequest::new("ui.click", json!({"kind": "downloadPictures", "id": id}));
+    let ctx = harness.ctx.clone();
+    crate::control::handle(harness.state_mut(), &ctx, &req);
+    harness.run_steps(8);
+    assert_eq!(access(harness.state(), &view), Access::Blocked, "an injected click let the pictures come");
+    // The owner's.
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        harness.step();
+    }
+    harness.run_steps(3);
+    assert_eq!(access(harness.state(), &view), Access::Allowed);
 }
