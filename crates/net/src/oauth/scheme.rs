@@ -157,6 +157,11 @@ fn valid_path(path: &str) -> bool {
         && !path.ends_with('/')
 }
 
+/// A field name as it may go in a log line: control characters written out, at most 40 characters.
+pub(super) fn loggable(name: &str) -> String {
+    name.chars().flat_map(char::escape_debug).take(40).collect()
+}
+
 fn hostile(why: &'static str) -> NetError {
     NetError::Proto(ProtoError::Protocol(why.into()))
 }
@@ -212,7 +217,7 @@ pub(super) fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str,
     if let Some(name) = unexpected {
         // Only once the state has matched: then it is the provider's page that said it, and the
         // name (never the value) tells a real-device check what the list is missing.
-        log::debug!("the sign-in came back with a field that is not on the list: {}", name.chars().take(40).collect::<String>());
+        log::debug!("the sign-in came back with a field that is not on the list: {}", loggable(name));
         return Err(hostile("the sign-in came back with something it was not asked for"));
     }
     Ok(fields)

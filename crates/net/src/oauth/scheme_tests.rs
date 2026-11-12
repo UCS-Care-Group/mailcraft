@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use proptest::prelude::*;
 
-use super::scheme::{CONSENT_FIELDS, MAX_ADDRESS, SIGN_IN_FIELDS, read_return};
+use super::scheme::{CONSENT_FIELDS, MAX_ADDRESS, SIGN_IN_FIELDS, loggable, read_return};
 use super::*;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -607,6 +607,14 @@ fn refresh_is_the_same_whatever_the_way_back() {
     assert!(!form.contains_key("redirect_uri") && !form.contains_key("code") && form["grant_type"] == "refresh_token");
 }
 
+#[test]
+fn a_logged_field_name_has_no_line_break() {
+    let shown = loggable("a\nb\r\u{0}c%0A");
+    assert!(!shown.contains('\n') && !shown.contains('\r') && !shown.contains('\0'), "{shown:?}");
+    assert_eq!(shown, "a\\nb\\r\\0c%0A");
+    assert!(loggable(&"\n".repeat(100)).chars().count() <= 40);
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(48))]
 
@@ -628,7 +636,9 @@ proptest! {
     fn random_text_around_the_real_state_is_never_a_sign_in(before in "[ -~]{1,40}", after in "[ -~]{0,40}") {
         let server = token_server();
         let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?{before}&state={{state}}{after}"));
-        let clean = before == "code=c" && after.is_empty();
+        // A bare `#` at the very end and empty pieces between the `&`s are accepted forms.
+        let pieces: Vec<&str> = before.split('&').filter(|piece| !piece.is_empty()).collect();
+        let clean = pieces == ["code=c"] && (after.is_empty() || after == "#");
         prop_assert!(result.is_ok() == clean, "{before:?} {after:?}: {result:?}");
     }
 
