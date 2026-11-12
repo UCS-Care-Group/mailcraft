@@ -40,13 +40,17 @@ fn upload(ops: Vec<TaskOp>) -> TasksUpload {
 
 #[test]
 fn it_listens_on_the_port_it_is_told_and_on_loopback_only() {
-    let first = StandIn::start().unwrap();
-    let port = first.port;
-    drop(first);
-    // (The listener thread lives on, so another port is asked for by number only when it is free.)
-    let again = StandIn::start_on(0).unwrap();
-    assert_ne!(again.port, port);
-    assert!(again.url().starts_with("http://127.0.0.1:"));
+    // A port that is free now: bind one, note it, let it go.
+    let free = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap().local_addr().unwrap().port();
+    let told = StandIn::start_on(free).unwrap();
+    assert_eq!(told.port, free);
+    assert_eq!(told.url(), format!("http://127.0.0.1:{free}"));
+    // It is taken now, so asking for it again fails rather than listening twice.
+    assert!(StandIn::start_on(free).is_err());
+    // Port 0 picks another one, on loopback too.
+    let picked = StandIn::start_on(0).unwrap();
+    assert_ne!(picked.port, free);
+    assert!(picked.url().starts_with("http://127.0.0.1:"));
 }
 
 #[test]
