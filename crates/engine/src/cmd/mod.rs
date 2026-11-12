@@ -116,11 +116,6 @@ mod reply_to_first_tests;
 mod resend_reply_to_tests;
 pub mod rules;
 pub mod rules_remote;
-pub mod snooze;
-#[cfg(test)]
-mod snooze_servers_tests;
-#[cfg(test)]
-mod snooze_tests;
 #[cfg(test)]
 mod rules_remote_tests;
 #[cfg(test)]
@@ -133,6 +128,11 @@ pub mod shared;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;
+pub mod snooze;
+#[cfg(test)]
+mod snooze_servers_tests;
+#[cfg(test)]
+mod snooze_tests;
 pub mod sync_progress;
 pub mod tasks;
 pub mod tasks_remote;

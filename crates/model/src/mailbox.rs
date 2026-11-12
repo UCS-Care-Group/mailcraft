@@ -14,12 +14,12 @@ use bulk::Removal;
 mod bulk;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
-pub use snooze::{MAX_SNOOZE_AHEAD, Snooze};
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
     clean_name,
 };
+pub use snooze::{MAX_SNOOZE_AHEAD, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
