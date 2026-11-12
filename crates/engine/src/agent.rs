@@ -1045,19 +1045,26 @@ fn read_beside(mb: &Mailbox, account: Id, r: &mailcraft_model::Rule, reads: fn(&
 /// mail read `what`.
 fn reads_beside_said(s: &Session, account: Id, reads: fn(&mailcraft_model::Rule) -> bool, what: &str) -> String {
     let mb = &s.mailbox;
-    let names: Vec<String> =
-        beside_onto_server(s, account, 0, true).filter(|(r, _)| read_beside(mb, account, r, reads)).map(|(r, _)| quoted(&r.name)).collect();
-    if names.is_empty() {
+    let onto: Vec<(String, Vec<Id>)> =
+        beside_onto_server(s, account, 0, true).filter(|(r, _)| read_beside(mb, account, r, reads)).map(|(r, to)| (quoted(&r.name), to)).collect();
+    if onto.is_empty() {
         return String::new();
     }
-    let more = names.len().saturating_sub(5);
+    let more = onto.len().saturating_sub(5);
     let more = if more > 0 { format!(" and {more} more") } else { String::new() };
-    let does = if names.len() == 1 { "puts mail onto another account's server" } else { "put mail onto another account's server" };
+    let names: Vec<String> = onto.iter().take(5).map(|(n, _)| n.clone()).collect();
+    let mut servers: Vec<Id> = Vec::new();
+    for to in onto.iter().flat_map(|(_, to)| to) {
+        if !servers.contains(to) {
+            servers.push(*to);
+        }
+    }
+    let server = servers_named(s, &servers);
     by_count(
-        names.len(),
-        "; the rule {names}{more}, switched on here, {does}, and the rules for that mail read {what}, so changing it may let more mail reach it",
-        "; the rules {names}{more}, switched on here, {does}, and the rules for that mail read {what}, so changing it may let more mail reach them",
-        &[("names", &names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more), ("does", does), ("what", what)],
+        onto.len(),
+        "; the rule {names}{more}, switched on here, puts mail onto the server of {server}, and the rules for that mail read {what}, so changing it may let more mail reach it",
+        "; the rules {names}{more}, switched on here, put mail onto the server of {server}, and the rules for that mail read {what}, so changing it may let more mail reach them",
+        &[("names", &names.join(", ")), ("more", &more), ("server", &server), ("what", what)],
     )
 }
 
@@ -1185,9 +1192,15 @@ fn reached(changed: &[Id], r: &mailcraft_model::Rule) -> bool {
 /// mailbox now to those of `to` changes them and leaves such rules switched on (#566): any change
 /// may let more mail reach them.
 pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Vec<Id> {
+    undo_rules_onto_named(s, to).1
+}
+
+/// [`undo_rules_onto_another_server`], and the names of those rules, quoted, in their order.
+pub(crate) fn undo_rules_onto_named(s: &Session, to: &Mailbox) -> (Vec<String>, Vec<Id>) {
     let changed = changed_accounts(&s.mailbox, to);
-    let mut onto = Vec::new();
+    let (mut names, mut onto) = (Vec::new(), Vec::new());
     for r in to.rules.iter().filter(|r| r.enabled && reached(&changed, r)) {
+        let had = onto.len();
         match one_account(r) {
             Some(a) => rule_onto_servers(s, r, Some(a), &mut onto),
             // A rule for every account's mail: what it does with the mail of the accounts whose
@@ -1200,8 +1213,11 @@ pub(crate) fn undo_rules_onto_another_server(s: &Session, to: &Mailbox) -> Vec<I
                 }
             }
         }
+        if onto.len() > had {
+            names.push(quoted(&r.name));
+        }
     }
-    onto
+    (names, onto)
 }
 
 /// Whether this command puts a rule that deletes mail on its server, or switches one on there:
@@ -1825,7 +1841,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let drafts = s.undo_drafts(redo);
             let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             // (Each of these works the undo out on a copy of the mailbox: once.)
-            let (places, rule_onto) = (s.undo_places(redo), s.undo_rules_onto_server(redo));
+            let (places, (rule_names, rule_onto)) = (s.undo_places(redo), s.undo_rules_onto_named(redo));
             // (Whether the class comes of a message or a rule onto a server, said below, rather
             // than of a meeting or a task, which is looked at first.)
             let onto_asked = std::cell::Cell::new(false);
@@ -1835,7 +1851,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             };
             let what = match s.undo_reverts_with(redo, onto) {
                 Some(Class::Accounts) => Some("the accounts"),
-                Some(Class::Send) if onto_asked.get() => None,
+                // (What a step that lets more mail reach such a rule puts back, said as below.)
+                Some(Class::Send) if onto_asked.get() => (!rule_onto.is_empty()).then_some("the rules, signatures or Safe and Blocked Senders"),
                 Some(Class::Send) => {
                     Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
@@ -1849,11 +1866,17 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 does.push(format!("puts mail back on its way onto the server of {}", servers_named(s, &places)));
             }
             if !rule_onto.is_empty() {
-                // Send for the rules (#566): one that files mail onto another server is on after it.
-                // (Whatever the number of rules: `rule_onto` holds the servers.)
-                does.push(format!(
-                    "puts the rules back as they were, so that new mail is filed onto the server of {} again",
-                    servers_named(s, &rule_onto)
+                // Send for the rules (#566): one that files mail onto another server is on after it,
+                // and more mail may reach it (the rules, the Safe or Blocked Senders or an address
+                // they read changed back).
+                let more = rule_names.len().saturating_sub(5);
+                let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+                let server = servers_named(s, &rule_onto);
+                does.push(by_count(
+                    rule_names.len(),
+                    "may let more new mail reach the rule {names}{more}, which files mail onto the server of {server}",
+                    "may let more new mail reach the rules {names}{more}, which file mail onto the server of {server}",
+                    &[("names", &rule_names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more), ("server", &server)],
                 ));
             }
             if s.undo_removes_items(redo) {

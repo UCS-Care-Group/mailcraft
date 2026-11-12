@@ -865,3 +865,78 @@ fn mail_in_a_folder_deleted_before_the_download_isnt_put_onto_another_server_by_
         "mail the owner deleted with its folder went onto another account's server"
     );
 }
+
+/// Run Rules Now over the Inbox of "On this computer", which has no address.
+/// The first rule ("plan mail, except if sent only to me: flag it, stop processing more rules")
+/// can't tell its exception of an account with no address (`Rule::matches_in` leaves the message
+/// alone for that), so it may apply and stop the rules after it; the second copies or moves Zoe's
+/// mail into an IMAP account. Past a rule that can't tell, nothing goes into another account, as
+/// past one whose header can't be read (#566).
+#[test]
+fn run_rules_now_puts_nothing_onto_another_server_past_an_exception_about_me_it_cant_tell() {
+    let mut failed = Vec::new();
+    for action in ["copyTo", "moveTo"] {
+        let mut s = Session::empty();
+        let (to, b) = imap_inbox(&mut s);
+        let local = s.mailbox.local_account();
+        assert!(s.mailbox.account(local).unwrap().email.is_empty());
+        let inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+        let m = Message {
+            folder: inbox,
+            account: local,
+            from: Address::new("Zoe", "zoe@example.org"),
+            to: vec![Address::new("Ada", ME)],
+            cc: vec![Address::new("Bo", "bo@example.org")],
+            subject: "Plan".into(),
+            message_id: "plan@example.org".into(),
+            ..Default::default()
+        };
+        s.mailbox.add_message(m).unwrap();
+        let mine = json!({"name": "Plans stay", "account": local, "stop": true,
+            "conditions": [{"type": "subjectContains", "value": "plan"}], "exceptions": [{"type": "sentOnlyToMe"}],
+            "actions": [{"type": "flag"}]});
+        s.run("rules.add", &mine).unwrap();
+        let zoe = json!({"name": "Zoe to Blake", "account": local,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": action, "value": to}]});
+        s.run("rules.add", &zoe).unwrap();
+        s.run("rules.run", &json!({"folder": inbox})).unwrap();
+        let flagged = s.mailbox.messages.values().any(|m| m.subject == "Plan" && m.flag == FlagStatus::Flagged);
+        if copies(&s, to, b) != (0, 0) {
+            failed.push(format!("{action}: (made, placed on {b}'s server) {:?}, the first rule flagged it: {flagged}", copies(&s, to, b)));
+        }
+    }
+    assert!(failed.is_empty(), "onto another account's server past a stop rule whose exception about me can't be told: {failed:?}");
+}
+
+/// An Exchange server lists a recipient its directory knows by an `EX`
+/// address with the name alone (`mailcraft_ews::items::mailbox`), so the listing doesn't say
+/// whether I am in To. A rule "from Zoe, except if my address is in To: delete it" can't tell
+/// yet, and must not act on the guess that I am not; once fetched, To says I am.
+#[test]
+fn an_exception_about_me_cant_be_told_from_a_recipient_listed_by_name_alone() {
+    let mut s = Session::empty();
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": url}})).unwrap()["id"].as_u64().unwrap();
+    let rule = json!({"name": "Zoe's copies", "server": false,
+        "conditions": [{"type": "fromContains", "value": "zoe"}],
+        "exceptions": [{"type": "toMe"}],
+        "actions": [{"type": "delete"}]});
+    s.run("rules.add", &rule).unwrap();
+    let piece = || EwsMailResult { account, email: ME.into(), url: url.into(), partial: true, ..Default::default() };
+    let inbox = vec![GraphFolder { id: "F1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let deltas = EwsFolderDeltas { changed: inbox, afresh: true, ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "HIER-1".into(), ..piece() }).unwrap();
+    let first = EwsMessagePage { folder: "F1".into(), afresh: true, last: true, state: "S-1".into(), ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![first], ..piece() }).unwrap();
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { whole: true, partial: false, ..piece() }).unwrap();
+    // To: me, by an EX address: the listing keeps the name alone.
+    let by_name = GraphMessage { to: vec![Address::new("Ada", "")], ..listed("N1", "F1", "Plan") };
+    let delta =
+        EwsMessagePage { folder: "F1".into(), messages: vec![by_name], last: true, from: "S-1".into(), state: "S-2".into(), ..Default::default() };
+    ews_mail::apply_ews_mail(&mut s, EwsMailResult { pages: vec![delta], ..piece() }).unwrap();
+    let acted_on_the_listing = binned(&s, account, "Plan");
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(here(&s, account, "N1").to.iter().any(|a| a.email == ME), "fetched whole, To says it was sent to me");
+    assert!(!acted_on_the_listing, "the rule deleted mail its exception leaves alone, on a guess from the listing");
+}

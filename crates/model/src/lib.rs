@@ -85,7 +85,7 @@ pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{
     Action, Condition, FollowUp, Keep, MAX_RULE_GONE, MAX_WORD, MAX_WORDS_EACH, Marks, Matching, Rule, RuleClock, RuleGone, RuleWaiting,
-    RulesWaiting, ServerRule, fold_exceptions, same_word,
+    RulesWaiting, ServerRule, Words, fold_exceptions, same_word,
 };
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};

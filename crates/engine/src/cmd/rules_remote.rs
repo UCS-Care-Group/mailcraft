@@ -241,7 +241,7 @@ fn same_parts<T>(here: &[T], there: &[T], same: impl Fn(&T, &T) -> bool) -> bool
 /// to Z letters' case alone, so a server's change of another letter in it is a change.
 fn same_words(here: &[Condition], there: &[Condition]) -> bool {
     let alike = |a: &Condition, b: &Condition| match (a.words(), b.words()) {
-        (Some(x), Some(y)) => std::mem::discriminant(a) == std::mem::discriminant(b) && same_parts(x, y, |v, w| same_word(a.takes_addresses(), v, w)),
+        (Some(x), Some(y)) => std::mem::discriminant(a) == std::mem::discriminant(b) && same_parts(x, y, |v, w| same_word(a.word_kind(), v, w)),
         (None, None) => a == b,
         _ => false,
     };

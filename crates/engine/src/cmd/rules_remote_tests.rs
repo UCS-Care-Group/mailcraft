@@ -1457,7 +1457,7 @@ fn an_agents_undo_that_brings_back_a_rule_filing_onto_another_server_is_asked_as
         found.push(format!("{kind}: {undo:?}, said: {said}"));
     }
     assert!(found.iter().all(|f| f.contains("Owner(Send)")), "an agent's undo that brings the rule back is asked as a send: {found:#?}");
-    assert!(found.iter().all(|f| f.contains("so that new mail is filed onto the server of")), "{found:#?}");
+    assert!(found.iter().all(|f| f.contains("may let more new mail reach the rule “Up”, which files mail onto the server of")), "{found:#?}");
 }
 
 /// A rule that copies this computer's mail onto the Microsoft account's server: another change to
@@ -1717,7 +1717,7 @@ fn an_undos_send_question_names_the_meeting_change_beside_a_rule_onto_another_se
     s.history.last_mut().unwrap().mailbox.event_changes.push(change);
     assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Send));
     let said = describe(&s, "edit.undo", &json!({}));
-    assert!(said.contains("a change to a meeting") && said.contains("filed onto the server of"), "{said}");
+    assert!(said.contains("a change to a meeting") && said.contains("files mail onto the server of"), "{said}");
 }
 
 /// The owner's yes to an agent's Run Rules Now reaches the mail that was in the folder when asked:
@@ -2658,4 +2658,86 @@ fn an_undo_needing_send_and_delete_beside_allowed_accounts_runs_on_the_yes() {
     let Verdict::Ask(class, what) = check(&s, "edit.undo", &json!({}), &allow) else { panic!("asked") };
     assert!(what.contains("onto the server of") && what.contains("takes away"), "{what}");
     assert_eq!(answered(&s, "edit.undo", &json!({}), &allow, class), Verdict::Run, "asked as {class:?}: {what}");
+}
+
+/// A Greek word ending in a final sigma ("λόγος"), which the server keeps in capitals ("ΛΌΓΟΣ")
+/// and a rule finds the same mail by, is the same word when the server's rules are read back
+/// after a lost answer: the rule isn't made twice there.
+#[test]
+fn a_greek_word_in_the_servers_capitals_finds_the_rule_again() {
+    let (mut s, account, _, news) = session();
+    let made = run(
+        &mut s,
+        "rules.add",
+        json!({
+            "name": "Logos",
+            "account": account,
+            "conditions": [{"type": "subjectContains", "value": "λόγος"}],
+            "actions": [{"type": "moveTo", "value": news}],
+        }),
+    );
+    assert_eq!(made["keep"], "server");
+    let id = made["id"].as_u64().unwrap();
+    // The two spellings find the same mail.
+    let m = Message { subject: "Ο λόγος".into(), ..Default::default() };
+    assert!(Condition::SubjectContains(vec!["λόγος".into()]).matches(&m));
+    assert!(Condition::SubjectContains(vec!["λόγος".to_uppercase()]).matches(&m));
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    // The answer is lost; the server has it, in its own capitals.
+    let mut there = remote("r9", "Logos", 1);
+    there.conditions = vec![Condition::SubjectContains(vec!["λόγος".to_uppercase()])];
+    (there.actions, there.move_to) = (Vec::new(), "news".into());
+    there.tidy();
+    let merged = apply_rules(&mut s, &download(account, vec![there])).unwrap();
+    assert!(rule(&s, id).on_server() || !rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+    assert_eq!(
+        (merged.added, s.mailbox.rules.len(), rule_upload(&s.mailbox, account).unwrap().ops.len()),
+        (0, 1, 0),
+        "taken for another rule and sent again: {:?}",
+        s.mailbox.rules.iter().map(|r| (&r.name, &r.conditions, r.on_server())).collect::<Vec<_>>()
+    );
+}
+
+/// The same word given twice in different case in the Greek script is kept once.
+#[test]
+fn a_greek_word_given_twice_in_different_case_is_kept_once() {
+    let (mut s, account, _, news) = session();
+    let made = run(
+        &mut s,
+        "rules.add",
+        json!({
+            "name": "Logos",
+            "account": account,
+            "conditions": [{"type": "subjectContains", "value": ["λόγος", "ΛΌΓΟΣ"]}],
+            "actions": [{"type": "moveTo", "value": news}],
+        }),
+    );
+    let id = made["id"].as_u64().unwrap();
+    assert_eq!(rule(&s, id).conditions, [Condition::SubjectContains(vec!["λόγος".into()])]);
+}
+
+/// An agent's undo of putting a sender on the Blocked Senders, beside a rule that moves that
+/// sender's mail onto another server, names the rule and the server, and puts back the list, not
+/// "the rules" alone (#566).
+#[test]
+fn an_undo_that_unblocks_a_sender_names_the_rule_beside_it() {
+    let (mut s, account, _, _) = session();
+    let elsewhere = elsewhere(&mut s);
+    add(&mut s, account, "Away", json!([{"type": "fromContains", "value": "zoe"}]), json!([{"type": "moveTo", "value": elsewhere}]));
+    run(&mut s, "junk.add", json!({"list": "blocked", "entry": "zoe@example.org", "account": account}));
+    let said = crate::agent::describe(&s, "edit.undo", &json!({}));
+    assert!(said.contains("“Away”") && said.contains("onto the server of elsewhere@example.org"), "{said}");
+    assert!(said.contains("Safe and Blocked Senders back as they were"), "{said}");
+}
+
+/// An agent's change of an account's address beside a rule that reads it and moves mail onto
+/// another account's server names that rule and the server (#566).
+#[test]
+fn changing_the_address_beside_a_rule_onto_another_server_names_the_server() {
+    let (mut s, account, _, _) = session();
+    add_with_exception(&mut s, account);
+    let edit = json!({"id": account, "email": "other@example.org"});
+    let said = crate::agent::describe(&s, "account.edit", &edit);
+    assert!(said.contains("onto the server of elsewhere@example.org"), "{said}");
 }

@@ -3347,6 +3347,12 @@ impl Session {
         crate::agent::undo_rules_onto_another_server(self, &step.mailbox)
     }
 
+    /// [`Session::undo_rules_onto_server`], and the names of those rules, quoted.
+    pub(crate) fn undo_rules_onto_named(&self, redo: bool) -> (Vec<String>, Vec<Id>) {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (Vec::new(), Vec::new()) };
+        crate::agent::undo_rules_onto_named(self, &step.mailbox)
+    }
+
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,
     /// calendars or categories made since: things that go for good (they don't go to Deleted
     /// Items) and that the mailbox the undo makes lacks.

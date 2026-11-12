@@ -167,6 +167,15 @@ impl Condition {
         matches!(self, Condition::From(_) | Condition::SentTo(_))
     }
 
+    /// What its words are, as [`same_word`] compares them.
+    pub fn word_kind(&self) -> Words {
+        match self {
+            Condition::From(_) | Condition::SentTo(_) => Words::Addresses,
+            Condition::Category(_) => Words::Categories,
+            _ => Words::Text,
+        }
+    }
+
     pub fn matches(&self, m: &Message) -> bool {
         self.matches_in(m, &Matching::default())
     }
@@ -293,6 +302,12 @@ impl Condition {
         matches!(self, Condition::SentOnlyToMe | Condition::ToMe | Condition::CcMe | Condition::ToOrCcMe | Condition::NotToMe)
     }
 
+    /// Whether it can't be told of `m` by `how`: it reads what isn't here ([`Condition::unread_in`]),
+    /// or it is about "me" and the account has no address of its own.
+    pub fn untold_in(&self, m: &Message, how: &Matching<'_>) -> bool {
+        self.unread_in(m) || (self.about_me() && how.me.trim().is_empty())
+    }
+
     /// [`Condition::matches_in`], and not on a guess: a sensitivity that can't be read yet doesn't
     /// hold, though no header reads as Normal. A word found in what is here of the text holds, as
     /// ever, and a size that can't be told never matches.
@@ -314,14 +329,17 @@ impl Condition {
             // ([`Message::read_header`]: one read before they were, or made here).
             Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty(),
             Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete || m.headers_cut,
+            // Nor a person a server's list gives by name alone (an Exchange server's own kind of
+            // address), whose address the message, once here, says.
+            Condition::FromContains(_) | Condition::From(_) => m.unfetched && m.from.email.trim().is_empty(),
             Condition::ToContains(_)
             | Condition::SentTo(_)
             | Condition::SentOnlyToMe
             | Condition::ToMe
             | Condition::CcMe
             | Condition::ToOrCcMe
-            | Condition::NotToMe
-            | Condition::Category(_) => m.headers_cut,
+            | Condition::NotToMe => m.headers_cut || (m.unfetched && m.to.iter().chain(&m.cc).any(|a| a.email.trim().is_empty())),
+            Condition::Category(_) => m.headers_cut,
             // A calendar part kept on disk and not brought in (one too large to be read) doesn't
             // say whether it asks.
             Condition::MeetingRequest => m.partly_here() || m.attachments.iter().any(|a| a.is_calendar() && !a.is_loaded()),
@@ -330,14 +348,30 @@ impl Condition {
     }
 }
 
-/// Whether `a` and `b`, two words of one condition, look for the same thing, and so are kept once:
-/// two people's addresses (`addresses`: From, Sent to) as [`Condition::matches_in`] compares a
-/// person's address, A to Z in either case and nothing else folded; any other two when they are
-/// the same in small letters both as a word is found ([`contains_ci`]) and as a category is, a
-/// letter at a time ([`crate::sync::same_category`]), which differ in Greek at a word's end: a
-/// word kept once finds the same mail as the one let go.
-pub fn same_word(addresses: bool, a: &str, b: &str) -> bool {
-    if addresses { a.trim().eq_ignore_ascii_case(b.trim()) } else { crate::sync::same_category(a, b) && a.to_lowercase() == b.to_lowercase() }
+/// What a condition's words are, for telling whether two of them are the same ([`same_word`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Words {
+    /// People's whole addresses (From, Sent to).
+    Addresses,
+    /// Names of categories.
+    Categories,
+    /// Words looked for in a text.
+    Text,
+}
+
+/// Whether `a` and `b`, two words of one condition, look for the same thing, and so are kept once
+/// and are the same as the server's: as [`Condition::matches_in`] compares them, so that a word
+/// kept once finds the same mail as the one let go. Two people's addresses A to Z in either case
+/// and nothing else folded; two categories a letter at a time ([`crate::sync::same_category`]); two
+/// words of a text in small letters, the whole word at once, as one is found ([`contains_ci`]).
+/// (The last two differ in Greek at a word's end: "ΛΌΓΟΣ" is "λόγος" as a word, "λόγοσ" as a
+/// category.)
+pub fn same_word(kind: Words, a: &str, b: &str) -> bool {
+    match kind {
+        Words::Addresses => a.trim().eq_ignore_ascii_case(b.trim()),
+        Words::Categories => crate::sync::same_category(a, b),
+        Words::Text => a.to_lowercase() == b.to_lowercase(),
+    }
 }
 
 /// Exceptions as a server keeps them: any one of them holding leaves a message alone, so two that
@@ -354,7 +388,7 @@ pub fn fold_exceptions(list: Vec<Condition>) -> Result<Vec<Condition>, ModelErro
         match (c.words(), out.iter_mut().find(|d| std::mem::discriminant(*d) == kind && d.words().is_some())) {
             (Some(words), Some(had)) => {
                 let mut all = had.words().unwrap_or_default().to_vec();
-                for w in words.iter().filter(|w| !all.iter().any(|a| same_word(c.takes_addresses(), a, w))).collect::<Vec<_>>() {
+                for w in words.iter().filter(|w| !all.iter().any(|a| same_word(c.word_kind(), a, w))).collect::<Vec<_>>() {
                     if all.len() >= MAX_WORDS_EACH {
                         return Err(ModelError::Invalid(format!("exceptions of one kind look for at most {MAX_WORDS_EACH} words or addresses")));
                     }
@@ -649,31 +683,28 @@ impl Rule {
     /// [`Rule::matches`], by `how` ([`Matching`]). A rule with parts this version doesn't know
     /// matches nothing here: what it would do is not known.
     pub fn matches_in(&self, m: &Message, how: &Matching<'_>) -> bool {
-        // An exception that can't be told yet may hold: a rule doesn't act on a guess. Nor can one
-        // about "me" be told of an account with no address of its own.
-        let untold = |c: &Condition| c.unread_in(m) || (c.about_me() && how.me.trim().is_empty());
-        self.reaches(m, how) && !self.exceptions.iter().any(|c| untold(c) || c.matches_in(m, how))
+        // An exception that can't be told yet may hold: a rule doesn't act on a guess.
+        self.reaches(m, how) && !self.exceptions.iter().any(|c| c.untold_in(m, how) || c.matches_in(m, how))
     }
 
-    /// Whether it may apply to `m`, for what can't be told yet: a condition or an exception that
-    /// reads what isn't here. It doesn't act; should it stop the rules after it, those copy or move
-    /// nothing into another account ([`Mailbox::run_rules`](crate::Mailbox::run_rules)).
+    /// Whether it may apply to `m`, for what can't be told yet ([`Condition::untold_in`]): a
+    /// condition or an exception that reads what isn't here, or one about "me" of an account with
+    /// no address. It doesn't act; should it stop the rules after it, those copy or move nothing
+    /// into another account ([`Mailbox::run_rules`](crate::Mailbox::run_rules)).
     /// So is one with parts not known here that stops the rules after it, when its known
     /// conditions hold or can't be told and no exception known here holds: it may apply, as its
     /// server ran it, and stop them (#566).
     pub fn undecided_in(&self, m: &Message, how: &Matching<'_>) -> bool {
-        let open = |c: &Condition| c.unread_in(m) && !c.holds_in(m, how);
+        let open = |c: &Condition| c.untold_in(m, how) && !c.holds_in(m, how);
+        let spares = |c: &Condition| !c.untold_in(m, how) && c.matches_in(m, how);
         if !self.known() {
-            return self.enabled
-                && self.stop
-                && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how))
-                && !self.exceptions.iter().any(|c| !c.unread_in(m) && c.matches_in(m, how));
+            return self.enabled && self.stop && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how)) && !self.exceptions.iter().any(spares);
         }
         self.enabled
             && !self.conditions.is_empty()
             && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how))
-            && !self.exceptions.iter().any(|c| !c.unread_in(m) && c.matches_in(m, how))
-            && (self.conditions.iter().any(open) || self.exceptions.iter().any(|c| c.unread_in(m)))
+            && !self.exceptions.iter().any(spares)
+            && (self.conditions.iter().any(open) || self.exceptions.iter().any(|c| c.untold_in(m, how)))
     }
 
     /// Whether it is on and its conditions hold, exceptions aside.

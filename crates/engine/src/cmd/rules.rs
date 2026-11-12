@@ -10,7 +10,7 @@
 //! within its list.
 
 use mailcraft_model::{
-    Action, Condition, FollowUp, Id, Importance, Keep, MAX_NAME, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, clean_name,
+    Action, Condition, FollowUp, Id, Importance, Keep, MAX_NAME, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, Words, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -213,13 +213,12 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
 /// The words under `value`: a text, or a list of them, any one of which is enough; at most
 /// [`MAX_WORDS_EACH`] of [`MAX_WORD`] characters each. `what` says what they are, for an error.
 fn words(v: &Value, what: &str) -> Result<Vec<String>, CmdError> {
-    words_of(v, what, MAX_WORD, false)
+    words_of(v, what, MAX_WORD, Words::Text)
 }
 
 /// [`words`], each of at most `cap` characters (a longer one is refused, not cut: a part of it is
-/// found in more mail), and kept once as [`mailcraft_model::same_word`] compares them
-/// (`addresses`: as people's addresses).
-fn words_of(v: &Value, what: &str, cap: usize, addresses: bool) -> Result<Vec<String>, CmdError> {
+/// found in more mail), and kept once as [`mailcraft_model::same_word`] compares words of `kind`.
+fn words_of(v: &Value, what: &str, cap: usize, kind: Words) -> Result<Vec<String>, CmdError> {
     let one = |w: &Value| -> Result<String, CmdError> {
         let t = w.as_str().ok_or_else(|| bad(format!("`value` is {what}: a text or a list of texts")))?.trim();
         if t.is_empty() {
@@ -238,7 +237,7 @@ fn words_of(v: &Value, what: &str, cap: usize, addresses: bool) -> Result<Vec<St
     };
     let mut kept: Vec<String> = Vec::new();
     for w in list {
-        if !kept.iter().any(|k| mailcraft_model::same_word(addresses, k, &w)) {
+        if !kept.iter().any(|k| mailcraft_model::same_word(kind, k, &w)) {
             kept.push(w);
         }
     }
@@ -254,7 +253,7 @@ pub fn by_address(email: &str) -> bool {
 /// The people under `value`, by their whole addresses (`name@domain`), each read whole: one cut
 /// short would be somebody else's, and one longer than an address can be is refused.
 fn people(v: &Value) -> Result<Vec<String>, CmdError> {
-    let list = words_of(v, "addresses", mailcraft_model::MAX_ADDRESS, true)?;
+    let list = words_of(v, "addresses", mailcraft_model::MAX_ADDRESS, Words::Addresses)?;
     match list.iter().find(|a| !by_address(a)) {
         Some(a) => Err(bad(format!("\"{a}\" isn't an address"))),
         None => Ok(list),
@@ -286,7 +285,8 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
         "sentTo" => Condition::SentTo(people(v)?),
         "category" => {
             // (A name longer than a category's is refused, not cut: an exception for it would never hold.)
-            let names: Vec<String> = words(v, "categories")?.iter().map(|c| category_name(c)).collect::<Result<_, _>>()?;
+            let names: Vec<String> =
+                words_of(v, "categories", MAX_WORD, Words::Categories)?.iter().map(|c| category_name(c)).collect::<Result<_, _>>()?;
             if names.is_empty() {
                 return Err(bad("category needs a category name"));
             }

@@ -296,7 +296,7 @@ fn the_account_question_about_two_rules_that_read_its_address_agrees_in_number()
     let q = describe(&s, "account.edit", &json!({"id": a, "email": "lovelace@example.org"}));
     assert!(
         q.contains(
-            "the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, put mail onto another account's server, and the rules for that mail read"
+            "the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, put mail onto the server of elsewhere@example.org, and the rules for that mail read"
         ),
         "{q}"
     );

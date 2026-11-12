@@ -4505,6 +4505,15 @@ pub(crate) mod rules {
         fn takes_people(self) -> bool {
             matches!(self, When::Person | When::SentTo)
         }
+
+        /// What its words are, as `same_word` compares them.
+        fn words(self) -> mailcraft_model::Words {
+            match self {
+                When::Person | When::SentTo => mailcraft_model::Words::Addresses,
+                When::Category => mailcraft_model::Words::Categories,
+                _ => mailcraft_model::Words::Text,
+            }
+        }
     }
 
     /// More words than `rules.add` takes ([`MAX_WORDS_EACH`], which the keep tests hold to 20).
@@ -5244,7 +5253,7 @@ pub(crate) mod rules {
                 };
                 if let Some((_, all)) = kinds.get_mut(at) {
                     for w in c.words() {
-                        if !all.iter().any(|a| mailcraft_model::same_word(c.kind.takes_people(), a, &w)) {
+                        if !all.iter().any(|a| mailcraft_model::same_word(c.kind.words(), a, &w)) {
                             all.push(w);
                         }
                     }

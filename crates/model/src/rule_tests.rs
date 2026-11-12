@@ -304,7 +304,7 @@ fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
     let words = |t: &str| vec![t.to_string()];
     let mut rule =
         Rule { enabled: true, conditions: vec![Condition::SubjectContains(words("report"))], actions: vec![Action::Delete], ..Default::default() };
-    let whole = Message { subject: "Report".into(), ..Default::default() };
+    let whole = Message { subject: "Report".into(), from: Address::new("Bo", "bo@example.org"), ..Default::default() };
     let stub = Message { unfetched: true, ..whole.clone() };
     let headers_only = Message { incomplete: true, ..whole.clone() };
     let not_all = Message { not_downloaded: 2048, ..whole.clone() };
@@ -332,6 +332,15 @@ fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
     // What a message has from the start is read as ever.
     rule.exceptions = vec![Condition::From(words("ada@example.org")), Condition::Flagged, Condition::HasAttachment];
     assert!(rule.matches(&stub));
+    // But not a person a server's list gives by name alone: once here, the message says who.
+    let by_name = Message { from: Address::new("Ada", ""), ..stub.clone() };
+    assert!(!rule.matches(&by_name));
+    rule.exceptions = vec![Condition::ToMe];
+    let to_by_name = Message { to: vec![Address::new("Ada", "")], ..stub.clone() };
+    let how = Matching { me: "ada@example.org", ..Default::default() };
+    assert!(rule.matches_in(&stub, &how) && !rule.matches_in(&to_by_name, &how));
+    assert!(rule.matches_in(&Message { unfetched: false, ..to_by_name }, &how));
+    rule.exceptions = vec![Condition::From(words("ada@example.org")), Condition::Flagged, Condition::HasAttachment];
     // A server's list says whether there are attachments; the headers of a message too large to
     // download don't.
     rule.exceptions = vec![Condition::HasAttachment];
@@ -402,8 +411,11 @@ fn a_server_rules_addresses_read_back_are_kept_once_as_addresses_compare() {
     remote.tidy();
     assert_eq!(remote.conditions, vec![Condition::SubjectContains(vec!["Büro".into()])]);
     assert_eq!(remote.exceptions, vec![Condition::From(vec!["Ünal@example.org".into(), "ünal@example.org".into()])]);
-    assert!(same_word(true, "Ünal@example.org", "ÜNAL@EXAMPLE.ORG") && !same_word(true, "Ünal@example.org", "ünal@example.org"));
-    assert!(same_word(false, "Büro", "BÜRO"));
+    assert!(same_word(Words::Addresses, "Ünal@example.org", "ÜNAL@EXAMPLE.ORG"));
+    assert!(!same_word(Words::Addresses, "Ünal@example.org", "ünal@example.org"));
+    assert!(same_word(Words::Text, "Büro", "BÜRO") && same_word(Words::Categories, "Büro", "BÜRO"));
+    // A Greek word's final sigma: the same word in capitals, as it is found; another category.
+    assert!(same_word(Words::Text, "λόγος", "ΛΌΓΟΣ") && !same_word(Words::Categories, "λόγος", "ΛΌΓΟΣ"));
 }
 
 /// Recipients and categories left out as a message was read or listed ([`Message::headers_cut`])
