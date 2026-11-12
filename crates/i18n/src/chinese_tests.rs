@@ -8,12 +8,18 @@ fn simplified_chinese_is_available_and_selected_for_matching_locales() {
     let chinese = Lang::ChineseSimplified;
     assert_eq!(chinese.code(), "zh_CN");
     assert!(chinese.has_catalogue());
-    assert!(Lang::available().contains(&chinese));
+    let expected = if cfg!(target_arch = "wasm32") { Lang::English } else { chinese };
+    assert_eq!(Lang::available().contains(&chinese), !cfg!(target_arch = "wasm32"));
     for code in ["zh", "zh-CN", "zh-SG", "zh-Hans", "zh_Hans_CN.UTF-8", "ZH_cn"] {
         assert_eq!(Lang::from_code(code), Some(chinese), "{code}");
-        assert_eq!(Lang::from_pref("auto", Some(code)), chinese, "{code}");
+        assert_eq!(Lang::from_pref("auto", Some(code)), expected, "{code}");
     }
-    assert_eq!(Lang::from_pref("zh_CN", None), chinese);
+    assert_eq!(Lang::from_pref("zh_CN", None), expected);
+    assert!(chinese.supported_on(false));
+    assert!(!chinese.supported_on(true));
+    for lang in [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Pseudo] {
+        assert_eq!(lang.supported_on(true), lang.supported_on(false), "{lang:?}");
+    }
 }
 
 #[test]

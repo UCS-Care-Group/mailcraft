@@ -158,16 +158,26 @@ impl Lang {
         }
     }
 
-    /// The languages offered to the owner: English, and each other one with a catalogue.
+    /// A catalogue can be used for the interface when its glyphs are available on the target.
+    /// The browser has no system CJK fallback font yet.
+    fn supported_on(self, browser: bool) -> bool {
+        self.has_catalogue() && !(browser && self == Lang::ChineseSimplified)
+    }
+
+    fn supported(self) -> bool {
+        self.supported_on(cfg!(target_arch = "wasm32"))
+    }
+
+    /// The languages offered to the owner: English, and each other one supported on this target.
     pub fn available() -> Vec<Lang> {
-        Lang::ALL.into_iter().filter(|l| *l != Lang::Pseudo && l.has_catalogue()).collect()
+        Lang::ALL.into_iter().filter(|l| *l != Lang::Pseudo && l.supported()).collect()
     }
 
     /// The language a system locale (`fr-FR`) asks for: English when there is no catalogue for it.
     pub fn from_locale(locale: Option<&str>) -> Lang {
         match locale.and_then(Lang::from_code) {
             Some(Lang::Pseudo) | None => Lang::English,
-            Some(lang) if lang.has_catalogue() => lang,
+            Some(lang) if lang.supported() => lang,
             Some(_) => Lang::English,
         }
     }
@@ -180,7 +190,7 @@ impl Lang {
             return Lang::from_locale(system);
         }
         match Lang::from_code(pref) {
-            Some(lang) if lang.has_catalogue() => lang,
+            Some(lang) if lang.supported() => lang,
             _ => Lang::English,
         }
     }
@@ -416,18 +426,18 @@ mod tests {
     #[test]
     fn the_picker_names_each_language_in_its_own_words() {
         let names: Vec<String> = Lang::available().into_iter().map(Lang::picker_name).collect();
-        assert_eq!(
-            names,
-            [
-                "English",
-                "Français (aperçu)",
-                "Deutsch (Vorschau)",
-                "Español (versión preliminar)",
-                "Italiano (anteprima)",
-                "Nederlands (voorbeeld)",
-                "简体中文（预览）",
-            ]
-        );
+        let mut expected = vec![
+            "English",
+            "Français (aperçu)",
+            "Deutsch (Vorschau)",
+            "Español (versión preliminar)",
+            "Italiano (anteprima)",
+            "Nederlands (voorbeeld)",
+        ];
+        if !cfg!(target_arch = "wasm32") {
+            expected.push("简体中文（预览）");
+        }
+        assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
         assert_eq!(Lang::from_pref("auto", Some("it-CH")), Lang::Italian);
