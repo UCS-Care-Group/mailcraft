@@ -1012,3 +1012,27 @@ fn a_purge_reads_the_list_ten_at_a_time_until_none_is_left() {
         assert_eq!(state.deletes.len(), copies, "{copies}");
     }
 }
+
+#[test]
+fn an_encrypted_save_over_a_draft_changed_elsewhere_keeps_both_and_takes_nothing_away() {
+    for purge_only in [false, true] {
+        let standin = StandIn::new();
+        let clear = run(&standin, &EwsMailRequest { drafts: vec![draft("mark-s", "Plans")], ..base() }).drafts[0].clone();
+        // Somebody else changes it (a new change key).
+        let changed =
+            DraftUp { change_key: clear.change_key.clone(), subject: Some("Plans, as edited elsewhere".into()), ..draft("mark-s", "Plans") };
+        run(&standin, &EwsMailRequest { drafts: vec![DraftUp { id: clear.id.clone(), ..changed }], ..base() });
+        let up = if purge_only {
+            DraftUp { id: clear.id.clone(), change_key: clear.change_key.clone(), purge: true, purge_only: true, ..sealed_draft("") }
+        } else {
+            DraftUp { id: clear.id.clone(), change_key: clear.change_key.clone(), purge: true, ..sealed_draft("") }
+        };
+        let result = run(&standin, &EwsMailRequest { drafts: vec![up], ..base() });
+        let done = &result.drafts[0];
+        assert!(done.conflict && !done.purged && !done.fields, "{purge_only}: {done:?}");
+        let state = standin.state();
+        assert!(state.item(&clear.id).is_some(), "{purge_only}: the edit made elsewhere is still there");
+        assert!(state.deletes.is_empty(), "{purge_only}");
+        assert_eq!(state.items.iter().filter(|i| i.draft).count(), 1, "{purge_only}: and no second one was made");
+    }
+}

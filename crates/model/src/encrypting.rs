@@ -177,18 +177,30 @@ pub fn blind_copy_base_message_id(id: &str) -> Option<String> {
     })
 }
 
+/// A short tag of a draft's marker (the marker is made on one install, for one draft, and is not a
+/// secret): 64-bit FNV-1a in hex. Two installs that save one draft at the same count don't share it.
+pub fn marker_tag(marker: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in marker.bytes() {
+        hash = (hash ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
 /// The Message-ID an Encrypted draft is written with for its `saves`th save: that of the message
-/// with `-s{saves}` before its `@`, so that the copies a server may hold of it are told from any other
-/// draft that shares the message's own Message-ID (a conflict copy, a copy made in Outlook): only this
-/// program writes one, and only such a one is ever looked for by it.
-pub fn sealed_draft_message_id(id: &str, saves: u32) -> String {
+/// with `-s{tag}n{saves}` before the `@` (`tag` from [`marker_tag`]), so that the copies a server may
+/// hold of it are told from any other draft that shares the message's own Message-ID (a conflict copy,
+/// a copy made in Outlook) and from another install's: only this program writes one, and only such a
+/// one is ever looked for by it.
+pub fn sealed_draft_message_id(id: &str, marker: &str, saves: u32) -> String {
     let id = id.trim();
     if id.is_empty() {
         return String::new();
     }
+    let tag = marker_tag(marker);
     match id.rsplit_once('@') {
-        Some((local, host)) => format!("{local}-s{saves}@{host}"),
-        None => format!("{id}-s{saves}"),
+        Some((local, host)) => format!("{local}-s{tag}n{saves}@{host}"),
+        None => format!("{id}-s{tag}n{saves}"),
     }
 }
 
@@ -196,7 +208,11 @@ pub fn sealed_draft_message_id(id: &str, saves: u32) -> String {
 pub fn is_sealed_draft_message_id(id: &str) -> bool {
     let id = id.trim().trim_start_matches('<').trim_end_matches('>');
     let local = id.rsplit_once('@').map_or(id, |(local, _)| local);
-    local.rsplit_once("-s").is_some_and(|(_, n)| !n.is_empty() && n.len() <= 10 && n.bytes().all(|b| b.is_ascii_digit()))
+    local.rsplit_once("-s").is_some_and(|(_, rest)| {
+        rest.split_once('n').is_some_and(|(tag, n)| {
+            tag.len() == 16 && tag.bytes().all(|b| b.is_ascii_hexdigit()) && !n.is_empty() && n.len() <= 10 && n.bytes().all(|b| b.is_ascii_digit())
+        })
+    })
 }
 
 impl Message {

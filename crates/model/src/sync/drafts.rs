@@ -136,6 +136,12 @@ pub struct ServerDraft {
     /// alone). Found by the marker, in Drafts, and checked to be drafts first.
     #[serde(skip_serializing_if = "is_false")]
     pub purge: bool,
+    /// The server's id and change key of the copy that was there when `purge` was asked for: if it
+    /// was changed elsewhere since, it is a draft of somebody's edit and is not taken away.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub earlier: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub earlier_key: String,
 }
 
 impl ServerDraft {

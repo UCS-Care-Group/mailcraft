@@ -62,8 +62,19 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
     let id = m.server.as_ref().filter(|s| !s.gone).map(|s| s.id.clone()).unwrap_or_default();
     // Nothing of it goes up (it stays on this computer, or the server has all of it), and earlier
     // copies of it on the server are to be taken away: that alone, keeping the one it has now.
+    // (With the id and change key the earlier copy had: one changed elsewhere since is not taken away.)
+    let (id, change_key) = if id.is_empty() && !sd.earlier.is_empty() { (sd.earlier.clone(), sd.earlier_key.clone()) } else { (id, String::new()) };
     if sd.purge && (m.local_only || !sd.pending) {
-        return Some(DraftUp { message: m.id, id, marker: sd.marker.clone(), saves: sd.saves, purge: true, purge_only: true, ..Default::default() });
+        return Some(DraftUp {
+            message: m.id,
+            id,
+            change_key,
+            marker: sd.marker.clone(),
+            saves: sd.saves,
+            purge: true,
+            purge_only: true,
+            ..Default::default()
+        });
     }
     // A draft kept Encrypted (#30 part 7): the Encrypted message alone goes up, never a field of
     // it (what its fields say here is a note), and the server's earlier copy goes once it is there.
@@ -74,13 +85,17 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         // draft) and the Encrypted body.
         let options = mailcraft_mime::WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(m.date) };
         // (With a Message-ID of its own for this save: what a server holds of an earlier try is found by it.)
-        let written = Message { message_id: mailcraft_model::encrypting::sealed_draft_message_id(&m.message_id, sd.saves), ..m.clone() };
+        let written = Message { message_id: mailcraft_model::encrypting::sealed_draft_message_id(&m.message_id, &sd.marker, sd.saves), ..m.clone() };
         let bytes = mailcraft_mime::write(&written, &options);
         return Some(DraftUp {
             message: m.id,
             id,
             marker: sd.marker.clone(),
-            change_key: m.server.as_ref().filter(|s| !s.gone).map(|s| s.change_key.clone()).unwrap_or_default(),
+            change_key: if change_key.is_empty() {
+                m.server.as_ref().filter(|s| !s.gone).map(|s| s.change_key.clone()).unwrap_or_default()
+            } else {
+                change_key
+            },
             saves: sd.saves,
             sealed: std::sync::Arc::new(bytes),
             purge: sd.purge,
@@ -167,11 +182,13 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
     // or the server has all of it): done, nothing more is asked of it.
     if change.purge_only {
         let Ok(m) = mb.message_mut(change.message) else { return false };
-        if !done.purged {
+        // Changed elsewhere since: its edit stays on the server, and nothing is taken away.
+        if !done.purged && !done.conflict {
             return false;
         }
         if let Some(sd) = m.server_draft.as_mut() {
             sd.purge = false;
+            (sd.earlier, sd.earlier_key) = (String::new(), String::new());
         }
         if m.local_only {
             (m.server_draft, m.server) = (None, None);
@@ -179,7 +196,14 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
         return true;
     }
     if done.conflict {
-        // Changed elsewhere too: the server's version comes down by itself, as a draft of its own.
+        // Changed elsewhere too: the server's version comes down by itself, as a draft of its own,
+        // and nothing is taken away.
+        if let Ok(m) = mb.message_mut(change.message)
+            && let Some(sd) = m.server_draft.as_mut()
+        {
+            sd.purge = false;
+            (sd.earlier, sd.earlier_key) = (String::new(), String::new());
+        }
         return keep_twice(mb, change.message, None).is_some();
     }
     if let Some(status) = done.refused {
@@ -277,6 +301,7 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
     }
     let complete = !done.id.is_empty() && done.fields && (change.attachments.is_none() || done.attachments.is_some());
     let sd = ServerDraft { synced, pending: sd.pending && !(complete && sd.saves == change.saves), purge: sd.purge && !done.purged, ..sd };
+    let sd = if done.purged { ServerDraft { earlier: String::new(), earlier_key: String::new(), ..sd } } else { sd };
     m.server_draft = Some(sd);
     true
 }

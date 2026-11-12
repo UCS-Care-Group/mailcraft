@@ -125,7 +125,7 @@ fn sealed() -> Vec<u8> {
         to: vec![Address::new("Kit", "kit@example.net")],
         subject: "Plans".into(),
         date: NOW,
-        message_id: "plans.1-s1@example.org".into(),
+        message_id: mailcraft_model::encrypting::sealed_draft_message_id("plans.1@example.org", MARKER, 1),
         original: Some(body(1)),
         ..Message::default()
     };
@@ -338,9 +338,12 @@ fn another_draft_that_shares_the_messages_own_message_id_is_never_swept() {
 #[test]
 fn an_encrypted_drafts_message_id_is_its_own_and_never_the_messages() {
     use mailcraft_model::encrypting::{is_sealed_draft_message_id, sealed_draft_message_id};
-    assert_eq!(sealed_draft_message_id("plans.1@example.org", 3), "plans.1-s3@example.org");
-    assert!(is_sealed_draft_message_id("<plans.1-s3@example.org>"));
-    for not in ["plans.1@example.org", "<plans-s@example.org>", "plans-sx1@example.org", ""] {
+    let mine = sealed_draft_message_id("plans.1@example.org", MARKER, 3);
+    assert!(mine.starts_with("plans.1-s") && mine.ends_with("n3@example.org"), "{mine}");
+    assert!(is_sealed_draft_message_id(&format!("<{mine}>")));
+    // Another install's draft (another marker) at the same save count has another one.
+    assert_ne!(mine, sealed_draft_message_id("plans.1@example.org", "mailcraft-draft-9-9", 3));
+    for not in ["plans.1@example.org", "<plans-s@example.org>", "plans.1-s1@example.org", "plans-sx1@example.org", ""] {
         assert!(!is_sealed_draft_message_id(not), "{not}");
     }
 }
@@ -395,4 +398,83 @@ fn what_is_not_a_bcc_copys_draft_is_left_alone_by_that_run() {
     let orphan = bcc_draft(&server, "<rota.3-b1@example.org>", true);
     run(&server, GraphMailRequest::default());
     assert!(server.state().mailbox.messages.contains_key(&orphan));
+}
+
+#[test]
+fn an_other_installs_encrypted_copy_at_the_same_save_count_is_not_swept() {
+    let server = StandIn::start().unwrap();
+    let clear = clear_draft(&server);
+    let theirs = mailcraft_model::encrypting::sealed_draft_message_id("plans.1@example.org", "mailcraft-draft-9-9", 1);
+    let drafts = server.state().well_known("drafts");
+    let other = server.state().mailbox.add(&drafts, "Plans", NOW);
+    server.state().mailbox.update(&other, |m| {
+        m.draft = true;
+        m.internet_id = format!("<{theirs}>");
+    });
+    let up = DraftUp { message: 5, id: clear, marker: MARKER.into(), saves: 1, purge: true, sealed: Arc::new(sealed()), ..Default::default() };
+    run(&server, GraphMailRequest { drafts: vec![up], ..Default::default() });
+    assert!(server.state().mailbox.messages.contains_key(&other));
+}
+
+/// The clear draft made by `clear_draft` and its change key, then changed on the server by somebody
+/// else (a new change key there).
+fn changed_elsewhere(server: &StandIn) -> (String, String) {
+    let first = run(
+        server,
+        GraphMailRequest {
+            drafts: vec![DraftUp { message: 5, marker: MARKER.into(), saves: 1, subject: Some("Plans".into()), ..Default::default() }],
+            ..Default::default()
+        },
+    );
+    let made = first.drafts.first().cloned().unwrap();
+    server.state().mailbox.update(&made.id, |m| m.subject = "Plans, as edited in another program".into());
+    (made.id, made.change_key)
+}
+
+#[test]
+fn an_encrypted_save_over_a_draft_changed_elsewhere_keeps_both_and_takes_nothing_away() {
+    let server = StandIn::start().unwrap();
+    let (id, key) = changed_elsewhere(&server);
+    assert!(!key.is_empty());
+    let up = DraftUp {
+        message: 5,
+        id: id.clone(),
+        change_key: key,
+        marker: MARKER.into(),
+        saves: 2,
+        purge: true,
+        sealed: Arc::new(sealed()),
+        ..Default::default()
+    };
+    let all = run(&server, GraphMailRequest { drafts: vec![up], ..Default::default() });
+    let done = all.drafts.first().cloned().unwrap_or_else(|| panic!("an answer: {:?}", all.errors));
+    assert!(done.conflict && !done.fields && !done.purged, "{done:?}");
+    let state = server.state();
+    assert!(state.mailbox.messages.contains_key(&id), "the edit made elsewhere is still there");
+    assert!(state.mailbox.purged.is_empty());
+    drop(state);
+    assert_eq!(drafts_in_drafts(&server), 1, "and no second one was made");
+}
+
+#[test]
+fn a_purge_only_save_over_a_draft_changed_elsewhere_takes_nothing_away() {
+    let server = StandIn::start().unwrap();
+    let (id, key) = changed_elsewhere(&server);
+    let up =
+        DraftUp { message: 5, id: id.clone(), change_key: key, marker: MARKER.into(), saves: 2, purge: true, purge_only: true, ..Default::default() };
+    let all = run(&server, GraphMailRequest { drafts: vec![up], ..Default::default() });
+    assert!(all.drafts.first().is_some_and(|d| d.conflict && !d.purged), "{:?}", all.drafts);
+    assert!(server.state().mailbox.messages.contains_key(&id));
+    assert!(server.state().mailbox.purged.is_empty());
+}
+
+#[test]
+fn a_bcc_copys_draft_made_a_moment_ago_is_not_taken_for_one_left_behind() {
+    let server = StandIn::start().unwrap();
+    let fresh = bcc_draft(&server, "<rota.1-b2@example.org>", true);
+    // (As this instant: the stand-in's clock is set to the present for it.)
+    let now = mailcraft_time::now();
+    server.state().mailbox.update(&fresh, |m| m.received = now);
+    sweep(&server, Vec::new());
+    assert!(server.state().mailbox.messages.contains_key(&fresh));
 }

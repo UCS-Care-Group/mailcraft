@@ -117,10 +117,17 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
         done.refused = Some(400);
         return Ok(());
     }
-    if d.purge_only {
-        return purge_copies(graph, &d.marker, &d.id, done);
-    }
-    if d.is_sealed() {
+    if d.purge_only || d.is_sealed() {
+        // Changed elsewhere since it was last seen (an edit in another program, or on another
+        // computer): kept beside this one, and nothing is taken away (S26).
+        if changed_elsewhere(graph, d)? {
+            log::info!("graph drafts: a draft was changed elsewhere too; nothing of it is taken away");
+            done.conflict = true;
+            return Ok(());
+        }
+        if d.purge_only {
+            return purge_copies(graph, &d.marker, &d.id, done);
+        }
         return sealed(graph, d, done);
     }
     let mut fields_went = false;
@@ -209,6 +216,23 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
     Ok(())
 }
 
+/// Whether the server's copy `d.id` has another change key than `d.change_key`, the one last seen. No
+/// id or key known, or the copy gone: not changed.
+fn changed_elsewhere(graph: &Graph<'_>, d: &DraftUp) -> Result<bool, NetError> {
+    let Some(at) = piece(&d.id).filter(|_| !d.change_key.is_empty()) else { return Ok(false) };
+    let query = http::form(&[("$select", "changeKey")]);
+    let reply = graph.call(Kind::Read, &graph.url(&format!("{}/{at}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200 => {
+            let now = change_key(&serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null));
+            Ok(!now.is_empty() && now != d.change_key)
+        }
+        404 | 410 => Ok(false),
+        _ => Err(graph.refusal(Doing::Mail, &reply, "")),
+    }
+}
+
 /// A draft kept Encrypted (#30 part 7): made on the server from its MIME, which is all that goes up
 /// of it (`POST /me/messages` with `text/plain`, the message in base64: Microsoft's "Create message
 /// in MIME format"), and the server's earlier copy of the draft, its fields in the clear, taken away
@@ -294,8 +318,19 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
     Ok(())
 }
 
+/// A draft a listing found.
+struct Found {
+    id: String,
+    internet_id: String,
+    /// When it was made, if the server said.
+    created: Option<mailcraft_time::Timestamp>,
+}
+
 /// How many pages of a list of drafts are read (fifty each) before it is said to be unfinished.
 const MAX_LIST_PAGES: usize = 20;
+
+/// How old a Bcc copy's draft is before it is taken for one left behind.
+const ORPHAN_AFTER_SECONDS: i64 = 15 * 60;
 
 /// The marker of the drafts the copies for Bcc recipients are made as (every one the same).
 pub(super) const BCC_COPY_MARKER: &str = "mailcraft-bcc-copy";
@@ -317,8 +352,8 @@ pub(super) fn by_internet_id(id: &str) -> Option<String> {
 /// take away. A message that is no draft (sent from another device since, which keeps its id), or is
 /// not in Drafts (moved), is not among them, and is never touched. Whether the whole list was read
 /// (it is followed page by page, within bounds) is said with it.
-fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<(String, String)>, bool), NetError> {
-    let query = http::form(&[("$filter", filter), ("$select", "id,isDraft,internetMessageId"), ("$top", "50")]);
+fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<Found>, bool), NetError> {
+    let query = http::form(&[("$filter", filter), ("$select", "id,isDraft,internetMessageId,createdDateTime"), ("$top", "50")]);
     let mut url = graph.url(&format!("{}?{query}", graph.mail_path("/mailFolders/drafts/messages")));
     let (mut drafts, mut left) = (Vec::new(), 0usize);
     let mut whole = false;
@@ -330,7 +365,11 @@ fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<(String, String)
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         for m in json.get("value").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default() {
             match (m.get("isDraft").and_then(Value::as_bool), id_of(text(m, "id"))) {
-                (Some(true), Some(id)) => drafts.push((id, text(m, "internetMessageId").to_string())),
+                (Some(true), Some(id)) => drafts.push(Found {
+                    id,
+                    internet_id: text(m, "internetMessageId").to_string(),
+                    created: super::super::instant(text(m, "createdDateTime")),
+                }),
                 _ => left += 1,
             }
         }
@@ -367,7 +406,7 @@ fn still_a_draft(graph: &Graph<'_>, at: &str) -> Result<bool, NetError> {
 pub(super) fn purge_matching(graph: &Graph<'_>, filter: &str, keep: &str) -> Result<bool, NetError> {
     let keep = id_of(keep).unwrap_or_default();
     let (found, whole) = drafts_where(graph, filter)?;
-    for (id, _) in found {
+    for Found { id, .. } in found {
         if id == keep {
             continue;
         }
@@ -389,7 +428,13 @@ pub(super) fn purge_matching(graph: &Graph<'_>, filter: &str, keep: &str) -> Res
 pub(super) fn purge_orphan_copies(graph: &Graph<'_>, keep: &[String]) -> Result<(), NetError> {
     let keep: Vec<String> = keep.iter().map(|id| format!("<{}>", id.trim().trim_start_matches('<').trim_end_matches('>'))).collect();
     let (found, _) = drafts_where(graph, &marker_filter(BCC_COPY_MARKER))?;
-    for (id, internet_id) in found {
+    // (Not those made in the last quarter of an hour: another computer of the owner's may be sending
+    // one this moment, and its Outbox is not this one's.)
+    let before = mailcraft_time::now().saturating_sub(ORPHAN_AFTER_SECONDS);
+    for Found { id, internet_id, created } in found {
+        if created.is_none_or(|at| at > before) {
+            continue;
+        }
         let Some(base) = mailcraft_model::encrypting::blind_copy_base_message_id(&internet_id) else { continue };
         if keep.contains(&base) {
             continue;

@@ -322,10 +322,24 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 
     async fn draft_into(&mut self, up: &DraftUp, done: &mut DraftDone) -> Result<(), Asked> {
-        if up.purge_only {
-            return self.purge_copies(&up.marker, &up.id, done).await;
-        }
-        if up.is_sealed() {
+        if up.purge_only || up.is_sealed() {
+            // Changed elsewhere since it was last seen: kept beside this one, and nothing is taken away.
+            if !up.id.is_empty() && !up.change_key.is_empty() {
+                let now = GetItemNow::new(&up.id);
+                match self.ask(&now.element(), &|reply| now.answer(reply)).await {
+                    Ok(item) if !item.change_key.is_empty() && item.change_key != up.change_key => {
+                        log::info!("ews up: a draft was changed elsewhere too; nothing of it is taken away");
+                        done.conflict = true;
+                        return Ok(());
+                    }
+                    Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                    // (Gone, or not read: what is there is dealt with as before.)
+                    _ => {}
+                }
+            }
+            if up.purge_only {
+                return self.purge_copies(&up.marker, &up.id, done).await;
+            }
             return self.sealed_draft(up, done).await;
         }
         let (mut id, mut key) = (up.id.clone(), up.change_key.clone());

@@ -43,6 +43,7 @@ use super::{Answer, Asked, Refusal, State, bad, not_found, refuse, stamp};
 pub(super) const PROPERTIES: &[&str] = &[
     "id",
     "receivedDateTime",
+    "createdDateTime",
     "sentDateTime",
     "subject",
     "from",
@@ -132,6 +133,7 @@ impl Message {
         let mut all = json!({
             "id": shown(&self.id, immutable),
             "receivedDateTime": format!("{}Z", stamp(self.received).trim_end_matches(".0000000")),
+            "createdDateTime": format!("{}Z", stamp(self.received).trim_end_matches(".0000000")),
             "sentDateTime": format!("{}Z", stamp(self.received.saturating_sub(30)).trim_end_matches(".0000000")),
             "subject": self.subject,
             "from": address(&self.from),

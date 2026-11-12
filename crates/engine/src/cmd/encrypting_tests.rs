@@ -770,7 +770,10 @@ fn an_encrypted_draft_of_a_server_that_keeps_drafts_goes_up_as_the_encrypted_mes
     let up = &ups[0];
     // The Encrypted message is all that goes up of it, over the clear copy's id (which goes after).
     assert!(up.is_sealed() && mailcraft_mime::is_encrypted(&up.sealed), "{:?}", String::from_utf8_lossy(&up.sealed));
-    assert!(up.purge && up.id.is_empty(), "the earlier copy is found by its marker and taken away for good by the run");
+    assert!(
+        up.purge && up.id == "AAMkAD-clear",
+        "the earlier copy is found by its marker and taken away for good by the run, unless it was changed elsewhere"
+    );
     assert!(!up.has_fields() && up.attachments.is_none() && up.body.is_none());
     assert!(!String::from_utf8_lossy(&up.sealed).contains("4417"), "no clear text goes up");
     // It is never sent as fields.

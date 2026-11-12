@@ -81,7 +81,8 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         background: false,
         messages: graph_up::message_changes(s, account, MAX_MESSAGE_CHANGES).0,
         drafts,
-        bcc_keep: Some(outbox_message_ids(s, account)),
+        // (Looked for once an hour, with the full sweep, and at the first run after the mailbox is opened.)
+        bcc_keep: full_sweep_due(s, account).then(|| outbox_message_ids(s, account)),
         sends,
         // Mail moved or copied here from another mailbox of the same owner's (#70).
         places: super::graph_place::place_changes(s, account, MAX_PLACES).0,

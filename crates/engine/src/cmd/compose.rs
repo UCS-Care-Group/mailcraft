@@ -1529,12 +1529,20 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     if away_from_server {
         (m.server_draft, m.server, m.uid, m.synced) = (None, None, 0, None);
     }
+    let mut stash = (String::new(), String::new());
     if purge_earlier {
         // What is made now has nothing of the server's: the earlier copies are found by the marker.
         let marker = old.as_ref().and_then(|o| o.server_draft.as_ref()).map(|d| d.marker.clone()).unwrap_or_default();
+        let (earlier, earlier_key) = old
+            .as_ref()
+            .and_then(|o| o.server_draft.as_ref().filter(|d| !d.earlier.is_empty()).map(|d| (d.earlier.clone(), d.earlier_key.clone())))
+            .or_else(|| old.as_ref().and_then(|o| o.server.as_ref()).map(|s| (s.id.clone(), s.change_key.clone())))
+            .unwrap_or_default();
+        stash = (earlier, earlier_key);
         (m.server, m.uid, m.synced) = (None, 0, None);
         if m.local_only && !marker.is_empty() {
-            m.server_draft = Some(ServerDraft { marker, purge: true, saves: 1, ..Default::default() });
+            m.server_draft =
+                Some(ServerDraft { marker, purge: true, saves: 1, earlier: stash.0.clone(), earlier_key: stash.1.clone(), ..Default::default() });
         }
     }
     if graph {
@@ -1562,6 +1570,9 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         }
         sd.pending = true;
         sd.purge |= purge_earlier && !sd.marker.is_empty();
+        if purge_earlier && sd.earlier.is_empty() {
+            (sd.earlier, sd.earlier_key) = stash;
+        }
         sd.saves = sd.saves.saturating_add(1);
         m.server_draft = Some(sd);
     }
