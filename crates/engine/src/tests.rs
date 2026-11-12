@@ -1766,13 +1766,14 @@ mod two_way {
         apply(&mut s, came_back(a, two, archive, 5));
         assert_eq!(request(&s, a).ops, [RemoteOp::Delete { from: "Archive".into(), uid: 5 }]);
 
-        // When the server didn't say where it put the message, there is nothing to go on: the
-        // server's copy comes down as a message of its own, and nothing is asked that could hit
-        // another message.
+        // When the server didn't say where it put the message, there is no UID to go on, and
+        // nothing is asked that could hit another message: the deletion waits for the server's
+        // copy to come down, to be found by its Message-ID.
         let (mut s, a, _, archive, two) = left();
         run(&mut s, "mail.deletePermanently", json!({"id": two}));
         apply(&mut s, came_back(a, two, archive, 0));
-        assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
+        assert_eq!(request(&s, a).ops.len(), 0);
+        assert!(matches!(&s.mailbox.pending[..], [Pending::Delete { from, uid: 0, .. }] if from == "Archive"), "{:?}", s.mailbox.pending);
 
         // A deletion the owner took back while it was carried out: the server no longer has the
         // message, so the one here is the only one. It stays, and goes on the server again (#451).

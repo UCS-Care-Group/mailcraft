@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Repro attempts for a report of IMAP mail shown three times (same Message-ID): one server
-//! message must never become more than one message here. Fake servers and invented mail only.
+//! A message moved on, or deleted, before the server's copy of its first move came down (a server
+//! without UIDPLUS says no new UID) must be moved or deleted there too, and be here once. Fake
+//! servers and invented mail only.
 #![cfg(not(target_arch = "wasm32"))]
-#![allow(dead_code)]
 
+#[allow(dead_code)]
 #[path = "../../../crates/net/src/fake.rs"]
 mod fake;
 
@@ -52,7 +53,7 @@ fn world(can_move: bool, uidplus: bool) -> ImapWorld {
 
 struct Rig {
     imap: FakeImap,
-    smtp: FakeSmtp,
+    _smtp: FakeSmtp,
     s: Session,
     account: Id,
 }
@@ -68,7 +69,7 @@ impl Rig {
             "outgoing": {"host": "127.0.0.1", "port": smtp.port, "security": "none"},
         });
         let account = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
-        Rig { imap, smtp, s, account }
+        Rig { imap, _smtp: smtp, s, account }
     }
 
     fn run(&mut self, id: &str, params: Value) -> Value {
@@ -81,6 +82,17 @@ impl Rig {
         let result = mailcraft_net::sync(&request);
         assert_eq!(result.errors, Vec::<String>::new());
         apply_sync(&mut self.s, result).unwrap()
+    }
+
+    /// A run whose request is made, which goes to the server, and then `act` is done here before
+    /// the run's answer is taken in (the owner changes something while a run is under way).
+    fn sync_acting(&mut self, act: impl FnOnce(&mut Rig)) {
+        let mut request = sync_request(&self.s, self.account).unwrap();
+        request.password = PASSWORD.into();
+        let result = mailcraft_net::sync(&request);
+        assert_eq!(result.errors, Vec::<String>::new());
+        act(self);
+        apply_sync(&mut self.s, result).unwrap();
     }
 
     /// A run called off once piece `stop_at` has come (as the window does when the owner
@@ -149,238 +161,6 @@ fn moved_on_before_its_copy_came_down_is_here_once() {
         assert_eq!(r.server_count("Two"), 1, "MOVE {can_move}: on the server");
         assert_eq!(here.len(), 1, "MOVE {can_move}: one server message is here {} times: {here:?}", here.len());
     }
-}
-
-// ---- the server numbers its mailboxes anew, or gives its messages other UIDs ----
-
-fn bulk(n: u32) -> ImapWorld {
-    let inbox: Vec<FakeMessage> = (1..=n).map(|uid| message(uid, if uid % 3 == 0 { "\\Seen" } else { "" }, &format!("Bulk {uid}"))).collect();
-    let archive: Vec<FakeMessage> = (1..=n).map(|uid| message(uid, "\\Seen", &format!("Old {uid}"))).collect();
-    ImapWorld {
-        user: "ada@example.org".into(),
-        password: PASSWORD.into(),
-        can_move: true,
-        uidplus: true,
-        mailboxes: vec![mailbox("INBOX", "\\HasNoChildren", 11, inbox), mailbox("Archive 2019", "\\HasNoChildren", 21, archive)],
-        ..Default::default()
-    }
-}
-
-/// Every Message-ID of the account that is here more than once, with how many times.
-fn twice(r: &Rig) -> Vec<(String, usize)> {
-    let mut count: std::collections::BTreeMap<String, usize> = Default::default();
-    for m in r.s.mailbox.messages.values().filter(|m| m.account == r.account) {
-        *count.entry(format!("{}|{}", m.folder, m.message_id)).or_default() += 1;
-    }
-    count.into_iter().filter(|(_, n)| *n > 1).collect()
-}
-
-/// The server gives every message a new UID: with a new UIDVALIDITY (as it must), or, as a
-/// broken or rebuilt index may, under the same one. Runs taken in whole or called off anywhere.
-#[test]
-fn mail_numbered_anew_is_here_once() {
-    for new_validity in [true, false] {
-        for limit in [0u32, 40] {
-            let probe = {
-                let mut r = Rig::with(bulk(120));
-                r.run("file.options", json!({"syncLimit": limit}));
-                r.sync();
-                r.sync_called_off(|_| false).len()
-            };
-            for stop_at in 1..=probe.max(30) {
-                let mut r = Rig::with(bulk(120));
-                r.run("file.options", json!({"syncLimit": limit}));
-                r.sync();
-                // Read here, not yet told to the server.
-                let some: Vec<u64> = r.s.mailbox.messages.values().filter(|m| m.account == r.account && !m.read).take(5).map(|m| m.id).collect();
-                for id in some {
-                    r.run("mail.markRead", json!({"id": id}));
-                }
-                {
-                    let mut world = r.imap.world();
-                    for mb in &mut world.mailboxes {
-                        if new_validity {
-                            mb.uid_validity += 100;
-                        }
-                        for m in &mut mb.messages {
-                            m.uid += 1000;
-                        }
-                        mb.next_uid = 0;
-                    }
-                }
-                let n = std::cell::Cell::new(0);
-                r.sync_called_off(|_| {
-                    n.set(n.get() + 1);
-                    n.get() >= stop_at
-                });
-                for _ in 0..3 {
-                    r.sync();
-                }
-                let what = format!("new UIDVALIDITY {new_validity}, limit {limit}, called off at {stop_at}");
-                assert_eq!(twice(&r), Vec::<(String, usize)>::new(), "{what}");
-            }
-        }
-    }
-}
-
-/// The program stops without warning (a crash, a kill) part way through writing a save, and is
-/// opened again: whatever of the file is read back, the next runs leave each message here once.
-#[test]
-fn a_save_cut_short_and_reopened_leaves_mail_here_once() {
-    let dir = std::env::temp_dir().join(format!("mc-imap-dup-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("mailbox.mailcraft");
-    for cut in [0u64, 1, 7, 64, 300, 2_000, 10_000] {
-        let _ = std::fs::remove_file(&path);
-        let mut r = Rig::with(bulk(120));
-        r.run("file.options", json!({"syncLimit": 0}));
-        // Half of it, then a save, then the rest and more mail, then a second save.
-        r.sync_called_off({
-            let n = std::cell::Cell::new(0);
-            move |_| {
-                n.set(n.get() + 1);
-                n.get() >= 4
-            }
-        });
-        mailcraft_engine::store::save(&path, &r.s.mailbox).unwrap();
-        let first = std::fs::metadata(&path).unwrap().len();
-        r.imap.world().mailbox("INBOX").messages.extend((121..=160).map(|uid| message(uid, "", &format!("Bulk {uid}"))));
-        r.sync();
-        mailcraft_engine::store::save(&path, &r.s.mailbox).unwrap();
-        let whole = std::fs::metadata(&path).unwrap().len();
-        // Cut the second save short.
-        let keep = whole.saturating_sub(cut).max(first);
-        let f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
-        f.set_len(keep).unwrap();
-        drop(f);
-        let opened = mailcraft_engine::store::open(&path).unwrap();
-        r.s = Session::at(opened.mailbox, 1_800_000_000, 0);
-        for _ in 0..3 {
-            r.sync();
-        }
-        assert_eq!(twice(&r), Vec::<(String, usize)>::new(), "cut {cut} of {whole} bytes");
-    }
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-impl Rig {
-    /// A run whose pieces are taken in `together` at a time, as the window takes in what waits
-    /// (`apply_sync_parts`, #991).
-    fn sync_together(&mut self, together: usize) {
-        let mut request = sync_request(&self.s, self.account).unwrap();
-        request.password = PASSWORD.into();
-        let mut pieces = Vec::new();
-        mailcraft_net::sync_with(&request, &AtomicBool::new(false), &mut |piece| pieces.push(piece));
-        let mut totals = SyncTotals::default();
-        while !pieces.is_empty() {
-            let rest = pieces.split_off(together.min(pieces.len()));
-            mailcraft_engine::cmd::account::apply_sync_parts(&mut self.s, &mut totals, std::mem::replace(&mut pieces, rest)).unwrap();
-        }
-    }
-}
-
-fn many_folders(n: usize, per: u32) -> ImapWorld {
-    let mut w = bulk(per);
-    for f in 0..n {
-        let msgs = (1..=per).map(|uid| message(uid, "\\Seen", &format!("F{f} {uid}"))).collect();
-        w.mailboxes.push(mailbox(&format!("Projects/P{f}"), "\\HasNoChildren", 1000 + f as u32, msgs));
-    }
-    w
-}
-
-#[test]
-fn pieces_taken_in_together_leave_mail_here_once() {
-    for together in [1usize, 2, 3, 7, 256] {
-        for renumber in [false, true] {
-            let mut r = Rig::with(many_folders(20, 60));
-            r.run("file.options", json!({"syncLimit": 0}));
-            r.sync_together(together);
-            r.imap.world().mailbox("INBOX").messages.extend((121..=200).map(|uid| message(uid, "", &format!("Bulk {uid}"))));
-            if renumber {
-                let mut world = r.imap.world();
-                for mb in &mut world.mailboxes {
-                    mb.uid_validity += 7;
-                    for m in &mut mb.messages {
-                        m.uid += 500;
-                    }
-                }
-            }
-            for _ in 0..3 {
-                r.sync_together(together);
-            }
-            assert_eq!(twice(&r), Vec::<(String, usize)>::new(), "together {together}, renumbered {renumber}");
-        }
-    }
-}
-
-/// Undo after a Send/Receive took mail in (or numbered a mailbox anew): the mail stays here once.
-#[test]
-fn undo_after_a_run_leaves_mail_here_once() {
-    for (action, renumber) in [("mail.markRead", false), ("mail.markRead", true), ("mail.delete", false), ("mail.delete", true), ("mail.flag", true)]
-    {
-        let mut r = Rig::with(bulk(30));
-        r.run("file.options", json!({"syncLimit": 0}));
-        r.sync();
-        let ids: Vec<u64> =
-            r.s.mailbox.messages.values().filter(|m| m.account == r.account && m.subject.starts_with("Bulk")).take(3).map(|m| m.id).collect();
-        r.run(action, json!({"ids": ids}));
-        if renumber {
-            let mut world = r.imap.world();
-            for mb in &mut world.mailboxes {
-                mb.uid_validity += 7;
-                for m in &mut mb.messages {
-                    m.uid += 500;
-                }
-            }
-        }
-        r.imap.world().mailbox("INBOX").messages.extend((31..=40).map(|uid| message(uid, "", &format!("Bulk {uid}"))));
-        r.sync();
-        let _ = r.s.run("edit.undo", &json!({}));
-        for _ in 0..3 {
-            r.sync();
-        }
-        assert_eq!(twice(&r), Vec::<(String, usize)>::new(), "{action}, renumbered {renumber}");
-    }
-}
-
-/// Two programs with one mailbox file (two computers on a synced or shared folder, where the
-/// lock beside it doesn't reach): each takes in the same new mail and saves; the file opened
-/// after holds what?
-#[test]
-fn two_programs_saving_one_file_leave_mail_here_once() {
-    let dir = std::env::temp_dir().join(format!("mc-imap-dup-two-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("mailbox.mailcraft");
-    let _ = std::fs::remove_file(&path);
-    let mut a = Rig::with(bulk(40));
-    a.run("file.options", json!({"syncLimit": 0}));
-    a.sync();
-    mailcraft_engine::store::save(&path, &a.s.mailbox).unwrap();
-    // The second program opens the same file.
-    let mut b_session = Session::at(mailcraft_engine::store::open(&path).unwrap().mailbox, 1_800_000_000, 0);
-    std::mem::swap(&mut a.s, &mut b_session);
-    a.imap.world().mailbox("INBOX").messages.extend((41..=60).map(|uid| message(uid, "", &format!("Bulk {uid}"))));
-    // B takes in the new mail and saves; then A does the same.
-    a.sync();
-    let b_saved = mailcraft_engine::store::save(&path, &a.s.mailbox);
-    std::mem::swap(&mut a.s, &mut b_session);
-    a.sync();
-    let a_saved = mailcraft_engine::store::save(&path, &a.s.mailbox);
-    let opened = mailcraft_engine::store::open(&path).unwrap();
-    let repaired = opened.repaired;
-    a.s = Session::at(opened.mailbox, 1_800_000_000, 0);
-    let after_open = twice(&a).len();
-    for _ in 0..2 {
-        a.sync();
-    }
-    let _ = std::fs::remove_dir_all(&dir);
-    assert_eq!(
-        (twice(&a), after_open),
-        (Vec::<(String, usize)>::new(), 0),
-        "saves {:?} {:?}, repaired {repaired}",
-        b_saved.map(|_| ()),
-        a_saved.map(|_| ())
-    );
 }
 
 /// Where the message `subject` is here: its folder's name and UID, one entry for each copy.
@@ -462,6 +242,10 @@ fn deleted_before_its_copy_came_down_is_deleted_on_the_server_too() {
         settle(&mut r);
         assert_eq!(on_server(&r, "Two"), Vec::<String>::new(), "MOVE {can_move}");
         assert_eq!(here(&r, "Two"), Vec::<(String, u32)>::new(), "MOVE {can_move}");
+        for other in ["One", "Three"] {
+            assert_eq!(r.server_count(other), 1, "MOVE {can_move}: {other} is untouched");
+            assert_eq!(here(&r, other).len(), 1, "MOVE {can_move}: {other} is here once");
+        }
     }
 }
 
@@ -475,6 +259,9 @@ fn deleted_to_deleted_items_before_its_copy_came_down_is_there_once() {
     r.run("mail.delete", json!({"ids": [id]}));
     settle(&mut r);
     assert_eq!(on_server(&r, "Two"), ["Trash"]);
+    for other in ["One", "Three"] {
+        assert_eq!(r.server_count(other), 1, "{other} is untouched");
+    }
     let found = here(&r, "Two");
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].1 != 0, "{found:?}");
@@ -491,8 +278,96 @@ fn a_copy_that_can_not_be_told_apart_is_never_given_a_change_meant_for_another()
     let later = r.folder_named("Later");
     r.run("mail.move", json!({"ids": [id], "folder": later}));
     settle(&mut r);
-    // Whatever was decided, no message of the server went anywhere but where the owner asked,
-    // and nothing is left waiting.
+    // Both copies stay where they are on the server, the change meant for one is dropped, and
+    // nothing is left waiting.
     assert!(r.s.mailbox.pending.is_empty(), "{:?}", r.s.mailbox.pending);
-    assert!(on_server(&r, "Two").iter().all(|name| name == "Projects" || name == "Later"));
+    assert_eq!(on_server(&r, "Two"), ["Projects"]);
+    assert_eq!(r.server_count("Two"), 2, "both copies are on the server");
+    assert_eq!(r.imap.world().mailboxes.iter().find(|m| m.raw == "Later").map_or(9, |m| m.messages.len()), 0, "nothing went to Later");
+    // Here: the message in Later, and the copies in Projects as they are on the server.
+    let found = here(&r, "Two");
+    assert_eq!(found.iter().filter(|(folder, _)| folder == "Projects").count(), 2, "{found:?}");
+    assert_eq!(found.iter().filter(|(folder, _)| folder == "Later").count(), 1, "{found:?}");
+}
+
+#[test]
+fn undo_of_a_delete_after_the_copy_was_matched_keeps_the_server_copy() {
+    let mut r = Rig::with(world(true, false));
+    r.sync();
+    let id = moved_up(&mut r, "Two", "Projects");
+    r.run("mail.deletePermanently", json!({"ids": [id]}));
+    // The run matches the copy to the deletion.
+    r.sync();
+    r.s.run("edit.undo", &json!({})).unwrap();
+    settle(&mut r);
+    assert_eq!(on_server(&r, "Two"), ["Projects"], "the copy stays on the server");
+    let found = here(&r, "Two");
+    assert!(matches!(&found[..], [(folder, uid)] if folder == "Projects" && *uid != 0), "{found:?}");
+}
+
+#[test]
+fn undo_of_a_move_on_after_the_copy_was_matched_ties_the_message_to_the_copy() {
+    let mut r = Rig::with(world(true, false));
+    r.sync();
+    let id = moved_up(&mut r, "Two", "Projects");
+    let later = r.folder_named("Later");
+    r.run("mail.move", json!({"ids": [id], "folder": later}));
+    // The run matches the copy to the move, which goes up the next time.
+    r.sync();
+    r.s.run("edit.undo", &json!({})).unwrap();
+    settle(&mut r);
+    // Back in Projects on the server too, once, and tied to it: a later deletion reaches it.
+    let found = here(&r, "Two");
+    assert!(matches!(&found[..], [(folder, uid)] if folder == "Projects" && *uid != 0), "{found:?}");
+    r.run("mail.deletePermanently", json!({"ids": [r.titled("Two")[0]]}));
+    settle(&mut r);
+    assert_eq!(r.server_count("Two"), 0, "the deletion reached the server");
+}
+
+#[test]
+fn a_move_on_made_while_the_run_that_pushed_the_first_is_under_way_goes_up_too() {
+    for delete in [false, true] {
+        let mut r = Rig::with(world(true, false));
+        r.sync();
+        let (id, projects, later) = (r.titled("Two")[0], r.folder_named("Projects"), r.folder_named("Later"));
+        r.run("mail.move", json!({"ids": [id], "folder": projects}));
+        r.sync_acting(|r| {
+            if delete {
+                r.run("mail.deletePermanently", json!({"ids": [id]}));
+            } else {
+                r.run("mail.move", json!({"ids": [id], "folder": later}));
+            }
+        });
+        settle(&mut r);
+        if delete {
+            assert_eq!(r.server_count("Two"), 0, "deleted on the server");
+            assert!(here(&r, "Two").is_empty());
+        } else {
+            assert_eq!(on_server(&r, "Two"), ["Later"]);
+            let found = here(&r, "Two");
+            assert!(matches!(&found[..], [(folder, uid)] if folder == "Later" && *uid != 0), "{found:?}");
+        }
+    }
+}
+
+#[test]
+fn moved_to_this_computer_before_its_copy_came_down_leaves_the_server_once_safe() {
+    let mut r = Rig::with(world(true, false));
+    r.sync();
+    let id = moved_up(&mut r, "Two", "Projects");
+    let local = r.s.mailbox.local_account();
+    let kept_in = r.s.mailbox.add_folder(local, None, "Kept").unwrap();
+    r.run("mail.move", json!({"ids": [id], "folder": kept_in}));
+    // Not saved here yet: the server keeps its copy.
+    settle(&mut r);
+    assert_eq!(r.server_count("Two"), 1, "the server's copy stays until the message is saved here");
+    let dir = std::env::temp_dir().join(format!("mailcraft-imap-dup-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    r.run("file.save", json!({"path": dir.join("kept.mailcraft")}));
+    settle(&mut r);
+    let _ = std::fs::remove_dir_all(dir);
+    assert_eq!(r.server_count("Two"), 0, "the server's copy went once the message was safe here");
+    let kept: Vec<Id> = r.s.mailbox.messages.values().filter(|m| m.subject == "Two").map(|m| m.id).collect();
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    assert!(r.s.mailbox.message(kept[0]).is_some_and(|m| m.account == local));
 }

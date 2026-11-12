@@ -2289,11 +2289,18 @@ impl Mailbox {
                 let from = self.folder(was_in).filter(|f| f.account == from_account && !f.remote.is_empty()).map(|f| f.remote.clone());
                 if let (Some(from), true, true) = (from.clone(), uid != 0, starts) {
                     self.pending.push(Pending::Move { account: from_account, message: id, from, uid, synced, to: folder });
-                } else if let Some(from) = from.filter(|_| uid == 0 && from_account == account && awaiting) {
+                } else if let Some(from) = from.filter(|_| uid == 0 && starts && awaiting) {
                     // Its copy hasn't come down from the server yet (no UIDPLUS: the server didn't
                     // say where it put it): the move waits with UID 0 for that copy, as one
                     // after a renumbering does, and goes up once it is matched (`waited_for`).
-                    self.pending.push(Pending::Move { account, message: id, from, uid: 0, synced: synced.map(|flags| flags.at(0)), to: folder });
+                    self.pending.push(Pending::Move {
+                        account: from_account,
+                        message: id,
+                        from,
+                        uid: 0,
+                        synced: synced.map(|flags| flags.at(0)),
+                        to: folder,
+                    });
                 }
             }
         }

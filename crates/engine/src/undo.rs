@@ -76,8 +76,18 @@ fn relevant(m: &Message, g: &BTreeSet<Id>) -> bool {
 }
 
 /// A change waiting to go to a server, as a key to compare it by.
+///
+/// A change that waits for the server's copy of its message to come down (UID 0) is the same
+/// change once the copy has come and given it its UID (`waited_for`), so the UID, and what the
+/// server last said of the message, are not part of the key.
 fn key(p: &Pending) -> String {
-    format!("{p:?}")
+    match p {
+        Pending::Move { account, message, from, to, .. } => format!("move {account} {message} {from:?} {to}"),
+        Pending::Delete { account, from, message_id, seen: Some(seen), .. } if !message_id.is_empty() => {
+            format!("delete {account} {from:?} {message_id:?} {seen:?}")
+        }
+        Pending::Delete { .. } => format!("{p:?}"),
+    }
 }
 
 /// `before`'s message `id`, which `after` no longer has, noted in `t`.
@@ -431,6 +441,64 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
     pending.extend(then.iter().filter(|p| !g.contains(&p.account()) && owned(p)).cloned());
     pending.retain(|p| !gone.contains(&p.account()));
     out.pending = pending;
+    // A change the server's copy has been matched to since (it has its UID now) that the undo takes
+    // away, or puts back as it was before, must not lose that UID: the copy is not coming
+    // down again.
+    let attached: Vec<&Pending> =
+        now.pending.iter().filter(|p| p.source().1 != 0 && !g.contains(&p.account()) && !gone.contains(&p.account()) && owned(p)).collect();
+    if attached.is_empty() {
+        return;
+    }
+    // (Looked up once, not for each change: an undo of a big move has thousands.)
+    let waiting: Vec<usize> = out.pending.iter().enumerate().filter(|(_, p)| p.source().1 == 0).map(|(at, _)| at).collect();
+    let awaiting: Vec<Id> =
+        out.messages.values().filter(|m| m.uid == 0 && m.synced.is_some() && m.placed.is_empty() && !m.message_id.is_empty()).map(|m| m.id).collect();
+    for attached in attached {
+        keep_attached(out, attached, &waiting, &awaiting);
+    }
+}
+
+/// Whether the changes `a` and `b` are about one mail, in one mailbox, of one account.
+fn same_change(mb: &Mailbox, a: &Pending, b: &Pending) -> bool {
+    let id = |p: &Pending| match p {
+        Pending::Move { message, .. } => mb.message(*message).map(|m| m.message_id.clone()).unwrap_or_default(),
+        Pending::Delete { message_id, .. } => message_id.clone(),
+    };
+    let one_message = matches!((a, b), (Pending::Move { message: x, .. }, Pending::Move { message: y, .. }) if x == y);
+    a.account() == b.account() && a.source().0 == b.source().0 && (one_message || (!id(a).is_empty() && id(a) == id(b)))
+}
+
+/// `attached`, a change of the mailbox as it is now, has the UID its message's copy has on the
+/// server, and the undo doesn't keep it. The change that takes its place in `out` waiting for
+/// that copy (UID 0) gets the UID; else a message back in the folder the change was from is the
+/// server's copy again, as one moved back to where the server has it is (`imap_side`).
+fn keep_attached(out: &mut Mailbox, attached: &Pending, waiting: &[usize], awaiting: &[Id]) {
+    let (from, uid) = attached.source();
+    let at = waiting.iter().copied().find(|at| out.pending.get(*at).is_some_and(|p| same_change(out, p, attached)));
+    if let Some(p) = at.and_then(|at| out.pending.get_mut(at)) {
+        match p {
+            Pending::Move { uid: u, synced, .. } => (*u, *synced) = (uid, synced.map(|flags| flags.at(uid))),
+            Pending::Delete { uid: u, .. } => *u = uid,
+        }
+        return;
+    }
+    let account = attached.account();
+    let here: Vec<Id> = awaiting
+        .iter()
+        .filter_map(|id| out.message(*id))
+        .filter(|m| m.account == account && out.folder(m.folder).is_some_and(|f| f.account == account && f.remote == from))
+        .filter(|m| match attached {
+            Pending::Move { message, .. } => m.id == *message,
+            Pending::Delete { message_id, seen, .. } => m.message_id == *message_id && seen.as_ref().is_some_and(|seen| seen.fits(m)),
+        })
+        .map(|m| m.id)
+        .collect();
+    if let [id] = here[..]
+        && let Ok(m) = out.message_mut(id)
+    {
+        m.uid = uid;
+        m.synced = m.synced.map(|flags| flags.at(uid));
+    }
 }
 
 /// The folders of the Microsoft accounts. Answers the folders the change made that weren't on the
