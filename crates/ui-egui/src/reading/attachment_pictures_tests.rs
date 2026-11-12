@@ -319,7 +319,7 @@ fn the_content_compare_for_a_picture_read_again_is_bounded_in_a_frame() {
     for a in &anew {
         thumbs.size(a, 2);
     }
-    assert!(thumbs.compared_in(2) <= super::attachment_pictures::MAX_COMPARED + len, "{}", thumbs.compared_in(2));
+    assert!(thumbs.compared_in(2) <= super::attachment_pictures::MAX_COMPARED, "{}", thumbs.compared_in(2));
     assert!(thumbs.compared_in(2) > 0);
 }
 

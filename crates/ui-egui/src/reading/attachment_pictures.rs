@@ -187,8 +187,8 @@ fn bring_in(app: &mut MailApp, ctx: &egui::Context, m: &Message, files: &[(usize
     match app.session.load_where(m.id, |a| a.kept.is_some_and(|k| wanted.contains(&k))) {
         // The message shown takes them up at the next frame.
         Ok(_) => ctx.request_repaint(),
-        Err(e) => {
-            log::warn!("message {}: its pictures couldn't be read ({e})", m.id);
+        Err(_) => {
+            log::warn!("message {}: its pictures couldn't be read", m.id);
             ctx.data_mut(|d| d.insert_temp(failed_key, true));
         }
     }
@@ -363,8 +363,12 @@ impl Thumbs {
             self.compared = (frame, 0);
         }
         for (index, e) in self.entries.iter().enumerate() {
+            // (Not one being decoded: its thread finds it by the bytes it was given.)
+            if matches!(e.state, State::Decoding) {
+                continue;
+            }
             let Some(held) = e.data.upgrade().filter(|d| d.len() == data.len()) else { continue };
-            if self.compared.1 > 0 && self.compared.1.saturating_add(data.len()) > MAX_COMPARED {
+            if self.compared.1.saturating_add(data.len()) > MAX_COMPARED {
                 return None;
             }
             self.compared.1 += data.len();
