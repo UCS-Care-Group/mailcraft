@@ -191,46 +191,8 @@ impl<G: Copy + PartialEq> Layout<G> {
     }
 }
 
-/// Items arranged by categories, as Outlook lists them: each under each of its categories, those
-/// with none first, then the categories A to Z, in the order the items come in under each. Takes
-/// each item's id, its account and its categories; gives each row's heading (an index into the
-/// names given back, `None` for no category) and the names.
-pub(crate) fn by_category<'a>(
-    s: &mailcraft_engine::Session,
-    items: impl IntoIterator<Item = (Id, Id, &'a [String])>,
-) -> (Vec<(Id, Option<u32>)>, Vec<String>) {
-    use mailcraft_engine::list::{category_names, category_spellings};
-    let items: Vec<(Id, Id, &[String])> = items.into_iter().collect();
-    let spelling = category_spellings(s, items.iter().map(|(_, account, categories)| (*account, *categories)));
-    // (the heading's folded name, the item)
-    let mut placed: Vec<(Option<String>, Id)> = Vec::new();
-    for (id, _, categories) in items {
-        let filed = category_names(categories);
-        if filed.is_empty() {
-            placed.push((None, id));
-        }
-        placed.extend(filed.into_iter().map(|name| (Some(name), id)));
-    }
-    // Stable, so under each heading the items keep the order they came in.
-    placed.sort_by(|a, b| a.0.cmp(&b.0));
-    let mut names: Vec<String> = Vec::new();
-    let mut last: Option<String> = None;
-    let rows = placed
-        .into_iter()
-        .map(|(name, id)| match name {
-            None => (id, None),
-            Some(name) => {
-                // Sorted by name, so a name not last seen is a new one, spelt as the mailbox spells it.
-                if last.as_ref() != Some(&name) {
-                    names.push(spelling.get(&name).map_or_else(|| name.clone(), |k| (*k).to_string()));
-                    last = Some(name);
-                }
-                (id, Some(u32::try_from(names.len().saturating_sub(1)).unwrap_or(u32::MAX)))
-            }
-        })
-        .collect();
-    (rows, names)
-}
+/// Items arranged by categories, as Outlook lists them ([`mailcraft_engine::list::items_by_category`]).
+pub(crate) use mailcraft_engine::list::items_by_category as by_category;
 
 /// How many items a list shows: one listed under several categories counts once.
 pub(crate) fn listed<G>(layout: &Layout<G>) -> usize {

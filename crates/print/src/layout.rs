@@ -244,7 +244,7 @@ fn header(ctx: &mut Ctx, doc: &Doc, width: f32) -> Vec<Slab> {
         .min(width / 3.0);
     for (label, value) in &doc.fields {
         let label_line = text_line(ctx.faces, &[Span::plain(label.as_str())], Style::Bold, 9.5, MUTED);
-        let indent = label_width + 10.0;
+        let indent = if label_width > 0.0 { label_width + 10.0 } else { 0.0 };
         let lines = paragraph(ctx, &[Span::plain(value.as_str())], &Para { size: 9.5, width: width - indent, ..Para::default() });
         for (n, mut line) in lines.into_iter().enumerate() {
             line.ops = line.ops.into_iter().map(|op| op.moved(indent, 0.0)).collect();
@@ -988,7 +988,7 @@ fn columns(ctx: &mut Ctx, table: &Table, depth: usize) -> Vec<(f32, f32, Option<
     for row in &grid {
         for (col, span, cell) in row {
             let pad = padding(table, cell);
-            let (lo, hi) = measure(ctx, &cell.blocks, depth);
+            let (lo, hi) = if cell.header { measure(ctx, &emboldened(&cell.blocks), depth) } else { measure(ctx, &cell.blocks, depth) };
             let (lo, hi) = (lo + pad[1] + pad[3], hi + pad[1] + pad[3]);
             if *span == 1 {
                 if let Some(c) = cols.get_mut(*col) {
@@ -1057,8 +1057,66 @@ fn column_widths(ctx: &mut Ctx, table: &Table, width: f32, depth: usize) -> (Vec
     } else {
         vec![target / cols.len().max(1) as f32; cols.len()]
     };
+    let pcts = percents(table, cols.len());
+    let widths = if pcts.iter().any(Option::is_some) { with_percents(&cols, &pcts, target) } else { widths };
     let total = widths.iter().sum::<f32>() + gaps;
     (widths, total)
+}
+
+/// The share of the table each column asks for, from its cells of one column (`width="25%"`).
+fn percents(table: &Table, count: usize) -> Vec<Option<f32>> {
+    let mut out = vec![None; count];
+    for row in grid(table) {
+        for (col, span, cell) in row {
+            if let (1, Some(Length::Percent(p)), Some(slot)) = (span, cell.width, out.get_mut(col)) {
+                let p = f32::from(p.min(100)) / 100.0;
+                *slot = Some(slot.map_or(p, |o: f32| o.max(p)));
+            }
+        }
+    }
+    out
+}
+
+/// Column widths for a table `target` wide where some columns ask for a share of it: each of
+/// those gets its share (never less than its longest word), the others what is left by what they
+/// want, and a table of shares alone is stretched to its width. The shares together are at most
+/// the whole width; and when the columns still come to more than `target` (their longest words,
+/// a share of all of it beside other columns), every column is scaled down to fit, its words
+/// then broken where they must be.
+fn with_percents(cols: &[(f32, f32, Option<f32>)], pcts: &[Option<f32>], target: f32) -> Vec<f32> {
+    let asked: f32 = pcts.iter().flatten().sum();
+    let scale = if asked > 1.0 { 1.0 / asked } else { 1.0 };
+    let mut widths: Vec<f32> = cols.iter().zip(pcts).map(|(c, p)| p.map_or(0.0, |p| (target * p * scale).max(c.0))).collect();
+    let used: f32 = widths.iter().sum();
+    let rest: Vec<usize> = pcts.iter().enumerate().filter(|(_, p)| p.is_none()).map(|(i, _)| i).collect();
+    if rest.is_empty() {
+        if used > 0.0 && used < target {
+            widths.iter_mut().for_each(|w| *w *= target / used);
+        }
+    } else {
+        let lo: f32 = rest.iter().filter_map(|i| cols.get(*i)).map(|c| c.0).sum();
+        let hi: f32 = rest.iter().filter_map(|i| cols.get(*i)).map(|c| c.2.unwrap_or(c.1)).sum();
+        let room = (target - used).max(lo);
+        for i in rest {
+            let (Some(c), Some(w)) = (cols.get(i), widths.get_mut(i)) else { continue };
+            let want = c.2.unwrap_or(c.1);
+            *w = if hi > 0.0 { (want * room / hi).max(c.0) } else { room / pcts.len().max(1) as f32 };
+        }
+    }
+    let total: f32 = widths.iter().sum();
+    if total > target && total > 0.0 {
+        // What is over the longest words goes first; only when those alone don't fit is every
+        // column made narrower alike.
+        let mins: Vec<f32> = widths.iter().zip(cols).map(|(w, c)| w.min(c.0)).collect();
+        let least: f32 = mins.iter().sum();
+        if least <= target && total > least {
+            let k = (total - target) / (total - least);
+            widths.iter_mut().zip(&mins).for_each(|(w, m)| *w -= (*w - m) * k);
+        } else {
+            widths.iter_mut().for_each(|w| *w *= target / total);
+        }
+    }
+    widths
 }
 
 /// `blocks` with all their text bold: a header cell's.

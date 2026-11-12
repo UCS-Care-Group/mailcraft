@@ -47,7 +47,7 @@ fn the_window_s_labels_and_paper_are_used() {
     let mut s = sample();
     let id = titled(&s, "Lunch next week?");
     let labels = json!({"from": "Von:", "sent": "Gesendet:", "to": "An:", "page": "Seite {n} von {m}"});
-    let docs = s.print_docs(&Request { ids: vec![id], labels: Labels::from_params(Some(&labels)), paper: None }).unwrap();
+    let docs = s.print_docs(&Request { ids: vec![id], labels: Labels::from_params(Some(&labels)), ..Request::default() }).unwrap();
     assert_eq!(docs[0].fields[0].0, "Von:");
     let r = s.run("file.saveAsPdf", &json!({"id": id, "paper": "letter", "labels": labels})).unwrap();
     let text = String::from_utf8_lossy(&pdf_of(&r)).into_owned();
@@ -156,4 +156,105 @@ fn the_system_s_faces_are_used_unless_the_host_names_others() {
     assert_eq!(crate::print::fallback_faces(&[vec![junk.clone()]]).len(), 0);
     assert_eq!(crate::print::fallback_faces(&[vec![inter.clone()], vec![inter]]).len(), 1, "one file, once");
     let _ = std::fs::remove_file(junk);
+}
+
+fn page_text(s: &Session, request: &Request) -> String {
+    let docs = s.print_docs(request).unwrap();
+    mailcraft_print::page_text(&docs, &s.print_fonts().unwrap(), &mailcraft_print::Options::default()).unwrap().join("\n")
+}
+
+fn calendar(from: &str, to: &str, style: crate::print_views::CalendarStyle) -> Request {
+    Request {
+        what: crate::print::What::Calendar {
+            from: mailcraft_time::Date::parse_iso(from),
+            to: mailcraft_time::Date::parse_iso(to),
+            style: Some(style),
+        },
+        ..Request::default()
+    }
+}
+
+#[test]
+fn the_calendar_prints_as_a_month_or_day_by_day() {
+    use crate::print_views::CalendarStyle;
+    let s = sample();
+    let month = page_text(&s, &calendar("2026-10-01", "2026-10-31", CalendarStyle::Month));
+    assert!(month.contains("October 2026") && month.contains("Team") && month.contains("Budget"), "{month}");
+    let days = page_text(&s, &calendar("2026-10-12", "2026-10-16", CalendarStyle::Agenda));
+    for want in ["Monday, October 12, 2026", "9:30 AM – 9:45 AM", "Budget sync", "Room Oak", "Friday, October 16, 2026"] {
+        assert!(days.contains(want), "{want:?} missing from:\n{days}");
+    }
+    assert!(days.find("Monday").unwrap() < days.find("Friday").unwrap());
+    let empty = page_text(&s, &calendar("2031-03-01", "2031-03-01", CalendarStyle::Agenda));
+    assert!(empty.contains("Nothing planned"), "{empty}");
+}
+
+#[test]
+fn contacts_and_tasks_print_what_their_lists_show() {
+    let mut s = sample();
+    let contacts = page_text(&s, &Request { what: crate::print::What::Contacts, ..Request::default() });
+    assert!(contacts.contains("Contacts") && contacts.contains("Priya Nair") && contacts.contains("priya@lumen.example"), "{contacts}");
+    let tasks = page_text(&s, &Request { what: crate::print::What::Tasks, ..Request::default() });
+    for want in ["Tasks", "Subject", "Due", "Importance", "Not completed", "High"] {
+        assert!(tasks.contains(want), "{want:?} missing from:\n{tasks}");
+    }
+    s.view.module = crate::Module::Tasks;
+    let r = s.run("file.saveAsPdf", &json!({})).unwrap();
+    assert_eq!(r["name"], "Tasks.pdf");
+}
+
+#[test]
+fn printing_the_module_in_view_and_what_is_refused() {
+    let mut s = sample();
+    s.view.module = crate::Module::Calendar;
+    let r = s.run("file.print", &json!({"labels": {"calendar": "Kalender"}})).unwrap();
+    assert_eq!(r["name"], "Kalender.pdf");
+    assert!(s.run("file.print", &json!({"what": "notes"})).is_err());
+    assert!(s.run("file.print", &json!({"what": "calendar", "style": "year"})).is_err());
+    assert!(s.run("file.print", &json!({"what": "calendar", "from": "2026-01-01", "to": "2028-01-01"})).is_err());
+    assert!(s.run("file.print", &json!({"what": "calendar", "from": "2026-02-01", "to": "2026-01-01"})).is_err());
+    assert!(s.run("file.print", &json!({"what": "contacts", "ids": [999_999]})).is_err());
+}
+
+#[test]
+fn the_month_in_view_prints_that_month_alone() {
+    let mut s = sample();
+    s.view.module = crate::Module::Calendar;
+    s.view.calendar = crate::CalView::Month;
+    s.view.date = mailcraft_time::Date::parse_iso("2026-10-14").unwrap();
+    let text = page_text(&s, &Request { what: crate::print::What::Calendar { from: None, to: None, style: None }, ..Request::default() });
+    assert!(text.contains("October 2026"), "{text}");
+    assert!(!text.contains("September 2026"), "a grid of its own for the days before: {text}");
+}
+
+#[test]
+fn an_item_over_several_days_is_in_each_of_them_in_the_month() {
+    let mut s = sample();
+    s.run("calendar.new", &json!({"title": "Holiday week", "start": "2026-09-28", "end": "2026-10-04", "allDay": true})).unwrap();
+    let text = page_text(&s, &calendar("2026-10-01", "2026-10-31", crate::print_views::CalendarStyle::Month));
+    assert!(text.matches("Holiday week").count() >= 3, "{text}");
+}
+
+#[test]
+fn ids_name_messages_whatever_is_in_view() {
+    let mut s = sample();
+    let id = titled(&s, "Lunch next week?");
+    s.view.module = crate::Module::Calendar;
+    let r = s.run("file.saveAsPdf", &json!({"id": id})).unwrap();
+    assert_eq!(r["name"], "Lunch next week_.pdf");
+    let e = s.run("file.print", &json!({"what": "contacts", "ids": [0]})).unwrap_err().to_string();
+    assert!(e.contains("contact ids"), "{e}");
+    assert!(s.run("file.print", &json!({"what": "calendar", "id": id})).is_err());
+}
+
+#[test]
+fn tasks_arranged_by_categories_print_under_their_categories() {
+    let mut s = sample();
+    s.view.task_filter = crate::TaskFilter::All;
+    s.view.task_sort = crate::TaskSort::Categories;
+    let text = page_text(&s, &Request { what: crate::print::What::Tasks, ..Request::default() });
+    assert!(text.contains("No category") || s.mailbox.tasks.values().all(|t| !t.categories.is_empty()), "{text}");
+    for c in s.mailbox.tasks.values().flat_map(|t| t.categories.clone()) {
+        assert!(text.contains(&c), "{c} missing: {text}");
+    }
 }

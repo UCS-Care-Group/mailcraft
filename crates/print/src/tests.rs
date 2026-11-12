@@ -319,3 +319,45 @@ fn a_picture_one_message_had_no_room_for_prints_in_the_next() {
     let last = pages.last().unwrap();
     assert!(last.ops.iter().any(|op| matches!(op, layout::Op::Image { .. })), "the logo is in the second message");
 }
+
+#[test]
+fn columns_that_ask_for_a_share_get_it() {
+    let html = r#"<table border="1" width="100%"><tr><td width="20%">a</td><td width="20%">b</td><td>a much longer cell of text that would take the room</td></tr></table>"#;
+    let mut f = fonts();
+    f.fallbacks.clear();
+    let mut faces = font::FaceSet::new(&f).unwrap();
+    let mut pictures = picture::Pictures::default();
+    let pages = layout::pages(&[doc(html)], &mut faces, &mut pictures, &Options::default());
+    let xs: Vec<f32> = pages[0]
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            layout::Op::Text { x, text, .. } if text == "a" || text == "b" => Some(*x),
+            _ => None,
+        })
+        .collect();
+    assert!(xs.len() >= 2, "{xs:?}");
+    let width = Paper::A4.width - 2.0 * 54.0;
+    let step = xs[1] - xs[0];
+    assert!((step - width * 0.2).abs() < 6.0, "the second column starts a fifth of the width after the first: {step} of {width}");
+}
+
+/// Where the text that starts furthest right on the pages of `html` starts.
+fn rightmost(html: &str) -> f32 {
+    let mut faces = font::FaceSet::new(&fonts()).unwrap();
+    let mut pictures = picture::Pictures::default();
+    let pages = layout::pages(&[doc(html)], &mut faces, &mut pictures, &Options { page_label: String::new(), ..Options::default() });
+    pages.iter().flat_map(|p| &p.ops).filter_map(|op| if let layout::Op::Text { x, .. } = op { Some(*x) } else { None }).fold(0.0, f32::max)
+}
+
+#[test]
+fn shares_of_the_width_never_push_a_table_off_the_page() {
+    let edge = Paper::A4.width - 54.0;
+    for html in [
+        r#"<table><tr><td width="60%">left side</td><td width="60%">right</td></tr></table>"#.to_string(),
+        r#"<table><tr><td width="100%">left</td><td>right</td></tr></table>"#.to_string(),
+        format!("<table><tr>{}</tr></table>", r#"<td width="14%">Quartalsabschlussbesprechungsvorbereitungstermin</td>"#.repeat(7)),
+    ] {
+        assert!(rightmost(&html) < edge, "{html}: text starts past the margin at {}", rightmost(&html));
+    }
+}

@@ -10,10 +10,11 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 
 use egui::{RichText, Ui, vec2};
-use mailcraft_engine::print::{Labels, Request};
+use mailcraft_engine::print::{Labels, Request, What};
+use mailcraft_engine::print_views::CalendarStyle;
 use mailcraft_model::Id;
 use mailcraft_print::{Doc, Fonts, Options, Paper};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::MailApp;
 use crate::dialogs::button_row;
@@ -129,6 +130,27 @@ pub fn labels() -> Labels {
         cc: tl!("Cc:").into(),
         attachments: tl!("Attachments:").into(),
         page: tl!("Page {n} of {m}").into(),
+        calendar: tl!("Calendar").into(),
+        contacts: tl!("Contacts").into(),
+        tasks: tl!("Tasks").into(),
+        all_day: tl!("All day").into(),
+        nothing: tl!("Nothing planned").into(),
+        subject: tl!("Subject").into(),
+        due: tl!("Due").into(),
+        status: tl!("Status").into(),
+        importance: tl!("Importance").into(),
+        categories: tl!("Categories").into(),
+        completed: tl!("Completed").into(),
+        not_completed: tl!("Not completed").into(),
+        high: tl!("High").into(),
+        normal: tl!("Normal").into(),
+        low: tl!("Low").into(),
+        email: tl!("Email").into(),
+        phone: tl!("Phone").into(),
+        address: tl!("Address").into(),
+        birthday: tl!("Birthday").into(),
+        notes: tl!("Notes").into(),
+        no_category: tl!("No category").into(),
     }
 }
 
@@ -144,8 +166,7 @@ pub fn with_labels(id: &str, params: Value) -> Value {
         other => return other,
     };
     if !map.contains_key("labels") {
-        let l = labels();
-        map.insert("labels".into(), json!({"from": l.from, "sent": l.sent, "to": l.to, "cc": l.cc, "attachments": l.attachments, "page": l.page}));
+        map.insert("labels".into(), labels().to_params());
     }
     Value::Object(map)
 }
@@ -183,8 +204,14 @@ enum Layout {
 /// once for each paper, and the printers are listed and the job is sent there too: the window
 /// never waits for the system.
 pub struct PrintDialog {
+    /// What it prints, as the command reads it (`what`, `ids`, the calendar's `from`, `to` and
+    /// `style`), its messages named as the dialog took them.
+    request: Request,
+    /// The calendar as month grids rather than day by day; `None` when it isn't the calendar.
+    month: Option<bool>,
     ids: Vec<Id>,
-    docs: Arc<Vec<Doc>>,
+    /// The documents, for each calendar style (one, when it isn't the calendar).
+    docs: [Option<Arc<Vec<Doc>>>; 2],
     fonts: Fonts,
     options: Options,
     /// The PDF's name.
@@ -198,32 +225,45 @@ pub struct PrintDialog {
     letter: bool,
     two_sided: bool,
     color: bool,
-    /// The print on A4 and on Letter, as far as they have been laid out.
-    laid: [Option<Layout>; 2],
+    /// The print on A4 and on Letter, in each calendar style, as far as it has been laid out.
+    laid: [Option<Layout>; 4],
     /// A job on its way to the printer, and what to say when it is there.
     sending: Option<(Receiver<Result<(), PrintError>>, String)>,
     error: String,
 }
 
 impl PrintDialog {
-    /// The dialog for the messages `params` names, or the selected ones; `None` when there is
-    /// nothing to print (the command then says why).
+    /// The dialog for what `params` names (read as `file.print` reads them), else what the
+    /// module in view prints; `None` when there is nothing to print (the command then says why).
     pub fn open(app: &MailApp, params: &Value) -> Option<PrintDialog> {
-        let mut ids: Vec<Id> = params.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
-        ids.extend(params.get("id").and_then(Value::as_u64));
-        let ids = app.session.print_ids(&ids).ok()?;
-        let request = Request { ids: ids.clone(), labels: labels(), paper: None };
-        let docs = app.session.print_docs(&request).ok()?;
+        let mut request = mailcraft_engine::cmd::file::print_request(&app.session, params).ok()?;
+        request.labels = labels();
+        if request.what == What::Messages {
+            request.ids = app.session.print_ids(&request.ids).ok()?;
+        }
+        let month = match request.what {
+            What::Calendar { style: Some(style), .. } => Some(style == CalendarStyle::Month),
+            What::Calendar { style: None, .. } => Some(app.session.view.calendar == mailcraft_engine::CalView::Month),
+            _ => None,
+        };
+        let ids = request.ids.clone();
+        let docs = app.session.print_docs(&styled(&request, month)).ok()?;
         let fonts = app.session.print_fonts().ok()?;
         let options = app.session.print_options(&docs, &request);
-        let name = mailcraft_engine::cmd::file::pdf_name(&app.session, &ids);
+        let name = mailcraft_engine::cmd::file::print_name(&app.session, &request);
+        let mut slots: [Option<Arc<Vec<Doc>>>; 2] = [None, None];
+        if let Some(slot) = slots.get_mut(usize::from(month.unwrap_or(false))) {
+            *slot = Some(Arc::new(docs));
+        }
         let listing = app.services.print.as_ref().map(|h| {
             let printers = h.printers.clone();
             background("printers", move || printers())
         });
         Some(PrintDialog {
+            request,
+            month,
             ids,
-            docs: Arc::new(docs),
+            docs: slots,
             fonts,
             options,
             name,
@@ -236,10 +276,20 @@ impl PrintDialog {
             letter: app.session.print_paper() == Paper::LETTER,
             two_sided: false,
             color: true,
-            laid: [None, None],
+            laid: [None, None, None, None],
             sending: None,
             error: String::new(),
         })
+    }
+
+    /// What it prints, as it read the params.
+    pub fn request(&self) -> &Request {
+        &self.request
+    }
+
+    /// The calendar style it shows: month grids (`Some(true)`), day by day, or none.
+    pub fn month(&self) -> Option<bool> {
+        self.month
     }
 
     /// The messages it prints, as it took them.
@@ -249,14 +299,39 @@ impl PrintDialog {
 
     /// Whether something is still being worked out: the pages, the printers, a job on its way.
     pub fn busy(&self) -> bool {
-        self.listing.is_some() || self.sending.is_some() || matches!(self.laid.get(usize::from(self.letter)), Some(Some(Layout::Busy(_))))
+        self.listing.is_some() || self.sending.is_some() || matches!(self.laid.get(self.slot()), Some(Some(Layout::Busy(_))))
     }
 
-    /// The print for the paper chosen: laid out, started, or picked up when it is done.
-    fn current(&mut self) -> Option<&Laid> {
-        let slot = self.laid.get_mut(usize::from(self.letter))?;
+    /// The slot of the paper and calendar style chosen.
+    fn slot(&self) -> usize {
+        usize::from(self.letter) + 2 * usize::from(self.month.unwrap_or(false))
+    }
+
+    /// The print for the paper and style chosen: laid out, started, or picked up when it is done.
+    fn current(&mut self, app: &MailApp) -> Option<&Laid> {
+        let style = usize::from(self.month.unwrap_or(false));
+        if self.docs.get(style).is_some_and(Option::is_none) {
+            let docs = app.session.print_docs(&styled(&self.request, self.month)).map_err(|e| e.to_string());
+            match docs {
+                Ok(docs) => {
+                    if let Some(d) = self.docs.get_mut(style) {
+                        *d = Some(Arc::new(docs));
+                    }
+                }
+                Err(e) => {
+                    let slot = self.slot();
+                    if let Some(l) = self.laid.get_mut(slot) {
+                        *l = Some(Layout::Done(Err(e)));
+                    }
+                }
+            }
+        }
+        let docs = self.docs.get(style).cloned().flatten();
+        let slot = self.slot();
+        let slot = self.laid.get_mut(slot)?;
         if slot.is_none() {
-            let (docs, fonts) = (self.docs.clone(), self.fonts.clone());
+            let docs = docs?;
+            let fonts = self.fonts.clone();
             let options = Options { paper: if self.letter { Paper::LETTER } else { Paper::A4 }, ..self.options.clone() };
             let rx = background("print-layout", move || {
                 mailcraft_engine::print::render(&docs, &fonts, &options).map(|(bytes, pages)| (Arc::new(bytes), pages))
@@ -351,6 +426,16 @@ impl PrintDialog {
                 });
                 ui.end_row();
             }
+            if let Some(month) = self.month.as_mut() {
+                ui.label(tl!("Style"));
+                ui.horizontal(|ui| {
+                    let m = ui.radio_value(month, true, tl!("Month"));
+                    app.hit.add("printMonth", 0, m.rect);
+                    let d = ui.radio_value(month, false, tl!("Day by day"));
+                    app.hit.add("printDays", 0, d.rect);
+                });
+                ui.end_row();
+            }
             ui.label(tl!("Paper"));
             ui.horizontal(|ui| {
                 let a4 = ui.radio_value(&mut self.letter, false, "A4");
@@ -371,7 +456,7 @@ impl PrintDialog {
             }
         });
         // Read after the paper is chosen: a change of it in this frame never prints the other's.
-        let laid = self.current().cloned();
+        let laid = self.current(app).cloned();
         if self.busy() {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         }
@@ -459,4 +544,13 @@ impl PrintDialog {
             }
         }
     }
+}
+
+/// `request` with the calendar style the dialog shows (`month`), when it prints the calendar.
+fn styled(request: &Request, month: Option<bool>) -> Request {
+    let mut r = request.clone();
+    if let (What::Calendar { from, to, .. }, Some(month)) = (r.what, month) {
+        r.what = What::Calendar { from, to, style: Some(if month { CalendarStyle::Month } else { CalendarStyle::Agenda }) };
+    }
+    r
 }

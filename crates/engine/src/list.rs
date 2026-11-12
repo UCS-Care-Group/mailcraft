@@ -570,3 +570,40 @@ pub fn position_of(rows: &[Row], id: Id, copy: u16) -> Option<usize> {
 pub fn listed(rows: &[Row]) -> usize {
     rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).count()
 }
+
+/// Items arranged by categories, as Outlook lists them: each under each of its categories, those
+/// with none first, then the categories A to Z, in the order the items come in under each. Takes
+/// each item's id, its account and its categories; gives each row's heading (an index into the
+/// names given back, `None` for no category) and the names.
+pub fn items_by_category<'a>(s: &crate::Session, items: impl IntoIterator<Item = (Id, Id, &'a [String])>) -> (Vec<(Id, Option<u32>)>, Vec<String>) {
+    let items: Vec<(Id, Id, &[String])> = items.into_iter().collect();
+    let spelling = category_spellings(s, items.iter().map(|(_, account, categories)| (*account, *categories)));
+    // (the heading's folded name, the item)
+    let mut placed: Vec<(Option<String>, Id)> = Vec::new();
+    for (id, _, categories) in items {
+        let filed = category_names(categories);
+        if filed.is_empty() {
+            placed.push((None, id));
+        }
+        placed.extend(filed.into_iter().map(|name| (Some(name), id)));
+    }
+    // Stable, so under each heading the items keep the order they came in.
+    placed.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut names: Vec<String> = Vec::new();
+    let mut last: Option<String> = None;
+    let rows = placed
+        .into_iter()
+        .map(|(name, id)| match name {
+            None => (id, None),
+            Some(name) => {
+                // Sorted by name, so a name not last seen is a new one, spelt as the mailbox spells it.
+                if last.as_ref() != Some(&name) {
+                    names.push(spelling.get(&name).map_or_else(|| name.clone(), |k| (*k).to_string()));
+                    last = Some(name);
+                }
+                (id, Some(u32::try_from(names.len().saturating_sub(1)).unwrap_or(u32::MAX)))
+            }
+        })
+        .collect();
+    (rows, names)
+}
