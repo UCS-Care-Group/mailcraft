@@ -6,8 +6,14 @@
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod init;
+#[cfg(test)]
+mod init_tests;
+pub mod platform;
 pub mod secrets;
 #[cfg(test)]
 mod secrets_tests;
 
+pub use init::{Host, InitError, init, memory_budget};
+pub use platform::{NetworkState, Notification, NotificationKind, Platform, PlatformError, Redirect, Stream};
 pub use secrets::{SecretError, SecretStore, StoreTrouble};
