@@ -1,1 +1,1 @@
-- The log now carries the text of each Send/Receive problem, once (cut short, quoted names and addresses taken out), so Copy Diagnostics shows what failed.
+- Help › Copy Diagnostics now shows why IMAP and SMTP problems happened (the server's refusal, with names and addresses hidden); problems of other kinds (Microsoft 365, calendar, tasks, rules) are only counted in the log.

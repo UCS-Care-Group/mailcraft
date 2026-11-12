@@ -123,6 +123,8 @@ fn a_servers_code_is_kept_and_its_words_are_not() {
         ("550 No such user ada@example.org", "the server said: 550…"),
         ("450 5.1.1.1 odd", "the server said: 450…"),
         ("[lower] no", "the server said: …"),
+        ("[HUNTER2-SECRET-PW] refused", "the server said: …"),
+        ("[OVERQUOTA hunter2] refused", "the server said: …"),
         ("[ada@example.org] no", "the server said: …"),
         ("5501 no", "the server said: …"),
         ("Taxes is gone [OVERQUOTA]", "the server said: …"),
@@ -139,4 +141,15 @@ fn a_value_given_to_a_template_never_keeps_a_code_shape() {
     let text =
         Text { template: "the server said: {reason}", args: vec![("reason", Arg::Said(Box::new(Text::verbatim("[OVERQUOTA] Quota exceeded"))))] };
     assert_eq!(masked(&text), "the server said: [OVERQUOTA]…");
+}
+
+#[test]
+fn different_reply_codes_are_different_problems_but_counts_are_not() {
+    let mut log = ProblemLog::default();
+    assert_eq!(log.fresh(1, "mail", &s("the server said: 550…")).0.len(), 1);
+    assert_eq!(log.fresh(1, "mail", &s("the server said: 552 5.3.4…")).0.len(), 1);
+    assert_eq!(log.fresh(1, "mail", &s("the server said: 553 5.3.4…")).0.len(), 1);
+    assert!(log.fresh(1, "mail", &s("the server said: 550…")).0.is_empty());
+    assert_eq!(log.fresh(1, "mail", &s("the server said: [OVERQUOTA]…")).0.len(), 1);
+    assert_eq!(log.fresh(1, "mail", &s("the server said: [TRYCREATE]…")).0.len(), 1);
 }

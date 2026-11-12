@@ -43,26 +43,97 @@ fn one_line(text: &str) -> String {
     kept.join(" ").chars().take(MAX_CHARS).collect()
 }
 
-/// What tells two texts apart for "said before": the digits (a count, a time, of any length) don't.
-fn key_of(line: &str) -> String {
-    let mut key = String::with_capacity(line.len());
-    for c in line.chars() {
-        if !c.is_ascii_digit() {
-            key.push(c);
-        } else if !key.ends_with('#') {
-            key.push('#');
-        }
-    }
-    key
+/// Whether `word` is a three-digit SMTP reply code, ending its code (`550…`) or not.
+fn is_reply_code(word: &str) -> bool {
+    let w = word.strip_suffix('…').unwrap_or(word);
+    w.len() == 3 && w.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// The length of the code a server's words begin with: an IMAP response code (`[OVERQUOTA]`,
-/// letters, digits and `-`, 32 at most) or an SMTP reply's three digits and enhanced status
+/// Whether `word` is an enhanced status (`5.3.4`), with a `…` after it or not.
+fn is_status(word: &str) -> bool {
+    let parts: Vec<&str> = word.strip_suffix('…').unwrap_or(word).split('.').collect();
+    let digits = |p: Option<&&str>, max: usize| p.is_some_and(|p| (1..=max).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()));
+    parts.len() == 3 && digits(parts.first(), 1) && digits(parts.get(1), 3) && digits(parts.get(2), 3)
+}
+
+/// What tells two texts apart for "said before": the digits (a count, a time, of any length)
+/// don't, but a server's reply code and status (`550`, `552 5.3.4`) do.
+fn key_of(line: &str) -> String {
+    let words: Vec<&str> = line.split(' ').collect();
+    let mut keys = Vec::with_capacity(words.len());
+    for (n, word) in words.iter().enumerate() {
+        let code = is_status(word) || (is_reply_code(word) && (word.ends_with('…') || words.get(n + 1).is_some_and(|next| is_status(next))));
+        if code {
+            keys.push((*word).to_string());
+            continue;
+        }
+        let mut key = String::with_capacity(word.len());
+        for c in word.chars() {
+            if !c.is_ascii_digit() {
+                key.push(c);
+            } else if !key.ends_with('#') {
+                key.push('#');
+            }
+        }
+        keys.push(key);
+    }
+    keys.join(" ")
+}
+
+/// The response codes of IMAP (RFC 3501, 5530 and the extensions that name more): a server's code
+/// is kept in a log only when it is one of these, never a word a server made up (it could be
+/// anything, a secret included).
+const IMAP_CODES: &[&str] = &[
+    "ALERT",
+    "BADCHARSET",
+    "CAPABILITY",
+    "PARSE",
+    "PERMANENTFLAGS",
+    "READ-ONLY",
+    "READ-WRITE",
+    "TRYCREATE",
+    "UIDNEXT",
+    "UIDVALIDITY",
+    "UNSEEN",
+    "UNAVAILABLE",
+    "AUTHENTICATIONFAILED",
+    "AUTHORIZATIONFAILED",
+    "EXPIRED",
+    "PRIVACYREQUIRED",
+    "CONTACTADMIN",
+    "NOPERM",
+    "INUSE",
+    "EXPUNGEISSUED",
+    "CORRUPTION",
+    "SERVERBUG",
+    "CLIENTBUG",
+    "CANNOT",
+    "LIMIT",
+    "OVERQUOTA",
+    "ALREADYEXISTS",
+    "NONEXISTENT",
+    "COPYUID",
+    "APPENDUID",
+    "UIDNOTSTICKY",
+    "CLOSED",
+    "HIGHESTMODSEQ",
+    "NOMODSEQ",
+    "MODIFIED",
+    "COMPRESSIONACTIVE",
+    "WEBALERT",
+    "NOTSAVED",
+    "HASCHILDREN",
+    "USEATTR",
+    "UNKNOWN-CTE",
+];
+
+/// The length of the code a server's words begin with: a known IMAP response code, the word alone
+/// (`[OVERQUOTA]`: [`IMAP_CODES`]; nothing after it inside the brackets) or an SMTP reply's three digits and enhanced status
 /// (`552 5.3.4`). Nothing else: no word of the server's own is a code.
 fn code_len(words: &str) -> usize {
     if let Some(rest) = words.strip_prefix('[') {
         return match rest.find(']') {
-            Some(n) if (1..=32).contains(&n) && rest.bytes().take(n).all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-') => n + 2,
+            Some(n) if rest.get(..n).is_some_and(|word| IMAP_CODES.contains(&word)) => n + 2,
             _ => 0,
         };
     }
