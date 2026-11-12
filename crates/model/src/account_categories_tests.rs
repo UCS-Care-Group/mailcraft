@@ -390,3 +390,27 @@ fn a_rule_copying_mail_into_another_account_puts_its_category_on_that_accounts_l
     let on = |acc: Id| mb.categories_of(acc).iter().any(|c| c.name == "Eta");
     assert_eq!((on(a), on(c)), (true, true), "on A's list / on C's list");
 }
+
+/// A rule for every account, which a mailbox from before rules were each for one account may hold,
+/// follows a rename on the list IMAP accounts and this computer share, and not one on a Microsoft
+/// account's own list; a rule for that Microsoft account follows its list (#566).
+#[test]
+fn a_rename_follows_into_the_rules_for_the_mail_that_uses_that_list() {
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    mb.categories = vec![tagged("Red", RED)];
+    let rule = |account: Id| Rule {
+        enabled: true,
+        account,
+        conditions: vec![Condition::SubjectContains(vec!["Weekly".into()])],
+        actions: vec![Action::Categorize("Red".into())],
+        ..Default::default()
+    };
+    mb.rules = vec![rule(0), rule(a)];
+    let named = |mb: &Mailbox| mb.rules.iter().map(|r| r.actions.clone()).collect::<Vec<_>>();
+    mb.rename_category(a, "Red", "Urgent").unwrap();
+    assert_eq!(named(&mb), [vec![Action::Categorize("Red".into())], vec![Action::Categorize("Urgent".into())]]);
+    let shared = mb.accounts.iter().find(|x| mb.category_list_owner(x.id).is_none()).map(|x| x.id).unwrap();
+    mb.rename_category(shared, "Red", "Crimson").unwrap();
+    assert_eq!(named(&mb), [vec![Action::Categorize("Crimson".into())], vec![Action::Categorize("Urgent".into())]]);
+}

@@ -265,7 +265,7 @@ pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
 /// Most bytes [`Message::read_header`] keeps: past them, the message says its header was cut
 /// ([`Message::headers_cut`]).
-pub const MAX_READ_HEADER: usize = 4 * 1024;
+pub const MAX_READ_HEADER: usize = 64 * 1024;
 
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
 /// plain part); `html` is the original HTML when the message has one.
@@ -338,12 +338,14 @@ pub struct Message {
     /// Headers MailCraft doesn't model, kept so a saved message round-trips.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
-    /// The lines of its header MailCraft reads into the message itself and doesn't keep in
-    /// [`Message::headers`] (Date, MIME-Version, the Content- lines, Importance, X-Priority,
-    /// Keywords, Status), as they came, one `name: value` to a line, at most
-    /// [`MAX_READ_HEADER`] bytes: for a rule with words in the header alone, never written into a
-    /// message (#566). Empty for a message read before it was kept, or made here: a header rule
-    /// can't tell of such a message ([`crate::Condition::unread_in`]).
+    /// The lines of its header MailCraft reads into the message itself (From, To, Cc, Bcc,
+    /// Reply-To, Subject, Message-ID, In-Reply-To, References, Date, MIME-Version, the Content-
+    /// lines, Importance, X-Priority, Keywords, Status, X-Status) or keeps in [`Message::headers`]
+    /// only decoded (a line with encoded words), as they came, one `name: value` to a line, at most
+    /// [`MAX_READ_HEADER`] bytes: with [`Message::headers`], the header as it came, for a rule
+    /// with words in the header alone, and never written into a message (#566). Empty for a
+    /// message read before it was kept, or made here: a header rule can't tell of such a message
+    /// ([`crate::Condition::unread_in`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub read_header: String,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
@@ -877,18 +879,33 @@ impl Message {
         })
     }
 
-    /// Whether a line of its header holds `word`, whatever the letters' case: those MailCraft
-    /// models, written as a message has them, and those it keeps as they came, but not MailCraft's
-    /// own (`X-MailCraft-…`, such as where a .pst import found it), which it wasn't sent with.
+    /// Whether a line of its header holds `word`, whatever the letters' case: the header as it
+    /// came, but for MailCraft's own lines (`X-MailCraft-…`, such as where a .pst import found it),
+    /// which it wasn't sent with ([`Message::header_lines_lowered`]).
     pub fn header_contains(&self, word: &str) -> bool {
         let word = word.to_lowercase();
         self.header_lines_lowered().iter().any(|line| line.contains(&word))
     }
 
     /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
-    /// all the words looked for: the header as it came, but for MailCraft's own lines
-    /// ([`Message::read_header`]).
+    /// all the words looked for. Those read into the message as they came ([`Message::read_header`])
+    /// and those kept beside it, of a field not read so; for a message read before they were kept,
+    /// or made here, those it models written as it has them instead (a rule can't tell of what isn't
+    /// among them, [`crate::Condition::unread_in`]).
     pub fn header_lines_lowered(&self) -> Vec<String> {
+        let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
+        let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));
+        if !self.read_header.is_empty() {
+            let read: Vec<String> = self.read_header.lines().map(str::to_lowercase).collect();
+            let names: std::collections::HashSet<&str> = read.iter().filter_map(|l| l.split_once(':').map(|(name, _)| name)).collect();
+            let kept = self
+                .headers
+                .iter()
+                .filter(|(name, _)| !ours(name) && !names.contains(name.to_lowercase().as_str()))
+                .map(|(name, value)| line(name, value));
+            let kept: Vec<String> = kept.collect();
+            return read.into_iter().chain(kept).collect();
+        }
         let people = |list: &[Address]| list.iter().map(Address::full).collect::<Vec<_>>().join(", ");
         let modelled = [
             ("From", self.from.full()),
@@ -901,12 +918,9 @@ impl Message {
             ("In-Reply-To", self.in_reply_to.clone()),
             ("References", self.references.iter().map(|r| format!("<{r}>")).collect::<Vec<_>>().join(" ")),
         ];
-        let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
         let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
-        let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));
         let kept = self.headers.iter().filter(|(name, _)| !ours(name)).map(|(name, value)| line(name, value));
-        let read = self.read_header.lines().map(str::to_lowercase);
-        modelled.chain(kept).chain(read).collect()
+        modelled.chain(kept).collect()
     }
 }
 

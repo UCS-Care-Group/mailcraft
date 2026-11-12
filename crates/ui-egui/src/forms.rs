@@ -5147,7 +5147,8 @@ pub(crate) mod rules {
             // By the whole address, as `rules.fromMessage` makes it; a sender's that isn't one is
             // looked for as words.
             // (The address whole: one cut short would be somebody else's.)
-            let (kind, text) = if by_address(sender) { (When::Person, sender.to_string()) } else { (When::From, sender.chars().take(200).collect()) };
+            // A longer one is said in the builder, as `rules.add` refuses it, never cut.
+            let (kind, text) = if by_address(sender) { (When::Person, sender.to_string()) } else { (When::From, sender.to_string()) };
             self.conds = vec![Cond { kind, text, ..Default::default() }];
             self.acts = vec![Act { kind: Do::Move, folder, ..self.fresh_action() }];
             self.open = true;

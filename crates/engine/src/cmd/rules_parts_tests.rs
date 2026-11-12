@@ -683,6 +683,12 @@ fn a_long_word_is_refused_not_cut() {
         assert!(made.is_err(), "{kind}: a word of {} characters was taken", asked.chars().count());
         assert!(s.run("rules.add", &rule(&word)).is_ok(), "{kind}: 200 characters are taken");
     }
+    // Always Move Messages From This Sender doesn't cut a sender's that isn't an address either.
+    let (mut s2, _, inbox, kept) = session();
+    let long = arriving(&mut s2, inbox, &format!("{word}-2026"), "Report");
+    let short = arriving(&mut s2, inbox, &format!("{word}-2026").replace('x', "y")[..150], "Report");
+    assert!(s2.run("rules.fromMessage", &json!({"id": long, "folder": kept})).is_err());
+    assert!(s2.run("rules.fromMessage", &json!({"id": short, "folder": kept})).is_ok());
     // An address longer than one can be is refused too.
     let (mut s, account, _, _) = session();
     let long = format!("{}@example.org", "a".repeat(mailcraft_model::MAX_ADDRESS));

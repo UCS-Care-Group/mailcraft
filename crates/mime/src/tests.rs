@@ -882,3 +882,33 @@ fn a_header_exception_on_a_line_not_kept_leaves_the_message_alone() {
     };
     assert!(!rule.matches(&m), "the rule acts on a message its exception was to leave alone");
 }
+
+/// A header rule reads the header as it came, the lines MailCraft reads into the message too: a
+/// group with no members (`undisclosed-recipients:;`, the usual header rule against spam), an
+/// encoded-word as the sender wrote it, a comment by an address and the Message-ID's angle
+/// brackets are found (#566).
+#[test]
+fn a_header_rule_reads_the_lines_read_into_the_message_as_they_came() {
+    let raw = b"From: ann@example.org (Ann Smith)\r\nTo: undisclosed-recipients:;\r\nSubject: =?UTF-8?Q?Gr=C3=BC=C3=9Fe?=\r\nMessage-ID: <abc@mail.example.org>\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\r\nbody\r\n";
+    let m = parse(raw);
+    let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
+    let words = ["undisclosed-recipients", "to: undisclosed", "=?utf-8?q?gr", "<abc@mail.example.org>", "(ann smith)"];
+    let missed: Vec<&str> = words.into_iter().filter(|w| !header(w).matches(&m) && !header(w).unread_in(&m)).collect();
+    assert!(missed.is_empty(), "a header rule decides these words aren't in the header as it came: {missed:?}");
+}
+
+/// "Delete permanently, except if the header contains undisclosed-recipients" leaves alone a
+/// message whose To line as it came is `undisclosed-recipients:;` (#566).
+#[test]
+fn a_header_exception_on_the_to_line_as_it_came_leaves_the_message_alone() {
+    let raw = b"From: ann@example.org\r\nTo: undisclosed-recipients:;\r\nSubject: hello\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\r\nbody\r\n";
+    let m = parse(raw);
+    let rule = mailcraft_model::Rule {
+        enabled: true,
+        conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["hello".into()])],
+        exceptions: vec![mailcraft_model::Condition::HeaderContains(vec!["undisclosed-recipients".into()])],
+        actions: vec![mailcraft_model::Action::DeleteForGood],
+        ..Default::default()
+    };
+    assert!(!rule.matches(&m), "the rule deletes for good a message its exception was to leave alone");
+}
