@@ -106,9 +106,7 @@ impl MailApp {
     pub(crate) fn hand_imap(&mut self, account: Id, request: SyncRequest) -> Result<Receiver<SyncResult>, String> {
         let going: Vec<Id> = request.outbox.iter().map(|m| m.id).collect();
         match self.saved_before_sending(account, &going) {
-            Saved::Now => {
-                self.services.sync.as_ref().map(|start| start(request)).ok_or_else(|| tl!("This build can't connect to mail servers").to_string())
-            }
+            Saved::Now => self.services.start_imap(request).ok_or_else(|| tl!("This build can't connect to mail servers").to_string()),
             Saved::Later(rev) => Ok(self.wait_for_save(rev, account, |tx| Waiting::Imap(Box::new(request), tx))),
             Saved::Failed(why) => Err(why),
         }
@@ -176,11 +174,15 @@ impl MailApp {
         // The host's answer takes the stand-in's place, in the run that is still this one.
         let went = match waiting {
             Waiting::Imap(request, _) => {
-                if let (Some(start), Some(MailRun::Imap { account: whose, rx, .. })) = (&self.services.sync, &mut self.sync_rx)
-                    && *whose == account
-                {
-                    *rx = start(*request);
-                    true
+                if self.sync_rx.as_ref().is_some_and(|run| matches!(run, MailRun::Imap { account: whose, .. } if *whose == account)) {
+                    if let Some(answer) = self.services.start_imap(*request) {
+                        if let Some(MailRun::Imap { rx, .. }) = &mut self.sync_rx {
+                            *rx = answer;
+                        }
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }

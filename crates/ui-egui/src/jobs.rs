@@ -81,6 +81,9 @@ impl MailApp {
     /// Whether a job of `kind` is under way, or its answer is still to be taken in.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn job_running(&self, kind: JobKind) -> bool {
+        if self.parallel_mail.iter().any(|run| run.is_kind(kind, &self.session.mailbox)) {
+            return true;
+        }
         let graph_for = |shared: bool| {
             self.graph_rx.as_ref().is_some_and(|(account, ..)| self.session.mailbox.account(*account).is_some_and(|a| a.is_shared()) == shared)
         };
@@ -106,6 +109,8 @@ impl MailApp {
     /// Another mailbox took the place of the open one ([`MailApp::drop_secrets_if_replaced`]):
     /// every job is called off, and what was known of its run goes with it.
     pub(crate) fn clear_jobs_on_replace(&mut self) {
+        self.cancel_parallel_mail();
+        self.parallel_mail.clear();
         for kind in JobKind::ALL {
             match kind {
                 // (One Send/Receive at a time, whichever way: called off together.)
@@ -138,6 +143,8 @@ impl MailApp {
     /// and forget its run state: the round, what waited its turn, Send/Receive Progress. What a
     /// run sent is found held at its file's next run ([`crate::sending`]).
     pub(crate) fn forget_mail_runs(&mut self) {
+        self.cancel_parallel_mail();
+        self.parallel_mail.clear();
         self.services.sync_cancel.store(true, Ordering::Relaxed);
         self.inbox_check.forget();
         (self.sync_rx, self.graph_rx, self.graph_pieces, self.send_gate) = (None, None, None, None);

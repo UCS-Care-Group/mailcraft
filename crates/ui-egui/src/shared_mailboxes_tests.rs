@@ -881,6 +881,7 @@ fn frame(app: &mut MailApp) {
     app.push_checked = 0.0;
     app.auto_sync();
     app.auto_sync();
+    app.poll_parallel_mail();
     app.poll_graph();
 }
 
@@ -992,6 +993,7 @@ fn holding_graph(app: &mut MailApp) -> (Held, Arc<Mutex<Vec<Id>>>) {
 fn look(app: &mut MailApp) {
     app.last_auto_sync = crate::now_ms();
     app.push_checked = 0.0;
+    app.poll_parallel_mail();
     app.poll_graph();
     app.auto_sync();
 }
@@ -1011,17 +1013,18 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
             app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap()
         };
         app.execute("ui.sync", json!({"account": whose, "quiet": quiet})).unwrap();
+        let cancel = app.services.sync_cancel.clone();
         // Its folders are in, which tells the server what there was to tell; mail comes down.
         let pieces = running.lock().unwrap()[0].1.0.clone();
         pieces.send(GraphMailResult { account: whose, partial: true, ..inbox_read(address) }).unwrap();
         drop(pieces);
         look(&mut app);
-        assert!(app.syncing() && !app.services.sync_cancel.load(Ordering::Relaxed), "nothing waits: the run goes on");
+        assert!(app.syncing() && !cancel.load(Ordering::Relaxed), "nothing waits: the run goes on");
         // The owner makes a folder: at the next look the run is called off.
         let inbox = app.session.mailbox.folder_by_server(whose, "in").unwrap();
         app.execute("folder.new", json!({"parent": inbox, "name": "Ours"})).unwrap();
         look(&mut app);
-        assert!(app.services.sync_cancel.load(Ordering::Relaxed), "{address}: called off");
+        assert!(cancel.load(Ordering::Relaxed), "{address}: called off");
         assert!(app.syncing(), "until the host says it stopped");
         look(&mut app);
         assert_eq!(asked.lock().unwrap().len(), 1, "one run at a time");
@@ -1029,13 +1032,16 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
         let (_, (pieces, answer)) = running.lock().unwrap().remove(0);
         drop(pieces);
         answer.send(GraphResult { account: whose, ..Default::default() }).unwrap();
+        app.poll_parallel_mail();
         app.poll_graph();
+        app.poll_parallel_mail();
         app.poll_graph();
         assert!(app.graph_rx.is_none());
         assert_eq!(app.sync_queue.front(), Some(&(whose, quiet)), "{address}: put back as it was");
         app.auto_sync();
+        let cancel = app.services.sync_cancel.clone();
         assert_eq!(*asked.lock().unwrap(), [whose, whose], "{address}: the next run starts at once");
-        assert!(!app.services.sync_cancel.load(Ordering::Relaxed));
+        assert!(!cancel.load(Ordering::Relaxed));
         // A run the owner stops is not started again behind their back.
         app.execute("folder.new", json!({"parent": inbox, "name": "Ours too"})).unwrap();
         let pieces = running.lock().unwrap()[0].1.0.clone();
@@ -1045,7 +1051,7 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
         // (Called off for the change first, then stopped by the owner.)
         app.execute("folder.new", json!({"parent": inbox, "name": "And another"})).unwrap();
         look(&mut app);
-        assert!(app.services.sync_cancel.load(Ordering::Relaxed));
+        assert!(cancel.load(Ordering::Relaxed));
         app.execute("ui.cancelSync", json!({})).unwrap();
         let (_, (pieces, answer)) = running.lock().unwrap().remove(0);
         drop(pieces);

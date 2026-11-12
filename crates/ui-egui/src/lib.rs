@@ -148,6 +148,7 @@ mod opened_message;
 mod opened_message_tests;
 pub mod opening;
 pub mod own_keys;
+mod parallel_sync;
 #[cfg(test)]
 mod password_kept_tests;
 pub mod people_view;
@@ -243,6 +244,9 @@ pub use scheduling::{FreeBusyRequest, FreeBusyResult};
 pub use settings_notice::SettingsUnread;
 pub use unconfirmed::ConfirmedMailbox;
 
+/// A desktop mail host whose stop handle belongs to this run alone.
+pub type CancellableSyncHost = Box<dyn Fn(SyncRequest, std::sync::Arc<std::sync::atomic::AtomicBool>) -> Receiver<SyncResult>>;
+
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
@@ -285,6 +289,8 @@ pub struct Services {
     /// through the channel in pieces as it goes (`SyncResult::partial` on all but the last), and
     /// the host wakes the UI for each. Absent in the browser, which can't open sockets.
     pub sync: Option<Box<dyn Fn(SyncRequest) -> Receiver<SyncResult>>>,
+    /// Desktop host with an independent cancellation handle for each account.
+    pub sync_with_cancel: Option<CancellableSyncHost>,
     /// Set to call a Send/Receive off: the host's run stops at the next safe place and says so
     /// in its last piece. The host clears it when it starts a run.
     pub sync_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -521,9 +527,20 @@ pub struct Services {
 }
 
 impl Services {
+    pub fn can_imap(&self) -> bool {
+        self.sync.is_some() || self.sync_with_cancel.is_some()
+    }
+    pub(crate) fn start_imap(&self, request: SyncRequest) -> Option<Receiver<SyncResult>> {
+        if let Some(start) = &self.sync_with_cancel {
+            Some(start(request, self.sync_cancel.clone()))
+        } else {
+            self.sync.as_ref().map(|start| start(request))
+        }
+    }
+
     /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
-        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
+        self.can_imap() || self.jmap.is_some() || self.ews.is_some()
     }
 }
 
@@ -1684,6 +1701,8 @@ pub struct MailApp {
     approvals: approval::Approvals,
     /// A synchronisation in flight: an IMAP run, or a JMAP account's ([`MailRun`]).
     sync_rx: Option<MailRun>,
+    /// Other accounts in flight, each with its own cancellation and receive state.
+    parallel_mail: Vec<parallel_sync::MailSlot>,
     /// What the run in flight has come to so far, piece by piece.
     sync_totals: mailcraft_engine::cmd::account::SyncTotals,
     /// The run in flight: whose it is, how much was still waiting to go out when it turned to
@@ -1957,6 +1976,7 @@ impl MailApp {
             setup_sign_in: None,
             approvals: Default::default(),
             sync_rx: None,
+            parallel_mail: Vec::new(),
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
@@ -2777,6 +2797,7 @@ impl MailApp {
                 }
                 // The run stops at the next safe place; what it brought stays. The rest of a
                 // round that was under way is called off with it.
+                self.cancel_parallel_mail();
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.pause_fetch();
                 self.sync_queue.clear();
@@ -3324,6 +3345,9 @@ impl MailApp {
         // Never two jobs for one account at once: the calendar's job (a short one, but the
         // wide stretch every quarter of an hour is not) finishes first.
         let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
+        if target.is_some_and(|id| self.parallel_mail.iter().any(|run| run.account == id)) {
+            return Err(tl!("Send/Receive is already running").to_string());
+        }
         if target.is_some_and(|account| self.calendar_job_for(account)) {
             return Err(tl!("The calendar is being updated already.").to_string());
         }
@@ -3368,7 +3392,7 @@ impl MailApp {
         if self.services.jmap.is_some() && self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) {
             return self.start_jmap_mail(account, quiet, p);
         }
-        if self.services.sync.is_none() {
+        if !self.services.can_imap() {
             return Err(cant_connect());
         }
         // An account kept in step through Microsoft Graph has no IMAP leg at all (R3).
@@ -3454,7 +3478,7 @@ impl MailApp {
             };
             request.password = password;
         }
-        if self.services.sync.is_none() {
+        if !self.services.can_imap() {
             return Err(tl!("This build can't connect to mail servers").to_string());
         }
         self.sync_run = Some((account, None, false, quiet));
@@ -3559,7 +3583,7 @@ impl MailApp {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
             // (Where the host runs it, #252.)
             mailcraft_model::AccountKind::Exchange => self.services.ews.is_some(),
-            kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
+            kind => kind.has_server() && (self.services.can_imap() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
     }
@@ -3668,6 +3692,10 @@ impl MailApp {
     /// round when the app starts and every few minutes after (the owner's `syncMinutes`). A round
     /// that started by itself skips accounts it would have to ask about.
     fn auto_sync(&mut self) {
+        self.park_mail_run();
+        if self.parallel_mail.len() >= parallel_sync::MAX_MAIL_RUNS {
+            return;
+        }
         // Something the owner did (a read mark, a move, a message to send) waits while a long run
         // is still bringing mail down: the run is called off, which loses nothing, and the next
         // one tells the server first.
@@ -3706,6 +3734,9 @@ impl MailApp {
             return;
         }
         self.settle_progress();
+        if !self.parallel_mail.is_empty() {
+            return;
+        }
         let minutes = f64::from(self.session.prefs.sync_minutes);
         let now = now_ms();
         // Something made here waits to go out (a message to send, a read mark, a move): it
@@ -4370,7 +4401,7 @@ impl MailApp {
     /// Whether a Send/Receive is running.
     pub fn syncing(&self) -> bool {
         // (The Inbox checked by itself is not one: it is quiet, #276.)
-        self.sync_rx.is_some() || (self.graph_pieces.is_some() && !self.inbox_check.under_way())
+        !self.parallel_mail.is_empty() || self.sync_rx.is_some() || (self.graph_pieces.is_some() && !self.inbox_check.under_way())
     }
 
     /// The server let `account`'s run in flight in: the password it went with is worth
@@ -4715,6 +4746,10 @@ impl MailApp {
         self.drop_secrets_if_replaced();
         // The mailbox the window started with: secrets kept the old way are filed under its servers.
         self.secrets_tick();
+        self.poll_parallel_mail();
+        if !self.parallel_mail.is_empty() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(150));
+        }
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();

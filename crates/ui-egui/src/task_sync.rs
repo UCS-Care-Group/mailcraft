@@ -155,6 +155,7 @@ impl MailApp {
         if self.calendar.rx.is_some()
             || self.rules.busy()
             || self.graph_rx.is_some()
+            || !self.parallel_mail.is_empty()
             || self.sync_rx.is_some()
             || self.signing_in.is_some()
             || !self.sync_queue.is_empty()

@@ -1718,15 +1718,14 @@ fn services(
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let cancel = sync_cancel.clone();
     Services {
         file_dialog: Some(file_dialog),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
         // channel short enough that a busy window holds the run back instead of piling pieces up.
-        sync: Some(Box::new(move |request| {
+        sync_with_cancel: Some(Box::new(move |request, cancel| {
             use std::sync::atomic::Ordering;
             let (tx, rx) = std::sync::mpsc::sync_channel(8);
-            let (wake, cancel) = (sync_ctx.clone(), cancel.clone());
+            let wake = sync_ctx.clone();
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
                 mailcraft_net::sync_with(&request, &cancel, &mut |piece| {

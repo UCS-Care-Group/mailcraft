@@ -268,6 +268,7 @@ impl MailApp {
         // One thing at a time: a Send/Receive, a sign-in, the calendar's, the tasks' and the rules'
         // jobs go first.
         if self.signing_in.is_some()
+            || !self.parallel_mail.is_empty()
             || self.sync_rx.is_some()
             || self.graph_rx.is_some()
             || self.calendar.rx.is_some()

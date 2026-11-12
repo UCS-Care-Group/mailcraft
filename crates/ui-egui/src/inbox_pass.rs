@@ -101,7 +101,8 @@ impl MailApp {
         if self.inbox_check.under_way() {
             return None;
         }
-        let round = self.sync_rx.is_some()
+        let round = !self.parallel_mail.is_empty()
+            || self.sync_rx.is_some()
             || self.graph_rx.is_some()
             || !self.sync_queue.is_empty()
             || !self.inbox_queue.is_empty()
@@ -188,7 +189,11 @@ impl MailApp {
         if self.offline() {
             return None;
         }
-        if self.sync_rx.is_some() || self.graph_rx.is_some() || (quiet && !self.can_sync_quietly(account)) {
+        if self.parallel_mail.iter().any(|run| run.account == account)
+            || self.sync_rx.is_some()
+            || self.graph_rx.is_some()
+            || (quiet && !self.can_sync_quietly(account))
+        {
             return None;
         }
         let mailbox = self.session.mailbox.account(account).cloned()?;

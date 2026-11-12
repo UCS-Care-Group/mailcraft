@@ -1452,7 +1452,7 @@ impl AccountSetup {
     fn finish(&mut self, app: &mut MailApp, id: Id) {
         self.outcome = match app.execute("ui.sync", json!({"account": id})) {
             Ok(_) => Outcome::Downloading,
-            Err(_) if app.services.sync.is_none() => Outcome::Offline,
+            Err(_) if !app.services.can_imap() => Outcome::Offline,
             Err(_) => Outcome::Later,
         };
         self.go(Page::Done);
@@ -1822,7 +1822,7 @@ impl AccountSetup {
 
     fn password_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
         let t = pass.t;
-        let asks = app.services.test_account.is_some() || app.services.sync.is_some();
+        let asks = app.services.test_account.is_some() || app.services.can_imap();
         let google = self.edit.is_none()
             && self.oauth.is_none()
             && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com")
@@ -2039,7 +2039,7 @@ impl AccountSetup {
             && if exchange {
                 app.services.ews_setup.is_some() || app.services.ews.is_some()
             } else {
-                app.services.test_account.is_some() || app.services.sync.is_some()
+                app.services.test_account.is_some() || app.services.can_imap()
             };
         let saved_google = self.edit.as_ref().and_then(|edit| app.session.mailbox.account(edit.id)).filter(|account| {
             account.oauth.is_none()

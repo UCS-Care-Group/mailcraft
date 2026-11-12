@@ -38,6 +38,7 @@ pub struct ConfirmedMailbox {
 #[derive(Default)]
 pub(crate) struct Held {
     sync: Option<Box<dyn Fn(SyncRequest) -> Receiver<SyncResult>>>,
+    sync_with_cancel: Option<crate::CancellableSyncHost>,
     sign_in: Option<Box<dyn Fn(SignInRequest) -> Receiver<Result<Tokens, String>>>>,
     graph: Option<Box<dyn Fn(GraphRequest) -> Receiver<GraphResult>>>,
     graph_fetch: Option<Box<dyn Fn(crate::graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
@@ -156,6 +157,7 @@ impl MailApp {
         let s = &mut self.services;
         self.held = Held {
             sync: s.sync.take(),
+            sync_with_cancel: s.sync_with_cancel.take(),
             sign_in: s.sign_in.take(),
             graph: s.graph.take(),
             graph_fetch: s.graph_fetch.take(),
@@ -174,6 +176,7 @@ impl MailApp {
         let held = std::mem::take(&mut self.held);
         let s = &mut self.services;
         s.sync = held.sync.or(s.sync.take());
+        s.sync_with_cancel = held.sync_with_cancel.or(s.sync_with_cancel.take());
         s.sign_in = held.sign_in.or(s.sign_in.take());
         s.graph = held.graph.or(s.graph.take());
         s.graph_fetch = held.graph_fetch.or(s.graph_fetch.take());

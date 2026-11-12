@@ -211,7 +211,12 @@ impl MailApp {
             return false;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.sync_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty()
+        if !self.parallel_mail.is_empty()
+            || self.calendar.rx.is_some()
+            || self.graph_rx.is_some()
+            || self.sync_rx.is_some()
+            || self.signing_in.is_some()
+            || !self.sync_queue.is_empty()
         {
             return false;
         }
@@ -688,7 +693,7 @@ impl MailApp {
         let Some(oauth) = owner.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
             return Err(tl!("This account doesn't sign in with Microsoft").to_string());
         };
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() {
+        if !self.parallel_mail.is_empty() || self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() {
             return Err(tl!("The calendar is being updated: try again in a moment.").to_string());
         }
         let account = owner.id;
