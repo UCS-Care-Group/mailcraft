@@ -5281,7 +5281,14 @@ pub(crate) mod rules {
             let (there, here): (Vec<Rule>, Vec<Rule>) = rules.into_iter().partition(|r| r.account == account && r.keep == Keep::Server);
             let servers = rule_accounts(mb).into_iter().filter(|(id, _)| mb.keeps_rules(*id)).collect::<Vec<_>>();
             let categories: Vec<String> = mb.every_category().into_iter().map(|c| c.name).collect();
-            let folder_in_view = crate::nav::folder_path(mb, app.session.view.folder);
+            // Run Rules Now runs the rules shown, over the folder in view when it is their account's,
+            // else over their account's Inbox: Outlook's Run in Folder, set to that account's Inbox.
+            let in_view = app.session.view.folder;
+            let over =
+                if mb.folder(in_view).is_some_and(|f| f.account == account) { Some(in_view) } else { mb.folder_of_kind(account, FolderKind::Inbox) };
+            let folder_over = over.map(|f| crate::nav::folder_path(mb, f)).unwrap_or_default();
+            // (Not over a shared mailbox's folder: the rules leave its mail alone.)
+            let reach = over.and_then(|f| mb.folder(f)).is_some_and(|f| mb.rules_reach(f.account));
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
@@ -5340,9 +5347,7 @@ pub(crate) mod rules {
                     ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
                 }
                 ui.horizontal(|ui| {
-                    let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_in_view)]);
-                    // (Not over a shared mailbox's folder: the rules leave its mail alone.)
-                    let reach = app.session.mailbox.folder(app.session.view.folder).is_some_and(|f| app.session.mailbox.rules_reach(f.account));
+                    let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_over)]);
                     let any = !(there.is_empty() && here.is_empty()) && reach;
                     let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
                     // Greyed over a shared mailbox's folder: says why.
@@ -5351,8 +5356,10 @@ pub(crate) mod rules {
                     } else {
                         button.on_disabled_hover_text(tl!("The rules leave a shared mailbox's mail alone: its rules are its own."))
                     };
-                    if button.clicked() {
-                        run = Some(("rules.run", json!({})));
+                    if button.clicked()
+                        && let Some(folder) = over
+                    {
+                        run = Some(("rules.run", json!({"folder": folder})));
                     }
                     if let Some(n) = self.ran {
                         // (What the rules changed, as the status bar says it.)

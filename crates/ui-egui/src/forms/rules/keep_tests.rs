@@ -403,3 +403,66 @@ fn with_no_account_in_view_the_dialog_opens_on_the_first_added() {
     assert_eq!(rule_accounts(&s.mailbox).first().map(|(id, _)| *id), Some(work), "listed first");
     assert_eq!(account_in_view(&s), first);
 }
+
+/// With "Rules for" switched to another account, Run Rules Now runs the rules shown, over that
+/// account's Inbox, and not the rules of the account in view, which the dialog doesn't show (one
+/// of them deletes permanently).
+#[test]
+fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_alone() {
+    use crate::forms::Form;
+    let mut a = app();
+    let inbox = a.session.view.folder;
+    let here = a.session.mailbox.folder(inbox).unwrap().account;
+    let m = a.session.mailbox.messages_in(inbox).next().map(|m| m.id).unwrap();
+    let subject = a.session.mailbox.message(m).unwrap().subject.clone();
+    // The account in view: a rule that deletes that message permanently.
+    a.session
+        .run(
+            "rules.add",
+            &json!({"name": "Gone for good", "account": here, "server": false,
+                "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "deleteForGood"}]}),
+        )
+        .unwrap();
+    // Another account, with a rule of its own.
+    let noor = a.session.run("account.add", &json!({"email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    a.session
+        .run(
+            "rules.add",
+            &json!({"name": "Club news", "account": noor, "conditions": [{"type": "fromContains", "value": "news@club.example"}],
+                "actions": [{"type": "markRead"}]}),
+        )
+        .unwrap();
+    a.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = window(a);
+    // Rules for: noor@example.org, as the combo box sets it.
+    {
+        let app = h.state_mut();
+        let mb = app.session.mailbox.clone();
+        let Some(Dialog::Form(Form::Rules(f))) = &mut app.dialog else { panic!("the Rules dialog is open") };
+        f.choose(&mb, noor);
+    }
+    h.run_steps(4);
+    // The list shown is noor's: the rule that deletes isn't in it.
+    let shown: Vec<String> = {
+        let app = h.state();
+        let Some(Dialog::Form(Form::Rules(f))) = &app.dialog else { panic!("the Rules dialog is open") };
+        assert_eq!(f.account, noor);
+        let mb = &app.session.mailbox;
+        mb.rules_in_order(f.account).into_iter().filter_map(|i| mb.rules.get(i)).map(|r| r.name.clone()).collect()
+    };
+    assert_eq!(shown, ["Club news"]);
+    // Mail of noor's for its rule.
+    let noor_inbox = h.state().session.mailbox.folder_of_kind(noor, FolderKind::Inbox).unwrap();
+    let news = mailcraft_model::Message {
+        folder: noor_inbox,
+        from: mailcraft_model::Address::new("", "news@club.example"),
+        subject: subject.clone(),
+        ..Default::default()
+    };
+    let news = h.state_mut().session.mailbox.add_message(news).unwrap();
+    h.get_by_label("Run Rules Now").click();
+    h.run_steps(4);
+    let mb = &h.state().session.mailbox;
+    assert!(mb.message(m).is_some(), "a rule the dialog didn't show deleted \"{subject}\" permanently");
+    assert!(mb.message(news).is_some_and(|m| m.read), "the rule shown ran over noor's Inbox");
+}
