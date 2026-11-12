@@ -10,7 +10,7 @@ fn root(name: u8, serial: u8, der: &[u8]) -> Root {
 }
 
 fn trust(of: &Root, email: Email) -> Trust {
-    Trust { issuer: of.issuer.clone(), serial: of.serial.clone(), sha1: None, email }
+    Trust { issuer: of.issuer.clone(), serial: of.serial.clone(), email }
 }
 
 #[test]
@@ -37,18 +37,20 @@ fn a_root_distrusted_for_mail_by_any_trust_object_or_after_a_date_does_not_count
 }
 
 #[test]
-fn a_trust_object_is_for_the_root_of_its_issuer_serial_number_and_hash() {
-    use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, digest};
+fn a_trust_object_is_for_the_one_root_of_its_issuer_and_serial_number() {
     let a = root(1, 1, b"cert-a");
     // Another issuer, or another serial number: not this root's.
     let elsewhere = Trust { issuer: vec![0x30, 9], ..trust(&a, Email::Anchor) };
     let other_serial = Trust { serial: vec![2], ..trust(&a, Email::Anchor) };
     assert!(chosen(std::slice::from_ref(&a), &[elsewhere, other_serial]).is_empty());
-    // NSS's form says the certificate's SHA-1: it must be this certificate's.
-    let right = Trust { sha1: Some(digest(&SHA1_FOR_LEGACY_USE_ONLY, &a.der).as_ref().to_vec()), ..trust(&a, Email::Anchor) };
-    let wrong = Trust { sha1: Some(vec![0; 20]), ..trust(&a, Email::Anchor) };
-    assert_eq!(chosen(std::slice::from_ref(&a), &[right]), std::slice::from_ref(&a.der));
-    assert!(chosen(&[a], &[wrong]).is_empty());
+    // Two certificates of the module with one issuer and serial number: which of them a trust
+    // object is for can't be told, so neither counts (and nothing beside them is touched).
+    let twin = root(1, 1, b"cert-a-twin");
+    let b = root(2, 1, b"cert-b");
+    let trusts = [trust(&a, Email::Anchor), trust(&b, Email::Anchor)];
+    assert_eq!(chosen(&[a.clone(), twin, b.clone()], &trusts), [b.der]);
+    // The same certificate twice is no such pair.
+    assert_eq!(chosen(&[a.clone(), a.clone()], &[trust(&a, Email::Anchor)]), [a.der]);
 }
 
 #[test]
@@ -56,7 +58,6 @@ fn the_searches_ask_for_mail_s_trust_in_both_forms_by_their_published_numbers() 
     // NSS's own (pkcs11n.h): its vendor number 0x4E534350 in the vendor-defined ranges.
     assert_eq!(CKO_NSS_TRUST, 0xCE53_4353);
     assert_eq!(CKA_NSS_TRUST_EMAIL_PROTECTION, 0xCE53_635B);
-    assert_eq!(CKA_NSS_CERT_SHA1_HASH, 0xCE53_63B4);
     assert_eq!(CKA_NSS_EMAIL_DISTRUST_AFTER, 0xCE53_4374);
     assert_eq!((CKT_NSS_TRUSTED_DELEGATOR, CKT_NSS_NOT_TRUSTED), (0xCE53_4352, 0xCE53_435A));
     // PKCS #11 3.2's (pkcs11t.h).

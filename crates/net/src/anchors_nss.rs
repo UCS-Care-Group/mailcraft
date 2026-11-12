@@ -13,7 +13,8 @@
 //!   e-mail protection, in either form NSS writes: its own (`CKO_NSS_TRUST`,
 //!   `CKA_NSS_TRUST_EMAIL_PROTECTION` = `CKT_NSS_TRUSTED_DELEGATOR`) or PKCS #11 3.2's (`CKO_TRUST`,
 //!   `CKA_TRUST_EMAIL_PROTECTION` = `CKT_TRUST_ANCHOR`, NSS 3.114 and after), matched to the
-//!   root by its issuer and serial number (and, in NSS's form, its SHA-1). A root any trust
+//!   root by its issuer and serial number (two certificates of the module that share both count
+//!   for neither, so no hash is needed to tell them apart). A root any trust
 //!   object distrusts for mail doesn't count, whatever another says, and nor does one Mozilla
 //!   distrusts for mail after a date (`CKA_NSS_EMAIL_DISTRUST_AFTER`): the check can't tell when a
 //!   certificate under it was issued, so it is left out whole.
@@ -59,9 +60,6 @@ const NSS: c_ulong = 0x8000_0000 | 0x4E53_4350;
 pub(crate) const CKO_NSS_TRUST: c_ulong = NSS + 3;
 /// `CKA_NSS_TRUST_EMAIL_PROTECTION` (`CKA_NSS_TRUST_BASE + 11`).
 pub(crate) const CKA_NSS_TRUST_EMAIL_PROTECTION: c_ulong = NSS + 0x2000 + 11;
-/// `CKA_NSS_CERT_SHA1_HASH` (`CKA_NSS_TRUST_BASE + 100`): the SHA-1 of the certificate a trust
-/// object is for.
-pub(crate) const CKA_NSS_CERT_SHA1_HASH: c_ulong = NSS + 0x2000 + 100;
 /// `CKA_NSS_EMAIL_DISTRUST_AFTER`: on a certificate, `CK_FALSE` or the time after which what it
 /// issued isn't trusted for mail.
 pub(crate) const CKA_NSS_EMAIL_DISTRUST_AFTER: c_ulong = NSS + 36;
@@ -107,19 +105,13 @@ pub(crate) enum Email {
 pub(crate) struct Trust {
     pub issuer: Vec<u8>,
     pub serial: Vec<u8>,
-    /// The SHA-1 of the certificate it is for, when it says it (NSS's form does).
-    pub sha1: Option<Vec<u8>>,
     pub email: Email,
 }
 
 impl Trust {
-    /// Whether it is for `root`: the same issuer and serial number, and the same certificate by
-    /// the hash it gives.
+    /// Whether it is for `root`: the same issuer and serial number.
     fn is_for(&self, root: &Root) -> bool {
-        use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, digest};
-        self.issuer == root.issuer
-            && self.serial == root.serial
-            && self.sha1.as_ref().is_none_or(|h| h.as_slice() == digest(&SHA1_FOR_LEGACY_USE_ONLY, &root.der).as_ref())
+        self.issuer == root.issuer && self.serial == root.serial
     }
 }
 
@@ -135,10 +127,13 @@ pub(crate) const SEARCHES: [(c_ulong, c_ulong, c_ulong, Email); 4] = [
 ];
 
 /// The roots trusted for mail, DER, each once: an anchor for mail by a trust object for it,
-/// distrusted for mail by none, and not distrusted for mail after a date.
+/// distrusted for mail by none, and not distrusted for mail after a date. A root whose issuer and
+/// serial number another certificate of the module has too counts not at all: which of the two a
+/// trust object is for can't be told, and an issuer never gives two certificates one number.
 pub(crate) fn chosen(roots: &[Root], trusts: &[Trust]) -> Vec<Vec<u8>> {
+    let shared = |root: &Root| roots.iter().any(|o| o.issuer == root.issuer && o.serial == root.serial && o.der != root.der);
     let mut out: Vec<Vec<u8>> = Vec::new();
-    for root in roots.iter().filter(|r| !r.email_distrust_after) {
+    for root in roots.iter().filter(|r| !r.email_distrust_after && !shared(r)) {
         let said: Vec<Email> = trusts.iter().filter(|t| t.is_for(root)).map(|t| t.email).collect();
         if said.contains(&Email::Anchor) && !said.contains(&Email::Distrusted) && !out.contains(&root.der) {
             out.push(root.der.clone());
@@ -234,18 +229,16 @@ fn roots(session: &Session) -> Vec<Root> {
 /// The trust objects of class `of` whose attribute `purpose` is `value`, as saying `means` of mail.
 fn trusts(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, means: Email) -> Vec<Trust> {
     let template = [ulong(AttributeType::Class, of), ulong(AttributeType::VendorDefined(purpose), value)];
-    // (Only NSS's form says the certificate's SHA-1, by an attribute of its own.)
-    let wanted = [AttributeType::Issuer, AttributeType::SerialNumber, AttributeType::VendorDefined(CKA_NSS_CERT_SHA1_HASH)];
+    let wanted = [AttributeType::Issuer, AttributeType::SerialNumber];
     let handles = session.find_objects(&template).unwrap_or_default();
     let mut out = Vec::new();
     for handle in handles.into_iter().take(MAX_OBJECTS) {
-        let Ok(attributes) = session.get_attributes(handle, if of == CKO_NSS_TRUST { &wanted } else { &wanted[..2] }) else { continue };
-        let mut trust = Trust { issuer: Vec::new(), serial: Vec::new(), sha1: None, email: means };
+        let Ok(attributes) = session.get_attributes(handle, &wanted) else { continue };
+        let mut trust = Trust { issuer: Vec::new(), serial: Vec::new(), email: means };
         for attribute in attributes {
             match attribute {
                 Attribute::Issuer(v) => trust.issuer = v,
                 Attribute::SerialNumber(v) => trust.serial = v,
-                Attribute::VendorDefined((AttributeType::VendorDefined(CKA_NSS_CERT_SHA1_HASH), v)) => trust.sha1 = Some(v),
                 _ => {}
             }
         }
