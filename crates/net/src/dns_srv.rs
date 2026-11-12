@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Where a domain's Autodiscover is, by its `_autodiscover._tcp.<domain>` SRV record (RFC 2782;
-//! the third place MS-OXDSCLI looks), asked of the same DNS-over-HTTPS name servers as
+//! MS-OXDISCO §3.1.5.3), asked of the same DNS-over-HTTPS name servers as
 //! [`lookup_mx`](crate::lookup_mx). Only the domain goes out (inside the fixed name of the
 //! service), never a mailbox name, and only when the owner has pressed Connect.
 //!
@@ -132,10 +132,11 @@ impl std::fmt::Debug for AutodiscoverTargets {
 }
 
 /// The places [`autodiscover_hosts`] names, by what named them ([`AutodiscoverTargets`]). The
-/// search for an Exchange server asks the aliases' hosts after the SRV record's targets, where
-/// MS-OXDSCLI asks the SRV record's alone: a domain whose SRV record is only in its own network's
-/// DNS (a split DNS) still names its hoster's Autodiscover by the alias, whose host has the
-/// certificate that `autodiscover.<domain>` itself hasn't.
+/// search for an Exchange server asks the aliases' hosts after the SRV record's targets, in the
+/// place of MS-OXDISCO's plain-HTTP redirect (§3.1.5.4), which is never taken: a domain whose SRV
+/// record is only in its own network's DNS (a split DNS) still names its hoster's Autodiscover by
+/// the alias, whose host has the certificate that `autodiscover.<domain>` itself hasn't. The alias
+/// step is specified in `docs/autodiscover.md`.
 pub fn autodiscover_targets(domain: &str) -> Result<AutodiscoverTargets, NetError> {
     autodiscover_targets_at(&RESOLVERS, domain)
 }

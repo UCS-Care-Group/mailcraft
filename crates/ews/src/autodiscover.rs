@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Finding an Exchange server's Exchange Web Services address from an e-mail address: the POX
-//! Autodiscover of [MS-OXDSCLI], as a state machine that the host drives.
+//! Autodiscover of [MS-OXDSCLI], at the places [MS-OXDISCO] lists, as a state machine that the
+//! host drives. `docs/autodiscover.md` says which of MS-OXDISCO's steps are taken, and specifies
+//! the alias step.
 //!
 //! The machine does no I/O. It says what to do next ([`Autodiscover::step`]): perform this
 //! HTTP request, look this SRV name up, ask the owner about this host, or here is the end of it
@@ -14,8 +16,10 @@
 //!
 //! - In this order, over HTTPS only: `https://<domain>/autodiscover/autodiscover.xml`, then
 //!   `https://autodiscover.<domain>/autodiscover/autodiscover.xml`, then the hosts of the
-//!   `_autodiscover._tcp.<domain>` SRV record. The plain-HTTP redirect step of the specification
-//!   is never taken.
+//!   `_autodiscover._tcp.<domain>` SRV record, then the alias step's hosts (those
+//!   `autodiscover.<domain>` is an alias of, at most two, asked about before the sign-in goes to
+//!   one). The plain-HTTP redirect step of MS-OXDISCO (§3.1.5.4) is never taken: the alias step
+//!   takes its place.
 //! - A redirect (HTTP 301, 302, 303, 307 or 308 with a `Location`, or an answer whose `Action` is
 //!   `redirectUrl` or `redirectAddr`) is followed one step at a time, at most
 //!   [`MAX_REDIRECTS`] in a row, and only to an `https://` address.

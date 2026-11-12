@@ -373,8 +373,10 @@ impl AccountSetup {
             (Page::Exchange, Action::Go) => self.exchange_connect(app),
             (Page::Exchange, Action::Back) => {
                 self.forget_password();
-                // Opened from the question of what the found server is: back to it.
-                self.go(if self.exchange.found { Page::ExchangeOrImap } else { self.origin() });
+                // Opened from the question of what the found server is: back to it, while the DNS
+                // still names one (after a Search again that found none, the question would say
+                // what is no longer so).
+                self.go(if self.exchange.found && !self.exchange.hosts.is_empty() { Page::ExchangeOrImap } else { self.origin() });
             }
             (Page::ExchangeOrImap, Action::Pick(Kind::Exchange)) => {
                 let hosts = std::mem::take(&mut self.exchange.hosts);
@@ -611,7 +613,7 @@ impl AccountSetup {
                 ui,
                 &fmt(
                     tl!(
-                        "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Nothing has been sent to any server."
+                        "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
                     ),
                     &[("domain", &shown(&domain, 80))],
                 ),

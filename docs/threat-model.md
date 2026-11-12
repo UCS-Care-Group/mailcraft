@@ -288,12 +288,14 @@ Watches or changes traffic between MailCraft and its servers.
   Those hosts only choose a page, and none of them is asked anything for it: Microsoft's is
   Microsoft 365, signed in on Microsoft's page; cPanel's is the IMAP guess; any other is a question
   to the owner, an Exchange server or IMAP, with neither the default.
-- **The alias step.** The Exchange server search (`crates/ews/src/autodiscover.rs`) asks the
-  alias's host too, after the SRV record's targets, at port 443, at most two: a step beyond
-  MS-OXDSCLI, which asks the SRV record alone, so that a domain whose SRV record is only in its own
-  network's DNS is found. An alias isn't the SRV record's word: its host is asked about before
-  anything is sent to it outside the domain, and has the sign-in only after the owner's yes inside
-  it too (AU3-V1). A forged or stale alias costs a question, never the password.
+- **The alias step** ([autodiscover.md](autodiscover.md) specifies it). The Exchange server search
+  (`crates/ews/src/autodiscover.rs`) asks the alias's host too, after the SRV record's targets, at
+  port 443, at most two. It takes the place of MS-OXDISCO §3.1.5.4, the plain-HTTP redirect, which
+  is never taken, so that a domain whose SRV record is only in its own network's DNS is found. An
+  alias isn't the SRV record's word: its host is asked about before anything is sent to it outside
+  the domain, and has the sign-in only after the owner's yes inside it too (AU3-V1, as §3.1.5.4 asks
+  the user, and RFC 9525 §6.1.1 lets a name from the DNS be checked against only once the user has
+  associated it). A forged or stale alias costs a question, never the password.
 - The one thing fetched over plain `http` is a picture the owner asked for, when that is the address
   the message gives; nothing of the owner's travels with it.
 

@@ -12744,8 +12744,8 @@ msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
-msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Nothing has been sent to any server."
-msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung (Autodiscover). So werden Exchange-Server gefunden, aber manche Hoster nutzen das auch für ihre IMAP-Postfächer. Was trifft auf Ihres zu? An keinen Server wurde etwas gesendet."
+msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
+msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung (Autodiscover). So werden Exchange-Server gefunden, aber manche Hoster nutzen das auch für ihre IMAP-Postfächer. Was trifft auf Ihres zu? Um ihn zu finden, wurde nur das DNS gefragt, nie der Server selbst."
 
 #. interface
 #: crates/ui-egui/src/lib.rs

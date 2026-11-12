@@ -246,6 +246,9 @@ fn search_again_asks_the_dns_once_more_and_shows_what_it_says() {
     // What the page was opened for no longer said, and IMAP still one click away.
     assert!(!says(&h, "so this looks like an Exchange server account"));
     assert!(says(&h, "Not an Exchange server? Set it up with IMAP"));
+    // Back: not to the question, which would say the domain names a server.
+    click(&mut h, "Back");
+    assert_eq!(page(&h), Some(Page::Address));
 }
 
 #[test]
