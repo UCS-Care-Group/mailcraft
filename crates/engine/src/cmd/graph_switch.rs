@@ -307,14 +307,15 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
 }
 
 /// Where the local folder for what only was here of `of` is.
-struct Kept {
-    account: Id,
-    folder: Id,
+pub(super) struct Kept {
+    pub(super) account: Id,
+    pub(super) folder: Id,
 }
 
 /// The local folder `Kept from <address>` at the top of the first account on this computer (one
-/// called "On this computer" is made when the mailbox has none), made for the switch.
-fn kept_folder(mb: &mut Mailbox, of: &Account) -> Result<Kept, CmdError> {
+/// called "On this computer" is made when the mailbox has none), made for the switch, and for what
+/// only is here in an Exchange server account's folder that its list leaves out (#747).
+pub(super) fn kept_folder(mb: &mut Mailbox, of: &Account) -> Result<Kept, CmdError> {
     let local = mb.local_account();
     let base = clean_name(&format!("Kept from {}", if of.email.trim().is_empty() { of.name.as_str() } else { of.email.trim() }))
         .unwrap_or_else(|| "Kept from the switch".into());

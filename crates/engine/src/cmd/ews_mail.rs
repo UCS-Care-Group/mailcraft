@@ -350,8 +350,17 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     errors.extend(refused.iter().cloned());
     s.graph_said.extend(refused);
     if let Some(deltas) = &result.folders {
-        let lost;
-        (down.removed, lost) = ews_down::take_folders(&mut s.mailbox, account, deltas, &mut taken);
+        let ews_down::FoldersTaken { removed, lost, kept } = ews_down::take_folders(&mut s.mailbox, account, deltas, &mut taken);
+        down.removed = removed;
+        // Mail only here that was in a folder the list leaves out is told, not moved quietly (#747).
+        if let Some(kept) = kept {
+            let line = s.interface_language.tn(
+                u64::try_from(kept.count).unwrap_or(u64::MAX),
+                "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\".",
+                "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\".",
+            );
+            errors.push(mailcraft_i18n::fmt(line, &[("n", &kept.count.to_string()), ("name", &sync_progress::shown(&kept.folder))]));
+        }
         // The folder list goes on from here (with the folders it brought, in one step), or from
         // its start when one of the server's own folders is missing here (#779).
         if (lost || !result.hierarchy.is_empty())
