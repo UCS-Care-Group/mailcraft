@@ -183,9 +183,34 @@ pub(crate) struct Decryptions {
     /// The messages whose opened view was let go of and whose layout the window may still hold
     /// (until it says it has dropped it, [`Session::layouts_dropped`]).
     released: std::collections::HashSet<Id>,
+    /// The hash of the bytes a message holds in memory, as they were when last asked: the same
+    /// allocation is hashed once (the `Weak` tells it is still the one).
+    hashes: Mutex<HashMap<Id, (std::sync::Weak<Vec<u8>>, [u8; 32])>>,
 }
 
 impl Decryptions {
+    /// What the bytes message `m` came as are: their size and their SHA-256, from the start (in
+    /// memory or written out to the content folder alike), so that other bytes of the same size
+    /// are never taken for them.
+    fn basis_of(&self, m: &Message) -> Basis {
+        let Some(o) = m.original.as_ref().filter(|o| o.is_there()) else { return (0, None) };
+        if let Some(k) = o.kept {
+            return (o.size(), Some(k.sha256));
+        }
+        let mut cache = self.hashes.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((from, hash)) = cache.get(&m.id)
+            && from.upgrade().is_some_and(|a| Arc::ptr_eq(&a, &o.data))
+        {
+            return (o.size(), Some(*hash));
+        }
+        let hash = crate::words::sha256(&o.data);
+        if cache.len() >= MAX_KINDS {
+            cache.clear();
+        }
+        cache.insert(m.id, (Arc::downgrade(&o.data), hash));
+        (o.size(), Some(hash))
+    }
+
     pub(crate) fn forget_messages(&mut self) {
         self.gone = self.gone.wrapping_add(1);
         let opened: Vec<Id> = self.entries.iter().filter(|(_, e)| matches!(e, Entry::Opened(_))).map(|(id, _)| *id).collect();
@@ -231,18 +256,6 @@ impl Decryptions {
     }
 }
 
-fn basis_of(m: &Message) -> Basis {
-    m.original.as_ref().filter(|o| o.is_there()).map_or((0, None), |o| (o.size(), o.kept.map(|k| k.sha256)))
-}
-
-/// Whether two bases are those of the same bytes. The hash is there only once the bytes were
-/// written to the content folder: the same bytes in memory (no hash yet) and kept (hashed) are
-/// one message, so a save never makes an opened message ask for its key again; two hashes that
-/// differ, or two sizes, are different bytes.
-fn same_basis(a: Basis, b: Basis) -> bool {
-    a.0 == b.0 && !matches!((a.1, b.1), (Some(x), Some(y)) if x != y)
-}
-
 /// The format of the Encrypted message `bytes`, when it is one.
 pub(crate) fn kind_of(bytes: &[u8]) -> Option<SignatureFormat> {
     use mailcraft_mime::Protection;
@@ -277,9 +290,9 @@ impl Session {
         if m.draft || !m.has_original() {
             return None;
         }
-        let basis = basis_of(m);
+        let basis = self.decryptions.basis_of(m);
         if let Some((kept, kind)) = self.decryptions.kinds.get(&id)
-            && same_basis(*kept, basis)
+            && *kept == basis
         {
             return *kind;
         }
@@ -300,27 +313,17 @@ impl Session {
         if !m.has_original() {
             return if looks_encrypted(m) { Decryption::NoOriginal } else { Decryption::NotEncrypted };
         }
-        let basis = basis_of(m);
+        let basis = self.decryptions.basis_of(m);
         let Some(format) = self.encryption_of(id) else { return Decryption::NotEncrypted };
-        // Bytes opened in memory (no hash yet) that have since been written out are the same
-        // bytes now hashed: the hash is learned, so that a replacement later is told.
-        if let Some(Entry::Opened(d)) = self.decryptions.entries.get_mut(&id)
-            && d.basis.0 == basis.0
-            && d.basis.1.is_none()
-            && basis.1.is_some()
-            && let Some(d) = Arc::get_mut(d)
-        {
-            d.basis.1 = basis.1;
-        }
         // What was opened from other bytes than these is let go of at once (its plaintext, its layout).
-        if matches!(self.decryptions.entries.get(&id), Some(Entry::Opened(d)) if !same_basis(d.basis, basis)) {
+        if matches!(self.decryptions.entries.get(&id), Some(Entry::Opened(d)) if d.basis != basis) {
             self.decryptions.drop_entry(id);
         }
         match self.decryptions.entries.get(&id) {
-            Some(Entry::Pending(f, b)) if same_basis(*b, basis) => Decryption::Opening(*f),
+            Some(Entry::Pending(f, b)) if *b == basis => Decryption::Opening(*f),
             // (A failure for other bytes than these isn't one for these: asked again.)
-            Some(Entry::Failed(f, why, b)) if same_basis(*b, basis) => Decryption::Failed(*f, why.clone()),
-            Some(Entry::Opened(d)) if same_basis(d.basis, basis) => Decryption::Opened(d.format),
+            Some(Entry::Failed(f, why, b)) if *b == basis => Decryption::Failed(*f, why.clone()),
+            Some(Entry::Opened(d)) if d.basis == basis => Decryption::Opened(d.format),
             // (A job for other bytes than these, or none: to be asked again.)
             _ => Decryption::Waiting(format),
         }
@@ -333,7 +336,7 @@ impl Session {
     pub fn begin_decrypt(&mut self, id: Id) -> Option<DecryptJob> {
         let Decryption::Waiting(format) = self.decryption(id) else { return None };
         let m = self.mailbox.messages.get(&id)?;
-        let basis = basis_of(m);
+        let basis = self.decryptions.basis_of(m);
         let original = self.content(id, Part::Original).ok()?;
         self.decryptions.drop_entry(id);
         self.decryptions.entries.insert(id, Entry::Pending(format, basis));
@@ -351,7 +354,7 @@ impl Session {
             self.decryptions.drop_entry(id);
             return;
         };
-        if !same_basis(basis_of(&stored), basis) {
+        if self.decryptions.basis_of(&stored) != basis {
             self.decryptions.drop_entry(id);
             return;
         }
@@ -388,7 +391,7 @@ impl Session {
     /// opened from (the server replacing them leaves nothing opened).
     fn opened(&self, id: Id) -> Option<&Arc<Decrypted>> {
         let Some(Entry::Opened(d)) = self.decryptions.entries.get(&id) else { return None };
-        same_basis(basis_of(self.mailbox.messages.get(&id)?), d.basis).then_some(d)
+        (self.decryptions.basis_of(self.mailbox.messages.get(&id)?) == d.basis).then_some(d)
     }
 
     /// The message `id` opened to, for the reading pane to draw: the stored message as it is now
@@ -505,7 +508,7 @@ impl Session {
             authenticated: plain.authenticated,
             outside,
             outside_files,
-            basis: basis_of(stored),
+            basis: self.decryptions.basis_of(stored),
             bytes,
             view: Mutex::new(None),
         })

@@ -2240,6 +2240,7 @@ impl MailApp {
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
+        let named = params.get("id").and_then(Value::as_u64);
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
         // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
         // Options says so or the caller asked for one.
@@ -2300,13 +2301,20 @@ impl MailApp {
             self.reveal_selection = true;
         }
         // The owner's own click or key on a row picks the message in focus ([`MailApp::owner_picks`]).
-        if r.is_ok()
-            && (id == "mail.select" || keys::MOVES_IN_LIST.contains(&id))
-            && !self.driven
-            && !self.control_recent()
-            && let Some(focus) = self.session.sel.focus()
-        {
-            self.owner_picks(focus);
+        if r.is_ok() && !self.driven && !self.control_recent() {
+            let focus = self.session.sel.focus();
+            // The message the click named (when it is still the one in focus: a Ctrl+click that
+            // took it out of the selection names none), or the row a move went to.
+            let chose = if id == "mail.select" {
+                named.filter(|n| focus == Some(*n))
+            } else if keys::MOVES_IN_LIST.contains(&id) {
+                focus
+            } else {
+                None
+            };
+            if let Some(chose) = chose {
+                self.owner_picks(chose);
+            }
         }
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
@@ -5380,7 +5388,9 @@ impl MailApp {
                 }
                 control::Outcome::Screenshot { path, inline } => {
                     // (Each waiting one costs a connection's thread: past the cap it is refused.)
-                    if self.pending_shots.len() >= MAX_SHOTS {
+                    // (An agent's are counted by themselves, so that they never crowd the owner's out.)
+                    let from_agent = req.agent.is_some();
+                    if self.pending_shots.iter().filter(|p| p.5.is_some() == from_agent).count() >= MAX_SHOTS {
                         let _ = reply.send(json!({"ok": false, "error": "too many screenshots are waiting: ask again in a moment"}));
                         continue;
                     }

@@ -426,3 +426,38 @@ fn an_injected_click_on_download_pictures_does_nothing_on_an_opened_message_and_
     harness.run_steps(3);
     assert_eq!(access(harness.state(), &view), Access::Allowed);
 }
+
+#[test]
+fn taking_a_message_out_of_a_selection_does_not_choose_the_one_left_in_focus() {
+    let (mut app, ids, _host) = app_with(2);
+    let (e, p) = (ids[0], ids[1]);
+    // The agent selects both, focus on the second.
+    agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"id": e}}));
+    agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"id": p, "extend": true}}));
+    idle(&mut app, 8);
+    // The owner Ctrl+clicks the second to take it out: focus falls back to the first.
+    app.run("mail.select", json!({"id": p, "extend": true})).unwrap();
+    frame(&mut app);
+    assert_eq!(app.session.sel.focus(), Some(e), "this test shows nothing: focus did not fall back");
+    assert!(app.decryption_needs_owner(e), "a message the owner never named was taken as chosen");
+}
+
+#[test]
+fn an_agents_waiting_screenshots_never_crowd_out_the_owners() {
+    let (mut app, _ids, _host) = app_with(1);
+    let ctx = egui::Context::default();
+    let (tx, rx_requests) = channel();
+    app.control_rx = Some(rx_requests);
+    let mut agents = Vec::new();
+    for _ in 0..20 {
+        let (req, reply) = ControlRequest::new("ui.screenshot", json!({}));
+        tx.send(req.from_agent(Vec::new())).unwrap();
+        agents.push(reply);
+    }
+    let (req, owner) = ControlRequest::new("ui.screenshot", json!({}));
+    tx.send(req).unwrap();
+    app.drain_control(&ctx);
+    assert!(app.pending_shots.iter().filter(|p| p.5.is_some()).count() <= 16);
+    assert!(app.pending_shots.iter().any(|p| p.5.is_none()), "the owner's screenshot was not queued");
+    assert!(owner.try_recv().is_err(), "the owner's screenshot was refused");
+}

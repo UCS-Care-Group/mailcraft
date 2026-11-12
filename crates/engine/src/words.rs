@@ -177,7 +177,7 @@ pub fn fingerprint(m: &Message) -> u64 {
     h.bytes(&text).0
 }
 
-fn sha256(bytes: &[u8]) -> [u8; 32] {
+pub(crate) fn sha256(bytes: &[u8]) -> [u8; 32] {
     let d = ring::digest::digest(&ring::digest::SHA256, bytes);
     let mut out = [0u8; 32];
     for (o, b) in out.iter_mut().zip(d.as_ref()) {

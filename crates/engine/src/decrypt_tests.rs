@@ -491,18 +491,43 @@ fn a_save_does_not_make_an_opened_message_ask_again_but_other_bytes_do_and_are_l
     open(&mut s, id, plain(SECRET));
     // The bytes were written to the content folder: the same bytes, now hashed and out of memory.
     let size = s.mailbox.message(id).unwrap().original.as_ref().unwrap().size();
-    let kept = |hash: u8| mailcraft_model::ContentRef { sha256: [hash; 32], len: size };
+    let real = crate::words::sha256(&s.mailbox.message(id).unwrap().original.as_ref().unwrap().data);
+    let kept = |sha256: [u8; 32]| mailcraft_model::ContentRef { sha256, len: size };
     {
         let m = std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap());
         let o = m.original.as_mut().unwrap();
         o.data = std::sync::Arc::new(Vec::new());
-        o.kept = Some(kept(7));
+        o.kept = Some(kept(real));
     }
     assert_eq!(s.decryption(id), Decryption::Opened(SignatureFormat::Smime), "asked for the key again after a save");
     assert!(s.decrypted_message(id).is_some());
-    // Bytes with another hash: not the same message. Its plaintext is let go of, not kept.
-    std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap()).original.as_mut().unwrap().kept = Some(kept(8));
+    // Other bytes (read back from the server, in memory again): not the same message. Its
+    // plaintext is let go of, not kept.
+    {
+        let m = std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap());
+        let o = m.original.as_mut().unwrap();
+        o.kept = None;
+        o.data = std::sync::Arc::new(smime("alice@smime.example", "Vault elsewhere"));
+    }
     let before = s.decryptions_let_go();
     assert_eq!(s.decryption(id), Decryption::Waiting(SignatureFormat::Smime));
     assert_eq!(s.decryptions_let_go(), before + 1, "the stale plaintext is still held");
+}
+
+#[test]
+fn other_bytes_of_the_same_size_in_memory_are_not_the_opened_message() {
+    let (mut s, ids) = session_with(&[&smime("alice@smime.example", "Vault")]);
+    let id = ids[0];
+    open(&mut s, id, plain(SECRET));
+    assert!(s.decrypted_message(id).is_some());
+    // The same id gets other bytes of exactly the same length (a re-download), still in memory.
+    let mut other = s.mailbox.message(id).unwrap().original.as_ref().unwrap().data.as_ref().clone();
+    let at = other.len() / 2;
+    other[at] = if other[at] == b'x' { b'y' } else { b'x' };
+    {
+        let m = std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&id).unwrap());
+        m.original.as_mut().unwrap().data = std::sync::Arc::new(other);
+    }
+    assert!(s.decrypted_message(id).is_none(), "old plaintext shown for other bytes of the same size");
+    assert_eq!(s.decryption(id), Decryption::Waiting(SignatureFormat::Smime));
 }
