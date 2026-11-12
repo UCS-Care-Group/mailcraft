@@ -68,7 +68,9 @@ impl std::error::Error for LayoutError {}
 /// The content fields and body of a `multipart/signed` message holding `signed` (the bytes the
 /// signature was made over, as [`crate::signable`] wrote them) and `signature` (DER for S/MIME,
 /// armoured text for OpenPGP), with `micalg` naming the digest. The boundary is made from the
-/// content and occurs in neither part, so the same input always gives the same bytes.
+/// content and occurs in neither part, so the same input always gives the same bytes. The
+/// signature part ends with a line end of its own, as the signed one does: a server that writes
+/// the message again (Microsoft 365) then has none to add.
 pub fn multipart_signed(signed: &[u8], kind: SignatureKind, micalg: &str, signature: &[u8]) -> Result<Vec<u8>, LayoutError> {
     let pgp = kind == SignatureKind::OpenPgp;
     if !MICALGS.contains(&micalg) || micalg.starts_with("pgp-") != pgp {
@@ -85,7 +87,10 @@ Content-Disposition: attachment; filename=\"smime.p7s\"\r\n\
 Content-Description: S/MIME Cryptographic Signature\r\n\r\n"
                 .to_vec();
             let lines = transfer::base64_lines(signature);
-            part.extend_from_slice(lines.strip_suffix(b"\r\n").unwrap_or(&lines));
+            part.extend_from_slice(&lines);
+            if !part.ends_with(b"\r\n") {
+                part.extend_from_slice(b"\r\n");
+            }
             ("application/pkcs7-signature", part)
         }
         SignatureKind::OpenPgp => {
@@ -102,6 +107,7 @@ Content-Disposition: attachment; filename=\"signature.asc\"\r\n\r\n"
                 .to_vec();
             let lines: Vec<&str> = text.trim().lines().map(|l| l.trim_end_matches('\r')).collect();
             part.extend_from_slice(lines.join("\r\n").as_bytes());
+            part.extend_from_slice(b"\r\n");
             ("application/pgp-signature", part)
         }
     };

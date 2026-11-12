@@ -180,21 +180,30 @@ pub(crate) fn sign_sends_with(sends: &mut Vec<SendUp>, sign: &dyn Fn(&mut Messag
 /// Sign `m` when it is to be signed: its body becomes the `multipart/signed` it goes as, made
 /// now from the message as it is (whatever bytes it held before, a signature by someone else
 /// among them, are let go of). Why not, in words, when it can't be.
-fn sign(host: &Host, m: &mut Message, now: i64) -> Result<(), String> {
+pub(crate) fn sign(host: &Host, m: &mut Message, now: i64) -> Result<(), String> {
+    sign_by(m, &|key, entity| match key.format {
+        SignatureFormat::Smime => {
+            let (signature, micalg) = smime(host, entity, key, now)?;
+            Ok((mailcraft_mime::SignatureKind::Smime, micalg, signature))
+        }
+        SignatureFormat::OpenPgp => {
+            let (armoured, micalg) = openpgp(entity, key, now)?;
+            Ok((mailcraft_mime::SignatureKind::OpenPgp, micalg, armoured.into_bytes()))
+        }
+    })
+}
+
+/// What signs an entity with a key: the kind of signature, its `micalg` and the signature.
+pub(crate) type Signer<'a> = dyn Fn(&SigningKey, &[u8]) -> Result<(mailcraft_mime::SignatureKind, &'static str, Vec<u8>), String> + 'a;
+
+/// [`sign`] with `signer` making the signature over the entity: everything else is the send's
+/// own (the tests hand it a key holder of their own).
+pub(crate) fn sign_by(m: &mut Message, signer: &Signer<'_>) -> Result<(), String> {
     let Some(key) = m.sign_with.clone() else { return Ok(()) };
     m.original = None;
     let key = key.checked().ok_or_else(|| "the key it was to be signed with can't be named".to_string())?;
     let entity = mailcraft_mime::signable(m);
-    let (kind, micalg, signature) = match key.format {
-        SignatureFormat::Smime => {
-            let (signature, micalg) = smime(host, &entity, &key, now)?;
-            (mailcraft_mime::SignatureKind::Smime, micalg, signature)
-        }
-        SignatureFormat::OpenPgp => {
-            let (armoured, micalg) = openpgp(&entity, &key, now)?;
-            (mailcraft_mime::SignatureKind::OpenPgp, micalg, armoured.into_bytes())
-        }
-    };
+    let (kind, micalg, signature) = signer(&key, &entity)?;
     finish(m, &entity, kind, micalg, &signature)
 }
 

@@ -80,7 +80,8 @@ fn what_is_signed_is_the_body_as_it_would_be_written() {
     let entity = String::from_utf8(signable(&m)).unwrap_or_default();
     assert!(entity.starts_with("Content-Type: multipart/mixed;"), "{entity}");
     assert!(entity.contains("Hello Bob,\r\n\r\nSee you at ten.\r\n"), "{entity}");
-    assert!(!entity.ends_with("\r\n"), "the line end before the boundary is the boundary's");
+    // Its own last line end, before the boundary's: Microsoft 365 adds one to a part without.
+    assert!(entity.ends_with("--\r\n") && !entity.ends_with("\r\n\r\n"), "{entity:?}");
     // The same message always gives the same bytes.
     assert_eq!(signable(&m), signable(&m));
     // Every byte 7-bit, every line ending in CRLF.

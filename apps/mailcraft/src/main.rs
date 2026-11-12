@@ -95,6 +95,8 @@ mod shared_calendar_flow;
 mod shared_send_flow;
 mod signing;
 #[cfg(test)]
+mod signing_interop_tests;
+#[cfg(test)]
 mod signing_tests;
 mod single_instance;
 mod system_locale;

@@ -57,6 +57,16 @@ mailcraft-ews = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
 mailcraft-charset = { workspace = true }
+# Digital signatures made at Send checked by verifiers that aren't MailCraft's (#30 part 5):
+# rPGP's own for OpenPGP, RustCrypto's CMS reader and ECDSA for S/MIME; the keys and the
+# example.org certificate are made in the test. All already in the tree, the same versions.
+pgp = { workspace = true }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rcgen = { workspace = true }
+cms = { workspace = true }
+der = { workspace = true }
+p256 = { workspace = true }
+sha2 = { workspace = true }
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.

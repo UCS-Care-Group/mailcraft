@@ -279,12 +279,19 @@ fn calendar_form(message: &Message) -> Option<(usize, String)> {
 
 /// The body of `message` as the entity a Digital signature is made over (#30, RFC 8551 §3.1,
 /// RFC 3156 §3): its content fields, an empty line and its body, in CRLF lines and 7-bit
-/// throughout, without a line end after it. Text that a server on the way might change (white
-/// space at a line's end, a line that begins `From ` or is a lone `.`) is quoted-printable, and
-/// an attached message that could be is base64, so that what is signed arrives as it was.
-/// The same message always gives the same bytes.
+/// throughout, ending with a line end of its own. Text that a server on the way might change
+/// (white space at a line's end, a line that begins `From ` or is a lone `.`) is
+/// quoted-printable, and an attached message that could be is base64, so that what is signed
+/// arrives as it was. The same message always gives the same bytes.
+///
+/// That last line end is the entity's: the boundary's own comes after it (RFC 2046 §5.1.1).
+/// Microsoft 365 writes a message sent through it again, and gives a part of a
+/// `multipart/signed` that doesn't end with a line end one, which changed an entity ending
+/// `--boundary--` without one under its signature (#30: every such signature checked BAD).
 pub fn signable(message: &Message) -> Vec<u8> {
-    body(message, true).bytes()
+    let mut entity = body(message, true).bytes();
+    entity.extend_from_slice(b"\r\n");
+    entity
 }
 
 /// The MIME structure of a message's body and attachments. `signing`: for a Digital signature
