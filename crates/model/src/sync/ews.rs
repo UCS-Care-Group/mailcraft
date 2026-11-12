@@ -504,6 +504,7 @@ impl EwsMailResult {
             folders.changed.extend(more.changed);
             folders.deleted.extend(more.deleted);
             folders.afresh |= more.afresh;
+            folders.incomplete |= more.incomplete;
             folders.well_known.extend(more.well_known);
         }
         if !piece.hierarchy.is_empty() {

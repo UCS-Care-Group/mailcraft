@@ -51,8 +51,8 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
             changed: vec![inbox],
             deleted: vec!["F0".into()],
             afresh: true,
+            incomplete: true,
             well_known: vec!["F1".into()],
-            ..Default::default()
         }),
         hierarchy: "H1".into(),
         pages: vec![EwsMessagePage { folder: "F1".into(), state: "S1".into(), ..Default::default() }],
@@ -78,6 +78,7 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     let folders = all.folders.unwrap();
     assert_eq!((folders.changed.len(), folders.deleted, folders.afresh), (1, vec!["F0".to_string(), "F9".to_string()], true));
     assert_eq!(folders.well_known, ["F1"], "the server's own folders are kept from the piece that named them (#779)");
+    assert!(folders.incomplete, "a list that passed over a folder stays incomplete when later pieces come in (#1108)");
 }
 
 fn page() -> EwsMessagePage {
