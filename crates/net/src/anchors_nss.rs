@@ -31,7 +31,7 @@ use cryptoki::session::Session;
 
 /// Where the distributions put NSS's module of roots: the multiarch places of Debian and its
 /// derivatives, the older `nss/` subfolder, the 64-bit and plain places of the others, and
-/// FreeBSD's ports. (One of another architecture doesn't load, and the next is tried.)
+/// FreeBSD's `security/nss` port (`lib/libnssckbi.so` under its prefix). (One of another architecture doesn't load, and the next is tried.)
 pub const NSS_MODULES: [&str; 12] = [
     "/usr/lib/x86_64-linux-gnu/libnssckbi.so",
     "/usr/lib/aarch64-linux-gnu/libnssckbi.so",
@@ -44,7 +44,7 @@ pub const NSS_MODULES: [&str; 12] = [
     "/usr/lib64/libnssckbi.so",
     "/usr/lib/libnssckbi.so",
     "/usr/lib/nss/libnssckbi.so",
-    "/usr/local/lib/nss/libnssckbi.so",
+    "/usr/local/lib/libnssckbi.so",
 ];
 
 /// The label of the token NSS's module of roots has (padded with spaces, as PKCS #11 has it).

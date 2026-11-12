@@ -75,7 +75,9 @@ fn the_searches_ask_for_mail_s_trust_in_both_forms_by_their_published_numbers() 
 fn only_nss_s_module_at_the_system_s_places_is_read() {
     assert!(NSS_MODULES.iter().all(|p| p.starts_with('/') && p.ends_with("/libnssckbi.so")));
     // Never a program's own copy (a browser's, Adobe AIR's under /opt), nor the home folder.
-    assert!(NSS_MODULES.iter().all(|p| p.starts_with("/usr/lib") || p.starts_with("/usr/local/lib/nss/")));
+    assert!(NSS_MODULES.iter().all(|p| p.starts_with("/usr/lib") || *p == "/usr/local/lib/libnssckbi.so"));
+    // FreeBSD's `security/nss` port puts it straight in its prefix's `lib`, not in an `nss/` folder.
+    assert!(NSS_MODULES.contains(&"/usr/local/lib/libnssckbi.so"));
     assert_eq!(BUILTIN_TOKEN, "Builtin Object Token");
 }
 

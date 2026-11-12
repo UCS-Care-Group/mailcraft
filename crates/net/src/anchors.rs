@@ -8,11 +8,14 @@
 //! - Linux and the other Unix systems: the bundle of authorities trusted for mail that the
 //!   system's trust store extracts (p11-kit's `email-ca-bundle.pem`, Arch, Fedora, openSUSE), at
 //!   the places the distributions put it.
-//! - Linux and FreeBSD without that bundle: the roots Mozilla trusts for mail in NSS's own list
+//! - Linux and FreeBSD with none of those bundles: the roots Mozilla trusts for mail in NSS's own list
 //!   (`libnssckbi.so` of `libnss3`, or of FreeBSD's `nss` port), read through PKCS#11
 //!   (`anchors_nss`). Debian's `ca-certificates`, and so Ubuntu's and Linux Mint's, holds the web
 //!   sites' set alone, and FreeBSD's `certctl` and `ca_root_nss` bundles are that set too; NSS's
-//!   list keeps the trust for each purpose. A system with neither has none here.
+//!   list keeps the trust for each purpose. It is Mozilla's choice, not the system's: on Debian,
+//!   an authority deselected in `/etc/ca-certificates.conf` is still trusted for mail through it.
+//!   A bundle that is there but holds no certificate is the system's word that no authority is
+//!   trusted for mail, so NSS's list never stands in for it. A system with neither has none here.
 //! - Windows: the authorities of the Trusted Root Certification Authorities store whose uses,
 //!   as Windows keeps them, include secure mail (or aren't limited).
 //! - macOS: none yet; the keychain's trust settings for mail aren't read. Signers there are "not
@@ -46,10 +49,32 @@ pub fn system_trust_anchors() -> Vec<Vec<u8>> {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn read() -> Vec<Vec<u8>> {
-    if let Some(found) = MAIL_BUNDLES.iter().find_map(|path| bundle(std::path::Path::new(path))) {
-        return found;
+    bundles(&MAIL_BUNDLES.map(std::path::Path::new)).unwrap_or_else(nss)
+}
+
+/// The authorities of the bundles for mail at `paths`: `None` only when none of them is there at
+/// all, the one case where NSS's list may stand in. Else the certificates of the first that has
+/// any, and none when none has: a bundle emptied or made unreadable by an administrator trusts no
+/// authority for mail, and that is kept.
+#[cfg(all(unix, not(target_os = "macos")))]
+pub fn bundles(paths: &[&std::path::Path]) -> Option<Vec<Vec<u8>>> {
+    let there: Vec<&std::path::Path> = paths.iter().copied().filter(|path| is_there(path)).collect();
+    if there.is_empty() {
+        return None;
     }
-    nss()
+    let found = there.into_iter().find_map(bundle).unwrap_or_default();
+    if found.is_empty() {
+        log::warn!("the system's bundle of authorities for mail holds none that can be read: no authority is trusted for mail");
+    }
+    Some(found)
+}
+
+/// Whether anything is at `path`: a file, a link (even one to nothing) or something that can't be
+/// looked at. Only "not found" says it isn't.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn is_there(path: &std::path::Path) -> bool {
+    use std::io::ErrorKind::{NotADirectory, NotFound};
+    !matches!(std::fs::symlink_metadata(path), Err(e) if matches!(e.kind(), NotFound | NotADirectory))
 }
 
 /// The roots NSS's own list trusts for mail, where the system has no bundle for mail.
