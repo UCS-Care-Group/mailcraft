@@ -994,6 +994,22 @@ pub enum WordIndex {
     Complete,
 }
 
+/// The events and to-dos an import put in, and the calendar it made for them.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ImportedPlans {
+    pub events: Vec<Id>,
+    pub tasks: Vec<Id>,
+    pub notes: Vec<Id>,
+    pub journal: Vec<Id>,
+    pub calendar: Option<Id>,
+}
+
+impl ImportedPlans {
+    fn is_empty(&self) -> bool {
+        self.events.is_empty() && self.tasks.is_empty() && self.notes.is_empty() && self.journal.is_empty() && self.calendar.is_none()
+    }
+}
+
 /// The clock commands read; tests and scripts pin it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Clock {
@@ -2123,12 +2139,33 @@ impl Session {
         beside
     }
 
-    /// Fetch what `r` names from the source.
-    fn fetch(&self, r: &ContentRef) -> Result<Arc<Vec<u8>>, CmdError> {
+    fn content_origin(&self) -> Result<(&std::path::Path, Arc<dyn crate::io::ContentSource>), CmdError> {
         let kept_nowhere = || CmdError::Failed("the mailbox isn't kept in a file, so content outside memory can't be read".into());
         let path = self.path.as_deref().ok_or_else(kept_nowhere)?;
         let source = self.source().ok_or_else(kept_nowhere)?;
+        Ok((path, source))
+    }
+
+    /// Fetch what `r` names from the source.
+    fn fetch(&self, r: &ContentRef) -> Result<Arc<Vec<u8>>, CmdError> {
+        let (path, source) = self.content_origin()?;
         source.fetch(path, r).map_err(CmdError::Failed)
+    }
+
+    /// Prepare an attachment read that the desktop can execute off the UI thread.
+    pub fn attachment_reader(&self, attachment: &Attachment) -> Result<impl Fn() -> Result<Arc<Vec<u8>>, CmdError> + Send + Sync + use<>, CmdError> {
+        let stored = match attachment.kept.filter(|_| attachment.data.is_empty()) {
+            Some(reference) => {
+                let (path, source) = self.content_origin()?;
+                Some((path.to_path_buf(), source, reference))
+            }
+            None => None,
+        };
+        let memory = attachment.data.clone();
+        Ok(move || match &stored {
+            Some((path, source, reference)) => source.fetch(path, reference).map_err(CmdError::Failed),
+            None => Ok(memory.clone()),
+        })
     }
 
     /// The bytes of one part of a message: from memory when they are there, else from where the
@@ -2978,6 +3015,7 @@ impl Session {
     /// is without the messages `added`, without the folders `made` that are empty then, and with
     /// the categories as they were (#815). What the owner did meanwhile stays as it is: a folder
     /// of the import that holds mail or a folder of the owner's stays, with them in it.
+    #[cfg(test)]
     pub(crate) fn keep_import_step(
         &mut self,
         label: &'static str,
@@ -2986,7 +3024,20 @@ impl Session {
         made: &[Id],
         categories: Vec<mailcraft_model::Category>,
     ) {
-        if added.is_empty() && contacts.is_empty() && made.is_empty() && categories == self.mailbox.categories {
+        self.keep_import_step_with(label, added, contacts, &ImportedPlans::default(), made, categories);
+    }
+
+    /// As [`Session::keep_import_step`], for an import that brought events and to-dos too.
+    pub(crate) fn keep_import_step_with(
+        &mut self,
+        label: &'static str,
+        added: &[Id],
+        contacts: &[Id],
+        plans: &ImportedPlans,
+        made: &[Id],
+        categories: Vec<mailcraft_model::Category>,
+    ) {
+        if added.is_empty() && contacts.is_empty() && plans.is_empty() && made.is_empty() && categories == self.mailbox.categories {
             return;
         }
         let mut before = self.snapshot(label);
@@ -2996,6 +3047,24 @@ impl Session {
         // (Only the contacts the import put in: the owner's own, put in or changed since, stay.)
         for id in contacts {
             before.mailbox.contacts.remove(id);
+        }
+        for id in &plans.events {
+            before.mailbox.events.remove(id);
+        }
+        for id in &plans.tasks {
+            before.mailbox.tasks.remove(id);
+        }
+        for id in &plans.notes {
+            before.mailbox.notes.remove(id);
+        }
+        for id in &plans.journal {
+            before.mailbox.journal.remove(id);
+        }
+        // A calendar it made goes too, unless the owner has put something in it since.
+        if let Some(id) = plans.calendar
+            && !before.mailbox.events.values().any(|e| e.calendar == id)
+        {
+            before.mailbox.calendars.retain(|c| c.id != id);
         }
         // The folders it made, deepest first (each was made after its parent), that hold nothing
         // once its mail is out: not a message, not a folder.
@@ -3195,6 +3264,8 @@ impl Session {
         gone.extend(now.contacts.keys().filter(|k| !back.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
         gone.extend(now.events.keys().filter(|k| !back.events.contains_key(*k)).map(|k| format!("event {k}")));
         gone.extend(now.tasks.keys().filter(|k| !back.tasks.contains_key(*k)).map(|k| format!("task {k}")));
+        gone.extend(now.notes.keys().filter(|k| !back.notes.contains_key(*k)).map(|k| format!("note {k}")));
+        gone.extend(now.journal.keys().filter(|k| !back.journal.contains_key(*k)).map(|k| format!("journal entry {k}")));
         gone.extend(now.calendars.iter().filter(|c| !back.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
         gone.extend(categories_gone(&now.categories, &back.categories).into_iter().map(|n| format!("category {n}")));
         // An account's own list the undo doesn't keep is taken away whole.
@@ -3234,6 +3305,10 @@ impl Session {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
+            return Some(Class::Settings);
+        }
+        // Public keys imported or removed (#30): the keys Digital signatures are checked with.
+        if step.touched.changed_keys() {
             return Some(Class::Settings);
         }
         None

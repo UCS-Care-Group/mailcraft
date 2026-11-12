@@ -57,6 +57,7 @@ fn why(code: &ResponseCode) -> String {
         "ErrorAccessDenied" => "the server doesn't allow it",
         "ErrorFolderExists" => "a folder of that name is there already",
         "ErrorCannotDeleteObject" | "ErrorDeleteDistinguishedFolder" => "the server doesn't let that folder be deleted",
+        "ErrorMoveDistinguishedFolder" => "the server doesn't let that folder be moved",
         _ => "the server won't do it",
     };
     text.to_owned()
@@ -205,6 +206,12 @@ impl<E: HttpExchange> Run<'_, E> {
                 // (A folder deleted here that the server keeps: a delta of the folder list wouldn't
                 // bring it back, so the list is read afresh.)
                 self.reread_folders |= matches!(change, FolderChange::Delete { .. });
+                // One of the server's own folders that no distinguished name asked for tells
+                // apart (RSS Feeds, say; #1069): put back, and never offered for it again.
+                let name = code.to_string();
+                if mailcraft_model::sync::OWN_FOLDER_CODES.iter().any(|own| own.eq_ignore_ascii_case(&name)) {
+                    return Ok(Some(ChangeOutcome::OwnFolder { why: why(&code) }));
+                }
                 Ok(Some(ChangeOutcome::Refused { why: why(&code) }))
             }
             Err(Asked::Bad | Asked::Unreadable) => {

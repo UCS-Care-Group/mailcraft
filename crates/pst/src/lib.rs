@@ -34,6 +34,7 @@ mod named;
 mod ndb;
 mod prop;
 mod pst;
+pub mod recur;
 mod rtf;
 mod source;
 /// The test writer: synthetic .pst files from invented folders and messages, for this crate's
@@ -68,4 +69,5 @@ pub use pst::{
     Attachment, AttachmentContent, AttachmentReader, AttachmentRef, Folder, FolderEntry, FolderKind, FolderTree, ItemList, ItemSummary, LeftOut,
     LeftOutPart, Message, MessageRef, Nid, NodeInfo, Part, Pst, Recipient, RecipientKind, Store, node_types,
 };
-pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_text};
+pub use recur::{Recur, RecurException, appointment_recurrence, time_zone_key};
+pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_html, rtf_text};

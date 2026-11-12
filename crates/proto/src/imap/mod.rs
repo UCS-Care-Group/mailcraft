@@ -23,13 +23,20 @@ pub use utf7::{decode_utf7, encode_utf7};
 
 use crate::line::Wire;
 use crate::{MAX_LINE, MAX_LITERAL, ProtoError, Secrets, for_trace, tidy, xoauth2};
+use mailcraft_i18n::{Arg, Text, said};
 
 /// Most responses the server may send to one command.
 const MAX_RESPONSES: usize = 250_000;
 /// Most text (everything outside literals) the server may send in answer to one command.
 const MAX_COMMAND_TEXT: usize = 32 << 20;
-/// Most mailboxes one LIST keeps; the ones after are read and dropped.
-const MAX_MAILBOXES: usize = 4_000;
+/// Most mailboxes one LIST keeps; the ones after are read and dropped. More than a run reads
+/// (10,000, #991), since some of those listed are never read (views, folders that can't be
+/// opened). What is kept is bounded in bytes too ([`MAX_LIST_BYTES`]).
+const MAX_MAILBOXES: usize = 12_000;
+/// Most bytes of names and flags one LIST keeps, literals included (which
+/// [`MAX_COMMAND_TEXT`] doesn't count): 12,000 mailboxes as most servers list them take a
+/// megabyte or two; past this the ones after are read and dropped.
+const MAX_LIST_BYTES: usize = 16 << 20;
 /// Longest mailbox name kept (as the server wrote it); a mailbox with a longer one is left out,
 /// since a name cut short would name another mailbox or none.
 const MAX_MAILBOX_NAME: usize = 1_024;
@@ -373,7 +380,7 @@ impl Wanted {
     }
 
     fn check(&self) -> Result<(), ProtoError> {
-        if self.over { Err(ProtoError::Protocol("the server reported more messages than the mailbox holds".into())) } else { Ok(()) }
+        if self.over { Err(ProtoError::Protocol(said!("the server reported more messages than the mailbox holds"))) } else { Ok(()) }
     }
 }
 
@@ -393,10 +400,10 @@ fn is_flag(flag: &str) -> bool {
 /// `(\Seen \Flagged)`, once every flag is known to be one.
 fn flag_list(flags: &[&str]) -> Result<String, ProtoError> {
     if flags.len() > MAX_FLAGS {
-        return Err(ProtoError::Protocol("too many flags for one command".into()));
+        return Err(ProtoError::Protocol(said!("too many flags for one command")));
     }
     match flags.iter().find(|f| !is_flag(f)) {
-        Some(bad) => Err(ProtoError::Protocol(format!("\"{}\" can't be used as a flag", tidy(bad)))),
+        Some(bad) => Err(ProtoError::Protocol(said!("\"{flag}\" can't be used as a flag", flag = tidy(bad)))),
         None => Ok(format!("({})", flags.join(" "))),
     }
 }
@@ -444,7 +451,7 @@ fn named(set: &str) -> Result<&str, ProtoError> {
     if set.len() <= MAX_QUOTED && uids_of(set).is_some() {
         Ok(set)
     } else {
-        Err(ProtoError::Protocol(format!("\"{}\" doesn't name the messages to change", tidy(set))))
+        Err(ProtoError::Protocol(said!("\"{set}\" doesn't name the messages to change", set = tidy(set))))
     }
 }
 
@@ -554,9 +561,11 @@ impl<S: Read + Write> Imap<S> {
                     Ok(imap)
                 }
                 Status::Bye => Err(ProtoError::Rejected(imap.refusal(&line))),
-                Status::No | Status::Bad => Err(ProtoError::Protocol(format!("the server greeted with a refusal: {}", imap.refusal(&line)))),
+                Status::No | Status::Bad => {
+                    Err(ProtoError::Protocol(said!("the server greeted with a refusal: {reason}", reason = Arg::said(imap.refusal(&line)))))
+                }
             },
-            _ => Err(ProtoError::Protocol("the server didn't greet like an IMAP server".into())),
+            _ => Err(ProtoError::Protocol(said!("the server didn't greet like an IMAP server"))),
         }
     }
 
@@ -608,7 +617,7 @@ impl<S: Read + Write> Imap<S> {
         self.run(Command::new("STARTTLS"), &mut ignore)?;
         // Anything after the go-ahead was slipped in before encryption started.
         if self.wire.has_pending() {
-            return Err(ProtoError::Protocol("the server sent data before the secure connection started".into()));
+            return Err(ProtoError::Protocol(said!("the server sent data before the secure connection started")));
         }
         Ok(self.wire.into_inner())
     }
@@ -616,14 +625,11 @@ impl<S: Read + Write> Imap<S> {
     /// LOGIN with properly quoted (or literal) strings. NO → `ProtoError::Auth`.
     pub fn login(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
         if user.contains('\0') || password.contains('\0') {
-            return Err(ProtoError::Auth("the user name or password has a character that can't be sent".into()));
+            return Err(ProtoError::Auth(said!("the user name or password has a character that can't be sent")));
         }
-        // RFC 3501 §6.2.3: a server that says LOGINDISABLED must not be sent a password. (Add
-        // Account shows this text in the interface language by its exact words, with this
-        // error's "sign-in failed: " before it: `in_own_words` in `mailcraft-ui-egui`'s
-        // `account_setup.rs`. Change both together.)
+        // RFC 3501 §6.2.3: a server that says LOGINDISABLED must not be sent a password.
         if self.offers("LOGINDISABLED") {
-            return Err(ProtoError::Auth("the server doesn't take a password on this connection".into()));
+            return Err(ProtoError::Auth(said!("the server doesn't take a password on this connection")));
         }
         self.secrets.add(password);
         let command = Command::new("LOGIN").string(user.as_bytes()).string(password.as_bytes()).shown_as("LOGIN ***");
@@ -669,7 +675,7 @@ impl<S: Read + Write> Imap<S> {
                 break line;
             }
             let Some((answer, shown)) = answers.get(asked) else {
-                return Err(ProtoError::Protocol("the server asked for more than a sign-in has".into()));
+                return Err(ProtoError::Protocol(said!("the server asked for more than a sign-in has")));
             };
             asked += 1;
             log::trace!("C: {shown}");
@@ -678,9 +684,9 @@ impl<S: Read + Write> Imap<S> {
         };
         match line.status {
             // The exchange was called off, whatever the server makes of that.
-            _ if asked == answers.len() => Err(ProtoError::Auth("the server asked for more than a user name and access token".into())),
+            _ if asked == answers.len() => Err(ProtoError::Auth(said!("the server asked for more than a user name and access token"))),
             // Nobody is signed in by a token that was never sent.
-            Status::Ok if asked == 0 => Err(ProtoError::Protocol("the server ended the command early".into())),
+            Status::Ok if asked == 0 => Err(ProtoError::Protocol(said!("the server ended the command early"))),
             Status::Ok => {
                 self.authenticated = true;
                 Ok(())
@@ -692,18 +698,30 @@ impl<S: Read + Write> Imap<S> {
 
     /// LIST "" "*".
     pub fn list(&mut self) -> Result<Vec<Mailbox>, ProtoError> {
+        self.list_counted().map(|(list, _)| list)
+    }
+
+    /// [`list`](Self::list), and how many more mailboxes the server listed that were read and
+    /// dropped because the list was full ([`MAX_MAILBOXES`], [`MAX_LIST_BYTES`]): 0 when it
+    /// was kept whole.
+    pub fn list_counted(&mut self) -> Result<(Vec<Mailbox>, usize), ProtoError> {
         let mut out: Vec<Mailbox> = Vec::new();
         let mut seen = HashSet::new();
+        let (mut kept, mut dropped) = (0usize, 0usize);
         self.run(Command::new("LIST").arg("\"\"").arg("\"*\""), &mut |values| {
-            // A mailbox the server names twice is listed once; past the cap, nothing is kept.
-            if out.len() < MAX_MAILBOXES
-                && let Some(mailbox) = mailbox_from(values)
-                && seen.insert(mailbox.raw.clone())
-            {
+            let full = out.len() >= MAX_MAILBOXES || kept >= MAX_LIST_BYTES;
+            // A mailbox the server names twice is listed once; past either cap, nothing is kept.
+            let Some(mailbox) = mailbox_from(values) else { return };
+            if full {
+                dropped = dropped.saturating_add(1);
+            } else if seen.insert(mailbox.raw.clone()) {
+                // The name twice (as written, decoded) and once more in `seen`, and the flags.
+                let size = mailbox.raw.len().saturating_mul(2).saturating_add(mailbox.name.len());
+                kept = mailbox.flags.iter().fold(kept.saturating_add(size), |kept, flag| kept.saturating_add(flag.len()));
                 out.push(mailbox);
             }
         })?;
-        Ok(out)
+        Ok((out, dropped))
     }
 
     /// EXAMINE (read-only) or SELECT.
@@ -732,7 +750,7 @@ impl<S: Read + Write> Imap<S> {
     fn fetch_flags(&mut self, set: &str, gmail: bool) -> Result<Vec<Fetched>, ProtoError> {
         let mut found: BTreeMap<u32, (Vec<String>, Option<u64>)> = BTreeMap::new();
         let command = Self::fetch(set, if gmail { "(UID FLAGS X-GM-MSGID)" } else { "(UID FLAGS)" })?;
-        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol(said!("not a set of messages")))?;
         self.response_cap = wanted.responses();
         let answered = self.run(command, &mut |values| {
             // A response with a UID shows the message is there, even one that forgot the flags.
@@ -760,7 +778,7 @@ impl<S: Read + Write> Imap<S> {
     pub fn uid_fetch_sizes(&mut self, set: &str) -> Result<Vec<(u32, u64)>, ProtoError> {
         let mut out: Vec<(u32, u64)> = Vec::new();
         let command = Self::fetch(set, "(UID RFC822.SIZE)")?;
-        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol(said!("not a set of messages")))?;
         self.response_cap = wanted.responses();
         let answered = self.run(command, &mut |values| {
             if let Some(Item { uid, size: Some(size), .. }) = Item::from(values)
@@ -819,7 +837,7 @@ impl<S: Read + Write> Imap<S> {
     pub fn uid_store(&mut self, uid: u32, add: bool, flags: &[&str]) -> Result<(), ProtoError> {
         let flags = flag_list(flags)?;
         if uid == 0 {
-            return Err(ProtoError::Protocol("a message that isn't on the server has no flags there".into()));
+            return Err(ProtoError::Protocol(said!("a message that isn't on the server has no flags there")));
         }
         self.store(&uid.to_string(), add, &flags)
     }
@@ -839,10 +857,10 @@ impl<S: Read + Write> Imap<S> {
     /// is refused unsent.
     pub fn uid_search_header(&mut self, field: &str, text: &str) -> Result<Vec<u32>, ProtoError> {
         if field.is_empty() || !field.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
-            return Err(ProtoError::Protocol(format!("\"{}\" is not the name of a header field", tidy(field))));
+            return Err(ProtoError::Protocol(said!("\"{field}\" is not the name of a header field", field = tidy(field))));
         }
         if !searchable(text) {
-            return Err(ProtoError::Protocol("the text can't be looked for on the server".into()));
+            return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
         }
         let mut found = BTreeSet::new();
         let command = Command::new("UID SEARCH UNDELETED HEADER").arg(field).string(text.as_bytes());
@@ -872,12 +890,12 @@ impl<S: Read + Write> Imap<S> {
     /// session goes on.
     pub fn uid_search_gmail(&mut self, set: &str, query: &str) -> Result<Vec<u32>, ProtoError> {
         if !is_set(set) {
-            return Err(ProtoError::Protocol(format!("\"{}\" is not a set of messages", tidy(set))));
+            return Err(ProtoError::Protocol(said!("\"{set}\" is not a set of messages", set = tidy(set))));
         }
-        let ranges = set_ranges(set, u32::MAX).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        let ranges = set_ranges(set, u32::MAX).ok_or_else(|| ProtoError::Protocol(said!("not a set of messages")))?;
         let query: String = query.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).collect();
         if !searchable(&query) {
-            return Err(ProtoError::Protocol("the text can't be looked for on the server".into()));
+            return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
         }
         let mut found = BTreeSet::new();
         // Messages marked as deleted aren't shown, so they aren't asked about either.
@@ -899,7 +917,7 @@ impl<S: Read + Write> Imap<S> {
         answer?;
         // An answer too long to read is no answer: the session goes on without it.
         if skipped {
-            return Err(ProtoError::Rejected(format!("the server's answer was longer than {} KB", crate::MAX_LINE / 1024)));
+            return Err(ProtoError::Rejected(said!("the server's answer was longer than {kb} KB", kb = crate::MAX_LINE / 1024)));
         }
         Ok(found.into_iter().collect())
     }
@@ -944,7 +962,7 @@ impl<S: Read + Write> Imap<S> {
     pub fn uid_expunge(&mut self, set: &str) -> Result<(), ProtoError> {
         let set = named(set)?;
         if !self.offers("UIDPLUS") {
-            return Err(ProtoError::Protocol("the server can't remove single messages (it doesn't offer UIDPLUS)".into()));
+            return Err(ProtoError::Protocol(said!("the server can't remove single messages (it doesn't offer UIDPLUS)")));
         }
         self.run(Command::new("UID EXPUNGE").arg(set), &mut ignore).map(|_| ())
     }
@@ -976,7 +994,7 @@ impl<S: Read + Write> Imap<S> {
         }
         if let Some(date) = date {
             if !is_date_time(date) {
-                return Err(ProtoError::Protocol(format!("\"{}\" is not a date and time IMAP can carry", tidy(date))));
+                return Err(ProtoError::Protocol(said!("\"{date}\" is not a date and time IMAP can carry", date = tidy(date))));
             }
             command = command.arg(&format!("\"{date}\""));
         }
@@ -1001,7 +1019,7 @@ impl<S: Read + Write> Imap<S> {
 
     fn fetch(set: &str, items: &str) -> Result<Command<'static>, ProtoError> {
         if !is_set(set) {
-            return Err(ProtoError::Protocol(format!("\"{}\" is not a set of messages", tidy(set))));
+            return Err(ProtoError::Protocol(said!("\"{set}\" is not a set of messages", set = tidy(set))));
         }
         Ok(Command::new("UID FETCH").arg(set).arg(items))
     }
@@ -1030,7 +1048,7 @@ impl<S: Read + Write> Imap<S> {
     /// Send a command and read up to its tagged answer: OK, NO or BAD.
     fn exchange(&mut self, command: Command<'_>, on_data: &mut dyn FnMut(Vec<Value>)) -> Result<StatusLine, ProtoError> {
         if command.unsendable {
-            return Err(ProtoError::Protocol("the text has a character that can't be sent".into()));
+            return Err(ProtoError::Protocol(said!("the text has a character that can't be sent")));
         }
         let tag = self.tag();
         self.text_seen = 0;
@@ -1052,7 +1070,7 @@ impl<S: Read + Write> Imap<S> {
                     match self.read_until(&tag, true, on_data)? {
                         None => {}
                         // The command can't have succeeded without the rest of it.
-                        Some(line) if line.status == Status::Ok => return Err(ProtoError::Protocol("the server ended the command early".into())),
+                        Some(line) if line.status == Status::Ok => return Err(ProtoError::Protocol(said!("the server ended the command early"))),
                         Some(refused) => return Ok(refused),
                     }
                     self.wire.write(bytes)?;
@@ -1064,7 +1082,7 @@ impl<S: Read + Write> Imap<S> {
         self.wire.flush()?;
         match self.read_until(&tag, false, on_data)? {
             Some(line) => Ok(line),
-            None => Err(ProtoError::Protocol("the server asked for more than the command had".into())),
+            None => Err(ProtoError::Protocol(said!("the server asked for more than the command had"))),
         }
     }
 
@@ -1074,21 +1092,21 @@ impl<S: Read + Write> Imap<S> {
         for _ in 0..self.response_cap {
             let response = self.read_response()?;
             if self.text_seen > MAX_COMMAND_TEXT {
-                return Err(ProtoError::Protocol("the server sent too much in answer to one command".into()));
+                return Err(ProtoError::Protocol(said!("the server sent too much in answer to one command")));
             }
             match response {
                 Response::GoAhead if literal_waiting => return Ok(None),
-                Response::GoAhead => return Err(ProtoError::Protocol("the server asked for more than the command had".into())),
+                Response::GoAhead => return Err(ProtoError::Protocol(said!("the server asked for more than the command had"))),
                 Response::Status { tag: Some(answered), line } => {
                     if answered != tag || !matches!(line.status, Status::Ok | Status::No | Status::Bad) {
-                        return Err(ProtoError::Protocol("the server answered a command that wasn't sent".into()));
+                        return Err(ProtoError::Protocol(said!("the server answered a command that wasn't sent")));
                     }
                     self.note_status(&line);
                     return Ok(Some(line));
                 }
                 Response::Status { tag: None, line } => {
                     if line.status == Status::Bye && !self.leaving {
-                        return Err(ProtoError::Io(format!("the server ended the session: {}", self.refusal(&line))));
+                        return Err(ProtoError::Io(said!("the server ended the session: {reason}", reason = Arg::said(self.refusal(&line)))));
                     }
                     self.note_status(&line);
                 }
@@ -1098,7 +1116,7 @@ impl<S: Read + Write> Imap<S> {
                 }
             }
         }
-        Err(ProtoError::Protocol("the server sent too many responses to one command".into()))
+        Err(ProtoError::Protocol(said!("the server sent too many responses to one command")))
     }
 
     /// A line of the server's text, counted against what one command may take.
@@ -1109,7 +1127,7 @@ impl<S: Read + Write> Imap<S> {
                 self.skipped = true;
                 self.text_seen = self.text_seen.saturating_add(crate::MAX_LINE);
                 if self.text_seen > MAX_COMMAND_TEXT {
-                    return Err(ProtoError::Protocol("the server sent too much in answer to one command".into()));
+                    return Err(ProtoError::Protocol(said!("the server sent too much in answer to one command")));
                 }
                 continue;
             };
@@ -1135,7 +1153,7 @@ impl<S: Read + Write> Imap<S> {
                 Some(status) if !tag.is_empty() && tag != "*" => {
                     Ok(Response::Status { tag: Some(tag.to_string()), line: StatusLine::new(status, rest) })
                 }
-                _ => Err(ProtoError::Protocol(format!("\"{}\" is not an IMAP response", tidy(&self.secrets.hide(&text))))),
+                _ => Err(ProtoError::Protocol(said!("\"{line}\" is not an IMAP response", line = tidy(&self.secrets.hide(&text))))),
             };
         };
         // `* OK …`, `* BYE …`: the rest is text for people, where `{5}` is no literal.
@@ -1155,9 +1173,10 @@ impl<S: Read + Write> Imap<S> {
                 return Ok(Response::Data(parse::values(pieces)?));
             };
             let size = usize::try_from(claimed).ok().filter(|n| literal_bytes.saturating_add(*n) <= MAX_LITERAL).ok_or_else(|| {
-                ProtoError::Protocol(format!(
-                    "the server sent {claimed} bytes in one piece, more than the {} MB MailCraft accepts",
-                    MAX_LITERAL >> 20
+                ProtoError::Protocol(said!(
+                    "the server sent {claimed} bytes in one piece, more than the {mb} MB MailCraft accepts",
+                    claimed,
+                    mb = MAX_LITERAL >> 20
                 ))
             })?;
             let literal = self.wire.read_block(size)?;
@@ -1168,10 +1187,10 @@ impl<S: Read + Write> Imap<S> {
             text = self.read_text()?;
             text_bytes = text_bytes.saturating_add(text.len());
             if text_bytes > MAX_TEXT {
-                return Err(ProtoError::Protocol("the server's response is too long".into()));
+                return Err(ProtoError::Protocol(said!("the server's response is too long")));
             }
         }
-        Err(ProtoError::Protocol("the server's response has too many parts".into()))
+        Err(ProtoError::Protocol(said!("the server's response has too many parts")))
     }
 
     /// Keep what a status line says in its response code.
@@ -1198,10 +1217,11 @@ impl<S: Read + Write> Imap<S> {
     }
 
     /// The server's own words for why it said no, fit to show.
-    fn refusal(&self, line: &StatusLine) -> String {
+    /// What the server said for itself, as it said it; MailCraft's words when it said nothing.
+    fn refusal(&self, line: &StatusLine) -> Text {
         // Hidden before it is shortened: a secret cut in half would no longer be recognised.
         let text = tidy(&self.secrets.hide(&line.text));
-        if text.is_empty() { "the command was refused".into() } else { text }
+        if text.is_empty() { said!("the command was refused") } else { Text::verbatim(text) }
     }
 }
 

@@ -153,6 +153,8 @@ fn key_of(der: &[u8]) -> mailcraft_model::public_keys::PublicKey {
         fingerprint: format!("{:02x?}", &der[der.len() - 8..]),
         not_after: 0,
         seen: 0,
+        verified: false,
+        source: Default::default(),
     }
 }
 
