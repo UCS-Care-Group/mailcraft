@@ -452,6 +452,7 @@ fn arrive(app: &mut MailApp, ctx: &egui::Context, account: Id, id: &str, subject
 fn bring(app: &mut MailApp, account: Id, id: &str, subject: &str) {
     let listed = mailcraft_model::sync::GraphMessage {
         server: mailcraft_model::sync::ServerMessage { id: id.into(), folder: "F-in".into(), size: 1_200, ..Default::default() },
+        message_id: format!("{id}@example.org"),
         subject: subject.into(),
         from: Address::new("Zoe Park", "zoe@example.org"),
         received: mailcraft_time::now(),
