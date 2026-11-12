@@ -412,7 +412,7 @@ mod tests {
                 "Italiano (anteprima)",
                 "Nederlands (voorbeeld)",
                 "Română (previzualizare)",
-                "ქართული (TODO-preview)", // TODO(translation): "{language} (preview)" in ka.po
+                "ქართული (საცდელი)",
             ]
         );
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);

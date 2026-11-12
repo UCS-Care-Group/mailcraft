@@ -504,5 +504,6 @@ mod tests {
         assert!(long(&Lang::French, SUN).contains("dimanche") && long(&Lang::French, SUN).contains("octobre"));
         assert_eq!(said(Lang::Dutch), ("zondag 11 oktober 2026".into(), "03-10-2025".into(), "21:05".into()));
         assert_eq!(said(Lang::Romanian), ("duminică, 11 octombrie 2026".into(), "03.10.2025".into(), "21:05".into()));
+        assert_eq!(said(Lang::Georgian), ("კვირა, 11 ოქტომბერი, 2026".into(), "03.10.2025".into(), "21:05".into()));
     }
 }
