@@ -272,6 +272,10 @@ fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));
     }
+    // Sent as it is here: a preview of an IMAP account's mail would go out as the message (#653).
+    if m.unfetched || m.incomplete || m.not_downloaded > 0 {
+        return Err(failed!("“{subject}” isn't downloaded yet: open it, then send it again", subject = super::compose::subject_of(m)));
+    }
     let m = s.mailbox.message_mut(id)?;
     m.held.clear();
     m.sending = false;

@@ -731,7 +731,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let mut outbox = Vec::new();
     for m in s.mailbox.messages.values() {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
-        if Some(m.folder) == outbox_folder && m.held.is_empty() {
+        // (Never a preview: it would go out as the message, #653. Opening it fetches the rest.)
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.unfetched && !m.incomplete && m.not_downloaded == 0 {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {

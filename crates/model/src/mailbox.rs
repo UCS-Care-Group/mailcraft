@@ -1281,6 +1281,12 @@ fn not_downloaded_yet(subject: &str) -> String {
     format!("\"{subject}\" isn't downloaded yet: open it, then try again")
 }
 
+/// Whether only part of `m` is here (headers and a preview, or a message cut short): what is sent
+/// from an Outbox must be the whole message, never that (#653).
+fn only_a_part_here(m: &Message) -> bool {
+    m.unfetched || m.incomplete || m.not_downloaded > 0
+}
+
 impl Mailbox {
     /// An empty mailbox with one local account, its standard folders and a calendar.
     pub fn with_local_account(display_name: &str, email: &str) -> Mailbox {
@@ -2202,6 +2208,11 @@ impl Mailbox {
             self.message_mut(id)?.returned = 0;
         }
         let into_outbox = self.is_imap_outbox(folder);
+        // Of an IMAP account's Outbox what is sent is the message there: a preview put in it
+        // would go out as the message (#653). Fetched first, by opening it.
+        if into_outbox && only_a_part_here(m) {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
+        }
         if self.move_between_accounts(id, folder, account, &remote, fresh)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
@@ -2500,7 +2511,9 @@ impl Mailbox {
         }
         // Of an IMAP account's message that is only its headers and preview here (#653), what
         // would go is not the message: it is downloaded when it is opened.
-        if m.unfetched && m.server.is_none() && self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap) {
+        // (Not of a Microsoft account's message that waits there to be fetched by the IMAP run, which
+        // moved into this one: `moving_out` says so, and it goes back where it came from.)
+        if m.unfetched && m.server.is_none() && m.moving_out.is_none() && self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap) {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         // Back into the IMAP account whose server still has the original: the move out of it
@@ -2643,6 +2656,11 @@ impl Mailbox {
         // Send/Receive, and made on the server as well (#704): only Send sends.
         if self.sends_from(folder) && self.keeps_changes_for_server(to_account) {
             return Err(invalid(COPY_INTO_OUTBOX));
+        }
+        // Nor a preview into an IMAP account's Outbox, where Send Again would send it as the
+        // message (#653).
+        if self.is_imap_outbox(folder) && only_a_part_here(m) {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).

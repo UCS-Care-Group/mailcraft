@@ -1855,3 +1855,31 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     let changes = graph_mail_request(&s, ms).unwrap().messages;
     assert!(changes.iter().any(|c| matches!(c, MessageChange::MovedOut { message, id } if *message == rota && id == "R1")), "{changes:?}");
 }
+
+/// A Microsoft message that isn't downloaded yet and was moved into an IMAP folder (where the IMAP
+/// run fetches it) goes back where it came from: the guard against moving an IMAP account's own
+/// previews is not for it (#653). Opening it there can't help, it has no UID yet.
+#[test]
+fn an_unfetched_microsoft_message_moved_into_an_imap_folder_can_go_back() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let gmail = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() },
+        from: Address::new("", "boss@example.org"),
+        subject: "Rota".into(),
+        message_id: "rota@example.org".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "in".into(), messages: vec![there], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, ..Default::default() }).unwrap();
+    let rota = titled(&s, "Rota");
+    assert!(s.mailbox.message(rota).unwrap().unfetched);
+    s.run("mail.move", &json!({"ids": [rota], "folder": gmail})).unwrap();
+    assert_eq!(at(&s, rota).1, gmail);
+    // Back: not "isn't downloaded yet" (the next Send/Receive would be the only way out).
+    s.run("mail.move", &json!({"ids": [rota], "folder": inbox})).unwrap();
+    assert_eq!(at(&s, rota), (ms, inbox, 0));
+    assert!(s.mailbox.message(rota).unwrap().moving_out.is_none());
+}

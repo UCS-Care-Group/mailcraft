@@ -327,6 +327,12 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
         if run.cancelled() {
             break;
         }
+        // Only a preview is here: it would go out as the message (#653). The mailbox doesn't ask
+        // for one, and nothing is sent that it didn't.
+        if message.unfetched || message.incomplete || message.not_downloaded > 0 {
+            run.out.errors.push(format!("Couldn't send \"{}\": it isn't downloaded yet", subject_of(message)));
+            continue;
+        }
         // Dated once, so that the copy kept on the server says what the one that went says.
         let message = dated(message);
         run.asked = run.asked.saturating_add(1);

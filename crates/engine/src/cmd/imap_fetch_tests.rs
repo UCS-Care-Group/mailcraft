@@ -158,6 +158,42 @@ fn a_preview_only_imap_message_is_neither_moved_nor_copied_out_of_its_account() 
     assert_eq!(s.mailbox.pending.len(), 1);
 }
 
+/// What an Outbox sends is the message, never the preview of one (#653): a message that was
+/// thinned to its headers and preview can't be moved or copied into the IMAP Outbox, can't be
+/// sent again from it, and is left out of what a Send/Receive sends.
+#[test]
+fn a_preview_is_not_sent_as_the_message() {
+    use mailcraft_model::MOVED_INTO_OUTBOX;
+    let (mut s, account, ids) = aged("1m", &[1, 400]);
+    s.run("account.thinOffline", &json!({})).unwrap();
+    let (recent, old) = (ids[0], ids[1]);
+    assert!(s.mailbox.message(old).unwrap().unfetched && !s.mailbox.message(recent).unwrap().unfetched);
+    let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    let sent = |s: &Session| super::account::sync_request(s, account).unwrap().outbox.iter().map(|m| m.id).collect::<Vec<_>>();
+    // Not into the Outbox, by a move or a copy.
+    for command in ["mail.move", "mail.copy"] {
+        let refused = s.run(command, &json!({"ids": [old], "folder": outbox})).unwrap_err();
+        assert!(refused.to_string().contains("isn't downloaded yet"), "{command}: {refused}");
+    }
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
+    assert!(s.mailbox.pending.is_empty() && s.mailbox.queued.is_empty());
+    // A whole one still goes, is held, and goes with Send Again.
+    s.run("mail.move", &json!({"ids": [recent], "folder": outbox})).unwrap();
+    assert_eq!(s.mailbox.message(recent).unwrap().held, MOVED_INTO_OUTBOX);
+    assert!(sent(&s).is_empty());
+    s.run("mail.sendAgain", &json!({"id": recent})).unwrap();
+    assert_eq!(sent(&s), vec![recent]);
+
+    // One that got there some other way (a file from before, a listing) isn't sent again
+    // either, nor sent by a run that is told of nothing else.
+    let m = s.mailbox.message_mut(old).unwrap();
+    (m.folder, m.held) = (outbox, MOVED_INTO_OUTBOX.to_string());
+    let refused = s.run("mail.sendAgain", &json!({"id": old})).unwrap_err();
+    assert!(refused.to_string().contains("isn't downloaded yet"), "{refused}");
+    s.mailbox.message_mut(old).unwrap().held.clear();
+    assert_eq!(sent(&s), vec![recent], "a preview is not asked to be sent");
+}
+
 #[test]
 fn imap_accounts_from_before_keep_all_their_mail_when_the_mailbox_opens() {
     let (mut s, account, ids) = aged("12m", &[400]);
