@@ -191,7 +191,7 @@ fn the_fingerprint_follows_a_dav_accounts_servers() {
             email: "ada@example.org".into(),
             kind: AccountKind::Imap,
             incoming: Some(Server { host: "mail.example.org".into(), port: 993, ..Default::default() }),
-            dav: Some(DavServer { caldav: caldav.into(), carddav: carddav.into() }),
+            dav: Some(DavServer { caldav: caldav.into(), carddav: carddav.into(), ..Default::default() }),
             ..Default::default()
         });
         fingerprint(&s.mailbox)

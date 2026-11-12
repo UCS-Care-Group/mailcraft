@@ -216,6 +216,48 @@ fn recent_mail_is_the_newest_from_or_to_any_address() {
 }
 
 #[test]
+fn a_server_contact_is_writable_only_in_a_book_it_may_change() {
+    use mailcraft_model::{ContactBook, Origin, Rights};
+    let mut w = testing::window("view.people");
+    let account = w.state().session.mailbox.accounts.first().unwrap().id;
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    w.state_mut().session.mailbox.contact_books.push(ContactBook { account, id: book.into(), name: "Contacts".into(), rights: Rights::Edit });
+    let id = w.state_mut().session.mailbox.add_contact(Contact {
+        first: "Ada".into(),
+        display_name: "Ada".into(),
+        book: "Contacts".into(),
+        book_id: book.into(),
+        origin: Origin { account, id: "/carddav/ada@example.org/contacts/personal/ada.vcf".into(), ..Default::default() },
+        ..Default::default()
+    });
+    assert!(contact_writable(w.state(), w.state().session.mailbox.contact(id).unwrap()), "an editable book's contact is editable");
+    w.state_mut().session.mailbox.contact_books[0].rights = Rights::Read;
+    assert!(!contact_writable(w.state(), w.state().session.mailbox.contact(id).unwrap()), "a read-only book's contact is not");
+}
+
+#[test]
+fn only_a_read_only_book_is_marked_read_only_on_the_card() {
+    use mailcraft_model::{ContactBook, Origin, Rights};
+    let mut w = testing::window("view.people");
+    let account = w.state().session.mailbox.accounts.first().unwrap().id;
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    w.state_mut().session.mailbox.contact_books.push(ContactBook { account, id: book.into(), name: "Contacts".into(), rights: Rights::Edit });
+    let id = w.state_mut().session.mailbox.add_contact(Contact {
+        first: "Ada".into(),
+        display_name: "Ada".into(),
+        book: "Contacts".into(),
+        book_id: book.into(),
+        origin: Origin { account, id: "/carddav/ada@example.org/contacts/personal/ada.vcf".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let c = w.state().session.mailbox.contact(id).unwrap();
+    assert!(!read_only_here(w.state(), c), "an editable book's card is not read-only");
+    w.state_mut().session.mailbox.contact_books[0].rights = Rights::Read;
+    let c = w.state().session.mailbox.contact(id).unwrap();
+    assert!(read_only_here(w.state(), c), "a read-only book's card says so");
+}
+
+#[test]
 fn the_contact_forms_delete_asks_first() {
     // #186: Delete in a contact's form gives way to the question, and only its answer deletes.
     let mut w = testing::window("view.people");

@@ -25,6 +25,7 @@ use mailcraft_time::Timestamp;
 use std::sync::mpsc::Receiver;
 
 use crate::MailApp;
+use serde_json::json;
 
 /// How long between two reads of an account's calendars and address books (milliseconds).
 const EVERY_MS: f64 = 300_000.0;
@@ -87,6 +88,8 @@ pub(crate) struct DavSync {
     main: HashMap<Id, String>,
     /// The accounts whose next read was asked for (a Send/Receive, or a change made here).
     requested: HashSet<Id>,
+    /// The accounts already told that their calendars and address books wait for a sign-in.
+    told_no_password: HashSet<Id>,
     /// The stretch of the calendar each account was last asked for, as [`MailApp::calendar_window`]
     /// gave it: the days on screen, and a week either side. Days that come into view are asked
     /// for at once rather than at the next tick, as the calendar view does for Microsoft's.
@@ -100,6 +103,21 @@ impl MailApp {
         if self.session.mailbox.account(account).is_some_and(Account::is_dav) {
             self.dav.checked.remove(&account);
             self.dav.requested.insert(account);
+        }
+    }
+
+    /// Forget a DAV sign-in the server has just refused: the password in memory and the store's,
+    /// and the cached answer, so the next run asks for it again.
+    fn forget_dav_password(&mut self, account: Id) {
+        self.dav_passwords.remove(&account);
+        self.dav.checked.remove(&account);
+        self.dav.told_no_password.remove(&account);
+        if let Some(a) = self.session.mailbox.account(account) {
+            let key = Self::secret_key("davpassword", a);
+            self.secret_cache.remove(&key);
+            if let Some(store) = &self.services.secrets {
+                store.delete(&key);
+            }
         }
     }
 
@@ -149,9 +167,17 @@ impl MailApp {
                 .or_else(|| if username == found.login() && shares_mail_host(&found) { mail_password() } else { None });
             let Some(password) = password else {
                 // The password is asked for by a Send/Receive (or, for an account with no mail,
-                // by its settings); until then there is nothing to read the calendars with.
+                // by its settings); until then there is nothing to read the calendars with. Say
+                // so once, so a reopened mailbox doesn't look as if DAV had stopped working.
+                if self.dav.told_no_password.insert(account) {
+                    self.keep_sync_problems(
+                        account,
+                        &[tl!("The calendars and address books need their sign-in again: press Send/Receive.").to_string()],
+                    );
+                }
                 continue;
             };
+            self.dav.told_no_password.remove(&account);
             let (from, to) = window;
             let main_calendar = self.dav.main.get(&account).cloned().unwrap_or_default();
             let changes = remote::event_upload(&self.session, account)
@@ -199,10 +225,11 @@ impl MailApp {
             return;
         }
         let mut errors = std::mem::take(&mut result.errors);
-        if let Some(uploaded) = &result.uploaded
-            && let Err(e) = remote::apply_event_outcomes(&mut self.session, uploaded)
-        {
-            errors.push(crate::i18n::fmt(tl!("The calendar changes couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+        if let Some(uploaded) = &result.uploaded {
+            match remote::apply_event_outcomes(&mut self.session, uploaded) {
+                Ok(applied) => errors.extend(applied.messages),
+                Err(e) => errors.push(crate::i18n::fmt(tl!("The calendar changes couldn't be taken in: {error}"), &[("error", &e.to_string())])),
+            }
         }
         if let Some(calendars) = &result.calendars {
             let mut calendars = calendars.clone();
@@ -245,8 +272,14 @@ impl MailApp {
         // cannot know the URL the send has just given it. Applying the URL first would make the
         // empty list take the new contact for one the server no longer has.
         if let Some(uploaded) = &result.uploaded_contacts {
-            if let Err(e) = remote::apply_contact_outcomes(&mut self.session, uploaded) {
-                errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())]));
+            match remote::apply_contact_outcomes(&mut self.session, uploaded) {
+                Ok(applied) => {
+                    // What the server refused, named for the owner (a contact's own name).
+                    if let Some(messages) = applied.get("messages").and_then(|messages| messages.as_array()) {
+                        errors.extend(messages.iter().filter_map(|message| message.as_str()).map(str::to_string));
+                    }
+                }
+                Err(e) => errors.push(crate::i18n::fmt(tl!("The contacts couldn't be saved: {error}"), &[("error", &e.to_string())])),
             }
             // A refused or vanished card is settled by dropping its queued change. Read the
             // server again at once so its copy replaces a local edit, or comes back after a
@@ -255,8 +288,17 @@ impl MailApp {
                 self.dav.requested.insert(account);
             }
         }
+        if errors.iter().any(|line| line.contains("answered 401") || line.contains("didn't take that user name")) {
+            self.forget_dav_password(account);
+            errors.push(tl!("The server refused the sign-in for the calendars and address books: type it again.").to_string());
+            if self.dialog.is_none() {
+                self.dialog = crate::dialogs::Dialog::open("password", self, &json!({"account": account}));
+            }
+        }
         if self.session.mailbox.account(account).is_some() {
-            self.note_sync_problems(account, &errors, false);
+            // A whole answer that says nothing is wrong clears what an earlier run or a missing
+            // sign-in said; a stale line would keep saying DAV is broken while it works.
+            self.note_sync_problems(account, &errors, true);
         }
     }
 }

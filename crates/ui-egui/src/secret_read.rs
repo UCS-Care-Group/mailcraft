@@ -78,22 +78,27 @@ impl MailApp {
             return;
         }
         let Some(store) = self.services.secrets.clone() else { return };
-        let asks: Vec<Ask> = self
-            .session
-            .mailbox
-            .accounts
-            .iter()
-            .flat_map(|a| {
-                ["password", "refresh"].map(|kind| Ask {
-                    key: Self::secret_key(kind, a),
-                    // (An Exchange server account is newer than the old names: nothing moves to it;
-                    // nor to either of two accounts with one address: the old name doesn't say
-                    // whose it was, AU3-03.)
-                    old: (migrate && a.kind != mailcraft_model::AccountKind::Exchange && !self.address_shared(&a.email))
-                        .then(|| Self::legacy_secret_key(kind, &a.email)),
-                })
-            })
-            .collect();
+        let mut asks: Vec<Ask> = Vec::new();
+        for a in &self.session.mailbox.accounts {
+            // A CalDAV/CardDAV-only account has no mail secret: its password is the DAV one.
+            if a.kind != mailcraft_model::AccountKind::Dav {
+                asks.extend(["password", "refresh"].map(|kind| {
+                    Ask {
+                        key: Self::secret_key(kind, a),
+                        // (An Exchange server account is newer than the old names: nothing moves to it;
+                        // nor to either of two accounts with one address: the old name doesn't say
+                        // whose it was, AU3-03.)
+                        old: (migrate && a.kind != mailcraft_model::AccountKind::Exchange && !self.address_shared(&a.email))
+                            .then(|| Self::legacy_secret_key(kind, &a.email)),
+                    }
+                }));
+            }
+            // The CalDAV and CardDAV sign-in of an account whose calendars and address books are
+            // kept in step over DAV (an account with mail too may have one of its own).
+            if a.dav.is_some() {
+                asks.push(Ask { key: Self::secret_key("davpassword", a), old: None });
+            }
+        }
         let (send, receive) = mpsc::channel();
         let job = std::thread::Builder::new().name("secret-read".into()).spawn(move || {
             let _ = send.send(read(&*store, asks, migrate));
@@ -175,6 +180,14 @@ impl MailApp {
         // (A JMAP account's secret is never with the store; an Exchange server account's is, under
         // the name that holds its server's address and its user name, #252.)
         if a.kind == mailcraft_model::AccountKind::Jmap {
+            return false;
+        }
+        // Its calendars and address books have a sign-in of their own; a DAV-only account has
+        // only that one.
+        if a.dav.is_some() && !self.dav_passwords.contains_key(&account) && !self.secret_cache.contains_key(&Self::secret_key("davpassword", a)) {
+            return true;
+        }
+        if a.kind == mailcraft_model::AccountKind::Dav {
             return false;
         }
         if a.oauth.is_some() {

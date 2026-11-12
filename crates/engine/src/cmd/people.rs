@@ -142,6 +142,13 @@ fn writable_contact(s: &Session, contact: &Contact) -> Result<(), CmdError> {
     }
 }
 
+/// Whether `contact` can be changed here: one kept on this computer, or one in a CardDAV book
+/// this account may write to. A contact another server keeps outside a book, or in a book it
+/// lets this account only read, is not editable.
+pub fn contact_writable(s: &Session, contact: &Contact) -> bool {
+    writable_contact(s, contact).is_ok()
+}
+
 fn line(v: &Value, k: &str) -> Option<String> {
     p::str(v, k).map(|t| t.replace(['\r', '\n'], " ").trim().chars().take(300).collect())
 }
@@ -281,6 +288,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
     let had = c.categories.clone();
     writable_contact(s, &c)?;
+    if !remote::contact_change_room(&s.mailbox, &c) {
+        return Err(fail("too many contact changes are waiting for the server: try again after a Send/Receive"));
+    }
     apply(&mut c, v)?;
     if c.name().is_empty() {
         return Err(fail("a contact needs a name, a company or an e-mail address"));
@@ -325,7 +335,15 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     // of the server from bringing it back before the delete has gone out.
     if let Some(contact) = s.mailbox.contact(id).cloned() {
         writable_contact(s, &contact)?;
-        remote::note_contact_changed(&mut s.mailbox, &contact, ContactChangeKind::Delete);
+        // Only a CardDAV account's books are sent from here. Another server's contacts (an
+        // Exchange server's, say) are kept by its own run; a note here would never be sent and
+        // would keep a download from showing what that server has.
+        if s.mailbox.account(contact.origin.account).is_some_and(|account| account.is_dav()) {
+            if !remote::contact_change_room(&s.mailbox, &contact) {
+                return Err(fail("too many contact changes are waiting for the server: try again after a Send/Receive"));
+            }
+            remote::note_contact_changed(&mut s.mailbox, &contact, ContactChangeKind::Delete);
+        }
     }
     // The selection moves to the neighbour in the list.
     let order = sorted(s, &s.view.people_search);

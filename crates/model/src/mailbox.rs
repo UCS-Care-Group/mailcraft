@@ -3535,10 +3535,31 @@ impl Mailbox {
         }
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
+        // An account of calendars and address books alone has no mail folders; a folder of one
+        // (made by an earlier repair) is not a mail folder and goes, unless it still holds
+        // messages: those are never thrown away by a repair.
+        let dav_accounts: HashSet<Id> = self.accounts.iter().filter(|a| a.kind == AccountKind::Dav).map(|a| a.id).collect();
+        let holding: HashSet<Id> = self.messages.values().map(|message| message.folder).collect();
         let before = self.folders.len();
-        self.folders.retain(|f| known_accounts.contains(&f.account));
+        let mut kept_holding = 0usize;
+        self.folders.retain(|folder| {
+            if !known_accounts.contains(&folder.account) {
+                return false;
+            }
+            if dav_accounts.contains(&folder.account) {
+                if holding.contains(&folder.id) {
+                    kept_holding += 1;
+                    return true;
+                }
+                return false;
+            }
+            true
+        });
         if self.folders.len() != before {
-            fixed.push(format!("{} folder(s) of unknown accounts removed", before - self.folders.len()));
+            fixed.push(format!("{} folder(s) of accounts without mail removed", before - self.folders.len() - kept_holding));
+        }
+        if kept_holding > 0 {
+            fixed.push(format!("{kept_holding} folder(s) of a calendars-only account kept because they hold messages"));
         }
         for f in &mut self.folders {
             if f.id == 0 || !sane(&f.id) || !seen.insert(f.id) {
@@ -3586,7 +3607,7 @@ impl Mailbox {
                 f.kind = FolderKind::Custom;
             }
         }
-        for account in accounts {
+        for account in accounts.into_iter().filter(|account| !dav_accounts.contains(account)) {
             for kind in FolderKind::STANDARD {
                 if !has.contains(&(account, kind)) {
                     let id = self.alloc_id();

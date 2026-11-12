@@ -42,7 +42,11 @@ impl Form {
             "event" => Form::Event(Box::new(event::EventForm::new(s, params, false))),
             "meeting" => Form::Event(Box::new(event::EventForm::new(s, params, true))),
             "editEvent" => Form::Event(Box::new(event::EventForm::edit(s, params)?)),
-            "contact" => Form::Contact(Box::new(contact::ContactForm::new(params))),
+            "contact" => {
+                let mut form = contact::ContactForm::new(params);
+                form.default_book(s);
+                Form::Contact(Box::new(form))
+            }
             "editContact" => Form::Contact(Box::new(contact::ContactForm::edit(s, params)?)),
             "task" => Form::Task(Box::new(task::TaskForm::new(s, params))),
             "editTask" => Form::Task(Box::new(task::TaskForm::edit(s, params)?)),
@@ -3585,10 +3589,41 @@ mod contact {
             f
         }
 
+        /// A book's name with its account's beside it, so two accounts' books of the same name
+        /// are told apart in the chooser.
+        fn book_label(book: &str, account: &mailcraft_model::Account) -> String {
+            let name = if account.name.trim().is_empty() { account.email.trim() } else { account.name.trim() };
+            if name.is_empty() { book.to_string() } else { format!("{book} ({name})") }
+        }
+
+        /// A new contact goes into a writable server book when there is one, as Outlook's goes
+        /// to the account's Contacts; the owner may still choose this computer in the form.
+        pub fn default_book(&mut self, s: &Session) {
+            if !self.address_book.is_empty() {
+                return;
+            }
+            let shown = mailcraft_engine::cmd::people::shown_account(s);
+            let wanted = match shown {
+                mailcraft_model::AccountChoice::Account(id) => Some(id),
+                _ => None,
+            };
+            let writable = || s.mailbox.contact_books.iter().filter(|book| book.rights.can_edit());
+            let book = writable().find(|book| wanted.is_none_or(|id| book.account == id)).or_else(|| writable().next());
+            if let Some(book) = book {
+                self.address_book = book.id.clone();
+                self.address_book_account = book.account;
+            }
+        }
+
         /// The form for an existing contact: the one `p.id` names, else the selected one.
         pub fn edit(s: &Session, p: &Value) -> Option<ContactForm> {
             let id = p.get("id").and_then(Value::as_u64).filter(|i| *i != 0).or(s.sel.contact)?;
             let c = s.mailbox.contact(id)?;
+            // A contact a server keeps where this account may not write is not editable at all:
+            // not the form, not its fields.
+            if !mailcraft_engine::cmd::people::contact_writable(s, c) {
+                return None;
+            }
             let rows = |list: &[Labeled], label: &str| if list.is_empty() { vec![Labeled::new(label, "")] } else { list.to_vec() };
             let mut f = ContactForm {
                 id: Some(id),
@@ -3703,8 +3738,8 @@ mod contact {
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut add_key = false;
             // A new contact can go into any address book its account's server lets it write to;
-            // one being edited keeps the book it is already in.
-            let many_accounts = app.session.mailbox.accounts.iter().filter(|account| account.is_dav()).count() > 1;
+            // one being edited keeps the book it is already in. The account's name is beside the
+            // book's, so two accounts' books of the same name are told apart.
             let books: Vec<(String, String, Id)> = if self.id.is_none() {
                 app.session
                     .mailbox
@@ -3713,12 +3748,7 @@ mod contact {
                     .filter(|book| book.rights == mailcraft_model::Rights::Edit)
                     .filter_map(|book| {
                         let account = app.session.mailbox.account(book.account)?;
-                        let label = if many_accounts && !account.email.trim().is_empty() {
-                            format!("{} ({})", book.name, account.email)
-                        } else {
-                            book.name.clone()
-                        };
-                        Some((book.id.clone(), label, book.account))
+                        Some((book.id.clone(), Self::book_label(&book.name, account), book.account))
                     })
                     .collect()
             } else {

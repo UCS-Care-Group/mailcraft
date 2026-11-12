@@ -501,6 +501,9 @@ pub struct ContactOp {
     pub remote: String,
     pub uid: String,
     pub card: String,
+    /// The contact's name when it was changed, for a line to the owner.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
     /// The server's `ETag` for the card this edit was made from. A change is sent only if the
     /// server still has that version.
     #[serde(skip_serializing_if = "String::is_empty")]

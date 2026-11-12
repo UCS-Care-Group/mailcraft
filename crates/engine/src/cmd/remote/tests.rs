@@ -4,9 +4,9 @@
 //! `mailcraft-net` brings it from Microsoft Graph.
 
 use mailcraft_model::remote::{
-    ContactChangeKind, ContactOutcome, ContactsDownload, ContactsUploaded, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome,
-    EventReminder, EventRepeat, EventResult, EventTime, EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook, RemoteContact,
-    RemoteEvent, RemoteEventKind,
+    ContactChange, ContactChangeKind, ContactOutcome, ContactsDownload, ContactsUploaded, EventChange, EventChangeKind, EventFields, EventOp,
+    EventOutcome, EventReminder, EventRepeat, EventResult, EventTime, EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteAddressBook,
+    RemoteContact, RemoteEvent, RemoteEventKind,
 };
 use mailcraft_model::{Address, Attendee, Contact, ContactBook, Event, Freq, Id, Labeled, Origin, Recurrence, Response, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -1559,6 +1559,15 @@ fn the_address_books_a_server_lists_are_kept_for_a_new_contact() {
 #[test]
 fn a_remote_contact_is_deleted_through_its_server() {
     let (mut s, account) = session();
+    // The contact lives in a CardDAV book, so its account is one that keeps them (the sample's
+    // account signs in with Microsoft, for the other tests here).
+    let a = s.mailbox.account_mut(account).unwrap();
+    a.kind = mailcraft_model::AccountKind::Dav;
+    a.dav = Some(mailcraft_model::DavServer {
+        caldav: "https://dav.example.org/caldav/".into(),
+        carddav: "https://dav.example.org/carddav/".into(),
+        ..Default::default()
+    });
     apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-bob", "Bob", "bob@example.org"))])).unwrap();
     let bob = contact_called(&s, account, "c-bob");
     run(&mut s, "people.delete", json!({"id": bob.id}));
@@ -1639,6 +1648,68 @@ fn a_remote_contact_is_deleted_through_its_server() {
     assert_eq!(refused(&mut s, "people.edit", json!({"id": gone, "first": "Changed"})), why);
     assert_eq!(refused(&mut s, "people.delete", json!({"id": gone})), why);
     assert!(s.mailbox.contact(gone).is_some() && s.mailbox.contact_changes.is_empty());
+}
+
+#[test]
+fn a_refused_contact_edit_names_the_contact_for_the_owner() {
+    let (mut s, account) = session();
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-1", "Ada", "ada@example.org"))])).unwrap();
+    let id = contact_called(&s, account, "c-1").id;
+    run(&mut s, "people.edit", json!({"id": id, "first": "Augusta"}));
+    let upload = contact_upload(&s, account).expect("the edit waits");
+    let applied = apply_contact_outcomes(
+        &mut s,
+        &ContactsUploaded {
+            account,
+            email: "ada@example.org".into(),
+            outcomes: vec![ContactOutcome {
+                op: upload.ops[0].clone(),
+                result: EventResult::Refused,
+                error: "the contact changed on the server since it was read here".into(),
+                ..Default::default()
+            }],
+        },
+    )
+    .unwrap();
+    assert!(s.mailbox.contact_changes.is_empty(), "the refused change is settled");
+    let messages = applied["messages"].as_array().expect("the owner is told");
+    assert!(messages.iter().any(|message| message.as_str().is_some_and(|message| message.contains("Augusta"))), "{messages:?}");
+}
+
+#[test]
+fn a_full_contact_queue_refuses_a_change_instead_of_dropping_an_older_one() {
+    let (mut s, account) = session();
+    apply_contacts(&mut s, &carddav(account, vec![in_book(person("c-1", "Ada", "ada@example.org"))])).unwrap();
+    let id = contact_called(&s, account, "c-1").id;
+    for n in 0..mailcraft_model::remote::MAX_CONTACT_CHANGES {
+        s.mailbox.contact_changes.push(ContactChange {
+            account,
+            kind: ContactChangeKind::Update,
+            remote: format!("/carddav/ada/contacts/personal/{n}.vcf"),
+            ..Default::default()
+        });
+    }
+    let why = refused(&mut s, "people.edit", json!({"id": id, "first": "Augusta"}));
+    assert!(why.contains("too many contact changes"), "{why}");
+    assert_eq!(s.mailbox.contact_changes.len(), mailcraft_model::remote::MAX_CONTACT_CHANGES, "no older change was dropped");
+    assert_eq!(s.mailbox.contact(id).map(|contact| contact.first.as_str()), Some("Ada"));
+}
+
+#[test]
+fn deleting_a_contact_on_another_servers_book_leaves_no_carddav_note() {
+    let (mut s, account) = session();
+    s.mailbox.contact_books.push(ContactBook { account, id: "other-book".into(), name: "Other".into(), rights: Rights::Edit });
+    let id = s.mailbox.add_contact(Contact {
+        display_name: "Ada".into(),
+        uid: "c-other".into(),
+        book: "Other".into(),
+        book_id: "other-book".into(),
+        origin: Origin { account, id: "c-other".into(), ..Default::default() },
+        ..Default::default()
+    });
+    run(&mut s, "people.delete", json!({"id": id}));
+    assert!(s.mailbox.contact(id).is_none());
+    assert!(s.mailbox.contact_changes.is_empty(), "a non-CardDAV account leaves no note for the DAV run");
 }
 
 #[test]

@@ -273,12 +273,15 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct AccountDrag(pub Id);
 
+fn mail_accounts(mb: &Mailbox) -> Vec<&mailcraft_model::Account> {
+    mb.accounts_in_order().into_iter().filter(|a| a.kind != mailcraft_model::AccountKind::Dav).collect()
+}
+
 /// The owner's own accounts, top to bottom: what a drag puts in another order. A shared mailbox
 /// goes with the account it is opened through.
 fn owners(mb: &Mailbox) -> Vec<Id> {
-    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect()
+    mail_accounts(mb).into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect()
 }
-
 /// What `account.move` is told to put `account` one place up (`up`) or down among the owner's
 /// own accounts `own`: the account it goes before, `None` inside for the end. `None` at the top
 /// for Move Up, at the bottom for Move Down, and for an account that isn't among them.
@@ -779,10 +782,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // (A shared mailbox right after the account it is opened through, #70.)
             // (The folders are grouped by account once, not once for each account.)
             let mut trees = trees(&app.session.mailbox, |a| !folded.contains(&a));
-            let lists: Vec<(Id, String, Vec<(Folder, usize, bool)>)> = app
-                .session
-                .mailbox
-                .accounts_in_order()
+            let lists: Vec<(Id, String, Vec<(Folder, usize, bool)>)> = mail_accounts(&app.session.mailbox)
                 .into_iter()
                 .map(|a| {
                     let rows = visible_in(trees.remove(&a.id).unwrap_or_default(), &folded);

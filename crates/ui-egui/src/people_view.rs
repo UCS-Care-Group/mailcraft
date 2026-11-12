@@ -10,7 +10,7 @@ use std::sync::Arc;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
-use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox, Rights};
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox};
 use mailcraft_time::Date;
 use serde_json::json;
 
@@ -834,21 +834,7 @@ pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[Strin
 /// from a server that did not name its book, is left to the command (and then the server) to
 /// decide.
 pub(crate) fn contact_writable(app: &MailApp, c: &Contact) -> bool {
-    if c.origin.account == 0 {
-        return true;
-    }
-    if c.book_id.is_empty() {
-        // A contact a server keeps outside an address book (Microsoft Graph) is still read only.
-        return false;
-    }
-    // A book the server no longer lists is not one to write into: the contact would not reach
-    // the server, and the next read would take the change away. The card says so.
-    app.session
-        .mailbox
-        .contact_books
-        .iter()
-        .find(|book| book.account == c.origin.account && book.id == c.book_id)
-        .is_some_and(|book| book.rights == Rights::Edit)
+    mailcraft_engine::cmd::people::contact_writable(&app.session, c)
 }
 
 /// Whether the address book a contact came from is no longer in the account's list.
@@ -923,7 +909,7 @@ fn kept_in(app: &MailApp, c: &Contact) -> Option<String> {
 /// Whether the contact is a copy of what its account's server keeps, which can't be changed here
 /// (`remote::changeable`): the card says so beside whose it is, before Edit or Delete is tried.
 fn read_only_here(app: &MailApp, c: &Contact) -> bool {
-    mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &c.origin).is_some()
+    c.origin.is_remote() && !contact_writable(app, c)
 }
 
 fn card_account(app: &MailApp, ui: &mut Ui, c: &Contact) {

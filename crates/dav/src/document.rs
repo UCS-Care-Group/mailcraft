@@ -195,6 +195,48 @@ fn values(document: &Document) -> BTreeMap<&str, Vec<&str>> {
     values
 }
 
+/// Two card property lines that say the same thing. The vCard writer normalises parameters
+/// (`TYPE=work` becomes `TYPE=INTERNET,WORK`, tokens are reordered and uppercased), so the
+/// source's bytes and the writer's copy of the same property may differ while the card has not
+/// changed. The value and the meaningful parameters are compared; a real difference still
+/// refuses the edit.
+fn card_line_same(a: &str, b: &str) -> bool {
+    fn parsed(line: &str) -> Option<(String, String, BTreeMap<String, BTreeSet<String>>)> {
+        let (head, value) = parts(line).ok()?;
+        let mut pieces = head.split(';');
+        let key = pieces.next()?.trim().to_ascii_uppercase();
+        let mut params: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for piece in pieces {
+            let (name, value) = piece.split_once('=')?;
+            let name = name.trim().to_ascii_uppercase();
+            let value = value.trim().trim_matches('"');
+            let values: BTreeSet<String> = if name == "TYPE" {
+                value.split(',').map(|token| token.trim().to_ascii_uppercase()).filter(|token| !token.is_empty()).collect()
+            } else {
+                BTreeSet::from([value.to_string()])
+            };
+            params.entry(name).or_default().extend(values);
+        }
+        Some((key, value.to_string(), params))
+    }
+    let Some((key_a, value_a, mut params_a)) = parsed(a) else { return false };
+    let Some((key_b, value_b, mut params_b)) = parsed(b) else { return false };
+    if key_a != key_b || value_a != value_b {
+        return false;
+    }
+    // `INTERNET` is the type every e-mail address has; the writer adds it where a source left it
+    // out.
+    if key_a == "EMAIL" {
+        if let Some(types) = params_a.get_mut("TYPE") {
+            types.remove("INTERNET");
+        }
+        if let Some(types) = params_b.get_mut("TYPE") {
+            types.remove("INTERNET");
+        }
+    }
+    params_a == params_b
+}
+
 // Keep date, floating, UTC and named-zone forms separate. A recurring wall-clock series
 // cannot be converted to instants here without changing its future daylight-saving behaviour.
 fn time_form(line: &str) -> Result<(Option<String>, bool, bool), InvalidDocument> {
@@ -418,10 +460,19 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
                     return Err(InvalidDocument);
                 }
             }
-            if let (Some(before), Some(after)) = (source_lines.first(), new_lines.first())
-                && time_form(before)? != time_form(after)?
-            {
-                return Err(InvalidDocument);
+            if let (Some(before), Some(after)) = (source_lines.first(), new_lines.first()) {
+                let (before, after) = (time_form(before)?, time_form(after)?);
+                // A whole-day event becoming one with times (or the other way round) is an
+                // intentional change of a single event, not a writer's normalisation: its date
+                // form differs, and the new form is taken. A recurring series keeps its form,
+                // and two timed forms that differ still refuse.
+                let recurring = ["RRULE", "RDATE", "EXDATE"].iter().any(|key| source_values.contains_key(key) || old_values.contains_key(key));
+                if before.1 == after.1 && before != after {
+                    return Err(InvalidDocument);
+                }
+                if before.1 != after.1 && recurring {
+                    return Err(InvalidDocument);
+                }
             }
             for line in new_lines {
                 if let Some(zone) = timezone(line)?
@@ -433,7 +484,14 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
         }
     }
     for key in &changed {
-        if source_values.get(key) != old_values.get(key) {
+        let same = if component == Component::Card {
+            let source_lines = source_values.get(key).map(Vec::as_slice).unwrap_or_default();
+            let old_lines = old_values.get(key).map(Vec::as_slice).unwrap_or_default();
+            source_lines.len() == old_lines.len() && source_lines.iter().zip(old_lines).all(|(a, b)| card_line_same(a, b))
+        } else {
+            source_values.get(key) == old_values.get(key)
+        };
+        if !same {
             return Err(InvalidDocument);
         }
     }

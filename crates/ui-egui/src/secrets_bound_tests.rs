@@ -160,6 +160,35 @@ fn a_calendar_password_is_bound_to_its_own_addresses_and_name() {
 }
 
 #[test]
+fn a_dav_only_accounts_password_is_read_from_the_store() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = a
+        .execute(
+            "account.add",
+            json!({
+                "email": "admin@example.org",
+                "kind": "dav",
+                "dav": {"caldav": "https://cloud.example.org/dav/", "carddav": "https://cloud.example.org/dav/"}
+            }),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let key = MailApp::secret_key("davpassword", a.session.mailbox.account(id).unwrap());
+    store.set(&key, "calendar pw").unwrap();
+    a.start_secret_read(false);
+    for _ in 0..100 {
+        a.poll_secret_read();
+        if a.secret_read.is_none() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(a.remembered("davpassword", id).as_deref(), Some("calendar pw"), "the store's answer is read for a DAV-only account");
+}
+
+#[test]
 fn undo_of_a_server_change_drops_what_was_typed_for_the_new_one() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);

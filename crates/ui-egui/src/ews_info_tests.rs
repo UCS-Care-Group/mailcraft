@@ -66,29 +66,49 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
     assert_eq!(other(&|x| x.ews = None), "password:ada@exchange.example|ews=none|user=");
 }
 
-/// A DAV account's password reaches its CalDAV and CardDAV services too, so the name it is
-/// kept under names both; another service root is another key.
+/// A DAV account's mail password is bound to its mail servers alone; a sign-in for its
+/// calendars and address books has a name of its own, naming both roots and the user name.
 #[test]
-fn a_dav_accounts_secret_is_kept_under_its_servers_too() {
+fn a_dav_accounts_secrets_are_bound_to_what_each_one_reaches() {
     let account = Account {
         email: "ada@example.org".into(),
         kind: AccountKind::Imap,
         incoming: Some(Server { host: "mail.example.org".into(), port: 993, ..Default::default() }),
         outgoing: Some(Server { host: "mail.example.org".into(), port: 587, ..Default::default() }),
-        dav: Some(DavServer { caldav: "https://mail.example.org/caldav/".into(), carddav: "https://mail.example.org/carddav/".into() }),
+        dav: Some(DavServer {
+            caldav: "https://mail.example.org/caldav/".into(),
+            carddav: "https://mail.example.org/carddav/".into(),
+            ..Default::default()
+        }),
         ..Default::default()
     };
-    let key = MailApp::secret_key("password", &account);
-    assert!(key.contains("caldav=https://mail.example.org/caldav/"), "{key}");
-    assert!(key.contains("carddav=https://mail.example.org/carddav/"), "{key}");
+    // The mail's secret stays where it was when calendars are added or moved.
+    let mail = MailApp::secret_key("password", &account);
+    assert!(!mail.contains("caldav=") && !mail.contains("carddav="), "{mail}");
     let other = |change: &dyn Fn(&mut Account)| {
         let mut account = account.clone();
         change(&mut account);
         MailApp::secret_key("password", &account)
     };
-    assert_ne!(other(&|a| a.dav.as_mut().unwrap().caldav = "https://mail.attacker.example/caldav/".into()), key);
-    assert_ne!(other(&|a| a.dav.as_mut().unwrap().carddav = "https://mail.attacker.example/carddav/".into()), key);
-    assert_ne!(other(&|a| a.dav = None), key);
+    assert_eq!(other(&|a| a.dav.as_mut().unwrap().caldav = "https://cloud.example.org/caldav/".into()), mail);
+    assert_eq!(other(&|a| a.dav = None), mail);
+
+    // The calendars' secret is for those two roots and that name.
+    let dav = MailApp::secret_key("davpassword", &account);
+    assert!(dav.contains("caldav=https://mail.example.org/caldav/") && dav.contains("carddav=https://mail.example.org/carddav/"), "{dav}");
+    let other_dav = |change: &dyn Fn(&mut Account)| {
+        let mut account = account.clone();
+        change(&mut account);
+        MailApp::secret_key("davpassword", &account)
+    };
+    assert_ne!(other_dav(&|a| a.dav.as_mut().unwrap().caldav = "https://mail.attacker.example/caldav/".into()), dav);
+    assert_ne!(other_dav(&|a| a.dav.as_mut().unwrap().carddav = "https://mail.attacker.example/carddav/".into()), dav);
+    assert_ne!(other_dav(&|a| a.dav.as_mut().unwrap().username = "ada-cloud".into()), dav, "a password is for one name");
+    assert_eq!(
+        other_dav(&|a| a.incoming = Some(Server { host: "imap.other.example".into(), port: 993, ..Default::default() })),
+        dav,
+        "the calendars' secret knows nothing of the mail servers"
+    );
 }
 
 #[test]

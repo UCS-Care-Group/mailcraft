@@ -3662,6 +3662,7 @@ pub fn contact_upload(s: &Session, account: Id) -> Option<ContactsUpload> {
             remote: change.remote.clone(),
             uid: change.uid.clone(),
             card: change.card.clone(),
+            name: change.name.clone(),
             etag: change.etag.clone(),
             token: change.token.clone(),
         })
@@ -3688,11 +3689,26 @@ pub fn contact_upload(s: &Session, account: Id) -> Option<ContactsUpload> {
             remote: String::new(),
             uid: uid.clone(),
             card: text,
+            name: card.name(),
             etag: String::new(),
             token: uid,
         });
     }
     (!ops.is_empty()).then(|| ContactsUpload { account, email: found.email.trim().to_string(), ops })
+}
+
+/// Whether a change to `contact` has room among the changes waiting for its server: one that
+/// replaces a change to the same card always does, and a contact with no server address yet needs
+/// no note at all. A full queue is refused by the command instead of dropping an older change.
+pub(crate) fn contact_change_room(mailbox: &Mailbox, contact: &Contact) -> bool {
+    if contact.origin.account == 0 || contact.origin.id.is_empty() {
+        return true;
+    }
+    if mailbox.contact_changes.len() < MAX_CONTACT_CHANGES {
+        return true;
+    }
+    let remote = resource_key(&contact.origin.id);
+    mailbox.contact_changes.iter().any(|change| change.account == contact.origin.account && resource_key(&change.remote) == remote)
 }
 
 /// Note a change to `contact` for its server. A pending change to the same resource is replaced,
@@ -3745,6 +3761,7 @@ pub fn note_contact_changed(mailbox: &mut Mailbox, contact: &Contact, kind: Cont
     }
     if mailbox.contact_changes.len() > MAX_CONTACT_CHANGES {
         let extra = mailbox.contact_changes.len() - MAX_CONTACT_CHANGES;
+        log::warn!("contacts: {extra} older change(s) waiting for the server were dropped; the queue was full");
         mailbox.contact_changes.drain(0..extra);
     }
 }
@@ -3753,6 +3770,7 @@ pub fn note_contact_changed(mailbox: &mut Mailbox, contact: &Contact, kind: Cont
 /// next download knows it for the same contact.
 pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> CmdResult {
     let mut saved = 0usize;
+    let mut messages: Vec<String> = Vec::new();
     // An answer settles the generation it names. An answer that names none (one written by an
     // older version) settles the resource as before; a newer change made since is left alone.
     let settles = |change: &ContactChange, token: &str| change.token.is_empty() || token.is_empty() || change.token == token;
@@ -3763,6 +3781,22 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
         // Done and Gone are settled. A refusal is settled too: asking again would meet the same
         // permission, and dropping the note lets the next read put back what the server has.
         let settled = matches!(outcome.result, EventResult::Done | EventResult::Gone | EventResult::Denied | EventResult::Refused);
+        let refused = matches!(outcome.result, EventResult::Denied | EventResult::Refused);
+        let name = if refused {
+            let named = outcome.op.name.trim();
+            if !named.is_empty() {
+                format!("\"{named}\"")
+            } else {
+                s.mailbox
+                    .contact(outcome.op.contact)
+                    .map(|contact| contact.name())
+                    .filter(|name| !name.is_empty())
+                    .map(|name| format!("\"{name}\""))
+                    .unwrap_or_else(|| "a contact".into())
+            }
+        } else {
+            String::new()
+        };
         match outcome.op.kind {
             ContactChangeKind::Delete if settled => {
                 s.mailbox.contact_changes.retain(|change| {
@@ -3771,7 +3805,13 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
                         && resource_key(&change.remote) == remote
                         && settles(change, &outcome.op.token))
                 });
-                saved += usize::from(!matches!(outcome.result, EventResult::Denied | EventResult::Refused));
+                saved += usize::from(!refused);
+                if refused {
+                    messages.push(format!(
+                        "The server wouldn't take the deletion of {name}{}. It comes back with the next read.",
+                        because(&outcome.error)
+                    ));
+                }
             }
             ContactChangeKind::Update if settled => {
                 s.mailbox.contact_changes.retain(|change| {
@@ -3780,6 +3820,10 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
                         && resource_key(&change.remote) == remote
                         && settles(change, &outcome.op.token))
                 });
+                if refused {
+                    messages.push(format!("The server wouldn't take the change to {name}{}. It was put back as it was.", because(&outcome.error)));
+                    continue;
+                }
                 if outcome.result != EventResult::Done {
                     continue;
                 }
@@ -3854,7 +3898,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> C
     if saved > 0 {
         s.mailbox_changed();
     }
-    Ok(json!({"saved": saved}))
+    Ok(json!({"saved": saved, "messages": messages}))
 }
 
 /// Remove everything that came from the server of `account`: its events, its contacts and the

@@ -276,7 +276,11 @@ fn calendars(
                 .and_then(|principal| principal_home(base, &principal, "calendar-home-set", auth))
         })
         .unwrap_or_else(|| base.to_string());
-    let home = resolve(base, &home).ok_or_else(|| NetError::Forbidden("the server's calendar home is not on the account's server".into()))?;
+    let home = resolve(base, &home).ok_or_else(|| {
+        NetError::Forbidden(
+            "the server's calendar home is not on the account's server (scheme, host or port differ; check the account's CalDAV address)".into(),
+        )
+    })?;
     let listing = propfind(&home, "1", LIST_CALENDARS, auth)?;
     let mut out = CalendarsDownload { complete: true, ..Default::default() };
     let mut events = Vec::new();
@@ -292,7 +296,7 @@ fn calendars(
         }
         let Some(href) = resolve(&home, &response.href) else {
             out.complete = false;
-            errors.push("a calendar's address is not on the account's server".into());
+            errors.push("a calendar's address is not on the account's server (scheme, host or port differ)".into());
             continue;
         };
         let name = response.prop_text("displayname").filter(|name| !name.trim().is_empty()).unwrap_or_else(|| slug(&href));
@@ -442,7 +446,11 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
                 .and_then(|principal| principal_home(base, &principal, "addressbook-home-set", auth))
         })
         .unwrap_or_else(|| base.to_string());
-    let home = resolve(base, &home).ok_or_else(|| NetError::Forbidden("the server's address-book home is not on the account's server".into()))?;
+    let home = resolve(base, &home).ok_or_else(|| {
+        NetError::Forbidden(
+            "the server's address-book home is not on the account's server (scheme, host or port differ; check the account's CardDAV address)".into(),
+        )
+    })?;
     let listing = propfind(&home, "1", LIST_ADDRESSBOOKS, auth)?;
     let mut out = ContactsDownload { complete: true, ..Default::default() };
     let mut books = 0usize;
@@ -738,8 +746,8 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
             let mut expected = op.etag.trim().to_string();
             if op.kind == EventChangeKind::Update {
                 let Some(url) = request_url(caldav, &op.remote) else {
-                    outcome.result = EventResult::Failed;
-                    outcome.error = "the event's address can't be used".into();
+                    outcome.result = EventResult::Refused;
+                    outcome.error = "the event's address is on another server than the account's, so nothing was sent".into();
                     return outcome;
                 };
                 match fetch_event(&url, auth) {
@@ -799,20 +807,25 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
             };
             let url = if op.kind == EventChangeKind::Update && !op.remote.trim().is_empty() {
                 let Some(url) = request_url(caldav, &op.remote) else {
-                    outcome.result = EventResult::Failed;
-                    outcome.error = "the event's address can't be used".into();
+                    outcome.result = EventResult::Refused;
+                    outcome.error = "the event's address is on another server than the account's, so nothing was sent".into();
                     return outcome;
                 };
                 url
             } else {
-                let base = if calendar.ends_with('/') { calendar.to_string() } else { format!("{calendar}/") };
+                if calendar.is_empty() {
+                    outcome.result = EventResult::Failed;
+                    outcome.error = "the calendar is not known yet".into();
+                    return outcome;
+                }
+                let Some(calendar_url) = request_url(caldav, calendar) else {
+                    outcome.result = EventResult::Refused;
+                    outcome.error = "the calendar's address is on another server than the account's, so nothing was sent".into();
+                    return outcome;
+                };
+                let base = if calendar_url.ends_with('/') { calendar_url } else { format!("{calendar_url}/") };
                 format!("{base}{}.ics", http::encode(&uid))
             };
-            if calendar.is_empty() && op.kind == EventChangeKind::Create {
-                outcome.result = EventResult::Failed;
-                outcome.error = "the calendar is not known yet".into();
-                return outcome;
-            }
             let write_condition = condition(&expected, op.kind == EventChangeKind::Create);
             match send_following(&url, "PUT", None, Some(&text), auth, CALENDAR, &write_condition, 64 * 1024) {
                 Ok((reply, _)) if matches!(reply.status, 200 | 201 | 204) => {
@@ -849,8 +862,8 @@ fn one_change(auth: &str, op: &EventOp, main_calendar: &str, caldav: &str) -> Ev
                 return outcome;
             }
             let Some(url) = request_url(caldav, &op.remote) else {
-                outcome.result = EventResult::Failed;
-                outcome.error = "the event's address can't be used".into();
+                outcome.result = EventResult::Refused;
+                outcome.error = "the event's address is on another server than the account's, so nothing was sent".into();
                 return outcome;
             };
             let fetched = match fetch_event(&url, auth) {
@@ -1019,8 +1032,8 @@ fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
             return outcome;
         }
         let Some(url) = request_url(carddav, &op.remote) else {
-            outcome.result = EventResult::Failed;
-            outcome.error = "the contact's address can't be used".into();
+            outcome.result = EventResult::Refused;
+            outcome.error = "the contact's address is on another server than the account's, so nothing was sent".into();
             return outcome;
         };
         outcome.remote = resource_path(&url);
@@ -1081,8 +1094,8 @@ fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
     let mut original = None;
     let url = if op.kind == ContactChangeKind::Update && !op.remote.trim().is_empty() {
         let Some(url) = request_url(carddav, &op.remote) else {
-            outcome.result = EventResult::Failed;
-            outcome.error = "the contact's address can't be used".into();
+            outcome.result = EventResult::Refused;
+            outcome.error = "the contact's address is on another server than the account's, so nothing was sent".into();
             return outcome;
         };
         match fetch_card(&url, auth) {
@@ -1114,9 +1127,21 @@ fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
             outcome.error = "the address book is not known yet".into();
             return outcome;
         }
-        let base = if book.ends_with('/') { book.to_string() } else { format!("{book}/") };
+        // The book is the address the mailbox keeps, which may be an older client's path or a
+        // whole URL; it is resolved against this account's server so that a book naming another
+        // host can never be sent the account's password.
+        let Some(book_url) = request_url(carddav, book) else {
+            outcome.result = EventResult::Refused;
+            outcome.error = "the address book's address is on another server than the account's, so nothing was sent".into();
+            return outcome;
+        };
+        let base = if book_url.ends_with('/') { book_url } else { format!("{book_url}/") };
         format!("{base}{}.vcf", http::encode(op.uid.trim()))
     };
+    // A card with no copy on the server (a creation, or an edit whose address the mailbox no
+    // longer has) is written with `If-None-Match: *`: another card with the same UID there is
+    // never overwritten.
+    let conditional_create = original.is_none();
     let text = match original {
         Some((raw, before)) => {
             let before = mailcraft_vcard::write(&[&before]);
@@ -1132,7 +1157,7 @@ fn one_contact(auth: &str, op: &ContactOp, carddav: &str) -> ContactOutcome {
         None => op.card.clone(),
     };
     outcome.remote = resource_path(&url);
-    let write_condition = condition(&expected, op.kind == ContactChangeKind::Create);
+    let write_condition = condition(&expected, conditional_create);
     match send_following(&url, "PUT", None, Some(&text), auth, VCARD, &write_condition, 64 * 1024) {
         Ok((reply, _)) if matches!(reply.status, 200 | 201 | 204) => {
             outcome.result = EventResult::Done;

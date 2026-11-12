@@ -135,7 +135,7 @@ fn a_change_made_here_goes_up_as_it_is_the_servers() {
         zone: "UTC".into(),
     };
     let calendar = server.url("/caldav/ada@example.org/calendar/");
-    let uploaded = upload_events("", "ada@example.org", "invented", &upload, &calendar);
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, &calendar);
     assert_eq!(uploaded.outcomes.len(), 1);
     assert_eq!(uploaded.outcomes[0].result, EventResult::Done);
     assert_eq!(uploaded.outcomes[0].uid, "made-here");
@@ -145,6 +145,32 @@ fn a_change_made_here_goes_up_as_it_is_the_servers() {
     assert!(request.contains("Content-Type: text/calendar; charset=utf-8\r\n"), "{request}");
     assert!(request.contains("If-None-Match: *\r\n"), "{request}");
     assert!(request.contains("SUMMARY:Stand-up") && request.contains("UID:made-here\r\n"), "{request}");
+}
+
+#[test]
+fn an_event_for_a_calendar_on_another_server_is_refused() {
+    use mailcraft_model::remote::{EventOp, EventTime, EventsUpload};
+    let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Create,
+            event: 42,
+            token: "made-here".into(),
+            fields: EventFields {
+                title: Some("Stand-up".into()),
+                time: Some(EventTime { start: 1_800_000_000, end: 1_800_003_600, all_day: false }),
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
+        zone: "UTC".into(),
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "https://other.example/caldav/");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Refused);
+    assert!(uploaded.outcomes[0].error.contains("another server"), "{}", uploaded.outcomes[0].error);
+    assert_eq!(server.asked(), 0, "nothing is sent to the other server");
 }
 
 #[test]
@@ -241,11 +267,12 @@ fn a_new_contact_goes_to_the_book_it_was_given() {
             remote: String::new(),
             uid: "one-uid".into(),
             card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one-uid\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n".into(),
+            name: "Ada Lovelace".into(),
             etag: String::new(),
             token: String::new(),
         }],
     };
-    let out = upload_contacts("", "ada@example.org", "invented", &upload);
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
     assert_eq!(out.outcomes[0].result, EventResult::Done);
     assert_eq!(out.outcomes[0].remote, "/carddav/ada@example.org/contacts/personal/one-uid.vcf");
     let request = server.request(0);
@@ -253,6 +280,56 @@ fn a_new_contact_goes_to_the_book_it_was_given() {
     assert!(request.contains("Content-Type: text/vcard; charset=utf-8\r\n"), "{request}");
     assert!(request.contains("If-None-Match: *\r\n"), "{request}");
     assert!(request.contains("UID:one-uid\r\n") && request.contains("FN:Ada Lovelace\r\n"), "{request}");
+}
+
+#[test]
+fn a_book_on_another_server_is_never_sent_the_accounts_password() {
+    let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Create,
+            contact: 7,
+            book: "https://other.example/contacts/personal/".into(),
+            remote: String::new(),
+            uid: "one-uid".into(),
+            card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one-uid\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n".into(),
+            name: "Ada Lovelace".into(),
+            etag: String::new(),
+            token: String::new(),
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Refused);
+    assert!(out.outcomes[0].error.contains("another server"), "{}", out.outcomes[0].error);
+    assert_eq!(server.asked(), 0, "nothing is sent to the other server");
+}
+
+#[test]
+fn an_edit_with_no_server_address_is_made_as_a_new_card() {
+    let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Update,
+            contact: 7,
+            book: server.url("/carddav/ada@example.org/contacts/personal/"),
+            remote: String::new(),
+            uid: "one-uid".into(),
+            card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one-uid\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n".into(),
+            name: "Ada Lovelace".into(),
+            etag: String::new(),
+            token: String::new(),
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Done);
+    let request = server.request(0);
+    assert!(request.starts_with("PUT /carddav/ada@example.org/contacts/personal/one-uid.vcf HTTP/1.1\r\n"), "{request}");
+    assert!(request.contains("If-None-Match: *\r\n"), "{request}");
+    assert!(!request.contains("If-Match:"), "no version is overwritten: {request}");
 }
 
 #[test]
@@ -293,6 +370,30 @@ fn cards_changed_or_deleted_here_are_conditional_on_the_versions_read() {
     assert!(server.request(1).contains("If-Match: \"v0\"\r\n") && server.request(1).contains("FN:Ada Lovelace\r\n"));
     assert!(server.request(3).starts_with("DELETE /carddav/ada@example.org/contacts/personal/two.vcf HTTP/1.1\r\n"));
     assert!(server.request(3).contains("If-Match: \"v2\"\r\n"));
+}
+
+#[test]
+fn an_edit_of_a_card_the_server_changed_is_refused_before_a_write() {
+    let card = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:Server Ada\r\nEND:VCARD\r\n";
+    let server = FakeHttp::answering(format!("HTTP/1.1 200 OK\r\nETag: \"v2\"\r\nContent-Length: {}\r\n\r\n{}", card.len(), card).into_bytes());
+    let upload = ContactsUpload {
+        account: 1,
+        email: "ada@example.org".into(),
+        ops: vec![ContactOp {
+            kind: ContactChangeKind::Update,
+            contact: 7,
+            remote: "/carddav/ada@example.org/contacts/personal/one.vcf".into(),
+            uid: "one".into(),
+            card: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:one\r\nFN:My Ada\r\nEND:VCARD\r\n".into(),
+            etag: "\"v1\"".into(),
+            name: "Ada".into(),
+            ..Default::default()
+        }],
+    };
+    let out = upload_contacts(&server.url("/carddav/"), "ada@example.org", "invented", &upload);
+    assert_eq!(out.outcomes[0].result, EventResult::Refused);
+    assert!(out.outcomes[0].error.contains("changed on the server"), "{}", out.outcomes[0].error);
+    assert_eq!(server.asked(), 1, "only the read; the changed card was not written over");
 }
 
 #[test]

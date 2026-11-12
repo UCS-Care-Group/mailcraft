@@ -757,8 +757,13 @@ msgid "Address"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
 msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Address book unavailable"
 msgstr ""
 
 #. interface
@@ -5618,6 +5623,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/account.rs
 msgid "List Accounts"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
 msgstr ""
 
 #. command label
@@ -11049,6 +11059,26 @@ msgstr ""
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The address book chosen is no longer available. Send/Receive may bring it back, and the contact can be saved then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 msgid "The approval didn't go through."
@@ -11177,6 +11207,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars and address books need their sign-in again: press Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
 msgid "The calendars couldn't be taken in: {error}"
 msgstr ""
 
@@ -11248,6 +11283,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "The contact's form was closed: open it again to add the key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The contacts couldn't be saved: {error}"
 msgstr ""
 
 #. interface
@@ -11743,6 +11783,11 @@ msgid "The server or the organisation wouldn't give its settings. Ask your admin
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The server refused the sign-in for the calendars and address books: type it again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
 msgstr ""
@@ -12195,6 +12240,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "This build can't connect to Microsoft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This build can't connect to calendars and address books (a browser can't open DAV connections)."
 msgstr ""
 
 #. interface
@@ -13092,6 +13142,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
 msgstr ""
 
 #. interface
@@ -16079,6 +16134,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] ""
 msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "too many contact changes are waiting for the server: try again after a Send/Receive"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
