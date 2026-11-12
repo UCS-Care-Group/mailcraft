@@ -135,6 +135,7 @@ pub(crate) enum Menu {
     Signature,
     MoveFolder,
     ReadingPane,
+    GmailCategories,
     Preview,
     ArrangeBy,
     Theme,
@@ -148,6 +149,58 @@ pub(crate) enum Menu {
     FontColor,
     Highlight,
     Junk,
+}
+
+impl Menu {
+    /// The command a menu stands for, when all it does is run it with a choice (the font menus):
+    /// it is greyed when that command can't run, as a button would be.
+    pub(crate) fn command(self) -> Option<&'static str> {
+        match self {
+            Menu::Font => Some("format.font"),
+            Menu::FontSize => Some("format.size"),
+            Menu::FontColor => Some("format.color"),
+            Menu::Highlight => Some("format.highlight"),
+            _ => None,
+        }
+    }
+}
+
+/// Whether a control can be used now: its command can run, or the command its menu stands for
+/// ([`Menu::command`]); a menu that stands for none always can. Every layout draws by it.
+pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
+    match (&item.command, item.menu) {
+        (Some((command, _)), _) => app.enabled(command),
+        (None, Some(menu)) => menu_usable(app, menu),
+        (None, None) => true,
+    }
+}
+
+/// Whether a menu can be opened now: the command it stands for can run, or it stands for none.
+fn menu_usable(app: &MailApp, menu: Menu) -> bool {
+    menu.command().is_none_or(|command| app.enabled(command))
+}
+
+/// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
+/// greyed otherwise, saying why when hovered.
+pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
+    if menu_usable(app, menu) {
+        ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        return;
+    }
+    let reason = menu.command().and_then(|c| app.session.registry.get(c)).and_then(|spec| (spec.enabled)(&app.session));
+    let entry = ui.add_enabled(false, egui::Button::new(name).min_size(vec2(190.0, 0.0)));
+    if let Some(reason) = reason {
+        entry.on_disabled_hover_text(crate::i18n::fmt(tl!("Not available: {reason}"), &[("reason", tl!(reason))]));
+    }
+}
+
+/// A menu button's tooltip: its name, and when its menu stands for a command that can't run now
+/// ([`usable`]), why, as a greyed button's says.
+fn menu_tooltip(app: &MailApp, resp: egui::Response, item: &Item, on: bool) -> egui::Response {
+    match item.menu.and_then(Menu::command) {
+        Some(command) if !on => command_tooltip(app, resp, &item.tip_text(), command),
+        _ => resp.on_hover_text(item.tip_text()),
+    }
 }
 
 /// How a control is drawn in the classic layout.
@@ -990,16 +1043,18 @@ By",
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
     let tight = app.session.prefs.tight_spacing;
+    let mut layout = vec![
+        Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
+        Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
+    ];
+    // Gmail's categories as folders or as tabs (#911): only with a Gmail account that shows them.
+    if mailcraft_engine::gmail::offered(&app.session).is_none() {
+        layout.push(Item::big_menu("gmailCategories", "inbox", "Gmail\nCategories", "Gmail Categories", Menu::GmailCategories).at(0, 3));
+    }
+    layout.push(Item::big_menu("ribbonLayout", "ribbon", "Ribbon\nLayout", "Ribbon Layout", Menu::RibbonLayout).at(3, 4));
     Tab::of(vec![
         g("Current View", vec![Item::big_menu("changeView", "changeView", "Change\nView", "Change View", Menu::ChangeView).at(0, 1)]),
-        g(
-            "Layout",
-            vec![
-                Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
-                Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
-                Item::big_menu("ribbonLayout", "ribbon", "Ribbon\nLayout", "Ribbon Layout", Menu::RibbonLayout).at(3, 4),
-            ],
-        ),
+        g("Layout", layout),
         g(
             "Messages",
             vec![
@@ -1044,7 +1099,9 @@ fn help() -> Tab {
                 Item::big("report", "Report a\nProblem", "ui.reportProblem", no()).at(0, 4),
             ],
         )],
-        note: "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands.",
+        note: tl!(
+            "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+        ),
         note_width: 420.0,
     }
 }
@@ -1432,6 +1489,11 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
         }
+        Menu::GmailCategories => {
+            let tabs = app.session.view.gmail_tabs;
+            mi_check(ui, app, "As Folders", !tabs, "view.gmailCategories", json!({"value": "folders"}));
+            mi_check(ui, app, "As Tabs above the Inbox", tabs, "view.gmailCategories", json!({"value": "tabs"}));
+        }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;
             for (label, n) in [("Off", 0u8), ("1 Line", 1), ("2 Lines", 2), ("3 Lines", 3)] {
@@ -1751,9 +1813,7 @@ fn drop_menu(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
     for under in &b.drops {
         match under.menu {
             Some(menu) if alone => menu_contents(ui, app, menu),
-            Some(menu) => {
-                ui.menu_button(under.name(), |ui| menu_contents(ui, app, menu));
-            }
+            Some(menu) => submenu(ui, app, under.name(), menu),
             None => entry(ui, app, under),
         }
     }
@@ -1767,18 +1827,21 @@ fn more_entries(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
         return;
     }
     if b.item.command.is_none() {
-        ui.menu_button(b.item.name(), |ui| drop_menu(ui, app, b));
+        match b.item.menu {
+            Some(menu) if b.drops.is_empty() => submenu(ui, app, b.item.name(), menu),
+            _ => {
+                ui.menu_button(b.item.name(), |ui| drop_menu(ui, app, b));
+            }
+        }
         return;
     }
     entry(ui, app, b.item);
     if let Some(menu) = b.item.menu {
-        ui.menu_button(b.item.tip_text(), |ui| menu_contents(ui, app, menu));
+        submenu(ui, app, b.item.tip_text(), menu);
     }
     for under in &b.drops {
         match under.menu {
-            Some(menu) => {
-                ui.menu_button(under.name(), |ui| menu_contents(ui, app, menu));
-            }
+            Some(menu) => submenu(ui, app, under.name(), menu),
             None => entry(ui, app, under),
         }
     }
@@ -1793,7 +1856,7 @@ pub(crate) fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
 fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, labelled: bool, rect: Rect) {
     let item = b.item;
     let id = ui.scope_id().with(("ribbon", item.key));
-    let on = item.command.as_ref().is_none_or(|(command, _)| app.enabled(command));
+    let on = usable(app, item);
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
     let main_rect = if b.is_split() { Rect::from_min_max(rect.min, pos2(drop_rect.min.x, rect.max.y)) } else { rect };
     // (A control still to be built takes no clicks and no keyboard.)
@@ -1820,8 +1883,10 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let Some((command, params)) = &item.command else {
         // The whole button opens its menu.
         drop_mark(ui, drop_rect.center(), ink);
-        let main = main.on_hover_text(item.tip_text());
-        egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+        let main = menu_tooltip(app, main, item, on);
+        if on {
+            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+        }
         return;
     };
     let main = command_tooltip(app, main, &item.tip_text(), command);
@@ -1922,14 +1987,17 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             }
         }
         (None, Some(menu)) => {
-            let (resp, text) = big_frame(ui, item.icon, label, true, false, true);
-            let resp = resp.on_hover_text(item.tip_text());
+            let on = usable(app, item);
+            let (resp, text) = big_frame(ui, item.icon, label, on, false, true);
+            let resp = menu_tooltip(app, resp, item, on);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
-            egui::Popup::menu(&resp).show(|ui| {
-                ui.set_min_width(200.0);
-                menu_contents(ui, app, menu);
-            });
+            if on {
+                egui::Popup::menu(&resp).show(|ui| {
+                    ui.set_min_width(200.0);
+                    menu_contents(ui, app, menu);
+                });
+            }
         }
         (None, None) if item.pending => {
             let (resp, _) = big_frame(ui, item.icon, label, false, false, false);
@@ -1961,12 +2029,15 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     }
                 }
                 (None, Some(menu)) => {
-                    let resp = small_frame(ui, item.icon, label, true, false, true).on_hover_text(item.tip_text());
+                    let on = usable(app, item);
+                    let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
-                    egui::Popup::menu(&resp).show(|ui| {
-                        ui.set_min_width(200.0);
-                        menu_contents(ui, app, menu);
-                    });
+                    if on {
+                        egui::Popup::menu(&resp).show(|ui| {
+                            ui.set_min_width(200.0);
+                            menu_contents(ui, app, menu);
+                        });
+                    }
                 }
                 (None, None) if item.pending => {
                     let resp = small_frame(ui, item.icon, label, false, false, false);
@@ -1999,7 +2070,7 @@ fn group_entries(ui: &mut Ui, app: &mut MailApp, group: &Group) {
         } else if item.command.is_some() {
             entry(ui, app, item);
         } else if let Some(menu) = item.menu {
-            ui.menu_button(item.name(), |ui| menu_contents(ui, app, menu));
+            submenu(ui, app, item.name(), menu);
         }
     }
 }
@@ -2240,6 +2311,9 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
 
 #[cfg(test)]
 mod fit_tests;
+
+#[cfg(test)]
+mod plain_tests;
 
 #[cfg(test)]
 mod tests {

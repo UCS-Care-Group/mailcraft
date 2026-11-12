@@ -15,7 +15,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
             .reads()
             .key("Mod+Y")
-            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
+            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
         CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
@@ -168,6 +168,17 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
+/// [`target`], refused with the menu's reason when it is one of the server's own folders (#756;
+/// RSS Feeds and the like once the server has said so, #1069): an agent or a script that asks
+/// anyway is told why, and nothing changes.
+fn not_servers(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let id = target(s, v)?;
+    if s.mailbox.folder(id).is_some_and(|f| f.server_owned()) {
+        return Err(fail("the server keeps this folder: it can't be renamed, moved or deleted"));
+    }
+    Ok(id)
+}
+
 /// A folder by `Inbox/Projects/Apollo` (case-insensitive), in `account` or any account.
 pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
     let want = path.trim().trim_matches('/').to_lowercase();
@@ -194,16 +205,37 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     } else {
         return Err(bad("`id`, `kind` or `path` is required"));
     };
-    if s.view.folder != id || s.view.module != Module::Mail {
+    // One of Gmail's categories of a Gmail account's Inbox (#911).
+    let gmail = match v.get("gmail") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(code)) => {
+            let category =
+                mailcraft_model::GmailCategory::parse(code).ok_or_else(|| bad("`gmail` is primary, social, promotions, updates or forums"))?;
+            if !crate::gmail::listed_under(s, id) {
+                return Err(fail("only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"));
+            }
+            Some((id, category))
+        }
+        Some(_) => return Err(bad("`gmail` is primary, social, promotions, updates or forums")),
+    };
+    if s.view.folder != id || s.view.module != Module::Mail || s.view.gmail != gmail {
         s.view.folder = id;
         s.view.module = Module::Mail;
+        s.view.gmail = gmail;
         s.sel.messages.clear();
     }
     // A search belongs to the folder it was typed in.
     s.view.search.clear();
     // From the counts the window has anyway, not two walks over every message.
     let counts = s.folder_counts();
-    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)}))
+    let mut out = json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)});
+    if let (Some((_, category)), Some(o)) = (gmail, out.as_object_mut()) {
+        let held = counts.gmail(id, category);
+        o.insert("gmail".into(), json!(category.code()));
+        o.insert("gmailMessages".into(), json!(held.total));
+        o.insert("gmailUnread".into(), json!(held.unread));
+    }
+    Ok(out)
 }
 
 /// The folders under `parent`, each with its counts from `counts` (counted once for the whole
@@ -271,13 +303,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     s.mailbox.rename_folder(id, p::req_str(v, "name")?)?;
     Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
 }
 
 fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     let parent = match v.get("parent") {
         Some(Value::Null) => None,
         Some(_) => Some(p::req_id(v, "parent")?),
@@ -288,7 +320,7 @@ fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     let parent = s.mailbox.folder(id).and_then(|f| f.parent);
     let account = s.mailbox.folder(id).map(|f| f.account);
     let permanently = s.mailbox.delete_folder(id)?;
@@ -364,13 +396,12 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
         .into_iter()
         .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
         .collect();
-    for m in &ids {
-        // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items.
-        if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
-            s.mailbox.remove_message(*m)?;
-        } else {
-            s.mailbox.delete_message(*m)?;
-        }
+    // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items. All
+    // of it in one go (#1037): one at a time, a folder of 200,000 took an hour.
+    if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
+        s.mailbox.remove_messages(&ids)?;
+    } else {
+        s.mailbox.delete_messages(&ids)?;
     }
     for c in children {
         s.mailbox.delete_folder(c)?;

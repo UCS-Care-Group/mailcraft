@@ -397,7 +397,8 @@ impl MailApp {
             access,
             outbox: Vec::new(),
             directory,
-            calendar: Some(stretch),
+            // (The wide stretch is counted from this session's clock, as its asks are.)
+            calendar: Some(if directory { (self.session.now() - WIDE_BEHIND, self.session.now() + WIDE_AHEAD) } else { stretch }),
             changes,
             asks: self.calendar_asks(account, directory, Some(stretch)),
             settings,
@@ -512,7 +513,7 @@ impl MailApp {
                 self.calendar.failures.remove(&account);
             }
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("calendar", account, &errors, None, false);
     }
 
     /// A Graph token that a job obtained: kept for the session, and its refresh token is the

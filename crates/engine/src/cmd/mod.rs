@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -17,6 +19,8 @@ mod auto_replies_tests;
 pub mod calendar;
 pub mod calendar_extra;
 pub mod calendar_list;
+#[cfg(test)]
+mod calendar_list_perf_tests;
 #[cfg(test)]
 mod calendar_list_tests;
 pub mod calendar_opened;
@@ -38,6 +42,8 @@ mod favorites_tests;
 pub mod file;
 pub mod folder;
 #[cfg(test)]
+mod folder_empty_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
@@ -50,6 +56,9 @@ mod forward_attachment_tests;
 mod forward_several_tests;
 #[cfg(test)]
 mod full_count_tests;
+pub mod gmail_move;
+#[cfg(test)]
+mod gmail_move_tests;
 pub mod graph_down;
 pub mod graph_drafts;
 pub mod graph_mail;
@@ -72,6 +81,9 @@ pub mod junk;
 mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
+pub mod keys;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod leave_compose_tests;
 pub mod mail;
@@ -79,6 +91,7 @@ pub mod mail;
 mod moves_between_accounts_tests;
 #[cfg(test)]
 mod newer_account_tests;
+pub mod notes;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
@@ -91,6 +104,8 @@ pub mod people_merge;
 pub mod picture;
 #[cfg(test)]
 mod picture_tests;
+#[cfg(test)]
+mod protected_moves_tests;
 #[cfg(test)]
 mod quote_tests;
 #[cfg(test)]
@@ -133,6 +148,8 @@ pub mod writing_tools;
 #[cfg(test)]
 mod writing_tools_tests;
 #[cfg(test)]
+mod written_quote_tests;
+#[cfg(test)]
 mod zone_tests;
 pub mod zones;
 
@@ -151,6 +168,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
     v.extend(picture::specs());
@@ -166,9 +184,11 @@ pub fn registry() -> Registry {
     v.extend(people::specs());
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
+    v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
@@ -336,9 +356,11 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
     }
 }
 
-/// A message as agents see it in lists.
+/// A message as agents see it in lists. For a message of a Gmail account's Inbox, its
+/// `gmailCategory` too (#911): one of five words this program wrote, not message text, so it isn't
+/// framed as such.
 pub fn message_summary(s: &Session, m: &Message) -> Value {
-    json!({
+    let mut v = json!({
         "id": m.id,
         "folder": m.folder,
         "from": m.from.full(),
@@ -352,7 +374,11 @@ pub fn message_summary(s: &Session, m: &Message) -> Value {
         "categories": m.categories,
         "attachments": m.listed_attachments().map(|(_, a)| a.name.as_str()).collect::<Vec<_>>(),
         "snippet": crate::list::preview(m, 140),
-    })
+    });
+    if let (Some(category), Some(o)) = (m.gmail_category, v.as_object_mut()) {
+        o.insert("gmailCategory".into(), json!(category.code()));
+    }
+    v
 }
 
 /// A message in full.

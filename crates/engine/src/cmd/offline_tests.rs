@@ -118,3 +118,39 @@ fn a_shared_mailbox_has_no_setting_of_its_own() {
     let it = listed["accounts"].as_array().unwrap().iter().find(|a| a["id"] == shared).unwrap().clone();
     assert_eq!(it["keepOffline"], "1w", "as its owner's");
 }
+
+/// An Exchange server account keeps its mail to keep offline too (#966): only mail within it is
+/// fetched whole in the background, older mail that is here whole goes back to its headers and
+/// preview, and the window's commands take it.
+#[test]
+fn an_exchange_server_account_fetches_and_keeps_only_its_window() {
+    use mailcraft_model::sync::ServerMessage;
+    use mailcraft_model::{Body, FolderKind, Mailbox, Message, ServerFolder};
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let ews = json!({"url": "https://exchange.example.org/EWS/Exchange.asmx"});
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "exchange", "ews": ews})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.account(account).unwrap().keep_offline, KeepOffline::Months12);
+    s.run("account.edit", &json!({"id": account, "keepOffline": "1m"})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "in".into(), ..Default::default() });
+    let add = |s: &mut Session, d: i64, whole: bool| {
+        let server = ServerMessage { id: format!("E{d}"), folder: "in".into(), ..Default::default() };
+        let body = Body { text: format!("Received {d} days ago. ").repeat(100), html: None };
+        let m = Message { account, folder: inbox, received: NOW - d * DAY, server: Some(server), body, unfetched: !whole, ..Default::default() };
+        s.mailbox.add_message(m).unwrap()
+    };
+    // Headers and a preview only: the background fetches the one within the month, not the rest.
+    for d in [1, 100, 400] {
+        add(&mut s, d, false);
+    }
+    let asked = crate::cmd::ews_mail::ews_fetch_request(&s, account, None, 100).unwrap();
+    assert_eq!(asked.ids, vec!["E1".to_owned()]);
+    // Here whole from before: what is outside the month goes back to its headers and preview.
+    let old = add(&mut s, 200, true);
+    let new = add(&mut s, 2, true);
+    let size = s.run("account.offlineSize", &json!({"account": account, "keepOffline": "1m"})).unwrap();
+    assert_eq!(size["messages"], 1, "{size}");
+    assert_eq!(s.run("account.thinOffline", &json!({"account": account})).unwrap()["thinned"], 1);
+    assert!(s.mailbox.message(old).unwrap().unfetched);
+    assert!(!s.mailbox.message(new).unwrap().unfetched);
+}

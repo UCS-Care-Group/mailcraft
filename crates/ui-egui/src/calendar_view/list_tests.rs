@@ -8,7 +8,7 @@ use mailcraft_engine::cmd::calendar_list::{Group, sections};
 use mailcraft_engine::{CalView, ListArrange, ListColumn, Session};
 use serde_json::json;
 
-use super::{Col, LINE_H, fit, lines, selected_line};
+use super::{Col, LINE_H, fit, lines, listed as listing, selected_line};
 use crate::calendar_view::tests::{CTRL, NOW, Rig};
 
 /// Ctrl with Alt (Command with Ctrl on a Mac): what the calendar's views are chosen with.
@@ -193,4 +193,96 @@ fn of_an_event_under_two_categories_the_row_clicked_is_the_one_selected() {
     rig.key(Key::ArrowUp);
     rig.key(Key::ArrowUp);
     assert_eq!(rig.selected().0, Some(rig.event("Errand").id));
+}
+
+#[test]
+fn two_presses_of_down_in_one_frame_move_two_rows() {
+    let mut mailbox = mailcraft_model::Mailbox::with_local_account("Ada", "ada@example.org");
+    mailbox.events.clear();
+    let day = mailcraft_time::Date::new(2026, 10, 14).unwrap();
+    for n in 0..5 {
+        let start = mailcraft_time::DateTime::new(day.add_days(n), 9, 0, 0).unwrap();
+        mailbox.add_event(mailcraft_model::Event { title: format!("Item {n}"), start, end: start.add_minutes(30), ..Default::default() }).unwrap();
+    }
+    let mut rig = Rig::new(mailbox);
+    rig.run("view.list", json!({}));
+    rig.run("calendar.listArrange", json!({"by": "none"}));
+    rig.click(row(&rig, "Item 0").center(), 1);
+    assert_eq!(rig.selected().0, Some(rig.event("Item 0").id));
+    rig.keys_at_once(&[Key::ArrowDown, Key::ArrowDown]);
+    assert_eq!(rig.selected().0, Some(rig.event("Item 2").id));
+    rig.keys_at_once(&[Key::ArrowDown, Key::ArrowDown, Key::ArrowUp]);
+    assert_eq!(rig.selected().0, Some(rig.event("Item 3").id));
+}
+
+#[test]
+fn the_rows_are_worked_out_again_only_when_the_mailbox_or_a_list_setting_changes() {
+    let ctx = egui::Context::default();
+    let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
+    s.run("view.list", &json!({})).unwrap();
+    let first = listing(&ctx, &s);
+    assert!(first.items > 0 && first.lines.len() >= first.items);
+    // Nothing changed: the same answer, not another one like it.
+    assert!(std::sync::Arc::ptr_eq(&first, &listing(&ctx, &s)));
+    // A change to the mailbox: a new one, with the row in it.
+    let before = first.items;
+    s.run("calendar.new", &json!({"title": "Added", "start": "2026-10-20T09:00:00", "end": "2026-10-20T10:00:00"})).unwrap();
+    let second = listing(&ctx, &s);
+    assert!(!std::sync::Arc::ptr_eq(&first, &second));
+    assert_eq!(second.items, before + 1);
+    assert!(std::sync::Arc::ptr_eq(&second, &listing(&ctx, &s)));
+    // Each of the three settings.
+    let mut last = second;
+    for (command, params) in [
+        ("calendar.listSort", json!({"by": "subject"})),
+        ("calendar.listSort", json!({"by": "subject"})),
+        ("calendar.listArrange", json!({"by": "categories"})),
+        ("calendar.listArrange", json!({"by": "none"})),
+    ] {
+        s.run(command, &params).unwrap();
+        let now = listing(&ctx, &s);
+        assert!(!std::sync::Arc::ptr_eq(&last, &now), "{command} {params}");
+        last = now;
+    }
+    // A calendar shown or hidden changes what is listed.
+    let calendar = s.mailbox.calendars.iter().find(|c| c.visible).map(|c| c.id).unwrap();
+    s.run("calendar.showCalendar", &json!({"id": calendar, "value": false})).unwrap();
+    let hidden = listing(&ctx, &s);
+    assert!(!std::sync::Arc::ptr_eq(&last, &hidden));
+    assert!(hidden.items < last.items);
+}
+
+#[test]
+fn a_big_calendar_is_listed_once_and_then_every_frame_is_cheap() {
+    let ctx = egui::Context::default();
+    let mut mailbox = mailcraft_model::Mailbox::with_local_account("Ada", "ada@example.org");
+    mailbox.events.clear();
+    let day = mailcraft_time::Date::new(2026, 1, 1).unwrap();
+    for n in 0..3_000_i64 {
+        let start = mailcraft_time::DateTime::new(day.add_days(n % 500), u8::try_from(n % 24).unwrap(), 0, 0).unwrap();
+        let categories = (0..16).map(|k| format!("Category {}", (n + k * 3) % 16)).collect();
+        mailbox
+            .add_event(mailcraft_model::Event {
+                title: format!("Subject {}", n * 7919 % 3001),
+                start,
+                end: start.add_minutes(30),
+                categories,
+                ..Default::default()
+            })
+            .unwrap();
+    }
+    let mut s = Session::at(mailbox, NOW, 0);
+    s.run("view.list", &json!({})).unwrap();
+    s.run("calendar.listArrange", &json!({"by": "categories"})).unwrap();
+    s.run("calendar.listSort", &json!({"by": "subject"})).unwrap();
+    let started = std::time::Instant::now();
+    let first = listing(&ctx, &s);
+    assert!(started.elapsed() < std::time::Duration::from_secs(3), "the first frame took {:?}", started.elapsed());
+    assert_eq!((first.items, first.sections.len()), (3_000, 16));
+    // The frames after it (the window's, and the status bar's) only look it up.
+    let started = std::time::Instant::now();
+    for _ in 0..1_000 {
+        assert!(std::sync::Arc::ptr_eq(&first, &listing(&ctx, &s)));
+    }
+    assert!(started.elapsed() < std::time::Duration::from_millis(500), "a thousand frames took {:?}", started.elapsed());
 }

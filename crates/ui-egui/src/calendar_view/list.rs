@@ -8,9 +8,11 @@
 //! it (Open, Delete, Forward) is done to the series and nothing asks about one occurrence. A row
 //! of a calendar shared as free/busy doesn't open and has no menu.
 
+use std::sync::Arc;
+
 use egui::{Rect, Sense, Stroke, Ui, pos2, vec2};
-use mailcraft_engine::ListColumn;
 use mailcraft_engine::cmd::calendar_list::{self, Group, Row, Section};
+use mailcraft_engine::{ListArrange, ListColumn};
 use mailcraft_model::{Freq, Id};
 use serde_json::json;
 
@@ -28,6 +30,8 @@ const SUBJECT_W: f32 = 180.0;
 const SCROLL_ID: &str = "calendar_list_scroll";
 /// The last day chosen that the list scrolled to ([`mailcraft_engine::ViewState::list_reveal`]).
 const REVEAL_ID: &str = "calendar_list_reveal";
+/// The rows worked out, kept between frames ([`listed`]).
+const LISTED_ID: &str = "calendar_list_listed";
 /// The row last chosen, by its event and its group: an event under two categories is two rows,
 /// and the one clicked is the one that is selected.
 const CHOSEN_ID: &str = "calendar_list_chosen";
@@ -133,6 +137,36 @@ pub(crate) fn lines(sections: &[Section]) -> Vec<Line> {
     out
 }
 
+/// What the List view is drawn from: the calendars' rows sorted and grouped, the lines they come
+/// to, and how many items there are. Worked out once for a state of the mailbox and of the three
+/// list settings, not at every frame ([`listed`]).
+pub(crate) struct Listed {
+    pub sections: Vec<Section>,
+    pub lines: Vec<Line>,
+    pub items: usize,
+}
+
+/// What a [`Listed`] was worked out under: the mailbox's revision and the settings.
+type ListedKey = (u64, ListColumn, bool, ListArrange);
+
+/// The List view, from the window's memory while the mailbox ([`mailcraft_engine::Session::rev`])
+/// and the sort, its direction and the arrangement are as they were, else worked out afresh.
+/// With a few thousand events that is the difference between a frame and a second.
+pub(crate) fn listed(ctx: &egui::Context, session: &mailcraft_engine::Session) -> Arc<Listed> {
+    let (sort, descending, arrange) = calendar_list::list_settings(session);
+    let key: ListedKey = (session.rev(), sort, descending, arrange);
+    let id = egui::Id::unique(LISTED_ID);
+    if let Some((had, listed)) = ctx.data(|d| d.get_temp::<(ListedKey, Arc<Listed>)>(id))
+        && had == key
+    {
+        return listed;
+    }
+    let listing = calendar_list::listing(session);
+    let listed = Arc::new(Listed { lines: lines(&listing.sections), sections: listing.sections, items: listing.items });
+    ctx.data_mut(|d| d.insert_temp(id, (key, listed.clone())));
+    listed
+}
+
 /// The line the `index`th row (counted through the groups) is on.
 fn line_of_row(lines: &[Line], index: usize) -> Option<usize> {
     lines.iter().enumerate().filter(|(_, line)| matches!(line, Line::Row(..))).nth(index).map(|(at, _)| at)
@@ -191,16 +225,16 @@ fn open(app: &mut MailApp, id: Id) {
 
 pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let sections = calendar_list::sections(&app.session);
-    let lines = lines(&sections);
+    let listed = listed(ui.ctx(), &app.session);
+    let (sections, lines) = (&listed.sections, &listed.lines);
     // The rows' width, beside the scroll bar where it has a lane of its own.
     let width = (ui.available_width() - ui.spacing().scroll.allocated_width()).max(0.0);
     let cells = fit(width);
     headings(app, ui, &t, &cells);
-    let selected = selected_line(&sections, &lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
-    keys(app, ui, &sections, &lines, selected);
+    let selected = selected_line(sections, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
+    keys(app, ui, sections, lines, selected);
     // (Keys may have selected another.)
-    let selected = selected_line(&sections, &lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
+    let selected = selected_line(sections, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
 
     // A day chosen (Today, Go to Date, the date navigator, this view itself) scrolls to the first
     // row on or after it.
@@ -210,8 +244,8 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let mut area = egui::ScrollArea::vertical().id_salt("calendar_list").auto_shrink([false, false]);
     if ui.ctx().data(|d| d.get_temp::<u32>(reveal_id)) != Some(wanted) {
         ui.ctx().data_mut(|d| d.insert_temp(reveal_id, wanted));
-        let row = calendar_list::first_from(&sections, app.session.view.date);
-        let line = row.and_then(|row| line_of_row(&lines, row)).unwrap_or(0);
+        let row = calendar_list::first_from(sections, app.session.view.date);
+        let line = row.and_then(|row| line_of_row(lines, row)).unwrap_or(0);
         // With its group's heading over it when it is the group's first.
         let line = if line > 0 && matches!(lines.get(line - 1), Some(Line::Heading(_))) { line - 1 } else { line };
         area = area.vertical_scroll_offset(line as f32 * LINE_H);
@@ -221,7 +255,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     if lines.is_empty() {
         let at = pos2(ui.max_rect().center().x, ui.cursor().min.y + 40.0);
-        ui.painter().text(at, egui::Align2::CENTER_CENTER, tl!("There are no items to show in this view."), regular(12.0), t.text_dim);
+        ui.painter().text(at, egui::Align2::CENTER_CENTER, tl!("The calendars shown hold no items."), regular(12.0), t.text_dim);
     }
     let output = area.show_rows(ui, LINE_H, lines.len(), |ui, range| {
         for at in range {
@@ -235,7 +269,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
                     }
                 }
                 Some(line @ Line::Row(..)) => {
-                    if let Some((row, group)) = row_in(&sections, line) {
+                    if let Some((row, group)) = row_in(sections, line) {
                         row_ui(app, ui, &t, &cells, (rect, &resp, selected == Some(at)), row, group);
                     }
                 }
@@ -382,7 +416,7 @@ fn keys(app: &mut MailApp, ui: &Ui, sections: &[Section], lines: &[Line], select
     }
     let rows: Vec<(usize, &Row, &Group)> =
         lines.iter().enumerate().filter_map(|(at, line)| row_in(sections, line).map(|(row, group)| (at, row, group))).collect();
-    let current = selected.and_then(|line| rows.iter().position(|(at, ..)| *at == line));
+    let mut current = selected.and_then(|line| rows.iter().position(|(at, ..)| *at == line));
     if let Some((_, row, _)) = current.and_then(|n| rows.get(n))
         && crate::keys::take_enter_alone(&ctx, ui.layer_id())
         && !row.free_busy
@@ -416,6 +450,8 @@ fn keys(app: &mut MailApp, ui: &Ui, sections: &[Section], lines: &[Line], select
                 let Some(&(line, row, group)) = rows.get(next) else { continue };
                 scroll_into_view(&ctx, line);
                 choose(app, &ctx, row, group);
+                // (Another press in the same frame goes on from this row.)
+                current = Some(next);
                 continue;
             }
             _ => continue,

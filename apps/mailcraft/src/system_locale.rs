@@ -12,6 +12,10 @@
 //!
 //! Anything that does not look like a language tag is `None`, so a hostile environment can only
 //! mean English.
+//!
+//! The regional format dates are written in ([`system_time_locale`], #978) is the same tag but
+//! on Unix, where it is the first of `LC_ALL`, `LC_TIME` and `LANG`. A hostile one can only mean
+//! the US's way.
 
 /// The system's language tag, if it says one.
 pub(crate) fn system_locale() -> Option<String> {
@@ -29,10 +33,34 @@ pub(crate) fn system_locale() -> Option<String> {
     }
 }
 
+/// The tag of the system's regional format for dates and times, if it says one.
+pub(crate) fn system_time_locale() -> Option<String> {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        system_locale()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        time_from_environment(|name| std::env::var_os(name).and_then(|v| v.into_string().ok()))
+    }
+}
+
 /// The tag from the three variables, read through `get` (so a test can give it any environment).
 #[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
 pub(crate) fn from_environment(get: impl Fn(&str) -> Option<String>) -> Option<String> {
-    let value = ["LC_ALL", "LC_MESSAGES", "LANG"].into_iter().find_map(|name| get(name).filter(|v| !v.trim().is_empty()))?;
+    first_set(["LC_ALL", "LC_MESSAGES", "LANG"], get)
+}
+
+/// The regional format's tag from `LC_ALL`, `LC_TIME` and `LANG` (the order POSIX gives for the
+/// time category).
+#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
+pub(crate) fn time_from_environment(get: impl Fn(&str) -> Option<String>) -> Option<String> {
+    first_set(["LC_ALL", "LC_TIME", "LANG"], get)
+}
+
+#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
+fn first_set(names: [&str; 3], get: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let value = names.into_iter().find_map(|name| get(name).filter(|v| !v.trim().is_empty()))?;
     tag(&value)
 }
 

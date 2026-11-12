@@ -12,7 +12,7 @@ fn mailbox(name: &str, raw: &str, delimiter: Option<char>, flags: &[&str]) -> Ma
 }
 
 fn fetched(uid: u32, flags: &[&str]) -> Fetched {
-    Fetched { uid, flags: flags.iter().map(|f| f.to_string()).collect(), internal_date: None, body: None }
+    Fetched { uid, flags: flags.iter().map(|f| f.to_string()).collect(), internal_date: None, body: None, gmail_id: None }
 }
 
 /// A FETCH response carrying `body` as a literal, between `before` and `after`.
@@ -195,7 +195,7 @@ fn a_server_without_the_mechanism_never_sees_the_token() {
         ("A0001 NO [CANNOT] unsupported authentication mechanism\r\n", ProtoError::Auth("[CANNOT] unsupported authentication mechanism".into())),
         ("A0001 BAD what\r\n", ProtoError::Rejected("what".into())),
         // "Signed in" without having been shown anything can't be true.
-        ("A0001 OK welcome\r\n", ProtoError::Protocol("the server ended the command early".into())),
+        ("A0001 OK welcome\r\n", ProtoError::Protocol(said!("the server ended the command early"))),
     ] {
         let mut s = Script::new(format!("* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN] ready\r\n{server}"));
         let mut imap = Imap::connect(&mut s).unwrap();
@@ -350,7 +350,8 @@ fn a_message_arrives_whole_whatever_is_in_it() {
             uid: 12,
             flags: vec!["\\Seen".into(), "$Forwarded".into()],
             internal_date: Some("17-Jul-1996 02:44:25 -0700".into()),
-            body: Some(body.to_vec())
+            body: Some(body.to_vec()),
+            gmail_id: None
         }
     );
     assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[])\r\n");
@@ -426,7 +427,13 @@ fn a_header_arrives_alone() {
     let got = Imap::resume(&mut s).uid_fetch_header(12).unwrap().unwrap();
     assert_eq!(
         got,
-        Fetched { uid: 12, flags: vec!["\\Seen".into()], internal_date: Some("17-Jul-1996 02:44:25 -0700".into()), body: Some(header.to_vec()) }
+        Fetched {
+            uid: 12,
+            flags: vec!["\\Seen".into()],
+            internal_date: Some("17-Jul-1996 02:44:25 -0700".into()),
+            body: Some(header.to_vec()),
+            gmail_id: None
+        }
     );
     assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])\r\n");
     assert!(s.finished());
@@ -468,7 +475,7 @@ fn oversized_literals_are_refused_unread() {
     for size in [(MAX_LITERAL + 1).to_string(), "99999999999999999999999999".to_string(), u64::MAX.to_string()] {
         let mut s = Script::new(format!("* 1 FETCH (UID 3 BODY[] {{{size}}}\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"));
         let err = Imap::resume(&mut s).uid_fetch_message(3).unwrap_err();
-        assert!(matches!(&err, ProtoError::Protocol(text) if text.contains("64 MB")), "{err:?}");
+        assert!(matches!(&err, ProtoError::Protocol(text) if text.to_string().contains("64 MB")), "{err:?}");
         // The x's were not read as if they were the message.
         assert!(!s.finished());
     }
@@ -481,17 +488,17 @@ fn oversized_literals_are_refused_unread() {
 fn responses_without_end_are_refused() {
     // More literals than any response has.
     let mut s = Script::whole(format!("* 1 FETCH ({}", "X {0}\r\n ".repeat(MAX_LITERALS + 2)));
-    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol("the server's response has too many parts".into())));
+    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol(said!("the server's response has too many parts"))));
     // More text than any response has.
     let line = format!("{} {{0}}\r\n", "x".repeat(MAX_LINE - 100));
     let mut s = Script::whole(format!("* 1 FETCH ({}", line.repeat(6)));
-    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol("the server's response is too long".into())));
+    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol(said!("the server's response is too long"))));
     // A line that never ends.
     let mut s = Script::whole(format!("* 1 FETCH ({}", "x".repeat(MAX_LINE * 2)));
     assert!(matches!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol(_))));
     // Lists inside lists inside lists.
     let mut s = Script::new(format!("* 1 FETCH {}\r\nA0001 OK done\r\n", "(".repeat(200)));
-    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol("the server's response is nested too deeply".into())));
+    assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Protocol(said!("the server's response is nested too deeply"))));
 }
 
 #[test]
@@ -820,7 +827,10 @@ fn logging_out() {
 #[test]
 fn a_server_that_says_bye_has_ended_the_session() {
     let mut s = Script::new("* 3 EXISTS\r\n* BYE [UNAVAILABLE] shutting down\r\n");
-    assert_eq!(Imap::resume(&mut s).select("INBOX", true), Err(ProtoError::Io("the server ended the session: [UNAVAILABLE] shutting down".into())));
+    assert_eq!(
+        Imap::resume(&mut s).select("INBOX", true),
+        Err(ProtoError::Io(said!("the server ended the session: {reason}", reason = Arg::said("[UNAVAILABLE] shutting down".into()))))
+    );
 }
 
 #[test]
@@ -830,7 +840,7 @@ fn tags_count_up_and_must_match() {
     imap.capabilities().unwrap();
     imap.list().unwrap();
     imap.select("INBOX", true).unwrap();
-    assert_eq!(imap.uid_fetch_flags("1:*"), Err(ProtoError::Protocol("the server answered a command that wasn't sent".into())));
+    assert_eq!(imap.uid_fetch_flags("1:*"), Err(ProtoError::Protocol(said!("the server answered a command that wasn't sent"))));
     assert_eq!(s.sent(), "A0001 CAPABILITY\r\nA0002 LIST \"\" \"*\"\r\nA0003 EXAMINE \"INBOX\"\r\nA0004 UID FETCH 1:* (UID FLAGS)\r\n");
 }
 
@@ -842,7 +852,7 @@ fn junk_in_a_session_is_a_protocol_error() {
     }
     // Refusals keep the server's words; one without words still says something.
     let mut s = Script::new("A0001 NO\r\n");
-    assert_eq!(Imap::resume(&mut s).capabilities(), Err(ProtoError::Rejected("the command was refused".into())));
+    assert_eq!(Imap::resume(&mut s).capabilities(), Err(ProtoError::Rejected(said!("the command was refused"))));
 }
 
 #[test]
@@ -850,7 +860,7 @@ fn a_dead_connection_is_an_io_error() {
     // In the middle of a line, and in the middle of a literal.
     for server in ["* 1 FETCH (UID 3 BO", "* 1 FETCH (UID 3 BODY[] {50}\r\nonly this much", "* 1 FETCH (UID 3 BODY[] {5}\r\nabcde"] {
         let mut s = Script::new(server);
-        assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Io("the server closed the connection".into())), "{server:?}");
+        assert_eq!(Imap::resume(&mut s).uid_fetch_message(3), Err(ProtoError::Io(said!("the server closed the connection"))), "{server:?}");
     }
     assert!(matches!(Imap::connect(Broken(ErrorKind::TimedOut)), Err(ProtoError::Io(_))));
     assert!(matches!(Imap::resume(Broken(ErrorKind::ConnectionReset)).list(), Err(ProtoError::Io(_))));
@@ -887,6 +897,8 @@ fn drive(server: &[u8]) {
         let _ = imap.subscribe("Projects/New");
         let _ = imap.append("Sent", &["\\Seen"], b"Subject: x\r\n\r\n");
         let _ = imap.uid_search_header("Message-ID", "<a.1@example.org>");
+        let _ = imap.uid_fetch_flags_gmail("1:*");
+        let _ = imap.uid_search_gmail("1:500", "category:social");
         let _ = imap.logout();
     }
     // Changes, by a session that was told it may make them.

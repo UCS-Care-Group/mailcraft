@@ -455,7 +455,12 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let folder = app.session.view.folder;
                         st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
                         // (Counted once per change, not at every frame: `Session::folder_counts`.)
-                        let unread = app.session.folder_counts().unread(folder);
+                        // Of the Gmail category in view, when one is (#911).
+                        let counts = app.session.folder_counts();
+                        let unread = match mailcraft_engine::gmail::in_view(&app.session) {
+                            Some(category) => counts.gmail(folder, category).unread,
+                            None => counts.unread(folder),
+                        };
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
                         }
@@ -466,7 +471,8 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     }
                     // The List view has every item of the calendars shown, a series once (#845).
                     Module::Calendar if app.session.view.calendar == mailcraft_engine::CalView::List => {
-                        let count = mailcraft_engine::cmd::calendar_list::rows(&app.session).len();
+                        // (From what the list keeps, not worked out again here.)
+                        let count = crate::calendar_view::list::listed(ui.ctx(), &app.session).items;
                         st(ui, &tln!(count, "{n} item", "{n} items"), t.text_dim);
                     }
                     Module::Calendar => {

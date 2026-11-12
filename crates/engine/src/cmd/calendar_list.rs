@@ -8,7 +8,7 @@
 //! they are sorted and grouped by is what is shown of them, so their order says nothing more.
 
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::{Event, Freq, Id, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime};
@@ -207,31 +207,34 @@ pub fn series_of(s: &Session, e: &Event) -> Option<Id> {
     s.mailbox.events.values().find(|series| series.recurrence.is_some() && own_keys(series).any(|k| k == key)).map(|series| series.id)
 }
 
-/// Text in order, without regard to case; empty text last whichever way round.
+/// Text already put in lower case, in order; empty text last whichever way round.
 fn by_text(a: &str, b: &str, descending: bool) -> Ordering {
     match (a.is_empty(), b.is_empty()) {
         (true, true) => Ordering::Equal,
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,
         (false, false) => {
-            let order = a.to_lowercase().cmp(&b.to_lowercase());
+            let order = a.cmp(b);
             if descending { order.reverse() } else { order }
         }
     }
 }
 
-/// Rows in the order `column` and `descending` say; equal ones by their start, then by event.
-pub fn sort(rows: &mut [Row], column: ListColumn, descending: bool) {
+/// Rows in the order `column` and `descending` say, without regard to case; equal ones by their
+/// start, then by event. The text of each row is put in lower case once, not at every comparison.
+pub fn sort(rows: &mut Vec<Row>, column: ListColumn, descending: bool) {
     let flip = |o: Ordering| if descending { o.reverse() } else { o };
-    rows.sort_by(|a, b| {
-        let first = match (a.text(column), b.text(column)) {
-            (Some(x), Some(y)) => by_text(x, y, descending),
-            _ if column == ListColumn::End => flip(a.end.cmp(&b.end)),
-            _ if column == ListColumn::Start => flip(a.start.cmp(&b.start)),
+    let mut keyed: Vec<(String, Row)> = rows.drain(..).map(|row| (row.text(column).map(str::to_lowercase).unwrap_or_default(), row)).collect();
+    keyed.sort_by(|(x, a), (y, b)| {
+        let first = match column {
+            ListColumn::End => flip(a.end.cmp(&b.end)),
+            ListColumn::Start => flip(a.start.cmp(&b.start)),
+            _ if a.text(column).is_some() => by_text(x, y, descending),
             _ => Ordering::Equal,
         };
         first.then(a.start.cmp(&b.start)).then(a.event.cmp(&b.event))
     });
+    rows.extend(keyed.into_iter().map(|(_, row)| row));
 }
 
 /// The rows under their groups, as `arrange` puts them: by how each repeats, those that don't
@@ -249,24 +252,70 @@ pub fn group(rows: Vec<Row>, arrange: ListArrange) -> Vec<Section> {
                 .collect()
         }
         ListArrange::Categories => {
-            let mut names: Vec<&str> = rows.iter().flat_map(|r| r.categories.iter().map(String::as_str)).collect();
-            names.sort_by_key(|name| name.to_lowercase());
-            names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
-            let none = Section { group: Group::Category(None), rows: rows.iter().filter(|r| r.categories.is_empty()).cloned().collect() };
-            let named = names.iter().map(|name| Section {
-                group: Group::Category(Some(name.to_string())),
-                rows: rows.iter().filter(|r| r.categories.iter().any(|c| c.eq_ignore_ascii_case(name))).cloned().collect(),
-            });
-            std::iter::once(none).chain(named).filter(|section| !section.rows.is_empty()).collect()
+            // One pass: each row goes into the group of each of its categories as it is met (a
+            // category is one whatever the case of its letters; its name is the first one met).
+            let mut none = Vec::new();
+            let mut named: Vec<(String, Vec<Row>)> = Vec::new();
+            let mut index: HashMap<String, usize> = HashMap::new();
+            for row in rows {
+                let mut at: Vec<usize> = Vec::with_capacity(row.categories.len());
+                for name in &row.categories {
+                    let n = *index.entry(name.to_ascii_lowercase()).or_insert_with(|| {
+                        named.push((name.clone(), Vec::new()));
+                        named.len() - 1
+                    });
+                    // (`Row::of` listed a name once; another's rows are never put in twice.)
+                    if !at.contains(&n) {
+                        at.push(n);
+                    }
+                }
+                let Some((&last, rest)) = at.split_last() else {
+                    none.push(row);
+                    continue;
+                };
+                for &n in rest {
+                    if let Some((_, group)) = named.get_mut(n) {
+                        group.push(row.clone());
+                    }
+                }
+                if let Some((_, group)) = named.get_mut(last) {
+                    group.push(row);
+                }
+            }
+            named.sort_by_cached_key(|(name, _)| name.to_lowercase());
+            std::iter::once(Section { group: Group::Category(None), rows: none })
+                .chain(named.into_iter().map(|(name, rows)| Section { group: Group::Category(Some(name)), rows }))
+                .filter(|section| !section.rows.is_empty())
+                .collect()
         }
     }
 }
 
+/// The List view as the session has it: its rows sorted and grouped, and how many items that is
+/// (an event under two categories is two rows and one item).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Listing {
+    pub sections: Vec<Section>,
+    pub items: usize,
+}
+
+/// The List view worked out from the session: the whole of the calendars, so a host that draws it
+/// every frame keeps the answer until the mailbox ([`Session::rev`]) or [`list_settings`] change.
+pub fn listing(s: &Session) -> Listing {
+    let mut all = rows(s);
+    let items = all.len();
+    sort(&mut all, s.view.list_sort, s.view.list_descending);
+    Listing { sections: group(all, s.view.list_arrange), items }
+}
+
+/// What [`listing`] depends on besides the mailbox: the column, the direction and the groups.
+pub fn list_settings(s: &Session) -> (ListColumn, bool, ListArrange) {
+    (s.view.list_sort, s.view.list_descending, s.view.list_arrange)
+}
+
 /// The List view as the session has it: its rows sorted and grouped.
 pub fn sections(s: &Session) -> Vec<Section> {
-    let mut all = rows(s);
-    sort(&mut all, s.view.list_sort, s.view.list_descending);
-    group(all, s.view.list_arrange)
+    listing(s).sections
 }
 
 /// The place (counted through the groups in order) of the row the list scrolls to when a day is
