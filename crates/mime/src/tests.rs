@@ -816,3 +816,42 @@ fn exchanges_direction_is_kept_past_the_header_cap() {
     let long = format!("{DIRECTIONALITY}: Incoming{}x\r\n\r\n", " ".repeat(10_000));
     assert_ne!(words(&parse(long.as_bytes()))[0].trim(), "Incoming");
 }
+
+/// A rule with words in the message header looks in the lines View Message Source shows: those
+/// kept as they came, and Importance, References and Bcc written again from the message. The
+/// lines MailCraft reads into the message itself and doesn't keep (the date, the priority, the
+/// content type and the like) can't be told: such a rule doesn't act (#566).
+#[test]
+fn a_header_rule_finds_the_lines_the_source_shows_and_cant_tell_the_others() {
+    let raw = b"From: Ann <ann@example.org>\r\nTo: bo@example.org\r\nBcc: cy@example.org\r\nSubject: hello\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nX-Priority: 1 (Highest)\r\nImportance: high\r\nReferences: <first@example.org>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=koi8-r\r\nContent-Language: ru\r\nX-Mailer: Example\r\n\r\nbody\r\n";
+    let m = parse(raw);
+    let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
+    let missed: Vec<&str> = ["x-mailer: example", "importance: high", "references: <first@example.org>", "bcc: cy@example.org"]
+        .into_iter()
+        .filter(|w| !header(w).matches(&m) || header(w).unread_in(&m))
+        .collect();
+    assert!(missed.is_empty(), "a header rule doesn't find these lines: {missed:?}");
+    let told: Vec<&str> = ["x-priority: 1", "charset=koi8-r", "content-language: ru", "mime-version", "date: tue", "keywords"]
+        .into_iter()
+        .filter(|w| !header(w).unread_in(&m))
+        .collect();
+    assert!(told.is_empty(), "a header rule takes these lines for not there: {told:?}");
+    // A word in a line it keeps is told, there or not.
+    assert!(!header("x-spam-flag: yes").unread_in(&m) && !header("x-spam-flag: yes").matches(&m));
+}
+
+/// "Except if the header contains X-Priority: 1" leaves such a message alone: a rule that deletes
+/// permanently doesn't act on it.
+#[test]
+fn a_header_exception_on_a_line_not_kept_leaves_the_message_alone() {
+    let raw = b"From: ann@example.org\r\nTo: bo@example.org\r\nSubject: hello\r\nX-Priority: 1 (Highest)\r\n\r\nbody\r\n";
+    let m = parse(raw);
+    let rule = mailcraft_model::Rule {
+        enabled: true,
+        conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["hello".into()])],
+        exceptions: vec![mailcraft_model::Condition::HeaderContains(vec!["x-priority: 1".into()])],
+        actions: vec![mailcraft_model::Action::DeleteForGood],
+        ..Default::default()
+    };
+    assert!(!rule.matches(&m), "the rule acts on a message its exception was to leave alone");
+}

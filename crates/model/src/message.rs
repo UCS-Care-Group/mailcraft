@@ -874,17 +874,27 @@ impl Message {
     }
 
     /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
-    /// all the words looked for.
+    /// all the words looked for. Those View Message Source shows, but for the date (shown by this
+    /// computer's clock, not as it came); what else MailCraft reads into the message itself isn't
+    /// among them ([`crate::Condition::unread_in`]).
     pub fn header_lines_lowered(&self) -> Vec<String> {
         let people = |list: &[Address]| list.iter().map(Address::full).collect::<Vec<_>>().join(", ");
+        let importance = match self.importance {
+            Importance::High => "high",
+            Importance::Low => "low",
+            Importance::Normal => "",
+        };
         let modelled = [
             ("From", self.from.full()),
             ("To", people(&self.to)),
             ("Cc", people(&self.cc)),
+            ("Bcc", people(&self.bcc)),
             ("Reply-To", people(&self.reply_to)),
             ("Subject", self.subject.clone()),
             ("Message-ID", self.message_id.clone()),
             ("In-Reply-To", self.in_reply_to.clone()),
+            ("References", self.references.iter().map(|r| format!("<{r}>")).collect::<Vec<_>>().join(" ")),
+            ("Importance", importance.to_string()),
         ];
         let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
         let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
