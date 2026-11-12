@@ -3,6 +3,7 @@
 //! Signatures through commands (R4.5.1): rich text, pictures, the two defaults, and mailboxes
 //! from before there were any of these.
 
+use mailcraft_model::rich::Align;
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -155,6 +156,53 @@ fn a_signature_with_a_logo_goes_out_with_the_picture_inside_the_message() {
     let back = mailcraft_mime::parse(&bytes);
     let read = back.attachments.iter().find(|a| a.content_id == pic.content_id).expect("the picture reads back");
     assert_eq!(read.data, pic.data);
+}
+
+#[test]
+fn alignment_in_the_open_signature_is_saved_and_goes_out_inside_the_table_and_above_the_picture() {
+    let mut s = session();
+    logo(&mut s);
+    run(&mut s, "signature.open", json!({"name": "Logo"}));
+    // The line the logo stands in centred, the next one right.
+    run(&mut s, "format.align", json!({"value": "center", "from": 0}));
+    run(&mut s, "format.align", json!({"value": "right", "from": 13}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    let aligns: Vec<Align> = s.mailbox.signature("Logo").unwrap().body().paragraphs().iter().map(|p| p.align).collect();
+    assert_eq!(aligns, [Align::Center, Align::Right]);
+    let sent = |s: &mut Session| {
+        run(s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+        run(s, "compose.formatHtml", json!({}));
+        let id = run(s, "compose.send", json!({}))["id"].as_u64().unwrap();
+        s.mailbox.message(id).unwrap().body.html.clone().unwrap()
+    };
+    // Beside the picture, its lines are aligned inside the text's cell.
+    let html = sent(&mut s);
+    assert!(
+        html.contains("<td style=\"vertical-align:top\">\r\n<div style=\"text-align:center\">Avery Quinn</div>\r\n<div style=\"text-align:right\">Lumen Studio</div>"),
+        "{html}"
+    );
+    // Above the text, the picture is centred as the line it stood in was.
+    run(&mut s, "signature.layout", json!({"name": "Logo", "value": "pictureAbove"}));
+    let html = sent(&mut s);
+    assert!(html.contains("<div style=\"text-align:center\"><img src=\"cid:sig-"), "{html}");
+}
+
+/// File › Signatures' bar has the Message tab's Text Highlight Color too (#580, part 3): a
+/// highlight in the open signature is saved and goes out with it.
+#[test]
+fn a_highlight_in_the_open_signature_is_saved_and_goes_out() {
+    let mut s = session();
+    logo(&mut s);
+    run(&mut s, "signature.open", json!({"name": "Logo"}));
+    run(&mut s, "format.highlight", json!({"value": "#ffff00", "from": 1, "to": 6}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(id).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("<span style=\"background-color:#ffff00\">Avery</span>"), "{html}");
 }
 
 #[test]
@@ -526,4 +574,425 @@ fn new_words_for_an_html_signature_make_it_rich_text_and_the_message_says_them_a
     run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
     run(&mut s, "signature.save", json!({}));
     assert_eq!(s.mailbox.signature("Generated").unwrap().html(), Some(GENERATED));
+}
+
+/// "Standard" open, with a picture described "Lumen Studio logo" at its start; its id.
+fn open_with_logo(s: &mut Session) -> u32 {
+    run(s, "signature.open", json!({"name": "Standard"}));
+    run(s, "compose.select", json!({"from": 0}));
+    let id = run(s, "signature.picture.add", json!({"data": png(), "file": "lumen-logo.png", "alt": "Lumen Studio logo"}))["id"].as_u64();
+    u32::try_from(id.unwrap()).unwrap()
+}
+
+fn open_pictures(s: &Session) -> Vec<u32> {
+    s.signature_edit.as_ref().unwrap().body.text().pictures()
+}
+
+#[test]
+fn a_picture_of_the_open_signature_is_moved_by_cut_and_paste_and_saved_where_it_went() {
+    let mut s = session();
+    let id = open_with_logo(&mut s);
+    run(&mut s, "signature.picture.set", json!({"id": id, "width": 96}));
+    let cut = run(&mut s, "edit.cut", json!({"from": 0, "to": 1}));
+    assert_eq!(cut["text"], "[Lumen Studio logo]");
+    assert!(cut["html"].as_str().unwrap().contains("<img src=\"cid:sig-"), "{cut}");
+    assert!(open_pictures(&s).is_empty());
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    let out = run(&mut s, "edit.paste", json!({"html": cut["html"], "text": cut["text"]}));
+    assert!(out.get("note").is_none(), "nothing was left out: {out}");
+    run(&mut s, "signature.save", json!({}));
+    let sig = s.mailbox.signature("Standard").unwrap();
+    assert_eq!(sig.plain(), "Avery Quinn\nLumen Studio[Lumen Studio logo]");
+    assert_eq!((sig.pictures().len(), sig.picture(id).and_then(|p| p.width)), (1, Some(96)));
+    assert_eq!(super::signature::picture_places(sig.body(), id), [end]);
+}
+
+#[test]
+fn a_pasted_img_the_signature_does_not_hold_is_left_out_and_said() {
+    let mut s = session();
+    let id = open_with_logo(&mut s);
+    let own = run(&mut s, "edit.copy", json!({"from": 0, "to": 1}))["html"].as_str().unwrap().to_string();
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    // Its own picture comes back, and nothing is said.
+    run(&mut s, "compose.select", json!({"from": end}));
+    let out = run(&mut s, "edit.paste", json!({"html": own}));
+    assert!(out.get("note").is_none(), "{out}");
+    assert_eq!(open_pictures(&s), [id, id]);
+    // A picture of the web, one it doesn't hold, and its own named as a message's are left out,
+    // and that is said; its own beside them comes.
+    let as_message = own.replace("cid:sig-", "cid:pic-");
+    let pasted = format!(
+        "<div>x<img src=\"https://example.org/logo.png\"><img src=\"cid:sig-{}.0123456789abcdef@mailcraft.invalid\"></div>{as_message}{own}",
+        id + 1
+    );
+    let out = run(&mut s, "edit.paste", json!({"html": pasted}));
+    assert!(out["note"].as_str().is_some_and(|n| n.contains("left out")), "{out}");
+    assert_eq!(open_pictures(&s), [id, id, id]);
+}
+
+#[test]
+fn a_picture_pasted_as_often_as_the_open_signature_holds_is_cut_and_pasted_back_whole_and_no_more_go_in() {
+    let mut s = session();
+    let id = open_with_logo(&mut s);
+    let copied = run(&mut s, "edit.copy", json!({"from": 0, "to": 1}));
+    let most = mailcraft_model::signature::MAX_PICTURES;
+    for _ in 1..most {
+        run(&mut s, "compose.select", json!({"from": 0}));
+        run(&mut s, "edit.paste", json!({"html": copied["html"], "text": copied["text"]}));
+    }
+    assert_eq!(open_pictures(&s), vec![id; most]);
+    // Each time its text shows a picture counts: one more is refused, pasted or new, and changes
+    // nothing.
+    let before = s.signature_edit.as_ref().unwrap().body.text().clone();
+    let e = s.run("edit.paste", &json!({"html": copied["html"], "text": copied["text"]})).unwrap_err();
+    assert!(e.to_string().contains("at most 10 pictures"), "{e}");
+    let e = s.run("signature.picture.add", &json!({"data": png(), "file": "badge.png"})).unwrap_err();
+    assert!(e.to_string().contains("at most 10 pictures"), "{e}");
+    assert_eq!(s.signature_edit.as_ref().unwrap().body.text(), &before);
+    // So all of them cut come back, every one, and are saved.
+    let cut = run(&mut s, "edit.cut", json!({"from": 0, "to": most}));
+    assert!(open_pictures(&s).is_empty());
+    run(&mut s, "edit.paste", json!({"html": cut["html"], "text": cut["text"]}));
+    assert_eq!(open_pictures(&s), vec![id; most]);
+    run(&mut s, "signature.save", json!({}));
+    assert_eq!(s.mailbox.signature("Standard").unwrap().body().pictures(), vec![id; most]);
+}
+
+#[test]
+fn a_new_picture_over_one_selected_when_the_open_signature_shows_as_many_as_it_holds_takes_its_place_and_one_put_at_a_place_is_refused() {
+    let mut s = session();
+    let id = open_with_logo(&mut s);
+    let copied = run(&mut s, "edit.copy", json!({"from": 0, "to": 1}));
+    let most = mailcraft_model::signature::MAX_PICTURES;
+    for _ in 1..most {
+        run(&mut s, "compose.select", json!({"from": 0}));
+        run(&mut s, "edit.paste", json!({"html": copied["html"], "text": copied["text"]}));
+    }
+    // Over one of them, a new picture takes its place: as many are shown as before, and saved.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 1}));
+    let badge = mailcraft_charset::base64::STANDARD.encode(b"\x89PNG\r\n\x1a\nIHDR....badge");
+    let new = run(&mut s, "signature.picture.add", json!({"data": badge, "file": "badge.png"}))["id"].as_u64().unwrap();
+    let shown = open_pictures(&s);
+    assert_eq!(shown.len(), most);
+    assert_eq!((shown[0], shown.iter().filter(|p| **p == id).count()), (u32::try_from(new).unwrap(), most - 1));
+    // Put at a place, it is one more, whatever is selected.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 1}));
+    let before = s.signature_edit.as_ref().unwrap().body.text().clone();
+    let e = s.run("signature.picture.add", &json!({"data": png(), "file": "seal.png", "at": 0})).unwrap_err();
+    assert!(e.to_string().contains("at most 10 pictures"), "{e}");
+    assert_eq!(s.signature_edit.as_ref().unwrap().body.text(), &before);
+    run(&mut s, "signature.save", json!({}));
+    let sig = s.mailbox.signature("Standard").unwrap();
+    assert_eq!((sig.body().pictures().len(), sig.pictures().len()), (most, 2));
+}
+
+/// A picture's bytes, told apart by `n`, `len` bytes long when that is more than its header.
+fn png_of(n: u8, len: usize) -> String {
+    let mut bytes = b"\x89PNG\r\n\x1a\nIHDR....".to_vec();
+    bytes.push(n);
+    bytes.resize(len.max(bytes.len()), 0);
+    mailcraft_charset::base64::STANDARD.encode(&bytes)
+}
+
+#[test]
+fn a_new_picture_over_one_selected_when_the_open_signature_holds_as_many_different_pictures_as_it_may_is_refused_and_changes_nothing() {
+    let most = mailcraft_model::signature::MAX_PICTURES;
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    for n in 1..=most {
+        run(&mut s, "signature.picture.add", json!({"data": png_of(u8::try_from(n).unwrap(), 0), "file": "badge.png", "at": 0}));
+    }
+    assert_eq!(open_pictures(&s).len(), most);
+    // Over one of them, a new one would let go of the one it replaces, which undo could not bring
+    // back: refused, as any new picture at the cap is, and nothing changes.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 1}));
+    let (text, held) = (s.signature_edit.as_ref().unwrap().body.text().clone(), s.signature_edit.as_ref().unwrap().signature.pictures().to_vec());
+    let e = s.run("signature.picture.add", &json!({"data": png_of(0, 0), "file": "seal.png"})).unwrap_err();
+    assert!(e.to_string().contains("at most 10 pictures"), "{e}");
+    let e = s.signature_edit.as_ref().unwrap();
+    assert_eq!((e.body.text(), e.signature.pictures()), (&text, &held[..]));
+    run(&mut s, "signature.save", json!({}));
+    let sig = s.mailbox.signature("Standard").unwrap();
+    assert_eq!((sig.body(), sig.pictures()), (&text, &held[..]));
+}
+
+#[test]
+fn a_new_picture_over_one_selected_when_the_open_signatures_pictures_weigh_as_much_as_they_may_is_refused_and_changes_nothing() {
+    use mailcraft_model::signature::{MAX_PICTURE_BYTES, MAX_PICTURES_BYTES};
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    for n in 0..MAX_PICTURES_BYTES / MAX_PICTURE_BYTES {
+        run(&mut s, "signature.picture.add", json!({"data": png_of(u8::try_from(n).unwrap(), MAX_PICTURE_BYTES), "file": "photo.png", "at": 0}));
+    }
+    // It fits only if the one it takes the place of is let go: refused, and nothing changes.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 1}));
+    let (text, held) = (s.signature_edit.as_ref().unwrap().body.text().clone(), s.signature_edit.as_ref().unwrap().signature.pictures().to_vec());
+    let e = s.run("signature.picture.add", &json!({"data": png_of(9, MAX_PICTURE_BYTES), "file": "seal.png"})).unwrap_err();
+    assert!(e.to_string().contains("KB together"), "{e}");
+    let e = s.signature_edit.as_ref().unwrap();
+    assert_eq!((e.body.text(), e.signature.pictures()), (&text, &held[..]));
+}
+
+#[test]
+fn a_copy_of_a_picture_hidden_in_what_is_pasted_takes_no_room_in_the_open_signature() {
+    let most = mailcraft_model::signature::MAX_PICTURES;
+    let mut s = session();
+    let id = open_with_logo(&mut s);
+    let copied = run(&mut s, "edit.copy", json!({"from": 0, "to": 1}));
+    for _ in 2..most {
+        run(&mut s, "compose.select", json!({"from": 0}));
+        run(&mut s, "edit.paste", json!({"html": copied["html"], "text": copied["text"]}));
+    }
+    let html = copied["html"].as_str().unwrap();
+    let start = html.find("<img").unwrap();
+    let tag = &html[start..start + html[start..].find('>').unwrap() + 1];
+    // In a comment and in hidden text it is not pasted, and leaves room for the one shown.
+    let pasted = format!("<!--{tag}--><div style=\"display:none\">{tag}</div><div>{tag}</div>");
+    run(&mut s, "compose.select", json!({"from": 0}));
+    run(&mut s, "edit.paste", json!({"html": pasted, "text": copied["text"]}));
+    assert_eq!(open_pictures(&s), vec![id; most]);
+}
+
+#[test]
+fn a_new_picture_over_the_one_selected_never_takes_the_id_of_one_the_open_signature_held_so_undo_never_shows_it_in_that_ones_place() {
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    let add = |s: &mut Session, n: u8, at: Option<usize>| {
+        let params = match at {
+            Some(at) => json!({"data": png_of(n, 0), "file": "badge.png", "at": at}),
+            None => json!({"data": png_of(n, 0), "file": "badge.png"}),
+        };
+        u32::try_from(run(s, "signature.picture.add", params)["id"].as_u64().unwrap()).unwrap()
+    };
+    let held = |s: &Session, id: u32| s.signature_edit.as_ref().unwrap().signature.picture(id).map(|p| p.data.as_ref().clone());
+    let bytes = |n: u8| mailcraft_charset::base64::STANDARD.decode(png_of(n, 0)).unwrap();
+    // Replacing the only picture it holds, then the one with the highest id (beside the first).
+    let replace = |s: &mut Session, at: usize, n: u8| {
+        let old = open_pictures(s)[at];
+        let was = held(s, old);
+        assert!(was.is_some());
+        run(s, "compose.select", json!({"from": at, "to": at + 1}));
+        let new = add(s, n, None);
+        assert_ne!(new, old, "a new id");
+        assert_eq!(open_pictures(s)[at], new);
+        // Undone, the one it replaced is back in the text, as it was (not the new one by another
+        // name, nor a picture it no longer holds).
+        run(s, "compose.undo", json!({}));
+        assert_eq!((open_pictures(s)[at], held(s, old)), (old, was));
+        run(s, "compose.redo", json!({}));
+        assert_eq!((open_pictures(s)[at], held(s, new)), (new, Some(bytes(n))));
+    };
+    add(&mut s, 1, Some(0));
+    replace(&mut s, 0, 3);
+    add(&mut s, 2, Some(1));
+    replace(&mut s, 1, 4);
+    // One deleted from the text, then a new one: the new one has an id of its own too.
+    let last = *open_pictures(&s).iter().max().unwrap();
+    let place = super::signature::picture_places(s.signature_edit.as_ref().unwrap().body.text(), last)[0];
+    run(&mut s, "edit.cut", json!({"from": place, "to": place + 1}));
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    assert_ne!(add(&mut s, 9, Some(end)), last);
+}
+
+#[test]
+fn a_picture_of_the_open_signature_one_or_two_pixels_wide_is_cut_and_pasted_back() {
+    // Made so, or kept so in the file it was read from.
+    let stored = json!({"name": "Dot", "body": {"paragraphs": [{"runs": [{"text": mailcraft_model::rich::OBJECT.to_string(), "picture": 1}]}]},
+        "pictures": [{"id": 1, "name": "dot.png", "data": png(), "width": 1, "alt": "Dot"}]});
+    for width in [Some(1), Some(2), None] {
+        let mut s = session();
+        let id = match width {
+            Some(width) => {
+                let id = open_with_logo(&mut s);
+                run(&mut s, "signature.picture.set", json!({"id": id, "width": width}));
+                id
+            }
+            None => {
+                keep_stored(&mut s, stored.clone());
+                run(&mut s, "signature.open", json!({"name": "Dot"}));
+                1
+            }
+        };
+        let cut = run(&mut s, "edit.cut", json!({"from": 0, "to": 1}));
+        assert!(open_pictures(&s).is_empty());
+        let out = run(&mut s, "edit.paste", json!({"html": cut["html"], "text": cut["text"]}));
+        assert!(out.get("note").is_none(), "width {width:?}: {out} {cut}");
+        assert_eq!(open_pictures(&s), [id], "width {width:?}: {cut}");
+    }
+}
+
+/// `json` read as a signature file holds it, and kept in the mailbox.
+fn keep_stored(s: &mut Session, json: Value) {
+    s.mailbox.signatures.push(serde_json::from_value(json).unwrap());
+}
+
+#[test]
+fn a_stored_signature_whose_picture_has_the_last_id_there_is_refuses_a_new_picture_rather_than_give_it_that_id_again() {
+    let mut s = session();
+    let object = mailcraft_model::rich::OBJECT.to_string();
+    keep_stored(
+        &mut s,
+        json!({"name": "Last", "body": {"paragraphs": [{"runs": [{"text": object, "picture": u32::MAX}, {"text": "Avery"}]}]},
+            "pictures": [{"id": u32::MAX, "name": "logo.png", "data": png_of(1, 0), "alt": "Logo"}]}),
+    );
+    let bytes = |n: u8| mailcraft_charset::base64::STANDARD.decode(png_of(n, 0)).unwrap();
+    let held = |s: &Session| s.signature_edit.as_ref().unwrap().signature.picture(u32::MAX).map(|p| p.data.as_ref().clone());
+    run(&mut s, "signature.open", json!({"name": "Last"}));
+    assert_eq!(open_pictures(&s), [u32::MAX]);
+    // Over it, a new picture is refused, and changes nothing.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 1}));
+    let before = s.signature_edit.as_ref().unwrap().body.text().clone();
+    let e = s.run("signature.picture.add", &json!({"data": png_of(2, 0), "file": "badge.png"})).unwrap_err();
+    assert!(e.to_string().contains("as many pictures as it can"), "{e}");
+    assert_eq!((s.signature_edit.as_ref().unwrap().body.text(), held(&s)), (&before, Some(bytes(1))));
+    // Deleted first, so is one put where it was: undo brings back the one it held, as it was.
+    run(&mut s, "edit.cut", json!({"from": 0, "to": 1}));
+    let e = s.run("signature.picture.add", &json!({"data": png_of(2, 0), "file": "badge.png", "at": 0})).unwrap_err();
+    assert!(e.to_string().contains("as many pictures as it can"), "{e}");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!((open_pictures(&s), held(&s)), (vec![u32::MAX], Some(bytes(1))));
+    // Closed, it refuses one too, rather than hold two pictures of that id.
+    run(&mut s, "signature.close", json!({"discard": true}));
+    let e = s.run("signature.picture.add", &json!({"name": "Last", "data": png_of(2, 0), "file": "badge.png", "at": 0})).unwrap_err();
+    assert!(e.to_string().contains("as many pictures as it can"), "{e}");
+    let sig = s.mailbox.signature("Last").unwrap();
+    assert_eq!((sig.pictures().len(), sig.body().pictures()), (1, vec![u32::MAX]));
+}
+
+#[test]
+fn the_open_signature_says_pictures_were_left_out_only_when_the_reader_shows_one_it_left_out() {
+    let mut s = session();
+    open_with_logo(&mut s);
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    // `<img` in an attribute, in a comment or as part of another name is no picture.
+    for html in ["<div title=\"<img\">hello</div>", "<!-- <img -->hello", "<imgx>hello"] {
+        let out = run(&mut s, "edit.paste", json!({"html": html}));
+        assert!(out.get("note").is_none(), "{html}: {out}");
+    }
+    // A picture it does not hold, one of the web and one written into the HTML are.
+    for html in
+        ["hello<img src=\"cid:other@x\">", "hello<img src=\"https://example.org/a.png\">", "hello<img src=\"data:image/png;base64,iVBORw0KGgo=\">"]
+    {
+        let out = run(&mut s, "edit.paste", json!({"html": html}));
+        assert!(out["note"].as_str().is_some_and(|n| n.contains("left out")), "{html}: {out}");
+    }
+}
+
+#[test]
+fn the_open_signature_says_nothing_of_a_picture_past_the_most_blocks_the_reading_pane_shows() {
+    let mut s = session();
+    let id = open_with_logo(&mut s);
+    let own = run(&mut s, "edit.copy", json!({"from": 0, "to": 1}))["html"].as_str().unwrap().to_string();
+    let held = own.split("cid:").nth(1).and_then(|rest| rest.split('"').next()).unwrap().to_string();
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    // The reading pane gives the line three blocks and each rule one, and stops at the most it
+    // gives: the picture of the web after them is never shown, so nothing shown was left out.
+    let rules = "<hr>".repeat(mailcraft_html::MAX_BLOCKS - 3);
+    let html = format!("<div>a<img src=\"cid:{held}\">b</div>{rules}<img src=\"https://example.org/a.png\">");
+    let out = run(&mut s, "edit.paste", json!({"html": html}));
+    assert!(out.get("note").is_none(), "{out}");
+    assert_eq!(open_pictures(&s), [id, id]);
+}
+
+#[test]
+fn the_open_signature_says_a_picture_was_left_out_when_the_paste_is_nothing_else() {
+    for params in [json!({"html": "<img src=\"https://example.org/a.png\">"}), json!({"html": "<img src=\"https://example.org/a.png\">", "text": ""})]
+    {
+        let mut s = session();
+        open_with_logo(&mut s);
+        let end = s.signature_edit.as_ref().unwrap().body.text().len();
+        run(&mut s, "compose.select", json!({"from": end}));
+        let before = s.signature_edit.as_ref().unwrap().body.clone();
+        let out = run(&mut s, "edit.paste", params.clone());
+        assert!(out["note"].as_str().is_some_and(|n| n.contains("left out")), "{params}: {out}");
+        let after = &s.signature_edit.as_ref().unwrap().body;
+        assert_eq!((after.text(), after.selection()), (before.text(), before.selection()), "{params}");
+    }
+}
+
+#[test]
+fn the_open_signature_says_a_picture_was_left_out_past_the_most_paragraphs_a_text_holds() {
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "compose.select", json!({"from": 0, "to": end}));
+    let html = format!("<pre>{}</pre><img src=\"https://example.org/chart.png\">", "x\n".repeat(50_000));
+    let out = run(&mut s, "edit.paste", json!({"html": html}));
+    assert!(out["note"].as_str().is_some_and(|n| n.contains("left out")), "{out}");
+}
+
+/// A message whose signature, read from its file, has a picture of the id the message's first
+/// picture gets: the message, written in HTML with that picture in "Hello world", and where the
+/// signature's picture and the signature start.
+fn with_a_signature_picture_of_the_messages_id(s: &mut Session) -> (u32, usize, usize) {
+    let id = mailcraft_model::pictures::FIRST_ID;
+    let object = mailcraft_model::rich::OBJECT.to_string();
+    keep_stored(
+        s,
+        json!({"name": "Overlap", "body": {"paragraphs": [{"runs": [{"text": "Avery "}, {"text": object, "picture": id}]}]},
+            "pictures": [{"id": id, "name": "logo.png", "data": png_of(1, 0), "alt": "Logo"}]}),
+    );
+    let a = account(s);
+    run(s, "signature.defaults", json!({"account": a, "new": "Overlap"}));
+    run(s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello world"}));
+    run(s, "compose.formatHtml", json!({}));
+    let added = run(s, "insert.picture", json!({"data": png_of(2, 0), "file": "chart.png", "alt": "Chart", "at": 5}))["id"].as_u64();
+    assert_eq!(added, Some(u64::from(id)));
+    let text = s.compose.as_ref().unwrap().body.text().clone();
+    let objects: Vec<usize> = text.text().chars().enumerate().filter(|(_, c)| *c == mailcraft_model::rich::OBJECT).map(|(i, _)| i).collect();
+    assert_eq!(objects.len(), 2, "{}", text.text());
+    (id, objects[1], text.signature_start().unwrap())
+}
+
+#[test]
+fn a_copy_of_the_signatures_picture_in_a_message_names_none_of_the_messages_pictures() {
+    let mut s = session();
+    let (_, logo, start) = with_a_signature_picture_of_the_messages_id(&mut s);
+    // Alone, and with the signature's text around it: as before, it is not taken along.
+    for (from, to) in [(logo, logo + 1), (start, logo + 1)] {
+        let copied = run(&mut s, "edit.copy", json!({"from": from, "to": to}));
+        let (html, text) = (copied["html"].as_str().unwrap(), copied["text"].as_str().unwrap());
+        assert!(!html.contains("<img") && !text.contains("Chart"), "{from}..{to}: {copied}");
+    }
+    // Its plain text, which is also what the primary selection is given, says nothing of it.
+    let part = s.compose.as_ref().unwrap().body.text().slice(start, logo + 1).unwrap();
+    assert_eq!(super::format::plain_text(&s, &part), "Avery ");
+    // The message's own picture of that id is still copied as itself.
+    let copied = run(&mut s, "edit.copy", json!({"from": 5, "to": 6}));
+    assert_eq!(copied["text"], "[Chart]");
+}
+
+#[test]
+fn the_signatures_picture_in_a_message_takes_none_of_the_room_of_the_messages_pictures() {
+    let mut s = session();
+    with_a_signature_picture_of_the_messages_id(&mut s);
+    let most = mailcraft_model::pictures::MAX_PICTURES;
+    for n in 2..most {
+        run(&mut s, "insert.picture", json!({"data": png_of(u8::try_from(n + 2).unwrap(), 0), "file": "chart.png", "at": 0}));
+    }
+    // Twenty-nine of the message's, and the signature's: the thirtieth of the message's goes in.
+    run(&mut s, "insert.picture", json!({"data": png_of(200, 0), "file": "chart.png", "at": 0}));
+    assert_eq!(s.compose.as_ref().unwrap().pictures.len(), most);
+}
+
+#[test]
+fn a_picture_the_open_signature_replaced_is_brought_back_by_undo_and_kept_by_a_save() {
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    let bytes = |n: u8| mailcraft_charset::base64::STANDARD.decode(png_of(n, 0)).unwrap();
+    let old = run(&mut s, "signature.picture.add", json!({"data": png_of(1, 0), "file": "a.png", "at": 0}))["id"].as_u64().unwrap();
+    let old = u32::try_from(old).unwrap();
+    run(&mut s, "compose.select", json!({"from": 0, "to": 1}));
+    run(&mut s, "signature.picture.add", json!({"data": png_of(2, 0), "file": "b.png"}));
+    run(&mut s, "compose.undo", json!({}));
+    run(&mut s, "signature.save", json!({}));
+    let sig = s.mailbox.signature("Standard").unwrap();
+    assert_eq!((sig.body().pictures(), sig.picture(old).map(|p| p.data.as_ref().clone())), (vec![old], Some(bytes(1))));
+    // Opened again, it is there.
+    run(&mut s, "signature.close", json!({}));
+    run(&mut s, "signature.open", json!({"name": "Standard"}));
+    assert_eq!(open_pictures(&s), [old]);
 }

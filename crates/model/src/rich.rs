@@ -136,6 +136,16 @@ pub enum ListKind {
     Numbered,
 }
 
+/// How a paragraph's lines sit between its margins. A list item is always left.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Align {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
 /// How a run of text looks.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -268,6 +278,10 @@ pub struct Paragraph {
     /// (Stored before levels existed, it is missing, and 0.)
     #[serde(skip_serializing_if = "is_zero")]
     pub level: u8,
+    /// How its lines sit; a list item is always left. (Stored before alignment existed, it is
+    /// missing, and left; a value this version doesn't know reads as left.)
+    #[serde(deserialize_with = "crate::sync::lenient_or_default", skip_serializing_if = "is_left")]
+    pub align: Align,
     /// Part of the signature put in a message (R4.5): what choosing another replaces, and what is
     /// swapped when the From account changes.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -282,9 +296,13 @@ fn is_none_list(l: &ListKind) -> bool {
     *l == ListKind::None
 }
 
+fn is_left(a: &Align) -> bool {
+    *a == Align::Left
+}
+
 impl Paragraph {
     pub fn new(runs: Vec<Run>, list: ListKind) -> Paragraph {
-        let mut p = Paragraph { runs, list, level: 0, signature: false };
+        let mut p = Paragraph { runs, list, level: 0, align: Align::Left, signature: false };
         p.normalize();
         p
     }
@@ -294,6 +312,19 @@ impl Paragraph {
     pub fn at_level(mut self, level: u8) -> Paragraph {
         self.level = if self.list == ListKind::None { 0 } else { level.min(MAX_LEVEL) };
         self
+    }
+
+    /// The same paragraph aligned `align` (a list item stays left).
+    pub fn aligned(mut self, align: Align) -> Paragraph {
+        self.align = if self.list == ListKind::None { align } else { Align::Left };
+        self
+    }
+
+    /// The same paragraph (its kind, level, alignment and all) holding `runs` instead.
+    pub fn with_runs(&self, runs: Vec<Run>) -> Paragraph {
+        let mut p = Paragraph { runs, ..self.clone() };
+        p.normalize();
+        p
     }
 
     /// The paragraph's text without formatting.
@@ -350,7 +381,7 @@ impl Paragraph {
     fn split_off(&mut self, offset: usize) -> Paragraph {
         let i = self.split_at(offset);
         let tail = if i < self.runs.len() { self.runs.split_off(i) } else { Vec::new() };
-        Paragraph { runs: tail, list: self.list, level: self.level, signature: self.signature }
+        Paragraph { runs: tail, list: self.list, level: self.level, align: self.align, signature: self.signature }
     }
 
     /// The style of the character before `offset`, or of the first character at the start.
@@ -490,11 +521,15 @@ impl RichText {
         let mut budget = MAX_CHARS;
         'all: for p in paragraphs {
             let level = if p.list == ListKind::None { 0 } else { p.level.min(MAX_LEVEL) };
-            let mut cur = Paragraph { runs: Vec::new(), list: p.list, level, signature: p.signature };
+            let align = if p.list == ListKind::None { p.align } else { Align::Left };
+            let mut cur = Paragraph { runs: Vec::new(), list: p.list, level, align, signature: p.signature };
             for run in p.runs {
                 let style = run.style.clean();
                 if let Some(id) = run.picture {
                     if budget == 0 {
+                        // The paragraph up to the picture is kept.
+                        cur.normalize();
+                        out.push(cur);
                         break 'all;
                     }
                     budget -= 1;
@@ -504,7 +539,7 @@ impl RichText {
                 for (i, line) in lines(&run.text).into_iter().enumerate() {
                     if i > 0 {
                         cur.normalize();
-                        out.push(std::mem::replace(&mut cur, Paragraph { runs: Vec::new(), list: p.list, level, signature: p.signature }));
+                        out.push(std::mem::replace(&mut cur, Paragraph { runs: Vec::new(), list: p.list, level, align, signature: p.signature }));
                         budget = budget.saturating_sub(1);
                         if out.len() >= MAX_PARAGRAPHS || budget == 0 {
                             break 'all;
@@ -550,7 +585,9 @@ impl RichText {
 
     /// Whether anything in it is more than plain text.
     pub fn has_formatting(&self) -> bool {
-        self.paragraphs.iter().any(|p| p.list != ListKind::None || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some()))
+        self.paragraphs
+            .iter()
+            .any(|p| p.list != ListKind::None || p.align != Align::Left || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some()))
     }
 
     /// The pictures' ids, in the order they stand.
@@ -699,6 +736,11 @@ impl RichText {
         }
     }
 
+    /// How the paragraph `pos` is in is aligned (left past the end).
+    pub fn align_at(&self, pos: usize) -> Align {
+        self.locate(pos).ok().and_then(|(p, _)| self.paragraphs.get(p)).map_or(Align::Left, |p| p.align)
+    }
+
     /// The kind of the paragraph `pos` is in.
     pub fn list_at(&self, pos: usize) -> ListKind {
         self.locate(pos).ok().and_then(|(p, _)| self.paragraphs.get(p)).map_or(ListKind::None, |p| p.list)
@@ -775,9 +817,30 @@ impl RichText {
         Ok(pieces.iter().all(|(i, a, b)| self.paragraphs.get(*i).is_none_or(|p| p.all(*a, *b, &f))))
     }
 
-    /// Whether every paragraph `[from, to)` touches is of `kind`.
+    /// Whether every paragraph `[from, to)` takes in (see [`RichText::set_list`]) is of `kind`.
     pub fn all_lists(&self, from: usize, to: usize, kind: ListKind) -> Result<bool, ModelError> {
-        Ok(self.pieces(from, to)?.iter().all(|(i, _, _)| self.paragraphs.get(*i).is_some_and(|p| p.list == kind)))
+        Ok(self.whole_paragraphs(from, to)?.iter().all(|i| self.paragraphs.get(*i).is_some_and(|p| p.list == kind)))
+    }
+
+    /// Whether every ordinary paragraph `[from, to)` takes in (see [`RichText::set_align`]) is
+    /// aligned `align`.
+    pub fn all_aligned(&self, from: usize, to: usize, align: Align) -> Result<bool, ModelError> {
+        let paragraphs = self.whole_paragraphs(from, to)?;
+        Ok(paragraphs.iter().filter_map(|i| self.paragraphs.get(*i)).filter(|p| p.list == ListKind::None).all(|p| p.align == align))
+    }
+
+    /// The paragraphs `[from, to)` takes in, for what is set on a whole paragraph (its kind, its
+    /// alignment): each one it touches, but not one that starts where a selection ends, which
+    /// only the break before it reaches (a line selected with its break ends there). An empty
+    /// last line is the exception: Select All ends there.
+    fn whole_paragraphs(&self, from: usize, to: usize) -> Result<Vec<usize>, ModelError> {
+        let (from, to) = self.span(from, to)?;
+        let pieces = self.pieces(from, to)?;
+        let mut out: Vec<usize> = pieces.iter().map(|(i, _, _)| *i).collect();
+        if from < to && to < self.len() && matches!(pieces.last(), Some((_, 0, 0))) {
+            out.pop();
+        }
+        Ok(out)
     }
 
     /// A copy of `[from, to)`, formatting and all.
@@ -796,21 +859,23 @@ impl RichText {
 
     // ---- edits ----
 
-    /// Put `text` at `at` in `style`; line breaks in it start paragraphs of the kind of the one
-    /// it goes into. The position after it.
+    /// Put `text` at `at` in `style`; line breaks in it start paragraphs of the kind (and the
+    /// alignment) of the one it goes into. The position after it.
     pub fn insert(&mut self, at: usize, text: &str, style: &Style) -> Result<usize, ModelError> {
         let (p, _) = self.locate(at)?;
-        let (list, level) = self.paragraphs.get(p).map_or((ListKind::None, 0), |p| (p.list, p.level));
+        let (list, level, align) = self.paragraphs.get(p).map_or((ListKind::None, 0, Align::Left), |p| (p.list, p.level, p.align));
         let style = style.clone().clean();
         let fragment = RichText::from_paragraphs(
-            lines(text).into_iter().map(|l| Paragraph::new(vec![Run::new(l, style.clone())], list).at_level(level)).collect(),
+            lines(text).into_iter().map(|l| Paragraph::new(vec![Run::new(l, style.clone())], list).at_level(level).aligned(align)).collect(),
         );
         self.insert_rich(at, &fragment)
     }
 
     /// Put another document's paragraphs at `at` (pasting). Its first paragraph joins the one at
-    /// `at` (and gives it its kind when it goes in at that paragraph's start and is a list item);
-    /// its last is followed by the rest of that one. The position after it.
+    /// `at` (and, when it goes in at that paragraph's start, gives it its kind if it is a list
+    /// item, and its alignment if it isn't left and that paragraph is no list item); the others
+    /// that are left take that paragraph's alignment, as typed lines do; its last is followed by
+    /// the rest of that one, which so takes the last one's kind and alignment. The position after it.
     pub fn insert_rich(&mut self, at: usize, fragment: &RichText) -> Result<usize, ModelError> {
         let (pi, off) = self.locate(at)?;
         let added = fragment.len();
@@ -821,14 +886,18 @@ impl RichText {
         }
         let Some(target) = self.paragraphs.get_mut(pi) else { return Err(ModelError::Invalid("no such paragraph".into())) };
         let mut tail = target.split_off(off);
+        let own = target.align;
         let mut parts = fragment.paragraphs.iter().cloned();
         let Some(first) = parts.next() else { return Ok(at) };
         if off == 0 && first.list != ListKind::None {
             target.list = first.list;
             target.level = first.level;
+            target.align = Align::Left;
+        } else if off == 0 && first.align != Align::Left && target.list == ListKind::None {
+            target.align = first.align;
         }
         target.runs.extend(first.runs);
-        let rest: Vec<Paragraph> = parts.collect();
+        let rest: Vec<Paragraph> = parts.map(|p| if p.align == Align::Left { p.aligned(own) } else { p }).collect();
         match rest.split_last() {
             None => {
                 target.runs.append(&mut tail.runs);
@@ -849,7 +918,8 @@ impl RichText {
     }
 
     /// Remove `[from, to)`; a paragraph break inside it joins the paragraphs on either side
-    /// (the first one's kind stays).
+    /// (the first one's kind stays). A join that would bring a picture onto the signature put in
+    /// a message from a line outside it is refused, and nothing changes.
     pub fn delete(&mut self, from: usize, to: usize) -> Result<(), ModelError> {
         let (from, to) = self.span(from, to)?;
         if from == to {
@@ -867,6 +937,16 @@ impl RichText {
                 p.normalize();
             }
             return Ok(());
+        }
+        // A picture is never joined onto the signature put in a message from outside it: the
+        // signature goes out with its own pictures only (whose ids may be the message's), so the
+        // picture would be sent as another, or not at all, and copied as nothing (#580).
+        let into_signature = self.paragraphs.get(pa).is_some_and(|p| p.signature)
+            && self.paragraphs.get(pb).is_some_and(|p| !p.signature && p.clone().split_off(ob).runs.iter().any(|r| r.picture.is_some()));
+        if into_signature {
+            return Err(ModelError::Invalid(
+                "that would put the picture into the signature, which keeps only its own pictures: move the picture first".into(),
+            ));
         }
         let tail = match self.paragraphs.get_mut(pb) {
             Some(p) => p.split_off(ob),
@@ -903,24 +983,39 @@ impl RichText {
         Ok(())
     }
 
-    /// Make every paragraph `[from, to)` touches a paragraph of `kind`.
+    /// Make every paragraph `[from, to)` touches a paragraph of `kind` (a list item is left), but
+    /// for one only the break before it reaches.
     pub fn set_list(&mut self, from: usize, to: usize, kind: ListKind) -> Result<(), ModelError> {
-        for (i, _, _) in self.pieces(from, to)? {
+        for i in self.whole_paragraphs(from, to)? {
             if let Some(p) = self.paragraphs.get_mut(i) {
                 p.list = kind;
                 if kind == ListKind::None {
                     p.level = 0;
+                } else {
+                    p.align = Align::Left;
                 }
             }
         }
         Ok(())
     }
 
-    /// Move the list items `[from, to)` touches `by` levels deeper (or shallower when negative),
-    /// within 0 to [`MAX_LEVEL`]. Ordinary paragraphs stay as they are. Whether anything moved.
+    /// Align every ordinary paragraph `[from, to)` touches, but for one only the break before
+    /// it reaches; list items stay left.
+    pub fn set_align(&mut self, from: usize, to: usize, align: Align) -> Result<(), ModelError> {
+        for i in self.whole_paragraphs(from, to)? {
+            if let Some(p) = self.paragraphs.get_mut(i).filter(|p| p.list == ListKind::None) {
+                p.align = align;
+            }
+        }
+        Ok(())
+    }
+
+    /// Move the list items `[from, to)` takes in (see [`RichText::set_list`]) `by` levels deeper
+    /// (or shallower when negative), within 0 to [`MAX_LEVEL`]. Ordinary paragraphs stay as they
+    /// are. Whether anything moved.
     pub fn indent(&mut self, from: usize, to: usize, by: i8) -> Result<bool, ModelError> {
         let mut moved = false;
-        for (i, _, _) in self.pieces(from, to)? {
+        for i in self.whole_paragraphs(from, to)? {
             if let Some(p) = self.paragraphs.get_mut(i).filter(|p| p.list != ListKind::None) {
                 let level = p.level.saturating_add_signed(by).min(MAX_LEVEL);
                 moved |= level != p.level;
@@ -981,6 +1076,8 @@ pub fn numbers(paragraphs: &[Paragraph]) -> Vec<u32> {
         .collect()
 }
 
+#[cfg(test)]
+mod align_tests;
 #[cfg(test)]
 mod tests;
 

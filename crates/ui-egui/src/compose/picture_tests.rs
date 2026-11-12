@@ -1,21 +1,28 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A picture on the clipboard pasted into the body of a message (#547), and the caret and the
-//! keys going over it as over a letter. Driven in a window without a window.
+//! A picture on the clipboard pasted into the body of a message (#547), the caret and the keys
+//! going over it as over a letter, and a picture moved by cut and paste in the body and in a
+//! signature (#580). Driven in a window without a window.
 
 use egui::{Event, Key, Modifiers};
 use mailcraft_model::rich::OBJECT;
 use serde_json::json;
 
-use super::tests::{Window, app, key, key_with, plain, sel, type_in, window};
+use super::tests::{Window, app, key, key_with, plain, sel, signature_page, type_in, window};
 use crate::RichClipboard;
 
-/// A clipboard holding a picture (and perhaps HTML).
+/// A clipboard holding a picture (and perhaps HTML); what is put on it is its HTML then, and the
+/// text beside it is kept apart (what the system would hand egui for Ctrl+V).
 #[derive(Clone, Default)]
-struct PictureBoard(std::rc::Rc<std::cell::RefCell<(Option<Vec<u8>>, Option<String>)>>);
+pub(super) struct PictureBoard(
+    pub(super) std::rc::Rc<std::cell::RefCell<(Option<Vec<u8>>, Option<String>)>>,
+    std::rc::Rc<std::cell::RefCell<String>>,
+);
 
 impl RichClipboard for PictureBoard {
-    fn put(&self, _: &str, _: &str) -> Result<(), String> {
+    fn put(&self, html: &str, text: &str) -> Result<(), String> {
+        self.0.borrow_mut().1 = Some(html.to_string());
+        *self.1.borrow_mut() = text.to_string();
         Ok(())
     }
     fn html(&self) -> Option<String> {
@@ -26,13 +33,13 @@ impl RichClipboard for PictureBoard {
     }
 }
 
-fn png(extra: usize) -> Vec<u8> {
+pub(super) fn png(extra: usize) -> Vec<u8> {
     let mut v = b"\x89PNG\r\n\x1a\nIHDR....".to_vec();
     v.resize(v.len() + extra, 7);
     v
 }
 
-fn writing_with(board: &PictureBoard) -> Window {
+pub(super) fn writing_with(board: &PictureBoard) -> Window {
     let mut a = app();
     a.services.clipboard = Some(Box::new(board.clone()));
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
@@ -160,4 +167,86 @@ fn a_picture_is_drawn_in_the_body() {
     h.run_steps(3);
     // (The test PNG has no pixels to decode: it is drawn as a frame, and laying it out did not fail.)
     assert_eq!(pictures(&h), 1);
+}
+
+/// Ctrl+X where the editor has the keyboard, what it put on the clipboard as text (what the
+/// system hands egui), and Ctrl+V of it, the editor reading the clipboard's HTML beside it.
+fn cut_and_paste(h: &mut Window, board: &PictureBoard, to: usize) {
+    h.event(Event::Cut);
+    h.run_steps(2);
+    let text = board.1.borrow().clone();
+    assert!(!text.is_empty(), "a picture alone is cut as its description, so that the system pastes it");
+    h.state_mut().execute("compose.select", json!({"from": to})).unwrap();
+    h.run_steps(1);
+    h.event(Event::Paste(text));
+    h.run_steps(2);
+}
+
+#[test]
+fn ctrl_x_and_ctrl_v_move_a_picture_in_the_body_and_in_a_signature() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    type_in(&mut h, "ab");
+    let id = h.state_mut().execute("insert.picture", json!({"data": crate::files::base64_lite::encode(&png(40)), "alt": "Chart", "at": 0})).unwrap()
+        ["id"]
+        .as_u64()
+        .unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    h.run_steps(1);
+    cut_and_paste(&mut h, &board, 2);
+    assert_eq!(plain(&h), format!("ab{OBJECT}"));
+    assert_eq!(h.state().session.compose.as_ref().unwrap().body.text().pictures(), [u32::try_from(id).unwrap()]);
+    assert_eq!(pictures(&h), 1);
+    // In File › Signatures, the open signature's own picture moves the same way.
+    let mut h = signature_page();
+    h.state_mut().services.clipboard = Some(Box::new(board.clone()));
+    h.state_mut().execute("compose.select", json!({"from": 0})).unwrap();
+    let id =
+        h.state_mut().execute("signature.picture.add", json!({"data": crate::files::base64_lite::encode(&png(40)), "alt": "Logo"})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+    // A click in its text gives it the keyboard.
+    let at = h.state().hit.rect("signatureBody", 0).unwrap().max - egui::vec2(4.0, 4.0);
+    h.event(Event::PointerMoved(at));
+    h.step();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(1);
+    assert!(super::editor::has_focus(&h.ctx));
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    h.run_steps(1);
+    let end = h.state().session.signature_edit.as_ref().unwrap().body.text().len() - 1;
+    cut_and_paste(&mut h, &board, end);
+    let e = h.state().session.signature_edit.as_ref().unwrap();
+    assert_eq!(e.body.plain(), format!("Avery Quinn\nLumen Studio{OBJECT}"));
+    assert_eq!(e.body.text().pictures(), [u32::try_from(id).unwrap()]);
+}
+
+#[test]
+fn ctrl_x_of_the_break_that_would_join_a_picture_onto_the_signature_is_refused_and_says_why() {
+    let board = PictureBoard::default();
+    let mut a = app();
+    a.services.clipboard = Some(Box::new(board.clone()));
+    a.execute("mail.new", json!({"to": "maya@lumen.example", "body": "Hi"})).unwrap();
+    a.execute("compose.formatHtml", json!({})).unwrap();
+    // A picture on a line of its own after the signature.
+    let end = a.session.compose.as_ref().unwrap().body.text().len();
+    a.execute("compose.select", json!({"from": end})).unwrap();
+    a.execute("compose.type", json!({"text": "\n"})).unwrap();
+    a.execute("insert.picture", json!({"data": crate::files::base64_lite::encode(&png(40)), "alt": "Chart"})).unwrap();
+    let line = a.session.compose.as_ref().unwrap().body.text().len() - 1;
+    // The break before it selected, the editor with the keyboard.
+    a.execute("compose.select", json!({"from": line - 1, "to": line})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    h.run_steps(2);
+    let before = plain(&h);
+    h.event(Event::Cut);
+    h.run_steps(2);
+    assert_eq!(plain(&h), before);
+    assert!(board.0.borrow().1.is_none() && board.1.borrow().is_empty(), "nothing was put on the clipboard");
+    let said = h.state().status_msg.clone();
+    assert!(said.as_ref().is_some_and(|(said, _)| said.contains("would put the picture into the signature")), "{said:?}");
 }

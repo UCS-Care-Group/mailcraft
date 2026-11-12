@@ -781,6 +781,21 @@ msgstr ""
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 msgid "All"
@@ -1894,6 +1909,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Cc: {names}"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
 msgstr ""
 
 #. interface
@@ -4611,6 +4631,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "High on top"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
 msgstr ""
 
 #. command label
@@ -14005,6 +14030,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr ""
@@ -14087,6 +14117,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
 msgstr ""
 
 #. why a command can't run
@@ -15024,6 +15059,11 @@ msgid "that was only looked at, not read in full"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
 msgstr ""
@@ -15629,6 +15669,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "the signature is no longer there"
 msgstr ""
@@ -15896,6 +15941,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "this series has too many changed days"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
 msgstr ""
 
 #. interface

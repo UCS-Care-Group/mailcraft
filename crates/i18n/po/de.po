@@ -902,6 +902,21 @@ msgstr "Nach"
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr "Wenn Sie eine Besprechungsanfrage in der E-Mail zusagen, mit Vorbehalt zusagen oder ablehnen oder eine abgesagte Besprechung aus Ihrem Kalender entfernen, wird die Nachricht in „Gelöschte Elemente“ verschoben. Ist dies ausgeschaltet, bleibt sie, wo sie ist, und zeigt Ihre Antwort an."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr "Text ausrichten"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -2151,6 +2166,11 @@ msgstr "Cc:"
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "Cc: {names}"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -5252,6 +5272,11 @@ msgstr "Wichtigkeit: hoch"
 #, fuzzy
 msgid "High on top"
 msgstr "Hoch oben"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
@@ -15860,6 +15885,11 @@ msgid "a list holds {n} entries at most"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 msgid "a message is saved in the background by the window's own timer alone"
 msgstr ""
@@ -15955,6 +15985,11 @@ msgstr "die Adresse eines freigegebenen Postfachs kann nicht geändert werden: E
 #, fuzzy
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
 msgstr "die Regeln eines freigegebenen Postfachs sind seine eigenen: Diese Version erstellt sie nicht"
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
@@ -17014,6 +17049,11 @@ msgid "that was only looked at, not read in full"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the .pst file couldn't be opened: {e}"
 msgstr ""
@@ -17707,6 +17747,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr "die Signatur enthält Änderungen: Speichern Sie sie, oder schließen Sie sie mit discard"
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature is no longer there"
@@ -18014,6 +18059,11 @@ msgstr "diese Serie hat zu viele abgesagte Tage"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "diese Serie hat zu viele geänderte Tage"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
