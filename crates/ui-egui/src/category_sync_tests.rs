@@ -726,3 +726,18 @@ fn an_account_made_an_imap_one_and_a_microsoft_one_again_is_looked_at_afresh() {
     assert_eq!(jobs.lock().unwrap().len(), 2);
     assert!(app.session.mailbox.categories_read_only(owner).is_none(), "not read-only until Allow or a restart");
 }
+
+/// An account whose permission was to be asked for, made another kind of account before the
+/// question was put, isn't asked about its categories (#661).
+#[test]
+fn an_account_made_an_imap_one_before_its_question_is_not_asked_about() {
+    let (mut app, owner, answers, _, _) = window();
+    answers.lock().unwrap().push_back(not_covered(owner));
+    assert!(app.categories_tick_at(0.0));
+    app.poll_categories();
+    assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Needed));
+    app.execute("account.edit", json!({"id": owner, "kind": "imap"})).unwrap();
+    app.categories_tick_at(1.0);
+    assert!(app.dialog.is_none(), "asked about an account whose list isn't kept in step");
+    assert_eq!(app.category_sync.perm.get(&owner), None);
+}

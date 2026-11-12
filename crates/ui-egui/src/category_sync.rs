@@ -15,7 +15,7 @@
 //! automatic replies do. Without it the list is read-only here, and the Categories window says so
 //! with Allow; the window asks the owner the one question of [`crate::server_sync`] by itself.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
@@ -137,15 +137,16 @@ impl MailApp {
     /// (Public for a host's tests, which have no window.)
     pub fn categories_tick_at(&mut self, now: f64) -> bool {
         self.category_sync.clock = now;
-        self.categories_ask_tick();
         // An account whose list isn't kept in step any more (made another kind of account, or
         // removed): what was learnt of it goes, so that its list is looked at afresh if it is
-        // kept in step again.
+        // kept in step again, and it isn't asked about.
         let kept = category_accounts(&self.session.mailbox);
-        let gone: Vec<Id> = self.category_sync.addresses.keys().filter(|a| !kept.contains(a)).copied().collect();
+        let learnt = self.category_sync.addresses.keys().chain(self.category_sync.perm.keys());
+        let gone: BTreeSet<Id> = learnt.filter(|a| !kept.contains(a)).copied().collect();
         for account in gone {
             self.category_sync.forget(account);
         }
+        self.categories_ask_tick();
         // (Offline, nothing goes, so what would go isn't looked through either.)
         if !self.auto_sync || self.offline() || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
             return false;
