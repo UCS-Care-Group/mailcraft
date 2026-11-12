@@ -504,8 +504,17 @@ impl State {
         if newest_first {
             matching.reverse();
         }
-        let found: String = matching.into_iter().map(|i| format!("<t:Message>{}</t:Message>", item_id_xml(i))).collect();
-        yes("FindItem", &format!("<m:RootFolder TotalItemsInView=\"1\" IncludesLastItemInRange=\"true\"><t:Items>{found}</t:Items></m:RootFolder>"))
+        // The view's page: `MaxEntriesReturned` from `Offset`.
+        let view = parts.get(1).copied().flatten();
+        let number = |name: &str| view.and_then(|v| v.attribute(name)).and_then(|n| n.parse::<usize>().ok());
+        let (max, offset) = (number("MaxEntriesReturned").unwrap_or(usize::MAX), number("Offset").unwrap_or(0));
+        let total = matching.len();
+        let last = offset.saturating_add(max) >= total;
+        let found: String = matching.into_iter().skip(offset).take(max).map(|i| format!("<t:Message>{}</t:Message>", item_id_xml(i))).collect();
+        yes(
+            "FindItem",
+            &format!("<m:RootFolder TotalItemsInView=\"{total}\" IncludesLastItemInRange=\"{last}\"><t:Items>{found}</t:Items></m:RootFolder>"),
+        )
     }
 
     fn create_attachment(&mut self, operation: &Node) -> Answer {

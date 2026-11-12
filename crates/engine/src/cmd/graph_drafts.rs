@@ -73,7 +73,9 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         // clear as in any Encrypted message, and the Bcc, which only the owner's own server sees of a
         // draft) and the Encrypted body.
         let options = mailcraft_mime::WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(m.date) };
-        let bytes = mailcraft_mime::write(m, &options);
+        // (With a Message-ID of its own for this save: what a server holds of an earlier try is found by it.)
+        let written = Message { message_id: mailcraft_model::encrypting::sealed_draft_message_id(&m.message_id, sd.saves), ..m.clone() };
+        let bytes = mailcraft_mime::write(&written, &options);
         return Some(DraftUp {
             message: m.id,
             id,

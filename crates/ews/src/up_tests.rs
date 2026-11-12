@@ -989,3 +989,26 @@ fn a_draft_kept_encrypted_is_taken_away_only_when_it_is_still_a_draft_in_drafts_
     assert!(state.item(&first.id).is_none(), "the earlier draft is");
     assert_eq!(state.deletes, ["HardDelete"]);
 }
+
+#[test]
+fn a_purge_reads_the_list_ten_at_a_time_until_none_is_left() {
+    for copies in [9usize, 10, 25] {
+        let standin = StandIn::new();
+        let first = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() }).drafts[0].clone();
+        {
+            let mut state = standin.state();
+            let template = state.item(&first.id).unwrap().clone();
+            for n in 1..copies {
+                let mut copy = template.clone();
+                copy.id = format!("copy-{n}");
+                state.items.push(copy);
+            }
+        }
+        let result = run(&standin, &EwsMailRequest { drafts: vec![DraftUp { purge: true, ..sealed_draft("") }], ..base() });
+        let made = &result.drafts[0];
+        assert!(made.purged, "{copies}: {made:?}");
+        let state = standin.state();
+        assert_eq!(state.items.iter().filter(|i| i.draft).count(), 1, "{copies}: only the new one is left");
+        assert_eq!(state.deletes.len(), copies, "{copies}");
+    }
+}

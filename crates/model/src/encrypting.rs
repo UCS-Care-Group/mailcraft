@@ -162,6 +162,28 @@ fn blind_message_id(id: &str, at: usize) -> String {
     }
 }
 
+/// The Message-ID an Encrypted draft is written with for its `saves`th save: that of the message
+/// with `-s{saves}` before its `@`, so that the copies a server may hold of it are told from any other
+/// draft that shares the message's own Message-ID (a conflict copy, a copy made in Outlook): only this
+/// program writes one, and only such a one is ever looked for by it.
+pub fn sealed_draft_message_id(id: &str, saves: u32) -> String {
+    let id = id.trim();
+    if id.is_empty() {
+        return String::new();
+    }
+    match id.rsplit_once('@') {
+        Some((local, host)) => format!("{local}-s{saves}@{host}"),
+        None => format!("{id}-s{saves}"),
+    }
+}
+
+/// Whether `id` (with or without its angle brackets) is one [`sealed_draft_message_id`] makes.
+pub fn is_sealed_draft_message_id(id: &str) -> bool {
+    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
+    let local = id.rsplit_once('@').map_or(id, |(local, _)| local);
+    local.rsplit_once("-s").is_some_and(|(_, n)| !n.is_empty() && n.len() <= 10 && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
 impl Message {
     /// The Bcc recipients written to blind in an Encrypted message: those of the Bcc line who are
     /// not also on To or Cc (who are known to the others), in lower case, each once.

@@ -125,7 +125,7 @@ fn sealed() -> Vec<u8> {
         to: vec![Address::new("Kit", "kit@example.net")],
         subject: "Plans".into(),
         date: NOW,
-        message_id: "plans.1@example.org".into(),
+        message_id: "plans.1-s1@example.org".into(),
         original: Some(body(1)),
         ..Message::default()
     };
@@ -296,4 +296,51 @@ fn the_one_shot_send_of_an_encrypted_message_files_one_copy_and_says_who_had_the
     let stopped = crate::graph::send_recording_at(&server.url(), TOKEN, &message, &Default::default(), &mut went);
     assert!(stopped.is_err());
     assert_eq!(went, ["erin@example.org", "finn@example.org"]);
+}
+
+#[test]
+fn another_draft_that_shares_the_messages_own_message_id_is_never_swept() {
+    let server = StandIn::start().unwrap();
+    let clear = clear_draft(&server);
+    let mut mark = server.state().mailbox.messages.get(&clear).map(|m| m.extended.clone()).unwrap();
+    for entry in &mut mark {
+        entry.1 = "mailcraft-draft-9-9".into();
+    }
+    // A conflict copy, or one made in Outlook: it carries the message's own Message-ID and a marker of its own.
+    let drafts = server.state().well_known("drafts");
+    let other = server.state().mailbox.add(&drafts, "Plans", NOW);
+    server.state().mailbox.update(&other, |m| {
+        m.draft = true;
+        m.internet_id = "<plans.1@example.org>".into();
+        m.extended = mark.clone();
+    });
+    let all = run(
+        &server,
+        GraphMailRequest {
+            drafts: vec![DraftUp {
+                message: 5,
+                id: clear,
+                marker: MARKER.into(),
+                saves: 1,
+                purge: true,
+                sealed: Arc::new(sealed()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    );
+    assert!(all.drafts.iter().any(|d| d.fields && d.purged), "{:?} {:?}", all.drafts, all.errors);
+    let state = server.state();
+    assert!(state.mailbox.messages.contains_key(&other), "the other draft is not this one's to take away");
+    assert!(!state.mailbox.purged.contains(&other));
+}
+
+#[test]
+fn an_encrypted_drafts_message_id_is_its_own_and_never_the_messages() {
+    use mailcraft_model::encrypting::{is_sealed_draft_message_id, sealed_draft_message_id};
+    assert_eq!(sealed_draft_message_id("plans.1@example.org", 3), "plans.1-s3@example.org");
+    assert!(is_sealed_draft_message_id("<plans.1-s3@example.org>"));
+    for not in ["plans.1@example.org", "<plans-s@example.org>", "plans-sx1@example.org", ""] {
+        assert!(!is_sealed_draft_message_id(not), "{not}");
+    }
 }

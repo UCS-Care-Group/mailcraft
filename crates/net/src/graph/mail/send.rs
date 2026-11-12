@@ -229,9 +229,13 @@ pub(in crate::graph) fn send_unfiled(graph: &Graph<'_>, body: &str, message_id: 
     let result = send_made(graph, &id, done);
     // Whatever became of it but being sent, the draft made for it doesn't stay (it holds a message
     // only its recipient can read, and the owner would find it in Drafts): taken away, best effort.
-    if result.is_err() || done.outcome != SendOutcome::Sent {
+    // (Not when the answer to the send was lost: the draft may be on its way, and the next try's
+    // sweep decides. And asked outside the mailbox's gate: a throttled mailbox pauses it, and the
+    // delete would wait behind the very pause that made it needed.)
+    let lost = matches!(done.outcome, SendOutcome::Held { lost: true, .. });
+    if !lost && (result.is_err() || done.outcome != SendOutcome::Sent) {
         let url = graph.url(&graph.mail_path(&format!("/messages/{id}")));
-        let _ = graph.call(Kind::Same, &url, "DELETE", &[], None, SEND_TIMEOUT, MAX_PAGE);
+        let _ = graph.ask_as(Kind::Same, &url, "DELETE", &[], None, SEND_TIMEOUT, MAX_PAGE);
     }
     result
 }

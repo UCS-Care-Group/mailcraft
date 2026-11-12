@@ -292,13 +292,16 @@ fn pick<'a>(mb: &'a Mailbox, address: &str, format: SignatureFormat, now: i64) -
 /// hour (a key's validity is by the hour at most), by what the key is, bounded.
 fn usable(k: &PublicKey, now: i64) -> bool {
     use std::sync::{LazyLock, Mutex};
-    static ANSWERS: LazyLock<Mutex<std::collections::HashMap<(u8, std::sync::Arc<Vec<u8>>, i64), bool>>> = LazyLock::new(Default::default);
+    static ANSWERS: LazyLock<Mutex<(usize, std::collections::HashMap<(u8, std::sync::Arc<Vec<u8>>, i64), bool>)>> = LazyLock::new(Default::default);
+    // (Bounded in how many and in how many bytes of keys they hold, so that a key dropped from the
+    // mailbox isn't held for long.)
     const MAX_ANSWERS: usize = 4_096;
+    const MAX_BYTES: usize = 4 << 20;
     // (By what the key is, so that no two keys share an answer; the bytes are shared, not copied, and
     // the table is bounded.)
     let key = (k.format as u8, k.data.clone(), now.div_euclid(3_600));
     if let Ok(answers) = ANSWERS.lock()
-        && let Some(known) = answers.get(&key)
+        && let Some(known) = answers.1.get(&key)
     {
         return *known;
     }
@@ -307,10 +310,11 @@ fn usable(k: &PublicKey, now: i64) -> bool {
         SignatureFormat::OpenPgp => mailcraft_openpgp::can_encrypt_to(&k.data, u64::try_from(now).unwrap_or(0)).is_ok(),
     };
     if let Ok(mut answers) = ANSWERS.lock() {
-        if answers.len() >= MAX_ANSWERS {
-            answers.clear();
+        if answers.1.len() >= MAX_ANSWERS || answers.0.saturating_add(k.data.len()) > MAX_BYTES {
+            *answers = Default::default();
         }
-        answers.insert(key, ok);
+        answers.0 = answers.0.saturating_add(k.data.len());
+        answers.1.insert(key, ok);
     }
     ok
 }

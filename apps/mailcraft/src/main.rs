@@ -1139,13 +1139,20 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         let mut went = Vec::new();
         let sent = graph::send_recorded(&access, message, &graph::SendOptions::default(), &mut went);
         // Those Bcc recipients who had their message are remembered, and a retry gives them no more.
-        if sent.is_err() && !went.is_empty() {
+        let went_already = sent.is_err() && !went.is_empty();
+        if went_already {
             out.blind_sent.push((message.id, went));
         }
         match sent {
             Ok(()) => out.sent.push(message.id),
             // Not allowed to send this way: the mail server gets its turn in this run.
-            Err(NetError::Forbidden(_)) => {}
+            // (Unless Bcc copies of an Encrypted message went already: the mail server would send them
+            // again. It is held, and goes with the next run, to the rest alone.)
+            Err(NetError::Forbidden(_)) if !went_already => {}
+            Err(NetError::Forbidden(_)) => {
+                out.held.push(message.id);
+                out.errors.push(format!("Couldn't finish sending \"{}\" through Microsoft: it isn't allowed to", message.subject.trim()));
+            }
             Err(e) if e.is_refused_sign_in() => {
                 refused = true;
                 out.held.push(message.id);

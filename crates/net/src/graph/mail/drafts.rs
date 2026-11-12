@@ -272,7 +272,10 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
     }
     // An earlier try whose answer was lost left its draft with no marker: found by the Message-ID
     // every copy of this message carries, checked, and taken away too. Best effort.
-    if let Some(filter) = message_id_in(&d.sealed).as_deref().and_then(by_internet_id)
+    // (Only by a Message-ID this program wrote for this draft: never by the message's own, which other
+    // drafts of the owner's can share.)
+    if let Some(filter) =
+        message_id_in(&d.sealed).filter(|id| mailcraft_model::encrypting::is_sealed_draft_message_id(id)).as_deref().and_then(by_internet_id)
         && let Err(e) = purge_matching(graph, &filter, &new)
     {
         log::info!("graph drafts: copies of an Encrypted draft made before couldn't be looked for ({e})");

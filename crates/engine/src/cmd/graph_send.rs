@@ -277,13 +277,23 @@ pub fn hold_lost(mb: &mut Mailbox, account: Id, ids: &[Id], server: &str, lang: 
         if !m.held.is_empty() {
             continue;
         }
-        m.held = format!("It may have been sent: the answer from {server} was lost. Look in Sent Items before you send it again.");
+        // (An Encrypted message to Bcc recipients: a copy made for one of them is never filed in Sent Items.)
+        let blind = m.encrypt == Some(true) && (!m.bcc.is_empty() || !m.blind_sent.is_empty());
+        m.held = if blind {
+            format!(
+                "It may have been sent: the answer from {server} was lost. Copies for Bcc recipients aren't kept in Sent Items; check with them before you send it again."
+            )
+        } else {
+            format!("It may have been sent: the answer from {server} was lost. Look in Sent Items before you send it again.")
+        };
         let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
         let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
-        said.push(mailcraft_i18n::fmt(
-            lang.t("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."),
-            &[("subject", &subject)],
-        ));
+        let line = if blind {
+            lang.t("'{subject}' may have been sent, a copy for a Bcc recipient perhaps not. It is held in the Outbox.")
+        } else {
+            lang.t("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox.")
+        };
+        said.push(mailcraft_i18n::fmt(line, &[("subject", &subject)]));
     }
     changed
 }
