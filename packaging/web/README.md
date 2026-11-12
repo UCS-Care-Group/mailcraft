@@ -8,6 +8,8 @@ static site in `mailcraft-web-<version>/`:
 | `index.html` | The page. It loads everything through relative URLs. |
 | `mailcraft-web-<hash>.js` | wasm-bindgen glue (generated, ES module) |
 | `mailcraft-web-<hash>_bg.wasm` | The app, about 13 MB, or 5 MB with compression |
+| `NotoSansGeorgian-Regular.ttf` | Georgian letters, about 35 KB; the page fetches it only when the interface language is Georgian |
+| `OFL-NotoSansGeorgian.txt` | The font's licence (SIL OFL 1.1), kept beside it |
 | `_headers`, `.htaccess` | Sample header rules for Netlify/Cloudflare Pages and Apache |
 
 There is no server-side code. Upload the folder's contents anywhere that serves static files.
@@ -16,8 +18,9 @@ There is no server-side code. Upload the folder's contents anywhere that serves 
 
 All URLs in `index.html` are relative (`public_url = "./"` in `apps/mailcraft-web/Trunk.toml`),
 so the site works at a domain root (`https://example.com/`), under a prefix
-(`https://example.com/tools/mailcraft/`) and from a CDN bucket. The asset names carry a content
-hash, so they can be cached forever. Only `index.html` needs revalidation.
+(`https://example.com/tools/mailcraft/`) and from a CDN bucket. The `.wasm`, `.js` and `.css` names carry a
+content hash, so they can be cached forever. `index.html`, `NotoSansGeorgian-Regular.ttf` and
+`OFL-NotoSansGeorgian.txt` have no hash and need revalidation.
 
 ## Required server settings
 

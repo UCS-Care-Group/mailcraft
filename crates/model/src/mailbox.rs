@@ -933,6 +933,14 @@ pub enum Pending {
     },
 }
 
+/// Whether `m` is a message the server has, whose UID in its folder isn't known: a move or a
+/// copy put there went up, the server didn't say the new UID (no UIDPLUS), and the copy has to
+/// come down to be matched by its Message-ID (`synced` is what the server last said of it).
+/// Not one put on the server from another account, which is matched by a marker.
+fn awaits_its_copy(m: &Message, synced: Option<RemoteFlags>) -> bool {
+    m.uid == 0 && synced.is_some() && m.placed.is_empty() && !m.message_id.is_empty()
+}
+
 /// What a message says of itself apart from its Message-ID: when it was sent, by whom, about
 /// what and to whom. Two arrivals with one Message-ID are one mail only if these agree too.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -2260,6 +2268,7 @@ impl Mailbox {
         let (from_account, was_in, uid, synced) = (m.account, m.folder, m.uid, m.synced);
         // Of one that isn't whole here, the server's is all there is.
         let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0;
+        let awaiting = awaits_its_copy(m, synced);
         let waiting = self.waiting(id, fresh);
         let owner = waiting.and_then(|at| self.pending.get(at)).map(Pending::account);
         // A move under way goes on wherever the message goes next, whole here or not: it was whole
@@ -2283,8 +2292,20 @@ impl Mailbox {
             }
             _ => {
                 let from = self.folder(was_in).filter(|f| f.account == from_account && !f.remote.is_empty()).map(|f| f.remote.clone());
-                if let (Some(from), true, true) = (from, uid != 0, starts) {
+                if let (Some(from), true, true) = (from.clone(), uid != 0, starts) {
                     self.pending.push(Pending::Move { account: from_account, message: id, from, uid, synced, to: folder });
+                } else if let Some(from) = from.filter(|_| uid == 0 && starts && awaiting) {
+                    // Its copy hasn't come down from the server yet (no UIDPLUS: the server didn't
+                    // say where it put it): the move waits with UID 0 for that copy, as one
+                    // after a renumbering does, and goes up once it is matched (`waited_for`).
+                    self.pending.push(Pending::Move {
+                        account: from_account,
+                        message: id,
+                        from,
+                        uid: 0,
+                        synced: synced.map(|flags| flags.at(0)),
+                        to: folder,
+                    });
                 }
             }
         }
