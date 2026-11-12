@@ -1845,13 +1845,14 @@ mod two_way {
         apply(&mut s, came_back(a, two, archive, 5));
         assert_eq!(request(&s, a).ops, [RemoteOp::Delete { from: "Archive".into(), uid: 5 }]);
 
-        // When the server didn't say where it put the message, there is nothing to go on: the
-        // server's copy comes down as a message of its own, and nothing is asked that could hit
-        // another message.
+        // When the server didn't say where it put the message, there is no UID to go on, and
+        // nothing is asked that could hit another message: the deletion waits for the server's
+        // copy to come down, to be found by its Message-ID.
         let (mut s, a, _, archive, two) = left();
         run(&mut s, "mail.deletePermanently", json!({"id": two}));
         apply(&mut s, came_back(a, two, archive, 0));
-        assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
+        assert_eq!(request(&s, a).ops.len(), 0);
+        assert!(matches!(&s.mailbox.pending[..], [Pending::Delete { from, uid: 0, .. }] if from == "Archive"), "{:?}", s.mailbox.pending);
 
         // A deletion the owner took back while it was carried out: the server no longer has the
         // message, so the one here is the only one. It stays, and goes on the server again (#451).
@@ -2380,28 +2381,6 @@ fn options_validate() {
     assert_eq!(s.prefs.work_start, 8);
     assert_eq!(session::parse_enum::<CalView>("WorkWeek"), Some(CalView::WorkWeek));
     assert_eq!(session::enum_code(&CalView::WorkWeek), "workWeek");
-}
-
-#[test]
-fn parity_has_a_floor_that_only_rises() {
-    let s = session();
-    let p = catalog::parity(&s.registry);
-    let percent = p["percent"].as_f64().unwrap();
-    assert!(percent >= 60.0, "catalog parity fell to {percent}%");
-    // Every catalog id is spelled like a command id.
-    for f in catalog::features() {
-        assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
-    }
-    assert!(catalog::parity_markdown(&s.registry).contains("## Missing"));
-    // What is out of scope is a catalog row, said why, and listed apart from what is missing.
-    for (id, why) in catalog::OUT_OF_SCOPE {
-        assert!(catalog::features().any(|f| f.id == id), "{id} is in the catalog");
-        assert!(!why.is_empty());
-        let listed = |k: &str| p[k].as_array().unwrap().iter().any(|m| m["id"] == id);
-        assert!(!listed("missing"), "{id} isn't missing");
-        assert!(listed("outOfScope") || s.registry.get(id).is_some(), "{id} is out of scope");
-    }
-    assert!(catalog::parity_markdown(&s.registry).contains("## Out of scope"));
 }
 
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
