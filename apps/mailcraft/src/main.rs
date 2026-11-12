@@ -1216,8 +1216,9 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         out.uploaded = Some(uploaded);
     }
     // The wide stretch with the contacts, every quarter of an hour; otherwise the days on screen.
+    // (The window counts the wide stretch from its own clock and says it in `calendar`.)
     let now = mailcraft_time::now();
-    let stretch = if request.directory { Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD)) } else { request.calendar };
+    let stretch = if request.directory { request.calendar.or(Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD))) } else { request.calendar };
     // A shared mailbox's calendars (#70): asked for and written at its own address, and only
     // those that are ticked are asked for (the window says which, in the asks); no contacts,
     // categories or settings of it.
