@@ -209,10 +209,10 @@ impl eframe::App for App {
         // Leaving (the close button, Quit, the Dock): a message being written asks first, then
         // the platform's own way out (`quit`). Last in `logic`, which runs while minimized too.
         #[cfg(target_os = "windows")]
-        if let Some(tray) = &mut self.6 {
-            if tray.on_frame(ctx, &mut self.0) {
-                return;
-            }
+        if let Some(tray) = &mut self.6
+            && tray.on_frame(ctx, &mut self.0)
+        {
+            return;
         }
         quit::on_frame(ctx, &mut self.0);
         #[cfg(target_os = "windows")]
