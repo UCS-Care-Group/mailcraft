@@ -4237,6 +4237,14 @@ impl Mailbox {
                 c.name = clean;
             }
         }
+        // (The names kept on this computer only are the lists' names, cleaned the same way, #661.)
+        for name in self.local_categories.values_mut().flatten() {
+            if let Some(clean) = clean_name(name)
+                && clean != *name
+            {
+                *name = clean;
+            }
+        }
         // Accounts and folders with duplicate, missing or out-of-range ids get new ones.
         let mut seen = std::collections::BTreeSet::new();
         for c in &mut self.calendars {

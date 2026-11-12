@@ -473,3 +473,20 @@ fn renames_waiting_on_a_full_list_are_tidied_in_one_pass() {
     tidied.tidy_renames(1);
     assert_eq!(tidied.category_renames[&1].len(), MAX_CATEGORIES - 2);
 }
+
+/// A file's names kept on this computer only are cleaned as its lists' names are, so one written
+/// there with a control character is still known as kept here, and nothing of it goes to Outlook
+/// (#661).
+#[test]
+fn a_files_names_kept_here_alone_are_cleaned_as_the_lists_are() {
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, vec![tagged("A\u{0}", RED)]);
+    mb.server_categories.insert(a, Vec::new());
+    mb.synced_categories.insert(a, Vec::new());
+    mb.category_writes.insert(a);
+    mb.local_categories.insert(a, vec!["A\u{0}".into()]);
+    mb.repair();
+    assert_eq!(mb.account_categories[&a][0].name, "A");
+    assert!(mb.category_is_local(a, "A"));
+    assert!(mb.category_upload(a).is_empty(), "{:?}", mb.category_upload(a));
+}
