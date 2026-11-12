@@ -615,6 +615,41 @@ fn a_logged_field_name_has_no_line_break() {
     assert!(loggable(&"\n".repeat(100)).chars().count() <= 40);
 }
 
+/// What the redirect reader accepts of `{before}&state=<state>{after}`: a bare `#` at the very end
+/// is dropped and empty pieces between the `&`s are ignored, so what is left must be exactly one
+/// `code=<value>` piece (a value of visible characters that need no decoding) beside the state,
+/// and nothing glued to the state's own value. The code's value is the provider's to vouch for:
+/// whichever it is, the token endpoint decides, and nothing is traded unless the state is right.
+fn accepted_around_the_state(before: &str, after: &str) -> bool {
+    let after = after.strip_suffix('#').unwrap_or(after);
+    let after_is_only_empty_pieces = after.is_empty() || after.bytes().all(|b| b == b'&');
+    let pieces: Vec<&str> = before.split('&').filter(|piece| !piece.is_empty()).collect();
+    let plain = |b: u8| matches!(b, b'!'..=b'~') && !matches!(b, b'%' | b'#' | b'+');
+    let one_code = match pieces.as_slice() {
+        [piece] => piece.strip_prefix("code=").is_some_and(|value| !value.is_empty() && value.bytes().all(plain)),
+        _ => false,
+    };
+    after_is_only_empty_pieces && one_code
+}
+
+#[test]
+fn empty_pieces_and_any_one_code_are_what_the_reader_accepts() {
+    // Reviewer's counterexamples: a trailing `&` and a code that is not `c` are both fine ...
+    for (before, after) in [("code=c", "&"), ("code=d", ""), ("code=d", "#"), ("&code=d&", "&&"), ("code=d", "&#")] {
+        let server = token_server();
+        let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?{before}&state={{state}}{after}"));
+        assert!(result.is_ok(), "{before:?} {after:?}: {result:?}");
+        assert!(accepted_around_the_state(before, after), "{before:?} {after:?}");
+    }
+    // ... and nothing else is: no code, an empty one, two, a stranger, or text glued to the state.
+    for (before, after) in [("x", ""), ("code=", ""), ("code=c&code=d", ""), ("code=c&x=y", ""), ("code=c", "x"), ("code=c", "&x=y")] {
+        let server = token_server();
+        let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?{before}&state={{state}}{after}"));
+        refused(result, &server, &format!("{before:?} {after:?}"));
+        assert!(!accepted_around_the_state(before, after), "{before:?} {after:?}");
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(48))]
 
@@ -636,9 +671,7 @@ proptest! {
     fn random_text_around_the_real_state_is_never_a_sign_in(before in "[ -~]{1,40}", after in "[ -~]{0,40}") {
         let server = token_server();
         let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?{before}&state={{state}}{after}"));
-        // A bare `#` at the very end and empty pieces between the `&`s are accepted forms.
-        let pieces: Vec<&str> = before.split('&').filter(|piece| !piece.is_empty()).collect();
-        let clean = pieces == ["code=c"] && (after.is_empty() || after == "#");
+        let clean = accepted_around_the_state(&before, &after);
         prop_assert!(result.is_ok() == clean, "{before:?} {after:?}: {result:?}");
     }
 
