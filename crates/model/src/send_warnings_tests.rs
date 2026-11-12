@@ -128,6 +128,11 @@ fn a_look_alike_at_or_full_stop_before_the_at_is_shown_for_what_it_is() {
     let w = check(&to(&["maya.okafor\u{ff20}lumen.example@harborwork.example"]), &[], &[], &facts(), &HashSet::new());
     let SendWarning::LookalikeRecipient { address, .. } = &w[0] else { panic!("{w:?}") };
     assert!(address.starts_with("maya.okafor<U+FF20>lumen.example@"), "{address}");
+    // A look-alike plus is shown as the code it is, and what it pads is read as a tag.
+    let w = check(&to(&["maya.okafor1\u{ff0b}re@lumen.example"]), &[], &[], &facts(), &HashSet::new());
+    let SendWarning::LookalikeRecipient { address, like } = &w[0] else { panic!("{w:?}") };
+    assert_eq!(address, "maya.okafor1<U+FF0B>re@lumen.example");
+    assert_eq!(like, "maya.okafor@lumen.example");
 }
 
 #[test]

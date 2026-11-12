@@ -175,7 +175,7 @@ pub fn shown(address: &str) -> String {
 const MAX_SHOWN: usize = 100;
 
 /// The part before the @ as [`shown`] shows it: a character that draws nothing, or is drawn as
-/// an `@` or a `.` ([`drawn_as`]), written as its code (`<U+200B>`, `<U+FF20>`), so that the
+/// an `@`, a `.` or a `+` ([`drawn_as`]), written as its code (`<U+200B>`, `<U+FF20>`), so that the
 /// address doesn't pass for the one it looks like.
 fn shown_local(local: &str) -> String {
     let mut out = String::new();

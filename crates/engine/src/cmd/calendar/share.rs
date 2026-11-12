@@ -11,7 +11,7 @@
 //! own calendars alone (never of a calendar somebody shared with them), and names nobody who is
 //! invited. Tracking says what is already known here of the answers; it asks no server.
 
-use mailcraft_i18n::Lang;
+use mailcraft_i18n::date::Dated;
 use mailcraft_model::search::Query;
 use mailcraft_model::{Address, Body, Event, Id, Message, Response, ShowAs};
 use mailcraft_time::{Date, DateTime};
@@ -131,9 +131,9 @@ fn notes_of(text: &str) -> String {
     text.lines().map(|l| one_line(l, 200)).filter(|l| !l.is_empty()).take(12).collect::<Vec<_>>().join("\n")
 }
 
-fn day_said(lang: Lang, d: Date) -> String {
+fn day_said(w: Dated, d: Date) -> String {
     let day = mailcraft_i18n::date::Day { year: d.year, month: d.month, day: d.day, weekday: d.weekday().index() };
-    mailcraft_i18n::date::long(&lang, day)
+    mailcraft_i18n::date::long(&w, day)
 }
 
 /// The owner's own calendars that a summary is of: the one `calendar` names (refused when it is
@@ -193,22 +193,23 @@ impl Summary {
     }
 
     /// Its subject, for a message of its own: `Calendar: Monday, November 2, 2026 – …`.
-    pub fn subject(&self, lang: Lang) -> String {
-        let what = self.name.clone().unwrap_or_else(|| lang.t("Calendar").to_string());
-        format!("{what}: {}", self.span(lang))
+    pub fn subject(&self, w: Dated) -> String {
+        let what = self.name.clone().unwrap_or_else(|| w.lang.t("Calendar").to_string());
+        format!("{what}: {}", self.span(w))
     }
 
-    fn span(&self, lang: Lang) -> String {
-        if self.from == self.to { day_said(lang, self.from) } else { format!("{} – {}", day_said(lang, self.from), day_said(lang, self.to)) }
+    fn span(&self, w: Dated) -> String {
+        if self.from == self.to { day_said(w, self.from) } else { format!("{} – {}", day_said(w, self.from), day_said(w, self.to)) }
     }
 
     /// The summary as text: the days, and under each what is on it.
     pub fn text(&self, s: &Session) -> String {
         let lang = s.interface_language;
+        let w = s.dated();
         let twelve = s.prefs.twelve_hour;
-        let clock = |at: DateTime| mailcraft_i18n::date::time(&lang, at.hour, at.minute, twelve);
+        let clock = |at: DateTime| mailcraft_i18n::date::time(&w, at.hour, at.minute, twelve);
         let mut out = String::new();
-        out.push_str(&self.subject(lang));
+        out.push_str(&self.subject(w));
         out.push('\n');
         let zone = s.zone();
         if !zone.is_local() {
@@ -226,15 +227,15 @@ impl Summary {
             let on = item.start.date.max(self.from);
             if day != Some(on) {
                 out.push('\n');
-                out.push_str(&day_said(lang, on));
+                out.push_str(&day_said(w, on));
                 out.push('\n');
                 day = Some(on);
             }
             let when = if item.all_day {
                 let last = item.end.add_minutes(-1).date.max(item.start.date);
-                if last > item.start.date { format!("{} – {}", lang.t("All day"), day_said(lang, last)) } else { lang.t("All day").to_string() }
+                if last > item.start.date { format!("{} – {}", lang.t("All day"), day_said(w, last)) } else { lang.t("All day").to_string() }
             } else if item.end.date != item.start.date {
-                format!("{} – {} {}", clock(item.start), day_said(lang, item.end.date), clock(item.end))
+                format!("{} – {} {}", clock(item.start), day_said(w, item.end.date), clock(item.end))
             } else {
                 format!("{} – {}", clock(item.start), clock(item.end))
             };
@@ -304,10 +305,9 @@ fn email(s: &mut Session, v: &Value) -> CmdResult {
         None | Some(Value::Null) => true,
         Some(b) => b.as_bool().ok_or_else(|| bad("`ics` is true or false"))?,
     };
-    let lang = s.interface_language;
     let text = summary.text(s);
     let ics = attach.then(|| summary.ics(s));
-    let compose = s.run("mail.new", &json!({"subject": summary.subject(lang), "body": text}))?["compose"].clone();
+    let compose = s.run("mail.new", &json!({"subject": summary.subject(s.dated()), "body": text}))?["compose"].clone();
     if let Some(ics) = ics {
         let file = json!({"name": "calendar.ics", "data": base64_encode(ics.as_bytes()), "mime": "text/calendar", "compose": compose});
         s.run("compose.attach", &file)?;
