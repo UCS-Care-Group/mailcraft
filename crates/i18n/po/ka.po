@@ -561,7 +561,9 @@ msgstr "შესახებ"
 msgid ""
 "About\n"
 "MailCraft"
-msgstr "MailCraft-ის\nშესახებ"
+msgstr ""
+"MailCraft-ის\n"
+"შესახებ"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs
@@ -653,7 +655,9 @@ msgstr "ანგარიში"
 msgid ""
 "Account\n"
 "Settings"
-msgstr "ანგარიშის\nპარამეტრები"
+msgstr ""
+"ანგარიშის\n"
+"პარამეტრები"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
@@ -697,7 +701,9 @@ msgstr "დამატება"
 msgid ""
 "Add\n"
 "Account"
-msgstr "ანგარიშის\nდამატება"
+msgstr ""
+"ანგარიშის\n"
+"დამატება"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
@@ -861,7 +867,9 @@ msgstr "ფაილიდან დამატება…"
 msgid ""
 "Add to\n"
 "Favorites"
-msgstr "რჩეულებში\nდამატება"
+msgstr ""
+"რჩეულებში\n"
+"დამატება"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
@@ -1471,7 +1479,9 @@ msgstr "დალაგება"
 msgid ""
 "Arrange\n"
 "By"
-msgstr "დალაგების\nწესი"
+msgstr ""
+"დალაგების\n"
+"წესი"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -1647,7 +1657,9 @@ msgstr "მიმაგრება"
 msgid ""
 "Attach\n"
 "File"
-msgstr "ფაილის\nმიმაგრება"
+msgstr ""
+"ფაილის\n"
+"მიმაგრება"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
@@ -2185,7 +2197,9 @@ msgstr "გაუქმება"
 msgid ""
 "Cancel\n"
 "All"
-msgstr "ყველას\nგაუქმება"
+msgstr ""
+"ყველას\n"
+"გაუქმება"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
@@ -2283,7 +2297,9 @@ msgstr "სერტიფიკატები"
 msgid ""
 "Change\n"
 "View"
-msgstr "ხედის\nშეცვლა"
+msgstr ""
+"ხედის\n"
+"შეცვლა"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -2417,7 +2433,9 @@ msgstr "დიაგრამა"
 msgid ""
 "Check\n"
 "Names"
-msgstr "სახელების\nშემოწმება"
+msgstr ""
+"სახელების\n"
+"შემოწმება"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2887,7 +2905,9 @@ msgstr "კონტაქტი"
 msgid ""
 "Contact\n"
 "Card"
-msgstr "საკონტაქტო\nბარათი"
+msgstr ""
+"საკონტაქტო\n"
+"ბარათი"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
@@ -2949,7 +2969,9 @@ msgstr "კოპირება"
 msgid ""
 "Copy\n"
 "Diagnostics"
-msgstr "დიაგნოსტიკის\nკოპირება"
+msgstr ""
+"დიაგნოსტიკის\n"
+"კოპირება"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -3311,7 +3333,9 @@ msgstr "თარიღი"
 msgid ""
 "Date &\n"
 "Time"
-msgstr "თარიღი\nდა დრო"
+msgstr ""
+"თარიღი\n"
+"და დრო"
 
 #. command label
 #: crates/engine/src/cmd/writing_tools.rs
@@ -3421,7 +3445,9 @@ msgstr "წაშლა"
 msgid ""
 "Delete\n"
 "Folder"
-msgstr "საქაღალდის\nწაშლა"
+msgstr ""
+"საქაღალდის\n"
+"წაშლა"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -4079,7 +4105,9 @@ msgstr "რედაქტირება"
 msgid ""
 "Edit\n"
 "Contact"
-msgstr "კონტაქტის\nრედაქტირება"
+msgstr ""
+"კონტაქტის\n"
+"რედაქტირება"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4087,7 +4115,9 @@ msgstr "კონტაქტის\nრედაქტირება"
 msgid ""
 "Edit\n"
 "Task"
-msgstr "დავალების\nრედაქტირება"
+msgstr ""
+"დავალების\n"
+"რედაქტირება"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -4155,7 +4185,9 @@ msgstr "ელფოსტა"
 msgid ""
 "Email\n"
 "Calendar"
-msgstr "კალენდრის\nგაგზავნა"
+msgstr ""
+"კალენდრის\n"
+"გაგზავნა"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
@@ -4199,7 +4231,9 @@ msgstr "ცარიელი"
 msgid ""
 "Empty\n"
 "Folder"
-msgstr "საქაღალდის\nდაცლა"
+msgstr ""
+"საქაღალდის\n"
+"დაცლა"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
@@ -4411,7 +4445,9 @@ msgstr "ექსპორტირება"
 msgid ""
 "Export\n"
 "Contacts"
-msgstr "კონტაქტების\nექსპორტირება"
+msgstr ""
+"კონტაქტების\n"
+"ექსპორტირება"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4419,7 +4455,9 @@ msgstr "კონტაქტების\nექსპორტირება"
 msgid ""
 "Export\n"
 "Folder"
-msgstr "საქაღალდის\nექსპორტირება"
+msgstr ""
+"საქაღალდის\n"
+"ექსპორტირება"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
@@ -4541,7 +4579,9 @@ msgstr "ფილტრი"
 msgid ""
 "Filter\n"
 "Email"
-msgstr "ფოსტის\nფილტრი"
+msgstr ""
+"ფოსტის\n"
+"ფილტრი"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -4675,7 +4715,9 @@ msgstr "საქაღალდე"
 msgid ""
 "Folder\n"
 "Pane"
-msgstr "საქაღალდეების\nპანელი"
+msgstr ""
+"საქაღალდეების\n"
+"პანელი"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4683,7 +4725,9 @@ msgstr "საქაღალდეების\nპანელი"
 msgid ""
 "Folder\n"
 "Properties"
-msgstr "საქაღალდის\nთვისებები"
+msgstr ""
+"საქაღალდის\n"
+"თვისებები"
 
 #. command label, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
@@ -4745,7 +4789,9 @@ msgstr "საქაღალდე…"
 msgid ""
 "Follow\n"
 "Up"
-msgstr "შემდგომი\nრეაგირება"
+msgstr ""
+"შემდგომი\n"
+"რეაგირება"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
@@ -4873,7 +4919,9 @@ msgstr "გადაგზავნა"
 msgid ""
 "Forward\n"
 "Contact"
-msgstr "კონტაქტის\nგადაგზავნა"
+msgstr ""
+"კონტაქტის\n"
+"გადაგზავნა"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -5011,7 +5059,9 @@ msgstr "Georgia"
 msgid ""
 "Get\n"
 "Support"
-msgstr "მხარდაჭერის\nმიღება"
+msgstr ""
+"მხარდაჭერის\n"
+"მიღება"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -5109,7 +5159,9 @@ msgstr "მიეცით მოხსენებას სათაური,
 msgid ""
 "Gmail\n"
 "Categories"
-msgstr "Gmail-ის\nკატეგორიები"
+msgstr ""
+"Gmail-ის\n"
+"კატეგორიები"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -5142,7 +5194,6 @@ msgid "Gmail refused to move {n} message between its categories; it is asked aga
 msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
 msgstr[0] "Gmail-მა უარი თქვა კატეგორიებს შორის წერილების გადატანაზე ({n}); შემდეგ გაშვებისას ხელახლა ვცდით"
 msgstr[1] "Gmail-მა უარი თქვა კატეგორიებს შორის წერილების გადატანაზე ({n}); შემდეგ გაშვებისას ხელახლა ვცდით"
-
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -5411,7 +5462,16 @@ msgid ""
 "After you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n"
 "\n"
 "Thank you"
-msgstr "გამარჯობა,\n\nმსურს MailCraft-ის გამოყენება ჩემს სამსახურეობრივ ანგარიშთან. MailCraft არის ღია კოდის საფოსტო და კალენდრის პროგრამა, რომელიც ჩემსავე კომპიუტერზე მუშაობს. ჩვენს ორგანიზაციაში ახალ პროგრამას მხოლოდ ადმინისტრატორი ამტკიცებს, ამიტომ საჭიროა თქვენი თანხმობა ერთხელ, მთელი ორგანიზაციისთვის. Microsoft-ის გვერდი ამისთვის აქაა:\n\n{link}\n\nდამტკიცების შემდეგ ბრაუზერმა შეიძლება აჩვენოს გვერდი, რომელიც მიუწვდომელია. ეს მოსალოდნელია: ეს მისამართი ჩემსავე კომპიუტერზეა, სადაც არაფერი უსმენს, და თანხმობა ამ დროისთვის უკვე მიცემულია.\n\nგმადლობთ"
+msgstr ""
+"გამარჯობა,\n"
+"\n"
+"მსურს MailCraft-ის გამოყენება ჩემს სამსახურეობრივ ანგარიშთან. MailCraft არის ღია კოდის საფოსტო და კალენდრის პროგრამა, რომელიც ჩემსავე კომპიუტერზე მუშაობს. ჩვენს ორგანიზაციაში ახალ პროგრამას მხოლოდ ადმინისტრატორი ამტკიცებს, ამიტომ საჭიროა თქვენი თანხმობა ერთხელ, მთელი ორგანიზაციისთვის. Microsoft-ის გვერდი ამისთვის აქაა:\n"
+"\n"
+"{link}\n"
+"\n"
+"დამტკიცების შემდეგ ბრაუზერმა შეიძლება აჩვენოს გვერდი, რომელიც მიუწვდომელია. ეს მოსალოდნელია: ეს მისამართი ჩემსავე კომპიუტერზეა, სადაც არაფერი უსმენს, და თანხმობა ამ დროისთვის უკვე მიცემულია.\n"
+"\n"
+"გმადლობთ"
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -7175,7 +7235,9 @@ msgstr "მარტი"
 msgid ""
 "Mark\n"
 "Complete"
-msgstr "შესრულებულად\nმონიშვნა"
+msgstr ""
+"შესრულებულად\n"
+"მონიშვნა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7183,7 +7245,9 @@ msgstr "შესრულებულად\nმონიშვნა"
 msgid ""
 "Mark All\n"
 "as Read"
-msgstr "ყველას წაკითხულად\nმონიშვნა"
+msgstr ""
+"ყველას წაკითხულად\n"
+"მონიშვნა"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -7275,7 +7339,9 @@ msgstr "გაერთიანება"
 msgid ""
 "Merge\n"
 "Duplicates"
-msgstr "დუბლიკატების\nგაერთიანება"
+msgstr ""
+"დუბლიკატების\n"
+"გაერთიანება"
 
 #. command label
 #: crates/engine/src/cmd/people_merge.rs
@@ -7315,7 +7381,9 @@ msgstr "წერილი"
 msgid ""
 "Message\n"
 "Preview"
-msgstr "წერილის\nწინასწარი ხედი"
+msgstr ""
+"წერილის\n"
+"წინასწარი ხედი"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -7599,7 +7667,9 @@ msgstr "გადატანა"
 msgid ""
 "Move\n"
 "Folder"
-msgstr "საქაღალდის\nგადატანა"
+msgstr ""
+"საქაღალდის\n"
+"გადატანა"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -7835,7 +7905,9 @@ msgstr "ახალი"
 msgid ""
 "New\n"
 "Appointment"
-msgstr "ახალი\nჩანაწერი"
+msgstr ""
+"ახალი\n"
+"ჩანაწერი"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7843,7 +7915,9 @@ msgstr "ახალი\nჩანაწერი"
 msgid ""
 "New\n"
 "Contact"
-msgstr "ახალი\nკონტაქტი"
+msgstr ""
+"ახალი\n"
+"კონტაქტი"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7851,7 +7925,9 @@ msgstr "ახალი\nკონტაქტი"
 msgid ""
 "New\n"
 "Email"
-msgstr "ახალი\nწერილი"
+msgstr ""
+"ახალი\n"
+"წერილი"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7859,7 +7935,9 @@ msgstr "ახალი\nწერილი"
 msgid ""
 "New\n"
 "Folder"
-msgstr "ახალი\nსაქაღალდე"
+msgstr ""
+"ახალი\n"
+"საქაღალდე"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7867,7 +7945,9 @@ msgstr "ახალი\nსაქაღალდე"
 msgid ""
 "New\n"
 "Items"
-msgstr "ახალი\nელემენტები"
+msgstr ""
+"ახალი\n"
+"ელემენტები"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7875,7 +7955,9 @@ msgstr "ახალი\nელემენტები"
 msgid ""
 "New\n"
 "Meeting"
-msgstr "ახალი\nშეხვედრა"
+msgstr ""
+"ახალი\n"
+"შეხვედრა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7883,7 +7965,9 @@ msgstr "ახალი\nშეხვედრა"
 msgid ""
 "New\n"
 "Task"
-msgstr "ახალი\nდავალება"
+msgstr ""
+"ახალი\n"
+"დავალება"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8005,7 +8089,9 @@ msgstr "შემდეგი"
 msgid ""
 "Next 7\n"
 "Days"
-msgstr "მომდევნო 7\nდღე"
+msgstr ""
+"მომდევნო 7\n"
+"დღე"
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
@@ -8931,7 +9017,9 @@ msgstr "გახსნა"
 msgid ""
 "Open\n"
 "Calendar"
-msgstr "კალენდრის\nგახსნა"
+msgstr ""
+"კალენდრის\n"
+"გახსნა"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -9575,7 +9663,9 @@ msgstr "ჩამაგრებული"
 msgid ""
 "Plain\n"
 "Text"
-msgstr "უბრალო\nტექსტი"
+msgstr ""
+"უბრალო\n"
+"ტექსტი"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -9613,7 +9703,9 @@ msgstr "პოლიტიკა"
 msgid ""
 "Pop\n"
 "Out"
-msgstr "ცალკე\nგამოტანა"
+msgstr ""
+"ცალკე\n"
+"გამოტანა"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
@@ -9915,7 +10007,9 @@ msgstr "მხოლოდ წასაკითხი"
 msgid ""
 "Reading\n"
 "Pane"
-msgstr "კითხვის\nპანელი"
+msgstr ""
+"კითხვის\n"
+"პანელი"
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -9977,7 +10071,9 @@ msgstr "ბოლო"
 msgid ""
 "Recent\n"
 "Searches"
-msgstr "ბოლო\nძიებები"
+msgstr ""
+"ბოლო\n"
+"ძიებები"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
@@ -10105,7 +10201,9 @@ msgstr "შეხსენებები"
 msgid ""
 "Reminders\n"
 "Window"
-msgstr "შეხსენებების\nფანჯარა"
+msgstr ""
+"შეხსენებების\n"
+"ფანჯარა"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -10221,7 +10319,9 @@ msgstr "მონაწილეების წაშლა"
 msgid ""
 "Remove from\n"
 "Favorites"
-msgstr "რჩეულებიდან\nამოშლა"
+msgstr ""
+"რჩეულებიდან\n"
+"ამოშლა"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
@@ -10271,7 +10371,6 @@ msgstr "გსურთ თქვენი {format} გასაღების 
 msgid "Removing MailCraft's data isn't available here"
 msgstr "MailCraft-ის მონაცემების წაშლა აქ მიუწვდომელია"
 
-
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
@@ -10284,7 +10383,9 @@ msgstr "სახელის შეცვლა"
 msgid ""
 "Rename\n"
 "Folder"
-msgstr "საქაღალდის\nსახელის შეცვლა"
+msgstr ""
+"საქაღალდის\n"
+"სახელის შეცვლა"
 
 #. command label
 #: crates/engine/src/cmd/category.rs
@@ -10358,7 +10459,9 @@ msgstr "პასუხი"
 msgid ""
 "Reply\n"
 "All"
-msgstr "ყველასთვის\nპასუხი"
+msgstr ""
+"ყველასთვის\n"
+"პასუხი"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
@@ -10408,7 +10511,9 @@ msgstr "პასუხი შეხვედრით"
 msgid ""
 "Report a\n"
 "Problem"
-msgstr "პრობლემის\nმოხსენება"
+msgstr ""
+"პრობლემის\n"
+"მოხსენება"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -10446,7 +10551,9 @@ msgstr "წერილის ხელახლა გაგზავნა"
 msgid ""
 "Reset\n"
 "View"
-msgstr "ხედის\nჩამოყრა"
+msgstr ""
+"ხედის\n"
+"ჩამოყრა"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -10508,7 +10615,9 @@ msgstr "განახლებისთვის გადატვირთ�
 msgid ""
 "Reverse\n"
 "Sort"
-msgstr "შებრუნებული\nსორტირება"
+msgstr ""
+"შებრუნებული\n"
+"სორტირება"
 
 #. command label, interface
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs
@@ -10558,7 +10667,9 @@ msgstr "ლენტი"
 msgid ""
 "Ribbon\n"
 "Layout"
-msgstr "ლენტის\nგანლაგება"
+msgstr ""
+"ლენტის\n"
+"განლაგება"
 
 #. command label, interface, ribbon
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -10680,7 +10791,9 @@ msgstr "წესები: ელოდება თქვენს ნებ�
 msgid ""
 "Run Rules\n"
 "Now"
-msgstr "წესების\nახლავე გაშვება"
+msgstr ""
+"წესების\n"
+"ახლავე გაშვება"
 
 #. command label, interface
 #: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -10748,7 +10861,9 @@ msgstr "შენახვა"
 msgid ""
 "Save\n"
 "Calendar"
-msgstr "კალენდრის\nშენახვა"
+msgstr ""
+"კალენდრის\n"
+"შენახვა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10756,7 +10871,9 @@ msgstr "კალენდრის\nშენახვა"
 msgid ""
 "Save\n"
 "Draft"
-msgstr "მონახაზის\nშენახვა"
+msgstr ""
+"მონახაზის\n"
+"შენახვა"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11036,7 +11153,9 @@ msgstr "ძიება"
 msgid ""
 "Search\n"
 "Calendar"
-msgstr "ძიება\nკალენდარში"
+msgstr ""
+"ძიება\n"
+"კალენდარში"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11044,7 +11163,9 @@ msgstr "ძიება\nკალენდარში"
 msgid ""
 "Search\n"
 "Commands"
-msgstr "ბრძანებების\nძიება"
+msgstr ""
+"ბრძანებების\n"
+"ძიება"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
@@ -11268,7 +11389,9 @@ msgstr "ლოკალური დავალებების გაგზ�
 msgid ""
 "Send Status\n"
 "Report"
-msgstr "მდგომარეობის\nმოხსენების გაგზავნა"
+msgstr ""
+"მდგომარეობის\n"
+"მოხსენების გაგზავნა"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -11422,7 +11545,9 @@ msgstr "გაგზავნა/მიღება"
 msgid ""
 "Send/Receive\n"
 "All Folders"
-msgstr "გაგზავნა/მიღება\nყველა საქაღალდე"
+msgstr ""
+"გაგზავნა/მიღება\n"
+"ყველა საქაღალდე"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -11708,7 +11833,9 @@ msgstr "ჩვენება"
 msgid ""
 "Show\n"
 "Progress"
-msgstr "პროგრესის\nჩვენება"
+msgstr ""
+"პროგრესის\n"
+"ჩვენება"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11716,7 +11843,9 @@ msgstr "პროგრესის\nჩვენება"
 msgid ""
 "Show\n"
 "Training"
-msgstr "სასწავლო მასალის\nჩვენება"
+msgstr ""
+"სასწავლო მასალის\n"
+"ჩვენება"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -11826,7 +11955,9 @@ msgstr "ჩვენება როგორც"
 msgid ""
 "Show as\n"
 "Conversations"
-msgstr "ჩვენება\nმიმოწერებად"
+msgstr ""
+"ჩვენება\n"
+"მიმოწერებად"
 
 #. command label, interface
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs
@@ -11984,7 +12115,9 @@ msgstr "ფაილების მმართველში აჩვენ�
 msgid ""
 "Side-by-\n"
 "Side"
-msgstr "გვერდი-\nგვერდ"
+msgstr ""
+"გვერდი-\n"
+"გვერდ"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -13205,7 +13338,10 @@ msgid ""
 "The calendar of the shared mailbox {address} is shown twice: under My Calendars with the shared mailbox, and under Shared Calendars as \"{name}\", because it was also shared with you and accepted.\n"
 "\n"
 "Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
-msgstr "საერთო საფოსტო ყუთის {address} კალენდარი ორჯერ ჩანს: „ჩემს კალენდრებში“ საერთო საფოსტო ყუთთან ერთად და „გაზიარებულ კალენდრებში“ სახელით „{name}“, რადგან ისიც გაგიზიარეს და მიიღეთ.\n\nდაიმალოს ასლი „გაზიარებულ კალენდრებში“? საერთო საფოსტო ყუთის საკუთარი კალენდარი რჩება და, სადაც ნებადართულია, საშუალებას გაძლევთ შეცვალოთ მოვლენები, უპასუხოთ შეხვედრის მოთხოვნებს და გააგზავნოთ ამ ყუთიდან. სერვერზე არაფერი იცვლება: ასლის ისევ საჩვენებლად დააწკაპეთ მარჯვენა ღილაკით საერთო საფოსტო ყუთის კალენდარზე."
+msgstr ""
+"საერთო საფოსტო ყუთის {address} კალენდარი ორჯერ ჩანს: „ჩემს კალენდრებში“ საერთო საფოსტო ყუთთან ერთად და „გაზიარებულ კალენდრებში“ სახელით „{name}“, რადგან ისიც გაგიზიარეს და მიიღეთ.\n"
+"\n"
+"დაიმალოს ასლი „გაზიარებულ კალენდრებში“? საერთო საფოსტო ყუთის საკუთარი კალენდარი რჩება და, სადაც ნებადართულია, საშუალებას გაძლევთ შეცვალოთ მოვლენები, უპასუხოთ შეხვედრის მოთხოვნებს და გააგზავნოთ ამ ყუთიდან. სერვერზე არაფერი იცვლება: ასლის ისევ საჩვენებლად დააწკაპეთ მარჯვენა ღილაკით საერთო საფოსტო ყუთის კალენდარზე."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13238,7 +13374,10 @@ msgid ""
 "The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
-msgstr "კალენდარი ({name}) ახლა თქვენი კალენდრების სიაშია, რადგან გაგიზიარეს და მიიღეთ. თქვენ ის მისამართითაც გახსენით, ამიტომ ორჯერ ჩანს.\n\nწაიშალოს მისამართით გახსნილი ასლი? მეორე რჩება და სერვერზე არაფერი იცვლება."
+msgstr ""
+"კალენდარი ({name}) ახლა თქვენი კალენდრების სიაშია, რადგან გაგიზიარეს და მიიღეთ. თქვენ ის მისამართითაც გახსენით, ამიტომ ორჯერ ჩანს.\n"
+"\n"
+"წაიშალოს მისამართით გახსნილი ასლი? მეორე რჩება და სერვერზე არაფერი იცვლება."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -15126,7 +15265,9 @@ msgstr "საფოსტო ყუთის შიგთავსის სა
 msgid ""
 "Tighter\n"
 "Spacing"
-msgstr "ვიწრო\nდაშორება"
+msgstr ""
+"ვიწრო\n"
+"დაშორება"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
@@ -15146,7 +15287,9 @@ msgstr "დრო"
 msgid ""
 "Time\n"
 "Scale"
-msgstr "დროის\nმასშტაბი"
+msgstr ""
+"დროის\n"
+"მასშტაბი"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/ribbon.rs
@@ -15221,7 +15364,10 @@ msgid ""
 "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr "მისამართიდან {address} შეხვედრებზე საპასუხოდ ან შეხვედრების გასაგზავნად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთებიდან გასაგზავნად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nპასუხი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, პასუხი ამ კომპიუტერზე ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
+msgstr ""
+"მისამართიდან {address} შეხვედრებზე საპასუხოდ ან შეხვედრების გასაგზავნად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთებიდან გასაგზავნად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"პასუხი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, პასუხი ამ კომპიუტერზე ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -15230,7 +15376,10 @@ msgid ""
 "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-msgstr "ანგარიშის {address} ავტომატური პასუხების შესაცვლელად MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nამით MailCraft ცვლის მხოლოდ თქვენს ავტომატურ პასუხებს და შემოსულების წესებს, არასოდეს თქვენს კატეგორიებს ან სამუშაო საათებს. ავტომატური პასუხების წაკითხვას ეს არ სჭირდება."
+msgstr ""
+"ანგარიშის {address} ავტომატური პასუხების შესაცვლელად MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"ამით MailCraft ცვლის მხოლოდ თქვენს ავტომატურ პასუხებს და შემოსულების წესებს, არასოდეს თქვენს კატეგორიებს ან სამუშაო საათებს. ავტომატური პასუხების წაკითხვას ეს არ სჭირდება."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15239,7 +15388,10 @@ msgid ""
 "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-msgstr "ანგარიშის {address} წესების მის სერვერზე შესანახად, სადაც ისინი MailCraft-ის დახურვისასაც სრულდება და ჩანს Outlook-ის ვებვერსიაში და თქვენს ტელეფონზე, MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად, სადაც Microsoft წესებს ინახავს. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nსანამ ამას დაუშვებთ, თქვენი წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
+msgstr ""
+"ანგარიშის {address} წესების მის სერვერზე შესანახად, სადაც ისინი MailCraft-ის დახურვისასაც სრულდება და ჩანს Outlook-ის ვებვერსიაში და თქვენს ტელეფონზე, MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად, სადაც Microsoft წესებს ინახავს. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"სანამ ამას დაუშვებთ, თქვენი წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -15248,7 +15400,10 @@ msgid ""
 "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft."
-msgstr "ანგარიშის {address} დავალებების Microsoft To Do-სთან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა To Do-ს სიებისა და დავალებების წასაკითხად და შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nსანამ ამას დაუშვებთ, დავალებები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
+msgstr ""
+"ანგარიშის {address} დავალებების Microsoft To Do-სთან სინქრონიზაციისთვის MailCraft-ს სჭირდება თქვენი ნებართვა To Do-ს სიებისა და დავალებების წასაკითხად და შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"სანამ ამას დაუშვებთ, დავალებები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15257,7 +15412,10 @@ msgid ""
 "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-msgstr "სხვების კალენდრების გასახსნელად MailCraft-ს სჭირდება თქვენი ნებართვა იმ კალენდრების წასაკითხად, რომლებსაც გიზიარებენ. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nრასაც გახსნით, მხოლოდ ამ კომპიუტერზე ინახება: ის არ ჩანს Outlook-ში ან თქვენს სხვა მოწყობილობებზე."
+msgstr ""
+"სხვების კალენდრების გასახსნელად MailCraft-ს სჭირდება თქვენი ნებართვა იმ კალენდრების წასაკითხად, რომლებსაც გიზიარებენ. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"რასაც გახსნით, მხოლოდ ამ კომპიუტერზე ინახება: ის არ ჩანს Outlook-ში ან თქვენს სხვა მოწყობილობებზე."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -15266,7 +15424,10 @@ msgid ""
 "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr "მისამართიდან {address} გასაგზავნად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთებიდან გასაგზავნად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nთქვენი წერილი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, წერილი გასაგზავნებში ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
+msgstr ""
+"მისამართიდან {address} გასაგზავნად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთებიდან გასაგზავნად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"თქვენი წერილი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, წერილი გასაგზავნებში ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -15275,7 +15436,10 @@ msgid ""
 "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr "საფოსტო ყუთის {address} კალენდრების საჩვენებლად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთების კალენდრების წასაკითხად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n\nრისი ნახვაც შეგიძლიათ კალენდარში, მისი მფლობელი და თქვენი ორგანიზაცია წყვეტს: ეს ამას არ ცვლის. სანამ ამას დაუშვებთ, საფოსტო ყუთის {address} კალენდრებიდან არაფერი იკითხება."
+msgstr ""
+"საფოსტო ყუთის {address} კალენდრების საჩვენებლად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთების კალენდრების წასაკითხად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
+"\n"
+"რისი ნახვაც შეგიძლიათ კალენდარში, მისი მფლობელი და თქვენი ორგანიზაცია წყვეტს: ეს ამას არ ცვლის. სანამ ამას დაუშვებთ, საფოსტო ყუთის {address} კალენდრებიდან არაფერი იკითხება."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15427,7 +15591,6 @@ msgstr "სამშაბათი"
 msgid "Turn on attachment previews in File › Options."
 msgstr "ჩართეთ დანართების წინასწარი ნახვა მენიუში ფაილი › პარამეტრები."
 
-
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -15548,7 +15711,9 @@ msgstr "წაუკითხავი წერილები თავად 
 msgid ""
 "Unread/\n"
 "Read"
-msgstr "წაუკითხავი/\nწაკითხული"
+msgstr ""
+"წაუკითხავი/\n"
+"წაკითხული"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -15964,7 +16129,9 @@ msgstr "რაც დაწერეთ, GitHub-ის ბმულისთვ�
 msgid ""
 "What's\n"
 "New"
-msgstr "რა არის\nახალი"
+msgstr ""
+"რა არის\n"
+"ახალი"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
@@ -16074,7 +16241,9 @@ msgstr "ამის გარეშე კალენდარი თქვე
 msgid ""
 "Word\n"
 "Count"
-msgstr "სიტყვების\nრაოდენობა"
+msgstr ""
+"სიტყვების\n"
+"რაოდენობა"
 
 #. command label, interface
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/dialogs.rs
@@ -16106,7 +16275,9 @@ msgstr "სამსახური"
 msgid ""
 "Work\n"
 "Offline"
-msgstr "ოფლაინ\nმუშაობა"
+msgstr ""
+"ოფლაინ\n"
+"მუშაობა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -16114,7 +16285,9 @@ msgstr "ოფლაინ\nმუშაობა"
 msgid ""
 "Work\n"
 "Week"
-msgstr "სამუშაო\nკვირა"
+msgstr ""
+"სამუშაო\n"
+"კვირა"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
@@ -20680,3 +20853,4 @@ msgstr "„{subject}“ ჩამოსატვირთად ზედმე�
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ სერვერზე ვერ მოიძებნა, ამიტომ დანართად გადაგზავნა შეუძლებელია"
+
