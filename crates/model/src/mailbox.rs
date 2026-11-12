@@ -12,6 +12,9 @@ use bulk::Removal;
 
 #[path = "mailbox_bulk.rs"]
 mod bulk;
+#[path = "mailbox_snooze.rs"]
+mod snooze;
+pub use snooze::{MAX_SNOOZE_AHEAD, Snooze};
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
@@ -433,6 +436,10 @@ pub struct Account {
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
+    /// The folder this account's snoozed mail waits in (#949), known by its id so that a rename
+    /// or another language makes no second one. `None` until the first message is snoozed.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub snoozed_folder: Option<Id>,
     #[serde(skip)]
     pub as_written: Option<AsWritten>,
 }
@@ -3707,6 +3714,10 @@ impl Mailbox {
         let after: usize = self.favorites_from_server.iter().map(|list| list.folders.len().saturating_add(1)).sum();
         if after != before {
             fixed.push("the Favorites kept from a mail server corrected".into());
+        }
+        let called_off = self.repair_snoozes();
+        if called_off > 0 {
+            fixed.push(format!("{called_off} snooze(s) of mail that left the Snoozed folder dropped"));
         }
         self.next_id = self.next_id.max(1);
         fixed
