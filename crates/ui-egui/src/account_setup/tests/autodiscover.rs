@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! An address whose mail exchangers nobody here knows, at a domain whose DNS names a host for
-//! Autodiscover: an Exchange server (a hoster's or the organisation's own) is found, as Outlook
-//! and Evolution find one, and Microsoft's is Microsoft 365. Only the domain is asked about,
+//! Autodiscover: the owner is asked whether it is an Exchange server (a hoster's or the
+//! organisation's own) or IMAP, and Microsoft's is Microsoft 365. Only the domain is asked about,
 //! nothing is sent to the hosts named, and IMAP is one click away.
 
 use super::*;
@@ -62,13 +62,24 @@ fn connected(
     (h, mx, ad)
 }
 
+/// The owner says the server found is an Exchange server.
+fn exchange_it_is(h: &mut Harness<'static, MailApp>) {
+    assert_eq!(page(h), Some(Page::ExchangeOrImap));
+    click(h, Kind::Exchange.title());
+    assert_eq!(page(h), Some(Page::Exchange));
+}
+
 #[test]
 fn a_hosted_exchange_server_is_found_from_the_domain_s_autodiscover_records() {
     let mut a = app(false);
     let checked = checks(&mut a, None);
     let jobs = ews_jobs(&mut a);
     let (mut h, mx, ad) = connected(a, vec![HOSTED_MX], Some(Ok(vec![HOSTED_AUTODISCOVER])), "noor@lumen.example");
-    assert_eq!(page(&h), Some(Page::Exchange));
+    // Asked first, neither answer the default: a hoster's IMAP mail may publish Autodiscover too.
+    assert_eq!(page(&h), Some(Page::ExchangeOrImap));
+    assert!(says(&h, "lumen.example names a server for automatic setup (Autodiscover)"), "the page doesn't say what was found");
+    assert!(h.query_by_role_and_label(Role::Button, Kind::Other.title()).is_some());
+    exchange_it_is(&mut h);
     let w = wizard(&h).unwrap();
     assert!(w.exchange.found && !w.guessed && w.oauth.is_none() && w.email == "noor@lumen.example");
     // Only the domain was asked about, once each, and nothing was sent to any server.
@@ -86,27 +97,42 @@ fn a_hosted_exchange_server_is_found_from_the_domain_s_autodiscover_records() {
 }
 
 #[test]
-fn back_from_a_found_exchange_server_is_the_address_and_imap_is_the_guess_as_it_was() {
+fn back_from_a_found_exchange_server_is_the_question_and_imap_is_the_guess_as_it_was() {
     let mut a = app(false);
     checks(&mut a, None);
     let (mut h, _, _) = connected(a, vec![HOSTED_MX], Some(Ok(vec![HOSTED_AUTODISCOVER])), "noor@lumen.example");
+    exchange_it_is(&mut h);
+    click(&mut h, "Back");
+    assert_eq!(page(&h), Some(Page::ExchangeOrImap));
+    assert_eq!(wizard(&h).map(|w| w.exchange.hosts.clone()), Some(vec![HOSTED_AUTODISCOVER.to_string()]), "what was found is kept");
+    exchange_it_is(&mut h);
+    assert!(wizard(&h).is_some_and(|w| w.exchange.found && w.exchange.hosts == [HOSTED_AUTODISCOVER]));
+    click(&mut h, "Back");
     click(&mut h, "Back");
     assert_eq!(page(&h), Some(Page::Address));
 
-    let mut a = app(false);
-    checks(&mut a, None);
-    let (mut h, _, _) = connected(a, vec![HOSTED_MX], Some(Ok(vec![HOSTED_AUTODISCOVER])), "noor@lumen.example");
-    type_password(&mut h);
-    click(&mut h, "Not an Exchange server? Set it up with IMAP");
-    assert_eq!(page(&h), Some(Page::Password));
-    let w = wizard(&h).unwrap();
-    assert!(w.guessed && w.settings_open && !w.exchange.found && w.password.0.is_empty());
-    assert_eq!((w.incoming.host.as_str(), w.outgoing.host.as_str()), ("imap.lumen.example", "smtp.lumen.example"));
-    assert!(says(&h, "only a guess"));
-    // The Exchange server is still one tile away.
-    assert!(h.query_by_role_and_label(Role::Button, Kind::Exchange.title()).is_some());
-    click(&mut h, "Back");
-    assert_eq!(page(&h), Some(Page::Address));
+    // IMAP from the question, and from the Exchange page: the guess, as it was.
+    for from_exchange in [false, true] {
+        let mut a = app(false);
+        checks(&mut a, None);
+        let (mut h, _, _) = connected(a, vec![HOSTED_MX], Some(Ok(vec![HOSTED_AUTODISCOVER])), "noor@lumen.example");
+        if from_exchange {
+            exchange_it_is(&mut h);
+            type_password(&mut h);
+            click(&mut h, "Not an Exchange server? Set it up with IMAP");
+        } else {
+            click(&mut h, Kind::Other.title());
+        }
+        assert_eq!(page(&h), Some(Page::Password), "{from_exchange}");
+        let w = wizard(&h).unwrap();
+        assert!(w.guessed && w.settings_open && !w.exchange.found && w.password.0.is_empty());
+        assert_eq!((w.incoming.host.as_str(), w.outgoing.host.as_str()), ("imap.lumen.example", "smtp.lumen.example"));
+        assert!(says(&h, "only a guess"));
+        // The Exchange server is still one tile away.
+        assert!(h.query_by_role_and_label(Role::Button, Kind::Exchange.title()).is_some());
+        click(&mut h, "Back");
+        assert_eq!(page(&h), Some(Page::Address));
+    }
 }
 
 #[test]
@@ -180,6 +206,7 @@ fn server_settings_show_where_automatic_setup_was_found_and_imap_is_offered_belo
     let mut a = app(false);
     checks(&mut a, None);
     let (mut h, _, _) = connected(a, vec![HOSTED_MX], Some(Ok(vec![HOSTED_AUTODISCOVER])), "noor@lumen.example");
+    exchange_it_is(&mut h);
     assert_eq!(wizard(&h).map(|w| w.exchange.hosts.clone()), Some(vec![HOSTED_AUTODISCOVER.to_string()]));
     assert!(!says(&h, "https://autodiscover.de2.hoster.example/autodiscover/autodiscover.xml"));
     click(&mut h, "Server settings");
@@ -207,7 +234,7 @@ fn search_again_asks_the_dns_once_more_and_shows_what_it_says() {
     }));
     let mut h = open(a, json!({}));
     connect(&mut h, "noor@lumen.example");
-    assert_eq!(page(&h), Some(Page::Exchange));
+    exchange_it_is(&mut h);
     click(&mut h, "Server settings");
     click(&mut h, "Search again");
     h.run_steps(3);
@@ -234,6 +261,7 @@ fn search_again_that_finds_microsoft_says_it_is_a_microsoft_account() {
     }));
     let mut h = open(a, json!({}));
     connect(&mut h, "noor@lumen.example");
+    exchange_it_is(&mut h);
     type_password(&mut h);
     click(&mut h, "Server settings");
     click(&mut h, "Search again");
@@ -267,17 +295,17 @@ fn a_search_again_still_out_is_dropped_when_the_exchange_page_is_left() {
     }));
     let mut h = open(a, json!({}));
     connect(&mut h, "noor@lumen.example");
-    assert_eq!(page(&h), Some(Page::Exchange));
+    exchange_it_is(&mut h);
     click(&mut h, "Server settings");
     click(&mut h, "Search again");
     assert!(wizard(&h).is_some_and(|w| w.autodiscover.is_some()));
     click(&mut h, "Back");
-    assert_eq!(page(&h), Some(Page::Address));
+    assert_eq!(page(&h), Some(Page::ExchangeOrImap));
     assert!(wizard(&h).is_some_and(|w| w.autodiscover.is_none() && !w.busy()), "nothing left waiting");
     // Its answer, coming late, has nowhere to go.
     for tx in held.lock().unwrap().iter() {
         let _ = tx.send(Ok(vec!["autodiscover.outlook.com".to_string()]));
     }
     h.run_steps(3);
-    assert_eq!(page(&h), Some(Page::Address));
+    assert_eq!(page(&h), Some(Page::ExchangeOrImap));
 }

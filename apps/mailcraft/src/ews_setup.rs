@@ -181,6 +181,7 @@ fn reason_of(reason: ConsentReason) -> EwsConsentReason {
         ConsentReason::OtherDomain => EwsConsentReason::OtherDomain,
         ConsentReason::MailServer => EwsConsentReason::MailServer,
         ConsentReason::SignIn => EwsConsentReason::SignIn,
+        ConsentReason::Alias => EwsConsentReason::Alias,
     }
 }
 

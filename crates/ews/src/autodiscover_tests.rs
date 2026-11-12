@@ -1125,7 +1125,11 @@ fn an_alias_s_host_in_the_domain_has_the_sign_in_only_after_a_yes_unlike_an_srv_
     // Named by the alias alone: asked, and nothing sent on a no.
     let no = standin();
     let (_, asked) = aliased(&no, &[], &["autodiscover.web.example.org"], &[false]);
-    assert_eq!(asked, [("autodiscover.web.example.org".to_owned(), ConsentReason::SignIn)]);
+    assert_eq!(
+        asked,
+        [("autodiscover.web.example.org".to_owned(), ConsentReason::Alias)],
+        "asked as the alias's host, which the domain's DNS did name"
+    );
     assert!(no.hosts_asked().contains(&"autodiscover.web.example.org".to_owned()));
     assert!(no.hosts_sent_credentials().is_empty());
     let yes = standin();
@@ -1174,7 +1178,7 @@ fn the_alias_s_host_is_asked_after_as_many_srv_targets_as_are_taken() {
     let at = |host: &str| hosts.iter().position(|h| h == host).unwrap();
     assert!(at("ad3.example.org") < at("autodiscover.hoster.example"), "{hosts:?}");
     // Outside the domain: asked about before anything was sent there.
-    assert_eq!(asked.first().map(|(host, _)| host.as_str()), Some("autodiscover.hoster.example"));
+    assert_eq!(asked.first(), Some(&("autodiscover.hoster.example".to_owned(), ConsentReason::Alias)), "asked about as the alias's host");
     // An alias alone is somewhere to ask: the step doesn't fail for want of an SRV record.
     let alone = AutodiscoverStandIn::new()
         .route("example.org", Route::Status(404))

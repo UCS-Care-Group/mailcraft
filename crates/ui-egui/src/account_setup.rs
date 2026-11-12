@@ -79,6 +79,9 @@ pub enum Page {
     Done,
     /// The settings of an account that exists already.
     Settings,
+    /// The domain's DNS names a host for Autodiscover that isn't Microsoft's: an Exchange
+    /// server's, or a hoster's that hands IMAP settings out that way too. The owner says which.
+    ExchangeOrImap,
     /// An Exchange server account (#252): the password, and Server settings.
     Exchange,
     /// The host is searching for the Exchange server and trying the account.
@@ -1090,7 +1093,8 @@ impl AccountSetup {
         }
         // A domain nobody here has heard of: the servers are a guess for the owner to check,
         // unless the domain's mail exchangers say whose it is, or its Autodiscover records name
-        // an Exchange server (as Outlook and Evolution find one). Only the domain is asked about.
+        // a host: Microsoft 365's, or one the owner is asked about (an Exchange server or IMAP).
+        // Only the domain is asked about.
         (self.guessed, self.settings_open) = (true, true);
         let Some(domain) = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()) else {
             self.go(Page::Password);
@@ -1593,7 +1597,7 @@ impl AccountSetup {
         self.autodiscover = None;
         match provider::by_autodiscover(&hosts) {
             provider::Autodiscover::Microsoft => self.microsoft_by_autodiscover(app),
-            provider::Autodiscover::Exchange => self.exchange_found(hosts),
+            provider::Autodiscover::Exchange => self.exchange_or_imap(hosts),
             // The guess made from the domain stays, for the owner to check.
             provider::Autodiscover::Nothing => self.go(Page::Password),
         }
@@ -1767,6 +1771,7 @@ impl AccountSetup {
             }
             Page::Done => self.done_page(ui, &pass),
             Page::Settings => self.settings_page(app, ui, &mut pass),
+            Page::ExchangeOrImap => self.exchange_or_imap_page(ui, &pass),
             Page::Exchange => self.exchange_form(app, ui, &mut pass),
             Page::ExchangeChecking => self.exchange_checking(ui, &pass),
             Page::ExchangeConsent => self.exchange_consent(ui, &pass),

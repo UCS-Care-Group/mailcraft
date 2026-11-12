@@ -245,6 +245,23 @@ fn an_alias_keeps_its_room_however_many_hosts_the_srv_record_names() {
 }
 
 #[test]
+fn an_alias_the_srv_record_names_already_takes_no_room_from_it() {
+    // Eight hosts in the record, Microsoft's last, and an alias of the first of them: all eight
+    // are kept, so Microsoft's is still seen.
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"1 0 443 autodiscover.hoster.example."},{"type":33,"data":"2 0 443 a2.example.org."},
+            {"type":33,"data":"3 0 443 a3.example.org."},{"type":33,"data":"4 0 443 a4.example.org."},
+            {"type":33,"data":"5 0 443 a5.example.org."},{"type":33,"data":"6 0 443 a6.example.org."},
+            {"type":33,"data":"7 0 443 a7.example.org."},{"type":33,"data":"8 0 443 autodiscover.outlook.com."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.hoster.example."}]}"#,
+    );
+    let hosts = autodiscover_hosts_at(&[&server.url("/q")], "example.org").unwrap();
+    assert_eq!(hosts.len(), MAX_HOSTS, "{hosts:?}");
+    assert_eq!(hosts.first().map(String::as_str), Some("autodiscover.hoster.example"), "{hosts:?}");
+    assert_eq!(hosts.last().map(String::as_str), Some("autodiscover.outlook.com"), "{hosts:?}");
+}
+
+#[test]
 fn a_port_is_kept_and_a_host_at_two_ports_is_two_targets() {
     let body =
         records(&[r#""1 1 8443 a.example.org.""#, r#""1 1 443 a.example.org.""#, r#""1 1 8443 a.example.org.""#, r#""1 1 99999 b.example.org.""#]);

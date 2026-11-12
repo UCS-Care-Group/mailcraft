@@ -149,6 +149,10 @@ pub enum ConsentReason {
     /// names asks for the sign-in, or is named as the mail server by one: it may be a web site
     /// rather than the organisation's mail (AU3-V1).
     SignIn,
+    /// A host `autodiscover.<domain>` is an alias of, which its SRV record doesn't name, asks for
+    /// the sign-in, or is outside the domain and would be asked anything at all: the domain's DNS
+    /// points there, but an alias may be a web host's rather than the organisation's mail.
+    Alias,
 }
 
 /// A question for the owner: may the sign-in go to `host`? The host asks, naming it, and
@@ -388,6 +392,9 @@ pub struct Autodiscover {
     hosts: Vec<String>,
     /// The hosts the SRV record named, inside a domain the sign-in may go to.
     srv_hosts: Vec<String>,
+    /// The hosts `autodiscover.<domain>` is an alias of, that the SRV record doesn't name: asked
+    /// about as that, never let in by it.
+    alias_hosts: Vec<String>,
     queue: VecDeque<Target>,
     waiting: Waiting,
     chain: u8,
@@ -418,6 +425,7 @@ impl Autodiscover {
             domains: Vec::new(),
             hosts: Vec::new(),
             srv_hosts: Vec::new(),
+            alias_hosts: Vec::new(),
             queue,
             waiting,
             chain: 0,
@@ -482,6 +490,12 @@ impl Autodiscover {
         if is_within(host, &self.own) { ConsentReason::SignIn } else { otherwise }
     }
 
+    /// Why the owner is asked about `host` before it is asked anything or has the sign-in: as the
+    /// alias's host when that is how the search came to it, else as [`Self::in_own_domain`] says.
+    fn reason_for(&self, host: &str, otherwise: ConsentReason) -> ConsentReason {
+        if self.alias_hosts.iter().any(|alias| alias == host) { ConsentReason::Alias } else { self.in_own_domain(host, otherwise) }
+    }
+
     fn finish(&mut self, outcome: Outcome) {
         self.waiting = Waiting::Done(outcome);
     }
@@ -519,7 +533,8 @@ impl Autodiscover {
                         return self.finish(Outcome::ExchangeOnline);
                     }
                     if !self.allowed(&host) {
-                        self.waiting = Waiting::Consent(Consent { host, reason: ConsentReason::Redirect }, Pending::Request(url));
+                        let reason = self.reason_for(&host, ConsentReason::Redirect);
+                        self.waiting = Waiting::Consent(Consent { host, reason }, Pending::Request(url));
                         return;
                     }
                     match self.request_to(&url, false) {
@@ -592,7 +607,7 @@ impl Autodiscover {
                 Some(host) if self.sign_in_allowed(&host) => self.sign_in_to(request.url()),
                 // Another host in the domain asks for it: the owner says (AU3-V1).
                 Some(host) => {
-                    let reason = self.in_own_domain(&host, ConsentReason::Redirect);
+                    let reason = self.reason_for(&host, ConsentReason::Redirect);
                     self.waiting = Waiting::Consent(Consent { host, reason }, Pending::SignIn(request.url().to_owned()))
                 }
                 None => self.fail_step(Failure::Unreadable),
@@ -742,6 +757,12 @@ impl Autodiscover {
         if named.is_empty() && aliased.is_empty() {
             return self.fail_step(Failure::Unreachable);
         }
+        // (A host the SRV record names at another port is the record's, and asked about as that.)
+        for host in aliased.iter().filter(|host| !named.iter().any(|(named, _)| named == *host)) {
+            if !self.alias_hosts.contains(host) && self.alias_hosts.len() < MAX_ALIAS_HOSTS.saturating_mul(4) {
+                self.alias_hosts.push(host.clone());
+            }
+        }
         for host in aliased.into_iter().rev() {
             self.queue.push_front(Target::Url(format!("https://{host}/autodiscover/autodiscover.xml")));
         }
@@ -761,7 +782,7 @@ impl Autodiscover {
         };
         match consent.reason {
             ConsentReason::OtherDomain => self.domains.push(consent.host),
-            ConsentReason::Redirect | ConsentReason::MailServer | ConsentReason::SignIn => self.hosts.push(consent.host),
+            ConsentReason::Redirect | ConsentReason::MailServer | ConsentReason::SignIn | ConsentReason::Alias => self.hosts.push(consent.host),
         }
         match pending {
             Pending::Request(url) => self.queue.push_front(Target::Url(url)),

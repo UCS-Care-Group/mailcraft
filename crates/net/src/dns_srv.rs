@@ -92,15 +92,18 @@ pub fn autodiscover_hosts(domain: &str) -> Result<Vec<String>, NetError> {
 /// [`autodiscover_hosts`], asking the name servers at `endpoints` instead.
 pub fn autodiscover_hosts_at(endpoints: &[&str], domain: &str) -> Result<Vec<String>, NetError> {
     let found = autodiscover_targets_at(endpoints, domain)?;
-    // (The SRV record's targets leave room for an alias: the alias may be the one that says the
-    // domain is Microsoft 365's, however many targets a record names.)
-    let srv_room = MAX_HOSTS.saturating_sub(usize::from(!found.aliases.is_empty()));
-    let mut hosts: Vec<String> = Vec::new();
+    let mut srv: Vec<String> = Vec::new();
     for host in found.srv.into_iter().map(|target| target.host) {
-        if hosts.len() < srv_room && !hosts.contains(&host) {
-            hosts.push(host);
+        if !srv.contains(&host) {
+            srv.push(host);
         }
     }
+    // (The SRV record's targets leave room for an alias that names a host of its own: the alias
+    // may be the one that says the domain is Microsoft 365's, however many targets a record
+    // names. One the record names already takes none.)
+    let own = |alias: &String| !srv.iter().take(MAX_HOSTS).any(|host| host == alias);
+    let srv_room = MAX_HOSTS.saturating_sub(usize::from(found.aliases.iter().any(own)));
+    let mut hosts: Vec<String> = srv.into_iter().take(srv_room).collect();
     for host in found.aliases {
         if hosts.len() < MAX_HOSTS && !hosts.contains(&host) {
             hosts.push(host);

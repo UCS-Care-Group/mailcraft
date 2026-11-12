@@ -340,6 +340,7 @@ fn the_other_reasons_for_asking_are_said_in_plain_words() {
         (EwsConsentReason::OtherDomain, "asks to start again with an address in another domain, mail.other.example"),
         (EwsConsentReason::MailServer, "name mail.other.example, which isn't in your address's own domain, as the mail server"),
         (EwsConsentReason::SignIn, "mail.other.example is in your address's own domain, but it isn't the Autodiscover server your domain names"),
+        (EwsConsentReason::Alias, "points its autodiscover name at mail.other.example, but doesn't name it in the record"),
     ] {
         let mut a = app();
         let host = Host::default();

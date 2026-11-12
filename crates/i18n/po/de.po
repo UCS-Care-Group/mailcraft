@@ -1087,6 +1087,11 @@ msgid "An Agent Is Asking"
 msgstr "Ein Agent fragt an"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "An Exchange server or IMAP?"
+msgstr "Ein Exchange-Server oder IMAP?"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "An OpenPGP secret key, protected by a passphrase"
 msgstr ""
@@ -12738,6 +12743,11 @@ msgid "The domain {domain} names a server for Exchange's automatic setup (Autodi
 msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung von Exchange (Autodiscover); das sieht nach einem Exchange-Server-Konto aus. Geben Sie Ihr Passwort ein und klicken Sie auf Verbinden: MailCraft sucht den Server und prüft das Konto. Bis dahin wird nichts gesendet."
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Nothing has been sent to any server."
+msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung (Autodiscover). So werden Exchange-Server gefunden, aber manche Hoster nutzen das auch für ihre IMAP-Postfächer. Was trifft auf Ihres zu? An keinen Server wurde etwas gesendet."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The draft stays in Drafts. {why}"
 msgstr ""
@@ -15549,6 +15559,11 @@ msgstr "Das DNS Ihrer Domain konnte nicht gefragt werden. Prüfen Sie die Netzwe
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
 msgstr "Das DNS Ihrer Domain nennt keinen Server für die automatische Einrichtung. MailCraft versucht trotzdem die üblichen Stellen für Ihre Adresse."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
+msgstr "Das DNS Ihrer Domain leitet den Namen autodiscover auf {host} weiter, nennt diesen Server aber nicht im Eintrag für die automatische Einrichtung von Exchange. Es kann ein Webhoster statt des Mailservers Ihrer Organisation sein."
 
 #. interface
 #: crates/ui-egui/src/security.rs

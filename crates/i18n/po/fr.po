@@ -1089,6 +1089,11 @@ msgid "An Agent Is Asking"
 msgstr "Un agent demande"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "An Exchange server or IMAP?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "An OpenPGP secret key, protected by a passphrase"
 msgstr ""
@@ -12750,6 +12755,11 @@ msgid "The domain {domain} names a server for Exchange's automatic setup (Autodi
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Nothing has been sent to any server."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The draft stays in Drafts. {why}"
 msgstr ""
@@ -15564,6 +15574,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
 msgstr ""
 
 #. interface
