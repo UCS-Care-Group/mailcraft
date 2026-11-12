@@ -3131,32 +3131,37 @@ impl Session {
     /// server has what is put back. One whose change went has a change that waited before the
     /// step dropped: it went with it, and the server has what the step left, which the change
     /// noted again starts from. One whose change is still waiting, or on its way with its answer
-    /// to come or lost, may be on its server as the step left it or not: a change waiting before
-    /// the step, which the undo puts back, is to send the categories again either way, so that
-    /// the name the step gave isn't deleted there while the event there may have it. Only the
-    /// categories go, which writes to nobody.
+    /// to come or lost, may be on its server as the step left it or not: a change of it that
+    /// waited before the step, which the undo puts back, is to send the categories again either
+    /// way, so that the name the step gave isn't deleted there while the event there may have it.
+    /// (Without one, an answer that comes is taken in as for any change undone on its way.) Only
+    /// the categories go, which writes to nobody, and only to a calendar that may be changed by
+    /// what its server last said (the calendars put back are as they were). A change is this
+    /// event's by its id here and its server's id for it both: another account's server may use
+    /// the same id.
     fn tell_events_again(&mut self, now: &Mailbox, touched: &crate::undo::Touched) {
         use mailcraft_model::remote::{EventChange, EventChangeKind};
         let offset_at = crate::cmd::remote::offset_of(self);
         let mut no_room = 0u64;
-        let waiting = |c: &EventChange, remote: &str| c.kind == EventChangeKind::Update && !c.remote.is_empty() && c.remote == remote;
+        let waiting =
+            |c: &EventChange, id: Id, remote: &str| c.kind == EventChangeKind::Update && c.event == id && !c.remote.is_empty() && c.remote == remote;
         for (id, left) in touched.event_categories() {
             let (Some(was), Some(is)) = (now.events.get(id), self.mailbox.events.get(id).cloned()) else { continue };
             if was.categories != *left
                 || is.categories == was.categories
                 || !touched.told_event(*id)
-                || crate::cmd::remote::writable(&self.mailbox, is.calendar).is_err()
+                || crate::cmd::remote::writable(now, was.calendar).is_err()
             {
                 continue;
             }
-            if now.event_changes.iter().any(|c| waiting(c, &was.origin.id)) {
-                let put_back = self.mailbox.event_changes.iter_mut().find(|c| waiting(c, &is.origin.id));
+            if now.event_changes.iter().any(|c| waiting(c, *id, &was.origin.id)) {
+                let put_back = self.mailbox.event_changes.iter_mut().find(|c| waiting(c, *id, &is.origin.id));
                 if let Some(base) = put_back.and_then(|c| c.base.as_deref_mut()) {
                     base.categories.clone_from(&was.categories);
                 }
                 continue;
             }
-            self.mailbox.event_changes.retain(|c| !waiting(c, &is.origin.id));
+            self.mailbox.event_changes.retain(|c| !waiting(c, *id, &is.origin.id));
             let mut there = (*is).clone();
             there.categories.clone_from(&was.categories);
             if crate::cmd::remote::note_changed(&mut self.mailbox, &there, &offset_at).is_err() {

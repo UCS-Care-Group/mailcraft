@@ -2217,6 +2217,50 @@ fn a_read_of_many_names_in_other_letters_respells_many_items_in_one_pass() {
     assert!(took.as_millis() < 2000, "{took:?}");
 }
 
+/// Of two accounts whose servers use one id for two events, an undo of a rename on one's list
+/// tells only its own event again, and leaves the other's waiting change as it is (#661).
+#[test]
+fn an_undo_tells_only_its_own_event_when_another_accounts_server_uses_the_same_id() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let b = s.run("account.add", &json!({"email": "b@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let mut event_of = |s: &mut Session, account: Id, categories: Vec<String>| {
+        let calendar = s.mailbox.alloc_id();
+        let origin = Origin { account, id: format!("cal-{account}"), ..Default::default() };
+        s.mailbox.calendars.push(Calendar { id: calendar, name: "Calendar".into(), visible: true, origin, ..Default::default() });
+        let origin = Origin { account, id: "same-id".into(), ..Default::default() };
+        s.mailbox.add_event(Event { calendar, title: "Meeting".into(), categories, origin, ..Default::default() }).unwrap()
+    };
+    let ours = event_of(&mut s, a, vec!["Old".into()]);
+    let theirs = event_of(&mut s, b, Vec::new());
+    s.run("calendar.edit", &json!({"id": theirs, "title": "Theirs, moved"})).unwrap();
+    s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+    // Our event's change went; theirs waits.
+    s.mailbox.event_changes.retain(|c| c.account != a);
+    let before = s.mailbox.event_changes.clone();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(ours).unwrap().categories, ["Old"]);
+    let theirs_now: Vec<_> = s.mailbox.event_changes.iter().filter(|c| c.account == b).cloned().collect();
+    assert_eq!(theirs_now, before, "the other account's change is left as it was");
+    let ours_now: Vec<_> = s.mailbox.event_changes.iter().filter(|c| c.account == a).collect();
+    let [change] = ours_now.as_slice() else { panic!("{:?}", s.mailbox.event_changes) };
+    assert_eq!((change.event, change.base.as_ref().unwrap().categories.clone()), (ours, vec!["New".to_string()]));
+}
+
+/// An undo whose event's calendar may only be read by now tells it nothing: it is changed here
+/// alone, as any change of it would be refused (#661).
+#[test]
+fn an_undo_tells_nothing_to_a_calendar_that_may_only_be_read_by_now() {
+    let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+    let e = server_event(&mut s, a, &["Old"]);
+    s.run("calendar.edit", &json!({"id": e, "categories": ["Red category"]})).unwrap();
+    s.mailbox.event_changes.clear();
+    let calendar = s.mailbox.event(e).unwrap().calendar;
+    s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().rights = Rights::Read;
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
+    assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
+}
+
 #[test]
 fn other_letters_alone_go_at_once_for_the_items_there_are_the_same_name() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
