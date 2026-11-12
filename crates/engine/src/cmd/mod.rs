@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -34,6 +36,8 @@ mod ews_up;
 mod favorites_tests;
 pub mod file;
 pub mod folder;
+#[cfg(test)]
+mod folder_empty_tests;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
@@ -72,6 +76,9 @@ pub mod junk;
 mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
+pub mod keys;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod leave_compose_tests;
 pub mod mail;
@@ -79,6 +86,7 @@ pub mod mail;
 mod moves_between_accounts_tests;
 #[cfg(test)]
 mod newer_account_tests;
+pub mod notes;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
@@ -137,6 +145,8 @@ pub mod writing_tools;
 #[cfg(test)]
 mod writing_tools_tests;
 #[cfg(test)]
+mod written_quote_tests;
+#[cfg(test)]
 mod zone_tests;
 pub mod zones;
 
@@ -170,9 +180,11 @@ pub fn registry() -> Registry {
     v.extend(people::specs());
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
+    v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());

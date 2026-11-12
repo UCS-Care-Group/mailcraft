@@ -95,7 +95,7 @@ fn batch_modify_at(base: &str, token: &str, ids: &[u64], category: GmailCategory
         return Err(NetError::Config("Gmail hasn't said its id of a message, so it can't be moved between Gmail's categories yet".into()));
     }
     if ids.len() > MAX_BATCH {
-        return Err(NetError::Config(format!("at most {MAX_BATCH} messages are moved between Gmail's categories at a time")));
+        return Err(NetError::Config(format!("at most {MAX_BATCH} messages are moved between Gmail's categories at a time").into()));
     }
     // A token that isn't one is not sent anywhere; it is also what a header can't carry.
     if token.is_empty() || token.len() > MAX_TOKEN || !token.bytes().all(|b| b.is_ascii_graphic()) {
@@ -118,7 +118,7 @@ fn batch_modify_at(base: &str, token: &str, ids: &[u64], category: GmailCategory
         401 => Err(NetError::Proto(ProtoError::Auth("Gmail didn't take the sign-in".into()))),
         403 => Err(NetError::Forbidden("this account may not move mail between Gmail's categories".into())),
         429 | 500..=599 => Err(NetError::Busy { text: "Gmail is busy; try again later".into(), retry_after: None }),
-        _ => Err(NetError::Proto(ProtoError::Rejected(format!("Gmail answered with status {status}")))),
+        _ => Err(NetError::Proto(ProtoError::Rejected(format!("Gmail answered with status {status}").into()))),
     }
 }
 

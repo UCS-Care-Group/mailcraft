@@ -28,11 +28,13 @@ mod crypt;
 mod error;
 mod header;
 mod heap;
+mod list_stream;
 mod ltp;
 mod named;
 mod ndb;
 mod prop;
 mod pst;
+pub mod recur;
 mod rtf;
 mod source;
 /// The test writer: synthetic .pst files from invented folders and messages, for this crate's
@@ -60,10 +62,12 @@ pub use crc::crc32;
 pub use crypt::Encryption;
 pub use error::{Cap, Damage, Error, Limits, MAX_DAMAGE, Result};
 pub use header::Format;
+pub use list_stream::{ListMember, ListStream, MAX_LIST_ENTRY, list_stream};
 pub use named::{NamedMap, NamedProperty, PS_MAPI, PS_PUBLIC_STRINGS, PropName};
 pub use prop::{PropValue, Properties, Property, types};
 pub use pst::{
     Attachment, AttachmentContent, AttachmentReader, AttachmentRef, Folder, FolderEntry, FolderKind, FolderTree, ItemList, ItemSummary, LeftOut,
     LeftOutPart, Message, MessageRef, Nid, NodeInfo, Part, Pst, Recipient, RecipientKind, Store, node_types,
 };
-pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_text};
+pub use recur::{Recur, RecurException, appointment_recurrence, time_zone_key};
+pub use rtf::{MAX_RTF_DEPTH, decompress_rtf, rtf_html, rtf_text};

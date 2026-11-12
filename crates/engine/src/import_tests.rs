@@ -91,3 +91,75 @@ fn an_import_never_puts_mail_in_a_send_queue() {
     // Nothing is waiting to be sent.
     assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
 }
+
+/// A mailbox with an account that signs in with Microsoft and whose calendar has come down once:
+/// the empty calendar the mailbox was made with is gone, and the server's is the only one.
+fn served() -> (Session, Id, Id) {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), now(), 0);
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    let start = now().saturating_add(3600);
+    let download = json!({"download": {"account": account, "email": "ada@example.org", "from": now(), "to": now().saturating_add(86_400 * 7), "complete": true,
+        "events": [{"id": "e-1", "changeKey": "ck-1", "title": "Stand-up", "start": start, "end": start.saturating_add(900)}]}});
+    s.run("sync.applyEvents", &download).unwrap();
+    let server = crate::cmd::remote::server_calendar_id(&s.mailbox).unwrap();
+    assert_eq!(s.mailbox.calendars.iter().map(|c| c.id).collect::<Vec<_>>(), [server], "only the server's calendar is left");
+    (s, account, server)
+}
+
+/// The calendar `event` is in is kept on this computer, and says so.
+fn kept_here(s: &Session, event: Id) -> bool {
+    let calendar = s.mailbox.event(event).and_then(|e| s.mailbox.calendar(e.calendar)).unwrap();
+    crate::cmd::remote::keeper(&s.mailbox, &calendar.origin).is_none() && crate::cmd::remote::stays_here(&s.mailbox, event)
+}
+
+#[test]
+fn an_ics_file_beside_a_server_calendar_goes_to_this_computer_and_can_be_moved() {
+    // #1050: with the server's calendar the only one, an imported appointment went into it as
+    // the owner's own: shown there, never sent, and with nothing offering to send it.
+    let (mut s, account, server) = served();
+    let said = crate::io::import(&mut s, "delivery.ics", &ics("uid-delivery", "Grocery delivery", ""), None).unwrap();
+    assert_eq!(said["events"], 1);
+    let id = s.sel.event.unwrap();
+    assert!(kept_here(&s, id));
+    let home = s.mailbox.event(id).unwrap().calendar;
+    assert_ne!(home, server);
+    assert_eq!(s.mailbox.calendar(home).unwrap().name, crate::cmd::remote::LOCAL_CALENDAR);
+    assert!(s.mailbox.event_changes.is_empty(), "nothing is sent unasked");
+    // So the line over the calendar counts it, and the menu's Move to Calendar has the server's.
+    assert_eq!(crate::cmd::remote::only_here(&s.mailbox), [(home, 1)]);
+    // The same file again replaces it where it is.
+    let again = crate::io::import(&mut s, "delivery.ics", &ics("uid-delivery", "Grocery delivery", ""), None).unwrap();
+    assert_eq!((again["updated"].as_u64(), s.mailbox.event(id).map(|e| e.calendar)), (Some(1), Some(home)));
+    // Moved to the account, it is made on the server.
+    s.run("calendar.moveToAccount", &json!({})).unwrap();
+    let moved = s.mailbox.event(id).unwrap();
+    assert_eq!((moved.calendar, moved.origin.account), (server, account));
+    assert_eq!(s.mailbox.event_changes.len(), 1);
+    assert!(crate::cmd::remote::only_here(&s.mailbox).is_empty());
+}
+
+#[test]
+fn an_appointment_an_earlier_import_left_in_a_server_calendar_comes_back_to_this_computer() {
+    // What a version before #1050 left: the owner's own appointment in the server's calendar.
+    let (mut s, account, server) = served();
+    let start = s.local_now();
+    let stray = s
+        .mailbox
+        .add_event(mailcraft_model::Event {
+            title: "Grocery delivery".into(),
+            calendar: server,
+            start,
+            end: start.add_minutes(60),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(!crate::cmd::remote::stays_here(&s.mailbox, stray) && crate::cmd::remote::only_here(&s.mailbox).is_empty());
+    // The next download puts it in a calendar on this computer, from where it can be moved.
+    let download = json!({"download": {"account": account, "email": "ada@example.org", "from": now(), "to": now().saturating_add(86_400), "complete": false, "events": []}});
+    s.run("sync.applyEvents", &download).unwrap();
+    assert!(kept_here(&s, stray));
+    assert_eq!(s.mailbox.calendar(s.mailbox.event(stray).unwrap().calendar).unwrap().name, crate::cmd::remote::LOCAL_CALENDAR);
+    assert!(s.mailbox.event_changes.is_empty());
+    assert!(s.mailbox.clone().repair().is_empty());
+}

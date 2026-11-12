@@ -401,7 +401,7 @@ fn oauth_named_mail_servers_reach_the_transport_security_check() {
         account.incoming = Some(Server { host: incoming.into(), port: 0, security: Security::None });
         account.outgoing = Some(Server { host: outgoing.into(), port: 0, security: Security::None });
         for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
-            assert!(matches!(&error, NetError::Config(why) if why.contains("is set to use no encryption")), "{provider:?}: {error:?}");
+            assert!(matches!(&error, NetError::Config(why) if why.to_string().contains("is set to use no encryption")), "{provider:?}: {error:?}");
             assert!(!format!("{error} {error:?}").contains(TOKEN));
         }
     }
@@ -431,7 +431,7 @@ fn oauth_destinations_cannot_cross_providers_or_protocols() {
             OAuthProvider::Microsoft => "a Microsoft sign-in is only used",
         };
         for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
-            assert!(matches!(&error, NetError::Config(why) if why.starts_with(expected)), "{provider:?}: {error:?}");
+            assert!(matches!(&error, NetError::Config(why) if why.to_string().starts_with(expected)), "{provider:?}: {error:?}");
             assert!(!format!("{error} {error:?}").contains(TOKEN));
         }
     }
@@ -534,7 +534,7 @@ fn a_refused_token_is_an_error_without_the_token() {
 fn an_oauth_account_without_a_token_is_told_to_sign_in_first() {
     let (imap, smtp) = token_servers();
     let account = oauth_account(Some(&imap), Some(&smtp));
-    let sign_in = NetError::Config("sign in to ada@example.org first".into());
+    let sign_in = NetError::Config(mailcraft_i18n::said!("sign in to {who} first", who = "ada@example.org"));
     assert_eq!(test_account(&account, ""), Err(sign_in.clone()));
     assert_eq!(test_account(&oauth_account(None, Some(&smtp)), ""), Err(sign_in.clone()));
     assert_eq!(send(&account, "", &hello()), Err(sign_in));
@@ -567,7 +567,7 @@ fn a_server_that_takes_no_tokens_is_not_shown_one() {
     assert_eq!(imap.world().log, ["A0001 AUTHENTICATE XOAUTH2", "A0001 AUTHENTICATE XOAUTH2"]);
 
     let error = send(&oauth_account(None, Some(&smtp)), TOKEN, &hello()).unwrap_err();
-    assert_eq!(error, NetError::Proto(ProtoError::Auth("the server offers no way to sign in with an access token".into())));
+    assert_eq!(error, NetError::Proto(ProtoError::Auth(mailcraft_i18n::said!("the server offers no way to sign in with an access token"))));
     // Nor is the mail sent unsigned, or with the token as if it were a password.
     assert_eq!(smtp.world().log, ["EHLO [127.0.0.1]"]);
     // A server that asks for no sign-in at all is no place for an account that needs one.
@@ -608,8 +608,8 @@ fn no_password_goes_out_unencrypted_to_another_machine() {
     let message = Message { id: 3, to: vec![Address::new("Bob", "bob@example.org")], subject: "Hello".into(), ..Default::default() };
 
     let started = std::time::Instant::now();
-    assert!(matches!(test_account(&elsewhere, PASSWORD), Err(NetError::Config(why)) if why.contains("mail.example.org")));
-    assert!(matches!(send(&elsewhere, PASSWORD, &message), Err(NetError::Config(why)) if why.contains("192.0.2.25")));
+    assert!(matches!(test_account(&elsewhere, PASSWORD), Err(NetError::Config(why)) if why.to_string().contains("mail.example.org")));
+    assert!(matches!(send(&elsewhere, PASSWORD, &message), Err(NetError::Config(why)) if why.to_string().contains("192.0.2.25")));
     let mut request = request(elsewhere, local_folders());
     request.outbox = vec![message];
     let result = sync(&request);
@@ -630,7 +630,7 @@ fn starttls_is_never_given_up_for_plain_text() {
     strict.incoming.as_mut().unwrap().security = Security::StartTls;
     strict.outgoing.as_mut().unwrap().security = Security::StartTls;
     let error = test_account(&strict, PASSWORD).unwrap_err();
-    assert_eq!(error, NetError::Tls { host: "127.0.0.1".into(), reason: "the server doesn't offer STARTTLS".into() });
+    assert_eq!(error, NetError::Tls { host: "127.0.0.1".into(), reason: mailcraft_i18n::said!("the server doesn't offer STARTTLS") });
     let mut request = request(strict.clone(), local_folders());
     request.outbox = vec![Message { id: 3, to: vec![Address::new("Bob", "bob@example.org")], ..Default::default() }];
     let result = sync(&request);
@@ -750,7 +750,7 @@ fn one_message_is_sent() {
     assert!(matches!(send(&account, PASSWORD, &Message::default()), Err(NetError::Config(_))));
     assert_eq!(smtp.world().connections, 1);
     smtp.world().refuse = vec!["bob@example.org".into()];
-    assert_eq!(send(&account, PASSWORD, &message), Err(NetError::Proto(ProtoError::Rejected("bob@example.org: 550 5.1.1 no such user".into()))));
+    assert_eq!(send(&account, PASSWORD, &message).map_err(|e| e.to_string()), Err("the server said: bob@example.org: 550 5.1.1 no such user".into()));
     assert!(matches!(send(&Account::default(), PASSWORD, &message), Err(NetError::Config(_))));
 }
 
@@ -787,7 +787,7 @@ fn a_relay_that_needs_no_sign_in_is_never_shown_the_password() {
 
 #[test]
 fn a_bridge_on_this_computer_is_reached_without_encryption_by_its_name() {
-    // #836: a mail bridge (ProtonMail Bridge, DavMail) listens on this computer, unencrypted.
+    // #836: a mail bridge listens on this computer, unencrypted.
     let imap = Fake::imap(imap_world());
     let smtp = Fake::smtp(smtp_world());
     let mut bridge = account(Some(&imap), Some(&smtp));
@@ -804,6 +804,7 @@ fn a_bridge_on_this_computer_is_reached_without_encryption_by_its_name() {
     bridge.outgoing_without_sign_in = true;
     let message = Message { to: vec![Address::new("Bob", "bob@example.org")], ..Default::default() };
     let Err(NetError::Config(why)) = send(&bridge, PASSWORD, &message) else { panic!("sent in the clear") };
+    let why = why.to_string();
     assert!(why.contains("relay.example.org") && why.contains("mail and password"), "{why}");
     assert_eq!(smtp.world().connections, 1);
 }
@@ -965,14 +966,19 @@ fn a_run_downloads_only_so_much() {
 
 #[test]
 fn a_server_that_is_not_there_is_an_error_line() {
-    // A port that was just free: nothing listens there.
-    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let mut nowhere = account(None, None);
-    nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
-    let result = sync(&request(nowhere.clone(), local_folders()));
-    assert_eq!(result.errors.len(), 1);
-    assert!(result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: "), "{}", result.errors[0]);
-    assert!(matches!(test_account(&nowhere, PASSWORD), Err(NetError::Connect { .. })));
+    // A port that was just free: nothing listens there. Another test running at the same time can
+    // take it in between, so a few fresh ports are tried; one where nobody answered must be found.
+    // A port can't be held without listening on it, which would answer, so it's retried instead.
+    let refused = (0..5).any(|_| {
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let mut nowhere = account(None, None);
+        nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
+        let result = sync(&request(nowhere.clone(), local_folders()));
+        result.errors.len() == 1
+            && result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: ")
+            && matches!(test_account(&nowhere, PASSWORD), Err(NetError::Connect { .. }))
+    });
+    assert!(refused, "a port nobody listens on was never said to be unreachable");
 }
 
 // ---- pushing what was changed here ----

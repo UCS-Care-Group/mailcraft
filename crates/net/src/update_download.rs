@@ -83,9 +83,9 @@ fn without_address(error: &NetError) -> DownloadError {
     } else if error.is_unreachable() {
         failed("GitHub couldn't be reached")
     } else if let NetError::Config(why) = error
-        && why.starts_with("the download couldn't be written")
+        && why.to_string().starts_with("the download couldn't be written")
     {
-        failed(why)
+        failed(&why.to_string())
     } else {
         failed("GitHub's answer was cut off or wasn't one")
     }
