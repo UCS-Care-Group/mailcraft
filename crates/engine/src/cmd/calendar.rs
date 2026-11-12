@@ -119,7 +119,7 @@ fn kept_by(s: &Session, e: &Event) -> Option<String> {
 }
 
 /// Whether a calendar is one that an account's server keeps.
-fn served(s: &Session, calendar: Id) -> bool {
+pub(crate) fn served(s: &Session, calendar: Id) -> bool {
     s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_some())
 }
 
@@ -215,7 +215,7 @@ pub fn current_calendar(s: &Session) -> Id {
 
 /// A calendar of the mailbox's own, for what is not to be on a server (a meeting nobody is to be
 /// invited to yet): the first there is, or a new one that says where it lives.
-fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
+pub(crate) fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
     match own_calendar(s) {
         0 => {
             if s.mailbox.calendars.len() >= 200 {

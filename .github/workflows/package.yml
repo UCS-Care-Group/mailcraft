@@ -467,7 +467,7 @@ jobs:
         env:
           DEB_ARCH: ${{ matrix.deb }}
         run: |
-          sudo apt-get update
+          .github/scripts/apt-mirrors.sh
           sudo apt-get install -y --no-install-recommends \
             libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
             desktop-file-utils appstream zsync file xvfb libxkbcommon-x11-0 libegl1 mesa-vulkan-drivers
@@ -537,7 +537,7 @@ jobs:
           path: dist/linux
       - name: Install flatpak-builder
         run: |
-          sudo apt-get update
+          .github/scripts/apt-mirrors.sh
           sudo apt-get install -y --no-install-recommends flatpak flatpak-builder librsvg2-common
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build the Flatpak bundle

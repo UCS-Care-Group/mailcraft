@@ -215,7 +215,7 @@ fn a_deletion_the_server_refuses_has_the_folder_list_read_afresh() {
         &standin,
         &EwsMailRequest { hierarchy: first.hierarchy.clone(), changes: vec![FolderChange::Delete { id: inbox.clone(), shown }], ..request() },
     );
-    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("doesn't let")));
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::OwnFolder { why } if why.contains("doesn't let")));
     assert_eq!(standin.state().writes, ["DeleteFolder"]);
     let folders = result.folders.as_ref().unwrap();
     assert!(folders.afresh && folders.changed.iter().any(|f| f.id == inbox), "a delta wouldn't bring it back");

@@ -20,6 +20,8 @@ const SENDER_WRITERS: &[(&str, &str)] = &[
     ("crates/ui-egui/src/windows.rs", "mark::write_from_mail("),
     // An attachment written for the program that opens it: read-only, for this user only.
     ("apps/mailcraft/src/opened_files.rs", "mark::mark_from_internet("),
+    // A private copy for the optional preview renderer.
+    ("apps/mailcraft/src/attachment_render.rs", "mark::write_new_from_mail("),
 ];
 
 /// The files that write files that are not a sender's bytes, and what they write.
