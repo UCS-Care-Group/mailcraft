@@ -425,3 +425,26 @@ fn undo_of_a_deletion_that_waited_for_its_copy_leaves_the_deletion_of_a_like_mai
     r.run("edit.redo", json!({}));
     assert_eq!(uids(&r), [5, 0], "each deletion has its own UID");
 }
+
+#[test]
+fn moved_to_this_computer_while_the_run_that_pushed_the_first_move_is_under_way_leaves_the_server_once_safe() {
+    let mut r = Rig::with(world(true, false));
+    r.sync();
+    let (id, projects) = (r.titled("Two")[0], r.folder_named("Projects"));
+    let local = r.s.mailbox.local_account();
+    let kept = r.s.mailbox.add_folder(local, None, "Kept").unwrap();
+    r.run("mail.move", json!({"ids": [id], "folder": projects}));
+    r.sync_acting(|r| {
+        r.run("mail.move", json!({"ids": [id], "folder": kept}));
+    });
+    settle(&mut r);
+    assert_eq!(r.server_count("Two"), 1, "the server's copy stays until the message is saved here");
+    let dir = std::env::temp_dir().join(format!("mailcraft-imap-dup-flight-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    r.run("file.save", json!({"path": dir.join("kept.mailcraft")}));
+    settle(&mut r);
+    let _ = std::fs::remove_dir_all(dir);
+    assert_eq!(r.server_count("Two"), 0, "the server's copy went once the message was safe here");
+    let kept_here: Vec<Id> = r.s.mailbox.messages.values().filter(|m| m.subject == "Two").map(|m| m.id).collect();
+    assert!(matches!(&kept_here[..], [one] if r.s.mailbox.message(*one).is_some_and(|m| m.account == local)), "{kept_here:?}");
+}

@@ -1517,7 +1517,10 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
         // ([`waited_for`]).
         (Some(Pending::Move { message, synced, to, .. }), None) => {
             let from = mb.folder(moved.to_folder).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
-            let findable = mb.message(message).is_some_and(|m| m.account == account && !m.message_id.is_empty());
+            // (In another account that keeps it, it is being moved out of this one: the original goes
+            // once the message is safe there, as for any such move.)
+            let findable =
+                mb.message(message).is_some_and(|m| (m.account == account || mb.takes_over(account, m.account)) && !m.message_id.is_empty());
             if let (Some(from), true) = (from, findable) {
                 mb.pending.push(Pending::Move { account, message, from, uid: 0, synced: synced.map(|flags| flags.at(0)), to });
             }
