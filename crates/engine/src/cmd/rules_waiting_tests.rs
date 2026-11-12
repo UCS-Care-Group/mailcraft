@@ -968,3 +968,109 @@ fn a_move_onto_another_server_stays_held_after_the_download_when_the_stop_rule_s
         "a private message went onto another account's server past a stop rule that still can't tell"
     );
 }
+
+/// [`a_delete_for_good_that_waited_doesnt_go_after_a_copy_made_as_it_arrived`] with the copy made
+/// by Run Rules Now over the same mail, not downloaded yet: a rule made from the message and run
+/// at once over the folder (as the New rule builder does), or one switched on and run with the
+/// others. "Purge" (which reads the text) can't tell yet; the server refuses the copy. Once the
+/// message is downloaded, "Purge" doesn't delete it for good (#566).
+#[test]
+fn a_copy_by_run_rules_now_before_the_download_keeps_a_waiting_rule_from_deleting_for_good() {
+    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
+    let mut lost = Vec::new();
+    for alone in [true, false] {
+        let mut s = Session::empty();
+        let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
+        let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+            "actions": [{"type": "copyTo", "value": kept}]});
+        let purge = json!({"name": "Purge", "server": false, "conditions": [{"type": "bodyContains", "value": "purge"}],
+            "actions": [{"type": "deleteForGood"}]});
+        let copy_id = if alone {
+            s.run("rules.add", &purge).unwrap();
+            arrives(&mut s, account, "Plan");
+            // Create Rule from the message, run at once over the folder.
+            let id = s.run("rules.add", &copy).unwrap()["id"].as_u64().unwrap();
+            s.run("rules.run", &json!({"folder": inbox, "id": id})).unwrap();
+            id
+        } else {
+            let id = s.run("rules.add", &copy).unwrap()["id"].as_u64().unwrap();
+            s.run("rules.enable", &json!({"id": id, "value": false})).unwrap();
+            s.run("rules.add", &purge).unwrap();
+            arrives(&mut s, account, "Plan");
+            s.run("rules.enable", &json!({"id": id, "value": true})).unwrap();
+            s.run("rules.run", &json!({"folder": inbox})).unwrap();
+            id
+        };
+        let _ = copy_id;
+        let waiting = here(&s, account, "N1").rules_waiting.clone().expect("Purge waits for the download");
+        assert!(waiting.copied, "the waiting rules know of the copy");
+        let changes = super::graph_up::message_changes(&s, account, 100).0;
+        let [copied @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy goes: {changes:?}") };
+        let refused = MessageChangeDone { change: copied.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
+        graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
+        assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Plan").count(), 1, "the refused copy is taken away");
+        let fetched = vec![whole("N1", "Plan", "", "Please purge this after reading.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let left = s.mailbox.messages.values().filter(|m| m.subject == "Plan").count();
+        let deletes: Vec<MessageChange> =
+            super::graph_up::message_changes(&s, account, 100).0.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect();
+        if left == 0 && !deletes.is_empty() {
+            lost.push(format!("copy run alone: {alone}: {left} left here, the server told {deletes:?}"));
+        }
+    }
+    assert!(lost.is_empty(), "after a copy made before the download was refused, a waiting rule deleted the message for good: {lost:?}");
+}
+
+/// The move that waited for a rule before it that couldn't tell is made once the message is here
+/// and that rule doesn't apply (no Sensitivity line): held, not dropped (#566).
+#[test]
+fn a_move_that_waited_past_a_rule_that_couldnt_tell_is_made_once_downloaded() {
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let (to, _) = imap_inbox(&mut s);
+    let private = json!({"name": "Private stays", "account": account, "server": false, "stop": true,
+        "conditions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &private).unwrap();
+    let zoe = json!({"name": "Zoe to Blake", "account": account, "server": false,
+        "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "moveTo", "value": to}]});
+    s.run("rules.add", &zoe).unwrap();
+    arrives(&mut s, account, "Plan");
+    assert!(!s.mailbox.messages.values().any(|m| m.folder == to), "not moved on a guess");
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let plan: Vec<(Id, bool)> = s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| (m.folder, m.unfetched)).collect();
+    assert_eq!(plan, [(to, false)], "moved into Blake's Inbox once the first rule had its say");
+}
+
+/// Run Rules Now over an IMAP Inbox holding mail downloaded before its header lines were kept
+/// (0.12.0): a stop rule on a header can't tell, so a later rule copies nothing into another
+/// account (#566).
+#[test]
+fn run_rules_now_copies_nothing_into_another_account_past_a_header_rule_that_cant_tell() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    let mut s = Session::empty();
+    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "imap.mail.example"}});
+    let a = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let delta = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, complete: true, ..Default::default() };
+    crate::cmd::account::apply_sync(&mut s, SyncResult { account: a, folders: vec![delta], ..Default::default() }).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let (theirs, _) = imap_inbox(&mut s);
+    let m = Message {
+        folder: inbox,
+        uid: 5,
+        from: Address::new("Zoe", "zoe@example.org"),
+        subject: "Plan".into(),
+        message_id: "plan@example.org".into(),
+        ..Default::default()
+    };
+    let id = s.mailbox.add_message(m).unwrap();
+    assert!(s.mailbox.message(id).unwrap().read_header.is_empty());
+    let private = json!({"name": "Private stays", "account": a, "stop": true,
+        "conditions": [{"type": "headerContains", "value": "x-private"}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &private).unwrap();
+    let zoe = json!({"name": "Zoe to Blake", "account": a,
+        "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "copyTo", "value": theirs}]});
+    s.run("rules.add", &zoe).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.folder == theirs).count(), 0, "copied onto Blake's server past a rule that couldn't tell");
+}

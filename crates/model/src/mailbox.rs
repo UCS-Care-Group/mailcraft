@@ -2849,6 +2849,7 @@ impl Mailbox {
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None, source: Some(id) });
+            self.copied_while_waiting(id);
             return Ok(new);
         }
         if from_account != to_account && self.puts_on_server(to_account) {
@@ -2883,7 +2884,19 @@ impl Mailbox {
             let marker = format!("mailcraft-{stamp:x}-{new:x}-{source:016x}");
             self.queued.push(Queued::CopyMessage { account: from_account, id: server.id, to, copy: new, marker });
         }
+        self.copied_while_waiting(id);
         Ok(new)
+    }
+
+    /// A copy of `id` made while rules wait for it to be here whole (Run Rules Now's, the owner's):
+    /// that copy may be refused before they have their say, so none of them deletes it for good,
+    /// as after a copy made as it arrived ([`crate::RulesWaiting::copied`], #566).
+    fn copied_while_waiting(&mut self, id: Id) {
+        if self.message(id).is_some_and(|m| m.rules_waiting.as_ref().is_some_and(|w| !w.copied))
+            && let Some(waiting) = self.messages.get_mut(&id).and_then(|m| Arc::make_mut(m).rules_waiting.as_mut())
+        {
+            waiting.copied = true;
+        }
     }
 
     /// Whether a copy of `source` is waiting to be made on another account's server
