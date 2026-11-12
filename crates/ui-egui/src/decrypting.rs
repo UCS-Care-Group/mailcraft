@@ -10,11 +10,12 @@
 //! ([`crate::digital_signatures::SigningPin`]).
 //!
 //! **What starts an opening, and what doesn't.** A message is opened only when the owner is
-//! looking at it: it has stayed on screen for [`DWELL_MS`] (so that arrowing through a folder of
-//! Encrypted messages opens none of them), and no other is being opened (one at a time: one
-//! decryption in memory, one question for a PIN or passphrase on the screen at once). A message
-//! an agent chose (selected, or named in a request) is never opened because an agent asked for
-//! it to be shown: the bar says so and waits for the owner's Open ([`MailApp::note_agent_choice`]).
+//! looking at it: the owner chose it with input of their own (a click or key on its row, the Open
+//! button, a window they opened: `owner_chose`, which nothing the control channel does adds to,
+//! nested params and windows included, [`MailApp::track_choice`]), it has stayed on screen for
+//! [`DWELL_MS`] (so that arrowing through a folder of Encrypted messages opens none of them), and
+//! no other is being opened (one at a time: one decryption in memory, one question for a PIN or
+//! passphrase on the screen at once). Any other message waits, and its bar offers Open.
 
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -22,7 +23,6 @@ use std::time::Duration;
 
 use mailcraft_engine::decrypt::{DecryptJob, Decryption, Failure, Plain};
 use mailcraft_model::{Id, Message};
-use serde_json::Value;
 
 use crate::MailApp;
 
@@ -32,8 +32,10 @@ const POLL: Duration = Duration::from_millis(100);
 pub(crate) const DWELL_MS: f64 = 300.0;
 /// A message not drawn for this long (milliseconds) is on screen afresh when it is drawn again.
 const GAP_MS: f64 = 1_000.0;
-/// The most messages an agent's choice is remembered for, and whose dwell is tracked.
+/// The most messages the owner's choice is remembered for, and whose dwell is tracked.
 const MAX_TRACKED: usize = 64;
+/// How many frames after the control channel did something what shows is not the owner's choice.
+const CONTROL_FRAMES: u64 = 3;
 
 /// Opens Encrypted messages ([`crate::Services::decrypting`]).
 pub trait DecryptHost: Send + Sync {
@@ -88,13 +90,18 @@ impl MailApp {
                 None => self.session.finish_decrypt(id, Err(Failure::Unavailable)),
             }
         }
-        self.session.decrypted_message(id)
+        let view = self.session.decrypted_message(id);
+        if view.is_some() {
+            // (What an agent's screenshot is not to show: see `issue_screenshots`.)
+            self.decrypted_drawn = Some(self.epoch);
+        }
+        view
     }
 
     /// Whether message `id` may be opened now: the owner chose it, it has stayed on screen, and
     /// nothing else is being opened.
     fn may_begin(&mut self, ctx: &egui::Context, id: Id, now: f64) -> bool {
-        if self.agent_chose.contains(&id) {
+        if !self.owner_chose.contains(&id) {
             return false;
         }
         if self.decrypt_dwell.len() >= MAX_TRACKED {
@@ -117,38 +124,50 @@ impl MailApp {
         self.decrypting.is_empty()
     }
 
-    /// An agent's request selected a message or named one: it is one an agent chose, and an
-    /// Encrypted message among them is not opened for it.
-    pub(crate) fn note_agent_choice(&mut self, focus_before: Option<Id>, params: &Value) {
-        let mut chose: Vec<Id> = Vec::new();
+    /// The control channel (an agent, a script, injected input) did something in this frame.
+    pub(crate) fn touch_control(&mut self) {
+        self.control_epoch = Some(self.epoch);
+    }
+
+    /// Whether the control channel did something lately: what it caused isn't the owner's choice.
+    /// (A few frames, for a choice shows in the frame after the input that made it; an owner's
+    /// click in the same moment as an agent's is taken as the agent's, to be on the safe side.)
+    pub(crate) fn control_recent(&self) -> bool {
+        self.control_epoch.is_some_and(|c| self.epoch.saturating_sub(c) <= CONTROL_FRAMES)
+    }
+
+    /// At the start of a frame: a message that took the focus without the control channel's hand
+    /// in it is one the owner chose (a click or key on a row).
+    pub(crate) fn track_choice(&mut self) {
+        self.epoch += 1;
         let focus = self.session.sel.focus();
-        if focus != focus_before {
-            chose.extend(focus);
-        }
-        for key in ["id", "message"] {
-            chose.extend(params.get(key).and_then(Value::as_u64));
-        }
-        if let Some(ids) = params.get("ids").and_then(Value::as_array) {
-            chose.extend(ids.iter().filter_map(Value::as_u64).take(MAX_TRACKED));
-        }
-        for id in chose {
-            if !self.agent_chose.contains(&id) {
-                if self.agent_chose.len() >= MAX_TRACKED {
-                    self.agent_chose.remove(0);
-                }
-                self.agent_chose.push(id);
+        if focus != self.last_focus {
+            self.last_focus = focus;
+            if let Some(id) = focus.filter(|_| !self.control_recent() && !self.driven) {
+                self.owner_picks(id);
             }
         }
     }
 
-    /// Whether message `id` waits for the owner's Open because an agent chose it.
-    pub(crate) fn decryption_needs_owner(&mut self, id: Id) -> bool {
-        self.agent_chose.contains(&id) && matches!(self.session.decryption(id), Decryption::Waiting(_))
+    /// The owner chose message `id` themselves: an Encrypted message may be opened.
+    pub(crate) fn owner_picks(&mut self, id: Id) {
+        if self.owner_chose.contains(&id) {
+            return;
+        }
+        if self.owner_chose.len() >= MAX_TRACKED {
+            self.owner_chose.remove(0);
+        }
+        self.owner_chose.push(id);
     }
 
-    /// The owner says to open message `id` (a click in the window, never one an agent made).
+    /// Whether message `id` waits for the owner's Open: nothing the owner did chose it.
+    pub(crate) fn decryption_needs_owner(&mut self, id: Id) -> bool {
+        !self.owner_chose.contains(&id) && matches!(self.session.decryption(id), Decryption::Waiting(_))
+    }
+
+    /// The owner says to open message `id` (a click in the window, never one the control channel made).
     pub(crate) fn owner_opens(&mut self, id: Id) {
-        self.agent_chose.retain(|c| *c != id);
+        self.owner_picks(id);
     }
 
     /// Whether something an Encrypted message opened to is on screen: in the reading pane, or in a
@@ -165,6 +184,7 @@ impl MailApp {
         if gone != self.decryption_gen {
             self.decryption_gen = gone;
             crate::reading::forget_layouts(ctx, |m| self.session.decrypted_view_gone(m));
+            self.session.layouts_dropped();
         }
     }
 }

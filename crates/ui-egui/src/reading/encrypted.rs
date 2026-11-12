@@ -67,10 +67,10 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place) {
     let mut extra: Vec<String> = Vec::new();
     let (lead, hue, retry, check) = match &state {
         Decryption::NotEncrypted => return,
-        // An agent chose this message: it is opened when the owner says so, not before.
+        // The owner didn't choose this message (an agent did, or it was there already): it is opened when the owner says so.
         Decryption::Waiting(_) if app.decryption_needs_owner(m.id) => {
             open = true;
-            (tl!("An agent selected this message. It isn't opened until you say so.").to_string(), t.text_dim, false, false)
+            (tl!("It isn't opened until you choose it. Select it, or press Open.").to_string(), t.text_dim, false, false)
         }
         Decryption::Waiting(_) if !app.decrypting.is_empty() => {
             (tl!("Waiting for another message to be opened first…").to_string(), t.text_dim, false, false)

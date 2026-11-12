@@ -337,6 +337,10 @@ fn open_message(app: &mut MailApp, id: Id) -> Result<Value, String> {
         return Err(tl!("Too many windows are open: close one first").to_string());
     }
     let window = app.windows.add(What::Message { message: id, seen: m });
+    // A window the owner opened is the owner's choice; one the control channel opened is not.
+    if !app.driven && !app.control_recent() {
+        app.owner_picks(id);
+    }
     Ok(json!({"window": window, "message": id}))
 }
 

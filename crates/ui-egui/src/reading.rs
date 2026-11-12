@@ -674,6 +674,8 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
         return;
     }
     ui.add_space(2.0);
+    // The files an opened message had beside its encrypted part come first: they were not encrypted.
+    let clear = if app.session.is_decrypted_view(m) { app.session.decrypted_outside(m.id).files } else { 0 };
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
         for (index, a) in files {
@@ -717,7 +719,14 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             ui.painter().text(
                 pos2(r.min.x + 34.0, r.min.y + 27.0),
                 Align2::LEFT_CENTER,
-                mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64),
+                if index < clear {
+                    crate::i18n::fmt(
+                        tl!("{size} · not encrypted"),
+                        &[("size", &mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64))],
+                    )
+                } else {
+                    mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64)
+                },
                 regular(10.5),
                 t.text_dim,
             );

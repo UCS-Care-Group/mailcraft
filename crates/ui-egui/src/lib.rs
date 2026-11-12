@@ -1680,9 +1680,19 @@ pub struct MailApp {
     /// How long each Encrypted message has been on screen, as (since, last seen) in milliseconds:
     /// one is opened only after it has stayed (#30 part 6).
     decrypt_dwell: std::collections::HashMap<Id, (f64, f64)>,
-    /// Messages an agent chose (selected, or named): an Encrypted one among them is opened only
-    /// when the owner says so in the window, never because an agent asked for it to be shown.
-    agent_chose: Vec<Id>,
+    /// Messages the owner chose with input of their own (a click or key on a row, the Open
+    /// button, a window they opened): an Encrypted message is opened only if it is one of these.
+    /// Nothing the control channel or an agent does adds to it ([`MailApp::track_choice`]).
+    owner_chose: Vec<Id>,
+    /// The message that had the focus when the window last looked.
+    last_focus: Option<Id>,
+    /// Frames the window has begun; the frame the control channel last did something in.
+    epoch: u64,
+    control_epoch: Option<u64>,
+    /// The frame an opened message's text was last drawn in; the frames agents' screenshots were
+    /// asked in, as (token, frame).
+    decrypted_drawn: Option<u64>,
+    agent_shots: Vec<(u64, u64)>,
     /// How many opened messages the engine had let go of when the layout cache was last cleaned.
     decryption_gen: u64,
     /// Encrypted messages the host is opening, by message (#30 part 6). Never saved.
@@ -1964,7 +1974,12 @@ impl MailApp {
             signing_in: None,
             decrypting: Default::default(),
             decrypt_dwell: Default::default(),
-            agent_chose: Vec::new(),
+            owner_chose: Vec::new(),
+            last_focus: None,
+            epoch: 0,
+            control_epoch: None,
+            decrypted_drawn: None,
+            agent_shots: Vec::new(),
             decryption_gen: 0,
             setup_sign_in: None,
             approvals: Default::default(),
@@ -4644,6 +4659,7 @@ impl MailApp {
     /// Per-frame logic before layout: control requests, screenshots, background results, file
     /// drops, saving.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        self.track_choice();
         self.apply_language();
         // The system's authorities for mail, once the host has read them: what was checked
         // without them is checked again (#30).
@@ -5133,6 +5149,7 @@ impl MailApp {
         if self.synthetic.is_empty() {
             return;
         }
+        self.touch_control();
         let n = match self.synthetic.first() {
             Some(egui::Event::PointerMoved(_) | egui::Event::PointerButton { .. }) => 1,
             _ => self.synthetic.iter().position(|e| matches!(e, egui::Event::Key { pressed: false, .. })).map_or(self.synthetic.len(), |i| i + 1),
@@ -5356,6 +5373,12 @@ impl MailApp {
                 control::Outcome::Screenshot { path, inline } => {
                     self.shot_token += 1;
                     let token = self.shot_token;
+                    if req.agent.is_some() {
+                        if self.agent_shots.len() >= 64 {
+                            self.agent_shots.remove(0);
+                        }
+                        self.agent_shots.push((token, self.epoch));
+                    }
                     self.queued_shots.push((token, now_ms() + 120.0, 0));
                     self.pending_shots.push((token, path, inline, reply, now_ms() + 8000.0));
                 }
@@ -5369,10 +5392,18 @@ impl MailApp {
     fn issue_screenshots(&mut self, ctx: &egui::Context) {
         let now = now_ms();
         let sink = self.shot_images.clone();
+        let (drawn, agent_shots) = (self.decrypted_drawn, self.agent_shots.clone());
+        let mut refused = Vec::new();
         self.queued_shots.retain_mut(|(token, at, frames)| {
             *frames += 1;
             if now >= *at && *frames >= 3 {
                 let token = *token;
+                // An agent's picture is not taken of a frame that showed what an Encrypted message
+                // opened to, however the message came to be on screen after it was asked for.
+                if agent_shots.iter().any(|(t, asked)| *t == token && drawn.is_some_and(|d| d >= *asked)) {
+                    refused.push(token);
+                    return false;
+                }
                 let sink = sink.clone();
                 let repaint = ctx.clone();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::ScreenshotCallback::new(move |image| {
@@ -5384,8 +5415,20 @@ impl MailApp {
                 true
             }
         });
+        for token in refused {
+            self.refuse_shot(token);
+        }
         if !self.queued_shots.is_empty() || !self.pending_shots.is_empty() {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        }
+    }
+
+    /// An agent's screenshot is answered with a refusal: an Encrypted message's text is on screen.
+    fn refuse_shot(&mut self, token: u64) {
+        self.agent_shots.retain(|(t, _)| *t != token);
+        if let Some(i) = self.pending_shots.iter().position(|(t, ..)| *t == token) {
+            let (_, _, _, reply, _) = self.pending_shots.remove(i);
+            let _ = reply.send(json!({"ok": false, "error": "an Encrypted message was opened in the window while the screenshot was waiting: its text isn't shown to agents, so there is no screenshot"}));
         }
     }
 
@@ -5395,6 +5438,12 @@ impl MailApp {
         }
         let events: Vec<_> = std::mem::take(&mut *self.shot_images.lock().unwrap_or_else(|poisoned| poisoned.into_inner()));
         for (token, image) in events {
+            // (The picture was taken after the frame; plaintext drawn since it was asked for counts.)
+            if self.agent_shots.iter().any(|(t, asked)| *t == token && self.decrypted_drawn.is_some_and(|d| d >= *asked)) {
+                self.refuse_shot(token);
+                continue;
+            }
+            self.agent_shots.retain(|(t, _)| *t != token);
             if let Some(i) = self.pending_shots.iter().position(|(t, ..)| *t == token) {
                 let (_, path, inline, reply, _) = self.pending_shots.remove(i);
                 let _ = reply.send(if inline { control::inline_screenshot(&image) } else { control::save_screenshot(&image, path.as_deref()) });

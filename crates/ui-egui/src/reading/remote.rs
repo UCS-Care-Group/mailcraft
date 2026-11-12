@@ -448,7 +448,8 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
                     if place == Place::Pane {
                         app.hit.add("retryPictures", m.id, again.rect);
                     }
-                    if again.clicked() {
+                    // (Not for a click the control channel injected, on an opened message: its server could tell.)
+                    if again.clicked() && !(opened.is_some() && app.driven) {
                         let _ = app.run("ui.retryPictures", json!({"message": m.id}));
                     }
                     return;
@@ -463,7 +464,7 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             if place == Place::Pane {
                 app.hit.add("downloadPictures", m.id, download.rect);
             }
-            if download.clicked() {
+            if download.clicked() && !(opened.is_some() && app.driven) {
                 let _ = app.run("ui.downloadPictures", json!({"message": m.id}));
             }
             // The switch of File › Options for all mail, from here (#910): it asks first. It does

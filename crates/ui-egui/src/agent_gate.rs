@@ -80,11 +80,9 @@ pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Optio
             "an Encrypted message is open in the window: its text isn't shown to agents, so there is no screenshot until it is closed"
         )));
     }
-    let before = app.session.sel.focus();
-    let outcome = screen_request(app, req, allow);
-    // A message an agent selected or named is one it chose: an Encrypted one is not opened for it.
-    app.note_agent_choice(before, &req.params);
-    outcome
+    // Whatever an agent does is not the owner's choice of a message (`owner_chose`).
+    app.touch_control();
+    screen_request(app, req, allow)
 }
 
 fn screen_request(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
@@ -339,6 +337,8 @@ fn undo_takes(app: &MailApp, id: &str) -> (HashSet<u64>, HashSet<String>) {
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
+    // (What an agent asked for, run on the owner's yes, is still the agent's doing.)
+    app.touch_control();
     let out = if a.opening != app.session.openings() {
         err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
     } else if yes {

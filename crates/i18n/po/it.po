@@ -1129,11 +1129,6 @@ msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reading/encrypted.rs
-msgid "An agent selected this message. It isn't opened until you say so."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -5914,6 +5909,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/digital_signatures.rs
 msgid "It isn't for this account's address: recipients will see the signer as not verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/encrypted.rs
+msgid "It isn't opened until you choose it. Select it, or press Open."
 msgstr ""
 
 #. interface
@@ -19673,6 +19673,11 @@ msgstr[1] "{sent} messaggi inviati"
 #, fuzzy
 msgid "{service} account"
 msgstr "Account {service}"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "{size} · not encrypted"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs

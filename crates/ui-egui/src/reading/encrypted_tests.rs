@@ -91,6 +91,34 @@ fn agent(app: &mut MailApp, method: &str, params: serde_json::Value) -> serde_js
     }
 }
 
+/// The owner selects message `id` with their own input (a click or an arrow key on its row), and
+/// the window takes a frame.
+fn owner_selects(app: &mut MailApp, id: Id) {
+    app.session.run("mail.select", &json!({"id": id})).unwrap();
+    frame(app);
+}
+
+/// A frame: input is taken in (none injected), and the window looks at what was chosen.
+fn frame(app: &mut MailApp) {
+    app.raw_input_hook(&mut egui::RawInput::default());
+    app.track_choice();
+}
+
+/// Frames in which nothing happens.
+fn idle(app: &mut MailApp, frames: usize) {
+    for _ in 0..frames {
+        frame(app);
+    }
+}
+
+fn stays_closed(app: &mut MailApp, host: &Stand, id: Id) {
+    let ctx = egui::Context::default();
+    for step in 0..20 {
+        assert!(app.opened_view_at(&ctx, id, 1_000.0 + f64::from(step) * 100.0).is_none());
+    }
+    assert_eq!(host.opened.load(Ordering::SeqCst), 0, "a key holder was asked for a message the owner did not choose");
+}
+
 #[test]
 fn a_message_an_agent_selected_is_not_opened_until_the_owner_says_so_and_then_it_is_not_in_a_screenshot() {
     let (mut app, ids, host) = app_with(1);
@@ -100,10 +128,8 @@ fn a_message_an_agent_selected_is_not_opened_until_the_owner_says_so_and_then_it
     // reason, would open it: no key holder is asked.
     let answer = agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"id": id}}));
     assert_eq!(answer["ok"], true, "{answer}");
-    for step in 0..20 {
-        assert!(app.opened_view_at(&ctx, id, 1_000.0 + f64::from(step) * 100.0).is_none());
-    }
-    assert_eq!(host.opened.load(Ordering::SeqCst), 0, "an agent's select caused a key holder to be asked");
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, id);
     assert!(app.decryption_needs_owner(id));
     // The owner's Open: it begins once it has stayed.
     app.owner_opens(id);
@@ -123,9 +149,107 @@ fn a_message_an_agent_selected_is_not_opened_until_the_owner_says_so_and_then_it
 }
 
 #[test]
+fn a_window_an_agent_opens_through_engine_execute_never_opens_the_message() {
+    let (mut app, ids, host) = app_with(1);
+    let id = ids[0];
+    // The way the MCP bridge sends every command: nested, with params of its own.
+    let answer = agent(&mut app, "engine.execute", json!({"command": "ui.openWindow", "params": {"message": id}}));
+    assert_eq!(answer["ok"], true, "{answer}");
+    assert!(app.windows.of_message(id).is_some(), "the window did not open: this test shows nothing");
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, id);
+    assert!(app.decryption_needs_owner(id));
+    // The same through `ui.openWindow` itself.
+    let (mut app, ids, host) = app_with(1);
+    let answer = agent(&mut app, "ui.openWindow", json!({"message": ids[0]}));
+    assert_eq!(answer["ok"], true, "{answer}");
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, ids[0]);
+}
+
+#[test]
+fn a_click_or_key_the_control_channel_injected_is_not_the_owners_choice() {
+    let (mut app, ids, host) = app_with(2);
+    // A click on a row, as `ui.click` injects it: events queued, and the frame takes them in.
+    app.synthetic.push(egui::Event::PointerMoved(egui::pos2(10.0, 10.0)));
+    app.raw_input_hook(&mut egui::RawInput::default());
+    owner_selects(&mut app, ids[0]);
+    // The arrow key, as `ui.key` injects it, a frame later.
+    app.synthetic.push(egui::Event::PointerMoved(egui::pos2(10.0, 10.0)));
+    app.raw_input_hook(&mut egui::RawInput::default());
+    owner_selects(&mut app, ids[1]);
+    idle(&mut app, 8);
+    stays_closed(&mut app, &host, ids[0]);
+    assert!(app.decryption_needs_owner(ids[0]) && app.decryption_needs_owner(ids[1]));
+    // The owner's own click, after the channel has been quiet, is theirs.
+    idle(&mut app, 8);
+    owner_selects(&mut app, ids[0]);
+    assert!(!app.decryption_needs_owner(ids[0]));
+    let ctx = egui::Context::default();
+    app.opened_view_at(&ctx, ids[0], 9_000.0);
+    app.opened_view_at(&ctx, ids[0], 9_000.0 + DWELL_MS + 1.0);
+    assert_eq!(host.opened.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_message_the_agent_picked_first_is_opened_by_the_owners_own_click() {
+    let (mut app, ids, host) = app_with(1);
+    let ctx = egui::Context::default();
+    agent(&mut app, "engine.execute", json!({"command": "mail.select", "params": {"id": ids[0]}}));
+    idle(&mut app, 8);
+    // The owner clicks Open (the button's click: not driven).
+    app.owner_opens(ids[0]);
+    app.opened_view_at(&ctx, ids[0], 2_000.0);
+    app.opened_view_at(&ctx, ids[0], 2_000.0 + DWELL_MS + 1.0);
+    assert_eq!(host.opened.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_screenshot_asked_for_before_a_message_opened_is_refused_when_it_would_be_taken() {
+    let (mut app, ids, host) = app_with(1);
+    let ctx = egui::Context::default();
+    let id = ids[0];
+    // The agent asks for a screenshot while nothing is open: it is queued, to be taken in a few frames.
+    let (tx, rx_requests) = channel();
+    app.control_rx = Some(rx_requests);
+    let (req, reply) = ControlRequest::new("ui.screenshot", json!({}));
+    tx.send(req.from_agent(Vec::new())).unwrap();
+    app.drain_control(&ctx);
+    assert_eq!(app.pending_shots.len(), 1, "the screenshot was not queued");
+    // Before it is taken the owner selects the message and it opens, in the pane.
+    idle(&mut app, 8);
+    owner_selects(&mut app, id);
+    app.opened_view_at(&ctx, id, 1_000.0);
+    app.opened_view_at(&ctx, id, 1_000.0 + DWELL_MS + 1.0);
+    answer_all(&mut app, &host, true);
+    assert!(app.opened_view_at(&ctx, id, 2_000.0).is_some());
+    // The frames go by: the picture is not taken, and the agent is told why.
+    for q in &mut app.queued_shots {
+        q.1 = 0.0;
+    }
+    for _ in 0..4 {
+        app.issue_screenshots(&ctx);
+    }
+    let answer = reply.try_recv().expect("the agent was not answered");
+    assert_eq!(answer["ok"], false, "{answer}");
+    assert!(answer["error"].as_str().unwrap().contains("Encrypted message"), "{answer}");
+    assert!(app.pending_shots.is_empty());
+    // A frame that was taken before the refusal is not handed over either.
+    let (tx, reply) = channel();
+    app.pending_shots.push((99, None, true, tx, f64::MAX));
+    app.agent_shots.push((99, 0));
+    app.shot_images.lock().unwrap().push((99, Arc::new(egui::ColorImage::example())));
+    app.collect_screenshots();
+    assert_eq!(reply.try_recv().expect("no answer")["ok"], false);
+}
+
+#[test]
 fn nothing_is_opened_for_a_message_that_only_went_by_and_only_one_at_a_time() {
     let (mut app, ids, host) = app_with(20);
     let ctx = egui::Context::default();
+    for id in &ids {
+        app.owner_picks(*id);
+    }
     // Arrowing down the folder: each is on screen for a moment.
     for (i, id) in ids.iter().enumerate() {
         assert!(app.opened_view_at(&ctx, *id, 1_000.0 + 20.0 * i as f64).is_none());
@@ -154,7 +278,7 @@ fn what_an_opened_message_may_fetch_is_nothing_unless_it_can_tell_it_was_not_cha
     // Every switch the owner has: all mail.
     app.ui.download_pictures = true;
     for (id, authenticated) in [(ids[0], false), (ids[1], true)] {
-        app.session.run("mail.select", &json!({"id": id})).unwrap();
+        owner_selects(&mut app, id);
         app.opened_view_at(&ctx, id, 1_000.0);
         app.opened_view_at(&ctx, id, 1_000.0 + DWELL_MS + 1.0);
         answer_all(&mut app, &host, authenticated);
@@ -179,6 +303,7 @@ fn what_an_opened_message_may_fetch_is_nothing_unless_it_can_tell_it_was_not_cha
 fn the_layout_kept_of_a_message_goes_when_the_message_does() {
     let (mut app, ids, host) = app_with(1);
     let ctx = egui::Context::default();
+    app.owner_picks(ids[0]);
     app.opened_view_at(&ctx, ids[0], 1_000.0);
     app.opened_view_at(&ctx, ids[0], 1_000.0 + DWELL_MS + 1.0);
     answer_all(&mut app, &host, true);
