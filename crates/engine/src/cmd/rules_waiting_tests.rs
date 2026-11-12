@@ -1134,7 +1134,7 @@ fn recipients_a_listing_left_out_are_told_once_the_message_is_fetched() {
         "actions": [{"type": "categorize", "value": "Private"}]});
     s.run("rules.add", &private).unwrap();
     let mut message = listed("N1", "F-in", "Plan");
-    message.cc = (0..500).map(|i| Address::new("", &format!("p{i}@example.org"))).collect();
+    message.cc = (0..500).map(|i| Address::new("", format!("p{i}@example.org"))).collect();
     message.cut = true;
     let page = MessagePage { folder: "F-in".into(), messages: vec![message], ..Default::default() };
     graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })

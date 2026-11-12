@@ -142,6 +142,8 @@ pub(super) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> Gra
         has_attachments: entry.get("hasAttachment").and_then(Value::as_bool).unwrap_or(false),
         draft: Some(marks.draft),
         cut: fields.cut,
+        // (A JMAP server's keywords are its marks, not categories.)
+        categories_cut: false,
     }
 }
 
