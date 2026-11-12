@@ -1,1 +1,0 @@
-- A contact's S/MIME certificates and OpenPGP keys in a vCard (`KEY`) are kept when the card is imported and written back when contacts are exported ([#30](https://github.com/GITHUB_REPOSITORY/issues/30)).

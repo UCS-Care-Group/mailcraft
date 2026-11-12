@@ -2447,6 +2447,7 @@ impl MailApp {
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
+            self.forget_favorites(before.id);
             self.jmap_refused.remove(&before.id);
             self.ews_signed_in.remove(&before.id);
             self.ews_certificate.remove(&before.id);
