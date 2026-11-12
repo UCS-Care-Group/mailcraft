@@ -345,8 +345,10 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   act meanwhile, but one that moves the message into another account waits with it, and nothing
   is moved or copied into another account after a rule that still can't tell once the message is
   here, or at Run Rules Now. Nothing is copied of mail its server had before it was read here (a
-  first download, older mail, a mailbox the server numbered anew). The rules leave a shared
-  mailbox's mail alone, Run Rules Now too.
+  first download, older mail, a mailbox the server numbered anew), nor of mail moved into the
+  Inbox on another device while the folder it left still holds it here, known by its Message-ID;
+  one with no Message-ID, or whose folder was read without it first, is new mail and may be
+  copied again. The rules leave a shared mailbox's mail alone, Run Rules Now too.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to

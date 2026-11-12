@@ -1177,3 +1177,30 @@ fn sent_only_to_me_doesnt_hold_of_a_listing_that_left_a_cc_out() {
         assert_eq!(deleted, [false, false, true], "Run Rules Now: {now}");
     }
 }
+
+/// A rule that reads the text moves new Microsoft mail into a folder on this computer, and I flag
+/// the message (on a phone, say) while the rule waits for the download. Marks changed meanwhile
+/// hold back only what goes onto another account's server: this computer has none, so the move is
+/// made (#566).
+#[test]
+fn marks_changed_meanwhile_dont_hold_back_a_move_onto_this_computer() {
+    for flag in [false, true] {
+        let mut s = Session::empty();
+        let (account, _, _) = microsoft_with(&mut s, "Kept");
+        let local = s.mailbox.local_account();
+        let invoices = s.mailbox.add_folder(local, None, "Invoices").unwrap();
+        let rule = json!({"name": "Invoices", "account": account, "server": false,
+            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "moveTo", "value": invoices}]});
+        s.run("rules.add", &rule).unwrap();
+        arrives(&mut s, account, "Bill");
+        let m = here(&s, account, "N1").id;
+        assert!(s.mailbox.message(m).is_some_and(|x| x.rules_waiting.is_some()));
+        if flag {
+            s.run("mail.flag", &json!({"id": m})).unwrap();
+        }
+        let fetched = vec![whole("N1", "Bill", "", "Your invoice.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let there = s.mailbox.messages.values().any(|x| x.subject == "Bill" && x.folder == invoices);
+        assert!(there, "flagged meanwhile: {flag}");
+    }
+}

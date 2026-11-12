@@ -640,7 +640,7 @@ pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), Cm
     } else if email.chars().count() <= MAX_WORD {
         Condition::FromContains(vec![email.to_string()])
     } else {
-        return Err(fail(format!("the sender's address is longer than a rule looks for ({MAX_WORD} characters)")));
+        return Err(failed!("the sender's address is longer than a rule looks for ({n} characters)", n = MAX_WORD));
     };
     let mut rule = Rule {
         name: name.chars().take(mailcraft_model::MAX_NAME).collect(),

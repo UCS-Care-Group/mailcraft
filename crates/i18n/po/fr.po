@@ -4808,7 +4808,7 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr "« De » et « Envoyé à » demandent des adresses complètes, comme quelqu'un@example.org."
+msgstr "« De » et « Envoyé à » demandent des adresses complètes, comme quelqu'un@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -7447,7 +7447,7 @@ msgstr "Déplacer vers le dossier"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
-msgstr "« Déplacer vers le dossier » et « Copier dans le dossier » ont besoin d'un dossier ; « Catégoriser » a besoin d'une catégorie."
+msgstr "« Déplacer vers le dossier » et « Copier dans le dossier » ont besoin d'un dossier ; « Catégoriser » a besoin d'une catégorie."
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -7735,7 +7735,7 @@ msgstr "Nouveau courrier"
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
-msgstr "Les nouveaux messages que Gmail place dans Social, Promotions, Mises à jour ou Forums arrivent sans alerte, sauf si l’une de vos règles en affiche une."
+msgstr "Les nouveaux messages que Gmail place dans Social, Promotions, Mises à jour ou Forums arrivent sans alerte, sauf si l'une de vos règles en affiche une."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -9623,7 +9623,7 @@ msgstr "Reçu entre"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr "« Reçu entre » demande un ou deux jours (AAAA-MM-JJ), le plus ancien d'abord."
+msgstr "« Reçu entre » demande un ou deux jours (AAAA-MM-JJ), le plus ancien d'abord."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -11897,7 +11897,7 @@ msgstr "La taille est comprise entre"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr "« La taille est comprise entre » demande deux tailles en Ko, la plus petite d'abord."
+msgstr "« La taille est comprise entre » demande deux tailles en Ko, la plus petite d'abord."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -17727,6 +17727,12 @@ msgstr ""
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "l'expéditeur n'a pas d'adresse e-mail utilisable"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "l'adresse de l'expéditeur est plus longue que ce que cherche une règle ({n} caractères)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs

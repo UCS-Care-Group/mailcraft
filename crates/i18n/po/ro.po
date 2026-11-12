@@ -18900,6 +18900,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "expeditorul nu are o adresă de e-mail utilizabilă"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "adresa expeditorului este mai lungă decât caută o regulă ({n} caractere)"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"

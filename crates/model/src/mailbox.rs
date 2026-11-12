@@ -3135,7 +3135,12 @@ impl Mailbox {
             // an earlier build of #566 kept in the file, isn't run again.)
             if !rule.on_server() && !wait.delete_only {
                 alert |= rule.alert;
-                let out = |a: &Action| matches!(a, Action::CopyTo(f) | Action::MoveTo(f) if self.folder(*f).is_some_and(|f| f.account != account));
+                // (Into another account past a rule that can't tell; onto another account's server
+                // once the marks changed: this computer has none.)
+                let out = |a: &Action| {
+                    let into = |f: &Id| self.folder(*f).filter(|f| f.account != account).and_then(|f| self.account(f.account));
+                    matches!(a, Action::CopyTo(f) | Action::MoveTo(f) if into(f).is_some_and(|to| cant_tell || to.kind != AccountKind::Local))
+                };
                 let actions: std::borrow::Cow<[Action]> = if changed || cant_tell {
                     rule.actions.iter().filter(|a| !out(a)).cloned().collect()
                 } else {
@@ -3497,13 +3502,32 @@ impl Mailbox {
                 r.name
             )));
         }
-        let others = std::iter::once((None, &self.categories)).chain(self.account_categories.iter().map(|(a, l)| (Some(*a), l)));
-        let clash = !same && others.filter(|(owner, _)| *owner != list).any(|(_, l)| l.iter().any(|c| crate::sync::same_category(&c.name, &to)));
+        // The other lists that have a category of the new name of their own.
+        let taken: Vec<Option<Id>> = std::iter::once((None, &self.categories))
+            .chain(self.account_categories.iter().map(|(a, l)| (Some(*a), l)))
+            .filter(|(owner, l)| !same && *owner != list && l.iter().any(|c| crate::sync::same_category(&c.name, &to)))
+            .map(|(owner, _)| owner)
+            .collect();
         for (i, whole) in self.rules_renaming(account, from) {
             let Some(mut rule) = self.rules.get(i).cloned() else { continue };
-            if clash && rule.account == 0 {
+            if !taken.is_empty() && rule.account == 0 {
                 return Err(invalid(format!(
                     "the rule \"{}\" is for every account's mail, and other accounts have a category \"{to}\" of their own, which the rule would then take or put on their mail: choose another name",
+                    rule.name
+                )));
+            }
+            // A rule's category goes on the list of the account it moves or copies the mail into,
+            // where one of that name of its own would be put on it instead.
+            let puts = rule.actions.iter().any(|a| matches!(a, Action::Categorize(c) if crate::sync::same_category(c, from.trim())));
+            let into = |a: &Action| match a {
+                Action::MoveTo(f) | Action::CopyTo(f) => {
+                    self.folder(*f).map(|f| self.category_list_owner(f.account)).filter(|owner| taken.contains(owner))
+                }
+                _ => None,
+            };
+            if puts && rule.actions.iter().any(|a| into(a).is_some()) {
+                return Err(invalid(format!(
+                    "the rule \"{}\" puts this category on mail it moves or copies into another account, which has a category \"{to}\" of its own: choose another name",
                     rule.name
                 )));
             }
@@ -3521,11 +3545,27 @@ impl Mailbox {
         if let Some(cat) = self.categories_of_mut(account).iter_mut().find(|c| c.name.eq_ignore_ascii_case(from.trim())) {
             cat.name = to.clone();
         }
+        // Mail whose rules wait for it with its marks as they were then: a rename is the owner's,
+        // not a change the rules that acted may have read, so it keeps what waits (#566).
+        let unchanged: Vec<Id> = self
+            .messages
+            .values()
+            .filter(|m| m.rules_waiting.as_ref().and_then(|w| w.marked.as_ref()).is_some_and(|then| *then == crate::Marks::of(m)))
+            .map(|m| m.id)
+            .collect();
         self.each_category_list(account, |list| {
             for c in list.iter_mut().filter(|c| c.eq_ignore_ascii_case(from.trim())) {
                 *c = to.clone();
             }
         });
+        for id in unchanged {
+            if let Ok(m) = self.message_mut(id) {
+                let now = crate::Marks::of(m);
+                if let Some(waiting) = m.rules_waiting.as_mut() {
+                    waiting.marked = Some(now);
+                }
+            }
+        }
         for (i, rule) in renamed {
             if let Some(r) = self.rules.get_mut(i) {
                 *r = rule;

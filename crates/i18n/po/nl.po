@@ -18667,6 +18667,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "de afzender heeft geen bruikbaar e-mailadres"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "het adres van de afzender is langer dan waar een regel naar zoekt ({n} tekens)"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"

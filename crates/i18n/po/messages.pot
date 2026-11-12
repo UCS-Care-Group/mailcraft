@@ -15628,6 +15628,11 @@ msgid "the sender has no usable e-mail address"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
 msgid "the series doesn't happen on {date}"
 msgstr ""

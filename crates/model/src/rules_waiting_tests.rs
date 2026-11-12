@@ -218,3 +218,40 @@ fn a_header_exception_on_mail_read_before_the_lines_were_kept_cant_be_told() {
     assert!(!rule.matches(&m), "acts past an exception it can't tell");
     assert!(rule.undecided_in(&m, &crate::Matching::default()));
 }
+
+/// A rule copies new mail into another account's folder and waits for the message to be here
+/// whole. Meanwhile the owner renames a category the message carries: the copy is still made once
+/// it is here, as without the rename. The rename is the owner's, not a change the rules that acted
+/// may have read; a flag set meanwhile still holds the copy back (#566).
+#[test]
+fn a_rename_meanwhile_keeps_a_waiting_copy_into_another_account() {
+    for (rename, flag) in [(false, false), (true, false), (true, true)] {
+        let (mut mb, inbox, _) = mailbox(vec![]);
+        let a = mb.accounts[0].id;
+        let b = mb.add_account(Account { email: "bea@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+        let theirs = mb.add_folder(b, None, "From Ada").unwrap();
+        mb.categories = vec![Category { name: "Work".into(), color: Rgb(200, 0, 0) }];
+        let copy = Rule {
+            id: 1,
+            enabled: true,
+            account: a,
+            conditions: vec![Condition::SubjectContains(words("report"))],
+            actions: vec![Action::CopyTo(theirs)],
+            ..Default::default()
+        };
+        mb.rules.push(copy);
+        let m = listed(&mut mb, inbox);
+        mb.message_mut(m).unwrap().categories = vec!["Work".into()];
+        mb.apply_rules(m, &clock());
+        assert!(mb.message(m).unwrap().rules_waiting.is_some(), "the copy waits for the message");
+        if rename {
+            mb.rename_category(a, "Work", "Office").unwrap();
+        }
+        if flag {
+            mb.message_mut(m).unwrap().flag = FlagStatus::Flagged;
+        }
+        fetched(&mut mb, m, "About the report");
+        mb.run_waiting_rules(m, &clock());
+        assert_eq!(mb.messages_in(theirs).count(), usize::from(!flag), "renamed meanwhile: {rename}, flagged: {flag}");
+    }
+}

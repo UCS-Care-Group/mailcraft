@@ -594,3 +594,30 @@ fn a_rename_into_another_categorys_case_outside_a_to_z_is_refused() {
     mb.categories = vec![tagged("Spam", RED), tagged("büro", WINE)];
     assert!(mb.rename_category(a, "büro", "BÜRO").is_ok());
 }
+
+/// An IMAP account's rule puts Red on its mail and moves it into a folder of Microsoft account A,
+/// whose own list has Archive, which A's rule deletes. A rename of Red to Archive on the shared
+/// list would have the rule put A's own Archive on the mail it moves there: refused, as for a rule
+/// for every account, and the rule keeps Red (#566). The other way too: A's rule copying into the
+/// IMAP account's folder, renamed on A's list into a name the shared list has.
+#[test]
+fn a_rename_a_rules_move_would_put_on_another_accounts_own_category_is_refused() {
+    let (mut mb, a, _) = two_accounts();
+    let imap = mb.add_account(Account { email: "i@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    mb.categories = vec![tagged("Red", RED), tagged("Kept", RED)];
+    mb.account_categories.insert(a, vec![tagged("Archive", WINE), tagged("Blue", WINE)]);
+    let into = mb.add_folder(a, None, "From IMAP").unwrap();
+    let mut tag = weekly_rule(&mut mb, "Tag and file", imap);
+    tag.actions = vec![Action::Categorize("Red".into()), Action::MoveTo(into)];
+    let back = mb.add_folder(imap, None, "From A").unwrap();
+    let mut copy = weekly_rule(&mut mb, "Tag and copy", a);
+    copy.actions = vec![Action::Categorize("Blue".into()), Action::CopyTo(back)];
+    mb.rules = vec![tag, copy];
+    let refused = mb.rename_category(imap, "Red", "Archive");
+    assert!(refused.as_ref().is_err_and(|e| e.to_string().contains("of its own")), "{refused:?}");
+    assert_eq!(mb.rules[0].actions[0], Action::Categorize("Red".into()));
+    assert!(mb.rename_category(a, "Blue", "kept").is_err(), "A's rule would put the shared list's Kept on the copy");
+    // A name no list it reaches has is fine.
+    assert!(mb.rename_category(imap, "Red", "Orange").is_ok());
+    assert_eq!(mb.rules[0].actions[0], Action::Categorize("Orange".into()));
+}
