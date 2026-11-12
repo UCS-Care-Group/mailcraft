@@ -177,7 +177,9 @@ impl MailApp {
         let mut report = host.erase(mailbox.as_deref());
         // Only now the sign-ins the system remembers: every entry MailCraft noted putting there,
         // whichever mailbox it was for, and those of the accounts here. What stays is listed.
-        for key in self.forget_every_secret() {
+        // (The private keys imported in File › Options › Security too, #30.)
+        let keys = crate::security::forget_imported(self);
+        for key in keys.into_iter().chain(self.forget_every_secret()) {
             report.failed.push((
                 crate::i18n::fmt(tl!("The system's credential store: {key}"), &[("key", &key)]),
                 Why::Io(tl!("it could not be removed").to_string()),

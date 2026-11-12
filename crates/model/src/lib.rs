@@ -11,10 +11,12 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod ber;
 mod calendar;
 pub mod confusables;
 mod contact;
 pub mod dav;
+pub mod digital_signature;
 mod ews_server;
 pub mod gmail;
 mod jmap_server;
@@ -25,14 +27,19 @@ mod message;
 pub mod messages;
 #[cfg(test)]
 mod messages_tests;
+mod note;
 mod offline;
 pub mod pictures;
 pub mod pop;
 pub mod protected;
 pub mod provider;
+pub mod public_keys;
 pub mod remote;
 pub mod remote_rules;
 pub mod remote_tasks;
+pub mod report;
+#[cfg(test)]
+mod report_tests;
 pub mod rich;
 mod rule;
 pub mod search;
@@ -56,7 +63,7 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, Labeled, PostalAddress};
+pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use jmap_server::JmapServer;
@@ -64,9 +71,9 @@ pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_ke
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
-    FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX,
-    MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
-    preset_category_color,
+    FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_RULES, MAX_SHARED,
+    MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, PALETTE, Pending, Queued, Security, Server,
+    ServerFavorites, ServerFolder, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -75,6 +82,7 @@ pub use message::{
     text_hash,
 };
 pub use messages::Messages;
+pub use note::{JournalEntry, Note};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
@@ -155,6 +163,8 @@ pub(crate) mod b64 {
 #[cfg(test)]
 mod account_categories_tests;
 #[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod auth_results_tests;
@@ -162,6 +172,8 @@ mod auth_results_tests;
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
+#[cfg(test)]
+mod contact_key_tests;
 #[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]
@@ -178,6 +190,8 @@ mod original_tests;
 mod pictures_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod public_keys_tests;
 #[cfg(test)]
 mod recurrence_tests;
 #[cfg(test)]

@@ -414,3 +414,19 @@ fn conversion_waits_for_unsaved_sender_addresses() {
     assert!(requested.lock().unwrap().is_empty());
     assert!(a.session.mailbox.account(id).unwrap().oauth.is_none());
 }
+
+#[test]
+fn conversion_waits_for_an_unsaved_colour() {
+    // A switch closes the dialog without saving: a colour picked and not saved would go (#893).
+    let (mut a, id, _store) = existing_google_password_account();
+    let requested = sign_ins(&mut a, None);
+    let mut w = AccountSetup::open(&a, &json!({"id":id})).unwrap();
+    let was = a.session.mailbox.account(id).unwrap().color;
+    w.color = Some((was, Some(mailcraft_model::Rgb(0x12, 0x34, 0x56))));
+    assert!(!w.act(&mut a, Action::ConvertToGoogle));
+    assert_eq!(w.page, Page::Settings);
+    assert!(w.error.contains("Save or discard"), "{}", w.error);
+    assert!(requested.lock().unwrap().is_empty());
+    assert!(a.session.mailbox.account(id).unwrap().oauth.is_none());
+    assert_eq!(a.session.mailbox.account(id).unwrap().color, was);
+}

@@ -14,6 +14,7 @@ mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-proto = { workspace = true }
+mailcraft-i18n = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 
@@ -31,6 +32,11 @@ ring = { workspace = true }
 # The Favorites of Outlook come inside an XML document (`graph::favorites`): read by a reader
 # that takes no DTD and expands no entity.
 quick-xml = { workspace = true }
+
+# The authorities Windows trusts for secure mail (#30, `anchors`): its certificate store, through
+# the safe wrapper rustls already brings there. MIT.
+[target.'cfg(windows)'.dependencies]
+schannel = { workspace = true }
 
 [features]
 # A stand-in for Microsoft Graph that holds a client to the documented contract

@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-07 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-09 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-20 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+21 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
@@ -21,15 +21,17 @@ egui, eframe, winit or rfd.
 | L0 | `charset` | Bytes to text in any character set of the WHATWG Encoding Standard (`encoding_rs`), one decoder for `mime` and `vcard`, which may not use each other |
 | L0 | `link` | Links: a strict reader of `http` and `https` addresses (RFC 3986) that writes the host a browser would reach (lower-case ASCII, international labels as Punycode per RFC 3492, numbers as dotted decimal, IPv6 in brackets) and the address as it is shown and launched; percent-encoding. Its one dependency is `names`, for the list of format characters, which it refuses in a host but for the joiners IDNA2008 allows (#454); replaces the `url` crate (#350) |
 | L0 | `names` | Names (people, folders, categories, calendars, accounts, signatures, rules): one list of Unicode's format characters (general category Cf, Unicode 17.0) and the zero-width joiner and non-joiner among them, and the two steps a name takes, coming in (`incoming`: one line, without control characters, format characters and Unicode's other default-ignorable code points (the Hangul fillers and the like, which show nothing), but with a joiner inside a word and one variation selector after a character that shows; trimmed, at most a given length, nothing when nothing is left) and being shown (`shown`: the same, cut with an ellipsis), which the window's labels, People, desktop alerts and the search box's suggestions (`model`) use. No dependencies (#454) |
-| L0 | `i18n` | Interface text in other languages: the languages (`Lang`), a reader of gettext `.po` catalogues (hostile input: sizes capped, never a panic) with plural rules, the catalogues compiled in from `crates/i18n/po/`, named `{placeholders}` (`fmt`), and the pseudo language that shows text not yet marked for translation. `cargo xtask i18n` writes `po/messages.pot` from every `tl!`/`tln!` and the engine's labels |
+| L0 | `i18n` | Interface text in other languages: the languages (`Lang`), a reader of gettext `.po` catalogues (hostile input: sizes capped, never a panic) with plural rules, the catalogues compiled in from `crates/i18n/po/`, named `{placeholders}` (`fmt`), a text with values (`Text`, made with `said!`: English for the CLI, MCP and logs, the interface language in the window), and the pseudo language that shows text not yet marked for translation. `cargo xtask i18n` writes `po/messages.pot` from every `tl!`/`tln!`, the engine's labels and what `proto` and `net` say with `said!` (why a mail server couldn't be used) |
 | L1 | `model` | The mailbox: accounts, folders, messages, contacts, calendars, events with recurrence, tasks, categories, rules, signatures; edit primitives (`move_message`, `delete_folder`…), conversations, the search query language, `repair()` for whatever a file held, and the sync data types |
 | L1 | `html` | Hostile HTML mail → display blocks (`parse`), plain text (`to_text`) and the line a message list shows (`preview`, `text_preview`); plain text → blocks and HTML; entities; the safe-URL rule |
 | L2 | `mime` | RFC 5322 / MIME reader and writer (`.eml`), encoded words, RFC 2231 parameters, charsets, mbox |
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L2 | `pst` | Reader of Outlook personal folders files (`.pst`, ANSI and Unicode) from [MS-PST]: over any `Read + Seek`, a block at a time, never the whole file in memory; offsets checked; items, folders, recipients, attachments and attached messages counted against caps; what one item, one folder walk or one listing reads and keeps held to a budget for the whole call, and all that is read to a multiple of the file's size; trees that lead back to themselves, blocks named twice and keys out of order refused; damaged pages named, to a cap; what is left out named with its reason; no I/O of its own, builds for wasm |
+| L2 | `openpgp` | Checking OpenPGP Digital signatures (#30) on rPGP: a PGP/MIME message over its signed part's canonical bytes (RFC 3156) or a cleartext-signed text (RFC 9580 §7), with the four results (verified, valid but not verified, changed after signing, can't be checked; MD5, SHA-1, DSA and RSA under 2048 bits refused), and what of the message it covers: only a whole message is Verified; Public keys from attached `application/pgp-keys` parts and the `Autocrypt:` header, their self-signatures checked; whether a key is Verified is the caller's answer (no web of trust). MIME, armour and the cleartext framework read here with every size, count and depth capped; no I/O and no clock of its own, builds for wasm |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `dav` | Bounded DAV XML and byte-preserving iCalendar/vCard edits over model snapshots; no sockets or browser APIs, builds for wasm |
+| L3 | `assuan` | The Assuan protocol and gpg-agent over any `Read + Write` stream, so that OpenPGP keys stay in GnuPG (smartcards included) and MailCraft never sees a PIN: lines of at most 1000 bytes, percent-escaping, `D`/`S`/`OK`/`ERR`/`INQUIRE`, every size and count capped; gpg-agent's `HAVEKEY`, `KEYINFO`, `READKEY`, signing a SHA-256/384/512 digest (`PKSIGN`) and decrypting a session key (`PKDECRYPT`, answering `INQUIRE CIPHERTEXT`), with the hints its own pinentry needs; a bounded canonical S-expression reader; Assuan's socket files (a redirect, Windows' loopback port and nonce). No sockets: the desktop program finds the agent with `gpgconf` and opens it (`apps/mailcraft/src/gpg_agent.rs`); builds for wasm, which never uses it (#30) |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX and Autodiscover SRV lookup, Microsoft Graph (`graph`), one HTTPS exchange with an Exchange server that can trust one certificate by its fingerprint, and a held connection that carries the legs of an NTLM sign-in on one socket and names its certificate's hash for channel binding (`https`); empty on wasm |
 | L3 | `ews` | Exchange Web Services (Microsoft's public documentation only) without sockets or browser APIs: the SOAP request writer, a hostile XML reader, the response-code and `ErrorServerBusy` judgement and `GetFolder`, Autodiscover as a state machine the host drives (the order of places, redirects, the owner's say for another host, Exchange Online told apart), Basic credentials, NTLMv2 written from MS-NLMP (the three legs, MIC, channel binding; MD4, MD5 and HMAC from RustCrypto) and the choice of NTLM or Basic from what the server offers, and mail down: `SyncFolderHierarchy`, `SyncFolderItems` and `GetItem` with their answer readers, and `sync_mail`/`fetch_messages`, which run them over any `HttpExchange` and hand the run back in pieces (waiting for a busy server through a hook the host gives); the program does the exchange (`HttpExchange`); a strict in-process stand-in of Exchange Web Services and of Autodiscover for tests (`stand-in` feature) (#252); going up: changes of messages and folders, drafts kept in the server's Drafts and found again by a marker, sending, never repeated after a lost answer (`changes`, `compose`, `up`); NTLM or Basic chosen from the server's offer (`auth`) |
 | L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). The browser build runs it over `fetch` (M6, [jmap.md](jmap.md)) |
@@ -258,9 +260,9 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
-  `ical`, `vcard`, `pst`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
+  `ical`, `vcard`, `pst`, `openpgp`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `openpgp`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
@@ -278,6 +280,9 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-09 | minor | #30 part 3: `openpgp`, L2: checking OpenPGP Digital signatures (PGP/MIME, cleartext) and reading attached keys and `Autocrypt:` headers on rPGP, capped and without I/O; an `openpgp` fuzz target; 21 crates |
+| 2026-11-09 | minor | #30: `assuan`, L3: an Assuan client and gpg-agent's operations over any stream, with a bounded canonical S-expression reader and Assuan's socket files; the desktop program finds the agent through `gpgconf`; 21 crates |
+| 2026-11-07 | patch | `i18n` (L0): `Text` holds texts within texts and words said as they are, and `said!` is the crate's own, for `proto` and `net` (L3), whose errors carry one, #872 |
 | 2026-11-07 | patch | AU3-05, AU3-06, AU3-07: a `mailbox_file` fuzz target, for mailbox files in every form |
 | 2026-11-05 | minor | #454 part 3: `model` and the window show names through `names::shown` (the window's labels, People, desktop alerts, the search box's suggestions) |
 | 2026-11-04 | minor | #815: `pst`, L2: a reader of `.pst` files from [MS-PST], capped and without I/O of its own; a `pst` fuzz target; 20 crates |

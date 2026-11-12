@@ -376,8 +376,9 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// The original under a reply or forward, in HTML: Outlook's header lines (written here, every
 /// value escaped) and the original's look, without anything in it that runs, embeds or tracks
 /// (`mailcraft_html::quotable`): it goes to other people, whose programs might run what ours never
-/// would.
-fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
+/// would. With it, the pictures written into the original (`data:`) that it shows, each to go
+/// as a part of its own ([`Written`]).
+fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
@@ -391,9 +392,84 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
         out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
-    out.push_str(&mailcraft_html::quotable(html));
+    let mut written = Written::of(m);
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
     out.push_str("\r\n</div>");
-    out
+    // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
+    // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
+    // refer to one from before the `<body>` with a picture of his own in it: what goes then is
+    // still a picture of his own message, within the caps.)
+    let mut pictures = written.pictures;
+    pictures.retain(|a: &Attachment| out.contains(&format!("src=\"cid:{}\"", mailcraft_html::escape(&a.content_id))));
+    (out, pictures)
+}
+
+/// The pictures written into the original (#602), as Outlook sends them under a reply or
+/// forward: each a part of its own beside the HTML, which refers to it by its Content-ID.
+struct Written {
+    pictures: Vec<Attachment>,
+    /// Each picture's fingerprint, beside it: the same picture twice is one part.
+    hashes: Vec<u64>,
+    /// The Content-IDs the original's own parts have, in small letters (a sender can plant one).
+    taken: std::collections::HashSet<String>,
+}
+
+impl Written {
+    fn of(m: &Message) -> Written {
+        let taken = m.attachments.iter().map(|a| a.content_id.to_ascii_lowercase()).collect();
+        Written { pictures: Vec::new(), hashes: Vec::new(), taken }
+    }
+
+    /// The Content-ID `picture` goes out under: unique to the picture, naming nothing of the
+    /// owner, and never one the original's parts have; `None` when no such one is left, and the
+    /// picture is left out. Its type is what its own bytes say, else what its address said.
+    fn add(&mut self, mime: &str, picture: &mailcraft_html::Picture) -> Option<String> {
+        let hash = mailcraft_model::sync::fingerprint(picture);
+        let same = self.hashes.iter().zip(&self.pictures).find(|(h, a)| **h == hash && a.data.as_slice() == &picture[..]);
+        if let Some((_, same)) = same {
+            return Some(same.content_id.clone());
+        }
+        let n = self.pictures.len().saturating_add(1);
+        // (Ours differ from each other by `n`; only the original's can be in the way.)
+        let cid = (0..=self.taken.len())
+            .map(|again| match again {
+                0 => format!("quote-{n}.{hash:016x}@mailcraft.invalid"),
+                _ => format!("quote-{n}-{again}.{hash:016x}@mailcraft.invalid"),
+            })
+            .find(|cid| !self.taken.contains(cid))?;
+        let mime = sniffed(picture).unwrap_or(mime);
+        let kind = match mime {
+            "image/jpeg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            _ => "png",
+        };
+        self.hashes.push(hash);
+        self.pictures.push(Attachment {
+            name: format!("picture{n}.{kind}"),
+            mime: mime.to_string(),
+            content_id: cid.clone(),
+            inline: true,
+            data: picture.0.clone(),
+            kept: None,
+        });
+        Some(cid)
+    }
+}
+
+/// A picture's type by how its bytes begin.
+fn sniffed(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if bytes.get(..4) == Some(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        Some("image/webp")
+    } else {
+        None
+    }
 }
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
@@ -460,10 +536,13 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // An original in HTML is carried below with its look; one in plain text is quoted in the body.
     let quote = match &m.body.html {
         Some(html) if quoting => {
-            let html = quoted_html(s, &m, html);
+            let (html, written) = quoted_html(s, &m, html);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
-            // The pictures the quote still shows: not those of what was left out of it.
-            let pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            // The pictures the quote still shows: not those of what was left out of it. (A
+            // forward carries the original's own as its attachments.) And those written into
+            // the original, which go with both (#602).
+            let mut pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            pictures.extend(written);
             Some(Quote { text, html, pictures })
         }
         _ => None,
