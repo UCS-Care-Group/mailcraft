@@ -262,6 +262,7 @@ pub fn commands(app: &MailApp) -> Value {
 pub fn handle(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
     // What a request does is the control channel's doing, as the input it injects is.
     let was = std::mem::replace(&mut app.driven, true);
+    app.touch_control();
     let driven = Driven { app, was };
     dispatch(driven.app, ctx, req)
 }

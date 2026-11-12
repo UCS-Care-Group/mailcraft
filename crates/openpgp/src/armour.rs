@@ -13,11 +13,14 @@ pub(crate) enum Kind {
     Signature,
     PublicKey,
     PrivateKey,
+    /// An encrypted (or otherwise whole) OpenPGP message.
+    Message,
 }
 
 impl Kind {
     fn label(self) -> &'static [u8] {
         match self {
+            Kind::Message => b"MESSAGE",
             Kind::Signature => b"SIGNATURE",
             Kind::PublicKey => b"PUBLIC KEY BLOCK",
             Kind::PrivateKey => b"PRIVATE KEY BLOCK",

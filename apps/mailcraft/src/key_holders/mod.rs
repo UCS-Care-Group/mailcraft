@@ -42,12 +42,12 @@
 pub mod certificate;
 pub mod encoding;
 #[cfg(target_os = "macos")]
-#[expect(dead_code, reason = "called from the signing and decrypting parts of #30; no test can reach the keychain")]
 pub mod macos_keychain;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub mod pkcs11;
 #[cfg(target_os = "windows")]
-#[expect(dead_code, reason = "called from the signing and decrypting parts of #30; no test can reach the store")]
+// (`ImportProtection::ConsentWithPassword` is built by no caller yet: that is what is still dead here.)
+#[expect(dead_code, reason = "ImportProtection::ConsentWithPassword is not asked for by any caller yet")]
 pub mod windows_store;
 
 #[cfg(test)]

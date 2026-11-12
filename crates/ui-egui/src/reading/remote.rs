@@ -226,6 +226,13 @@ pub fn access(app: &MailApp, m: &Message) -> Access {
     if !available(app) {
         return Access::Unavailable;
     }
+    // What an Encrypted message opened to fetches nothing because of a switch or a rule (what
+    // it says is the owner's own mail, and the address of a picture could carry it away). One
+    // sent with an encryption that can't tell it was changed (AES-CBC, 3DES) can be made to
+    // carry its text out in an address (EFAIL): nothing, whatever the owner says.
+    if let Some(authenticated) = app.session.decrypted_authenticated(m.id) {
+        return if authenticated && app.remote_pictures.asked.contains(&mark(m)) { Access::Allowed } else { Access::Blocked };
+    }
     // What lands in Junk E-mail is trusted by nobody's say-so but the owner's, message by message.
     let trusted = !in_junk(app, m) && (app.ui.download_pictures || remembered_and_vouched(app, m));
     if trusted || app.remote_pictures.asked.contains(&mark(m)) { Access::Allowed } else { Access::Blocked }
@@ -394,6 +401,11 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             tl!("You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first.").to_string(),
             false,
         ),
+        Access::Blocked if app.session.decrypted_authenticated(m.id) == Some(false) => (
+            tl!("Pictures not downloaded.").to_string(),
+            tl!("This message was sent with an older encryption that can't tell whether it was changed, so someone could have altered it to send what it says to a web address. Its pictures are never downloaded.").to_string(),
+            false,
+        ),
         Access::Blocked => (
             tl!("Pictures not downloaded.").to_string(),
             tl!("They are on the web, and fetching them would tell the sender that you opened this message.").to_string(),
@@ -422,6 +434,12 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             let action =
                 |ui: &mut Ui, label: String, tip: &str| ui.add(egui::Link::new(egui::RichText::new(label).font(semibold(11.5)))).on_hover_text(tip);
+            // Nothing is offered for an opened message that can't be trusted not to leak, and the
+            // switches for all mail and for a sender don't reach an opened message at all.
+            let opened = app.session.decrypted_authenticated(m.id);
+            if opened == Some(false) {
+                return;
+            }
             match access {
                 Access::Blocked => {}
                 // Only what failed can be tried again; what was left out for its number or its weight can't.
@@ -430,7 +448,8 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
                     if place == Place::Pane {
                         app.hit.add("retryPictures", m.id, again.rect);
                     }
-                    if again.clicked() {
+                    // (Not for a click the control channel injected, on an opened message: its server could tell.)
+                    if again.clicked() && !(opened.is_some() && app.driven) {
                         let _ = app.run("ui.retryPictures", json!({"message": m.id}));
                     }
                     return;
@@ -445,12 +464,12 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             if place == Place::Pane {
                 app.hit.add("downloadPictures", m.id, download.rect);
             }
-            if download.clicked() {
+            if download.clicked() && !(opened.is_some() && app.driven) {
                 let _ = app.run("ui.downloadPictures", json!({"message": m.id}));
             }
             // The switch of File › Options for all mail, from here (#910): it asks first. It does
             // nothing for Junk E-mail, so it is not offered there.
-            if !in_junk(app, m) && !app.ui.download_pictures {
+            if !in_junk(app, m) && !app.ui.download_pictures && opened.is_none() {
                 let all = action(
                     ui,
                     tl!("Download pictures in all mail").to_string(),
@@ -465,7 +484,9 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             }
             // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
             // server doesn't vouch for, so it is not offered there.
-            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };
+            let Some(from) = sender(&m.from.email).filter(|_| opened.is_none() && !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else {
+                return;
+            };
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
             let always = action(ui, label, tl!("Remembered in the settings; File › Options lists the senders and takes them off again."));
             if place == Place::Pane {
@@ -616,6 +637,9 @@ fn download(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let m = subject(app, p)?;
     if !available(app) {
         return Err(tl!("This build can't download pictures").to_string());
+    }
+    if app.session.decrypted_authenticated(m.id) == Some(false) {
+        return Err(tl!("This message was encrypted in a way that can't tell whether it was changed: its pictures are never downloaded").to_string());
     }
     let mark = mark(&m);
     let asked = &mut app.remote_pictures.asked;

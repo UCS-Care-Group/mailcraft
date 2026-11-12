@@ -3170,6 +3170,7 @@ dependencies = [
  "sysinfo",
  "thiserror 2.0.21",
  "unicode-segmentation",
+ "zeroize",
 ]
 
 [[package]]
@@ -3307,7 +3308,9 @@ dependencies = [
 name = "mailcraft-openpgp"
 version = "0.11.1"
 dependencies = [
+ "aes-kw",
  "ed25519-dalek",
+ "hkdf 0.12.4",
  "mailcraft-names",
  "pgp",
  "proptest",
@@ -3317,6 +3320,8 @@ dependencies = [
  "sha2 0.10.9",
  "sha3",
  "thiserror 2.0.21",
+ "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
@@ -3342,6 +3347,7 @@ name = "mailcraft-smime"
 version = "0.11.1"
 dependencies = [
  "aes 0.9.3",
+ "aes-gcm",
  "cbc",
  "cms",
  "const-oid 0.10.2",

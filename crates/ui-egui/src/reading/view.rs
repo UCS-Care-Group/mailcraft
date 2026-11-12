@@ -280,6 +280,20 @@ fn same_body(a: &Message, b: &Message) -> bool {
         && a.attachments.iter().zip(&b.attachments).all(|(x, y)| x.content_id == y.content_id && Arc::ptr_eq(&x.data, &y.data))
 }
 
+/// How many layouts the cache holds, for tests.
+#[cfg(test)]
+pub(crate) fn entries_for_tests(ctx: &egui::Context) -> usize {
+    let store = Store::of(ctx);
+    store.lock().unwrap_or_else(|e| e.into_inner()).entries.len()
+}
+
+/// What the cache kept of the messages `gone` says are gone is let go of.
+pub(crate) fn forget(ctx: &egui::Context, gone: impl Fn(&Message) -> bool) {
+    let store = Store::of(ctx);
+    let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
+    store.entries.retain(|e| !gone(&e.message));
+}
+
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-bodies")).clone())

@@ -197,30 +197,38 @@ fn ed25519_point(q: &[u8]) -> Option<&[u8]> {
 }
 
 /// `bytes` without the zero bytes it starts with.
-fn unpadded(bytes: &[u8]) -> &[u8] {
+pub(crate) fn unpadded(bytes: &[u8]) -> &[u8] {
     let first = bytes.iter().position(|b| *b != 0).unwrap_or(bytes.len());
     bytes.get(first..).unwrap_or_default()
 }
 
 /// Reads the public fields of a key packet.
-struct Reader<'a>(&'a [u8]);
+pub(crate) struct Reader<'a>(&'a [u8]);
 
 impl<'a> Reader<'a> {
-    fn take(&mut self, n: usize) -> Option<&'a [u8]> {
+    pub(crate) fn new(bytes: &'a [u8]) -> Reader<'a> {
+        Reader(bytes)
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub(crate) fn take(&mut self, n: usize) -> Option<&'a [u8]> {
         let (head, rest) = self.0.split_at_checked(n)?;
         self.0 = rest;
         Some(head)
     }
 
     /// An MPI (RFC 9580 §3.2): its bit count, then its bytes; given without leading zeros.
-    fn mpi(&mut self) -> Option<&'a [u8]> {
+    pub(crate) fn mpi(&mut self) -> Option<&'a [u8]> {
         let bits = self.take(2)?;
         let bits = usize::from(u16::from_be_bytes([*bits.first()?, *bits.get(1)?]));
         Some(unpadded(self.take(bits.div_ceil(8))?))
     }
 
     /// A curve OID: its length, then its bytes.
-    fn oid(&mut self) -> Option<&'a [u8]> {
+    pub(crate) fn oid(&mut self) -> Option<&'a [u8]> {
         let len = *self.take(1)?.first()?;
         self.take(usize::from(len))
     }
@@ -344,7 +352,7 @@ pub fn signing_keys(bytes: &[u8], now: u64) -> Vec<SigningKey> {
 /// The certificates in binary packets `bytes`, at most `max`: from each Public-Key packet (tag
 /// 6) to the next (RFC 9580 §10.1), told by the packets' headers alone (§4.2). One with more
 /// packets than any real key is left out; what follows bytes that aren't a packet is not read.
-fn split_certificates(bytes: &[u8], max: usize) -> Vec<&[u8]> {
+pub(crate) fn split_certificates(bytes: &[u8], max: usize) -> Vec<&[u8]> {
     fn close<'a>(bytes: &'a [u8], start: Option<usize>, end: usize, packets: usize, out: &mut Vec<&'a [u8]>) {
         if let Some(begin) = start
             && packets <= MAX_PACKETS_PER_CERTIFICATE

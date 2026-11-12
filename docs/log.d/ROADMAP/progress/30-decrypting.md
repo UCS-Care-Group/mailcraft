@@ -1,0 +1,1 @@
+| 2026-11-11 | #30 part 6: Encrypted mail the owner receives is opened where it is read, in memory only: S/MIME with the key in the system's store or on a smartcard, OpenPGP with the key gpg-agent holds, no RSA private-key operation in MailCraft's process; search, rules, previews and agents see headers only (`encrypted: true`); a Digital signature inside is checked too |

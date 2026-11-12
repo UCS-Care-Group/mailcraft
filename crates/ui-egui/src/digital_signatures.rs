@@ -210,11 +210,14 @@ impl SigningPin {
     /// Draw it; whether it is done.
     pub(crate) fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
-        ui.label(crate::i18n::fmt(tl!("The smartcard {token} needs its PIN to add a Digital signature."), &[("token", &self.token)]));
+        ui.label(crate::i18n::fmt(
+            tl!("The smartcard {token} needs its PIN to add a Digital signature or open an Encrypted message."),
+            &[("token", &self.token)],
+        ));
         let resp = crate::text_menu::secret(ui.add(egui::TextEdit::singleline(&mut *self.pin).password(true).desired_width(f32::INFINITY)));
         crate::text_menu::hold(&resp);
         ui.label(
-            egui::RichText::new(tl!("It is held in memory until MailCraft closes, and never saved. Send Again sends the message that waits for it."))
+            egui::RichText::new(tl!("It is held in memory until MailCraft closes, and never saved. Send Again sends a message that waits for it; an Encrypted message is opened again at once."))
                 .color(t.text_dim)
                 .size(11.0),
         );
@@ -224,6 +227,8 @@ impl SigningPin {
                 // Moved, not copied: the host keeps it wiped on drop.
                 host.give_pin(std::mem::take(&mut *self.pin));
             }
+            // The Encrypted messages that waited for it are opened again.
+            app.session.retry_decryptions_waiting_for_pin();
             return true;
         }
         if cancel {

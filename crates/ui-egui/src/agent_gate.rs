@@ -73,6 +73,19 @@ fn err(e: impl std::fmt::Display) -> Outcome {
 /// A request from an agent: `Some` when the gate settles it (refused, asked about, or run
 /// here), `None` when it goes on as anybody's (looking, a screenshot into the answer).
 pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
+    // What an Encrypted message opened to is for the owner's eyes: a picture of the window is not
+    // given to an agent while one is on screen (#30 part 6, R23).
+    if req.method == "ui.screenshot" && app.decrypted_on_screen() {
+        return Some(err(tl!(
+            "an Encrypted message is open in the window: its text isn't shown to agents, so there is no screenshot until it is closed"
+        )));
+    }
+    // Whatever an agent does is not the owner's choice of a message (`owner_chose`).
+    app.touch_control();
+    screen_request(app, req, allow)
+}
+
+fn screen_request(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Option<Outcome> {
     let p = &req.params;
     let given = |k: &str| p.get(k).is_some_and(|v| !v.is_null());
     match req.method.as_str() {
@@ -324,6 +337,8 @@ fn undo_takes(app: &MailApp, id: &str) -> (HashSet<u64>, HashSet<String>) {
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
+    // (What an agent asked for, run on the owner's yes, is still the agent's doing.)
+    app.touch_control();
     let out = if a.opening != app.session.openings() {
         err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
     } else if yes {

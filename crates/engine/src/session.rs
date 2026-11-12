@@ -1176,6 +1176,9 @@ pub struct Session {
     /// The Digital signatures checked, and the certificates they are checked against
     /// ([`Session::digital_signature`], #30). Never saved.
     pub(crate) signatures: crate::digital_signature::SignatureChecks,
+    /// Encrypted messages opened ([`Session::decrypted_message`], #30 part 6): in memory only, never
+    /// saved, never in a search, a rule, an undo step or what an agent reads.
+    pub(crate) decryptions: crate::decrypt::Decryptions,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -1329,6 +1332,7 @@ impl Session {
             opened: None,
             sender_checks: Default::default(),
             signatures: Default::default(),
+            decryptions: Default::default(),
             content_source: None,
             loads: 0,
             unsearched: 0,
@@ -2956,6 +2960,7 @@ impl Session {
         }
         // (The trust anchors stay: they are this computer's, not the mailbox's.)
         self.signatures.forget_messages();
+        self.decryptions.forget_messages();
         self.graph_swept.clear();
         self.graph_listed_short.clear();
         self.jmap_read.clear();

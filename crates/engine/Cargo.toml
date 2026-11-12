@@ -27,6 +27,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
+# What an Encrypted message opens to is overwritten when dropped (#30 part 6).
+zeroize = { version = "1", default-features = false, features = ["alloc"] }
 mailcraft-charset = { workspace = true }
 # .pst files read for File › Open & Export › Import a .pst File (#815).
 mailcraft-pst = { workspace = true }

@@ -120,16 +120,22 @@ pub fn children(mut value: &[u8]) -> Option<Vec<Tlv<'_>>> {
 /// pieces joined into one, everything else as it was. One element is read, and must be all of
 /// `bytes` (bar trailing zero bytes, which some writers pad with). `None` when it isn't BER.
 pub fn to_der(bytes: &[u8]) -> Option<Vec<u8>> {
+    to_der_borrowed(bytes).map(std::borrow::Cow::into_owned)
+}
+
+/// [`to_der`] without a copy when `bytes` already are DER (the usual case: a large message is
+/// not copied to be read).
+pub fn to_der_borrowed(bytes: &[u8]) -> Option<std::borrow::Cow<'_, [u8]>> {
     if let Some((_, rest)) = read(bytes)
         && rest.iter().all(|b| *b == 0)
         && der_shaped(bytes.get(..bytes.len().saturating_sub(rest.len()))?, 0)
     {
-        return bytes.get(..bytes.len().saturating_sub(rest.len())).map(<[u8]>::to_vec);
+        return bytes.get(..bytes.len().saturating_sub(rest.len())).map(std::borrow::Cow::Borrowed);
     }
     let mut out = Vec::with_capacity(bytes.len());
     let used = element(bytes, 0, &mut out)?;
     let rest = bytes.get(used..)?;
-    rest.iter().all(|b| *b == 0).then_some(out)
+    rest.iter().all(|b| *b == 0).then_some(std::borrow::Cow::Owned(out))
 }
 
 /// Whether the elements of `bytes` all have definite lengths and no OCTET STRING is in pieces,
