@@ -15,13 +15,24 @@
 //! A signer's certificate that rests on a trusted authority, is valid now and is for the sender
 //! is kept for the sender's address ([`mailcraft_model::Mailbox::public_keys`], #30 R9), at the
 //! next command: what the check learns is no step of the history (and an undo leaves it).
+//!
+//! OpenPGP (PGP/MIME and inline, `mailcraft-openpgp`) is checked against the keys kept for the
+//! sender's address, the OpenPGP keys on the cards of the contacts with that address, and the
+//! keys the message carries (attached, or in its `Autocrypt:` header). There is no web of trust
+//! (#30 R6): a key is verified for an address only when the owner marked it so in the window
+//! ([`Session::set_key_verified`]), or the host says the owner's GnuPG keyring holds it at full
+//! validity for that address ([`Session::set_gnupg_valid`]). The key that made a valid signature,
+//! when the message carried it and it is the sender's own, is kept for the sender as a
+//! certificate is; a copy of a key kept already, merged with it, brings its revocations whatever
+//! the result.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use mailcraft_model::digital_signature::{Coverage, DigitalSignature, SignatureFormat, Verdict, Why};
-use mailcraft_model::public_keys::PublicKey;
-use mailcraft_model::{Id, Message};
+use mailcraft_model::digital_signature::{Coverage, DigitalSignature, MAX_SIGNER_ADDRESSES, SignatureFormat, Signer, Verdict, Why, signer_text};
+use mailcraft_model::public_keys::{MAX_KEY_BYTES, PublicKey};
+use mailcraft_model::{Id, KeyKind, Message};
+use mailcraft_openpgp as pgp;
 
 use crate::{Part, Session};
 
@@ -52,9 +63,15 @@ pub(crate) struct SignatureChecks {
     pub(crate) to_read_again: ToReadAgain,
     /// [`READ_AGAIN_BYTES`] but where a test sets another.
     pub(crate) read_again_bytes: Option<u64>,
-    /// The hash of the keys kept for each address, with the revision of the keys it was worked
-    /// out at: a row's result is asked of at every frame, and the keys change seldom.
-    key_hashes: Mutex<HashMap<String, (u64, u64)>>,
+    /// The hash of the keys kept for each address and of those on the cards of its contacts,
+    /// with the revision of the keys and of the session it was worked out at: a row's result is
+    /// asked of at every frame, and the keys change seldom.
+    key_hashes: Mutex<HashMap<String, (u64, u64, u64)>>,
+    /// The OpenPGP keys the owner's GnuPG keyring holds at full or ultimate validity, as
+    /// (fingerprint in upper-case hexadecimal, address in lower case), handed in by the host.
+    gnupg: HashSet<(String, String)>,
+    /// Taken anew whenever [`SignatureChecks::gnupg`] is handed in.
+    gnupg_revision: u64,
     /// How many times keys were hashed, for the tests.
     #[cfg(test)]
     pub(crate) hashed: std::sync::atomic::AtomicUsize,
@@ -110,13 +127,15 @@ struct Found {
 }
 
 /// What a result rests on: the bytes the message came as (their size and where they are kept),
-/// its From address, the Public keys kept for that address (every one of them, not how many: one
-/// put in the place of another changes it), and the day (a certificate runs out on one).
+/// its From address, the Public keys kept for that address and on its contacts' cards (every one
+/// of them and whether the owner marked it, not how many: one put in the place of another
+/// changes it), what GnuPG was said to trust, and the day (a certificate runs out on one).
 #[derive(Clone, PartialEq, Eq)]
 struct Basis {
     original: Option<(u64, Option<[u8; 32]>)>,
     from: String,
     known: u64,
+    gnupg: u64,
     day: i64,
 }
 
@@ -126,18 +145,22 @@ fn basis(session: &Session, m: &Message) -> Basis {
         original: m.original.as_ref().filter(|o| o.is_there()).map(|o| (o.size(), o.kept.map(|k| k.sha256))),
         known: keys_hash(session, &from),
         from,
+        gnupg: session.signatures.gnupg_revision,
         day: session.now().div_euclid(86_400),
     }
 }
 
-/// The hash of the keys kept for `address`: worked out once for each revision of the keys.
+/// The hash of the keys kept for `address` (with whether each is Verified) and of the keys on
+/// the cards of the contacts with that address: worked out once for each revision of the keys
+/// and of the session (which a change to a contact moves on).
 fn keys_hash(session: &Session, address: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let keys = &session.mailbox.public_keys;
-    let revision = keys.revision();
+    let (revision, rev) = (keys.revision(), session.rev());
     let mut cache = session.signatures.key_hashes.lock().ok();
-    if let Some((at, hash)) = cache.as_ref().and_then(|c| c.get(address))
+    if let Some((at, at_rev, hash)) = cache.as_ref().and_then(|c| c.get(address))
         && *at == revision
+        && *at_rev == rev
     {
         return *hash;
     }
@@ -147,15 +170,174 @@ fn keys_hash(session: &Session, address: &str) -> u64 {
     for k in keys.of(address) {
         k.fingerprint.hash(&mut hasher);
         k.data.hash(&mut hasher);
+        k.verified.hash(&mut hasher);
+    }
+    for k in contact_keys(session, address) {
+        k.kind.name().hash(&mut hasher);
+        k.data.hash(&mut hasher);
     }
     let hash = hasher.finish();
     if let Some(cache) = cache.as_mut() {
         if cache.len() >= MAX_KEPT {
             cache.clear();
         }
-        cache.insert(address.to_string(), (revision, hash));
+        cache.insert(address.to_string(), (revision, rev, hash));
     }
     hash
+}
+
+/// The most keys from contacts' cards a check looks at.
+const MAX_CONTACT_KEYS: usize = 16;
+/// The most (fingerprint, address) pairs the host may say GnuPG trusts.
+pub const MAX_GNUPG_VALID: usize = 20_000;
+
+/// The keys (with bytes, of a format checked here) on the cards of the contacts with `address`.
+fn contact_keys<'a>(session: &'a Session, address: &'a str) -> impl Iterator<Item = &'a mailcraft_model::ContactKey> + 'a {
+    let wanted = !address.is_empty();
+    session
+        .mailbox
+        .contacts
+        .values()
+        .filter(move |c| wanted && c.has_email(address))
+        .flat_map(|c| c.keys.iter())
+        .filter(|k| matches!(k.kind, KeyKind::X509 | KeyKind::OpenPgp) && !k.data.is_empty())
+        .take(MAX_CONTACT_KEYS)
+}
+
+/// Whether what is here of `m` (its parts, without the bytes it came as) carries an OpenPGP
+/// signature: a `signature.asc` / `application/pgp-signature` part, or a cleartext-signed text.
+fn looks_pgp_signed(m: &Message) -> bool {
+    let attached =
+        m.attachments.iter().any(|a| a.mime.to_ascii_lowercase().contains("pgp-signature") || a.name.eq_ignore_ascii_case("signature.asc"));
+    attached || m.body.text.contains("-----BEGIN PGP SIGNED MESSAGE-----")
+}
+
+/// The value of the message's one From field (unfolded), when its header has exactly one: a
+/// signature can be for its sender only then. Only the header's first 64 KB are looked at.
+fn one_from_field(bytes: &[u8]) -> String {
+    let head = bytes.get(..bytes.len().min(64 * 1024)).unwrap_or_default();
+    let text = String::from_utf8_lossy(head);
+    let mut fields: Vec<String> = Vec::new();
+    let mut in_from = false;
+    for line in text.split('\n') {
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if line.is_empty() {
+            break;
+        }
+        if line.starts_with([' ', '\t']) {
+            if in_from && let Some(last) = fields.last_mut() {
+                last.push(' ');
+                last.push_str(line.trim());
+            }
+            continue;
+        }
+        in_from = false;
+        if let Some((name, value)) = line.split_once(':')
+            && name.trim().eq_ignore_ascii_case("from")
+        {
+            in_from = true;
+            fields.push(value.trim().to_string());
+            if fields.len() > 1 {
+                return String::new();
+            }
+        }
+    }
+    fields.pop().unwrap_or_default()
+}
+
+/// A key's fingerprint as it is kept and shown: upper-case hexadecimal in groups of four.
+pub(crate) fn pgp_fingerprint(fp: &pgp::Fingerprint) -> String {
+    fp.grouped()
+}
+
+/// `text` as a fingerprint is compared: its hexadecimal digits alone, in upper case.
+pub(crate) fn fingerprint_digits(text: &str) -> String {
+    text.chars().filter(char::is_ascii_hexdigit).map(|c| c.to_ascii_uppercase()).collect()
+}
+
+/// `checked` with the From address said to differ from the key's: a signature that checks is at
+/// best not Verified.
+fn address_differs(mut checked: pgp::Checked) -> pgp::Checked {
+    checked.outcome = match checked.outcome {
+        pgp::Outcome::Verified(signer) => {
+            pgp::Outcome::Valid { signer, why: pgp::NotVerified { address_differs: true, ..pgp::NotVerified::default() } }
+        }
+        pgp::Outcome::Valid { signer, why } => pgp::Outcome::Valid { signer, why: pgp::NotVerified { address_differs: true, ..why } },
+        other => other,
+    };
+    checked
+}
+
+/// What an OpenPGP check came to, as a result of the four (#30 R4).
+fn openpgp_result(checked: &pgp::Checked) -> DigitalSignature {
+    let coverage = if checked.coverage.whole { Coverage::Whole } else { Coverage::Part };
+    let format = SignatureFormat::OpenPgp;
+    let with = |verdict: Verdict, why: Option<Why>, signer: &pgp::Signer| DigitalSignature {
+        format,
+        verdict,
+        why,
+        signer: Some(signer_of(signer)),
+        signed_at: Some(i64::try_from(signer.signed).unwrap_or(i64::MAX)),
+        revocation_checked: false,
+        coverage,
+    };
+    match &checked.outcome {
+        pgp::Outcome::Verified(signer) => with(Verdict::Verified, None, signer),
+        pgp::Outcome::Valid { signer, why } => {
+            let said = if why.address_differs {
+                Why::AddressMismatch
+            } else if why.key_unverified {
+                Why::KeyNotVerified
+            } else if why.partly_signed {
+                Why::PartlySigned
+            } else {
+                Why::KeyNotVerified
+            };
+            with(Verdict::NotVerified, Some(said), signer)
+        }
+        pgp::Outcome::Changed(signer) => with(Verdict::Changed, Some(Why::Altered), signer),
+        pgp::Outcome::CantCheck { why, .. } => {
+            let said = match why {
+                pgp::CantCheck::NoPublicKey | pgp::CantCheck::NoMatchingKey => Why::NoPublicKey,
+                pgp::CantCheck::WeakAlgorithm(_) => Why::WeakAlgorithm,
+                pgp::CantCheck::UnknownAlgorithm => Why::UnknownAlgorithm,
+                pgp::CantCheck::KeyRevoked => Why::KeyRevoked,
+                pgp::CantCheck::KeyExpired => Why::KeyExpired,
+                pgp::CantCheck::NotASigningKey => Why::NotASigningKey,
+                pgp::CantCheck::SignatureExpired => Why::SignatureExpired,
+                pgp::CantCheck::TooLarge => Why::TooMuch,
+                pgp::CantCheck::Unreadable => Why::Unreadable,
+            };
+            DigitalSignature { coverage, ..DigitalSignature::bare(format, Verdict::Unchecked, said) }
+        }
+    }
+}
+
+/// Who made an OpenPGP signature, as the details show it: the key's own addresses, its
+/// fingerprint, and when it was made. (A key names no issuer.)
+fn signer_of(s: &pgp::Signer) -> Signer {
+    Signer {
+        name: String::new(),
+        addresses: s.addresses.iter().map(|a| signer_text(a)).filter(|a| !a.is_empty()).take(MAX_SIGNER_ADDRESSES).collect(),
+        fingerprint: pgp_fingerprint(&s.fingerprint),
+        issuer: String::new(),
+        not_before: i64::try_from(s.key_created).unwrap_or(i64::MAX),
+        not_after: 0,
+    }
+}
+
+/// An OpenPGP key as it is kept for an address.
+pub(crate) fn kept_pgp_key(key: &pgp::PublicKey, seen: i64) -> Option<PublicKey> {
+    let data = key.to_bytes();
+    (!data.is_empty() && data.len() <= MAX_KEY_BYTES).then(|| PublicKey {
+        format: SignatureFormat::OpenPgp,
+        data: Arc::new(data),
+        fingerprint: pgp_fingerprint(key.fingerprint()),
+        not_after: key.expires().map_or(0, |t| i64::try_from(t).unwrap_or(i64::MAX)),
+        seen,
+        verified: false,
+        source: Default::default(),
+    })
 }
 
 /// Whether what is here of `m` (its parts, without the bytes it came as) carries an S/MIME
@@ -262,23 +444,155 @@ impl Session {
         self.found_already(id).and_then(|f| f.result.clone())
     }
 
+    /// Hand in the OpenPGP keys the owner's GnuPG keyring holds at full or ultimate validity, as
+    /// (fingerprint in hexadecimal, address) pairs, at most [`MAX_GNUPG_VALID`] (#30 R6): such a
+    /// key is verified for that address. What isn't a fingerprint or an address is left out.
+    /// Results worked out before are worked out again.
+    pub fn set_gnupg_valid(&mut self, pairs: impl IntoIterator<Item = (String, String)>) {
+        let mut valid = HashSet::new();
+        for (fingerprint, address) in pairs {
+            if valid.len() >= MAX_GNUPG_VALID {
+                break;
+            }
+            let address = address.trim().to_lowercase();
+            if let Some(fp) = pgp::Fingerprint::from_hex(&fingerprint)
+                && address.contains('@')
+                && address.len() <= 254
+            {
+                valid.insert((fp.to_hex(), address));
+            }
+        }
+        self.signatures.gnupg = valid;
+        self.signatures.gnupg_revision = self.signatures.gnupg_revision.wrapping_add(1);
+        self.signatures.kept.clear();
+    }
+
+    /// Mark the OpenPGP key `fingerprint` (as kept, or in hexadecimal) kept for `address`
+    /// Verified, or not (#30 R6, R12): the owner's word after comparing the fingerprint, given
+    /// in the window only. No command's params reach it: the window's own command calls it, and
+    /// it isn't one an agent can run. Saved with the mailbox; results are worked out again.
+    pub fn set_key_verified(&mut self, address: &str, fingerprint: &str, verified: bool) -> Result<bool, crate::CmdError> {
+        let wanted = fingerprint_digits(fingerprint);
+        let Some(key) = self.mailbox.public_keys.of(address).iter().find(|k| fingerprint_digits(&k.fingerprint) == wanted) else {
+            return Err(crate::cmd::fail("no Public key with that fingerprint is kept for that address"));
+        };
+        if key.format != SignatureFormat::OpenPgp {
+            return Err(crate::cmd::fail("an S/MIME certificate is trusted through its certification authority and isn't marked Verified"));
+        }
+        let exact = key.fingerprint.clone();
+        let changed = self.mailbox.public_keys.set_verified(address, &exact, verified);
+        if changed {
+            self.dirty = true;
+        }
+        Ok(changed)
+    }
+
     fn check_signature(&mut self, m: &Message) -> Found {
-        let bare = |why| Found { result: Some(Arc::new(DigitalSignature::bare(SignatureFormat::Smime, Verdict::Unchecked, why))), part: None };
+        let bare = |format, why| Found { result: Some(Arc::new(DigitalSignature::bare(format, Verdict::Unchecked, why))), part: None };
         if m.draft {
             return Found::default();
         }
         let Some(bytes) = m.has_original().then(|| self.content(m.id, Part::Original).ok()).flatten() else {
-            return if looks_smime_signed(m) { bare(Why::NoOriginal) } else { Found::default() };
+            return if looks_smime_signed(m) {
+                bare(SignatureFormat::Smime, Why::NoOriginal)
+            } else if looks_pgp_signed(m) {
+                bare(SignatureFormat::OpenPgp, Why::NoOriginal)
+            } else {
+                Found::default()
+            };
         };
-        let Some(parts) = mailcraft_mime::signed_parts(&bytes) else { return Found::default() };
+        match mailcraft_mime::signed_parts(&bytes) {
+            Some(parts) if parts.kind != mailcraft_mime::SignedKind::PgpDetached => self.check_smime(m, parts),
+            parts => self.check_openpgp(m, &bytes, parts.as_ref()),
+        }
+    }
+
+    /// The OpenPGP Digital signature of `m`, whose bytes are `bytes` (PGP/MIME when `parts` says
+    /// so, else perhaps inline).
+    fn check_openpgp(&mut self, m: &Message, bytes: &[u8], parts: Option<&mailcraft_mime::SignedParts>) -> Found {
+        let address = m.from.email.trim().to_lowercase();
+        let from = one_from_field(bytes);
+        let mut ring = pgp::KeyRing::new();
+        for k in self.mailbox.public_keys.of(&address).iter().filter(|k| k.format == SignatureFormat::OpenPgp) {
+            for key in pgp::PublicKey::parse(&k.data).unwrap_or_default() {
+                ring.insert(key);
+            }
+        }
+        let carded: Vec<Vec<u8>> = contact_keys(self, &address).filter(|k| k.kind == KeyKind::OpenPgp).map(|k| k.data.clone()).collect();
+        for data in carded {
+            for key in pgp::PublicKey::parse(&data).unwrap_or_default() {
+                ring.insert(key);
+            }
+        }
+        let carried = pgp::keys_in_message(bytes);
+        let mut brought: Vec<pgp::PublicKey> = carried.attached;
+        brought.extend(carried.autocrypt.map(|a| a.key));
+        for key in &brought {
+            ring.insert(key.clone());
+        }
+        let now = u64::try_from(self.now()).unwrap_or(0);
+        let checked = {
+            let kept = &self.mailbox.public_keys;
+            let gnupg = &self.signatures.gnupg;
+            let verified = |fp: &pgp::Fingerprint, at: &str| {
+                let shown = pgp_fingerprint(fp);
+                kept.of(at).iter().any(|k| k.format == SignatureFormat::OpenPgp && k.verified && k.fingerprint == shown)
+                    || gnupg.contains(&(fp.to_hex(), at.to_string()))
+            };
+            pgp::verify(bytes, &from, &ring, now, verified)
+        };
+        // The keys were found, and what is kept is kept, by the From address the message was read
+        // with; the check went by the one From field of its bytes. When the two aren't one
+        // address, the signature is nobody's word for the sender shown.
+        let checked = checked.map(|c| if pgp::from_address(&from) == address { c } else { address_differs(c) });
+        let seen = m.received.max(m.date);
+        self.keep_pgp_keys(&address, &brought, &ring, checked.as_ref(), seen);
+        let Some(checked) = checked else { return Found::default() };
+        let part = parts.and_then(|p| self.signature_part(m, &p.signature));
+        Found { result: Some(Arc::new(openpgp_result(&checked))), part }
+    }
+
+    /// The OpenPGP keys of the check of a message from `address` to keep for that address (#30
+    /// R9): the key that made a valid signature, when the message brought it and it is the
+    /// sender's own; and any key kept for the sender already of which the message brought a copy
+    /// (merged in `ring`, so that a revocation it carries counts, whatever the result).
+    fn keep_pgp_keys(&mut self, address: &str, brought: &[pgp::PublicKey], ring: &pgp::KeyRing, checked: Option<&pgp::Checked>, seen: i64) {
+        if address.is_empty() {
+            return;
+        }
+        let signer = checked.and_then(|c| match &c.outcome {
+            pgp::Outcome::Verified(s) | pgp::Outcome::Valid { signer: s, .. } => Some(s.fingerprint.clone()),
+            _ => None,
+        });
+        let kept: HashSet<String> =
+            self.mailbox.public_keys.of(address).iter().filter(|k| k.format == SignatureFormat::OpenPgp).map(|k| k.fingerprint.clone()).collect();
+        for key in brought {
+            let fp = key.fingerprint();
+            let signed = signer.as_ref() == Some(fp) && key.has_address(address);
+            if !signed && !kept.contains(&pgp_fingerprint(fp)) {
+                continue;
+            }
+            if self.signatures.to_keep.len() >= MAX_TO_KEEP || self.signatures.to_keep.iter().any(|(_, k)| k.fingerprint == pgp_fingerprint(fp)) {
+                continue;
+            }
+            if let Some(merged) = ring.get(fp).and_then(|k| kept_pgp_key(k, seen)) {
+                self.signatures.to_keep.push((address.to_string(), merged));
+            }
+        }
+    }
+
+    /// The S/MIME Digital signature of `m`, of the halves `parts`.
+    fn check_smime(&mut self, m: &Message, parts: mailcraft_mime::SignedParts) -> Found {
         let signed = match parts.kind {
             mailcraft_mime::SignedKind::SmimeDetached => mailcraft_smime::Signed::Detached { content: &parts.content, signature: &parts.signature },
             mailcraft_mime::SignedKind::SmimeOpaque => mailcraft_smime::Signed::Opaque(&parts.signature),
-            // (OpenPGP is checked elsewhere.)
             mailcraft_mime::SignedKind::PgpDetached => return Found::default(),
         };
-        let known: Vec<Arc<Vec<u8>>> =
-            self.mailbox.public_keys.of(&m.from.email).iter().filter(|k| k.format == SignatureFormat::Smime).map(|k| k.data.clone()).collect();
+        let address = m.from.email.trim().to_lowercase();
+        let mut known: Vec<Arc<Vec<u8>>> =
+            self.mailbox.public_keys.of(&address).iter().filter(|k| k.format == SignatureFormat::Smime).map(|k| k.data.clone()).collect();
+        // The certificates on the cards of the contacts with the sender's address too.
+        known.extend(contact_keys(self, &address).filter(|k| k.kind == KeyKind::X509).map(|k| Arc::new(k.data.clone())));
         let known: Vec<&[u8]> = known.iter().map(|k| k.as_slice()).collect();
         let now = self.now();
         // (A message from several people is nobody's alone: its signer's address never matches.)
@@ -300,6 +614,8 @@ impl Session {
                 fingerprint: signer.fingerprint.clone(),
                 not_after: signer.not_after,
                 seen: m.received.max(m.date),
+                verified: false,
+                source: Default::default(),
             };
             self.signatures.to_keep.push((m.from.email.trim().to_string(), key));
         }
@@ -369,11 +685,12 @@ impl Session {
         }
     }
 
-    /// The attachment of `m` that is the Digital signature `signature`: of S/MIME's type, and
-    /// those very bytes (a file of the same name or type sent along is another part).
+    /// The attachment of `m` that is the Digital signature `signature`: of S/MIME's type or
+    /// OpenPGP's, and those very bytes (a file of the same name or type sent along is another part).
     pub(crate) fn signature_part(&self, m: &Message, signature: &[u8]) -> Option<usize> {
         m.attachments.iter().enumerate().find_map(|(i, a)| {
-            let fits = a.mime.to_ascii_lowercase().contains("pkcs7") && a.size() == signature.len();
+            let mime = a.mime.to_ascii_lowercase();
+            let fits = (mime.contains("pkcs7") || mime.contains("pgp-signature")) && a.size() == signature.len();
             (fits && self.content(m.id, Part::Attachment(i)).is_ok_and(|bytes| bytes.as_slice() == signature)).then_some(i)
         })
     }

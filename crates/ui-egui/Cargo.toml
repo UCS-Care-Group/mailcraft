@@ -26,6 +26,9 @@ mailcraft-link = { workspace = true }
 mailcraft-names = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
+# A passphrase typed for importing a key, and the key file, overwritten when let go of (#30;
+# already in the tree).
+zeroize = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # A system font is opened as egui will open it before egui is given it (`theme::is_font`).
