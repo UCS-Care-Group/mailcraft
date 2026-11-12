@@ -392,7 +392,7 @@ fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Out
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
             ok(json!({}))
         }
-        "ui.closeWindow" => {
+        "ui.closeMainWindow" => {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             ok(json!({}))
         }

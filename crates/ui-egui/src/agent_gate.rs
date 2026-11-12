@@ -97,7 +97,7 @@ pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Optio
             let params = p.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));
             Some(gate(app, req, &id, params, allow))
         }
-        "app.quit" | "ui.closeWindow" | "auth" => Some(err(format!("`{}` isn't available to agents", req.method))),
+        "app.quit" | "ui.closeMainWindow" | "auth" => Some(err(format!("`{}` isn't available to agents", req.method))),
         other => Some(gate(app, req, other, p.clone(), allow)),
     }
 }
@@ -590,7 +590,7 @@ mod tests {
             ("engine.execute", json!({"command": "no.such"})),
             ("ui.screenshot", json!({"path": "/tmp/evil.png"})),
             ("app.quit", json!({})),
-            ("ui.closeWindow", json!({})),
+            ("ui.closeMainWindow", json!({})),
         ] {
             let (r, _) = ask(&mut a, method, params.clone(), all.clone());
             assert_eq!(r.unwrap_or_default()["ok"], false, "{method} {params}");
