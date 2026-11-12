@@ -348,7 +348,7 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload, zone:
             status => {
                 done.result = TaskResult::Refused;
                 done.error = match super::refusal(Doing::Tasks, &reply, &[token, sent], mailcraft_time::now()) {
-                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why,
+                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why.to_string(),
                     e => e.to_string(),
                 };
                 if done.error.is_empty() {

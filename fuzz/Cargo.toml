@@ -205,6 +205,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "pkcs12"
+path = "fuzz_targets/pkcs12.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "assuan"
 path = "fuzz_targets/assuan.rs"
 test = false

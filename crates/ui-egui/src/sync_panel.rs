@@ -213,7 +213,7 @@ pub(crate) fn timings_report(app: &MailApp) -> String {
 /// The rows, in the run's order; then any account with problems that isn't in it.
 pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     let mb = &app.session.mailbox;
-    let problems = |account: Id| app.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.clone()).unwrap_or_default();
+    let problems = |account: Id| app.account_problem_lines(account);
     let progress = &app.session.sync_progress;
     let (full, paused) = (|account: Id| progress.full(account), progress.full_paused);
     let mut rows: Vec<Row> = app
@@ -229,7 +229,7 @@ pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     for (account, name, _, lines) in &app.sync_problems {
         if !rows.iter().any(|r| r.account == *account) && !lines.is_empty() {
             let name = mb.account(*account).map_or_else(|| name.clone(), |a| a.name.clone());
-            rows.push(Row { account: *account, name, run: None, problems: lines.clone(), full: full(*account), paused });
+            rows.push(Row { account: *account, name, run: None, problems: problems(*account), full: full(*account), paused });
         }
     }
     rows
@@ -426,7 +426,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
         app.sync_panel = None;
     }
     if syncing || rows.iter().any(Row::running) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
     }
 }
 
@@ -449,7 +449,7 @@ fn account_row(ui: &mut Ui, t: &Tokens, row: &Row) -> Option<egui::Response> {
     let mut x = r.min.x;
     if row.running() && row.fraction().is_none() {
         let spin = Rect::from_center_size(pos2(x + 7.0, r.center().y), vec2(12.0, 12.0));
-        egui::Spinner::new().size(12.0).color(t.accent).paint_at(ui, spin);
+        crate::software::spinner_at(ui, spin, Some(t.accent));
         x += 20.0;
     }
     crate::theme::paint_clipped(ui.painter(), pos2(x, r.center().y), (r.max.x - x - 90.0).max(40.0), &line, regular(12.5), color);

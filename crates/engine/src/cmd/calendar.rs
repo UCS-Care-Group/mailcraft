@@ -119,7 +119,7 @@ fn kept_by(s: &Session, e: &Event) -> Option<String> {
 }
 
 /// Whether a calendar is one that an account's server keeps.
-fn served(s: &Session, calendar: Id) -> bool {
+pub(crate) fn served(s: &Session, calendar: Id) -> bool {
     s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_some())
 }
 
@@ -215,7 +215,7 @@ pub fn current_calendar(s: &Session) -> Id {
 
 /// A calendar of the mailbox's own, for what is not to be on a server (a meeting nobody is to be
 /// invited to yet): the first there is, or a new one that says where it lives.
-fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
+pub(crate) fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
     match own_calendar(s) {
         0 => {
             if s.mailbox.calendars.len() >= 200 {
@@ -403,11 +403,7 @@ pub(super) fn next_half_hour(now: DateTime) -> DateTime {
 /// on another day in view.
 fn default_start(s: &Session) -> DateTime {
     let now = s.local_now();
-    if s.view.date == now.date {
-        next_half_hour(now)
-    } else {
-        DateTime { hour: s.prefs.work_start.min(23), ..DateTime::at_midnight(s.view.date) }
-    }
+    if s.view.date == now.date { next_half_hour(now) } else { DateTime { hour: s.prefs.work_start.min(23), ..DateTime::at_midnight(s.view.date) } }
 }
 
 fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {

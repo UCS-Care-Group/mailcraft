@@ -222,7 +222,9 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     // The host itself or anything under it, never a look-alike (`evilgoogle.com`).
     let under = |parent: &str| host == parent || host.ends_with(&format!(".{parent}"));
     let (tls, starttls) = (Security::Tls, Security::StartTls);
-    if under("olc.protection.outlook.com") {
+    // Outlook.com's legacy custom domains keep their personalized Hotmail MX record:
+    // https://support.microsoft.com/en-us/outlook/configure-a-custom-email-domain-account-as-an-exchange-account-in-outlook
+    if under("olc.protection.outlook.com") || under("pamx1.hotmail.com") {
         return Some(microsoft(true));
     }
     if under("mail.protection.outlook.com") || under("mx.microsoft") {
@@ -274,6 +276,9 @@ pub fn guess(domain: &str) -> Preset {
         note: "",
     }
 }
+
+#[cfg(test)]
+mod custom_domain_tests;
 
 #[cfg(test)]
 mod tests {

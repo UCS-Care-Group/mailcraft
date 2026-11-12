@@ -21,6 +21,22 @@ mod text;
 
 pub use text::{Arg, Text, ToArg};
 
+/// A text with values ([`Text`]): `said!("no folder named {name}", name)`, or
+/// `said!("{name} is larger than {mb} MB", name, mb = MAX >> 20)`. The template is a literal, so
+/// `cargo xtask i18n` finds it (in the crates it reads for what the engine and the hosts say); a
+/// value that is interface text itself is [`Arg::words`], a text of its own [`Arg::said`].
+#[macro_export]
+macro_rules! said {
+    (@arg $k:ident) => { $crate::ToArg::to_arg(&$k) };
+    (@arg $k:ident = $v:expr) => { $crate::ToArg::to_arg(&$v) };
+    ($t:literal $(, $k:ident $(= $v:expr)?)* $(,)?) => {
+        $crate::Text::new($t, vec![$((stringify!($k), $crate::said!(@arg $k $(= $v)?))),*])
+    };
+}
+
+#[cfg(test)]
+mod said_tests;
+
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
@@ -46,6 +62,7 @@ pub enum Lang {
     Spanish,
     Italian,
     Dutch,
+    Romanian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -53,7 +70,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 7] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Pseudo];
+    pub const ALL: [Lang; 8] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -64,6 +81,7 @@ impl Lang {
             Lang::Spanish => "es",
             Lang::Italian => "it",
             Lang::Dutch => "nl",
+            Lang::Romanian => "ro",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -83,6 +101,7 @@ impl Lang {
             "es" => Some(Lang::Spanish),
             "it" => Some(Lang::Italian),
             "nl" => Some(Lang::Dutch),
+            "ro" => Some(Lang::Romanian),
             _ => None,
         }
     }
@@ -96,13 +115,14 @@ impl Lang {
             Lang::Spanish => "Español",
             Lang::Italian => "Italiano",
             Lang::Dutch => "Nederlands",
+            Lang::Romanian => "Română",
             Lang::Pseudo => "Pseudo",
         }
     }
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch)
+        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -379,7 +399,15 @@ mod tests {
         let names: Vec<String> = Lang::available().into_iter().map(Lang::picker_name).collect();
         assert_eq!(
             names,
-            ["English", "Français (aperçu)", "Deutsch (Vorschau)", "Español (versión preliminar)", "Italiano (anteprima)", "Nederlands (voorbeeld)",]
+            [
+                "English",
+                "Français (aperçu)",
+                "Deutsch (Vorschau)",
+                "Español (versión preliminar)",
+                "Italiano (anteprima)",
+                "Nederlands (voorbeeld)",
+                "Română (previzualizare)",
+            ]
         );
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -387,6 +415,8 @@ mod tests {
         assert_eq!(Lang::from_pref("auto", Some("fr-CA")), Lang::French);
         assert_eq!(Lang::from_pref("auto", Some("nl-NL")), Lang::Dutch);
         assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
+        assert_eq!(Lang::from_pref("auto", Some("ro_RO.UTF-8")), Lang::Romanian);
+        assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
     }
 
     #[test]

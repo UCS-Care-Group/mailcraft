@@ -40,6 +40,7 @@
 //! turn that off for the computer from the start, and `{"host": {"updates": "didntStart 0.4.2"}}`
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
+//! `{"host": {"ownKeys": true}}` lists two made-up keys of the owner's in File › Options › Security (#30).
 //! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
@@ -690,6 +691,52 @@ fn main() {
         lines.iter().find_map(|l| l.pointer("/host/updates").and_then(|v| v.as_str())?.strip_prefix("didntStart ").map(str::to_string))
     {
         services.update_start.didnt_start = Some((env!("CARGO_PKG_VERSION").to_string(), kept));
+    }
+    // The owner's own keys (#30), when a line says (`{"host": {"ownKeys": true}}`): a smartcard's
+    // certificate and a GnuPG key, made up, and GnuPG trusting nothing.
+    if lines.iter().any(|l| l.pointer("/host/ownKeys").is_some()) {
+        services.own_keys = Some(Box::new(|job| {
+            use mailcraft_model::digital_signature::SignatureFormat;
+            use mailcraft_ui_egui::own_keys::*;
+            let (tx, rx) = std::sync::mpsc::channel();
+            let key = |format, name: &str, address: &str, fingerprint: &str, place| OwnKey {
+                format,
+                name: name.into(),
+                addresses: vec![address.into()],
+                fingerprint: fingerprint.into(),
+                not_after: NOW + 400 * 86_400,
+                expired: false,
+                place,
+                can_sign: true,
+            };
+            let answer = match job {
+                OwnKeysJob::List => OwnKeysAnswer::Listed(Listing {
+                    keys: vec![
+                        key(
+                            SignatureFormat::Smime,
+                            "Bob Example",
+                            "bob@example.org",
+                            "3f:9a:21:c4:5e:07:b8:d2:6a:11:90:fe:33:c7:4d:28:85:e1:0b:76:a9:5c:12:f4:de:60:38:9b:c1:47:2e:af",
+                            KeyPlace::Token("PIV Card".into()),
+                        ),
+                        key(
+                            SignatureFormat::OpenPgp,
+                            "Bob Example <bob@example.org>",
+                            "bob@example.org",
+                            "B218 EB03 0C44 1424 207A A6C0 10C3 5688 F1AD A5A2",
+                            KeyPlace::Gnupg,
+                        ),
+                    ],
+                    gnupg: Gnupg::Found,
+                    smime: SmimePlace::Tokens,
+                    trouble: Vec::new(),
+                }),
+                OwnKeysJob::GnupgValid => OwnKeysAnswer::GnupgValid(Ok(Vec::new())),
+                OwnKeysJob::Import { .. } => OwnKeysAnswer::Imported(Err("The passphrase is wrong.".into())),
+            };
+            let _ = tx.send(answer);
+            rx
+        }));
     }
     // The system's language and regional format, when a line says (`{"locale": "en-GB"}`, #978).
     if let Some(locale) = lines.iter().find_map(|l| l.get("locale").and_then(|v| v.as_str())) {

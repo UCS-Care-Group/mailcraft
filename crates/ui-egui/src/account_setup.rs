@@ -203,6 +203,8 @@ pub enum Action {
     NotNow,
     /// Set up the account that signed in, rather than the address that was typed.
     UseSignedIn,
+    /// Confirm that the entered custom-domain address is an alias of the signed-in mailbox.
+    KeepAlias,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -271,18 +273,11 @@ pub fn address(text: &str) -> Option<(&str, &str)> {
     ok.then_some((text, domain))
 }
 
-/// What `mailcraft-proto`'s IMAP LOGIN says when the server announces LOGINDISABLED (RFC 3501
-/// §6.2.3): no password on this connection, an app password included.
+/// What `mailcraft-proto`'s IMAP LOGIN says, in English, when the server announces LOGINDISABLED
+/// (RFC 3501 §6.2.3): no password on this connection, an app password included. (The window
+/// says it in its own language from the text the host hands over, #872; this is only to know it
+/// by.)
 const NO_PASSWORD_HERE: &str = "sign-in failed: the server doesn't take a password on this connection";
-
-/// What the host said went wrong, in the interface language where it is one of the host's own
-/// sentences; what a server said for itself is left as it said it.
-fn in_own_words(error: &str) -> String {
-    match error {
-        NO_PASSWORD_HERE => tl!("sign-in failed: the server doesn't take a password on this connection").to_string(),
-        _ => error.to_string(),
-    }
-}
 
 /// Whether `id` can be an application (client) ID: letters, digits, dots and dashes.
 fn is_identifier(id: &str, max: usize) -> bool {
@@ -452,7 +447,7 @@ pub struct AccountSetup {
     /// The domain's mail exchangers, once the host has them.
     lookup: Option<Receiver<Result<Vec<String>, String>>>,
     /// Whether the servers took the password, once the host knows.
-    check: Option<Receiver<Result<(), String>>>,
+    check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
     waiting: bool,
     /// This is a reconnect of an existing Google OAuth account, not an app-password conversion.
@@ -982,6 +977,7 @@ impl AccountSetup {
                 self.error = tl!("To add another Google address, go back and start a new account setup.").to_string();
             }
             (Page::SomeoneElse, Action::UseSignedIn) => self.use_signed_in(app),
+            (Page::SomeoneElse, Action::KeepAlias) => self.keep_alias(app),
             (Page::SomeoneElse, Action::GooglePassword) => {
                 self.someone_else = None;
                 self.oauth = None;
@@ -1354,13 +1350,18 @@ impl AccountSetup {
 
     /// Add the account the owner just signed in to, with the tokens that brought back. One that
     /// signed in as somebody other than the address typed is not added: the owner is asked
-    /// whether to sign in again or to set up the account that signed in (#103).
+    /// whether to sign in again, set up that account, or confirm a personal custom-domain alias.
     fn add_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
         if tokens.someone_else(self.email.trim(), "") {
             self.someone_else = Some(tokens);
             self.go(Page::SomeoneElse);
             return;
         }
+        self.add_confirmed_signed_in(app, tokens);
+    }
+
+    /// Add the identity already checked against the address, or explicitly confirmed as its alias.
+    fn add_confirmed_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
         // Which kind of Microsoft account it is: the directory the sign-in named says; without
         // that, whose servers the address was found to use (work or school mail, or Outlook.com).
         self.directory = match Directory::of_tenant(&tokens.tenant) {
@@ -1386,6 +1387,37 @@ impl AccountSetup {
             }
             Ok(None) => self.error = tl!("The account couldn't be added").to_string(),
             Err(e) => self.error = e,
+        }
+    }
+
+    /// Offer alias confirmation only for custom-domain Outlook.com setup and a personal Microsoft identity.
+    fn can_keep_alias(&self) -> bool {
+        self.edit.is_none()
+            && self.service == "Outlook.com"
+            && self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Microsoft)
+            && address(&self.email).is_some_and(|(_, domain)| provider::by_domain(domain).is_none())
+            && self.someone_else.as_ref().is_some_and(|tokens| {
+                Directory::of_tenant(&tokens.tenant) == Directory::Personal
+                    && address(tokens.email.trim()).is_some()
+                    && tokens.someone_else(self.email.trim(), "")
+            })
+    }
+
+    /// Keep the entered sending address after explicit alias confirmation, using Microsoft's identity for authentication.
+    fn keep_alias(&mut self, app: &mut MailApp) {
+        if !self.can_keep_alias() {
+            return;
+        }
+        let Some(tokens) = self.someone_else.take() else { return };
+        let previous_username = std::mem::replace(&mut self.username, tokens.email.trim().to_string());
+        let kept = tokens.clone();
+        self.add_confirmed_signed_in(app, tokens);
+        if self.page != Page::Done {
+            let error = std::mem::take(&mut self.error);
+            self.username = previous_username;
+            self.someone_else = Some(kept);
+            self.go(Page::SomeoneElse);
+            self.error = error;
         }
     }
 
@@ -1573,23 +1605,23 @@ impl AccountSetup {
         let answer = match self.check.as_ref().map(Receiver::try_recv) {
             Some(Err(TryRecvError::Empty)) => return,
             Some(Ok(answer)) => answer,
-            Some(Err(TryRecvError::Disconnected)) | None => Err(tl!("Checking the account stopped unexpectedly").to_string()),
+            Some(Err(TryRecvError::Disconnected)) | None => Err(mailcraft_i18n::Text::verbatim(tl!("Checking the account stopped unexpectedly"))),
         };
         self.check = None;
         match answer {
             Ok(()) => self.add_with_password(app),
-            Err(e) => {
-                // The dialog says it once; the log keeps it for a problem report.
+            Err(said) => {
+                // The dialog says it once, in the interface's language; the log keeps the English
+                // for a problem report, and the English is what the kind of refusal is known by.
+                let e = said.to_string();
                 log::warn!("add account: the servers couldn't be checked: {e}");
                 let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
-                self.refuse(e);
+                self.refuse(said.in_lang(crate::i18n::current()));
                 // (A connection that takes no password takes no app password either: that is
                 // said as it is, Google's or not.)
-                if google && self.error.starts_with("sign-in failed") && self.error != NO_PASSWORD_HERE {
+                if google && e.starts_with("sign-in failed") && e != NO_PASSWORD_HERE {
                     self.error = tl!("Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password.").to_string();
                     self.app_passwords = true;
-                } else {
-                    self.error = in_own_words(&self.error);
                 }
             }
         }
@@ -1658,7 +1690,7 @@ impl AccountSetup {
             return true;
         }
         if self.busy() {
-            ui.ctx().request_repaint_after(Duration::from_millis(100));
+            crate::software::repaint_after(ui.ctx(), Duration::from_millis(100));
         }
         let mut pass = Pass::new(ui, &app.session, &mut self.focus);
         let action = match self.page {
@@ -1900,12 +1932,13 @@ impl AccountSetup {
         }
     }
 
-    /// The owner signed in as somebody other than the address typed (#103): who, and the two
-    /// ways on. Nothing is added until they say.
+    /// Explain the identity mismatch and offer explicit choices; nothing is added until the owner chooses.
     fn someone_else_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let who = self.someone_else.as_ref().map(|tokens| line(&tokens.email, LINE)).unwrap_or_default();
         let typed = self.email.trim();
+        let can_keep_alias = self.can_keep_alias();
+        let mut keep_alias = false;
         page(ui, &t, |ui| {
             heading(ui, tl!("This isn't the account you typed"), &t);
             let said = fmt(tl!("You signed in as {signedIn}, not {typed}."), &[("signedIn", &shown(&who, 120)), ("typed", &shown(typed, 120))]);
@@ -1925,6 +1958,12 @@ impl AccountSetup {
                 )
             };
             note(ui, &next, t.text_dim);
+            if can_keep_alias {
+                ui.add_space(4.0);
+                note(ui, tl!("Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."), t.text_dim);
+                let label = fmt(tl!("Keep {address}"), &[("address", &shown(typed, 40))]);
+                keep_alias = button(ui, &label, false, true).clicked();
+            }
             ui.add_space(4.0);
         });
         problem(ui, &self.error);
@@ -1941,7 +1980,9 @@ impl AccountSetup {
                 take = button(ui, &use_label, false, usable).clicked();
             }
         });
-        if alternative {
+        if keep_alias {
+            Some(Action::KeepAlias)
+        } else if alternative {
             Some(Action::GooglePassword)
         } else if back {
             Some(Action::Back)
@@ -2196,7 +2237,7 @@ fn waiting_page(ui: &mut Ui, pass: &Pass, page_in_view: Page, text: &str, detail
     page(ui, &t, |ui| {
         ui.add_space(14.0);
         ui.vertical_centered(|ui| {
-            ui.add(egui::Spinner::new().size(30.0).color(t.accent));
+            crate::software::spinner(ui, 30.0, Some(t.accent));
             ui.add_space(8.0);
             ui.label(RichText::new(text).font(medium(13.5)).color(t.text));
             if !detail.is_empty() {
@@ -2452,6 +2493,8 @@ mod tests {
     mod google_signin_outcome_tests;
     /// What the wizard says about a sign-in on Microsoft's page, and the approval help (M4.4).
     mod help;
+    /// Explicit confirmation of personal Outlook.com custom-domain aliases.
+    mod legacy_alias;
     /// The password's eye (#438).
     mod reveal;
     /// An address at a domain nobody here knows (#761).
@@ -2530,10 +2573,16 @@ mod tests {
     /// A host that tries accounts on their servers: it answers `answer`, or keeps trying. The log
     /// is the accounts it was handed, each with its secret.
     fn checks(app: &mut MailApp, answer: Option<Result<(), &str>>) -> Log<(Account, String)> {
+        let answer = answer.map(|a| a.map_err(mailcraft_i18n::Text::verbatim));
+        checks_said(app, answer)
+    }
+
+    /// [`checks`] with the answer as the host says it: a text for the window to say in its
+    /// language.
+    fn checks_said(app: &mut MailApp, answer: Option<Result<(), mailcraft_i18n::Text>>) -> Log<(Account, String)> {
         let asked: Log<(Account, String)> = Default::default();
         let log = asked.clone();
-        let answer = answer.map(|a| a.map_err(str::to_string));
-        let silent: Log<mpsc::Sender<Result<(), String>>> = Default::default();
+        let silent: Log<mpsc::Sender<Result<(), mailcraft_i18n::Text>>> = Default::default();
         app.services.test_account = Some(Box::new(move |account, secret| {
             log.lock().unwrap().push((account, secret));
             let (tx, rx) = mpsc::channel();

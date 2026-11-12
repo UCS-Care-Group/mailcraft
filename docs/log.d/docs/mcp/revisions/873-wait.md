@@ -1,0 +1,1 @@
+| 2026-11-12 | minor | #873: `ui.dropOnModule` (safe): what a message let go over Calendar, Tasks or People does, opening the new item's form; a message of which only the server's short preview is here is downloaded first; `mail.itemFromMessage` gives the plain text when the HTML reads as empty and drops the characters that show nothing
