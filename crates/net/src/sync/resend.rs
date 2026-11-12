@@ -12,7 +12,8 @@
 //! under `resend.com`, `resend.app` or Amazon's `cloudfront.net`, over TLS, as are the redirects followed from
 //! it), with nothing of the owner's sent along. The calls are paced ([`PACE`]): Resend's limit is
 //! the whole team's. Resend lists what came to every domain of the team: the account keeps what
-//! was written to its own address's domain ([`is_for`]).
+//! was written to its own address's domain, and what names none of the team's domains
+//! ([`is_wanted`]).
 //!
 //! The account has one folder there, its Inbox ([`INBOX`]). Resend knows no flags, moves or
 //! folders: what the owner changes here stays here, and the run says the change is done so that
@@ -60,6 +61,19 @@ const MAX_PAGES: usize = 200;
 const TIMEOUT: Duration = Duration::from_secs(30);
 /// The largest list or message description read.
 const MAX_ANSWER: usize = 4 * 1024 * 1024;
+/// Most bytes of what Resend's lists say, kept for one run: a list is read page after page, and
+/// what senders write (long To and Cc lists) must not pile up without end.
+const MAX_LISTED: usize = 16 * 1024 * 1024;
+/// The longest text of a list's entry kept (a name, an address, a subject).
+const MAX_TEXT: usize = 900;
+/// Most recipients of a list's entry kept for its header...
+const MAX_SHOWN: usize = 100;
+/// ...and most looked at, to find who it was written to.
+const MAX_RECIPIENTS: usize = 2_000;
+/// Most other domains a list's entry is remembered to name.
+const MAX_DOMAINS: usize = 64;
+/// Most pages of the team's domains read, a hundred at a time.
+const MAX_DOMAIN_PAGES: usize = 10;
 /// The longest API key shown to Resend.
 const MAX_KEY: usize = 1024;
 /// The wait before each call to Resend's API. Resend lets a team make 10 calls a second, all of
@@ -86,7 +100,8 @@ pub(super) fn exchange(run: &mut Run) {
     run.hand_over(SyncStep::new(SyncStage::Connecting, "", 0, 0));
     run.out.listed = vec![ListedFolder { remote: INBOX.into(), kind: FolderKind::Inbox, parent: String::new(), name: "Inbox".into() }];
     let (key, cancel) = (request.secret(), run.cancel);
-    let (mut listed, reached) = match list_since(key, inbox(request).1, cancel) {
+    let own = request.account.email.rsplit_once('@').map_or(String::new(), |(_, domain)| normal(domain));
+    let (mut listed, reached) = match list_since(key, inbox(request).1, cancel, &own) {
         Ok(listed) => listed,
         Err(e) => {
             run.failed(said!("Couldn't check for new mail"), &e);
@@ -99,8 +114,23 @@ pub(super) fn exchange(run: &mut Run) {
             count = MAX_PAGES * 100
         ));
     }
-    let domain = request.account.email.rsplit_once('@').map_or("", |(_, domain)| domain);
-    listed.retain(|listed| is_for(&listed.said, domain));
+    // Resend lists the mail of every domain of the team. Its recipients are the message's own
+    // headers, which may leave the owner out (a Bcc, a list's post): what names none of the team's
+    // domains is kept, and only what is written to the team's other domains alone is left.
+    let team = if listed.iter().any(|listed| !names(&listed.named, &own)) {
+        match team_domains(key, cancel) {
+            Ok(team) => team,
+            Err(e) => {
+                run.failed(said!("Couldn't ask Resend which domains the team has"), &e);
+                return;
+            }
+        }
+    } else {
+        Vec::new()
+    };
+    for listed in &mut listed {
+        listed.wanted = is_wanted(&listed.named, &own, &team);
+    }
     let largest = run.limits.largest;
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
     bring(run, listed, now, &mut |id| fetch(key, id, largest, cancel));
@@ -136,12 +166,15 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
     // Those here already stay in, for the count to move past them.
     let mut new: Vec<(u32, Listed)> = numbered(listed).into_iter().filter(|(uid, _)| *uid > seen).collect();
     // A UID two messages share ([`SLOTS`]) is the first's, and the other is said, never hidden.
-    let before = new.len();
+    // What isn't for this account only moves the count past it, so one that is takes the UID.
+    new.sort_by_key(|(uid, listed)| (*uid, !listed.wanted));
+    let wanted = |new: &[(u32, Listed)]| new.iter().filter(|(_, listed)| listed.wanted).count();
+    let before = wanted(&new);
     new.dedup_by_key(|(uid, _)| *uid);
-    if new.len() < before {
+    if wanted(&new) < before {
         run.out.problem(said!(
             "Resend received more than one message in the same eighth of a second: {count} of them weren't brought here; read them on Resend",
-            count = before - new.len()
+            count = before - wanted(&new)
         ));
     }
     // The newest so many, when the folder keeps no more.
@@ -150,7 +183,7 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
         new.drain(..new.len() - most);
     }
     settle_again(run, state);
-    let total = new.iter().filter(|(uid, _)| !known.contains(uid)).count();
+    let total = new.iter().filter(|(uid, listed)| listed.wanted && !known.contains(uid)).count();
     let blank = FolderDelta {
         id: state.map(|s| s.id),
         remote: INBOX.into(),
@@ -166,8 +199,9 @@ pub(super) fn bring(run: &mut Run, listed: Vec<Listed>, now: i64, fetch: &mut dy
     let (mut whole, mut run_bytes, mut batch, mut batch_started, mut done) = (true, 0usize, 0usize, Instant::now(), 0usize);
     for (uid, listed) in new {
         let settled = listed.secs <= settled_by;
-        // Brought by an earlier run, before its second settled.
-        if known.contains(&uid) {
+        // Brought by an earlier run, before its second settled; or not for this account, which
+        // the count passes all the same, so that it isn't listed again and again.
+        if known.contains(&uid) || !listed.wanted {
             if settled {
                 delta.uid_seen = uid;
             }
@@ -315,38 +349,70 @@ pub(super) struct Listed {
     pub(super) id: String,
     pub(super) secs: i64,
     pub(super) millis: u32,
+    /// Only what the header of the message needs ([`slim`]).
     pub(super) said: Value,
+    /// The domains it was written to: the account's first, when it is one of them.
+    pub(super) named: Vec<String>,
+    /// Whether it is kept for the account ([`is_wanted`]); set once the team's domains are known.
+    pub(super) wanted: bool,
 }
 
 /// What Resend received from the second the UID `seen` was made from on (the newest, for 0), and
 /// whether the list reached that second: the whole of it, so that its messages are numbered as
-/// before.
-fn list_since(key: &str, seen: u32, cancel: &AtomicBool) -> Result<(Vec<Listed>, bool), NetError> {
+/// before. The list is read newest first, as Resend's API reference has it, and goes on `after`
+/// the last id read; what it says is kept to [`MAX_LISTED`] bytes.
+fn list_since(key: &str, seen: u32, cancel: &AtomicBool, own: &str) -> Result<(Vec<Listed>, bool), NetError> {
     let from = BASE.saturating_add(i64::from(seen) / SLOTS);
     let pages = if seen == 0 { FIRST_PAGES } else { MAX_PAGES };
     let mut out: Vec<Listed> = Vec::new();
+    let mut weight = 0usize;
     for _ in 0..pages {
         let path = match out.last() {
             Some(last) => format!("/emails/receiving?limit=100&after={}", http::encode(&last.id)),
             None => "/emails/receiving?limit=100".into(),
         };
-        let (page, more) = read_page(&get(key, &path, cancel)?)
+        let (page, more) = read_page(&get(key, &path, cancel)?, own)
             .ok_or_else(|| NetError::Proto(ProtoError::Rejected(said!("Resend's list of mail made no sense"))))?;
         let ended = page.is_empty() || page.iter().any(|listed| listed.secs < from);
+        weight = page.iter().fold(weight, |sum, listed| sum.saturating_add(listed.weight()));
         out.extend(page);
         if ended || !more {
             return Ok((out, true));
+        }
+        if weight > MAX_LISTED {
+            return Ok((out, seen == 0));
         }
     }
     // A first run takes the newest so many by design.
     Ok((out, seen == 0))
 }
 
+/// The domains of the team's Resend account, lowercase: its mail is listed for all of them.
+fn team_domains(key: &str, cancel: &AtomicBool) -> Result<Vec<String>, NetError> {
+    let nonsense = || NetError::Proto(ProtoError::Rejected(said!("Resend's list of domains made no sense")));
+    let mut names: Vec<String> = Vec::new();
+    let mut after: Option<String> = None;
+    for _ in 0..MAX_DOMAIN_PAGES {
+        let path = match &after {
+            Some(id) => format!("/domains?limit=100&after={}", http::encode(id)),
+            None => "/domains?limit=100".into(),
+        };
+        let v: Value = serde_json::from_slice(&get(key, &path, cancel)?).map_err(|_| nonsense())?;
+        let data = v.get("data").and_then(Value::as_array).ok_or_else(nonsense)?;
+        names.extend(data.iter().take(100).filter_map(|d| d.get("name").and_then(Value::as_str)).map(normal).filter(|name| !name.is_empty()));
+        after = data.last().and_then(|d| d.get("id")).and_then(Value::as_str).filter(|id| is_id(id)).map(str::to_string);
+        if names.len() >= 1_000 || after.is_none() || v.get("has_more").and_then(Value::as_bool) != Some(true) {
+            break;
+        }
+    }
+    Ok(names)
+}
+
 /// One page of `GET /emails/receiving`: its messages (those without a usable id or date left
-/// out) and whether more follow.
-pub(super) fn read_page(body: &[u8]) -> Option<(Vec<Listed>, bool)> {
+/// out) and whether more follow (`has_more` has to be there: a list that doesn't say isn't read).
+pub(super) fn read_page(body: &[u8], own: &str) -> Option<(Vec<Listed>, bool)> {
     let v: Value = serde_json::from_slice(body).ok()?;
-    let more = v.get("has_more").and_then(Value::as_bool).unwrap_or(false);
+    let more = v.get("has_more")?.as_bool()?;
     let page = v
         .get("data")?
         .as_array()?
@@ -355,23 +421,91 @@ pub(super) fn read_page(body: &[u8]) -> Option<(Vec<Listed>, bool)> {
         .filter_map(|entry| {
             let id = entry.get("id").and_then(Value::as_str).filter(|id| is_id(id))?;
             let (secs, millis) = instant(entry.get("created_at").and_then(Value::as_str)?)?;
-            Some(Listed { id: id.to_string(), secs, millis, said: entry.clone() })
+            Some(Listed { id: id.to_string(), secs, millis, said: slim(entry), named: named_domains(entry, own), wanted: true })
         })
         .collect();
     Some((page, more))
 }
 
-/// Whether a message of Resend's list was written to an address at `domain` (To, Cc or Bcc as the
-/// list gives them, `Name <a@b>` or bare).
-pub(super) fn is_for(said: &Value, domain: &str) -> bool {
-    let domain = domain.trim().trim_end_matches('.');
-    !domain.is_empty()
-        && ["to", "cc", "bcc"].iter().filter_map(|field| said.get(field).and_then(Value::as_array)).flatten().take(300).filter_map(Value::as_str).any(
-            |text| {
-                let address = text.rsplit_once('<').map_or(text, |(_, rest)| rest.split('>').next().unwrap_or(rest));
-                address.trim().rsplit_once('@').is_some_and(|(_, at)| at.trim_end_matches('.').eq_ignore_ascii_case(domain))
-            },
-        )
+impl Listed {
+    /// About how many bytes it holds.
+    fn weight(&self) -> usize {
+        let named = self.named.iter().fold(0usize, |sum, name| sum.saturating_add(name.len()));
+        self.id.len().saturating_add(named).saturating_add(self.said.to_string().len())
+    }
+}
+
+/// What of a list's entry [`header_only`] reads, cut to size: who it is from, to and Cc, its
+/// subject, id and time, and what its attachments come to. A sender writes the rest.
+fn slim(entry: &Value) -> Value {
+    let cut = |text: &str| Value::String(text.chars().take(MAX_TEXT).collect());
+    let mut out = serde_json::Map::new();
+    for name in ["from", "subject", "message_id", "created_at"] {
+        if let Some(text) = entry.get(name).and_then(Value::as_str) {
+            out.insert(name.into(), cut(text));
+        }
+    }
+    for name in ["to", "cc"] {
+        let list: Vec<Value> =
+            entry.get(name).and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).take(MAX_SHOWN).map(cut).collect();
+        if !list.is_empty() {
+            out.insert(name.into(), Value::Array(list));
+        }
+    }
+    let attached: u64 = entry
+        .get("attachments")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(1_000)
+        .filter_map(|a| a.get("size").and_then(Value::as_u64))
+        .fold(0, u64::saturating_add);
+    if attached > 0 {
+        out.insert("attachments".into(), Value::Array(vec![serde_json::json!({ "size": attached })]));
+    }
+    Value::Object(out)
+}
+
+/// A domain as it is compared: lowercase, no space or final dot.
+fn normal(domain: &str) -> String {
+    domain.trim().trim_end_matches('.').to_ascii_lowercase()
+}
+
+/// The domains a list's entry was written to (To, Cc and Bcc as the list gives them, `Name <a@b>`
+/// or bare), `own` first when it is one of them: and at most [`MAX_DOMAINS`] others.
+fn named_domains(entry: &Value, own: &str) -> Vec<String> {
+    let (mut others, mut has_own) = (Vec::new(), false);
+    for field in ["to", "cc", "bcc"] {
+        for text in entry.get(field).and_then(Value::as_array).into_iter().flatten().take(MAX_RECIPIENTS).filter_map(Value::as_str) {
+            let address = text.rsplit_once('<').map_or(text, |(_, rest)| rest.split('>').next().unwrap_or(rest));
+            let Some((_, at)) = address.trim().rsplit_once('@') else { continue };
+            let domain = normal(at);
+            if domain.is_empty() || domain.len() > 255 {
+                continue;
+            }
+            if domain == own {
+                has_own = true;
+            } else if others.len() < MAX_DOMAINS && !others.contains(&domain) {
+                others.push(domain);
+            }
+        }
+    }
+    if has_own {
+        others.insert(0, own.to_string());
+    }
+    others
+}
+
+/// Whether `named` ([`named_domains`]) has the account's domain `own`.
+fn names(named: &[String], own: &str) -> bool {
+    !own.is_empty() && named.first().is_some_and(|first| first == own)
+}
+
+/// Whether a message is kept for the account: it was written to the account's domain, or to none
+/// of the team's domains (a Bcc, a list's post: Resend took it in for the team, and the headers
+/// don't say for whom). Not what was written only to the team's other domains.
+pub(super) fn is_wanted(named: &[String], own: &str, team: &[String]) -> bool {
+    !own.is_empty() && (names(named, own) || !named.iter().any(|domain| team.contains(domain)))
 }
 
 /// The messages oldest first, each with its UID: the steps of [`SLOTS`] since [`BASE`] to the

@@ -2174,7 +2174,12 @@ impl AccountSetup {
     /// The user name and the two servers.
     fn settings(&mut self, ui: &mut Ui, pass: &mut Pass) {
         field(ui, pass, "username", tl!("User name"), &mut self.username, tl!("Usually the whole address"), LINE);
-        server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
+        if mailcraft_model::provider::is_resend_host(&self.incoming.host) {
+            // Resend has no IMAP: its mail is read from its API, over HTTPS.
+            server_row(ui, pass, tl!("Incoming mail (Resend API)"), "incoming", &mut self.incoming, "api.resend.com", (443, 443));
+        } else {
+            server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
+        }
         server_row(ui, pass, tl!("Outgoing mail (SMTP)"), "outgoing", &mut self.outgoing, "smtp.example.org", (465, 587));
     }
 }

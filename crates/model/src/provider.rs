@@ -68,6 +68,14 @@ pub fn google(consumer: bool) -> Preset {
 /// from there over HTTPS (Resend has no IMAP), and sent through Resend's SMTP server.
 pub const RESEND_API_HOST: &str = "api.resend.com";
 
+/// Where Resend's SMTP server is: the one place an account at Resend shows its API key as a password.
+pub const RESEND_SMTP_HOST: &str = "smtp.resend.com";
+
+/// Whether an outgoing server `host` is Resend's ([`RESEND_SMTP_HOST`]).
+pub fn is_resend_smtp_host(host: &str) -> bool {
+    host.trim().trim_end_matches('.').eq_ignore_ascii_case(RESEND_SMTP_HOST)
+}
+
 /// Whether an incoming server `host` is Resend's API ([`resend`]).
 pub fn is_resend_host(host: &str) -> bool {
     host.trim().trim_end_matches('.').eq_ignore_ascii_case(RESEND_API_HOST)
@@ -88,7 +96,7 @@ pub fn resend() -> Preset {
         service: "Resend",
         oauth: None,
         incoming: server(RESEND_API_HOST, 443, Security::Tls),
-        outgoing: server("smtp.resend.com", 465, Security::Tls),
+        outgoing: server(RESEND_SMTP_HOST, 465, Security::Tls),
         username: "resend",
         note: "Resend takes an API key with full access (made at resend.com/api-keys) as the password; a key that only sends can't read the mail Resend received.",
     }

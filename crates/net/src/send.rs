@@ -81,6 +81,12 @@ pub(crate) fn open_smtp_with<'a>(
 ) -> Result<Smtp<Stream<'a>>, NetError> {
     let server = account.outgoing.as_ref().ok_or_else(|| NetError::Config(said!("the account has no outgoing server")))?;
     crate::sync::token_may_go_to(account, server, "smtp.gmail.com")?;
+    // An account at Resend signs in with its API key, which has full access to the team's mail
+    // and domains: it is shown to Resend's SMTP server over TLS and to no other (a server address
+    // mistyped or changed in the account's file gets nothing).
+    if account.is_resend() && !(mailcraft_model::provider::is_resend_smtp_host(&server.host) && server.security != Security::None) {
+        return Err(NetError::Config(said!("a Resend API key is only shown to Resend's SMTP server, over TLS")));
+    }
     let user = account.login();
     if account.oauth.is_some() {
         if user.is_empty() {

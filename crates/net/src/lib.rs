@@ -280,6 +280,8 @@ mod native {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod password_tests;
+#[cfg(test)]
+mod resend_smtp_tests;
 
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]

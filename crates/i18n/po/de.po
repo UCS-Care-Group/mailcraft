@@ -2873,6 +2873,11 @@ msgid "Could not open Google sign-in"
 msgstr "Google-Anmeldung konnte nicht geöffnet werden"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Couldn't ask Resend which domains the team has"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/net/src/push.rs
 #, fuzzy
 msgid "Couldn't bring \"{name}\" up to date"
@@ -5624,6 +5629,11 @@ msgstr "Beim Antworten die ursprüngliche Nachricht einschließen"
 #, fuzzy
 msgid "Incoming mail (IMAP)"
 msgstr "Posteingangsserver (IMAP)"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Incoming mail (Resend API)"
+msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -9916,6 +9926,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/sync/resend.rs
 msgid "Resend sent a message's bytes on too many redirects"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync/resend.rs
+msgid "Resend's list of domains made no sense"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -15769,6 +15784,11 @@ msgstr "Eine Microsoft-Anmeldung wird nur mit den eigenen Mailservern von Micros
 #. why a mail server couldn't be used
 #: crates/net/src/sync/resend.rs
 msgid "a Resend API key is only shown to Resend's API"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "a Resend API key is only shown to Resend's SMTP server, over TLS"
 msgstr ""
 
 #. what a command says
