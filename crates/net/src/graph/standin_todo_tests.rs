@@ -47,6 +47,10 @@ fn it_listens_on_the_port_it_is_told_and_on_loopback_only() {
     assert_eq!(told.url(), format!("http://127.0.0.1:{free}"));
     // It is taken now, so asking for it again fails rather than listening twice.
     assert!(StandIn::start_on(free).is_err());
+    // Dropped, it lets the port go.
+    drop(told);
+    let again = StandIn::start_on(free).unwrap();
+    assert_eq!(again.port, free);
     // Port 0 picks another one, on loopback too.
     let picked = StandIn::start_on(0).unwrap();
     assert_ne!(picked.port, free);
@@ -106,6 +110,8 @@ fn a_task_takes_only_what_a_task_has() {
         json!({"importance": "urgent"}),
         json!({"flavour": "mint"}),
         json!({"dueDateTime": "tomorrow"}),
+        json!({"dueDateTime": {"dateTime": "tomorrow", "timeZone": "UTC"}}),
+        json!({"dueDateTime": {"dateTime": "2026-09-21T00:00:00", "timeZone": ""}}),
         json!({"categories": [1]}),
     ] {
         let (status, body) = call(&server, "POST", &tasks, Some(&bad.to_string()));
@@ -120,6 +126,9 @@ fn a_task_takes_only_what_a_task_has() {
     assert!(body["completedDateTime"].is_object());
     let (_, body) = call(&server, "PATCH", &one, Some(&json!({"status": "inProgress"}).to_string()));
     assert!(body.get("completedDateTime").is_none());
+    let both = json!({"status": "notStarted", "completedDateTime": {"dateTime": "2026-09-21T00:00:00", "timeZone": "UTC"}});
+    let (_, body) = call(&server, "PATCH", &one, Some(&both.to_string()));
+    assert!(body.get("completedDateTime").is_none(), "{body}");
     assert_eq!(call(&server, "GET", &format!("{tasks}/nothing"), None).0, 404);
     assert_eq!(call(&server, "DELETE", &one, None).0, 204);
 }
@@ -146,10 +155,26 @@ fn categories_have_a_name_once_and_a_colour_that_exists() {
     assert_eq!(status, 201, "{made}");
     assert_eq!(call(&server, "POST", path, Some(&json!({"displayName": "work", "color": "preset1"}).to_string())).0, 409);
     assert_eq!(call(&server, "POST", path, Some(&json!({"displayName": "Odd", "color": "preset25"}).to_string())).0, 400);
+    assert_eq!(call(&server, "POST", path, Some(&json!({"displayName": "Num", "color": 42}).to_string())).0, 400);
     let one = format!("{path}/{}", made["id"].as_str().unwrap());
     assert_eq!(call(&server, "PATCH", &one, Some(&json!({"displayName": "Other"}).to_string())).0, 400);
     assert_eq!(call(&server, "PATCH", &one, Some(&json!({"color": "preset2"}).to_string())).1["color"], "preset2");
     assert_eq!(call(&server, "GET", path, None).1["value"].as_array().map(Vec::len), Some(1));
     assert_eq!(call(&server, "DELETE", &one, None).0, 204);
     assert_eq!(call(&server, "GET", &one, None).0, 404);
+}
+
+#[test]
+fn more_than_a_page_of_lists_comes_with_a_next_link() {
+    let server = StandIn::start().unwrap();
+    for n in 0..12 {
+        let made = call(&server, "POST", "/v1.0/me/todo/lists", Some(&json!({"displayName": format!("L{n}")}).to_string()));
+        assert_eq!(made.0, 201);
+    }
+    let (_, first) = call(&server, "GET", "/v1.0/me/todo/lists", None);
+    assert_eq!(first["value"].as_array().map(Vec::len), Some(10));
+    let next = first["@odata.nextLink"].as_str().unwrap();
+    let (_, second) = call(&server, "GET", next.trim_start_matches(&server.url()), None);
+    assert_eq!(second["value"].as_array().map(Vec::len), Some(4));
+    assert!(second.get("@odata.nextLink").is_none());
 }

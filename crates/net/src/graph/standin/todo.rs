@@ -303,7 +303,13 @@ impl State {
                     let (time, zone) = (value.get("dateTime"), value.get("timeZone"));
                     match (value, time, zone) {
                         (Value::Null, ..) => *slot = None,
-                        (Value::Object(_), Some(time @ Value::String(_)), Some(zone @ Value::String(_))) => {
+                        (Value::Object(_), Some(time @ Value::String(text)), Some(zone @ Value::String(name)))
+                            if text.len() <= 64
+                                && mailcraft_time::parse_iso(text).is_some()
+                                && !name.is_empty()
+                                && name.len() <= 64
+                                && !name.chars().any(char::is_control) =>
+                        {
                             let mut kept = Map::new();
                             kept.insert("dateTime".into(), time.clone());
                             kept.insert("timeZone".into(), zone.clone());
@@ -320,7 +326,7 @@ impl State {
             if changed.completed.is_none() {
                 changed.completed = Some(json!({"dateTime": stamp(self.clock), "timeZone": "UTC"}));
             }
-        } else if !body.contains_key("completedDateTime") {
+        } else {
             changed.completed = None;
         }
         changed.version += 1;
@@ -345,7 +351,11 @@ impl State {
             ("POST", []) => {
                 let body = asked.json();
                 let name = name_of(&body)?;
-                let color = body.get("color").and_then(Value::as_str).unwrap_or("none").to_string();
+                let color = match body.get("color") {
+                    None => "none".to_string(),
+                    Some(Value::String(color)) => color.clone(),
+                    Some(_) => return Err(bad("The property 'color' is 'none' or 'preset0' to 'preset24'.")),
+                };
                 if !color_ok(&color) {
                     return Err(bad("The property 'color' is 'none' or 'preset0' to 'preset24'."));
                 }

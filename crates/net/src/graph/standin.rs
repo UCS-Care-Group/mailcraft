@@ -2588,6 +2588,20 @@ fn read_request(stream: &TcpStream) -> Option<Asked> {
 pub struct StandIn {
     pub port: u16,
     state: Arc<Mutex<State>>,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for StandIn {
+    /// Let go of the port: say stop, wake the thread blocked in `accept` with a connection of
+    /// our own, and wait for it, so that the port is free again when this returns.
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _ = TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], self.port)), std::time::Duration::from_secs(2));
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 impl StandIn {
@@ -2636,8 +2650,15 @@ impl StandIn {
         state.add_todo_list("Flagged Email", "flaggedEmails");
         let state = Arc::new(Mutex::new(state));
         let shared = state.clone();
-        std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stopped = stop.clone();
+        let thread = std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {
             for mut stream in listener.incoming().flatten() {
+                if stopped.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+                // A client that says nothing must not keep the thread, and so the port, for good.
+                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
                 let Some(mut asked) = read_request(&stream) else { continue };
                 let mut state = shared.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                 let (status, body) = match state.answer(&asked) {
@@ -2693,7 +2714,7 @@ impl StandIn {
                 let _ = stream.write_all(answer.as_bytes());
             }
         })?;
-        Ok(StandIn { port, state })
+        Ok(StandIn { port, state, stop, thread: Some(thread) })
     }
 
     /// `http://127.0.0.1:{port}`.
