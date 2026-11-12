@@ -360,8 +360,8 @@ msgstr "Wie immer wird zuerst eine Kopie Ihres gesamten Postfachs daneben gespei
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
-msgstr "Eine Desktopbenachrichtigung für die E-Mails, auf die diese Regel beim Eintreffen wirkt, auch wenn die für neue E-Mails in Datei › Optionen ausgeschaltet ist"
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Eine Desktopbenachrichtigung für die E-Mails, auf die diese Regel beim Eintreffen wirkt, solange MailCraft nicht das vordere Fenster ist, auch wenn die für neue E-Mails in Datei › Optionen ausgeschaltet ist"
 
 #. interface
 #: crates/ui-egui/src/files.rs

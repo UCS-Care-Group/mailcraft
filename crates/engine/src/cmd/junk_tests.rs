@@ -547,8 +547,8 @@ fn a_rule_moves_new_mail_that_comes_through_imap() {
 }
 
 /// A Microsoft account kept in step through Graph, whose Inbox (`F-in`), Junk E-mail (`F-junk`)
-/// and Archive (`F-arch`) have had their first round when `caught_up`; a rule files mail from
-/// anyone at `shop.example` or named `friend` into the Archive.
+/// and Archive (`F-arch`) have had their first round when `caught_up`; a rule for each, kept on
+/// its server, files mail whose sender's address has `shop` or `friend` in it into the Archive.
 fn graph_with_rule(caught_up: bool) -> (Session, Id, [Id; 3]) {
     let mut s = Session::empty();
     let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();

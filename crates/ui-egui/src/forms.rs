@@ -5566,7 +5566,7 @@ pub(crate) mod rules {
             row(ui, "", |ui| {
                 ui.checkbox(&mut self.stop, tl!("Stop processing more rules"));
                 ui.checkbox(&mut self.alert, tl!("Show a desktop alert")).on_hover_text(tl!(
-                    "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
+                    "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
                 ));
             });
             // Where it is kept: the owner says, while the server can do all of it; greyed, with why,

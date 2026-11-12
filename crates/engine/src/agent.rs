@@ -1271,7 +1271,8 @@ fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
         })
         .collect();
     // And of each account whose address changes, which a rule of its mail reads ([`me_changes`]).
-    let email = |m: &Mailbox, a: Id| m.account(a).map(|x| x.email.trim().to_lowercase());
+    // (By A to Z's case, as a rule reads "me" and [`me_changes`] compares.)
+    let email = |m: &Mailbox, a: Id| m.account(a).map(|x| x.email.trim().to_ascii_lowercase());
     changed.extend(
         now.accounts
             .iter()

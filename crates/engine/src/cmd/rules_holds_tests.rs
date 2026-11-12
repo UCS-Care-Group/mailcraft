@@ -549,3 +549,35 @@ fn a_rules_copy_its_server_is_still_to_make_isnt_moved_onto_this_computer() {
         .collect();
     assert_eq!(copies, ["F-other"]);
 }
+
+/// A message already listed whose next listing cuts its categories (over 25 on a Microsoft
+/// account) is said to be cut as well, as a new one is: Run Rules Now with "delete permanently,
+/// except if it has the category Keep" leaves it alone, since Keep may be among those left out.
+#[test]
+fn a_later_listing_that_cut_the_categories_keeps_a_rule_from_deleting_past_a_category_exception() {
+    let (mut s, account, _) = microsoft_and_here();
+    let apply = |s: &mut Session, m: GraphMessage| {
+        let page = MessagePage { folder: "F-in".into(), messages: vec![m], ..Default::default() };
+        super::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+            .unwrap();
+    };
+    apply(&mut s, listed("N1", "F-in", "Contract"));
+    let id = s.mailbox.messages.values().find(|m| m.subject == "Contract").map(|m| m.id).unwrap();
+    assert!(!s.mailbox.message(id).unwrap().headers_cut);
+    // On the web it gets more categories than a listing gives.
+    let mut again = listed("N1", "F-in", "Contract");
+    again.server.change_key = "CK2".into();
+    again.server.categories = (0..25).map(|i| format!("Tag {i}")).collect();
+    again.cut = true;
+    apply(&mut s, again);
+    assert!(s.mailbox.message(id).unwrap().headers_cut, "the second listing cut its categories");
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+            "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    run(&mut s, "rules.run", json!({"folder": inbox}));
+    assert!(s.mailbox.message(id).is_some(), "deleted permanently, though Keep may be among the categories left out");
+}

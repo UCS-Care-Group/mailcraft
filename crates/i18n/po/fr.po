@@ -360,8 +360,8 @@ msgstr "Une copie de toute votre boîte aux lettres est d'abord enregistrée à 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
-msgstr "Une alerte sur le bureau pour le courrier sur lequel cette règle agit à son arrivée, même si celle du nouveau courrier est désactivée dans Fichier › Options"
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Une alerte sur le bureau pour le courrier sur lequel cette règle agit à son arrivée, quand MailCraft n'est pas la fenêtre au premier plan, même si celle du nouveau courrier est désactivée dans Fichier › Options"
 
 #. interface
 #: crates/ui-egui/src/files.rs

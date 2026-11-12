@@ -1,1 +1,1 @@
-- Run Rules Now in the Rules dialog runs the rules it shows: with "Rules for" set to another account, it ran the rules of the account in view instead ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
+- Run Rules Now in the Rules dialog runs the rules it shows, over the folder in view when it is their account's and else over that account's Inbox: with "Rules for" set to another account, it ran the rules of the account in view instead ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

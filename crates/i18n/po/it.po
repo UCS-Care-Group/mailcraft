@@ -360,8 +360,8 @@ msgstr "Come sempre, prima viene salvata accanto a essa una copia dell'intera ca
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
-msgstr "Un avviso desktop per la posta su cui questa regola agisce all'arrivo, anche quando quello per la nuova posta è disattivato in File › Opzioni"
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Un avviso desktop per la posta su cui questa regola agisce all'arrivo, quando MailCraft non è la finestra in primo piano, anche quando quello per la nuova posta è disattivato in File › Opzioni"
 
 #. interface
 #: crates/ui-egui/src/files.rs

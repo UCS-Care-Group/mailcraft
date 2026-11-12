@@ -371,8 +371,8 @@ msgstr "Er wordt eerst, zoals altijd, een kopie van uw hele postvak ernaast opge
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "A desktop alert for the mail this rule acts on as it arrives, even when the one for new mail is off in File › Options"
-msgstr "Een bureaubladmelding voor de e-mail waarop deze regel bij aankomst werkt, ook als die voor nieuwe e-mail uit staat in Bestand › Opties"
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Een bureaubladmelding voor de e-mail waarop deze regel bij aankomst werkt, wanneer MailCraft niet het voorste venster is, ook als die voor nieuwe e-mail uit staat in Bestand › Opties"
 
 #. interface
 #: crates/ui-egui/src/files.rs

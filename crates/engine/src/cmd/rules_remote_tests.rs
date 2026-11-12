@@ -2672,3 +2672,19 @@ fn keeping_a_refused_rule_on_the_server_is_asked_as_nothing_more_than_a_change_t
     let Verdict::Ask(crate::agent::Class::Settings, what) = &verdict else { panic!("asked as a change to the rules: {verdict:?}") };
     assert!(!what.contains("may let more mail reach"), "{what}");
 }
+
+/// An undo of a change of an account's address in the case of a letter outside A to Z ("Ädä" to
+/// "ädä") is asked as the change was: a rule reads "me" by A to Z's case alone, so to it the
+/// address changed.
+#[test]
+fn undoing_an_address_change_in_a_non_ascii_letters_case_is_asked_as_the_change_was() {
+    use crate::agent::{Access, Class, also, classify};
+    let (mut s, account, _, _) = session();
+    run(&mut s, "account.edit", json!({"id": account, "email": "Ädä@example.org"}));
+    add_with_exception(&mut s, account);
+    let edit = json!({"id": account, "email": "ädä@example.org"});
+    assert_eq!(classify(&s, "account.edit", &edit), Access::Owner(Class::Delete));
+    run(&mut s, "account.edit", edit);
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Accounts));
+    assert!(also(&s, "edit.undo", &json!({}), Class::Accounts).contains(&Class::Delete));
+}
