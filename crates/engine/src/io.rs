@@ -443,7 +443,7 @@ fn show_opened(s: &mut Session, id: Id) {
 }
 
 /// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
-/// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
+/// view, or the Inbox), events to a calendar on this computer (#1050), contacts and to-dos to their lists.
 pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
     let format = Format::detect(name, bytes).ok_or_else(|| failed!("{name}: not a message, calendar or contact file MailCraft reads", name))?;
     let explicit = folder.is_some();
@@ -550,16 +550,20 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 let existing = if e.uid.is_empty() { None } else { own_uids.get(&e.uid).copied() };
                 // (Two that name nobody are the owner's own appointment, exported and imported again.)
                 let existing = existing.filter(|(id, _)| s.mailbox.event(*id).is_some_and(|have| crate::cmd::calendar::same_organizer(have, &e)));
+                // What a file brings is the owner's, on this computer, until the owner moves it
+                // (#1050): never into a calendar that an account's server keeps, where it would
+                // look sent and never be, and where nothing would offer to send it.
                 match existing {
                     Some((id, calendar)) => {
                         e.id = id;
-                        e.calendar = calendar;
+                        e.calendar = if crate::cmd::calendar::served(s, calendar) { crate::cmd::calendar::own_calendar_or_new(s)? } else { calendar };
                         *s.mailbox.event_mut(id)? = e;
                         updated += 1;
                         events.push(id);
                     }
                     None => {
                         let uid = e.uid.clone();
+                        e.calendar = crate::cmd::calendar::own_calendar_or_new(s)?;
                         let (calendar, id) = (e.calendar, s.mailbox.add_event(e)?);
                         if !uid.is_empty() {
                             own_uids.entry(uid).or_insert((id, calendar));

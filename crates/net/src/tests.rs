@@ -911,14 +911,19 @@ fn a_run_downloads_only_so_much() {
 
 #[test]
 fn a_server_that_is_not_there_is_an_error_line() {
-    // A port that was just free: nothing listens there.
-    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    let mut nowhere = account(None, None);
-    nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
-    let result = sync(&request(nowhere.clone(), local_folders()));
-    assert_eq!(result.errors.len(), 1);
-    assert!(result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: "), "{}", result.errors[0]);
-    assert!(matches!(test_account(&nowhere, PASSWORD), Err(NetError::Connect { .. })));
+    // A port that was just free: nothing listens there. Another test running at the same time can
+    // take it in between, so a few fresh ports are tried; one where nobody answered must be found.
+    // A port can't be held without listening on it, which would answer, so it's retried instead.
+    let refused = (0..5).any(|_| {
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let mut nowhere = account(None, None);
+        nowhere.incoming = Some(Server { host: "127.0.0.1".into(), port, security: Security::None });
+        let result = sync(&request(nowhere.clone(), local_folders()));
+        result.errors.len() == 1
+            && result.errors[0].starts_with("Couldn't check for new mail: couldn't reach 127.0.0.1: ")
+            && matches!(test_account(&nowhere, PASSWORD), Err(NetError::Connect { .. }))
+    });
+    assert!(refused, "a port nobody listens on was never said to be unreachable");
 }
 
 // ---- pushing what was changed here ----
