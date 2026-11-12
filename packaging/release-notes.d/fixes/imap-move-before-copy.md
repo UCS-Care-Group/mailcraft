@@ -1,0 +1,1 @@
+- On an IMAP server that doesn't say where it put a moved message (no UIDPLUS), a message moved on again at once could show twice, once in each folder, with the second move never reaching the server; it is now moved there too and shown once.
