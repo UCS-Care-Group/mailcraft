@@ -2324,6 +2324,13 @@ fn hostile_params_never_panic() {
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
         json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
+        // Snooze (#949): Return times that are none, far, past or the end of time.
+        json!({"ids": [1, 2, 3], "until": i64::MAX}),
+        json!({"ids": [1], "until": i64::MIN}),
+        json!({"ids": [1, 1, 1], "until": 1e300}),
+        json!({"id": 1, "until": "9999-12-31T23:59:59+23:59"}),
+        json!({"ids": [1], "until": "0001-01-01T00:00-23:59"}),
+        json!({"ids": [1], "until": {"deep": [[[]]]}}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),

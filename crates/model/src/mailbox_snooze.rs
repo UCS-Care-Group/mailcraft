@@ -132,7 +132,7 @@ impl Mailbox {
     }
 
     /// Bring each of `ids` that waits in a Snoozed folder back, at `now`: to the folder it came
-    /// from, or the Inbox when that is gone (or is in another account), unread, marked as having
+    /// from, or the Inbox when that is gone (or is in another account, or has been deleted), unread, marked as having
     /// come back. The received date is as it was. A message that can't be moved stays where it
     /// is, still waiting. Answers the ones that came back.
     pub fn return_snoozed(&mut self, ids: &[Id], now: Timestamp) -> Vec<Id> {
@@ -152,7 +152,7 @@ impl Mailbox {
             }
             let to = self
                 .folder(snooze.from)
-                .filter(|f| f.account == account && Some(f.id) != snoozed)
+                .filter(|f| f.account == account && Some(f.id) != snoozed && !self.is_in_deleted(f.id))
                 .map(|f| f.id)
                 .or_else(|| self.folder_of_kind(account, FolderKind::Inbox));
             let Some(to) = to else { continue };
@@ -166,6 +166,20 @@ impl Mailbox {
             }
         }
         back
+    }
+
+    /// Whether the folder `id` is Deleted Items or lies under it (a folder the owner deleted goes
+    /// there as it is): mail isn't returned into one.
+    fn is_in_deleted(&self, id: Id) -> bool {
+        let mut at = Some(id);
+        for _ in 0..=crate::MAX_FOLDER_DEPTH {
+            let Some(f) = at.and_then(|id| self.folder(id)) else { return false };
+            if f.kind == FolderKind::Deleted {
+                return true;
+            }
+            at = f.parent;
+        }
+        false
     }
 
     /// Call off the snooze of every message that waits but isn't in its account's Snoozed folder
@@ -192,10 +206,11 @@ impl Mailbox {
     pub(super) fn repair_snoozes(&mut self) -> usize {
         let known: Vec<(Id, Option<Id>)> = self.accounts.iter().map(|a| (a.id, a.snoozed_folder)).collect();
         for (account, folder) in known {
-            if folder.is_some() && self.snoozed_folder(account).is_none() {
-                if let Ok(a) = self.account_mut(account) {
-                    a.snoozed_folder = None;
-                }
+            if folder.is_some()
+                && self.snoozed_folder(account).is_none()
+                && let Ok(a) = self.account_mut(account)
+            {
+                a.snoozed_folder = None;
             }
         }
         // A returned mark on a message of nobody's is left to go with the message.

@@ -116,6 +116,11 @@ mod reply_to_first_tests;
 mod resend_reply_to_tests;
 pub mod rules;
 pub mod rules_remote;
+pub mod snooze;
+#[cfg(test)]
+mod snooze_servers_tests;
+#[cfg(test)]
+mod snooze_tests;
 #[cfg(test)]
 mod rules_remote_tests;
 #[cfg(test)]
@@ -163,6 +168,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(snooze::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
