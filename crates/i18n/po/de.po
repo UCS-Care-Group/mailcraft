@@ -272,7 +272,7 @@ msgstr "@{login}: {prs} zusammengeführte PRs, {commits} Commits, +{added} / −
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "A .pst file is being imported: try again when it is done"
-msgstr "Eine .pst-Datei wird gerade importiert: Versuche es erneut, sobald der Import abgeschlossen ist"
+msgstr "Eine .pst-Datei wird gerade importiert: Versuchen Sie es erneut, sobald der Import abgeschlossen ist"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -2757,7 +2757,7 @@ msgstr "Mitwirkende"
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "Contributors choose their own names; see docs/contributors.md."
-msgstr "Mitwirkende wählen Ihren Namen selbst; siehe docs/contributors.md."
+msgstr "Mitwirkende wählen ihren Namen selbst; siehe docs/contributors.md."
 
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
@@ -7802,7 +7802,7 @@ msgstr "Keine Absender gespeichert. „Bilder immer herunterladen von“ über e
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "No server answered at the usual places for this address. Check the network connection, or type the server's address in Server settings."
-msgstr "Unter den üblichen Stellen für diese Adresse hat kein Server geantwortet. Überprüfe die Netzwerkverbindung oder gib die Serveradresse in den Servereinstellungen ein."
+msgstr "Unter den üblichen Stellen für diese Adresse hat kein Server geantwortet. Überprüfen Sie die Netzwerkverbindung oder geben Sie die Serveradresse in den Servereinstellungen ein."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs
@@ -8327,7 +8327,7 @@ msgstr "Hier ist nur der Anfang dieser Nachricht. Der Rest wird beim nächsten S
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Only the meeting's organizer can change its time."
-msgstr "Nur der Organisator der Besprechung kann Ihre Zeit ändern."
+msgstr "Nur der Organisator der Besprechung kann ihre Zeit ändern."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11575,7 +11575,7 @@ msgstr "Soziale Netzwerke"
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Some characters in this message couldn't be read: the sender's program didn't say properly how they were written."
-msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Programm des Absenders hat Ihre Codierung nicht korrekt angegeben."
+msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Programm des Absenders hat ihre Codierung nicht korrekt angegeben."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12606,7 +12606,7 @@ msgstr "Der Ordner ist nicht vorhanden."
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "The forward of several messages that was waiting was called off: another download took its place."
-msgstr "Die wartende Weiterleitung mehrerer Nachrichten wurde abgebrochen: Ein anderer Download ist an Ihre Stelle getreten."
+msgstr "Die wartende Weiterleitung mehrerer Nachrichten wurde abgebrochen: Ein anderer Download ist an ihre Stelle getreten."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
