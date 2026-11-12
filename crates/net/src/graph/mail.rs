@@ -999,6 +999,7 @@ mod fetch;
 mod place;
 mod search;
 mod send;
+pub(in crate::graph) use send::send_unfiled;
 mod threads;
 mod up;
 

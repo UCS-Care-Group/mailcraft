@@ -853,6 +853,9 @@ pub struct GraphResult {
     /// connection, an answer that doesn't say): they may have gone, and are held for the owner
     /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
     pub unsure: Vec<Id>,
+    /// For a message that wasn't sent whole (an Encrypted one to Bcc recipients): those of them who
+    /// had their message, so that a send again gives them no more (#30 part 7).
+    pub blind_sent: Vec<(Id, Vec<String>)>,
     /// Outbox messages that were to be Digitally signed and couldn't be (#30): none went; they
     /// are held, with why.
     pub unsigned: Vec<mailcraft_model::signing::Unsigned>,
@@ -3897,6 +3900,13 @@ impl MailApp {
             if let Some(first) = said.first() {
                 self.status(first.clone());
             }
+        }
+        let mut noted = false;
+        for (id, addresses) in &result.blind_sent {
+            noted |= mailcraft_engine::cmd::graph_send::note_blind_sent(&mut self.session.mailbox, account, *id, addresses);
+        }
+        if noted {
+            self.session.mailbox_changed();
         }
         // What the run sent is filed by now, what it held for a lost answer is held, and the rest
         // (not tried, or Microsoft said later) didn't go: no message of the account is marked as

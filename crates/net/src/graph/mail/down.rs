@@ -442,7 +442,7 @@ fn expired(body: &[u8]) -> bool {
 
 /// A link of a page that may be followed (on Graph itself, where the token belongs), as it was
 /// given and as it is followed.
-fn link_of(graph: &Graph<'_>, json: &Value, name: &str) -> Option<(String, Url)> {
+pub(super) fn link_of(graph: &Graph<'_>, json: &Value, name: &str) -> Option<(String, Url)> {
     let link = json.get(name)?.as_str()?;
     let url = Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url))?;
     Some((link.to_string(), url))

@@ -209,3 +209,91 @@ fn a_sealed_create_the_server_refuses_still_takes_the_clear_copy_away() {
     assert!(done.refused.is_some(), "{done:?}");
     assert!(!server.state().mailbox.messages.contains_key(&clear), "no clear copy is left behind a refused one");
 }
+
+fn drafts_in_drafts(server: &StandIn) -> usize {
+    let state = server.state();
+    let drafts = state.well_known("drafts");
+    state.mailbox.messages.values().filter(|m| m.folder == drafts && m.draft).count()
+}
+
+#[test]
+fn a_copy_whose_send_is_throttled_leaves_no_draft_behind_after_a_retry_and_is_sent_once() {
+    let server = StandIn::start().unwrap();
+    for _ in 0..8 {
+        server.state().fail_next.push(("POST /v1.0/me/messages/*/send".into(), 429, "TooManyRequests".into()));
+    }
+    let all = run(&server, send(encrypted(&["zoe@example.org"], &["erin@example.org"], &[])));
+    assert!(!all.sent.iter().any(|d| d.outcome == SendOutcome::Sent), "{:?}", all.sent);
+    // (The mailbox is told to wait, so the delete of that draft waits too and may not come in this run:
+    // the next try finds it by its Message-ID and takes it away, whatever this one managed.)
+    assert!(drafts_in_drafts(&server) <= 1, "{:?}", all.errors);
+    server.state().fail_next.clear();
+    let all = run(&server, send(encrypted(&["zoe@example.org"], &["erin@example.org"], &[])));
+    assert!(matches!(all.sent.as_slice(), [d] if d.outcome == SendOutcome::Sent), "{:?} {:?}", all.sent, all.errors);
+    assert_eq!(drafts_in_drafts(&server), 0);
+    assert_eq!(in_sent_items(&server), 1);
+}
+
+#[test]
+fn a_draft_left_by_a_lost_answer_is_found_by_its_message_id_and_taken_away_by_the_next_try() {
+    let server = StandIn::start().unwrap();
+    server.state().lose_next.push("POST /v1.0/me/messages".into());
+    let all = run(&server, send(encrypted(&["zoe@example.org"], &["erin@example.org"], &[])));
+    assert!(!all.sent.iter().any(|d| d.outcome == SendOutcome::Sent), "{:?}", all.sent);
+    assert_eq!(drafts_in_drafts(&server), 1, "made, and nobody knows it");
+    let all = run(&server, send(encrypted(&["zoe@example.org"], &["erin@example.org"], &[])));
+    assert!(matches!(all.sent.as_slice(), [d] if d.outcome == SendOutcome::Sent), "{:?} {:?}", all.sent, all.errors);
+    assert_eq!(drafts_in_drafts(&server), 0);
+    assert_eq!(server.state().sent.len(), 2, "theirs and the message itself, each once");
+}
+
+#[test]
+fn an_encrypted_draft_whose_make_was_lost_is_swept_by_its_message_id_at_the_next_save() {
+    let server = StandIn::start().unwrap();
+    server.state().lose_next.push("POST /v1.0/me/messages".into());
+    let up = || DraftUp { message: 5, marker: MARKER.into(), saves: 1, sealed: Arc::new(sealed()), ..Default::default() };
+    run(&server, GraphMailRequest { drafts: vec![up()], ..Default::default() });
+    assert_eq!(drafts_in_drafts(&server), 1, "an orphan: no marker went on");
+    let all = run(&server, GraphMailRequest { drafts: vec![up()], ..Default::default() });
+    assert!(all.drafts.iter().any(|d| d.fields && !d.id.is_empty()), "{:?} {:?}", all.drafts, all.errors);
+    assert_eq!(drafts_in_drafts(&server), 1, "the one made now");
+}
+
+#[test]
+fn a_purge_reads_the_whole_list_of_copies_however_long() {
+    let server = StandIn::start().unwrap();
+    let clear = clear_draft(&server);
+    let mark = server.state().mailbox.messages.get(&clear).map(|m| m.extended.clone()).unwrap();
+    let drafts = server.state().well_known("drafts");
+    for _ in 0..70 {
+        let id = server.state().mailbox.add(&drafts, "Plans", NOW);
+        server.state().mailbox.update(&id, |m| {
+            m.draft = true;
+            m.extended = mark.clone();
+        });
+    }
+    let all = run(&server, purge_only());
+    assert!(all.drafts.iter().any(|d| d.purged), "{:?} {:?}", all.drafts, all.errors);
+    assert_eq!(drafts_in_drafts(&server), 0, "all seventy-one, past the first page of fifty");
+    assert_eq!(server.state().mailbox.purged.len(), 71);
+}
+
+#[test]
+fn the_one_shot_send_of_an_encrypted_message_files_one_copy_and_says_who_had_theirs() {
+    let server = StandIn::start().unwrap();
+    let mut went = Vec::new();
+    let message = encrypted(&["zoe@example.org"], &["erin@example.org", "finn@example.org"], &[]);
+    crate::graph::send_recording_at(&server.url(), TOKEN, &message, &Default::default(), &mut went).unwrap();
+    assert_eq!(went, ["erin@example.org", "finn@example.org"]);
+    assert_eq!(server.state().sent.len(), 3);
+    assert_eq!(in_sent_items(&server), 1, "one copy in Sent Items, not one a recipient");
+    // And stopped at the message itself: theirs are remembered.
+    let server = StandIn::start().unwrap();
+    for _ in 0..3 {
+        server.state().fail_next.push(("POST /v1.0/me/sendMail".into(), 503, "TooManyRequests".into()));
+    }
+    let mut went = Vec::new();
+    let stopped = crate::graph::send_recording_at(&server.url(), TOKEN, &message, &Default::default(), &mut went);
+    assert!(stopped.is_err());
+    assert_eq!(went, ["erin@example.org", "finn@example.org"]);
+}

@@ -198,7 +198,11 @@ impl Message {
         if self.blind_copies.is_empty() && self.blind_sent.is_empty() {
             return Cow::Borrowed(self);
         }
-        Cow::Owned(Message { bcc: Vec::new(), blind_copies: Vec::new(), ..self.clone() })
+        // (With messages of their own to send, the Bcc line goes whole. With none left to send, only
+        // those who have had theirs: a message that goes unencrypted keeps the rest of its Bcc line.)
+        let mut bcc = if self.blind_copies.is_empty() { self.bcc.clone() } else { Vec::new() };
+        bcc.retain(|a| !self.blind_sent.contains(&a.email.trim().to_lowercase()));
+        Cow::Owned(Message { bcc, blind_copies: Vec::new(), ..self.clone() })
     }
 
     /// The messages the Bcc recipients are each sent ([`Message::blind_copies`]): this message with
@@ -208,10 +212,14 @@ impl Message {
     /// whose envelope is the one address).
     pub fn blind_messages(&self, alone: bool) -> Vec<(String, Message)> {
         let own = self.encrypt_with.as_ref();
+        // (Numbered by place among every Bcc recipient, those who have had theirs included, so that
+        // after a send that stopped half way a copy never has the number of one that went.)
+        let all = self.blind_all();
         self.blind_copies
             .iter()
             .enumerate()
-            .map(|(at, copy)| {
+            .map(|(place, copy)| {
+                let at = all.iter().position(|a| *a == copy.address.trim().to_lowercase()).unwrap_or(all.len().saturating_add(place));
                 let to = Address { name: String::new(), email: copy.address.clone() };
                 let mut m = Message { original: Some(copy.original.clone()), blind_copies: Vec::new(), ..self.clone() };
                 // Its own Message-ID: a server or a client that takes two messages with one for the

@@ -270,6 +270,13 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
     if d.purge || !d.id.is_empty() {
         purge_copies(graph, &d.marker, &new, done)?;
     }
+    // An earlier try whose answer was lost left its draft with no marker: found by the Message-ID
+    // every copy of this message carries, checked, and taken away too. Best effort.
+    if let Some(filter) = message_id_in(&d.sealed).as_deref().and_then(by_internet_id)
+        && let Err(e) = purge_matching(graph, &filter, &new)
+    {
+        log::info!("graph drafts: copies of an Encrypted draft made before couldn't be looked for ({e})");
+    }
     // Its change key and folder as they are now.
     let query = http::form(&[("$select", "changeKey,parentFolderId")]);
     if let Ok(reply) = graph.call(Kind::Read, &graph.url(&format!("{}/{at}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)
@@ -284,49 +291,114 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
     Ok(())
 }
 
-/// The drafts in Drafts that carry `marker`: the earlier copies of a draft, which are all there is
-/// to take away. A message that is no draft (sent from another device since, which keeps its id),
-/// or is not in Drafts (moved), is not among them, and is never touched.
-fn earlier_copies(graph: &Graph<'_>, marker: &str) -> Result<Vec<String>, NetError> {
-    let filter = format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')");
-    let query = http::form(&[("$filter", &filter), ("$select", "id,isDraft"), ("$top", "50")]);
-    let url = graph.url(&format!("{}?{query}", graph.mail_path("/mailFolders/drafts/messages")));
-    let reply = graph.call(Kind::Read, &url, "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
-    if reply.status != 200 {
-        return Err(graph.refusal(Doing::Mail, &reply, ""));
-    }
-    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-    let all = json.get("value").and_then(Value::as_array).cloned().unwrap_or_default();
+/// How many pages of a list of drafts are read (fifty each) before it is said to be unfinished.
+const MAX_LIST_PAGES: usize = 20;
+
+/// The filter for the messages with `marker`.
+fn marker_filter(marker: &str) -> String {
+    format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')")
+}
+
+/// The filter for the messages that carry the Message-ID `id` (a Message-ID this program made:
+/// anything else is not looked for).
+pub(super) fn by_internet_id(id: &str) -> Option<String> {
+    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
+    let plain = !id.is_empty() && id.len() <= 200 && id.bytes().all(|b| b.is_ascii_graphic() && !matches!(b, b'\'' | b'<' | b'>' | b'"' | b'\\'));
+    plain.then(|| format!("internetMessageId eq '<{id}>'"))
+}
+
+/// The drafts in Drafts that `filter` finds: the earlier copies of a draft, which are all there is to
+/// take away. A message that is no draft (sent from another device since, which keeps its id), or is
+/// not in Drafts (moved), is not among them, and is never touched. Whether the whole list was read
+/// (it is followed page by page, within bounds) is said with it.
+fn drafts_where(graph: &Graph<'_>, filter: &str) -> Result<(Vec<String>, bool), NetError> {
+    let query = http::form(&[("$filter", filter), ("$select", "id,isDraft"), ("$top", "50")]);
+    let mut url = graph.url(&format!("{}?{query}", graph.mail_path("/mailFolders/drafts/messages")));
     let (mut drafts, mut left) = (Vec::new(), 0usize);
-    for m in &all {
-        match (m.get("isDraft").and_then(Value::as_bool), id_of(text(m, "id"))) {
-            (Some(true), Some(id)) => drafts.push(id),
-            _ => left += 1,
+    let mut whole = false;
+    for _ in 0..MAX_LIST_PAGES {
+        let reply = graph.call(Kind::Read, &url, "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+        if reply.status != 200 {
+            return Err(graph.refusal(Doing::Mail, &reply, ""));
+        }
+        let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+        for m in json.get("value").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default() {
+            match (m.get("isDraft").and_then(Value::as_bool), id_of(text(m, "id"))) {
+                (Some(true), Some(id)) => drafts.push(id),
+                _ => left += 1,
+            }
+        }
+        match super::down::link_of(graph, &json, "@odata.nextLink") {
+            Some((_, next)) => url = next,
+            None => {
+                // (A link that can't be followed is an unfinished list, not a finished one.)
+                whole = json.get("@odata.nextLink").is_none_or(Value::is_null);
+                break;
+            }
         }
     }
     if left > 0 {
-        log::info!("graph drafts: {left} messages carrying a draft's marker are no draft any more and are left alone");
+        log::info!("graph drafts: {left} messages found with a draft's marker are no draft any more and are left alone");
     }
-    Ok(drafts)
+    Ok((drafts, whole))
 }
 
-/// Take away, beyond recovery, every earlier copy of the draft marked `marker` but `keep` (the
-/// one it has now, or none): `done.purged` says they were dealt with.
+/// Whether the message `at` is a draft right now (asked just before it is taken away: a draft sent
+/// from another device since the list was read keeps its id, and is no draft any more). There is a
+/// window of a few milliseconds between this answer and the delete that nothing here can close.
+fn still_a_draft(graph: &Graph<'_>, at: &str) -> Result<bool, NetError> {
+    let query = http::form(&[("$select", "isDraft")]);
+    let reply = graph.call(Kind::Read, &graph.url(&format!("{}/{at}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    match reply.status {
+        200 => Ok(serde_json::from_slice::<Value>(&reply.body).ok().and_then(|j| j.get("isDraft").and_then(Value::as_bool)) == Some(true)),
+        404 => Ok(false),
+        _ => Err(graph.refusal(Doing::Mail, &reply, "")),
+    }
+}
+
+/// Take away, beyond recovery, every draft in Drafts that `filter` finds but `keep` (the one it has
+/// now, or none), each checked to be a draft still just before. Whether the whole list was read.
+pub(super) fn purge_matching(graph: &Graph<'_>, filter: &str, keep: &str) -> Result<bool, NetError> {
+    let keep = id_of(keep).unwrap_or_default();
+    let (found, whole) = drafts_where(graph, filter)?;
+    for id in found {
+        if id == keep {
+            continue;
+        }
+        let Some(at) = piece(&id) else { continue };
+        if !still_a_draft(graph, &at)? {
+            log::info!("graph drafts: a message found with a draft's marker is no draft any more and is left alone");
+            continue;
+        }
+        remove_for_good(graph, &at)?;
+    }
+    Ok(whole)
+}
+
+/// Take away every earlier copy of the draft marked `marker` but `keep`: `done.purged` says they
+/// were dealt with, which is when the whole list of them was read.
 fn purge_copies(graph: &Graph<'_>, marker: &str, keep: &str, done: &mut DraftDone) -> Result<(), NetError> {
     if !marker_ok(marker) {
         return Ok(());
     }
-    let keep = id_of(keep).unwrap_or_default();
-    for id in earlier_copies(graph, marker)? {
-        if id == keep {
-            continue;
+    done.purged = purge_matching(graph, &marker_filter(marker), keep)?;
+    Ok(())
+}
+
+/// The Message-ID of a message written out (its header, up to the first blank line).
+fn message_id_in(bytes: &[u8]) -> Option<String> {
+    let head = bytes.split(|b| *b == b'\n').take(200).map(|l| String::from_utf8_lossy(l).trim_end().to_string());
+    for line in head {
+        if line.is_empty() {
+            break;
         }
-        if let Some(at) = piece(&id) {
-            remove_for_good(graph, &at)?;
+        if let Some((name, value)) = line.split_once(':')
+            && name.eq_ignore_ascii_case("message-id")
+        {
+            return Some(value.trim().to_string());
         }
     }
-    done.purged = true;
-    Ok(())
+    None
 }
 
 /// Take a draft away so that it can't be had back: Microsoft's permanent delete of a message (it goes

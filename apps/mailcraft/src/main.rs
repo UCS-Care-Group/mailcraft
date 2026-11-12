@@ -1136,7 +1136,13 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
             out.held.push(message.id);
             continue;
         }
-        match graph::send(&access, message, &graph::SendOptions::default()) {
+        let mut went = Vec::new();
+        let sent = graph::send_recorded(&access, message, &graph::SendOptions::default(), &mut went);
+        // Those Bcc recipients who had their message are remembered, and a retry gives them no more.
+        if sent.is_err() && !went.is_empty() {
+            out.blind_sent.push((message.id, went));
+        }
+        match sent {
             Ok(()) => out.sent.push(message.id),
             // Not allowed to send this way: the mail server gets its turn in this run.
             Err(NetError::Forbidden(_)) => {}

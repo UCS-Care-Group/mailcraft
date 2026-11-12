@@ -2053,8 +2053,9 @@ impl State {
         if asked.header("authorization") != format!("Bearer {}", self.token) {
             return Err(refuse(401, "InvalidAuthenticationToken", "Access token validation failure."));
         }
-        let aimed = format!("{} /{}", asked.method, asked.path.join("/"));
-        if let Some(at) = self.fail_next.iter().position(|(method, _, _)| *method == asked.method || *method == aimed) {
+        if let Some(at) =
+            self.fail_next.iter().position(|(method, _, _)| *method == asked.method || drafts::aims_at(method, &asked.method, &asked.path))
+        {
             let (_, status, code) = self.fail_next.remove(at);
             let code: &'static str = match code.as_str() {
                 "TooManyRequests" => "TooManyRequests",

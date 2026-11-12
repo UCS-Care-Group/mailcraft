@@ -218,6 +218,12 @@ pub fn send(token: &str, message: &Message, options: &SendOptions) -> Result<(),
     send_at(&graph_base(), token, message, options)
 }
 
+/// [`send`], saying in `went` which Bcc recipients of an Encrypted message have had their message
+/// when it stops (a retry is then to send only the rest, #30 part 7).
+pub fn send_recorded(token: &str, message: &Message, options: &SendOptions, went: &mut Vec<String>) -> Result<(), NetError> {
+    send_recording_at(&graph_base(), token, message, options, went)
+}
+
 /// Whether an error from [`send`] leaves it unknown whether the message went (AU3-26): the
 /// request may have reached Microsoft (a timeout, a connection that broke, an answer that doesn't
 /// say). One that was refused before anything went (not a message that can go, no connection),
@@ -849,25 +855,55 @@ fn is_address(email: &str) -> bool {
 
 /// [`send`] through Graph at `base`.
 fn send_at(base: &str, token: &str, message: &Message, options: &SendOptions) -> Result<(), NetError> {
+    send_recording_at(base, token, message, options, &mut Vec::new())
+}
+
+/// [`send_at`], saying in `went` which Bcc recipients have had their message.
+fn send_recording_at(base: &str, token: &str, message: &Message, options: &SendOptions, went: &mut Vec<String>) -> Result<(), NetError> {
     // Each of an Encrypted message's Bcc recipients is sent a message of their own first, to them
     // alone (#30 part 7: one message for everybody would name their keys), then the message
     // itself without them. Checked all before any goes.
-    let mut bodies = Vec::new();
-    for (_, copy) in message.blind_messages(true) {
+    let mut parts: Vec<(Option<String>, String, String)> = Vec::new();
+    for (address, copy) in message.blind_messages(true) {
         if mailcraft_mime::body_not_encrypted(&copy) {
             return Err(NetError::Config("it was to be Encrypted and wasn't, so it wasn't sent".into()));
         }
-        bodies.push(mime_body_with(&copy, options)?);
+        parts.push((Some(address), mime_body_with(&copy, options)?, copy.message_id.clone()));
     }
-    // (A message to Bcc recipients alone has no message but theirs.)
-    if message.has_main_recipients() || bodies.is_empty() {
-        bodies.push(mime_body_with(&message.for_main(), options)?);
+    // (A message to Bcc recipients alone has no message but theirs; and when theirs have all gone
+    // already, nothing is left to send.)
+    if message.has_main_recipients() || (parts.is_empty() && message.blind_sent.is_empty()) {
+        parts.push((None, mime_body_with(&message.for_main(), options)?, String::new()));
     }
     let graph = Graph::at(base, token)?;
-    for body in &bodies {
-        let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some(body), SEND_TIMEOUT, http::MAX_BODY)?;
-        if reply.status != 202 {
-            return Err(graph.refusal(Doing::Sending, &reply, body));
+    let last = parts.len().saturating_sub(1);
+    for (at, (address, body, message_id)) in parts.iter().enumerate() {
+        if at == last {
+            // The one that goes with `sendMail` files the one copy in Sent Items.
+            let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some(body), SEND_TIMEOUT, http::MAX_BODY)?;
+            if reply.status != 202 {
+                return Err(graph.refusal(Doing::Sending, &reply, body));
+            }
+        } else {
+            // The others are not filed: made a draft, marked to go without a copy, and sent.
+            let mut done = mailcraft_model::sync::SendDone {
+                message: message.id,
+                outcome: mailcraft_model::sync::SendOutcome::Waits,
+                draft: None,
+                draft_left: String::new(),
+                blind_sent: Vec::new(),
+            };
+            mail::send_unfiled(&graph, body, message_id, &mut done)?;
+            match done.outcome {
+                mailcraft_model::sync::SendOutcome::Sent => {}
+                mailcraft_model::sync::SendOutcome::Held { lost: true, .. } => {
+                    return Err(NetError::Proto(ProtoError::Rejected("Microsoft didn't say whether a message went".into())));
+                }
+                _ => return Err(NetError::Config("Microsoft didn't take a message for a Bcc recipient; it wasn't sent".into())),
+            }
+        }
+        if let Some(address) = address {
+            went.push(address.clone());
         }
     }
     Ok(())

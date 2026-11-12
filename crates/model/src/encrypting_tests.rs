@@ -43,3 +43,20 @@ fn a_message_to_bcc_recipients_alone_has_no_main_message() {
     // (Nor after the first of them had theirs.)
     assert!(!message(&[], &["erin@example.org", "finn@example.org"], &["erin@example.org"]).has_main_recipients());
 }
+
+#[test]
+fn a_copy_keeps_its_number_after_a_send_that_stopped_half_way() {
+    // Erin's went; Finn's is made again and is never numbered as Erin's was.
+    let m = message(&["zoe@example.org"], &["erin@example.org", "finn@example.org"], &["erin@example.org"]);
+    let ids: Vec<String> = m.blind_messages(true).into_iter().map(|(_, c)| c.message_id).collect();
+    assert_eq!(ids, ["rota.1-b2@example.org"]);
+}
+
+#[test]
+fn a_message_that_goes_unencrypted_keeps_the_bcc_recipients_who_have_not_had_theirs() {
+    // (No messages of their own to send: whoever hasn't had one is still on the Bcc line.)
+    let mut m = message(&["zoe@example.org"], &["erin@example.org", "finn@example.org"], &["erin@example.org"]);
+    m.blind_copies.clear();
+    let main = m.for_main();
+    assert_eq!(main.bcc.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), ["finn@example.org"]);
+}

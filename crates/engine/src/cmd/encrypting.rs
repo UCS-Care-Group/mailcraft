@@ -292,10 +292,11 @@ fn pick<'a>(mb: &'a Mailbox, address: &str, format: SignatureFormat, now: i64) -
 /// hour (a key's validity is by the hour at most), by what the key is, bounded.
 fn usable(k: &PublicKey, now: i64) -> bool {
     use std::sync::{LazyLock, Mutex};
-    static ANSWERS: LazyLock<Mutex<std::collections::HashMap<(u8, crate::store::Digest, i64), bool>>> = LazyLock::new(Default::default);
+    static ANSWERS: LazyLock<Mutex<std::collections::HashMap<(u8, std::sync::Arc<Vec<u8>>, i64), bool>>> = LazyLock::new(Default::default);
     const MAX_ANSWERS: usize = 4_096;
-    // (By SHA-256 of what the key is, so that no two keys share an answer.)
-    let key = (k.format as u8, crate::store::Digest::of(&k.data), now.div_euclid(3_600));
+    // (By what the key is, so that no two keys share an answer; the bytes are shared, not copied, and
+    // the table is bounded.)
+    let key = (k.format as u8, k.data.clone(), now.div_euclid(3_600));
     if let Ok(answers) = ANSWERS.lock()
         && let Some(known) = answers.get(&key)
     {

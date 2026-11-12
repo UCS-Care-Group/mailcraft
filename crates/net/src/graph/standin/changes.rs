@@ -148,6 +148,13 @@ fn property_filter(text: &str) -> Option<(String, String)> {
     rest.trim().is_empty().then_some((id, value))
 }
 
+/// `internetMessageId eq '…'`: the Message-ID.
+fn internet_id_filter(text: &str) -> Option<String> {
+    let rest = strip_ci(text.trim(), "internetMessageId eq ")?;
+    let (id, rest) = quoted(rest.trim_start())?;
+    rest.trim().is_empty().then_some(id)
+}
+
 /// `singleValueExtendedProperties($filter=id eq '…')`: the id.
 fn property_expansion(text: &str) -> Option<String> {
     let rest = strip_ci(text.trim(), "singleValueExtendedProperties($filter=")?.strip_suffix(')')?;
@@ -179,8 +186,17 @@ fn property_id_ok(id: &str) -> bool {
 }
 
 /// Two ids of one extended property: the same, whatever their case.
-fn same_property(a: &str, b: &str) -> bool {
-    a.eq_ignore_ascii_case(b)
+pub(super) fn same_property(a: &str, b: &str) -> bool {
+    // (A property tag is a number: `0xe01` and `0x0E01` are one.)
+    let tag = |id: &str| {
+        let (kind, rest) = id.split_once(' ')?;
+        let hex = strip_ci(rest.trim(), "0x")?;
+        Some((kind.to_ascii_lowercase(), u32::from_str_radix(hex, 16).ok()?))
+    };
+    match (tag(a), tag(b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => a.eq_ignore_ascii_case(b),
+    }
 }
 
 /// The instant a `dateTimeTimeZone` names (`null` names none).
@@ -483,16 +499,23 @@ impl State {
         let look = State::look_of(asked, true)?;
         let filter = match asked.param("$filter") {
             None => None,
-            Some(text) => Some(property_filter(text).ok_or_else(|| {
-                bad("The only filter this stand-in answers is singleValueExtendedProperties/any(ep: ep/id eq '…' and ep/value eq '…').")
-            })?),
+            Some(text) => Some(match internet_id_filter(text) {
+                Some(id) => (String::new(), id),
+                None => property_filter(text).ok_or_else(|| {
+                    bad("The only filters this stand-in answers are singleValueExtendedProperties/any(ep: ep/id eq '…' and ep/value eq '…') and internetMessageId eq '…'.")
+                })?,
+            }),
         };
         let mut found: Vec<&super::Message> = self
             .mailbox
             .messages
             .values()
             .filter(|m| m.folder == folder)
-            .filter(|m| filter.as_ref().is_none_or(|(id, value)| m.extended.iter().any(|(have, is)| same_property(have, id) && is == value)))
+            .filter(|m| {
+                filter.as_ref().is_none_or(|(id, value)| {
+                    if id.is_empty() { m.internet_id == *value } else { m.extended.iter().any(|(have, is)| same_property(have, id) && is == value) }
+                })
+            })
             .collect();
         found.sort_by(|a, b| b.received.cmp(&a.received).then_with(|| a.id.cmp(&b.id)));
         let ids: Vec<String> = found.into_iter().map(|m| m.id.clone()).collect();

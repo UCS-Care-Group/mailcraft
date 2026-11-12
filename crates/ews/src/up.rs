@@ -44,6 +44,10 @@ use crate::error::ResponseCode;
 use crate::http::HttpExchange;
 use crate::run::{Asked, Run, base};
 
+/// How many drafts one FindItem of the purge shows, and how many times it is asked before it is said to be unfinished.
+const FIND_PAGE: usize = 10;
+const MAX_PURGE_ROUNDS: usize = 10;
+
 /// Codes a server gives when it doesn't have a property (the flag, here).
 const LACKS_PROPERTY: [&str; 3] = ["ErrorInvalidPropertyRequest", "ErrorInvalidPropertyForOperation", "ErrorInvalidPropertySet"];
 
@@ -425,23 +429,32 @@ impl<E: HttpExchange> Run<'_, E> {
         if marker.is_empty() {
             return Ok(());
         }
-        let find = FindDraft::new(None, marker);
-        let copies = match self.ask(&find.element(), &|reply| find.answer_all(reply)).await {
-            Ok(copies) => copies,
-            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-            // (Not found out: tried again with the next run.)
-            Err(_) => return Ok(()),
-        };
-        let mut all = true;
-        for copy in copies.iter().filter(|c| c.id != keep) {
-            let del = DeleteItem::new(&copy.id, DeleteMode::HardDelete);
-            match self.ask(&del.element(), &|reply| del.answer(reply)).await {
-                Ok(()) | Err(Asked::Code(ResponseCode::ItemNotFound)) => {}
+        // (The server lists ten at a time, so the list is read again after what it showed has gone,
+        // within bounds; it is dealt with when a list comes with nothing but `keep` in it.)
+        for _ in 0..MAX_PURGE_ROUNDS {
+            let find = FindDraft::new(None, marker);
+            let copies = match self.ask(&find.element(), &|reply| find.answer_all(reply)).await {
+                Ok(copies) => copies,
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                Err(_) => all = false,
+                // (Not found out: tried again with the next run.)
+                Err(_) => return Ok(()),
+            };
+            let mut gone = 0usize;
+            for copy in copies.iter().filter(|c| c.id != keep) {
+                let del = DeleteItem::new(&copy.id, DeleteMode::HardDelete);
+                match self.ask(&del.element(), &|reply| del.answer(reply)).await {
+                    Ok(()) | Err(Asked::Code(ResponseCode::ItemNotFound)) => gone = gone.saturating_add(1),
+                    Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                    // One that can't be taken away: tried again with the next run.
+                    Err(_) => return Ok(()),
+                }
+            }
+            if gone == 0 || copies.len() < FIND_PAGE {
+                done.purged = true;
+                return Ok(());
             }
         }
-        done.purged = all;
+        // Still more after as many rounds: not done, and asked again next run.
         Ok(())
     }
 
