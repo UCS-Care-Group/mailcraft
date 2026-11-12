@@ -107,7 +107,7 @@ pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, 
 }
 
 /// The type an SVG drawing is written with.
-const SVG: &str = "image/svg+xml";
+pub(crate) const SVG: &str = "image/svg+xml";
 
 /// `%xx` escapes decoded; anything else, a `%` that begins no escape among it, is kept as it is.
 fn percent_decode(text: &str) -> Vec<u8> {
