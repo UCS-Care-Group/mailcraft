@@ -133,6 +133,17 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
                 changed = true;
             }
             mb.mark_answered(done.message);
+            // Sent as the draft its server has (`…/messages/{id}/send`): Exchange files it in
+            // Sent Items under the same id, but the delta may list it in Drafts, a draft, a while
+            // longer. Kept here as the message sent, in Sent Items, under that id, it is that
+            // message when it is listed: never a new [Draft] that looks unsent (#1160). Moved here,
+            // it doesn't follow the server into Drafts, and follows it nowhere else.
+            if let Some(sent_items) = sent_as_draft(mb, account, done.message)
+                && let Ok(m) = mb.message_mut(done.message)
+            {
+                (m.folder, m.draft, m.server_draft, m.held, m.sending) = (sent_items, false, None, String::new(), false);
+                return true;
+            }
             mb.forget_message(done.message).is_ok() || changed
         }
         // Exchange won't let the owner send as the shared mailbox nor on its behalf (#70): said
@@ -164,6 +175,17 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
             true
         }
     }
+}
+
+/// The Sent Items of a Microsoft account's message `id` that was just sent as the draft its server
+/// has (it carries the draft's server id). `None` for one sent as MIME (the server files a copy
+/// under an id of its own, which comes down), and for an Exchange server account's (sent as MIME,
+/// the draft taken away).
+fn sent_as_draft(mb: &Mailbox, account: Id, id: Id) -> Option<Id> {
+    let m = mb.message(id).filter(|m| m.account == account)?;
+    let microsoft = mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
+    let server_draft = m.server_draft.is_some() && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
+    (microsoft && server_draft).then(|| mb.folder_of_kind(account, FolderKind::Sent)).flatten()
 }
 
 /// What a message held for having been handed to a server without an answer coming back says.

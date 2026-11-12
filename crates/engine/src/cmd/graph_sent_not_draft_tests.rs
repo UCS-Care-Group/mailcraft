@@ -294,6 +294,54 @@ fn a_draft_sent_here_and_still_listed_in_drafts_stays_queued_in_the_outbox() {
     }
 }
 
+/// #1160: a draft the server has, sent here as that draft (`…/messages/{id}/send`), keeps its id
+/// when Exchange files it in Sent Items, but the delta of the same run may still list it in
+/// Drafts, a draft, before Exchange has moved it. It is the message just sent: never a [Draft]
+/// in Drafts that looks unsent and invites sending it twice. It is in Sent Items from the moment
+/// the send clears, and stays one message there when the server lists it there.
+#[test]
+fn a_draft_sent_here_is_never_a_draft_again_while_the_server_files_it() {
+    let (mut mb, account) = mailbox();
+    let (outbox, drafts, sent) = (
+        mb.folder_of_kind(account, FolderKind::Outbox).unwrap(),
+        mb.folder_of_kind(account, FolderKind::Drafts).unwrap(),
+        mb.folder_of_kind(account, FolderKind::Sent).unwrap(),
+    );
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    {
+        // As compose leaves it when the owner sends it.
+        let m = mb.message_mut(id).unwrap();
+        (m.folder, m.draft, m.unfetched) = (outbox, false, false);
+        m.server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, marker: "mc-1".into(), ..Default::default() });
+    }
+    let done =
+        mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, draft: None, draft_left: String::new() };
+    super::super::graph_send::send_done(&mut mb, account, &done, mailcraft_i18n::Lang::English, &mut Vec::new());
+    let in_sent = |mb: &Mailbox| mb.messages_in(sent).map(|m| (m.id, m.draft)).collect::<Vec<_>>();
+    assert_eq!(in_sent(&mb), vec![(id, false)], "the message sent is in Sent Items at once");
+    assert_eq!(mb.messages_in(outbox).count(), 0);
+    // The same run's delta still lists it in Drafts, a draft.
+    let mut index = ServerIndex::default();
+    let mut listed = page("FD", "AAkD1", Some(true));
+    listed.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &listed, &mut Down::default());
+    assert_eq!(mb.messages_in(drafts).count(), 0, "a message sent here came back as a draft in Drafts");
+    assert_eq!(in_sent(&mb), vec![(id, false)]);
+    // The next run: gone from Drafts, and listed in Sent Items, a draft still or not.
+    let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    for draft in [Some(true), Some(false)] {
+        let mut filed = page("FS", "AAkD1", draft);
+        filed.messages[0].server.change_key = "CK3".into();
+        take_page(&mut mb, &mut index, account, &filed, &mut Down::default());
+        assert_eq!(in_sent(&mb), vec![(id, false)], "one sent message in Sent Items ({draft:?})");
+        assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
+    }
+    assert_eq!(mb.messages_in(drafts).count(), 0);
+}
+
 /// A JMAP account's Sent folder is read through the same path; its server keeps its own word
 /// on what is a draft, and nothing is taken for sent there.
 #[test]
