@@ -526,7 +526,7 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
         .filter(|m| mb.folder(m.folder).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox)))
         .map(|m| m.message_id.clone())
         .collect();
-    super::account::end_run(mb, account);
+    super::account::end_run(mb, account, true);
     if !left.is_empty() {
         mb.left_server.entry(account).or_default().note(left);
     }

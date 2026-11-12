@@ -1272,7 +1272,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     if !partial {
         // What nothing will answer any more is let go of (#30).
         super::mail::check_again::settle(&mut s.mailbox);
-        end_run(&mut s.mailbox, account);
+        end_run(&mut s.mailbox, account, false);
         let held = super::graph_place::held_for_this_computer(s, account);
         for said in super::graph_place::unreadable_waiting(s, account).into_iter().chain(held) {
             if !run.errors.contains(&said) {
@@ -1363,11 +1363,13 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     (counts, sent)
 }
 
-/// A run of `account` ended: what its server said left its folders is what the run before said
-/// ([`mailcraft_model::LeftServer`]).
-pub(crate) fn end_run(mb: &mut Mailbox, account: Id) {
+/// A run of `account` ended, having read every folder (`whole`: a Microsoft account's sweep) or
+/// as far as it said ([`mailcraft_model::LeftServer`]).
+pub(crate) fn end_run(mb: &mut Mailbox, account: Id, whole: bool) {
+    let junk = mb.folder_of_kind(account, FolderKind::Junk).and_then(|f| mb.folder(f)).is_some_and(|f| !f.remote.is_empty());
     if let Some(left) = mb.left_server.get_mut(&account) {
-        left.end_run();
+        let read = whole || (left.inbox_read && (left.junk_read || !junk));
+        left.end_run(read);
         if left.is_empty() {
             mb.left_server.remove(&account);
         }
@@ -2201,6 +2203,13 @@ fn take_in(
     }
     let inbox = delta.kind == FolderKind::Inbox;
     let junk = delta.kind == FolderKind::Junk;
+    // What was moved there while the run before read the folders after them is seen now.
+    if delta.complete
+        && let Some(left) = mb.left_server.get_mut(&account)
+    {
+        left.inbox_read |= inbox;
+        left.junk_read |= junk;
+    }
     // The lists sort what arrives once the folder has been read whole, above how far it was
     // read: never a first download (in however many pieces, over however many runs), a mailbox
     // numbered anew, or older mail a raised limit brings down. What was there stays where the

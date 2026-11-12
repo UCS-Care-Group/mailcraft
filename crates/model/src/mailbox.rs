@@ -1107,11 +1107,13 @@ fn default_categories() -> Vec<Category> {
 }
 
 /// The `Message-ID`s of mail an account's server said it no longer has in a folder (moved on
-/// another device, or deleted there), in the run under way and the one before it (#566). A run
-/// reads the Inbox first (`mailcraft_net::sync`), so mail filed away and moved back into the Inbox
-/// on a phone while a run reads the folders after it is said to have left the folder it was in,
-/// and is new to the Inbox in the next run, which gives it a new number there: by these, that
-/// run knows it as mail the account had, and its rules don't delete it for good. At most
+/// another device, or deleted there), since the last run that read the Inbox and Junk E-mail
+/// whole and in the one before (#566). A run reads the Inbox first (`mailcraft_net::sync`), so
+/// mail filed away and moved back into the Inbox on a phone while a run reads the folders after
+/// it is said to have left the folder it was in, and is new to the Inbox in the next run that
+/// reads it, which gives it a new number there: by these, that run knows it as mail the account
+/// had, and its rules don't delete it for good. A run that reads no folder (one that only tells
+/// the server what changed here, or couldn't connect) keeps them as they are. At most
 /// [`MAX_LEFT`] of a run; past that, all mail new in that run and the next is taken as mail the
 /// account had.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1120,9 +1122,15 @@ pub struct LeftServer {
     /// Said in the run before.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub before: Vec<String>,
-    /// Said so far in the run under way.
+    /// Said since.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub now: Vec<String>,
+    /// The run under way has read the Inbox whole.
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_read: bool,
+    /// And Junk E-mail.
+    #[serde(skip_serializing_if = "is_false")]
+    pub junk_read: bool,
     /// The run before said more than is kept.
     #[serde(skip_serializing_if = "is_false")]
     pub cut_before: bool,
@@ -1159,10 +1167,15 @@ impl LeftServer {
         }
     }
 
-    /// The run under way ended: what it said is what the run before said.
-    pub fn end_run(&mut self) {
-        self.before = std::mem::take(&mut self.now);
-        self.cut_before = std::mem::take(&mut self.cut_now);
+    /// The run under way ended. When it read the Inbox and Junk E-mail whole (`read`), it has
+    /// seen what was moved there before: what was said since the run before that is what the
+    /// run before said.
+    pub fn end_run(&mut self, read: bool) {
+        if read {
+            self.before = std::mem::take(&mut self.now);
+            self.cut_before = std::mem::take(&mut self.cut_now);
+        }
+        (self.inbox_read, self.junk_read) = (false, false);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -3785,7 +3798,7 @@ impl Mailbox {
             let overfull = |c: &crate::Condition| matches!(c, crate::Condition::Category(names) if names.len() > crate::MAX_WORDS_EACH);
             if rule.conditions.iter().chain(&rule.exceptions).any(overfull) {
                 return Err(invalid(format!(
-                    "the rule \"{}\" would look for more than {} categories in a condition or an exception, which name this one by its old name too",
+                    "the rule \"{}\" would look for more than {} categories in a condition or an exception, which names this one by its old name too",
                     rule.name,
                     crate::MAX_WORDS_EACH
                 )));

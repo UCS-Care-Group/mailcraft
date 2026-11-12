@@ -2293,6 +2293,59 @@ mod two_way {
         assert_eq!((deletes, here), (0, vec![inbox]), "deleted for good on the server by the next Send/Receive");
     }
 
+    /// The same move during a run, but the Send/Receive after it reads no folder: one that only
+    /// tells the server of a read mark (the window starts one within seconds of any change here,
+    /// `push_only`), or one that fails before it reads anything (offline). The run after that
+    /// finds the message new in the Inbox, and still knows it as mail the account had (#566).
+    #[test]
+    fn mail_moved_during_a_run_is_still_known_after_a_run_that_reads_no_folder() {
+        for push_only in [true, false] {
+            let mut s = session();
+            let a =
+                run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+            let first = SyncResult {
+                account: a,
+                folders: vec![
+                    FolderDelta {
+                        complete: true,
+                        ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                    },
+                    FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![from_server(1, "Filed news")], vec![]) },
+                ],
+                ..Default::default()
+            };
+            apply(&mut s, first);
+            let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+            let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+            run(&mut s, "rules.add", purge);
+            let quiet = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![], vec![]) };
+            let left = FolderDelta {
+                removed: vec![1],
+                uid_seen: 1,
+                complete: true,
+                ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![])
+            };
+            apply(&mut s, SyncResult { account: a, folders: vec![quiet, left], ..Default::default() });
+            if push_only {
+                // The owner reads "One": the read mark goes up by a run that reads nothing.
+                let one = titled(&s, a, "One");
+                run(&mut s, "mail.markRead", json!({"id": one}));
+                apply(&mut s, SyncResult { account: a, flagged: vec![pushed("INBOX", 1, Some(true), None)], ..Default::default() });
+            } else {
+                // A Send/Receive that couldn't connect: what `mailcraft_net::sync` hands over then.
+                apply(
+                    &mut s,
+                    SyncResult { account: a, errors: vec!["Couldn't check for new mail: connection refused".into()], ..Default::default() },
+                );
+            }
+            let came = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "Filed news")], vec![]);
+            apply(&mut s, SyncResult { account: a, folders: vec![came], ..Default::default() });
+            let deletes = s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count();
+            let here: Vec<Id> = s.mailbox.messages.values().filter(|m| m.subject == "Filed news").map(|m| m.folder).collect();
+            assert_eq!((deletes, here), (0, vec![inbox]), "deleted for good on the server after a run that read no folder (push only: {push_only})");
+        }
+    }
+
     /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes for
     /// good except if a header says to keep it can't tell, and leaves it alone (#566).
     #[test]
