@@ -345,16 +345,19 @@ impl<E: HttpExchange> Run<'_, E> {
         Ok(out)
     }
 
-    /// The folder list from `state`: all of it (a read afresh when the state is lost).
+    /// The folder list from `state`: all of it (a read afresh when the state is lost). A read afresh
+    /// that passed over a mail folder it couldn't read is no whole list: it is handed on as a
+    /// delta, so that the folder (and the mail kept of it) isn't taken away for not being in it.
     async fn folders(&mut self, state: &str, specials: &Specials) -> Result<(EwsFolderDeltas, String), Asked> {
         let (mut state, mut deltas, mut tried_afresh) =
             (state.to_owned(), EwsFolderDeltas { afresh: state.is_empty(), ..EwsFolderDeltas::default() }, false);
-        let mut skipped = 0usize;
+        let (mut skipped, mut unreadable) = (0usize, 0usize);
         for _ in 0..MAX_HIERARCHY_PAGES {
             let op = SyncFolderHierarchy::new(&state);
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     skipped = skipped.saturating_add(page.skipped);
+                    unreadable = unreadable.saturating_add(page.unreadable.len());
                     for mut folder in page.changed {
                         if specials.root.as_deref() == Some(folder.parent.as_str()) {
                             folder.parent.clear();
@@ -366,13 +369,17 @@ impl<E: HttpExchange> Run<'_, E> {
                     state = page.state;
                     if page.last {
                         if skipped > 0 {
-                            log::info!("ews folders: {skipped} folders that are not mail folders are left out");
+                            log::info!("ews folders: {skipped} folders that are not mail folders or can't be read are left out");
+                        }
+                        if deltas.afresh && unreadable > 0 {
+                            log::info!("ews folders: {unreadable} mail folders couldn't be read; the list is taken as a delta, nothing is removed");
+                            deltas.afresh = false;
                         }
                         return Ok((deltas, state));
                     }
                 }
                 Err(Asked::Code(ResponseCode::InvalidSyncState)) if !tried_afresh => {
-                    (state, tried_afresh) = (String::new(), true);
+                    (state, tried_afresh, skipped, unreadable) = (String::new(), true, 0, 0);
                     deltas = EwsFolderDeltas { afresh: true, ..EwsFolderDeltas::default() };
                     log::info!("ews folders: the server no longer knows the folder list's state; reading it afresh");
                 }

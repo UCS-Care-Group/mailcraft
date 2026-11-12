@@ -159,6 +159,36 @@ fn folders_inside_folders_come_with_the_folder_above_them() {
     assert_eq!(parent_of("Minutes"), id_of(301));
 }
 
+/// A folder list read afresh that passed over a mail folder it couldn't read (here one without a
+/// name) is no whole list, so it goes on as a delta: the folder kept here for it isn't taken away
+/// for not being in it.
+#[test]
+fn a_folder_list_read_afresh_past_a_mail_folder_it_could_not_read_is_handed_on_as_a_delta() {
+    let whole = StandIn::new();
+    let (pieces, _) = run(&whole, &request());
+    assert!(pieces.iter().find_map(|p| p.folders.as_ref()).unwrap().afresh, "every folder read: a whole list");
+
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        let top = s.folders.iter().find(|f| f.distinguished == "msgfolderroot").unwrap().id.clone();
+        let folder = crate::standin::Folder {
+            distinguished: String::new(),
+            id: "AAMkAGV4YW1wbGUtb3JnL2V3cy1zdGFuZC1pbgAuAAAAAACq000400+Tk/Zm9sZGVyLWlkAAA=".into(),
+            name: String::new(),
+            total: 0,
+            unread: 0,
+            parent: top,
+            class: "IPF.Note".into(),
+        };
+        s.folders.push(folder);
+    }
+    let (pieces, _) = run(&standin, &request());
+    let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
+    assert!(!folders.afresh, "a mail folder couldn't be read: nothing may be removed for not being listed");
+    assert!(folders.changed.iter().any(|f| f.name == "Inbox"), "the folders that could be read still come");
+}
+
 /// Where each folder goes on from, as the pages of a run say: the last of each folder.
 fn states_of(pieces: &[EwsMailResult]) -> Vec<EwsFolderState> {
     let mut out: Vec<EwsFolderState> = Vec::new();
