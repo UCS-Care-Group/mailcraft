@@ -13,17 +13,20 @@
 //! - a folder emptied or deleted ([`Object::FolderContent`]) reaches only the messages shown: what
 //!   came into it meanwhile stays (an empty takes the shown ones; a delete, which would take the
 //!   folder with what came, does nothing, and so does Run Rules Now over it, which would act on
-//!   what came: deleted for good, or put on another server, #566);
+//!   what came: deleted for good, or put on another server, #566); nor does Run Rules Now when a
+//!   message shown was changed meanwhile (an agent's category or flag, say), which the rules may
+//!   then take;
 //! - anything else is described again: when what the command would read from the window, or the
 //!   question's text, differs, or what it names is gone, nothing runs.
 //!
 //! Every command an agent is asked about says what it is about ([`object`]): one that doesn't is
 //! refused, never asked about ([`super::check`]).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher, RandomState};
+use std::sync::Arc;
 
-use mailcraft_model::Id;
+use mailcraft_model::{Id, Message};
 use serde_json::Value;
 
 use crate::{Compose, Selection, Session, ViewState, p};
@@ -198,6 +201,30 @@ struct Held {
     /// The folders that go with it: those deleted into Deleted Items that its emptying takes, or
     /// the folder deleted and every folder under it.
     folders: HashSet<Id>,
+    /// For Run Rules Now, its messages as they were (#566): what the rules would do to them is
+    /// what the question was about.
+    as_shown: AsShown,
+}
+
+/// Messages as a question showed them: held, so that any change to one since makes it another.
+#[derive(Clone, Default, PartialEq, Eq)]
+struct AsShown(HashMap<Id, Arc<Message>>);
+
+impl std::fmt::Debug for AsShown {
+    // (Their count alone: nothing of the mail goes into a debug line.)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AsShown({} messages)", self.0.len())
+    }
+}
+
+impl AsShown {
+    /// Whether one of `ids` is not now as it was shown: changed, or gone and back.
+    fn changed(&self, s: &Session, ids: &HashSet<Id>) -> bool {
+        ids.iter().any(|id| match (self.0.get(id), s.mailbox.messages.get(id)) {
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && then != now,
+            _ => true,
+        })
+    }
 }
 
 /// What of a folder's content the owner's yes reaches, when something came into it since the
@@ -269,9 +296,16 @@ impl Shown {
                 return changed();
             }
             if now.messages.is_subset(&shown.messages) && now.folders.is_subset(&shown.folders) {
-                // What the rules would do is described again, as for anything else.
+                // What the rules would do is described again, as for anything else, and they act on
+                // the messages as they were shown: one changed since may now be one they take.
                 if id == "rules.run" && super::describe(s, id, params) != self.what {
                     return changed();
+                }
+                if id == "rules.run" && shown.as_shown.changed(s, &now.messages) {
+                    return Err(
+                        "a message in the folder `rules.run` was asked about has changed since the owner was asked (its categories or flag, say), so the rules may act on it otherwise: nothing was done. Ask the owner again"
+                            .to_string(),
+                    );
                 }
                 return Ok(Reach::All);
             }
@@ -303,14 +337,16 @@ impl Shown {
 fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
     let folder = p::id_strict(params, if id == "rules.run" { "folder" } else { "id" }).ok()?.unwrap_or(s.view.folder);
     s.mailbox.folder(folder)?;
+    let mut as_shown = AsShown::default();
     let (messages, folders) = if id == "rules.run" {
-        (s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| m.id).collect(), Vec::new())
+        as_shown.0 = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| (m.id, Arc::clone(m))).collect();
+        (as_shown.0.keys().copied().collect(), Vec::new())
     } else if id == "folder.empty" {
         (crate::cmd::folder::emptied(s, folder), crate::cmd::folder::emptied_with(s, folder))
     } else {
         (crate::cmd::folder::deleted_with(s, folder), s.mailbox.subtree(folder))
     };
-    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect() })
+    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect(), as_shown })
 }
 
 /// Everybody a calendar command would write to, in full: the question names only the first few.

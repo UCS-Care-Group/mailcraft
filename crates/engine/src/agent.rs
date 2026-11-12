@@ -957,6 +957,9 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
     if id.starts_with("junk.") {
         return junk_lets_through(s, id, params).into_iter().any(|a| beside_for_good(mb, a, 0, true).next().is_some());
     }
+    if id == "account.edit" {
+        return me_changes(s, id, params).is_some_and(|a| beside_for_good(mb, a, 0, true).any(reads_me));
+    }
     if id == "rules.run" {
         let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
         // (Not over a shared mailbox's folder, which the command refuses.)
@@ -1028,6 +1031,46 @@ fn junk_lets_through(s: &Session, id: &str, params: &Value) -> Vec<Id> {
         }
         _ => Vec::new(),
     }
+}
+
+/// The account whose address an `account.edit` changes, read as the command reads it: the "me" of
+/// a rule's "sent to me" or "except if I'm in To" (#566), so that the change may let more mail
+/// reach a rule beside it that reads it ([`reads_me`]).
+fn me_changes(s: &Session, id: &str, params: &Value) -> Option<Id> {
+    if id != "account.edit" {
+        return None;
+    }
+    let account = p::id(params, "id").and_then(|a| s.mailbox.account(a))?;
+    let new = crate::cmd::account::edited(account, params)?;
+    (!new.email.trim().eq_ignore_ascii_case(account.email.trim())).then_some(account.id)
+}
+
+/// Whether a rule reads its account's address: a condition or an exception about "me".
+fn reads_me(r: &mailcraft_model::Rule) -> bool {
+    r.conditions.iter().chain(&r.exceptions).any(mailcraft_model::Condition::about_me)
+}
+
+/// What a question about a change of an account's address adds for the rules beside it that read
+/// that address ([`me_changes`]) and delete mail for good or put it onto another server: their
+/// names (at most five), and why.
+fn me_beside_said(s: &Session, account: Id) -> String {
+    let deleting: Vec<String> = beside_for_good(&s.mailbox, account, 0, true).filter(|r| reads_me(r)).map(|r| quoted(&r.name)).collect();
+    let onto: Vec<String> = beside_onto_server(s, account, 0, true).filter(|(r, _)| reads_me(r)).map(|(r, _)| quoted(&r.name)).collect();
+    let mut said = String::new();
+    for (names, does) in [(deleting, "deletes mail permanently"), (onto, "puts mail onto another account's server")] {
+        if names.is_empty() {
+            continue;
+        }
+        let more = names.len().saturating_sub(5);
+        let more = if more > 0 { format!(" and {more} more") } else { String::new() };
+        said.push_str(&by_count(
+            names.len(),
+            "; the rule {names}{more}, switched on here, {does} and reads this account's address (\"sent to me\", say), so changing it may let more mail reach it",
+            "; the rules {names}{more}, switched on here, {does} and read this account's address (\"sent to me\", say), so changing it may let more mail reach them",
+            &[("names", &names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more), ("does", does)],
+        ));
+    }
+    said
 }
 
 /// What a question about a change to the Safe or Blocked Senders adds for the rules that the mail
@@ -1162,8 +1205,8 @@ pub(crate) fn undo_rules_deleting(now: &Mailbox, to: &Mailbox) -> Vec<String> {
 /// run in another order (one moved past another for the same mail); not of those that only take
 /// another place in the list, as one is made, taken away or moved past them; and of each account
 /// whose Safe or Blocked Senders let more mail through to the rules after it, as
-/// [`junk_lets_through`] reads a change to them. None when the rules and the lists stay as they
-/// are.
+/// [`junk_lets_through`] reads a change to them, or whose address a rule reads ([`me_changes`]).
+/// None when the rules, the lists and those addresses stay as they are.
 fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
     let lists = |m: &Mailbox, a: Id| m.junk_accounts.get(&a).cloned().unwrap_or_default();
     let mut changed: Vec<Id> = now
@@ -1176,6 +1219,14 @@ fn changed_accounts(now: &Mailbox, to: &Mailbox) -> Vec<Id> {
             to.safe.iter().any(|e| !now.safe.contains(e)) || now.blocked.iter().any(|e| !to.blocked.contains(e))
         })
         .collect();
+    // And of each account whose address changes, which a rule of its mail reads ([`me_changes`]).
+    let email = |m: &Mailbox, a: Id| m.account(a).map(|x| x.email.trim().to_lowercase());
+    changed.extend(
+        now.accounts
+            .iter()
+            .map(|a| a.id)
+            .filter(|a| email(now, *a) != email(to, *a) && to.rules.iter().any(|r| (r.account == 0 || r.account == *a) && reads_me(r))),
+    );
     if to.rules == now.rules {
         changed.sort_unstable();
         changed.dedup();
@@ -1317,6 +1368,8 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
     match id {
         // A change to the Safe or Blocked Senders that lets more mail through to the rules.
         _ if id.starts_with("junk.") => junk_lets_through(s, id, params).into_iter().any(|a| beside(a, 0, true)),
+        // A change of the address a rule beside it reads.
+        "account.edit" => me_changes(s, id, params).is_some_and(|a| beside_onto_server(s, a, 0, true).any(|(r, _)| reads_me(r))),
         // A rule for one account files that account's new mail; one for every account, every
         // account's.
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| onto(&r) || beside(r.account, 0, true)),
@@ -1424,6 +1477,18 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 /// an undo that brings back a change to a meeting needs it to run (#566).
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
+        // A change of an account's address asked as a send or a delete for a rule beside it that
+        // reads the address ([`me_changes`]) is still a change to the account (#566).
+        "account.edit" if matches!(class, Class::Send | Class::Delete) => {
+            let mut more = vec![Class::Accounts];
+            if class == Class::Send && rules_delete(s, id, params) {
+                more.push(Class::Delete);
+            }
+            if class == Class::Delete && raised(s, id, params) {
+                more.push(Class::Send);
+            }
+            more
+        }
         _ if class == Class::Delete && raised(s, id, params) => vec![Class::Send],
         "edit.undo" | "edit.redo" => {
             let redo = id == "edit.redo";
@@ -2195,9 +2260,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 let moved = crate::cmd::account::edited(account, params)
                     .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(&new)))
                     .filter(|(was, now)| was != now);
+                let rules = me_changes(s, id, params).map(|a| me_beside_said(s, a)).unwrap_or_default();
                 return match moved {
-                    Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}"),
-                    None => format!("change the account {a}"),
+                    Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}{rules}"),
+                    None => format!("change the account {a}{rules}"),
                 };
             }
             // The only account leaves an empty mailbox, as at a first start (#313); the shared

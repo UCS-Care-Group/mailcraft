@@ -2387,3 +2387,112 @@ fn an_undo_that_unblocks_a_sender_beside_a_rule_that_deletes_for_good_is_asked_a
     run(&mut s, "junk.remove", zoe);
     assert_ne!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Delete));
 }
+
+/// An agent asks Run Rules Now over a folder where the rule that deletes for good matches
+/// nothing, then gives the messages there the category it looks for, which it may do unasked. The
+/// owner's yes runs nothing: what the rules would do was asked about the messages as they were.
+/// Left as they were (a change to another folder's mail aside), the yes runs.
+#[test]
+fn run_rules_nows_yes_isnt_steered_by_a_safe_edit_meanwhile() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, account, _, _) = session();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "category", "value": "Bin"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let put = |s: &mut Session, subject: &str| {
+        s.mailbox
+            .add_message(Message { folder: archive, from: Address::new("Ada", "ada@example.org"), subject: subject.into(), ..Default::default() })
+            .unwrap()
+    };
+    let (one, two) = (put(&mut s, "Contract"), put(&mut s, "Tax return"));
+    let params = json!({"folder": archive});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let elsewhere = s.mailbox.add_message(Message { folder: inbox, subject: "Elsewhere".into(), ..Default::default() }).unwrap();
+    run(&mut s, "mail.flag", json!({"id": elsewhere}));
+    assert!(shown.check(&s, "rules.run", &params).is_ok(), "nothing in the folder changed");
+    // While the question is up, the agent tags both messages: no question for that.
+    let tag = json!({"category": "Bin", "value": true, "ids": [one, two]});
+    assert_eq!(check(&s, "mail.categorize", &tag, &[]), Verdict::Run, "categorize is safe");
+    run(&mut s, "mail.categorize", tag);
+    let reach = shown.check(&s, "rules.run", &params);
+    // What the yes would do: as the window runs it, with the class the question was about.
+    s.agent = Some(vec![Class::Delete]);
+    let ran = s.run("rules.run", &params);
+    s.agent = None;
+    let gone = [one, two].iter().filter(|m| s.mailbox.message(**m).is_none()).count();
+    assert!(ran.is_ok());
+    assert!(
+        reach.is_err(),
+        "the yes still reaches the folder ({reach:?}), and running it deletes {gone} of 2 messages for good that the rule matched none of when the owner was asked"
+    );
+}
+
+/// A rule kept here deletes a sender's mail for good "except if my address is in To". An agent's
+/// change of the account's address lets that rule reach mail its exception left alone, so it is
+/// asked as a delete and names the rule, as a change to the Safe or Blocked Senders that lets more
+/// through is; and so is an undo that changes it back. A change that leaves the address, or one
+/// beside no rule that reads it, is asked as before.
+#[test]
+fn changing_the_address_a_me_exception_reads_is_asked_as_the_rule_change_it_is() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, _, _) = session();
+    let edit = json!({"id": account, "email": "other@example.org"});
+    let before = classify(&s, "account.edit", &edit);
+    assert_ne!(before, Access::Owner(Class::Delete), "no rule reads the address yet");
+    add_with_exception(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let to_me = |s: &mut Session| {
+        let m = Message {
+            folder: inbox,
+            from: Address::new("Shop", "news@shop.example"),
+            to: vec![Address::new("Me", EMAIL)],
+            subject: "Your order".into(),
+            ..Default::default()
+        };
+        let id = s.mailbox.add_message(m).unwrap();
+        let clock = s.rule_clock();
+        s.mailbox.apply_rules(id, &clock);
+        id
+    };
+    // As it is, mail addressed to me is left alone.
+    let kept = to_me(&mut s);
+    assert!(s.mailbox.message(kept).is_some(), "the exception holds");
+    assert_eq!(classify(&s, "account.edit", &edit), Access::Owner(Class::Delete));
+    let what = describe(&s, "account.edit", &edit);
+    assert!(what.contains("“Purge”") && what.contains("address"), "{what}");
+    // It is still a change to the account: a grant to delete alone doesn't make it.
+    use crate::agent::{Verdict, check};
+    assert!(matches!(check(&s, "account.edit", &edit, &[Class::Delete]), Verdict::Ask(Class::Accounts, _)));
+    assert!(matches!(check(&s, "account.edit", &edit, &[Class::Accounts]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(check(&s, "account.edit", &edit, &[Class::Accounts, Class::Delete]), Verdict::Run);
+    // Its name alone leaves the address as it is.
+    let named = json!({"id": account, "name": "Owner"});
+    assert_eq!(classify(&s, "account.edit", &named), before);
+    assert_eq!(classify(&s, "account.edit", &json!({"id": account, "email": EMAIL.to_uppercase()})), before);
+    // Changed by the owner, the rule then reaches mail to the old address; an agent's undo, which
+    // changes it back, is asked as a delete too.
+    run(&mut s, "account.edit", edit);
+    let gone = to_me(&mut s);
+    assert!(s.mailbox.message(gone).is_none(), "what the question warns of");
+    // (An undo that puts the accounts back is asked as one, and as a delete beside it.)
+    assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Accounts));
+    assert!(crate::agent::also(&s, "edit.undo", &json!({}), Class::Accounts).contains(&Class::Delete));
+    assert!(describe(&s, "edit.undo", &json!({})).contains("Purge"), "{}", describe(&s, "edit.undo", &json!({})));
+}
+
+fn add_with_exception(s: &mut Session, account: Id) {
+    run(
+        s,
+        "rules.add",
+        json!({"name": "Purge", "account": account,
+        "conditions": [{"type": "fromContains", "value": "shop.example"}],
+        "exceptions": [{"type": "toMe"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+}
