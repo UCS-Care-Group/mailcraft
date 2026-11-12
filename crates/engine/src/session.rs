@@ -3300,19 +3300,7 @@ impl Session {
         if to.accounts != now.accounts {
             return Some(Class::Accounts);
         }
-        // A send-bearing change to an event that the mailbox hasn't got: the step brings it back.
-        let same = |a: &mailcraft_model::remote::EventChange, b: &mailcraft_model::remote::EventChange| {
-            b.send && a.account == b.account && a.kind == b.kind && a.event == b.event && a.token == b.token
-        };
-        if to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n))) {
-            return Some(Class::Send);
-        }
-        // A to-do in a list shared with other people that the step changes, brings back or removes.
-        if crate::agent::changes_shared_tasks(now, to) {
-            return Some(Class::Send);
-        }
-        // A to-do the step puts in an account's To Do, or the owner's answer about local to-dos.
-        if crate::agent::places_tasks(now, to) {
+        if writes_to_people(to, now) {
             return Some(Class::Send);
         }
         // A message the step puts on its way onto another account's server again, or a rule it
@@ -3375,6 +3363,15 @@ impl Session {
     /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
     /// the like, a draft (or puts back an earlier version of one), or another message, or it
     /// changes the rules and leaves one switched on that deletes mail for good (#566).
+    /// Whether undoing the last step (or redoing, `redo`) writes to people or puts mail or a rule
+    /// on its way onto another account's server, which [`Session::undo_reverts`] asks as Send when
+    /// the accounts it puts back don't come first: a yes to those covers this too, as it does a
+    /// delete (#566).
+    pub fn undo_sends(&self, redo: bool) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        writes_to_people(&step.mailbox, &self.mailbox) || !self.undo_places(redo).is_empty() || !self.undo_rules_onto_server(redo).is_empty()
+    }
+
     pub fn undo_deletes(&self, redo: bool) -> bool {
         if !self.undo_drafts(redo).is_empty() || self.undo_rules_delete_for_good(redo) {
             return true;
@@ -3884,4 +3881,17 @@ pub(crate) enum Held {
     NotGiven,
     /// They came, and there was no room for them here.
     NoRoom,
+}
+
+/// Whether a step back to the mailbox `to` from `now` writes to other people or puts a to-do on a
+/// server: a send-bearing change to an event that the mailbox hasn't got (the step brings it
+/// back), a to-do in a list shared with other people that it changes, brings back or removes, or
+/// one it puts in an account's To Do, or the owner's answer about local to-dos.
+fn writes_to_people(to: &Mailbox, now: &Mailbox) -> bool {
+    let same = |a: &mailcraft_model::remote::EventChange, b: &mailcraft_model::remote::EventChange| {
+        b.send && a.account == b.account && a.kind == b.kind && a.event == b.event && a.token == b.token
+    };
+    to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n)))
+        || crate::agent::changes_shared_tasks(now, to)
+        || crate::agent::places_tasks(now, to)
 }

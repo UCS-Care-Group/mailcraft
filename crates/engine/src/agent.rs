@@ -1424,7 +1424,19 @@ pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Cla
 pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
     match id {
         _ if class == Class::Delete && raised(s, id, params) => vec![Class::Send],
-        "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
+        "edit.undo" | "edit.redo" => {
+            let redo = id == "edit.redo";
+            let mut more = Vec::new();
+            // One that puts back the accounts and also writes to people or files mail onto
+            // another server (#566).
+            if class == Class::Accounts && s.undo_sends(redo) {
+                more.push(Class::Send);
+            }
+            if class != Class::Delete && s.undo_deletes(redo) {
+                more.push(Class::Delete);
+            }
+            more
+        }
         _ if (id.starts_with("rules.") || id.starts_with("junk.")) && class == Class::Send && rules_delete(s, id, params) => vec![Class::Delete],
         _ => Vec::new(),
     }
