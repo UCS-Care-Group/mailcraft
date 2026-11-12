@@ -2190,6 +2190,32 @@ fn an_undo_of_a_shared_mailboxs_event_edit_that_went_tells_its_server_again() {
     assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
 }
 
+/// A read that finds every category of the list written in other letters gives the items their
+/// new spelling in one pass over them, each name looked up once (#661).
+#[test]
+fn a_read_of_many_names_in_other_letters_respells_many_items_in_one_pass() {
+    let max = mailcraft_model::remote::MAX_REMOTE_CATEGORIES;
+    let name = |i: usize| format!("a category with a long name that many of them begin with, number {i:03}");
+    let (mut s, a) = rig((0..max).map(|i| tag(&name(i), GREEN)).collect(), true);
+    let folder = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let items = 20_000;
+    for i in 0..items {
+        // (Each its own of the list, and one that is on no list.)
+        let categories = vec![name(i % max), format!("{} kept elsewhere", name(i % max))];
+        s.mailbox.add_message(Message { folder, categories, ..Default::default() }).unwrap();
+    }
+    let started = std::time::Instant::now();
+    read(&mut s, a, (0..max).map(|i| tag(&name(i).to_uppercase(), GREEN)).collect());
+    let took = started.elapsed();
+    let respelled = s.mailbox.messages.values().filter(|m| m.categories.first().is_some_and(|c| c.starts_with("A CATEGORY"))).count();
+    assert_eq!(respelled, items);
+    assert!(
+        s.mailbox.messages.values().all(|m| m.categories.get(1).is_some_and(|c| c.starts_with("a category"))),
+        "one on no list keeps its letters"
+    );
+    assert!(took.as_millis() < 1000, "{took:?}");
+}
+
 #[test]
 fn other_letters_alone_go_at_once_for_the_items_there_are_the_same_name() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
