@@ -3799,8 +3799,9 @@ impl Mailbox {
 
     /// Rename a category on the list `account`'s items use, on the items that use that list, and in
     /// the rules for them ([`Mailbox::rules_renaming`]). Refused, changing nothing, when an
-    /// exception would then name more categories than a rule looks for, and when a rule for every
-    /// account's mail names it while another list has a category of its own by the new name.
+    /// exception would then name more categories than a rule looks for, when a rule for every
+    /// account's mail names it while another list has a category of its own by the new name, and
+    /// while a rule naming it waits for its server's answer.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
         if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
@@ -3815,9 +3816,19 @@ impl Mailbox {
         // A rule for every account's mail reads the other lists' mail too: where one of them has a
         // category of its own by the new name, the rule would take that one, or put it on mail.
         let list = self.category_list_owner(account);
+        // A rule for that mail naming it that was sent to its server with no answer yet is left as
+        // sent, as the server may have it; turned down there, it would be this computer's with
+        // the old name alone. The rename waits for the answer (#566).
+        let same = crate::sync::same_category(from.trim(), &to);
+        let uses = |r: &Rule| r.account == 0 || self.category_list_owner(r.account) == list;
+        if let Some(r) = self.rules.iter().find(|r| !same && r.unanswered && uses(r) && r.names_category(from.trim(), true)) {
+            return Err(invalid(format!(
+                "the rule \"{}\" names this category and was sent to its server with no answer yet: rename it after the next Send/Receive",
+                r.name
+            )));
+        }
         let others = std::iter::once((None, &self.categories)).chain(self.account_categories.iter().map(|(a, l)| (Some(*a), l)));
-        let clash = !crate::sync::same_category(from.trim(), &to)
-            && others.filter(|(owner, _)| *owner != list).any(|(_, l)| l.iter().any(|c| crate::sync::same_category(&c.name, &to)));
+        let clash = !same && others.filter(|(owner, _)| *owner != list).any(|(_, l)| l.iter().any(|c| crate::sync::same_category(&c.name, &to)));
         for (i, whole) in self.rules_renaming(account, from) {
             let Some(mut rule) = self.rules.get(i).cloned() else { continue };
             if clash && rule.account == 0 {

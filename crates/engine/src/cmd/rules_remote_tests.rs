@@ -2566,8 +2566,9 @@ fn an_agents_rename_that_rewrites_a_deleting_rules_exception_asks() {
 }
 
 /// A rule sent to the server whose answer was lost is the server's or may be: a rename of a
-/// category on the account's list leaves it as it was sent, so that when the server's rules are
-/// read it is known for the one the server made, and doesn't go up a second time.
+/// category it names waits for the answer, so that when the server's rules are read it is known
+/// for the one the server made, and doesn't go up a second time; the rename then goes, and the
+/// server's rule keeps its name.
 #[test]
 fn a_rename_while_an_answer_is_lost_doesnt_make_the_rule_twice() {
     let (mut s, account, _, _) = session();
@@ -2577,7 +2578,9 @@ fn a_rename_while_an_answer_is_lost_doesnt_make_the_rule_twice() {
     let upload = rule_upload(&s.mailbox, account).unwrap();
     mark_sent(&mut s, &upload);
     assert!(rule(&s, id).unanswered);
-    run(&mut s, "category.rename", json!({"from": "Keep", "to": "Important", "account": account}));
+    let rename = json!({"from": "Keep", "to": "Important", "account": account});
+    let waits = s.run("category.rename", &rename);
+    assert!(waits.as_ref().is_err_and(|e| e.to_string().contains("no answer yet")), "{waits:?}");
     // The server made it as it was sent.
     let mut there = remote("r9", "Boss", 1);
     there.conditions = vec![Condition::FromContains(vec!["boss".into()])];
@@ -2585,6 +2588,8 @@ fn a_rename_while_an_answer_is_lost_doesnt_make_the_rule_twice() {
     let merged = merge_rules(&mut s.mailbox, &download(account, vec![there])).unwrap();
     let creates = rule_upload(&s.mailbox, account).unwrap().ops.iter().filter(|op| op.kind == RuleOpKind::Create).count();
     assert_eq!((merged.added, s.mailbox.rules.len(), creates), (0, 1, 0), "the rule the server made is taken in once, not made again");
+    run(&mut s, "category.rename", rename.clone());
+    assert_eq!(rule(&s, id).actions, [Action::Categorize("Keep".into())], "the server's rule keeps the name its server has");
 }
 
 /// The zone the calendar is shown in decides which day "received on or after" reads a message as.
@@ -2947,4 +2952,59 @@ fn a_stop_rule_switched_off_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
     s.agent = None;
     assert!(switched.is_ok(), "{switched:?}");
     assert!(shown.check(&s, "rules.run", &params).is_err(), "the yes runs past the stop rule switched off");
+}
+
+/// A rule kept on the server by default is on its way there (sent, no answer yet) when the owner
+/// renames a category it names. The rename waits for the answer: had it gone, a refusal (or a job
+/// stopped before it) would leave the rule this computer's with the old name alone, its exception
+/// no longer keeping the mail renamed here, and a stop rule no longer holding a later delete for
+/// good (#566).
+#[test]
+fn a_rename_waits_while_a_rule_naming_it_is_on_its_way_to_the_server() {
+    for (stop, refused) in [(false, true), (false, false), (true, true)] {
+        let (mut s, account, _, _) = session();
+        run(&mut s, "category.set", json!({"name": "Keep", "color": "#2E8B57", "account": account}));
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let kept = Message {
+            folder: inbox,
+            from: Address::new("Boss", "boss@example.org"),
+            subject: "Contract".into(),
+            categories: vec!["Keep".into()],
+            ..Default::default()
+        };
+        let kept = s.mailbox.add_message(kept).unwrap();
+        let on_its_way = if stop {
+            json!({"name": "Keepers", "account": account, "stop": true,
+                "conditions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "markRead"}]})
+        } else {
+            json!({"name": "Tidy", "account": account, "conditions": [{"type": "fromContains", "value": "example.org"}],
+                "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "delete"}]})
+        };
+        let id = run(&mut s, "rules.add", on_its_way)["id"].as_u64().unwrap();
+        assert_eq!(rule(&s, id).keep, Keep::Server);
+        if stop {
+            let purge = json!({"name": "Purge", "account": account,
+                "conditions": [{"type": "fromContains", "value": "example.org"}], "actions": [{"type": "deleteForGood"}]});
+            run(&mut s, "rules.add", purge);
+        }
+        let upload = rule_upload(&s.mailbox, account).unwrap();
+        mark_sent(&mut s, &upload);
+        let rename = json!({"from": "Keep", "to": "Important", "account": account});
+        assert!(s.run("category.rename", &rename).is_err(), "renamed while the rule was on its way");
+        assert_eq!(s.mailbox.message(kept).unwrap().categories, ["Keep".to_string()], "nothing changed");
+        if refused {
+            let told = RuleOutcome { kind: RuleOpKind::Create, rule: id, result: RuleResult::Refused, status: 400, ..Default::default() };
+            apply_rule_changes(&mut s, &answered(account, vec![told])).unwrap();
+            assert_eq!(rule(&s, id).keep, Keep::Here, "kept on this computer");
+        } else {
+            not_sent(&mut s, &upload, &[]);
+            assert!(rule(&s, id).waiting() && !rule(&s, id).unanswered, "waits to go again");
+        }
+        // The answer in, the rename goes, and the rule follows it.
+        run(&mut s, "category.rename", rename.clone());
+        assert_eq!(s.mailbox.message(kept).unwrap().categories, ["Important".to_string()]);
+        run(&mut s, "rules.run", json!({"folder": inbox}));
+        let left = s.mailbox.message(kept).map(|m| m.folder);
+        assert_eq!(left, Some(inbox), "stop {stop}, refused {refused}: the rule is now {:?}", rule(&s, id));
+    }
 }
