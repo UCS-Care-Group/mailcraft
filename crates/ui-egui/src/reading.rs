@@ -23,7 +23,7 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
-mod attachment_pictures;
+pub(crate) mod attachment_pictures;
 #[cfg(test)]
 mod attachment_pictures_tests;
 pub(crate) mod colors;

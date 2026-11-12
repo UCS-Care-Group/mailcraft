@@ -9334,6 +9334,11 @@ msgid "Other people's calendars weren't allowed: {error}"
 msgstr "Calendarele altor persoane nu au fost permise: {error}"
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -12020,6 +12025,11 @@ msgstr "Afișați mesajele pe fundal deschis în tema întunecată"
 #, fuzzy
 msgid "Show password"
 msgstr "Afișare parolă"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+msgid "Show picture attachments as pictures"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs

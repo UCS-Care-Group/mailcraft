@@ -322,3 +322,72 @@ fn the_content_compare_for_a_picture_read_again_is_bounded_in_a_frame() {
     assert!(thumbs.compared_in(2) <= super::attachment_pictures::MAX_COMPARED + len, "{}", thumbs.compared_in(2));
     assert!(thumbs.compared_in(2) > 0);
 }
+
+/// The picture's message moved into Junk E-mail (or a folder under it) before it is shown.
+fn window_in_junk(in_subfolder: bool) -> Window {
+    let mut h = testing::window("view.mail");
+    let app = h.state_mut();
+    let _ = app.execute("ui.dismissReminder", json!({"all": true}));
+    app.session.mailbox.message_mut(ID).unwrap().attachments = vec![
+        Attachment::new("IMG_20261108_101112.jpg", "image/jpeg", png(400, 300)),
+        Attachment::new("notes.pdf", "application/pdf", b"%PDF".to_vec()),
+    ];
+    let account = app.session.mailbox.message(ID).unwrap().account;
+    let junk = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Junk).unwrap();
+    let folder = if in_subfolder { app.session.mailbox.add_folder(account, Some(junk), "Held").unwrap() } else { junk };
+    app.execute("mail.move", json!({"id": ID, "folder": folder})).unwrap();
+    app.execute("folder.select", json!({"id": folder})).unwrap();
+    app.execute("mail.select", json!({"id": ID})).unwrap();
+    h.run_steps(5);
+    h
+}
+
+#[test]
+fn mail_in_junk_is_shown_by_names_only() {
+    for in_subfolder in [false, true] {
+        let h = window_in_junk(in_subfolder);
+        // The picture is a chip, nothing was decoded or looked at, and there is no switch.
+        assert!(item(&h, 0).height() < 40.0 && item(&h, 1).height() < 40.0, "{in_subfolder}");
+        assert_eq!(Thumbs::of(&h.ctx).lock().unwrap().counts(), (0, 0), "{in_subfolder}");
+        assert!(h.state().hit.rect_in(0, "attachmentView", 1).is_none() && h.state().hit.rect_in(0, "attachmentView", 0).is_none());
+        // The owner's switch is as it was.
+        assert!(h.state().ui.attachment_pictures);
+    }
+}
+
+#[test]
+fn a_message_with_very_many_attachments_costs_no_more_than_the_most_shown() {
+    let mut h = testing::window("view.mail");
+    let app = h.state_mut();
+    let _ = app.execute("ui.dismissReminder", json!({"all": true}));
+    // A hundred pictures that differ at the end only, all of one length.
+    app.session.mailbox.message_mut(ID).unwrap().attachments = (0..100)
+        .map(|i| {
+            let mut bytes = png(8, 8);
+            bytes.resize(4096, 0);
+            bytes[4095] = i as u8;
+            Attachment::new(format!("p{i}.png"), "image/png", bytes)
+        })
+        .collect();
+    app.run("mail.select", json!({"id": ID})).unwrap();
+    h.run_steps(6);
+    let (kept, _) = Thumbs::of(&h.ctx).lock().unwrap().counts();
+    assert!(kept <= MAX_PREVIEWS, "{kept} pictures looked at");
+    assert!(kept > 0);
+}
+
+#[test]
+fn file_options_has_the_choice_as_a_checkbox() {
+    let mut h = window_with_picture();
+    h.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    h.run_steps(4);
+    let at = h.state().hit.rect("attachmentPicturesOption", 0).expect("the checkbox").left_center() + egui::vec2(10.0, 0.0);
+    assert!(h.state().ui.attachment_pictures);
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(3);
+    assert!(!h.state().ui.attachment_pictures, "off, as the switch would put it");
+    let at = h.state().hit.rect("attachmentPicturesOption", 0).unwrap().left_center() + egui::vec2(10.0, 0.0);
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(3);
+    assert!(h.state().ui.attachment_pictures);
+}

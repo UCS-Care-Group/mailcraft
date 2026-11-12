@@ -8798,6 +8798,12 @@ msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Si no, se muestran por su nombre. En No deseado siempre se muestran por su nombre."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
 msgstr ""
@@ -11321,6 +11327,12 @@ msgstr "Mostrar los mensajes sobre fondo claro en el tema oscuro"
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Mostrar los datos adjuntos de imagen como imágenes"
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs

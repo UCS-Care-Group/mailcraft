@@ -9237,6 +9237,12 @@ msgid "Other people's calendars weren't allowed: {error}"
 msgstr "Agenda's van anderen waren niet toegestaan: {error}"
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Anders worden ze met hun naam weergegeven. In Ongewenste e-mail worden ze altijd met hun naam weergegeven."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
@@ -11893,6 +11899,12 @@ msgstr "Berichten op een lichte achtergrond tonen in het donkere thema"
 #, fuzzy
 msgid "Show password"
 msgstr "Wachtwoord tonen"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Afbeeldingsbijlagen als afbeeldingen weergeven"
 
 #. interface
 #: crates/ui-egui/src/reading/attachment_pictures.rs

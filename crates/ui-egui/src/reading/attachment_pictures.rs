@@ -11,7 +11,8 @@
 //! The bytes are hostile, as every attachment's: whether a file is a picture is told by its
 //! bytes alone ([`images::probe`], within the reading pane's caps, never by its name or its
 //! declared type), and it is decoded by [`images::decode`] with the same caps, off the window's
-//! thread (one at a time), into a small texture. Only the first [`MAX_PREVIEWS`] files of a message
+//! thread (one at a time), into a small texture. Mail in Junk E-mail is shown by names only, and
+//! File › Options has the choice as a checkbox beside the switch. Only the first [`MAX_PREVIEWS`] files of a message
 //! whose type or name says they may be pictures are looked at, so that a message with a thousand
 //! attachments costs no more a frame than one with a few. Nothing is fetched: a file that is kept on disk
 //! beside the mailbox is brought in when its declared type or name says it may be a picture, at
@@ -137,6 +138,11 @@ pub(super) fn looks(app: &mut MailApp, ctx: &egui::Context, m: &Message, place: 
     if !matches!(place, Place::Pane | Place::Window(_)) {
         return chips(false);
     }
+    // Mail in Junk E-mail, or in a folder under it, is shown by names only: no picture is looked
+    // at or brought in, and there is no switch.
+    if app.session.mailbox.in_junk(m.folder) {
+        return chips(false);
+    }
     let frame = images::frame(ctx);
     let thumbs = Thumbs::of(ctx);
     let mut thumbs = thumbs.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -224,6 +230,18 @@ pub(super) fn tile(app: &mut MailApp, ui: &mut Ui, m: &Message, index: usize, a:
         paint_clipped(painter, pos2(main.min.x + PAD, room.max.y + 10.0), inner, &shown, regular(12.0), t.text);
         painter.text(pos2(main.min.x + PAD, room.max.y + 24.0), egui::Align2::LEFT_CENTER, &size_label, regular(10.5), t.text_dim);
     });
+}
+
+/// File › Options: whether picture attachments are shown as pictures (`ui.attachmentPictures`).
+pub(crate) fn options(app: &mut MailApp, ui: &mut Ui) {
+    let mut on = app.ui.attachment_pictures;
+    let response = ui
+        .checkbox(&mut on, tl!("Show picture attachments as pictures"))
+        .on_hover_text(tl!("Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."));
+    app.hit.add("attachmentPicturesOption", 0, response.rect);
+    if response.changed() {
+        let _ = app.run("ui.attachmentPictures", json!({"value": on}));
+    }
 }
 
 /// The switch between chips and pictures, for every message (`ui.attachmentPictures`).

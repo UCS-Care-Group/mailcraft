@@ -160,7 +160,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   content in a frame to tell a picture read again from a new one, so a message with a thousand
   attachments costs no more a frame than one with a few
   (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
-  decode, stays a chip. An agent asks before it turns the switch over (`settings`).
+  decode, stays a chip. Mail in Junk E-mail, or in a folder under it, is shown by names only: no
+  attachment there is looked at, brought in or decoded for a picture. An agent asks before it turns
+  the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
