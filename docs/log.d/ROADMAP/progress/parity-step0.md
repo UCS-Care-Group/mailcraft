@@ -1,1 +1,0 @@
-| 2026-11-12 | Parity is reported as two counts, Has a command and Complete, with Outlook's drawing items, Recall, Reply with IM and five other rows marked Out of scope with a reason and left out of the percentages; the ROADMAP lists the parity themes in order, and CONTRIBUTING says how an open pull request holds its feature |

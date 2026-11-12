@@ -362,17 +362,14 @@ pub const OUT_OF_SCOPE: [(&str, &str); 17] = [
     ("insert.textEffects", "it needs a drawing model for styled text; no vendor's effects may be used"),
     ("insert.dropCap", "it needs a drawing model for text laid round a letter; the composer holds text in a flow"),
     ("insert.object", "it embeds another program's document, which needs that program's components"),
-    ("mail.recall", "it works only between Exchange's own clients, and a message already delivered cannot be taken back from another server"),
-    ("mail.replyIm", "it works only inside Exchange's own chat clients; there is no open protocol for it"),
+    ("mail.recall", "Exchange offers no way for other programs to recall a message, and one delivered to another server cannot be taken back"),
+    ("mail.replyIm", "it opens a chat in Microsoft's own chat program; there is no open protocol for it"),
 ];
 
 /// Catalog rows whose behaviour matches the incumbent's, shown by a test, with no open row in
 /// `docs/gaps.md`: **Complete**. A row is added by the change that closes its last gap, and the
 /// floor test then holds the count. Each id must be a catalog row with a command.
-pub const COMPLETE: [&str; 0] = [];
-
-/// The Complete count the floor test holds: it only rises, with `COMPLETE`.
-pub const COMPLETE_FLOOR: usize = 0;
+pub const COMPLETE: &[&str] = &[];
 
 /// Why the catalog row `id` is out of scope, when it is.
 pub fn out_of_scope(id: &str) -> Option<&'static str> {
@@ -444,7 +441,7 @@ pub fn parity(reg: &Registry) -> Value {
         "completePercent": pct(complete),
         "outOfScopeCount": out_of_scope_rows.len(),
         "commands": reg.all().len(),
-        "tabs": tabs.iter().map(|(t, n, d, c)| json!({"tab": t, "total": n, "implemented": d, "complete": c})).collect::<Vec<_>>(),
+        "tabs": tabs.iter().map(|(t, n, d, c)| json!({"tab": t, "inScope": n, "implemented": d, "complete": c})).collect::<Vec<_>>(),
         "missing": missing,
         "outOfScope": out_of_scope_rows,
     })
@@ -476,7 +473,7 @@ pub fn parity_markdown(reg: &Registry) -> String {
             t.get("tab").and_then(Value::as_str).unwrap_or(""),
             c("implemented"),
             c("complete"),
-            c("total")
+            c("inScope")
         ));
     }
     out.push_str("\n## Missing\n\n| Tab | Group | Feature | Command id |\n|---|---|---|---|\n");

@@ -108,8 +108,8 @@ Deliberately not built. These rows are left out of the percentages above.
 
 | Tab | Group | Feature | Command id | Why |
 |---|---|---|---|---|
-| Home | Respond | Reply with IM | `mail.replyIm` | it works only inside Exchange's own chat clients; there is no open protocol for it |
-| Home | Actions | Recall Message | `mail.recall` | it works only between Exchange's own clients, and a message already delivered cannot be taken back from another server |
+| Home | Respond | Reply with IM | `mail.replyIm` | it opens a chat in Microsoft's own chat program; there is no open protocol for it |
+| Home | Actions | Recall Message | `mail.recall` | Exchange offers no way for other programs to recall a message, and one delivered to another server cannot be taken back |
 | Home | Actions | Edit Message | `mail.edit` | it would rewrite a received message and replace the server's copy of it |
 | Send / Receive | Send & Receive | Send/Receive Groups | `sync.groups` | each account is kept in step on its own; there are no Send/Receive groups |
 | Insert | Illustrations | Shapes | `insert.shape` | it needs a drawing model and a library of shapes; none is planned for the composer |

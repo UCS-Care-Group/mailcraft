@@ -42,9 +42,10 @@ not yet run against any other server.
   behaviour matches Outlook's as far as MailCraft's rules allow, a test shows it, and
   [`docs/gaps.md`](docs/gaps.md) has no open row for it; a feature is marked Complete by the change
   that closes its last gap, and none is marked yet. Features MailCraft will not build (Outlook's
-  drawing items in Insert, Recall, Reply with IM and a few that need what the servers don't
-  offer) are marked **Out of scope** with a reason, and left out of both percentages. Tests are counted by `cargo xtask stats`; the 200,000-message
-  figures come from `mailbox_bench`, and the progress log says how to repeat them.
+  drawing items in Insert, Recall, Reply with IM and a few that don't fit how MailCraft keeps
+  mail in step) are marked **Out of scope** with a reason, and left out of both percentages. Tests
+  are counted by `cargo xtask stats`; the 200,000-message figures come from `mailbox_bench`, and
+  the progress log says how to repeat them.
 - **Estimated.** "Ready for real work" weighs what a person does in a week (reading and filing
   mail, answering, scheduling, finding things) by how completely MailCraft does it, then discounts
   for what stops them getting started (connecting an account, an administrator's approval) and
@@ -55,9 +56,9 @@ not yet run against any other server.
 
 ## Parity themes
 
-The themes that close the gap to Outlook's own features, in the order they are taken. Each is
-finished, with a pass/fail checklist, before the next gets its time; the shortfalls behind them are
-in [`docs/gaps.md`](docs/gaps.md).
+The themes that close the gap to Outlook's own features, taken in this order, each finished
+against a pass/fail checklist, several at once. The shortfalls behind them are in
+[`docs/gaps.md`](docs/gaps.md).
 
 1. Printing
 2. Paragraph alignment
