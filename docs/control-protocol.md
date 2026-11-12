@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-07 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -286,6 +286,11 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #815 part 5: `notes.list`, `notes.get`, `journal.list`, `journal.get` |
+| 2026-11-11 | minor | Preview a selected attachment with an optional local PdfCraft or PhotoCraft renderer (#1053) |
+| 2026-11-11 | minor | #956 part 3: `ui.reportProblem {"via": "send", "username"?}` fills the Report a Problem window and never sends; only the owner's click on Send report does |
+| 2026-11-11 | minor | #30 part 4b: `ui.importPrivateKey`, `ui.removePrivateKey`, `ui.refreshOwnKeys`, `ui.importPublicKey`, `ui.verifyKey`, `ui.markKeyVerified` (never for agents; marking a key Verified and removing an imported key never from the control channel or its clicks) |
+| 2026-11-10 | minor | #956: `ui.reportProblem` takes `via: "github"` only; reports by email are gone |
 | 2026-11-07 | patch | AU3-14: a new sender warning kind, `linksUnchecked`, for a message with more looks than are checked |
 | 2026-11-04 | patch | #473 follow-up: for agents, an undo or redo that takes away a message (not only a draft) needs `delete`; one that also puts back the accounts or a change that writes to people is asked once, the question names the messages, and a yes covers both |
 | 2026-11-04 | minor | #785: `attachment` and `attachmentMenu` in the hit map; what a message's window draws is recorded as in that window |
