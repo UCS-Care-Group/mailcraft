@@ -440,7 +440,8 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
-    down.end_piece(s, account, result.partial);
+    // (The Inbox pass is a download of its own for what the account had.)
+    down.end_piece(s, account, result.partial && !result.inbox_pass_end);
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
     // A rule moved new mail out of the account (#567). An undo of a step from before goes back to

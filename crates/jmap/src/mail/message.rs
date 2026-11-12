@@ -167,7 +167,11 @@ impl Fields {
             return Fields { cut: dropped, ..Fields::default() };
         }
         let message = mailcraft_mime::parse(block.as_bytes());
-        let cut = dropped || message.headers_cut || message.to.len() > MAX_PEOPLE || message.cc.len() > MAX_PEOPLE;
+        let cut = dropped
+            || message.headers_cut
+            || message.to.len() > MAX_PEOPLE
+            || message.cc.len() > MAX_PEOPLE
+            || longer_than(&message.subject, MAX_TEXT);
         Fields {
             message_id: message.message_id.chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(MAX_TEXT).collect(),
             subject: line(&message.subject, MAX_TEXT),
@@ -188,6 +192,12 @@ fn people(list: Vec<Address>) -> Vec<Address> {
 fn person(address: Address) -> Option<Address> {
     let (name, email) = (line(&address.name, MAX_NAME), line(&address.email, MAX_EMAIL));
     (!name.is_empty() || !email.is_empty()).then_some(Address { name, email })
+}
+
+/// Whether `text` on one line ([`line`]) is longer than `most` characters: a blank and a character
+/// after it, at the most, say so past the cut.
+pub(super) fn longer_than(text: &str, most: usize) -> bool {
+    line(text, most.saturating_add(2)).chars().count() > most
 }
 
 /// `text` as one line: every run of blanks and control characters a single space, trimmed, at most `most`

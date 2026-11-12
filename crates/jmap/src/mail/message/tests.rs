@@ -379,3 +379,18 @@ fn recipients_dropped_before_the_reader_still_mark_a_cut() {
         [(past_the_fields.to.is_empty(), past_the_fields.cut), (past_the_room.to.iter().all(|a| a.email != "me@example.org"), past_the_room.cut)];
     assert_eq!(found, [(true, true), (true, true)], "(dropped, marked cut) for: To past 500 fields; a To over its room");
 }
+
+/// A subject longer than a list keeps (998 characters) says the message was cut (#566): a rule's
+/// "subject contains" can't tell of a word past the cut until the message is fetched. A blank at
+/// the cut with more after it is a longer subject; blanks alone after 998 characters are not.
+#[test]
+fn a_subject_longer_than_is_kept_marks_the_message_cut() {
+    let a = "a".repeat(998);
+    let cut = |subject: &str| {
+        let m = read(&[("Subject", subject)]);
+        (m.subject.chars().count(), m.cut)
+    };
+    let found =
+        [cut(&format!(" {} confidential", "a".repeat(1_000))), cut(&format!(" {a} confidential")), cut(&format!(" {a}a")), cut(&format!(" {a}   "))];
+    assert_eq!(found, [(998, true), (998, true), (998, true), (998, false)], "(kept, cut): over 998; a blank at the cut; 999; blanks after 998");
+}

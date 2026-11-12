@@ -56,7 +56,8 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     // end of a subject past what is kept of one (#566).
     m.categories_cut |= m.server.categories.len() > 50;
     let (to, cc) = (people(&m.to), people(&m.cc));
-    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 1).chars().count() > MAX_TEXT;
+    // (A blank and a character after it, at the most, say a subject on one line is longer.)
+    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 2).chars().count() > MAX_TEXT;
     let server = &mut m.server;
     server.folder = folder.to_owned();
     server.gone = false;

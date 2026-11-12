@@ -839,8 +839,33 @@ fn a_window_that_leaves_a_recipient_or_the_end_of_a_subject_out_says_the_message
     let plain = GraphMessage { cc: vec![Address::new("", "bo@example.net")], ..email("E1", "Plain cc", 1_000) };
     let quoted = GraphMessage { cc: vec![Address::new("", "\"x,y\"@example.net")], ..email("E2", "Quoted cc", 1_000) };
     let long = email("E3", &format!("{} confidential", "a".repeat(1_000)), 1_000);
-    run(&mut s, account, vec![window("M1", vec![plain, quoted, long], true)], true);
+    // (A blank at the cut with more after it is a longer subject; blanks alone after 998 characters are not.)
+    let blank_at_the_cut = email("E4", &format!("{} confidential", "a".repeat(998)), 1_000);
+    let blanks_after = email("E5", &format!("{}   ", "a".repeat(998)), 1_000);
+    run(&mut s, account, vec![window("M1", vec![plain, quoted, long, blank_at_the_cut, blanks_after], true)], true);
     let cut = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.cc.len()));
     assert_eq!((cut("E1"), cut("E2")), (Some((false, 1)), Some((true, 0))));
-    assert_eq!(here(&s, account, "E3").map(|m| (m.headers_cut, m.subject.chars().count())), Some((true, 998)));
+    let subject = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.subject.chars().count()));
+    assert_eq!([subject("E3"), subject("E4"), subject("E5")], [Some((true, 998)), Some((true, 998)), Some((false, 998))]);
+}
+
+/// Run Rules Now on a JMAP server's mail whose listing cut the end of its subject, as the JMAP reader
+/// says it did (#566): a rule with an exception for a word in the subject can't tell before the
+/// download, and leaves the mail alone.
+#[test]
+fn run_rules_now_doesnt_act_on_jmap_mail_past_an_exception_its_listing_cut() {
+    let (mut s, account) = session();
+    let as_read = GraphMessage { subject: "a".repeat(998), cut: true, ..email("E1", "", 1_000) };
+    run(&mut s, account, vec![window("M1", vec![as_read], true)], true);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let rule = json!({"name": "Zoe away", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+        "exceptions": [{"type": "subjectContains", "value": "confidential"}], "actions": [{"type": "moveTo", "value": projects}, {"type": "flag"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let m = here(&s, account, "E1").unwrap();
+    assert_eq!(
+        (m.unfetched, m.folder, m.flag),
+        (true, inbox, FlagStatus::None),
+        "acted on past an exception for the end of the subject the listing cut"
+    );
 }

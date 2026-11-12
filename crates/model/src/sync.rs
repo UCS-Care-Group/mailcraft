@@ -1490,6 +1490,12 @@ pub struct GraphMailResult {
     /// end of the account's part of the run, and never says the mailbox was read whole.
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass: bool,
+    /// The last piece of the Inbox pass: the pass is a download of its own for what the account
+    /// had before its new mail (#566), so that the next check of the Inbox, or the run after it,
+    /// starts from what the account has then. (A check that gave way to a run the owner asked for
+    /// never brings it: that run reads on from where the check stopped, as one download with it.)
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_pass_end: bool,
     /// What the server said of the conversations of the messages the run asked about
     /// ([`GraphMailRequest::threads`], #795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -1537,6 +1543,7 @@ impl GraphMailResult {
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);
+        self.inbox_pass_end = piece.inbox_pass_end;
         self.refused = piece.refused.or(self.refused);
         self.timings.absorb(&piece.timings);
         if piece.progress.is_some() {

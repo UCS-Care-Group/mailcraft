@@ -164,7 +164,8 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
     // end of a subject past what is kept of one (#566).
     let (to, cc) = (people(&m.to), people(&m.cc));
-    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 1).chars().count() > MAX_TEXT;
+    // (A blank and a character after it, at the most, say a subject on one line is longer.)
+    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 2).chars().count() > MAX_TEXT;
     let server = &mut m.server;
     server.folder = folder.to_string();
     if server.flag != FlagStatus::Flagged {

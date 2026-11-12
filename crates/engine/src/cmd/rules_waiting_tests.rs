@@ -1204,3 +1204,41 @@ fn marks_changed_meanwhile_dont_hold_back_a_move_onto_this_computer() {
         assert!(there, "flagged meanwhile: {flag}");
     }
 }
+
+/// The Inbox a Microsoft account checks by itself every minute (#276) comes as pieces that are all
+/// partial, the last one ending the pass. A mailing list's copy of a message an earlier check took
+/// in is mail the account had, as in a later run: no second copy, no second alert; two copies in
+/// two pieces of one check are both new mail (#566).
+#[test]
+fn a_second_delivery_at_a_later_inbox_check_is_mail_the_account_had() {
+    let mut s = Session::empty();
+    let (account, inbox, _) = microsoft_with(&mut s, "Kept");
+    let copies = s.mailbox.add_folder(account, None, "Copies").unwrap();
+    let rule = json!({"name": "Copy news", "account": account, "server": false, "alert": true,
+        "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "copyTo", "value": copies}]});
+    s.run("rules.add", &rule).unwrap();
+    let twin = |id: &str| GraphMessage { message_id: "weekly@list.example".into(), ..listed(id, "F-in", "Weekly news") };
+    // A check: a piece for each page, then the one that ends it, as `mailcraft_net` hands them over.
+    let check = |s: &mut Session, pages: Vec<GraphMessage>| {
+        let piece = |messages: Vec<GraphMessage>, end: bool| GraphMailResult {
+            account,
+            email: ME.into(),
+            pages: if messages.is_empty() { Vec::new() } else { vec![MessagePage { folder: "F-in".into(), messages, ..Default::default() }] },
+            partial: true,
+            inbox_pass: true,
+            inbox_pass_end: end,
+            ..Default::default()
+        };
+        for message in pages {
+            graph_mail::apply_graph_mail(s, piece(vec![message], false)).unwrap();
+        }
+        graph_mail::apply_graph_mail(s, piece(Vec::new(), true)).unwrap();
+    };
+    let alerted = |s: &Session, id: &str| (here(s, account, id).folder, here(s, account, id).rule_alert);
+    check(&mut s, vec![twin("N1"), twin("N2")]);
+    assert_eq!((alerted(&s, "N1"), alerted(&s, "N2")), ((inbox, true), (inbox, true)));
+    assert_eq!(s.mailbox.messages_in(copies).count(), 2, "each copy of one check is copied");
+    // A minute later, the next check.
+    check(&mut s, vec![twin("N3")]);
+    assert_eq!((alerted(&s, "N3"), s.mailbox.messages_in(copies).count()), ((inbox, false), 2), "mail the account had");
+}
