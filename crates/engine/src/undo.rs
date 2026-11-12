@@ -515,28 +515,27 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
 /// stays there.
 fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&CategoryStep>, said: &mut Said) {
     use mailcraft_model::Category;
-    let mut own: Vec<Category> = now.account_categories.get(&account).cloned().unwrap_or_default();
-    let mut local: Vec<String> = now.local_categories.get(&account).cloned().unwrap_or_default();
-    let mut synced: Vec<Category> = now.synced_categories.get(&account).cloned().unwrap_or_default();
-    let (none, no_names) = (Vec::new(), Vec::new());
-    let target = out.account_categories.get(&account).unwrap_or(&none);
-    let target_local = out.local_categories.get(&account).unwrap_or(&no_names);
-    let state = |list: &[Category], names: &[String], key: &str| -> Option<(Category, bool)> {
-        let c = list.iter().find(|c| category_key(&c.name) == key)?;
-        Some((c.clone(), names.iter().any(|n| category_key(n) == key)))
-    };
+    // (Each list keyed once, each name with its key: a key worked out for each comparison would
+    // be millions of them for a full list.)
+    let keyed = |list: Option<&Vec<Category>>| list.into_iter().flatten().map(|c| (category_key(&c.name), c.clone())).collect::<Vec<_>>();
+    let keyed_names = |names: Option<&Vec<String>>| names.into_iter().flatten().map(|n| (category_key(n), n.clone())).collect::<Vec<_>>();
+    let keys_of = |list: &[(String, Category)]| list.iter().map(|(k, _)| k.clone()).collect::<HashSet<String>>();
+    let mut own = keyed(now.account_categories.get(&account));
+    let mut local = keyed_names(now.local_categories.get(&account));
+    let mut synced = keyed(now.synced_categories.get(&account));
+    let target = keyed(out.account_categories.get(&account));
+    let target_local: HashSet<String> = keyed_names(out.local_categories.get(&account)).into_iter().map(|(k, _)| k).collect();
+    let find = |list: &[(String, Category)], key: &str| list.iter().find(|(k, _)| k == key).map(|(_, c)| c.clone());
     let keys = step.map(|s| &s.left);
     let stamp = step.map_or(0, |s| s.stamp);
     for (key, left) in keys.into_iter().flatten() {
-        let now_is = state(&own, &local, key);
-        let mut back = state(target, target_local, key);
+        let now_is = find(&own, key).map(|c| (c, local.iter().any(|(k, _)| k == key)));
+        let mut back = find(&target, key).map(|c| (c, target_local.contains(key)));
+        let on_synced = synced.iter().any(|(k, _)| k == key);
         // What its server was found to have of its own since the change isn't the change's to
         // take off there: it stays as it is now (#661).
         let off_there = matches!(back, None | Some((_, true)));
-        if off_there
-            && synced.iter().any(|c| category_key(&c.name) == *key)
-            && now_is.as_ref().is_some_and(|(c, _)| now.category_found_since(account, &c.name, stamp))
-        {
+        if off_there && on_synced && now_is.as_ref().is_some_and(|(c, _)| now.category_found_since(account, &c.name, stamp)) {
             continue;
         }
         // (Whether the change was to its letters: else Outlook's letters since are kept.)
@@ -548,7 +547,7 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
         };
         // One kept here alone since (its server refused it) goes as the change takes it away:
         // nothing is sent for it.
-        let only_here = matches!(&now_is, Some((_, true))) && !synced.iter().any(|c| category_key(&c.name) == *key);
+        let only_here = matches!(&now_is, Some((_, true))) && !on_synced;
         let unchanged = unchanged || (back.is_none() && left.is_some() && only_here);
         if !unchanged {
             continue;
@@ -556,38 +555,34 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
         if let (Some((b, _)), Some((c, _)), false) = (&mut back, &now_is, letters) {
             b.name.clone_from(&c.name);
         }
-        local.retain(|n| category_key(n) != *key);
-        let at = own.iter().position(|c| category_key(&c.name) == *key);
+        local.retain(|(k, _)| k != key);
+        let at = own.iter().position(|(k, _)| k == key);
         match (back, at) {
             (Some((c, here)), at) => {
                 if here {
-                    local.push(c.name.clone());
+                    local.push((key.clone(), c.name.clone()));
                 }
                 match at.and_then(|i| own.get_mut(i)) {
-                    Some(slot) => *slot = c,
+                    Some((_, slot)) => *slot = c,
                     None => {
-                        let i = target.iter().position(|t| category_key(&t.name) == *key).unwrap_or(own.len()).min(own.len());
-                        own.insert(i, c);
+                        let i = target.iter().position(|(k, _)| k == key).unwrap_or(own.len()).min(own.len());
+                        own.insert(i, (key.clone(), c));
                     }
                 }
             }
-            (None, _) => own.retain(|c| category_key(&c.name) != *key),
+            (None, _) => own.retain(|(k, _)| k != key),
         }
     }
     // Over the limit: what the server added since waits (the last first), then what the change
     // would bring back. What is kept here alone, or is still to go to the server, is never
     // dropped: it is nowhere else.
-    let then: Vec<Category> = out.synced_categories.get(&account).cloned().unwrap_or_default();
-    let was_now: Vec<Category> = now.account_categories.get(&account).cloned().unwrap_or_default();
-    let touched = |name: &str| keys.is_some_and(|k| k.contains_key(&category_key(name)));
+    let then = keys_of(&keyed(out.synced_categories.get(&account)));
+    let was_now = keys_of(&keyed(now.account_categories.get(&account)));
+    let (mut synced_keys, mut local_keys) = (keys_of(&synced), local.iter().map(|(k, _)| k.clone()).collect::<HashSet<String>>());
+    let touched = |key: &str| keys.is_some_and(|k| k.contains_key(key));
     while own.len() > mailcraft_model::MAX_CATEGORIES {
-        let added = own.iter().rposition(|c| {
-            !touched(&c.name)
-                && synced.iter().any(|s| same_category(&s.name, &c.name))
-                && !then.iter().any(|t| same_category(&t.name, &c.name))
-                && !local.iter().any(|n| same_category(n, &c.name))
-        });
-        let back = || own.iter().rposition(|c| touched(&c.name) && !was_now.iter().any(|w| same_category(&w.name, &c.name)));
+        let added = own.iter().rposition(|(k, _)| !touched(k) && synced_keys.contains(k) && !then.contains(k) && !local_keys.contains(k));
+        let back = || own.iter().rposition(|(k, _)| touched(k) && !was_now.contains(k));
         let (i, no_room) = match added {
             Some(i) => (i, false),
             None => match back() {
@@ -595,34 +590,36 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
                 None => break,
             },
         };
-        let gone = own.remove(i);
+        let (gone_key, gone) = own.remove(i);
         if no_room {
             said.no_room.push(gone.name.clone());
         }
-        synced.retain(|s| !same_category(&s.name, &gone.name));
-        local.retain(|n| !same_category(n, &gone.name));
+        synced.retain(|(k, _)| *k != gone_key);
+        local.retain(|(k, _)| *k != gone_key);
+        synced_keys.remove(&gone_key);
+        local_keys.remove(&gone_key);
         if let Some(names) = out.server_categories.get_mut(&account) {
             names.retain(|n| !same_category(n, &gone.name));
         }
     }
-    let has = |list: &[Category], key: &str| list.iter().any(|c| category_key(&c.name) == key);
+    let own_keys: HashSet<&str> = own.iter().map(|(k, _)| k.as_str()).collect();
     let made: Vec<&String> = keys
         .into_iter()
         .flatten()
         .map(|(key, _)| key)
-        .filter(|key| has(&own, key) && !has(&synced, key) && !local.iter().any(|n| category_key(n) == **key))
+        .filter(|key| own_keys.contains(key.as_str()) && !synced_keys.contains(*key) && !local_keys.contains(*key))
         .collect();
-    let gone: Vec<&Category> = synced.iter().filter(|c| touched(&c.name) && !has(&own, &category_key(&c.name))).collect();
+    let gone: Vec<&Category> = synced.iter().filter(|(k, _)| touched(k) && !own_keys.contains(k.as_str())).map(|(_, c)| c).collect();
     if let ([made], [gone]) = (made.as_slice(), gone.as_slice()) {
         out.category_renames.entry(account).or_default().insert((*made).clone(), gone.name.clone());
     }
-    out.account_categories.insert(account, own);
+    out.account_categories.insert(account, own.into_iter().map(|(_, c)| c).collect());
     if local.is_empty() {
         out.local_categories.remove(&account);
     } else {
-        out.local_categories.insert(account, local);
+        out.local_categories.insert(account, local.into_iter().map(|(_, n)| n).collect());
     }
-    out.synced_categories.insert(account, synced);
+    out.synced_categories.insert(account, synced.into_iter().map(|(_, c)| c).collect());
 }
 
 /// A message the undo puts back into the IMAP account it was being moved out of, while the run
