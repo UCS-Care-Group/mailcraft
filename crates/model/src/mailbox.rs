@@ -3055,13 +3055,14 @@ impl Mailbox {
             }
         }
         // Moved out of the account, it didn't arrive where it is now.
+        let binned = !waiting.is_empty() && self.in_deleted_items(id);
         if let Ok(m) = self.message_mut(id)
             && m.account == account
         {
             m.rule_alert |= alert;
             if !waiting.is_empty() && m.unfetched {
                 let marked = Some(crate::Marks::of(m));
-                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, marked }));
+                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, marked, binned }));
             }
         }
         ran
@@ -3075,7 +3076,8 @@ impl Mailbox {
     /// before it applies after all and stops the rules after it. Returns the names of the rules
     /// that acted. One that shows a desktop alert marks the message for it
     /// ([`Message::rule_alert`]), as it would have as the message arrived. Mail in Deleted Items
-    /// (its folder deleted meanwhile, which keeps the folder's id) is let alone too.
+    /// only since (its folder deleted meanwhile, which keeps the folder's id) is let alone too
+    /// ([`crate::RulesWaiting::binned`]).
     pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
         let mut ran = Vec::new();
         if !self.message(id).is_some_and(|m| m.rules_waiting.is_some() && !m.partly_here()) {
@@ -3089,7 +3091,7 @@ impl Mailbox {
         // acted then may have read, nothing goes onto another account's server, by a copy or a
         // move.)
         let changed = waiting.marked.as_ref().is_some_and(|then| *then != crate::Marks::of(m));
-        if m.folder != waiting.folder || deleted || !self.rules_reach(account) {
+        if m.folder != waiting.folder || (deleted && !waiting.binned) || !self.rules_reach(account) {
             return ran;
         }
         // A rule that still can't tell, now the message is here (a header past what is kept):

@@ -1200,21 +1200,27 @@ pub(crate) fn undo_rules_onto_named(s: &Session, to: &Mailbox) -> (Vec<String>, 
     let changed = changed_accounts(&s.mailbox, to);
     let (mut names, mut onto) = (Vec::new(), Vec::new());
     for r in to.rules.iter().filter(|r| r.enabled && reached(&changed, r)) {
-        let had = onto.len();
+        // (Its own servers, so that a rule onto a server another one names is named too.)
+        let mut its = Vec::new();
         match one_account(r) {
-            Some(a) => rule_onto_servers(s, r, Some(a), &mut onto),
+            Some(a) => rule_onto_servers(s, r, Some(a), &mut its),
             // A rule for every account's mail: what it does with the mail of the accounts whose
             // rules the step changes, as `beside_onto_server` reads it; every account's when it is
             // changed itself.
-            None if changed.contains(&0) => rule_onto_servers(s, r, None, &mut onto),
+            None if changed.contains(&0) => rule_onto_servers(s, r, None, &mut its),
             None => {
                 for a in &changed {
-                    rule_onto_servers(s, r, Some(*a), &mut onto);
+                    rule_onto_servers(s, r, Some(*a), &mut its);
                 }
             }
         }
-        if onto.len() > had {
+        if !its.is_empty() {
             names.push(quoted(&r.name));
+        }
+        for a in its {
+            if !onto.contains(&a) {
+                onto.push(a);
+            }
         }
     }
     (names, onto)

@@ -67,7 +67,7 @@ fn a_rule_that_couldnt_tell_acts_once_the_message_is_whole_and_one_that_acted_is
     assert_eq!(mb.messages_in(kept).count(), 1);
     let waiting = mb.message(m).unwrap().rules_waiting.clone().unwrap();
     let marked = Some(crate::Marks::of(mb.message(m).unwrap()));
-    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], marked });
+    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], marked, binned: false });
     // A copy of it doesn't wait for anything.
     let other = mb.add_folder(mb.accounts[0].id, None, "Other").unwrap();
     let copied = mb.copy_message(m, other).unwrap();

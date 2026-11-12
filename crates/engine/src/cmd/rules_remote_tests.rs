@@ -2774,3 +2774,16 @@ fn an_agents_change_to_the_lists_beside_a_rule_onto_another_server_is_asked_as_a
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// Two rules move or copy Zoe's mail onto the same other server; an agent's undo of putting Zoe on
+/// the Blocked Senders lets more mail reach both, and the question names both (#566).
+#[test]
+fn an_undo_beside_two_rules_onto_one_server_names_both() {
+    let (mut s, account, _, _) = session();
+    let elsewhere = elsewhere(&mut s);
+    add(&mut s, account, "Away", json!([{"type": "fromContains", "value": "zoe"}]), json!([{"type": "moveTo", "value": elsewhere}]));
+    add(&mut s, account, "Also away", json!([{"type": "subjectContains", "value": "plan"}]), json!([{"type": "copyTo", "value": elsewhere}]));
+    run(&mut s, "junk.add", json!({"list": "blocked", "entry": "zoe@example.org", "account": account}));
+    let said = crate::agent::describe(&s, "edit.undo", &json!({}));
+    assert!(said.contains("“Away”") && said.contains("“Also away”"), "{said}");
+}

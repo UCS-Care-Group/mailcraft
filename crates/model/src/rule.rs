@@ -161,12 +161,6 @@ fn any_in(words: &[String], texts: &[&str]) -> bool {
 }
 
 impl Condition {
-    /// Its words are people's whole addresses (From, Sent to), compared as addresses
-    /// ([`same_word`]).
-    pub fn takes_addresses(&self) -> bool {
-        matches!(self, Condition::From(_) | Condition::SentTo(_))
-    }
-
     /// What its words are, as [`same_word`] compares them.
     pub fn word_kind(&self) -> Words {
         match self {
@@ -601,6 +595,11 @@ pub struct RulesWaiting {
     /// moves it into another account (#566).
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub marked: Option<Marks>,
+    /// Whether that folder lay in Deleted Items then (a rule's Delete put it there). One that lies
+    /// there only since (deleted meanwhile with its folder, which keeps the folder's id) is let
+    /// alone.
+    #[serde(skip_serializing_if = "is_false")]
+    pub binned: bool,
 }
 
 /// What a message carries that a rule reads and an agent may change without asking: its

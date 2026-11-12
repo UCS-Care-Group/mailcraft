@@ -940,3 +940,34 @@ fn an_exception_about_me_cant_be_told_from_a_recipient_listed_by_name_alone() {
     assert!(here(&s, account, "N1").to.iter().any(|a| a.email == ME), "fetched whole, To says it was sent to me");
     assert!(!acted_on_the_listing, "the rule deleted mail its exception leaves alone, on a guess from the listing");
 }
+
+/// One rule copies Zoe's new mail into an IMAP account (it waits for the download), another
+/// deletes it (it acts as the mail arrives: Deleted Items). The copy is made once the message is
+/// downloaded, in either order: a rule put it in Deleted Items, the owner deleted no folder.
+#[test]
+fn a_copy_that_waited_is_made_when_another_rule_put_the_mail_in_deleted_items() {
+    let mut outcome = Vec::new();
+    for copy_first in [true, false] {
+        let mut s = Session::empty();
+        let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+        let (to, b) = imap_inbox(&mut s);
+        let bin = json!({"name": "Zoe binned", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "delete"}]});
+        if copy_first {
+            copy_out(&mut s, account, to);
+            s.run("rules.add", &bin).unwrap();
+        } else {
+            s.run("rules.add", &bin).unwrap();
+            copy_out(&mut s, account, to);
+        }
+        arrives(&mut s, account, "Plan");
+        let m = here(&s, account, "N1");
+        assert!(binned(&s, account, "Plan") && m.rules_waiting.is_some(), "deleted at once, the copy waiting");
+        let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        outcome.push(format!("copy first {copy_first}: (made, placed) {:?}", copies(&s, to, b)));
+    }
+    assert_eq!(outcome, ["copy first true: (made, placed) (1, 1)", "copy first false: (made, placed) (1, 1)"]);
+}
