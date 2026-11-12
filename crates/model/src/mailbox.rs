@@ -430,6 +430,10 @@ pub struct Account {
     /// Nothing set for a new account and in a file from before there was any.
     #[serde(skip_serializing_if = "crate::signing::AccountSigning::is_default", deserialize_with = "crate::sync::lenient_or_default")]
     pub signing: crate::signing::AccountSigning,
+    /// How it Encrypts its mail (#30 R16): whether every message is when every recipient has a
+    /// key. Nothing set for a new account and in a file from before there was any.
+    #[serde(skip_serializing_if = "crate::encrypting::AccountEncryption::is_default", deserialize_with = "crate::sync::lenient_or_default")]
+    pub encryption: crate::encrypting::AccountEncryption,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
@@ -1359,6 +1363,12 @@ impl Mailbox {
 
     pub fn account(&self, id: Id) -> Option<&Account> {
         self.accounts.iter().find(|a| a.id == id)
+    }
+
+    /// Whether `address` is one of the owner's own: the address of any of the accounts.
+    pub fn is_own_address(&self, address: &str) -> bool {
+        let address = address.trim();
+        !address.is_empty() && self.accounts.iter().any(|a| a.email.trim().eq_ignore_ascii_case(address))
     }
 
     pub fn account_mut(&mut self, id: Id) -> Result<&mut Account, ModelError> {

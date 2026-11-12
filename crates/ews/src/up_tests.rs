@@ -772,3 +772,66 @@ fn a_draft_asks_for_a_read_receipt_where_the_schema_puts_it() {
     let xml = UpdateItem::draft("ID1", "CK", update).element().write();
     assert!(xml.contains("message:IsReadReceiptRequested") && xml.contains("<t:IsReadReceiptRequested>false<"), "{xml}");
 }
+
+/// What the desktop program writes for a draft kept Encrypted (#30 part 7): the message's header
+/// and an Encrypted body (a stand-in's: the server reads no encryption).
+fn sealed_bytes() -> Vec<u8> {
+    let m = Message {
+        from: Address::new("Ada", "ada@example.org"),
+        to: vec![Address::new("Zoe", "zoe@example.org")],
+        subject: "Plans".into(),
+        date: 1_790_000_000,
+        message_id: "plans.1@example.org".into(),
+        original: mailcraft_model::Original::new(mailcraft_mime::smime_enveloped(&[0x30, 0x03, 0x02, 0x01, 0x01]).unwrap()),
+        ..Message::default()
+    };
+    mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default())
+}
+
+fn sealed_draft(id: &str) -> DraftUp {
+    DraftUp { message: 5, id: id.into(), marker: "mark-s".into(), saves: 1, sealed: std::sync::Arc::new(sealed_bytes()), ..Default::default() }
+}
+
+#[test]
+fn an_encrypted_draft_is_made_from_its_mime_alone() {
+    let standin = StandIn::new();
+    let result = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() });
+    let made = &result.drafts[0];
+    assert!(!made.id.is_empty() && made.fields && made.refused.is_none(), "{made:?}");
+    let state = standin.state();
+    let item = state.item(&made.id).unwrap();
+    assert!(item.draft && item.folder == state.folder_id("drafts").unwrap());
+    // What the server holds is the message as sent up, bytes for bytes, with its marker; no field of it
+    // was written (its body, from fields, would be here).
+    assert_eq!(item.mime, sealed_bytes());
+    assert_eq!((item.subject.as_str(), item.marker.as_str(), item.body.1.as_str()), ("Plans", "mark-s", ""));
+}
+
+#[test]
+fn a_draft_saved_again_encrypted_is_made_again_and_the_clear_copy_is_deleted() {
+    let standin = StandIn::new();
+    let clear = run(&standin, &EwsMailRequest { drafts: vec![draft("mark-s", "Plans")], ..base() }).drafts[0].clone();
+    assert!(!clear.id.is_empty());
+    let result =
+        run(&standin, &EwsMailRequest { drafts: vec![DraftUp { change_key: clear.change_key.clone(), ..sealed_draft(&clear.id) }], ..base() });
+    let made = &result.drafts[0];
+    assert!(!made.id.is_empty() && made.id != clear.id && made.fields, "{made:?}");
+    let state = standin.state();
+    assert!(state.item(&clear.id).is_none(), "the draft with its fields in the clear is gone");
+    assert_eq!(state.deletes, ["HardDelete"], "beyond recovery: it held the text in the clear");
+    assert!(state.item(&made.id).is_some());
+    assert_eq!(state.items.iter().filter(|i| i.draft).count(), 1);
+    assert!(!state.items.iter().any(|i| i.body.1.contains("Dear Zoe")), "nothing of the clear text is left");
+}
+
+#[test]
+fn an_encrypted_draft_whose_make_was_lost_is_not_left_twice() {
+    let standin = StandIn::new();
+    // A make whose answer went missing: the server has it, with the marker.
+    let first = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() }).drafts[0].clone();
+    // Saved again, the old id still unknown here: the one with the marker is found, a new one made, the found one goes.
+    let result = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() });
+    let made = &result.drafts[0];
+    assert!(made.id != first.id && made.fields);
+    assert_eq!(standin.state().items.iter().filter(|i| i.draft).count(), 1);
+}

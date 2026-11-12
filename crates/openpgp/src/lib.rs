@@ -19,6 +19,10 @@
 //!   given, never with a private key of its own: the owner's key holder (gpg-agent, which keeps
 //!   the private key) signs the digest it is handed, and what it gives back is checked against
 //!   the key before it is written. [`signing_keys`] reads which of the owner's keys may sign.
+//! - [`encrypt`] writes an OpenPGP message of a MIME entity for the recipients' Public keys
+//!   (RFC 9580 §10.3, for RFC 3156 §4), using only Public keys and the random numbers the caller
+//!   hands in; [`can_encrypt_to`] says whether a kept key may be encrypted to, and
+//!   [`encryption_certificates`] finds the owner's own keys that may be.
 //!
 //! The cryptography is rPGP's (`pgp`, MIT OR Apache-2.0); the MIME around it, the armour and the
 //! Cleartext Signature Framework are read here, from RFC 2045/2046, RFC 3156 and RFC 9580, so
@@ -30,6 +34,7 @@
 mod armour;
 mod autocrypt;
 mod check;
+mod encrypt;
 mod keys;
 mod mime;
 pub mod secret;
@@ -41,6 +46,8 @@ mod armour_tests;
 mod autocrypt_tests;
 #[cfg(test)]
 mod coverage_tests;
+#[cfg(test)]
+mod encrypt_tests;
 #[cfg(test)]
 #[path = "fixtures_tests.rs"]
 mod fixtures;
@@ -61,6 +68,7 @@ mod vector_tests;
 
 pub use autocrypt::{Autocrypt, parse_autocrypt};
 pub use check::{CantCheck, Checked, Coverage, Issuer, NotVerified, Outcome, Signer};
+pub use encrypt::{Certificate, EncryptError, MAX_ENCRYPTED_BYTES, MAX_RECIPIENTS, can_encrypt_to, encrypt, encryption_certificates};
 pub use keys::{Fingerprint, KeyId, KeyRing, PublicKey};
 pub use sign::{AgentKey, HashAlgorithm, SignError, SignatureValue, SigningKey, sign_detached, signing_keys};
 

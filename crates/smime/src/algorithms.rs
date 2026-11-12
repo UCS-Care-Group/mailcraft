@@ -118,7 +118,7 @@ impl Hash {
         Hash::by_oid(algorithm.oid)
     }
 
-    fn by_oid(oid: ObjectIdentifier) -> Result<Hash, Fault> {
+    pub(crate) fn by_oid(oid: ObjectIdentifier) -> Result<Hash, Fault> {
         match oid {
             SHA224 => Ok(Hash::Sha224),
             SHA256 => Ok(Hash::Sha256),
@@ -260,7 +260,7 @@ pub fn verify_hashed(
 
 /// The RSA key of `key`: [`Fault::Weak`] under [`MIN_RSA_BITS`], [`Fault::Unknown`] past what
 /// the library takes (8192 bits) or when it can't be read.
-fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
+pub(crate) fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
     let bits = key.subject_public_key.as_bytes().ok_or(Fault::Unknown)?;
     let pkcs1 = rsa::pkcs1::RsaPublicKey::<der::asn1::UintRef<'_>>::from_der(bits).map_err(|_| Fault::Unknown)?;
     let bits = modulus_bits(pkcs1.modulus.as_bytes());

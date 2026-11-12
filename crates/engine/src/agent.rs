@@ -186,6 +186,11 @@ const SAFE: &[&str] = &[
     "compose.readReceipt",
     // Sign (#30 R23): the key is used only at Send, which an agent asks the owner about.
     "compose.sign",
+    // Encrypt (#30 part 7): an agent may turn it on, never off (`classify`: sending in the clear is
+    // the owner's choice alone); only Public keys are used, and the message is sent only at Send,
+    // which an agent asks the owner about. Taking recipients off is a local edit, as `compose.set`.
+    "compose.encrypt",
+    "compose.removeRecipients",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",
@@ -541,6 +546,8 @@ const SETTINGS: &[&str] = &[
 const NEVER: &[&str] = &[
     // Which key an account Digitally signs with, and whether always (#30): the owner's alone.
     "account.setSigning",
+    // Whether an account Encrypts when every recipient has a key (#30): the owner's alone.
+    "account.setEncryption",
     // The host's side of a synchronisation: what came from a server is the host's to say.
     "sync.request",
     "sync.apply",
@@ -740,6 +747,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
     // view closes the message without saving it, and the windows of its appointments.
     let writing = owner_writing(s, params);
+    // A message going in the clear that was to be Encrypted is the owner's choice alone (#30 R18): an
+    // agent may turn Encrypt on, never off, and a toggle may turn it off.
+    if id == "compose.encrypt" && p::bool(params, "value") != Some(true) {
+        return Access::Never;
+    }
     // A draft opened in a window opens where messages are written, as `mail.editDraft`.
     if let Some(draft) = draft_in_window(s, id, params) {
         return classify(s, "mail.editDraft", &json!({"id": draft}));

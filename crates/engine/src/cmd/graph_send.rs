@@ -60,12 +60,12 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
                 None
             }
         })
-        .map(|m| super::signing::decided(mb, m.as_ref().clone()))
+        .map(|m| super::signing::decided(mb, m.as_ref().clone(), s.now()))
         .map(|m| match m.server_draft.as_ref().and(super::graph_drafts::draft_up_whole(&m)) {
             // A Digitally signed message goes as its own bytes (#30 R19): sending the draft the
             // server has would have Microsoft build the message again, and the signature break.
             // The draft it was saved as is taken away once it has gone.
-            Some(draft) if m.sign_with.is_some() && !exchange => {
+            Some(draft) if (m.sign_with.is_some() || m.encrypt_with.is_some() || m.encrypt == Some(true)) && !exchange => {
                 SendUp { message: m.id, draft: None, mime: Some(Box::new(m.clone())), discard: draft.id }
             }
             // An Exchange server account's message always goes as its MIME, with the server filing

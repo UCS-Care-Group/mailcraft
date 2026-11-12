@@ -22,8 +22,16 @@ pub const NOT_SIGNED: &str = "it was to be Digitally signed and wasn't, so it wa
 /// be written as isn't a signed message: no signed body kept, or one that isn't `multipart/signed`.
 /// Every path that sends mail refuses such a message.
 pub fn signature_missing(message: &Message) -> bool {
-    message.sign_with.is_some()
-        && !(crate::writes_original(message) && message.original_bytes().and_then(crate::signed_parts).is_some_and(|p| p.whole))
+    if message.sign_with.is_none() {
+        return false;
+    }
+    // Signed and then Encrypted: the signed body is inside the encryption (the host signs first and
+    // stops if it can't, `apps/mailcraft`'s `encrypting`), so what shows here is the encrypted body;
+    // that it is one is [`crate::encryption_missing`]'s to say.
+    if message.encrypt_with.is_some() && !crate::encryption_missing(message) {
+        return false;
+    }
+    !(crate::writes_original(message) && message.original_bytes().and_then(crate::signed_parts).is_some_and(|p| p.whole))
 }
 
 /// Which kind of Digital signature the second part is.
@@ -105,7 +113,7 @@ Content-Disposition: attachment; filename=\"signature.asc\"\r\n\r\n"
             ("application/pgp-signature", part)
         }
     };
-    let boundary = boundary(&[signed, &second]).ok_or(LayoutError::Boundary)?;
+    let boundary = boundary(&[signed, &second], "signed").ok_or(LayoutError::Boundary)?;
     let mut out = Vec::with_capacity(signed.len() + second.len() + 512);
     out.extend_from_slice(b"MIME-Version: 1.0\r\n");
     out.extend_from_slice(
@@ -130,7 +138,7 @@ const MAX_BOUNDARY_TRIES: u32 = 1024;
 
 /// A boundary in neither part: an FNV-1a hash of them, with a counter that moves on while a
 /// part holds it.
-fn boundary(parts: &[&[u8]]) -> Option<String> {
+pub(crate) fn boundary(parts: &[&[u8]], kind: &str) -> Option<String> {
     const PRIME: u64 = 0x0000_0100_0000_01b3;
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for part in parts {
@@ -140,6 +148,6 @@ fn boundary(parts: &[&[u8]]) -> Option<String> {
         hash = (hash ^ 0x1ff).wrapping_mul(PRIME);
     }
     (0..MAX_BOUNDARY_TRIES)
-        .map(|counter| format!("=_mc_signed_{hash:016x}_{counter}"))
+        .map(|counter| format!("=_mc_{kind}_{hash:016x}_{counter}"))
         .find(|candidate| !parts.iter().any(|p| p.windows(candidate.len()).any(|w| w == candidate.as_bytes())))
 }

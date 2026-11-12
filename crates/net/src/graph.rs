@@ -849,10 +849,25 @@ fn is_address(email: &str) -> bool {
 
 /// [`send`] through Graph at `base`.
 fn send_at(base: &str, token: &str, message: &Message, options: &SendOptions) -> Result<(), NetError> {
-    let body = mime_body_with(message, options)?;
+    // Each of an Encrypted message's Bcc recipients is sent a message of their own first, to them
+    // alone (#30 part 7: one message for everybody would name their keys), then the message
+    // itself without them. Checked all before any goes.
+    let mut bodies = Vec::new();
+    for (_, copy) in message.blind_messages(true) {
+        if mailcraft_mime::body_not_encrypted(&copy) {
+            return Err(NetError::Config("it was to be Encrypted and wasn't, so it wasn't sent".into()));
+        }
+        bodies.push(mime_body_with(&copy, options)?);
+    }
+    bodies.push(mime_body_with(&message.for_main(), options)?);
     let graph = Graph::at(base, token)?;
-    let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some(&body), SEND_TIMEOUT, http::MAX_BODY)?;
-    if reply.status == 202 { Ok(()) } else { Err(graph.refusal(Doing::Sending, &reply, &body)) }
+    for body in &bodies {
+        let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some(body), SEND_TIMEOUT, http::MAX_BODY)?;
+        if reply.status != 202 {
+            return Err(graph.refusal(Doing::Sending, &reply, body));
+        }
+    }
+    Ok(())
 }
 
 /// What `sendMail` is handed for `message`: its MIME, with its Bcc, in base64, after the checks
@@ -865,6 +880,10 @@ fn mime_body_with(message: &Message, options: &SendOptions) -> Result<String, Ne
     // A message to be Digitally signed that isn't goes nowhere (#30 R19).
     if mailcraft_mime::signature_missing(message) {
         return Err(NetError::Config("it was to be Digitally signed and wasn't, so it wasn't sent".into()));
+    }
+    // And one to be Encrypted that isn't goes nowhere either (#30 part 7).
+    if mailcraft_mime::encryption_missing(message) {
+        return Err(NetError::Config("it was to be Encrypted and wasn't, so it wasn't sent".into()));
     }
     // Leaving someone out silently would be worse than not sending.
     let mut anyone = false;

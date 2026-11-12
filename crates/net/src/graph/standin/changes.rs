@@ -427,6 +427,21 @@ impl State {
                 self.mailbox.delete(&id);
                 Ok((204, None))
             }
+            ("POST", Some("permanentDelete")) => {
+                if !asked.body.is_empty() {
+                    return Err(bad("A permanent delete takes no body."));
+                }
+                if self.mailbox.no_permanent_delete {
+                    return Err(refuse(403, "ErrorAccessDenied", "This mailbox doesn't offer a permanent delete."));
+                }
+                if !self.mailbox.messages.contains_key(&id) {
+                    return Err(not_found());
+                }
+                self.fault(&id)?;
+                self.mailbox.delete(&id);
+                self.mailbox.purged.push(id);
+                Ok((204, None))
+            }
             ("POST", Some(action @ ("move" | "copy"))) => {
                 let body = asked.json();
                 let map = body.as_object().ok_or_else(|| bad("A move or a copy says where to: {\"destinationId\"}."))?;

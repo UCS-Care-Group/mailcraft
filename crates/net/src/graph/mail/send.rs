@@ -59,6 +59,11 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
             done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_SIGNED.to_string() };
             return Ok(());
         }
+        // The same for one to be Encrypted (#30 part 7): never sent as the server's draft, which is clear.
+        (Some(_), Some(message)) if message.encrypt_with.is_some() || message.encrypt == Some(true) => {
+            done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_ENCRYPTED.to_string() };
+            return Ok(());
+        }
         (Some(draft), _) => {
             let mut up = DraftDone { change: draft.without_data(), id: draft.id.clone(), ..Default::default() };
             let brought = super::drafts::one(graph, draft, &mut up);
@@ -80,20 +85,51 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
             graph.url(&graph.mail_path(&format!("/messages/{id}/send")))
         }
         (None, Some(message)) => {
-            let body = match mime_body(message) {
-                Ok(body) => body,
-                // Not a message that can go (no recipients, an address that isn't one): said so.
+            // Each of an Encrypted message's Bcc recipients is sent a message of their own first, to
+            // them alone (#30 part 7: one message for everybody would name their keys); then the
+            // message goes without them. Whatever can't go is found before any goes.
+            let mut bodies = Vec::new();
+            for (_, copy) in message.blind_messages(true) {
+                if mailcraft_mime::body_not_encrypted(&copy) {
+                    done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_ENCRYPTED.to_string() };
+                    return Ok(());
+                }
+                bodies.push(copy);
+            }
+            bodies.push(message.for_main().into_owned());
+            let bodies: Result<Vec<String>, NetError> = bodies.iter().map(mime_body).collect();
+            // (Not a message that can go (no recipients, an address that isn't one): said so.)
+            let bodies = match bodies {
+                Ok(bodies) => bodies,
                 Err(e) => {
                     done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
                     return Ok(());
                 }
             };
+            let Some((body, earlier)) = bodies.split_last() else { return Ok(()) };
+            for body in earlier {
+                let asked = graph.call(
+                    Kind::Once,
+                    &graph.url(&graph.mail_path("/sendMail")),
+                    "POST",
+                    &[("Content-Type", "text/plain")],
+                    Some(body),
+                    SEND_TIMEOUT,
+                    MAX_PAGE,
+                );
+                settle(graph, asked, done)?;
+                if done.outcome != SendOutcome::Sent {
+                    return Ok(());
+                }
+            }
+            // (Whether the message itself went is the answer to this one, not to theirs.)
+            done.outcome = SendOutcome::Waits;
             let asked = graph.call(
                 Kind::Once,
                 &graph.url(&graph.mail_path("/sendMail")),
                 "POST",
                 &[("Content-Type", "text/plain")],
-                Some(&body),
+                Some(body),
                 SEND_TIMEOUT,
                 MAX_PAGE,
             );

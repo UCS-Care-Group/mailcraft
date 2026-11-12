@@ -244,6 +244,7 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     }
 
     signing_line(app, ui, &c);
+    encryption_line(app, ui);
 
     // Attachments, each with a way to take it off again.
     if !c.attachments.is_empty() {
@@ -321,6 +322,29 @@ fn signing_line(app: &mut MailApp, ui: &mut Ui, c: &Shown) {
     if resp.on_hover_text(tl!("Digital Signatures")).clicked() {
         let _ = app.run("ui.dialog", json!({"name": "digitalSignatures", "account": c.account}));
     }
+    ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
+}
+
+/// What Encrypt will do to the message at Send, shown before it (#30 R16a): Encrypted, to how many
+/// and in which form, or why it can't be; nothing for a message that goes as it is.
+fn encryption_line(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    let will = crate::encryption::shown(app);
+    let mut line = will.as_ref().and_then(crate::encryption::words);
+    // What became of the draft last saved (#30 part 7): kept Encrypted, or on this computer only.
+    if let Some(note) = crate::encryption::draft_note(app) {
+        line = Some(match line {
+            Some((text, problem)) => (format!("{text} · {note}"), problem),
+            None => (note, false),
+        });
+    }
+    let Some((text, problem)) = line else { return };
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
+    let icon = Rect::from_center_size(pos2(r.min.x + 24.0, r.center().y), vec2(16.0, 16.0));
+    icons::paint(ui.painter(), icon, "lock", if problem { t.red } else { t.icon }, t.accent);
+    let colour = if problem { t.red } else { t.text_dim };
+    paint_clipped(ui.painter(), pos2(r.min.x + 40.0, r.center().y), (r.width() - 52.0).max(0.0), &text, regular(12.0), colour);
+    ui.interact(r, ui.scope_id().with("compose_encrypting"), Sense::hover()).on_hover_text(tl!("Encrypt"));
     ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
 }
 

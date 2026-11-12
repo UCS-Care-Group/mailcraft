@@ -11,6 +11,8 @@ workspace = true
 [dependencies]
 pgp = { workspace = true }
 thiserror = { workspace = true }
+# The random numbers rPGP takes (its generation of `rand_core`; the host's source is wrapped: `encrypt`).
+rand_core = { version = "0.6", default-features = false, features = ["std"] }
 mailcraft-names = { workspace = true }
 # rPGP's generation of RustCrypto (the workspace's `sha2` is 0.11, for S/MIME).
 sha2 = { version = "0.10", default-features = false }

@@ -37,6 +37,8 @@ pub enum Unsendable {
     TooLarge,
     /// To be Digitally signed, and not (#30 R19): it is never sent unsigned.
     NotSigned,
+    /// To be Encrypted, and not (#30 part 7): it is never sent in the clear.
+    NotEncrypted,
 }
 
 impl std::fmt::Display for Unsendable {
@@ -46,6 +48,7 @@ impl std::fmt::Display for Unsendable {
             Self::BadAddress => "a recipient's address isn't one mail can be sent to",
             Self::TooLarge => "the message is too large to send",
             Self::NotSigned => mailcraft_mime::NOT_SIGNED,
+            Self::NotEncrypted => mailcraft_mime::NOT_ENCRYPTED,
         })
     }
 }
@@ -157,6 +160,46 @@ impl CreateDraft {
         Element::new("m:CreateItem")
             .attr("MessageDisposition", "SaveOnly")
             .child(folder_ref("m:SavedItemFolderId", "drafts", self.folder.as_deref()))
+            .child(Element::new("m:Items").child(message))
+    }
+
+    /// The draft's ids.
+    pub fn answer(&self, reply: &Reply) -> Result<Saved, Error> {
+        saved_of(reply, "CreateItem")
+    }
+}
+
+/// `CreateItem` with `SaveOnly` and `MimeContent`: a draft kept Encrypted (#30 part 7) in the
+/// server's Drafts, made from the Encrypted message itself, which is all that goes up of it. The
+/// marker is put on it as on any draft, so that one whose make was not answered is found.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CreateSealedDraft {
+    mime: Vec<u8>,
+    marker: String,
+}
+
+impl std::fmt::Debug for CreateSealedDraft {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CreateSealedDraft(..)")
+    }
+}
+
+impl CreateSealedDraft {
+    /// Makes the draft of `mime` (a whole message, which holds nothing in the clear but its header)
+    /// in Drafts. Too large for any server: `None`.
+    pub fn new(mime: &[u8], marker: &str) -> Option<Self> {
+        (!mime.is_empty() && mime.len() <= MAX_MIME).then(|| Self { mime: mime.to_vec(), marker: marker.to_owned() })
+    }
+
+    /// The operation: `SavedItemFolderId` and `Items` with the MIME content and the marker.
+    pub fn element(&self) -> Element {
+        let mut message = Element::new("t:Message").child(Element::new("t:MimeContent").attr("CharacterSet", "UTF-8").text(&base64(&self.mime)));
+        if !self.marker.is_empty() {
+            message = message.child(Element::new("t:ExtendedProperty").child(marker_uri()).child(Element::new("t:Value").text(&line(&self.marker))));
+        }
+        Element::new("m:CreateItem")
+            .attr("MessageDisposition", "SaveOnly")
+            .child(folder_ref("m:SavedItemFolderId", "drafts", None))
             .child(Element::new("m:Items").child(message))
     }
 
@@ -345,6 +388,9 @@ impl RemoveAttachments {
 #[derive(Clone, PartialEq, Eq)]
 pub struct SendMessage {
     mime: Vec<u8>,
+    /// The server files the copy in Sent Items: the message itself. Not the message of a Bcc
+    /// recipient (#30 part 7), which is only sent.
+    save_copy: bool,
 }
 
 impl std::fmt::Debug for SendMessage {
@@ -360,6 +406,25 @@ impl SendMessage {
         if mailcraft_mime::signature_missing(message) {
             return Err(Unsendable::NotSigned);
         }
+        if mailcraft_mime::encryption_missing(message) {
+            return Err(Unsendable::NotEncrypted);
+        }
+        // (An Encrypted message whose Bcc recipients are each given a message of their own goes
+        // to the others alone, see [`SendMessage::blind`].)
+        Self::build(&message.for_main(), true)
+    }
+
+    /// The message each Bcc recipient of an Encrypted message is sent of their own (#30 part 7),
+    /// to them alone and not filed in Sent Items: they go before the message itself.
+    pub fn blind(message: &Message) -> Result<Vec<Self>, Unsendable> {
+        message
+            .blind_messages(true)
+            .into_iter()
+            .map(|(_, copy)| if mailcraft_mime::body_not_encrypted(&copy) { Err(Unsendable::NotEncrypted) } else { Self::build(&copy, false) })
+            .collect()
+    }
+
+    fn build(message: &Message, save_copy: bool) -> Result<Self, Unsendable> {
         let mut anyone = false;
         for address in message.recipients() {
             let email = address.email.trim();
@@ -383,16 +448,21 @@ impl SendMessage {
         if mime.len() > MAX_MIME {
             return Err(Unsendable::TooLarge);
         }
-        Ok(Self { mime })
+        Ok(Self { mime, save_copy })
     }
 
-    /// The operation: `SavedItemFolderId` and `Items` with the MIME content.
+    /// The operation: `SavedItemFolderId` (for the message itself) and `Items` with the MIME content.
     pub fn element(&self) -> Element {
         let message = Element::new("t:Message").child(Element::new("t:MimeContent").attr("CharacterSet", "UTF-8").text(&base64(&self.mime)));
-        Element::new("m:CreateItem")
-            .attr("MessageDisposition", "SendAndSaveCopy")
-            .child(folder_ref("m:SavedItemFolderId", "sentitems", None))
-            .child(Element::new("m:Items").child(message))
+        let items = Element::new("m:Items").child(message);
+        if self.save_copy {
+            Element::new("m:CreateItem")
+                .attr("MessageDisposition", "SendAndSaveCopy")
+                .child(folder_ref("m:SavedItemFolderId", "sentitems", None))
+                .child(items)
+        } else {
+            Element::new("m:CreateItem").attr("MessageDisposition", "SendOnly").child(items)
+        }
     }
 
     /// Whether the server took it (a send has no item to name: the copy is filed in Sent Items).

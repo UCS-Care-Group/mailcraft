@@ -34,4 +34,11 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = mailcraft_openpgp::secret::holds_secret(data);
     // The keys `gpg --export` brought, read for signing (#30 part 5).
     let _ = mailcraft_openpgp::signing_keys(data, 1_790_000_000);
+    // Public keys read for encrypting to (#30 part 7), and a message encrypted to them.
+    let _ = mailcraft_openpgp::can_encrypt_to(data, 1_790_000_000);
+    let _ = mailcraft_openpgp::encryption_certificates(data, 1_790_000_000);
+    let _ = mailcraft_openpgp::encrypt(b"Hello\r\n", &[data.to_vec()], 1_790_000_000, &mut |buf: &mut [u8]| {
+        buf.fill(7);
+        true
+    });
 });

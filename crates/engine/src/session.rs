@@ -677,6 +677,16 @@ pub struct Compose {
     /// and the account's Always add a Digital signature holds, as it stands at Send.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sign: Option<bool>,
+    /// Encrypt (`compose.encrypt`, #30 R16a): `None` while the owner hasn't set it for this
+    /// message, and the account's Encrypt when every recipient has a key holds, as it stands at
+    /// Send. On for a reply to an Encrypted message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypt: Option<bool>,
+    /// What the last save of it as a draft kept (#30 part 7), when it was to be Encrypted:
+    /// `Some(true)` Encrypted to the owner's own key (it can't be opened to edit until MailCraft
+    /// decrypts), `Some(false)` on this computer only, as written, because it couldn't be. Not kept.
+    #[serde(skip)]
+    pub draft_sealed: Option<bool>,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// The signature put in the body (its paragraphs are marked there): which one, how it lays
@@ -1176,6 +1186,10 @@ pub struct Session {
     /// The Digital signatures checked, and the certificates they are checked against
     /// ([`Session::digital_signature`], #30). Never saved.
     pub(crate) signatures: crate::digital_signature::SignatureChecks,
+    /// What the host does so that a draft that is to be Encrypted is kept Encrypted (#30 part 7).
+    /// `None` where there is no host that can (the browser, the command line, tests): such a draft
+    /// stays on this computer as it was written.
+    pub sealer: Option<std::sync::Arc<dyn crate::cmd::encrypting::Sealer>>,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -1329,6 +1343,7 @@ impl Session {
             opened: None,
             sender_checks: Default::default(),
             signatures: Default::default(),
+            sealer: None,
             content_source: None,
             loads: 0,
             unsearched: 0,

@@ -49,6 +49,26 @@ const EXPORT_TIMEOUT: Duration = Duration::from_secs(30);
 /// What gpg-agent's pinentry says when it asks for a passphrase or a PIN to sign.
 const PINENTRY_TEXT: &str = "MailCraft is adding a Digital signature to a message you are sending.";
 
+/// Why a message wasn't made as it is to go: it couldn't be Digitally signed, or it couldn't be
+/// Encrypted ([`crate::encrypting`]). Held in the Outbox with that said.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Refused {
+    pub(crate) why: String,
+    pub(crate) encrypting: bool,
+}
+
+impl From<String> for Refused {
+    fn from(why: String) -> Refused {
+        Refused { why, encrypting: false }
+    }
+}
+
+impl From<&str> for Refused {
+    fn from(why: &str) -> Refused {
+        Refused::from(why.to_string())
+    }
+}
+
 /// The host of signing for the whole program (the window's keys and PIN questions).
 pub(crate) fn host() -> Arc<Host> {
     static HOST: OnceLock<Arc<Host>> = OnceLock::new();
@@ -144,32 +164,39 @@ pub(crate) fn held_sends(unsigned: Vec<Unsigned>) -> Vec<SendDone> {
         .into_iter()
         .map(|u| SendDone {
             message: u.message,
-            outcome: SendOutcome::Held { lost: false, why: mailcraft_model::signing::held_unsigned(&u.why) },
+            outcome: SendOutcome::Held {
+                lost: false,
+                why: if u.encrypting {
+                    mailcraft_model::encrypting::held_unencrypted(&u.why)
+                } else {
+                    mailcraft_model::signing::held_unsigned(&u.why)
+                },
+            },
             ..SendDone::default()
         })
         .collect()
 }
 
-pub(crate) fn sign_outbox_with(outbox: &mut Vec<Message>, sign: &dyn Fn(&mut Message) -> Result<(), String>) -> Vec<Unsigned> {
+pub(crate) fn sign_outbox_with(outbox: &mut Vec<Message>, sign: &dyn Fn(&mut Message) -> Result<(), Refused>) -> Vec<Unsigned> {
     let mut unsigned = Vec::new();
     outbox.retain_mut(|m| match sign(m) {
         Ok(()) => true,
-        Err(why) => {
-            unsigned.push(Unsigned { message: m.id, why });
+        Err(Refused { why, encrypting }) => {
+            unsigned.push(Unsigned { message: m.id, why, encrypting });
             false
         }
     });
     unsigned
 }
 
-pub(crate) fn sign_sends_with(sends: &mut Vec<SendUp>, sign: &dyn Fn(&mut Message) -> Result<(), String>) -> Vec<Unsigned> {
+pub(crate) fn sign_sends_with(sends: &mut Vec<SendUp>, sign: &dyn Fn(&mut Message) -> Result<(), Refused>) -> Vec<Unsigned> {
     let mut unsigned = Vec::new();
     sends.retain_mut(|send| {
         let Some(m) = send.mime.as_deref_mut() else { return true };
         match sign(m) {
             Ok(()) => true,
-            Err(why) => {
-                unsigned.push(Unsigned { message: send.message, why });
+            Err(Refused { why, encrypting }) => {
+                unsigned.push(Unsigned { message: send.message, why, encrypting });
                 false
             }
         }
@@ -177,10 +204,18 @@ pub(crate) fn sign_sends_with(sends: &mut Vec<SendUp>, sign: &dyn Fn(&mut Messag
     unsigned
 }
 
+/// Make `m` as it goes: Digitally signed when it is to be, and then Encrypted when it is to be
+/// (the signed part goes inside, RFC 8551 §3.6). One that can't be either way is said, and never
+/// goes in a weaker form.
+fn sign(host: &Host, m: &mut Message, now: i64) -> Result<(), Refused> {
+    sign_part(host, m, now).map_err(Refused::from)?;
+    crate::encrypting::encrypt(m, now).map_err(|why| Refused { why, encrypting: true })
+}
+
 /// Sign `m` when it is to be signed: its body becomes the `multipart/signed` it goes as, made
 /// now from the message as it is (whatever bytes it held before, a signature by someone else
 /// among them, are let go of). Why not, in words, when it can't be.
-fn sign(host: &Host, m: &mut Message, now: i64) -> Result<(), String> {
+fn sign_part(host: &Host, m: &mut Message, now: i64) -> Result<(), String> {
     let Some(key) = m.sign_with.clone() else { return Ok(()) };
     m.original = None;
     let key = key.checked().ok_or_else(|| "the key it was to be signed with can't be named".to_string())?;
@@ -348,7 +383,7 @@ pub(crate) fn sha256_named(hex: &str) -> Option<[u8; 32]> {
 // ---- OpenPGP ----
 
 /// `gpg`, as File › Options › Security finds it (`own_keys::gnupg`).
-fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
+pub(crate) fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
     use mailcraft_ui_egui::own_keys::Gnupg;
     crate::own_keys::gnupg::find().map_err(|state| match state {
         Gnupg::NotWorking(why) => why,
@@ -358,7 +393,7 @@ fn gpg() -> Result<crate::own_keys::gnupg::Gpg, String> {
 
 /// The public keys GnuPG has for `fingerprints` (`gpg --export`), at most [`MAX_EXPORT`] bytes.
 /// Each is a fingerprint in hex, checked, so nothing else reaches gpg's command line.
-fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Result<Vec<u8>, String> {
+pub(crate) fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Result<Vec<u8>, String> {
     if fingerprints.is_empty() || fingerprints.iter().any(|f| f.is_empty() || f.len() > 64 || !f.bytes().all(|b| b.is_ascii_hexdigit())) {
         return Ok(Vec::new());
     }
@@ -369,7 +404,7 @@ fn exported(gpg: &crate::own_keys::gnupg::Gpg, fingerprints: &[String]) -> Resul
 
 /// The fingerprints (hex) of the owner's own keys: those GnuPG has a private key for, as
 /// File › Options › Security lists them.
-fn own_keys(gpg: &crate::own_keys::gnupg::Gpg) -> Result<Vec<String>, String> {
+pub(crate) fn own_keys(gpg: &crate::own_keys::gnupg::Gpg) -> Result<Vec<String>, String> {
     Ok(gpg.secret_keys()?.into_iter().map(|k| k.fingerprint.chars().filter(char::is_ascii_hexdigit).collect()).collect())
 }
 

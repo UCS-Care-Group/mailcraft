@@ -26,7 +26,7 @@ use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
 
 use crate::push::push;
-use crate::send::{Envelope, dated, deliver, open_smtp_with};
+use crate::send::{dated, deliver_all, open_smtp_with};
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, kinds, not_signed_in, scrub};
 use mailcraft_i18n::{Arg, Text, said};
@@ -351,11 +351,20 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
         let message = dated(message);
         // To be Digitally signed and not (the host couldn't): held, never sent unsigned (#30).
         if mailcraft_mime::signature_missing(&message) {
-            run.out.unsigned.push(mailcraft_model::signing::Unsigned { message: message.id, why: "the signature wasn't made".into() });
+            run.out.unsigned.push(mailcraft_model::signing::Unsigned {
+                message: message.id,
+                why: "the signature wasn't made".into(),
+                encrypting: false,
+            });
+            continue;
+        }
+        // To be Encrypted and not: held, never sent in the clear (#30 part 7).
+        if mailcraft_mime::encryption_missing(&message) {
+            run.out.unsigned.push(mailcraft_model::signing::Unsigned { message: message.id, why: "it wasn't encrypted".into(), encrypting: true });
             continue;
         }
         run.asked = run.asked.saturating_add(1);
-        let outcome = Envelope::of(&request.account, &message).and_then(|envelope| deliver(&mut smtp, &envelope, &message));
+        let outcome = deliver_all(&mut smtp, &request.account, &message);
         match outcome {
             Ok(()) => {
                 run.out.sent.push(message.id);

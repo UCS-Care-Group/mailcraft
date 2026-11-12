@@ -102,7 +102,8 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
 /// with (#30). (An original whose content fields can't be written as header lines is no original
 /// here: the message is built from its parts.)
 fn original_body(message: &Message) -> Option<(Vec<u8>, Vec<u8>)> {
-    message.original_bytes().filter(|_| !message.draft).and_then(crate::protected::content_of)
+    // (A draft kept Encrypted, #30 part 7, is written as the Encrypted message it is kept as.)
+    message.original_bytes().filter(|_| !message.draft || message.sealed_draft).and_then(crate::protected::content_of)
 }
 
 /// Whether [`write()`] writes `message`'s body as the bytes it came as (#30), not from its parts.

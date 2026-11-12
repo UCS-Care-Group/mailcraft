@@ -32,12 +32,19 @@ impl Envelope {
         if mailcraft_mime::signature_missing(message) {
             return Err(NetError::Config(said!("it was to be Digitally signed and wasn't, so it wasn't sent")));
         }
+        // And one to be Encrypted that isn't goes nowhere either (#30 part 7).
+        if mailcraft_mime::encryption_missing(message) {
+            return Err(NetError::Config(said!("it was to be Encrypted and wasn't, so it wasn't sent")));
+        }
         let from = account.email.trim();
         if !is_address(from) {
             return Err(NetError::Config(said!("the account has no usable e-mail address to send from")));
         }
+        // (An Encrypted message whose Bcc recipients are each given a message of their own goes to
+        // the others alone: theirs are sent by themselves, see `deliver_all`.)
+        let main = message.for_main();
         let mut recipients: Vec<String> = Vec::new();
-        for address in message.recipients() {
+        for address in main.recipients() {
             let email = address.email.trim();
             if email.is_empty() {
                 continue;
@@ -54,6 +61,18 @@ impl Envelope {
             return Err(NetError::Config(said!("the message has no recipients")));
         }
         Ok(Envelope { from: from.to_string(), recipients })
+    }
+
+    /// The account's address, and this one address (a Bcc recipient's message of their own).
+    fn to_one(account: &Account, address: &str) -> Result<Envelope, NetError> {
+        let (from, to) = (account.email.trim(), address.trim());
+        if !is_address(from) {
+            return Err(NetError::Config(said!("the account has no usable e-mail address to send from")));
+        }
+        if !is_address(to) {
+            return Err(NetError::Config(said!("\"{address}\" isn't an address mail can be sent to", address = shown(to))));
+        }
+        Ok(Envelope { from: from.to_string(), recipients: vec![to.to_string()] })
     }
 }
 
@@ -133,6 +152,21 @@ pub(crate) fn deliver(smtp: &mut Smtp<Stream<'_>>, envelope: &Envelope, message:
     Ok(())
 }
 
+/// Hand a message to an open session, and the message each of its Bcc recipients is given of
+/// their own first when it is Encrypted (#30 part 7: one message for everybody would name their
+/// keys), each to them alone. A message that is cut off part way is sent again whole: a Bcc
+/// recipient it had reached may be sent theirs twice, which is better than not at all.
+pub(crate) fn deliver_all(smtp: &mut Smtp<Stream<'_>>, account: &Account, message: &Message) -> Result<(), NetError> {
+    let envelope = Envelope::of(account, message)?;
+    for (address, copy) in message.blind_messages(false) {
+        if mailcraft_mime::body_not_encrypted(&copy) {
+            return Err(NetError::Config(said!("it was to be Encrypted and wasn't, so it wasn't sent")));
+        }
+        deliver(smtp, &Envelope::to_one(account, &address)?, &copy)?;
+    }
+    deliver(smtp, &envelope, message)
+}
+
 /// Send one message through the account's outgoing server.
 ///
 /// `secret` is the account's password, or the access token of an account that signs in with
@@ -141,7 +175,8 @@ pub fn send(account: &Account, secret: &str, message: &Message) -> Result<(), Ne
     // A message that can't be sent is found out before any connection is made.
     let envelope = Envelope::of(account, message)?;
     let mut smtp = open_smtp(account, secret).map_err(|e| e.without(secret))?;
-    let sent = deliver(&mut smtp, &envelope, message).map_err(|e| e.without(secret));
+    let _ = envelope;
+    let sent = deliver_all(&mut smtp, account, message).map_err(|e| e.without(secret));
     let _ = smtp.quit();
     sent
 }

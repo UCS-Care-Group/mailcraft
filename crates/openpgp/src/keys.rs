@@ -214,6 +214,35 @@ pub struct PublicKey {
     address_until: Vec<Option<u64>>,
     /// The primary key first, then each subkey that may sign.
     pub(crate) signing: Vec<Signing>,
+    /// The keys of it that may be encrypted to (#30 part 7): the primary key when its flags
+    /// allow, and each subkey with a binding signature that checks and says so.
+    pub(crate) encrypting: Vec<Encrypting>,
+    /// What its owner prefers to be encrypted with, from its newest self-signature.
+    pub(crate) prefs: Prefs,
+}
+
+/// One key of a [`PublicKey`] that may be encrypted to: the primary key or a subkey.
+#[derive(Clone, Debug)]
+pub(crate) struct Encrypting {
+    /// `None` for the primary key, else the subkey's place in the key.
+    pub(crate) subkey: Option<usize>,
+    pub(crate) version: KeyVersion,
+    pub(crate) algorithm: PublicKeyAlgorithm,
+    pub(crate) created: u32,
+    /// When it stops being valid (its own expiry or its binding signature's); `None` when never.
+    pub(crate) expires: Option<u64>,
+    /// It, or the key it belongs to, has a revocation that checks.
+    pub(crate) revoked: bool,
+    pub(crate) weak: Option<&'static str>,
+}
+
+/// What a key's owner says it can be encrypted with (RFC 9580 §5.2.3.14, §5.2.3.32).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Prefs {
+    pub(crate) symmetric: Vec<pgp::crypto::sym::SymmetricKeyAlgorithm>,
+    /// Its Features subpacket says it reads the older kind of encrypted message (SEIPD version 1,
+    /// RFC 9580 §5.2.3.32): needed to put a version 6 key in a message made for version 4 keys.
+    pub(crate) seipd_v1: bool,
 }
 
 /// How many signature checks one call that reads keys may cost in all ([`PublicKey::parse`],
@@ -388,6 +417,31 @@ impl PublicKey {
             may_sign: flags(newest).is_none_or(|f| f.sign()),
             weak: weak_key(primary),
         }];
+        let mut encrypting = Vec::new();
+        let primary_revoked = key_revocation.is_some();
+        let may_encrypt = flags(newest).map_or(
+            matches!(
+                primary.algorithm(),
+                PublicKeyAlgorithm::RSA
+                    | PublicKeyAlgorithm::RSAEncrypt
+                    | PublicKeyAlgorithm::ECDH
+                    | PublicKeyAlgorithm::X25519
+                    | PublicKeyAlgorithm::X448
+            ),
+            |f| f.encrypt_comms() || f.encrypt_storage(),
+        );
+        if may_encrypt {
+            encrypting.push(Encrypting {
+                subkey: None,
+                version: primary.version(),
+                algorithm: primary.algorithm(),
+                created: primary_created,
+                expires: earlier(expiry(primary_created, newest), signature_until(newest)),
+                revoked: primary_revoked,
+                weak: weak_key(primary),
+            });
+        }
+        let prefs = Prefs { symmetric: newest.preferred_symmetric_algs().to_vec(), seipd_v1: newest.features().is_some_and(|f| f.seipd_v1()) };
         let mut subkeys = Vec::new();
         for sub in &key.public_subkeys {
             if !matches!(sub.key.version(), KeyVersion::V4 | KeyVersion::V6) {
@@ -414,6 +468,18 @@ impl PublicKey {
             let Some(binding) = binding else { continue };
             let place = subkeys.len();
             subkeys.push(SignedPublicSubKey::new(sub.key.clone(), std::iter::once(binding).chain(sub_revocation).cloned().collect()));
+            if flags(binding).is_some_and(|f| f.encrypt_comms() || f.encrypt_storage()) {
+                let sub_created = sub.key.created_at().as_secs();
+                encrypting.push(Encrypting {
+                    subkey: Some(place),
+                    version: sub.key.version(),
+                    algorithm: sub.key.algorithm(),
+                    created: sub_created,
+                    expires: earlier(expiry(sub_created, binding), signature_until(binding)),
+                    revoked: primary_revoked || sub_revocation.is_some(),
+                    weak: weak_key(&sub.key),
+                });
+            }
             if !flags(binding).is_some_and(|f| f.sign()) {
                 continue;
             }
@@ -443,7 +509,7 @@ impl PublicKey {
         }
         let details = SignedKeyDetails::new(key_revocation.into_iter().cloned().collect(), direct.into_iter().cloned().collect(), users, Vec::new());
         let kept = SignedPublicKey::new(key.primary_key.clone(), details, subkeys);
-        Some(PublicKey { fingerprint: Fingerprint::of(&key.fingerprint()), key: kept, addresses, address_until, signing })
+        Some(PublicKey { fingerprint: Fingerprint::of(&key.fingerprint()), key: kept, addresses, address_until, signing, encrypting, prefs })
     }
 
     /// The primary key's fingerprint: what the owner compares, and marks Verified.

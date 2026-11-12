@@ -27,7 +27,7 @@ fn message(id: u64, sign: bool) -> Message {
 }
 
 /// A stand-in signer: signs message 1, can't sign the rest.
-fn stand_in(m: &mut Message) -> Result<(), String> {
+fn stand_in(m: &mut Message) -> Result<(), Refused> {
     if m.sign_with.is_none() {
         return Ok(());
     }
@@ -35,7 +35,7 @@ fn stand_in(m: &mut Message) -> Result<(), String> {
         return Err("the smartcard Kit needs its PIN".into());
     }
     let entity = mailcraft_mime::signable(m);
-    finish(m, &entity, mailcraft_mime::SignatureKind::Smime, "sha-256", &[0x30, 0x03, 0x02, 0x01, 0x01])
+    finish(m, &entity, mailcraft_mime::SignatureKind::Smime, "sha-256", &[0x30, 0x03, 0x02, 0x01, 0x01]).map_err(Refused::from)
 }
 
 #[test]

@@ -15,6 +15,7 @@
 
 mod address;
 mod charset;
+mod encrypting;
 mod header;
 mod mailto;
 mod mbox;
@@ -28,6 +29,8 @@ mod transfer;
 mod words;
 mod write;
 
+#[cfg(test)]
+mod encrypting_tests;
 #[cfg(test)]
 mod fields_tests;
 #[cfg(test)]
@@ -95,6 +98,7 @@ pub fn write_placed(message: &mailcraft_model::Message, opts: &WriteOptions, mar
 pub fn carries_place(header: &[u8], marker: &str) -> bool {
     !marker.is_empty() && header::split(header, true).0.0.iter().any(|f| f.name.eq_ignore_ascii_case(PLACE_HEADER) && f.value == marker)
 }
+pub use encrypting::{NOT_ENCRYPTED, body_not_encrypted, encryption_missing, entity_to_encrypt, is_encrypted, multipart_encrypted, smime_enveloped};
 pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};

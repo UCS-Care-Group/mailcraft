@@ -81,6 +81,9 @@ mod draft_continue_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
+pub mod encryption;
+#[cfg(test)]
+mod encryption_tests;
 #[cfg(test)]
 mod ews_info_tests;
 pub mod ews_mail;
@@ -1515,6 +1518,9 @@ pub struct MailApp {
     pub(crate) row_checks_wanted: bool,
     /// The owner's own keys and the work on them under way (#30, File › Options › Security).
     pub(crate) security: security::State,
+    /// What Encrypt will do to the message being written, worked out for the lines and keys it
+    /// was (`encryption::shown`): the keys aren't read again every frame.
+    pub(crate) encryption_shown: Option<(u64, mailcraft_engine::cmd::encrypting::Will)>,
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
@@ -1879,6 +1885,7 @@ impl MailApp {
             row_checks_left: 1,
             row_checks_wanted: false,
             security: security::State::default(),
+            encryption_shown: None,
             ui: UiState::default(),
             services,
             dialog: None,
@@ -2157,6 +2164,21 @@ impl MailApp {
         if dialogs::leaves_message(self, id, &params) {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
+        }
+        // Input the control channel injected never turns Encrypt off for the owner (#30 part 7).
+        if let Some(refused) = encryption::refused_when_driven(self, id, &params) {
+            return Err(refused);
+        }
+        // Send with Encrypt on and a recipient with no Public key stops, naming them: Send
+        // unencrypted, Remove or Cancel (#30 R18). The owner's press only; the engine refuses it for
+        // everybody else.
+        if id == "compose.send"
+            && self.dialog.is_none()
+            && self.by_hand
+            && let Some(stop) = encryption::before_send(self)
+        {
+            self.dialog = Some(dialogs::Dialog::EncryptStop(Box::new(stop)));
+            return Ok(json!({"pending": "encryptStop"}));
         }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)

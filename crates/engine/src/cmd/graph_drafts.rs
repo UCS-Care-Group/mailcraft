@@ -22,7 +22,7 @@ pub fn draft_changes(s: &Session, account: Id, limit: usize) -> (Vec<DraftUp>, u
         .messages
         .values()
         .map(AsRef::as_ref)
-        .filter(|m| m.account == account && m.draft && Some(m.folder) != outbox)
+        .filter(|m| m.account == account && m.draft && !m.local_only && Some(m.folder) != outbox)
         .filter(|m| m.server_draft.as_ref().is_some_and(|d| d.pending))
         .collect();
     waiting.sort_by_key(|m| m.id);
@@ -48,7 +48,9 @@ pub fn pending(mb: &Mailbox, account: Id) -> usize {
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
     mb.messages
         .values()
-        .filter(|m| m.account == account && m.draft && Some(m.folder) != outbox && m.server_draft.as_ref().is_some_and(|d| d.pending))
+        .filter(|m| {
+            m.account == account && m.draft && !m.local_only && Some(m.folder) != outbox && m.server_draft.as_ref().is_some_and(|d| d.pending)
+        })
         .count()
 }
 
@@ -56,6 +58,25 @@ pub fn pending(mb: &Mailbox, account: Id) -> usize {
 pub fn draft_up(m: &Message) -> Option<DraftUp> {
     let sd = m.server_draft.as_ref()?;
     let id = m.server.as_ref().filter(|s| !s.gone).map(|s| s.id.clone()).unwrap_or_default();
+    // A draft kept Encrypted (#30 part 7): the Encrypted message alone goes up, never a field of
+    // it (what its fields say here is a note), and the server's earlier copy goes once it is there.
+    if m.sealed_draft {
+        m.original_bytes().filter(|b| mailcraft_mime::is_encrypted(b))?;
+        // The whole message as it is written: its header (the recipients, the subject: sent in the
+        // clear as in any Encrypted message, and the Bcc, which only the owner's own server sees of a
+        // draft) and the Encrypted body.
+        let options = mailcraft_mime::WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(m.date) };
+        let bytes = mailcraft_mime::write(m, &options);
+        return Some(DraftUp {
+            message: m.id,
+            id,
+            marker: sd.marker.clone(),
+            change_key: m.server.as_ref().filter(|s| !s.gone).map(|s| s.change_key.clone()).unwrap_or_default(),
+            saves: sd.saves,
+            sealed: std::sync::Arc::new(bytes),
+            ..Default::default()
+        });
+    }
     let now = DraftState::of(m);
     let synced = sd.synced.as_ref();
     let differs = |same: &dyn Fn(&DraftState) -> bool| !synced.is_some_and(same);
@@ -86,6 +107,7 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         // (Nor of a read receipt, for a draft the server never had that asks for none.)
         read_receipt: differs(&|was| was.read_receipt == now.read_receipt).then_some(m.read_receipt).filter(|on| synced.is_some() || *on),
         attachments,
+        sealed: Default::default(),
     })
 }
 
@@ -94,6 +116,10 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
 /// (a Bcc, the body, an attachment added) is written over before the draft is sent, never sent
 /// (AU2-14). `None` when `m` is no draft of the server's.
 pub fn draft_up_whole(m: &Message) -> Option<DraftUp> {
+    // (A draft kept Encrypted is never sent as fields: it can't be opened to be sent yet.)
+    if m.sealed_draft {
+        return None;
+    }
     let up = draft_up(m)?;
     let synced = m.server_draft.as_ref().and_then(|sd| sd.synced.as_ref()).map(|was| was.attachments.clone()).unwrap_or_default();
     Some(DraftUp {

@@ -38,7 +38,7 @@ use mailcraft_model::sync::{
 use mailcraft_model::{FolderKind, Id, Importance};
 
 use crate::changes::{CreateFolder, DeleteFolder, DeleteItem, DeleteMode, GetItemNow, ItemUpdate, MoveFolder, MoveItem, RenameFolder, UpdateItem};
-use crate::compose::{AddAttachments, CreateDraft, DraftContent, FindDraft, RemoveAttachments, SendMessage};
+use crate::compose::{AddAttachments, CreateDraft, CreateSealedDraft, DraftContent, FindDraft, RemoveAttachments, SendMessage};
 use crate::delete_check::Found;
 use crate::error::ResponseCode;
 use crate::http::HttpExchange;
@@ -318,6 +318,9 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 
     async fn draft_into(&mut self, up: &DraftUp, done: &mut DraftDone) -> Result<(), Asked> {
+        if up.is_sealed() {
+            return self.sealed_draft(up, done).await;
+        }
         let (mut id, mut key) = (up.id.clone(), up.change_key.clone());
         let mut adopted = false;
         if id.is_empty() {
@@ -383,6 +386,52 @@ impl<E: HttpExchange> Run<'_, E> {
             }
         }
         done.change_key = key;
+        Ok(())
+    }
+
+    /// A draft kept Encrypted (#30 part 7): made from the Encrypted message alone (`MimeContent`),
+    /// found by its marker first when an earlier make was not answered, and the server's earlier copy
+    /// of it, its fields in the clear, taken away once the new one is there. A draft made from MIME is
+    /// made again, not changed field by field, when it is saved again.
+    async fn sealed_draft(&mut self, up: &DraftUp, done: &mut DraftDone) -> Result<(), Asked> {
+        let Some(op) = CreateSealedDraft::new(&up.sealed, &up.marker) else {
+            done.refused = Some(413);
+            return Ok(());
+        };
+        // The copies the server has by now: the earlier one, and one whose make was not answered
+        // (found by the marker). What they hold is older than this, so they go once this is made.
+        let mut earlier: Vec<String> = Vec::new();
+        if !up.id.is_empty() {
+            earlier.push(up.id.clone());
+        }
+        let find = FindDraft::new(None, &up.marker);
+        match self.ask(&find.element(), &|reply| find.answer(reply)).await {
+            Ok(Some(found)) if !earlier.contains(&found.id) => earlier.push(found.id),
+            Ok(_) => {}
+            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+            Err(_) => return Ok(()),
+        }
+        let saved = match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
+            Ok(saved) => saved,
+            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+            Err(Asked::Code(code)) => {
+                done.refused = Some(refused_status(&code));
+                return Ok(());
+            }
+            // (Lost: found by its marker next run, and taken away then.)
+            Err(_) => return Ok(()),
+        };
+        (done.id, done.change_key, done.fields) = (saved.id.clone(), saved.change_key, true);
+        for old in earlier.iter().filter(|old| **old != saved.id) {
+            // For good: an earlier copy may hold the text in the clear.
+            let del = DeleteItem::new(old, DeleteMode::HardDelete);
+            match self.ask(&del.element(), &|reply| del.answer(reply)).await {
+                Ok(()) | Err(Asked::Code(ResponseCode::ItemNotFound)) => {}
+                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                // (The new one is there: nothing is lost, and the next save tries again.)
+                Err(_) => log::info!("ews up: an earlier copy of an Encrypted draft couldn't be taken away"),
+            }
+        }
         Ok(())
     }
 
@@ -526,16 +575,22 @@ impl<E: HttpExchange> Run<'_, E> {
             log::info!("ews sending: a message without its content waits");
             return Ok(());
         };
-        let op = match SendMessage::new(message) {
-            Ok(op) => op,
+        // (An Encrypted message's Bcc recipients are each sent a message of their own first, to them
+        // alone, #30 part 7; whatever can't go is found before any goes.)
+        let ops = match SendMessage::blind(message)
+            .and_then(|mut ops| SendMessage::new(message).map(|main| ops.drain(..).chain([main]).collect::<Vec<_>>()))
+        {
+            Ok(ops) => ops,
             Err(e) => {
                 done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
                 return Ok(());
             }
         };
-        match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
-            Ok(()) => done.outcome = SendOutcome::Sent,
-            Err(error) => return self.sent(error, done, plain_or_lost),
+        for op in &ops {
+            match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
+                Ok(()) => done.outcome = SendOutcome::Sent,
+                Err(error) => return self.sent(error, done, plain_or_lost),
+            }
         }
         // The draft it was saved as goes only after a clear success, as a soft delete (kept
         // recoverable); never a hard one. Gone already is as good. A draft whose make was not

@@ -2567,3 +2567,73 @@ mod gmail_sync;
 
 #[path = "protected_sync_tests.rs"]
 mod protected_sync;
+
+/// An Encrypted message as the host hands it to a run: its body, and for each Bcc recipient a
+/// message of their own (#30 part 7), made here from a different body each.
+fn encrypted_for_bcc() -> Message {
+    use mailcraft_model::encrypting::{BlindCopy, EncryptTo, Encryption};
+    let to = |a: &str| vec![Address::new("", a)];
+    let body = |der: &[u8]| mailcraft_model::Original::new(mailcraft_mime::smime_enveloped(der).unwrap()).unwrap();
+    Message {
+        id: 601,
+        message_id: "rota@example.org".into(),
+        from: Address::new("Ada", "ada@example.org"),
+        to: to("bob@example.org"),
+        cc: to("carol@example.org"),
+        bcc: to("erin@example.org"),
+        subject: "Rota".into(),
+        date: SENT_AT,
+        encrypt: Some(true),
+        encrypt_with: Some(Encryption {
+            format: mailcraft_model::digital_signature::SignatureFormat::Smime,
+            recipients: vec![EncryptTo {
+                address: "bob@example.org".into(),
+                fingerprint: "AB".into(),
+                key: std::sync::Arc::new(vec![1]),
+                own: false,
+            }],
+            own_address: "ada@example.org".into(),
+        }),
+        original: Some(body(&[0x30, 0x03, 0x02, 0x01, 0xAA])),
+        blind_copies: vec![BlindCopy { address: "erin@example.org".into(), original: body(&[0x30, 0x03, 0x02, 0x01, 0xBB]) }],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn an_encrypted_message_goes_to_its_bcc_recipients_in_messages_of_their_own() {
+    let smtp = Fake::smtp(smtp_world());
+    let mut request = request(account(None, Some(&smtp)), local_folders());
+    request.outbox = vec![encrypted_for_bcc()];
+    let result = sync(&request);
+    assert_eq!(result.sent, [601], "{:?}", result.errors);
+    let world = smtp.world();
+    assert_eq!(world.delivered.len(), 2);
+    // Theirs first, to them alone, and with the body made for them; the others' last, without them.
+    assert_eq!(world.delivered[0].recipients, ["erin@example.org"]);
+    assert_eq!(world.delivered[1].recipients, ["bob@example.org", "carol@example.org"]);
+    let encoded = |der: &[u8]| String::from_utf8(mailcraft_mime::smime_enveloped(der).unwrap()).unwrap();
+    let body_of = |data: &str| data.split("\r\n\r\n").nth(1).unwrap_or_default().trim().to_string();
+    let (theirs, main) = (body_of(&world.delivered[0].data), body_of(&world.delivered[1].data));
+    assert_eq!(theirs, body_of(&encoded(&[0x30, 0x03, 0x02, 0x01, 0xBB])));
+    assert_eq!(main, body_of(&encoded(&[0x30, 0x03, 0x02, 0x01, 0xAA])));
+    assert_ne!(theirs, main);
+    // Nobody's copy says who was Bcc'd.
+    for delivered in &world.delivered {
+        assert!(!delivered.data.to_lowercase().contains("bcc"), "{}", delivered.data);
+    }
+}
+
+#[test]
+fn an_encrypted_message_whose_bcc_recipient_has_no_message_of_their_own_is_held() {
+    let smtp = Fake::smtp(smtp_world());
+    let mut request = request(account(None, Some(&smtp)), local_folders());
+    let mut m = encrypted_for_bcc();
+    m.blind_copies.clear();
+    request.outbox = vec![m];
+    let result = sync(&request);
+    assert!(result.sent.is_empty());
+    assert_eq!(result.unsigned.len(), 1);
+    assert!(result.unsigned[0].encrypting);
+    assert!(smtp.world().delivered.is_empty(), "never sent as one message for everybody");
+}

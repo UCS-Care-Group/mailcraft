@@ -77,7 +77,7 @@ fn a_message_that_couldnt_be_signed_is_held_with_why() {
     key(&mut s, a, true);
     s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Rota", "account": a})).unwrap();
     let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
-    let unsigned = vec![Unsigned { message: id, why: "the smartcard needs its PIN".into() }];
+    let unsigned = vec![Unsigned { message: id, why: "the smartcard needs its PIN".into(), encrypting: false }];
     let email = s.mailbox.account(a).unwrap().email.clone();
     s.run("sync.apply", &json!({"result": SyncResult { account: a, email, unsigned, ..Default::default() }})).unwrap();
     let m = s.mailbox.message(id).unwrap();

@@ -411,6 +411,36 @@ pub struct Message {
     /// goes), and nothing sends it unsigned. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub sign_with: Option<crate::signing::SigningKey>,
+    /// Encrypt (#30 R16a), as the owner set it for this message: `None` while they haven't, and
+    /// the account's Encrypt when every recipient has a key holds. A reply to an Encrypted message
+    /// is begun with it on. Kept with a draft.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub encrypt: Option<bool>,
+    /// For a message queued to be sent: what it is to be Encrypted to (#30 R16a, R17), decided at
+    /// Send from the Public keys kept. The host encrypts it on its way out ([`Message::original`]
+    /// then holds what goes), and nothing sends it in the clear. `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub encrypt_with: Option<crate::encrypting::Encryption>,
+    /// For a draft: it stays on this computer, never put on a server (#30 R20): it is to be
+    /// Encrypted, and what a server would be given of it is its clear text.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub local_only: bool,
+    /// For a draft that is to be Encrypted (#30 part 7): what is kept of it is the Encrypted message
+    /// ([`Message::original`]), to the owner's own key, and no clear text of its body or files:
+    /// opening it to edit waits for decrypting (part 6).
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub sealed_draft: bool,
+    /// For a message queued to be sent that is Encrypted and has Bcc recipients (#30 part 7): the
+    /// message of its own that each of them is sent, encrypted to them and the owner alone, so
+    /// that nothing in the message the others get names them. Made by the host on the way out,
+    /// and only in the copy the run is handed.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub blind_copies: Vec<crate::encrypting::BlindCopy>,
+    /// Where the host hands back what an Encrypted message went as (#30 part 7), for the copy
+    /// kept in Sent Items to be that and not the clear text. Shared by the copies of the message
+    /// the run is handed; never written.
+    #[serde(skip)]
+    pub sealed: crate::encrypting::Sealed,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.

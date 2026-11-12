@@ -798,10 +798,20 @@ fn options(app: &MailApp) -> Tab {
     let read_receipt = compose.is_some_and(|c| c.read_receipt);
     let sign = compose
         .is_some_and(|c| app.session.mailbox.account(c.account).or(app.session.mailbox.default_account()).is_some_and(|a| a.signing.signs(c.sign)));
+    // Encrypt is on when the owner turned it on for the message, else when the account encrypts
+    // what it can (#30 R16).
+    let encrypt = compose.is_some_and(|c| {
+        c.encrypt.unwrap_or_else(|| {
+            app.session.mailbox.account(c.account).or(app.session.mailbox.default_account()).is_some_and(|a| a.encryption.when_possible)
+        })
+    });
     Tab::of(vec![
         g(
             "Encrypt",
-            vec![Item::big("digitalSign", "Sign", "compose.sign", no()).checked(sign).at(0, 1), Item::pending("compose.encrypt", "Encrypt", 0)],
+            vec![
+                Item::big("digitalSign", "Sign", "compose.sign", no()).checked(sign).at(0, 1),
+                Item::big("lock", "Encrypt", "compose.encrypt", no()).checked(encrypt).at(0, 1),
+            ],
         ),
         g(
             "Tracking",

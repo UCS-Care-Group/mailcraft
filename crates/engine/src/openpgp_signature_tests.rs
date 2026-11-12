@@ -138,6 +138,39 @@ fn the_signers_key_in_the_message_is_kept_and_nobody_elses() {
 }
 
 #[test]
+fn a_key_that_comes_for_one_of_the_owners_own_addresses_is_never_kept() {
+    // Whoever writes in the owner's name (a forged message is signed by a key made for the
+    // purpose, with the owner's address) isn't the owner: their key is never kept as the owner's.
+    let mut mb = Mailbox::with_local_account("Alice", ALICE);
+    let inbox = mb.inbox().unwrap();
+    let mut m = mailcraft_mime::parse_fetched(&crlf(WITH_KEY));
+    m.folder = inbox;
+    let id = mb.add_message(m).unwrap();
+    let mut s = Session::new(mb);
+    s.clock.now = Some(NOW);
+    assert_eq!(said(&mut s, id), (Verdict::NotVerified, Some(Why::KeyNotVerified)));
+    settle(&mut s);
+    assert!(s.mailbox.public_keys.of(ALICE).is_empty(), "{:?}", s.mailbox.public_keys.of(ALICE));
+}
+
+#[test]
+fn a_key_is_ranked_by_when_its_mail_arrived_and_never_by_its_date_header() {
+    let mut mb = Mailbox::with_local_account("Bob", "bob@example.org");
+    let inbox = mb.inbox().unwrap();
+    let mut m = mailcraft_mime::parse_fetched(&crlf(WITH_KEY));
+    m.folder = inbox;
+    // The sender says it was written in 2099; it arrived in 2026.
+    m.date = 4_102_444_800;
+    m.received = NOW - 86_400;
+    let id = mb.add_message(m).unwrap();
+    let mut s = Session::new(mb);
+    s.clock.now = Some(NOW);
+    let _ = said(&mut s, id);
+    settle(&mut s);
+    assert_eq!(s.mailbox.public_keys.of(ALICE)[0].seen, NOW - 86_400);
+}
+
+#[test]
 fn a_draft_is_never_checked_and_keeps_nothing() {
     let mut mb = Mailbox::with_local_account("Bob", "bob@example.org");
     let inbox = mb.inbox().unwrap();

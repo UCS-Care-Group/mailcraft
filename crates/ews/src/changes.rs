@@ -4,9 +4,10 @@
 //! `CreateFolder`, `UpdateFolder`, `MoveFolder` and `DeleteFolder` for folders, each a request and
 //! a reader of its answer ([MS-OXWSCORE], [MS-OXWSFOLD]).
 //!
-//! **Nothing here deletes for good.** A [`DeleteMode`] is `MoveToDeletedItems` or `SoftDelete`
-//! (what Outlook's Delete and "Delete for good" do: recoverable from the dumpster); `HardDelete`
-//! has no variant, so it cannot be asked for.
+//! **Nothing the owner or an agent asks for deletes beyond recovery.** A [`DeleteMode`] is
+//! `MoveToDeletedItems` or `SoftDelete` (what Outlook's Delete and "Delete for good" do:
+//! recoverable from the dumpster). `HardDelete` is for one use alone: the earlier copy of a draft
+//! that was kept Encrypted ([`DeleteMode::HardDelete`]), which may hold the clear text.
 //!
 //! An item's id changes when it is moved ([`Moved`] says the new one); a change key changes with
 //! every edit ([`Saved`]). Both are the server's and stay opaque.
@@ -27,6 +28,9 @@ pub enum DeleteMode {
     MoveToDeletedItems,
     /// Into the dumpster, recoverable by the owner (Outlook's "Delete for good").
     SoftDelete,
+    /// Gone beyond recovery. Used only for the earlier copy of a draft that is now kept Encrypted
+    /// (#30 part 7), which may hold the text in the clear; no command asks for it.
+    HardDelete,
 }
 
 impl DeleteMode {
@@ -34,6 +38,7 @@ impl DeleteMode {
         match self {
             Self::MoveToDeletedItems => "MoveToDeletedItems",
             Self::SoftDelete => "SoftDelete",
+            Self::HardDelete => "HardDelete",
         }
     }
 }
