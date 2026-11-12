@@ -18,13 +18,9 @@ use crate::{Account, AccountKind, Address, Message, clean_name, mailbox_address}
 pub const MAX_SENDER_ADDRESSES: usize = 50;
 
 /// Headers that say which of the owner's addresses a message was delivered to, read after its
-/// To and Cc lines, in this order: the address it was sent to before the server took it to the
-/// mailbox, then the mailbox's own.
+/// To and Cc lines: the address it was sent to before the server took it to the mailbox, and the
+/// mailbox's own. Read top down, the topmost value of each only.
 const DELIVERED_TO: [&str; 2] = ["x-original-to", "delivered-to"];
-
-/// Most values of those headers read of one message: a server adds one a hop, and a message is
-/// anybody's to write.
-const MAX_DELIVERED_TO: usize = 20;
 
 /// One of an account's other sender addresses: the address, the name recipients see beside it
 /// (the account's own when empty), and the signature its messages start with (the account's
@@ -74,10 +70,11 @@ pub fn clean_sender_addresses(main: &str, list: &[SenderAddress]) -> Result<Vec<
 impl Account {
     /// Keep the sender addresses an IMAP account read from its file to what can be kept: the
     /// entries that are addresses, once each, names and signature names on one line, at most
-    /// [`MAX_SENDER_ADDRESSES`] (a file is anybody's to write). Another account's list is kept
-    /// as it is, never used.
+    /// [`MAX_SENDER_ADDRESSES`] (a file is anybody's to write). Another account's list is cut to that
+    /// many and otherwise kept as it is, never used.
     pub fn clamp_sender_addresses(&mut self) {
         if !self.takes_sender_addresses() {
+            self.sender_addresses.truncate(MAX_SENDER_ADDRESSES);
             return;
         }
         let mut kept: Vec<SenderAddress> = Vec::new();
@@ -140,8 +137,10 @@ impl Account {
     /// Which of its sender addresses a reply to, or forward of, `m` is from (#797): the first of
     /// the account's addresses found among the original's From (a message the owner sent from
     /// one), To and Cc; else the first of its sender addresses in the original's `X-Original-To`
-    /// and `Delivered-To` headers (mail to an alias in Bcc; the mailbox's own address there,
-    /// which a server writes whichever address the mail was for, says nothing). The address as
+    /// and `Delivered-To` headers (mail to an alias in Bcc). Only the topmost value of each header
+    /// is read, top down, as the owner's server wrote them above what came with the message,
+    /// and the search stops at the account's own address: a value further down may have been
+    /// planted by the sender. The address as
     /// the account keeps it, or `""` for its own address, also when none is found. Only whole
     /// addresses match, in any letter case: `ada+news@` is not `ada@`.
     pub fn reply_from(&self, m: &Message) -> String {
@@ -156,12 +155,25 @@ impl Account {
                 return s.email.clone();
             }
         }
-        DELIVERED_TO
-            .iter()
-            .flat_map(|name| m.headers.iter().filter(move |(n, _)| n.trim().eq_ignore_ascii_case(name)))
-            .take(MAX_DELIVERED_TO)
-            .filter_map(|(_, value)| Address::parse(value))
-            .find_map(|a| self.sender_address(&a.email).map(|s| s.email.clone()))
-            .unwrap_or_default()
+        // Only the topmost value of each header counts, and the headers are read top down: what
+        // the owner's server wrote sits above what came with the message, which may be planted.
+        // The first of the account's own addresses ends the search.
+        let mut seen = 0u8;
+        for (name, value) in &m.headers {
+            let Some(at) = DELIVERED_TO.iter().position(|d| name.trim().eq_ignore_ascii_case(d)) else { continue };
+            let bit = 1u8 << at;
+            if seen & bit != 0 {
+                continue;
+            }
+            seen |= bit;
+            let Some(a) = Address::parse(value) else { continue };
+            if a.email.trim().eq_ignore_ascii_case(self.email.trim()) {
+                return String::new();
+            }
+            if let Some(s) = self.sender_address(&a.email) {
+                return s.email.clone();
+            }
+        }
+        String::new()
     }
 }

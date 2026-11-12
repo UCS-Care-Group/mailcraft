@@ -73,6 +73,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
         });
     }
     let mut kept = clean_sender_addresses(&a.email, &typed).map_err(|problem| match problem {
+        SenderProblem::NotAnAddress(address) if address.trim().is_empty() => failed!("a sender address has no e-mail address"),
         SenderProblem::NotAnAddress(address) => failed!("\"{address}\" isn't an e-mail address", address),
         SenderProblem::TooMany => failed!("an account has {max} sender addresses at most", max = MAX_SENDER_ADDRESSES),
     })?;

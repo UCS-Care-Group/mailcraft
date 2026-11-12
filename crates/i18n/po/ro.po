@@ -17069,6 +17069,11 @@ msgid "a rule waiting to go to the server goes after those there; it can be move
 msgstr "o regulă care așteaptă să ajungă pe server vine după cele de acolo; poate fi mutată după ce ajunge acolo"
 
 #. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "a sender address has no e-mail address"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"

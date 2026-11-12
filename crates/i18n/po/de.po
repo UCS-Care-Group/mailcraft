@@ -15981,6 +15981,11 @@ msgid "a rule waiting to go to the server goes after those there; it can be move
 msgstr "eine Regel, die auf den Server warten muss, steht nach den dortigen; sie kann verschoben werden, sobald sie dort ist"
 
 #. what a command says
+#: crates/engine/src/cmd/senders.rs
+msgid "a sender address has no e-mail address"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"

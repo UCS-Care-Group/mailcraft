@@ -133,7 +133,7 @@ fn mail_to_an_alias_in_bcc_is_answered_from_it_by_its_delivery_headers() {
     let m = Message {
         from: customer.clone(),
         to: to(&["list@example.net"]),
-        headers: headers(&[("Delivered-To", "ada@example.org"), ("X-Original-To", "support@product.example")]),
+        headers: headers(&[("X-Original-To", "support@product.example"), ("Delivered-To", "ada@example.org")]),
         ..Default::default()
     };
     assert_eq!(a.reply_from(&m), "Support@Product.example");
@@ -161,6 +161,53 @@ fn mail_to_an_alias_in_bcc_is_answered_from_it_by_its_delivery_headers() {
 }
 
 #[test]
+fn a_planted_delivery_header_lower_down_never_picks_the_reply_address() {
+    let a = ada();
+    let headers = |list: &[(&str, &str)]| list.iter().map(|(n, v)| (n.to_string(), v.to_string())).collect::<Vec<_>>();
+    let customer = Address::new("Customer", "customer@example.net");
+    // The server wrote the main address on top; a value the sender planted below must not win.
+    let m = Message {
+        from: customer.clone(),
+        headers: headers(&[
+            ("X-Original-To", "ada@example.org"),
+            ("X-Original-To", "ada@company.example"),
+            ("Delivered-To", "support@product.example"),
+        ]),
+        ..Default::default()
+    };
+    assert_eq!(a.reply_from(&m), "");
+    // The same for Delivered-To alone.
+    let m = Message {
+        from: customer.clone(),
+        headers: headers(&[("Delivered-To", "ada@example.org"), ("delivered-to", "ada@company.example")]),
+        ..Default::default()
+    };
+    assert_eq!(a.reply_from(&m), "");
+    // A topmost value that is no sender address of the account is not looked past either.
+    let m = Message {
+        from: customer.clone(),
+        headers: headers(&[("X-Original-To", "list@example.net"), ("X-Original-To", "ada@company.example")]),
+        ..Default::default()
+    };
+    assert_eq!(a.reply_from(&m), "");
+    // A server that writes only Delivered-To (the main address, on top): an X-Original-To below it
+    // came with the message.
+    let m = Message {
+        from: customer.clone(),
+        headers: headers(&[("Delivered-To", "ada@example.org"), ("X-Original-To", "ada@company.example")]),
+        ..Default::default()
+    };
+    assert_eq!(a.reply_from(&m), "");
+    // The topmost alias still wins.
+    let m = Message {
+        from: customer,
+        headers: headers(&[("X-Original-To", "support@product.example"), ("X-Original-To", "ada@company.example")]),
+        ..Default::default()
+    };
+    assert_eq!(a.reply_from(&m), "Support@Product.example");
+}
+
+#[test]
 fn a_list_read_from_a_file_is_clamped_when_the_mailbox_is_repaired() {
     let mut mb = Mailbox::with_local_account("Ada", "ada@example.org");
     let mut many: Vec<SenderAddress> = vec![
@@ -179,12 +226,15 @@ one",
     many.extend((0..80).map(|n| sender(&format!("a{n}@example.org"), &"n".repeat(500))));
     let id = mb.add_account(Account { sender_addresses: many, ..ada() });
     let local = mb.accounts[0].id;
-    mb.account_mut(local).unwrap().sender_addresses = vec![sender("kept as it is", "")];
+    mb.account_mut(local).unwrap().sender_addresses = (0..80).map(|n| sender(&format!("kept{n}"), "")).collect();
     mb.repair();
     let kept = &mb.account(id).unwrap().sender_addresses;
     assert_eq!(kept.len(), crate::MAX_SENDER_ADDRESSES);
     assert_eq!(kept[0], sender("x@example.org", "Lineone"));
     assert!(kept.iter().all(|s| s.display_name.chars().count() <= crate::MAX_NAME));
-    // Another kind's list stays as its file had it.
-    assert_eq!(mb.account(local).unwrap().sender_addresses, [sender("kept as it is", "")]);
+    // Another kind's list is kept as its file had it, but for the bound.
+    // (cut to the bound, never unbounded).
+    let other = &mb.account(local).unwrap().sender_addresses;
+    assert_eq!(other.len(), crate::MAX_SENDER_ADDRESSES);
+    assert_eq!(other[0], sender("kept0", ""));
 }

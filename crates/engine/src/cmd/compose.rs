@@ -189,11 +189,11 @@ fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
 }
 
 /// The signature `name` names, else that of the sender address `from` when it has one of its
-/// own (#797), else the account's for new messages, or for replies and forwards when `reply`;
-/// `None` when that is none, or one with nothing in it.
+/// own (#797; a signature that is gone is passed over), else the account's for new messages, or
+/// for replies and forwards when `reply`; `None` when that is none, or one with nothing in it.
 fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, reply: bool) -> Option<Signature> {
     let a = s.mailbox.account(account);
-    let own = a.and_then(|a| a.sender_address(from)).map(|x| x.signature.clone()).filter(|n| !n.is_empty());
+    let own = a.and_then(|a| a.sender_address(from)).map(|x| x.signature.clone()).filter(|n| s.mailbox.signature(n).is_some());
     let name = name.map(str::to_string).or(own).or_else(|| a.map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
     s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
 }

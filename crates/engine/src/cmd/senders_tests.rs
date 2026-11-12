@@ -108,7 +108,7 @@ fn a_reply_is_from_the_address_the_original_was_sent_to() {
         assert_eq!(respond(&mut s, "mail.reply", m).0, "", "{to}");
     }
     // In Bcc: by the header its server wrote.
-    let m = message(&mut s, id, &["list@example.net"], &[], &[("Delivered-To", OWN), ("X-Original-To", PRODUCT)]);
+    let m = message(&mut s, id, &["list@example.net"], &[], &[("X-Original-To", PRODUCT), ("Delivered-To", OWN)]);
     assert_eq!(respond(&mut s, "mail.reply", m).0, PRODUCT);
     // A forward too.
     let m = message(&mut s, id, &[SUPPORT], &[], &[]);
@@ -176,6 +176,26 @@ fn a_message_from_a_sender_address_is_sent_from_it_and_saved_with_it() {
 }
 
 #[test]
+fn a_signature_that_is_gone_falls_back_to_the_accounts() {
+    let (mut s, id) = session();
+    s.run("signature.set", &json!({"name": "Main", "text": "Jorgen at the company"})).unwrap();
+    // A list read from a file may name a signature that isn't there.
+    let account = s.mailbox.account_mut(id).unwrap();
+    account.signature = "Main".into();
+    account.sender_addresses[1].signature = "Gone".into();
+    s.run("mail.new", &json!({"account": id, "from": SUPPORT, "to": "customer@example.net", "subject": "Plans"})).unwrap();
+    assert!(s.compose.as_ref().unwrap().body.text().to_plain().contains("Jorgen at the company"));
+}
+
+#[test]
+fn a_row_with_a_name_but_no_address_says_so() {
+    let (mut s, id) = session();
+    let why =
+        s.run("account.setSenderAddresses", &json!({"id": id, "addresses": [{"email": "", "displayName": "Support"}]})).unwrap_err().to_string();
+    assert!(why.contains("no e-mail address") && !why.contains("\"\""), "{why}");
+}
+
+#[test]
 fn a_sender_address_taken_away_is_not_sent_from() {
     let (mut s, id) = session();
     s.run("mail.new", &json!({"account": id, "from": PRODUCT, "to": "customer@example.net", "subject": "Plans"})).unwrap();
@@ -211,7 +231,7 @@ fn an_agent_is_asked_before_it_changes_them_and_told_who_mail_is_from() {
 fn a_message_as_its_server_delivered_it_is_answered_from_the_alias_and_sent_through_the_account() {
     let (mut s, id) = session();
     // To a list, the alias in Bcc: only its server's headers say which address it came to.
-    let raw = "Delivered-To: jorgen@company.example\r\nX-Original-To: support@product.example\r\nFrom: Customer <customer@example.net>\r\n\
+    let raw = "X-Original-To: support@product.example\r\nDelivered-To: jorgen@company.example\r\nFrom: Customer <customer@example.net>\r\n\
                To: list@example.net\r\nSubject: Licence\r\nMessage-ID: <797.2@example.net>\r\nDate: Tue, 01 Jul 2003 10:52:37 +0200\r\n\r\nWhich plan?\r\n";
     let mut m = mailcraft_mime::parse(raw.as_bytes());
     (m.account, m.folder) = (id, s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap());

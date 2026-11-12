@@ -1645,13 +1645,24 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let listed: Vec<String> = params
                 .get("addresses")
                 .and_then(Value::as_array)
-                .map(|list| list.iter().filter_map(|x| x.get("email").and_then(Value::as_str)).map(plain).collect())
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|x| {
+                            let email = plain(x.get("email").and_then(Value::as_str)?);
+                            // The name recipients see is part of what is asked.
+                            Some(match x.get("displayName").and_then(Value::as_str).map(plain).filter(|n| !n.is_empty()) {
+                                Some(name) => format!("{email} (shown as {name})"),
+                                None => email,
+                            })
+                        })
+                        .collect()
+                })
                 .unwrap_or_default();
             if listed.is_empty() {
-                format!("let the account {a} send from its own address only")
+                format!("replace the account {a}'s whole list of sender addresses with none, so that it sends from its own address only")
             } else {
                 // Every one, in full: the owner is never asked about what they can't read.
-                format!("let the account {a} send mail as {}", listed.join(", "))
+                format!("replace the account {a}'s whole list of sender addresses with: {}", listed.join(", "))
             }
         }
         "calendar.openShared" => {
