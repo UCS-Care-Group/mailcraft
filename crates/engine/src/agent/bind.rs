@@ -144,6 +144,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.dismissUpdateNotice"
         | "ui.dismissSettingsNotice"
         | "ui.reportProblem"
+        // The zone the calendar is shown in, which a rule reads the days mail came by (#566).
+        | "view.timeZone"
         // The Public keys kept (File › Options › Security, #30): the question names the key.
         | "keys.import"
         | "keys.remove" => Options,
@@ -203,6 +205,8 @@ struct Held {
     /// For Run Rules Now, its messages' marks as they were (#566): what the rules would do to them
     /// is what the question was about.
     as_shown: AsShown,
+    /// And the zone the rules read the days mail came by ([`Session::zone`]).
+    zone: mailcraft_time::Zone,
 }
 
 /// The marks of messages as a question showed them ([`Marks`]: what a rule reads and an agent may
@@ -298,6 +302,12 @@ impl Shown {
                 if id == "rules.run" && super::describe(s, id, params) != self.what {
                     return changed();
                 }
+                if id == "rules.run" && shown.zone != now.zone {
+                    return Err(
+                        "the time zone the rules read the days mail came by has changed since the owner was asked about `rules.run`, so they may act on other mail: nothing was done. Ask the owner again"
+                            .to_string(),
+                    );
+                }
                 if id == "rules.run" && shown.as_shown.changed(s, &now.messages) {
                     return Err(
                         "a message in the folder `rules.run` was asked about has other categories, another flag or another importance since the owner was asked, so the rules may act on it otherwise: nothing was done. Ask the owner again"
@@ -343,7 +353,7 @@ fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
     } else {
         (crate::cmd::folder::deleted_with(s, folder), s.mailbox.subtree(folder))
     };
-    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect(), as_shown })
+    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect(), as_shown, zone: s.zone() })
 }
 
 /// Everybody a calendar command would write to, in full: the question names only the first few.

@@ -4533,6 +4533,10 @@ pub(crate) mod rules {
         from: String,
         to: String,
         category: String,
+        /// A sender's text Always Move filled in that isn't a whole address: looked for as one
+        /// text, a semicolon in it too, as `rules.fromMessage` looks for it, while the field still
+        /// holds it as filled in.
+        whole: Option<String>,
     }
 
     impl Default for Cond {
@@ -4547,11 +4551,21 @@ pub(crate) mod rules {
                 from: String::new(),
                 to: String::new(),
                 category: String::new(),
+                whole: None,
             }
         }
     }
 
     impl Cond {
+        /// The words it looks for: the field's, set apart by its semicolons, or the sender's text
+        /// as Always Move filled it in, whole.
+        fn words(&self) -> Vec<String> {
+            match &self.whole {
+                Some(whole) if *whole == self.text => vec![whole.trim().to_string()],
+                _ => split_words(&self.text),
+            }
+        }
+
         /// The sizes it is between, when both are whole numbers and the first isn't above the
         /// second.
         fn sizes(&self) -> Option<(u64, u64)> {
@@ -4562,7 +4576,7 @@ pub(crate) mod rules {
 
         /// What it still needs, in words, or `None` when it says all it needs to.
         fn lacks(&self) -> Option<&'static str> {
-            let words = split_words(&self.text);
+            let words = self.words();
             if self.kind.takes_text() && words.len() > MAX_WORDS_EACH {
                 return Some(too_many_words());
             }
@@ -4609,7 +4623,7 @@ pub(crate) mod rules {
         fn param(&self) -> Value {
             let kind = self.kind.code();
             match self.kind {
-                k if k.takes_text() => match split_words(&self.text).as_slice() {
+                k if k.takes_text() => match self.words().as_slice() {
                     [one] => json!({"type": kind, "value": one}),
                     words => json!({"type": kind, "value": words}),
                 },
@@ -5148,8 +5162,12 @@ pub(crate) mod rules {
             // looked for as words.
             // (The address whole: one cut short would be somebody else's.)
             // A longer one is said in the builder, as `rules.add` refuses it, never cut.
-            let (kind, text) = if by_address(sender) { (When::Person, sender.to_string()) } else { (When::From, sender.to_string()) };
-            self.conds = vec![Cond { kind, text, ..Default::default() }];
+            let cond = if by_address(sender) {
+                Cond { kind: When::Person, text: sender.to_string(), ..Default::default() }
+            } else {
+                Cond { kind: When::From, text: sender.to_string(), whole: Some(sender.to_string()), ..Default::default() }
+            };
+            self.conds = vec![cond];
             self.acts = vec![Act { kind: Do::Move, folder, ..self.fresh_action() }];
             self.open = true;
             self.run_in = Some((m.folder, crate::nav::folder_path(mb, m.folder)));
@@ -5238,7 +5256,7 @@ pub(crate) mod rules {
                     }
                 };
                 if let Some((_, all)) = kinds.get_mut(at) {
-                    for w in split_words(&c.text) {
+                    for w in c.words() {
                         if !all.iter().any(|a| mailcraft_model::same_word(c.kind.takes_people(), a, &w)) {
                             all.push(w);
                         }
@@ -5288,9 +5306,9 @@ pub(crate) mod rules {
             let over =
                 if mb.folder(in_view).is_some_and(|f| f.account == account) { Some(in_view) } else { mb.folder_of_kind(account, FolderKind::Inbox) };
             let folder_over = over.map(|f| crate::nav::folder_path(mb, f)).unwrap_or_default();
-            // (Not over a shared mailbox's folder: the rules leave its mail alone.)
-            let shared = over.and_then(|f| mb.folder(f)).is_some_and(|f| !mb.rules_reach(f.account));
-            let reach = over.is_some() && !shared;
+            // (Never a shared mailbox's folder: the dialog shows the rules of the owner's own
+            // accounts, and the rules leave a shared mailbox's mail alone.)
+            let reach = over.is_some();
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
@@ -5352,12 +5370,6 @@ pub(crate) mod rules {
                     let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_over)]);
                     let any = !(there.is_empty() && here.is_empty()) && reach;
                     let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
-                    // Greyed over a shared mailbox's folder: says why.
-                    let button = if shared {
-                        button.on_disabled_hover_text(tl!("The rules leave a shared mailbox's mail alone: its rules are its own."))
-                    } else {
-                        button
-                    };
                     if button.clicked()
                         && let Some(folder) = over
                     {

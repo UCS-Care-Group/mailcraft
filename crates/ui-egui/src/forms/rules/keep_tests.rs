@@ -128,7 +128,7 @@ fn always_move_messages_from_this_sender_fills_the_new_rule_in() {
     let odd = Message { folder: inbox, from: Address::new("", "noreply"), subject: "x".into(), ..Default::default() };
     let odd = s.mailbox.add_message(odd).unwrap();
     let f = RulesForm::new(&s, &json!({"folder": to, "id": odd}));
-    assert_eq!(f.conds, [Cond { kind: When::From, text: "noreply".into(), ..Default::default() }]);
+    assert_eq!(f.conds, [Cond { kind: When::From, text: "noreply".into(), whole: Some("noreply".into()), ..Default::default() }]);
     assert_eq!(f.lacks(), None);
     // A long address is taken whole, never cut into somebody else's.
     let long = format!("a@{}.{}.{}.{}.example", "b".repeat(60), "c".repeat(60), "d".repeat(60), "e".repeat(30));
@@ -465,4 +465,78 @@ fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_al
     let mb = &h.state().session.mailbox;
     assert!(mb.message(m).is_some(), "a rule the dialog didn't show deleted \"{subject}\" permanently");
     assert!(mb.message(news).is_some_and(|m| m.read), "the rule shown ran over noor's Inbox");
+}
+
+/// Review r11, lens 4 (separators): Always Move Messages From This Sender, for a sender whose
+/// address isn't one whole address and has a semicolon in it (`Deals <e;x@deals.example>`, which
+/// the header reader keeps whole between the angle brackets). `rules.fromMessage` looks for it as
+/// one text; the builder fills the same text into a field whose semicolons set texts apart, so
+/// the rule it adds looks for "e" or "x@deals.example", and the run that follows Add Rule moves
+/// other people's mail.
+#[test]
+fn review_r11_always_move_keeps_a_semicolon_in_the_senders_text() {
+    use mailcraft_model::{Address, Condition, Message};
+    let mut s = session();
+    let inbox = s.view.folder;
+    let account = s.mailbox.folder(inbox).unwrap().account;
+    let to = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let add = |s: &mut Session, name: &str, email: &str| {
+        let m = Message { folder: inbox, account, from: Address::new(name, email), subject: format!("From {name}"), ..Default::default() };
+        s.mailbox.add_message(m).unwrap()
+    };
+    let deals = add(&mut s, "Deals", "e;x@deals.example");
+    let eve = add(&mut s, "Eve", "eve@example.org");
+    // The command: one text, the sender's as it is.
+    let made = s.run("rules.fromMessage", &json!({"folder": to, "id": deals})).unwrap()["id"].as_u64().unwrap();
+    let rule = s.mailbox.rules.iter().find(|r| r.id == made).unwrap();
+    assert_eq!(rule.conditions, [Condition::FromContains(vec!["e;x@deals.example".into()])]);
+    assert_eq!(s.mailbox.message(eve).unwrap().folder, inbox, "rules.fromMessage left Eve's mail alone");
+    s.run("rules.remove", &json!({"id": made})).unwrap();
+    s.run("mail.move", &json!({"ids": [deals], "folder": inbox})).unwrap();
+    // The window: the builder filled in, Add Rule, then the run over the Inbox it offers.
+    let f = RulesForm::new(&s, &json!({"folder": to, "id": deals}));
+    assert!(f.then_run && f.lacks().is_none());
+    let (command, params) = f.command();
+    let made = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
+    s.run("rules.run", &json!({"folder": inbox, "id": made})).unwrap();
+    let rule = s.mailbox.rules.iter().find(|r| r.id == made).unwrap();
+    assert_eq!(
+        s.mailbox.message(eve).unwrap().folder,
+        inbox,
+        "the rule Always Move made in the window, {:?}, moved Eve's mail to Archive",
+        rule.conditions
+    );
+}
+
+/// With a shared mailbox's folder in view, the Rules dialog shows the rules of the first account
+/// added (a shared mailbox's rules are its own), and its Run Rules Now runs them over that
+/// account's Inbox, as its hover says: the shared mailbox's mail is left alone.
+#[test]
+fn run_rules_now_with_a_shared_mailboxs_folder_in_view_runs_over_the_accounts_own_inbox() {
+    use mailcraft_model::{Address, Message};
+    let mut a = app();
+    let work = a.session.run("account.add", &json!({"email": "work@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let team = a.session.run("account.addSharedMailbox", &json!({"account": work, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let first = a.session.mailbox.accounts[0].id;
+    a.session
+        .run(
+            "rules.add",
+            &json!({"name": "Read", "account": first, "server": false,
+                "conditions": [{"type": "fromContains", "value": "news@club.example"}], "actions": [{"type": "markRead"}]}),
+        )
+        .unwrap();
+    let news = |a: &mut crate::MailApp, account: u64| {
+        let folder = a.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m = Message { folder, account, from: Address::new("", "news@club.example"), subject: "Club news".into(), ..Default::default() };
+        a.session.mailbox.add_message(m).unwrap()
+    };
+    let (ours, theirs) = (news(&mut a, first), news(&mut a, team));
+    a.session.view.folder = a.session.mailbox.folder_of_kind(team, FolderKind::Inbox).unwrap();
+    a.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = window(a);
+    h.get_by_label("Run Rules Now").click();
+    h.run_steps(4);
+    let mb = &h.state().session.mailbox;
+    assert!(mb.message(ours).is_some_and(|m| m.read), "the rules shown ran over their account's Inbox");
+    assert!(mb.message(theirs).is_some_and(|m| !m.read), "the shared mailbox's mail is left alone");
 }

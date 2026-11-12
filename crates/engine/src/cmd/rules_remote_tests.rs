@@ -2500,3 +2500,175 @@ fn add_with_exception(s: &mut Session, account: Id) {
         "exceptions": [{"type": "toMe"}], "actions": [{"type": "deleteForGood"}]}),
     );
 }
+
+/// Review r11 (lens 7): the owner renames a category on a Microsoft account's list. A rule on its
+/// server that puts that category on mail keeps the old name (the server's list isn't written), but
+/// the rule on this computer whose exception names the category is rewritten, so the next mail the
+/// server tagged no longer counts as excepted and is deleted for good.
+#[test]
+fn review_r11_a_renamed_category_still_excepts_mail_a_server_rule_tagged() {
+    let (mut s, account, _, _) = session();
+    // The account's own list, as at the first read of its server's categories.
+    s.mailbox.start_account_categories(account, &["Keep".to_string()]);
+    run(&mut s, "category.set", json!({"name": "Keep", "color": "#2E8B57", "account": account}));
+    // On the server: mail from the boss is tagged "Keep" (made in Outlook on the web, or here and
+    // kept there, as a Categorize rule of a Microsoft account is by default).
+    let mut tag = remote("r1", "Boss", 1);
+    tag.conditions = vec![Condition::From(vec!["boss@example.org".into()])];
+    tag.actions = vec![Action::Categorize("Keep".into())];
+    merge_rules(&mut s.mailbox, &download(account, vec![tag])).unwrap();
+    // On this computer: everything from example.org deleted for good, except what has "Keep".
+    let purge = run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account,
+            "conditions": [{"type": "fromContains", "value": "example.org"}],
+            "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "deleteForGood"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(rule(&s, purge).keep, Keep::Here);
+    // The owner renames it.
+    run(&mut s, "category.rename", json!({"from": "Keep", "to": "Important", "account": account}));
+    let server_rule = s.mailbox.rules.iter().find(|r| r.on_server()).unwrap();
+    assert_eq!(server_rule.actions, [Action::Categorize("Keep".into())], "the server's rule keeps its name");
+    assert_eq!(rule(&s, purge).exceptions, [Condition::Category(vec!["Keep".into(), "Important".into()])], "the rule here follows the rename");
+    // The boss's next mail comes in, tagged "Keep" by the server's rule.
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let m = Message {
+        folder: inbox,
+        from: Address::new("Boss", "boss@example.org"),
+        subject: "Contract".into(),
+        categories: vec!["Keep".into()],
+        ..Default::default()
+    };
+    let m = s.mailbox.add_message(m).unwrap();
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.message(m).is_some(), "the boss's mail, which the server tagged as the exception names, was deleted for good");
+}
+
+/// Review r11 (lens 7): an agent's rename of a category now rewrites the rules for the same mail
+/// (an exception of a rule here that deletes for good), but the gate still runs it unasked.
+#[test]
+fn review_r11_an_agents_rename_that_rewrites_a_deleting_rules_exception_asks() {
+    let (mut s, account, _, _) = session();
+    run(&mut s, "category.set", json!({"name": "Keep", "color": "#2E8B57", "account": account}));
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account,
+            "conditions": [{"type": "fromContains", "value": "example.org"}],
+            "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let rename = json!({"from": "Keep", "to": "Important", "account": account});
+    let verdict = crate::agent::check(&s, "category.rename", &rename, &[]);
+    assert!(matches!(verdict, crate::agent::Verdict::Ask(crate::agent::Class::Delete, _)), "{verdict:?}");
+}
+
+/// Review r11 (lens 7): a rule sent to the server whose answer was lost is the server's or may
+/// be; a rename of a category on the account's list rewrites it all the same, so when the server's
+/// rules are read it isn't known for the one the server made, and goes up a second time.
+#[test]
+fn review_r11_a_rename_while_an_answer_is_lost_doesnt_make_the_rule_twice() {
+    let (mut s, account, _, _) = session();
+    run(&mut s, "category.set", json!({"name": "Keep", "color": "#2E8B57", "account": account}));
+    let id = add(&mut s, account, "Boss", json!([{"type": "fromContains", "value": "boss"}]), json!([{"type": "categorize", "value": "Keep"}]));
+    assert_eq!(rule(&s, id).keep, Keep::Server);
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    assert!(rule(&s, id).unanswered);
+    run(&mut s, "category.rename", json!({"from": "Keep", "to": "Important", "account": account}));
+    // The server made it as it was sent.
+    let mut there = remote("r9", "Boss", 1);
+    there.conditions = vec![Condition::FromContains(vec!["boss".into()])];
+    there.actions = vec![Action::Categorize("Keep".into())];
+    let merged = merge_rules(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    let creates = rule_upload(&s.mailbox, account).unwrap().ops.iter().filter(|op| op.kind == RuleOpKind::Create).count();
+    assert_eq!((merged.added, s.mailbox.rules.len(), creates), (0, 1, 0), "the rule the server made is taken in once, not made again");
+}
+
+/// The zone the calendar is shown in decides which day "received on or after" reads a message as.
+/// An agent's change of it beside a rule here that reads those days and deletes for good asks as
+/// a delete, naming the rule; and the owner's yes to an agent's Run Rules Now, bound to the mail as
+/// it was asked about, is refused when the zone changed meanwhile (the owner changed it in the
+/// window, say), rather than deleting for good a message the rule didn't take when asked.
+#[test]
+fn run_rules_nows_yes_doesnt_follow_a_time_zone_changed_meanwhile() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Class, Verdict, answered, check};
+    let (mut s, account, _, _) = session();
+    s.clock.zone = Some(mailcraft_time::Zone::named("Europe/London").unwrap());
+    run(&mut s, "view.timeZone", json!({"zone": "Europe/London"}));
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge new reports", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "report"}, {"type": "receivedBetween", "value": {"from": "2026-11-11"}}],
+        "actions": [{"type": "deleteForGood"}]}),
+    );
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    // 23:30 UTC on 10 November: the 10th in London, the 11th in Tokyo.
+    let at = 1_794_353_400;
+    let m = s
+        .mailbox
+        .add_message(Message {
+            folder: inbox,
+            account,
+            from: Address::new("Shop", "shop@example.org"),
+            subject: "Monthly report".into(),
+            received: at,
+            date: at,
+            ..Default::default()
+        })
+        .unwrap();
+    let params = json!({"folder": inbox});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    // As asked, the rule leaves it alone: the 10th is before the 11th.
+    let mut as_asked = s.mailbox.clone();
+    as_asked.run_rules(m, true, &s.rule_clock());
+    assert!(as_asked.message(m).is_some(), "as asked, the rule doesn't take it");
+    // An agent's change of the zone is asked about as a delete, naming the rule.
+    let tokyo = json!({"zone": "Asia/Tokyo"});
+    let v = check(&s, "view.timeZone", &tokyo, &[]);
+    let Verdict::Ask(Class::Delete, why) = v else { panic!("asked as a delete: {v:?}") };
+    assert!(why.contains("Purge new reports") && why.contains("time zone"), "{why}");
+    assert_eq!(check(&s, "view.timeZone", &json!({"zone": "Europe/London"}), &[]), Verdict::Run, "the zone it is already");
+    // While the question about the rules is up, the zone changes all the same.
+    s.run("view.timeZone", &tokyo).unwrap();
+    // The owner says yes.
+    let reach = shown.check(&s, "rules.run", &params);
+    assert!(reach.as_ref().is_err_and(|e| e.contains("time zone")), "{reach:?}");
+    let verdict = answered(&s, "rules.run", &params, &[], Class::Delete);
+    if reach.is_ok() && verdict == Verdict::Run {
+        s.agent = Some(vec![Class::Delete]);
+        s.run("rules.run", &params).unwrap();
+        s.agent = None;
+    }
+    assert!(
+        s.mailbox.message(m).is_some(),
+        "the yes deleted for good a message the rule didn't take when the owner was asked (reach {reach:?}, verdict {verdict:?}; asked: {what})"
+    );
+}
+
+/// Keeping on the server a rule the command refuses (one that deletes for good) is asked as a
+/// change to the rules alone, which the command then refuses: the question doesn't say it lets
+/// more mail reach the rule, since it changes nothing.
+#[test]
+fn keeping_a_refused_rule_on_the_server_is_asked_as_nothing_more_than_a_change_to_the_rules() {
+    use crate::agent::{Verdict, check};
+    let (mut s, account, _, _) = session();
+    let purge = run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "spam"}], "actions": [{"type": "deleteForGood"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let params = json!({"id": purge});
+    assert!(super::rules::keeping_on_server(&s, &params).is_err(), "the command refuses it");
+    let verdict = check(&s, "rules.keepOnServer", &params, &[]);
+    let Verdict::Ask(crate::agent::Class::Settings, what) = &verdict else { panic!("asked as a change to the rules: {verdict:?}") };
+    assert!(!what.contains("may let more mail reach"), "{what}");
+}

@@ -119,6 +119,9 @@ enum Setup {
     /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
     /// with other people, with a category.
     Shared,
+    /// The calendar shown in London's zone, and a rule here that reads the days mail came by it
+    /// and deletes for good.
+    Days,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -246,6 +249,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
     ("tasks.fromMessage", "{}", Setup::Shared),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
+    ("view.timeZone", r#"{"zone": "Asia/Tokyo"}"#, Setup::Days),
 ];
 
 /// Asked about only for a dialog with changes the owner hasn't saved, which a test can't fill in
@@ -324,6 +328,14 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             t.origin.id = "t1".to_string();
             t.list = "L1".to_string();
             t.categories = vec!["Shared".to_string()];
+        }
+        Setup::Days => {
+            a.session.clock.offset = None;
+            a.session.clock.zone = mailcraft_time::Zone::named("Europe/London");
+            a.execute("view.timeZone", json!({"zone": "Europe/London"})).unwrap();
+            let rule = json!({"name": "Old news", "account": i.account, "server": false,
+                "conditions": [{"type": "receivedBetween", "value": {"to": "2026-01-01"}}], "actions": [{"type": "deleteForGood"}]});
+            a.execute("rules.add", rule).unwrap();
         }
         Setup::Step(redo) => {
             a.execute("junk.add", json!({"list": "safe", "entry": "z@example.org"})).unwrap();

@@ -279,3 +279,18 @@ fn a_quote_in_a_word_doesnt_read_as_another_exception() {
     assert_ne!(real, forged, "the owner is asked the same about both: {real}");
     assert!(forged.contains(r#"subject contains "x\" or from contains \"boss""#), "{forged}");
 }
+
+/// An agent's change of an account's address, with two rules switched on here that read that
+/// address and delete mail permanently: the question names both, and its verbs agree with "the
+/// rules".
+#[test]
+fn the_account_question_about_two_rules_that_read_its_address_agrees_in_number() {
+    let mut s = sample();
+    let a = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    for name in ["One", "Two"] {
+        let rule = json!({"name": name, "account": a, "conditions": [{"type": "toMe"}], "actions": [{"type": "deleteForGood"}]});
+        s.run("rules.add", &rule).unwrap();
+    }
+    let q = describe(&s, "account.edit", &json!({"id": a, "email": "lovelace@example.org"}));
+    assert!(q.contains("the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, delete mail permanently and read"), "{q}");
+}

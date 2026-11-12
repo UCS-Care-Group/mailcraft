@@ -418,7 +418,8 @@ pub fn expire(app: &mut MailApp, now: f64) {
 
 /// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
 /// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
-/// (#566), and so does a change to the Safe or Blocked Senders beside such a rule. One made from a
+/// (#566), and so does a change to the Safe or Blocked Senders, an account's address, a
+/// category's name or the calendar's time zone beside such a rule. One made from a
 /// message that deletes mail (`deletes`) does: it runs at once on the mail from that sender. So
 /// does an undo or a redo that takes something away; one that only puts back a rule that deletes
 /// mail doesn't.
@@ -436,6 +437,9 @@ pub(crate) fn verbs(class: Class, id: &str, deletes: bool) -> (&'static str, &'s
                     | "junk.remove"
                     | "junk.neverBlockSender"
                     | "junk.neverBlockDomain"
+                    | "account.edit"
+                    | "category.rename"
+                    | "view.timeZone"
             ) =>
         {
             (tl!("Allow"), tl!("Don't Allow"))

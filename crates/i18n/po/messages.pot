@@ -11714,8 +11714,8 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
-#. interface, what a command says
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
 msgstr ""
 

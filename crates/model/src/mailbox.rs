@@ -3673,32 +3673,64 @@ impl Mailbox {
     }
 
     /// Rename a category on the list `account`'s items use, on the items that use that list, and in
-    /// the rules for them.
+    /// the rules for them ([`Mailbox::rules_renaming`]). Refused, changing nothing, when an
+    /// exception would then name more categories than a rule looks for.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
         if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
             return Err(invalid(format!("a category named \"{to}\" already exists")));
         }
-        let cat = self
-            .categories_of_mut(account)
-            .iter_mut()
-            .find(|c| c.name.eq_ignore_ascii_case(from.trim()))
-            .ok_or_else(|| invalid(format!("no category named \"{from}\"")))?;
-        cat.name = to.clone();
+        if !self.categories_of_mut(account).iter().any(|c| c.name.eq_ignore_ascii_case(from.trim())) {
+            return Err(invalid(format!("no category named \"{from}\"")));
+        }
+        // The rules for the mail that uses this list follow it (#566): else an exception for the
+        // category stops leaving that mail alone.
+        let mut renamed: Vec<(usize, Rule)> = Vec::new();
+        for (i, whole) in self.rules_renaming(account, from) {
+            let Some(mut rule) = self.rules.get(i).cloned() else { continue };
+            rule.rename_category(from.trim(), &to, whole);
+            if rule.exceptions.iter().any(|c| matches!(c, crate::Condition::Category(names) if names.len() > crate::MAX_WORDS_EACH)) {
+                return Err(invalid(format!(
+                    "the rule \"{}\" would look for more than {} categories in its exceptions, which name this one by its old name too",
+                    rule.name,
+                    crate::MAX_WORDS_EACH
+                )));
+            }
+            renamed.push((i, rule));
+        }
+        if let Some(cat) = self.categories_of_mut(account).iter_mut().find(|c| c.name.eq_ignore_ascii_case(from.trim())) {
+            cat.name = to.clone();
+        }
         self.each_category_list(account, |list| {
             for c in list.iter_mut().filter(|c| c.eq_ignore_ascii_case(from.trim())) {
                 *c = to.clone();
             }
         });
-        // The rules for the mail that uses this list follow it (#566): else an exception for the
-        // category stops leaving that mail alone. One its account's server has is the server's,
-        // read from it again, and keeps the name the server gave it.
-        let list = self.category_list_owner(account);
-        let follow: Vec<bool> = self.rules.iter().map(|r| r.server.is_none() && self.category_list_owner(r.account) == list).collect();
-        for (rule, _) in self.rules.iter_mut().zip(follow).filter(|(_, follow)| *follow) {
-            rule.rename_category(from.trim(), &to);
+        for (i, rule) in renamed {
+            if let Some(r) = self.rules.get_mut(i) {
+                *r = rule;
+            }
         }
         Ok(())
+    }
+
+    /// The rules (their places in [`Mailbox::rules`]) that a rename of the category `from` on the
+    /// list `account`'s items use rewrites, and whether wholly ([`Rule::rename_category`]): those
+    /// for the mail that uses that list that name it ([`Rule::names_category`]), and the
+    /// exceptions of a rule for every account's mail, which is mail on that list too (#566). Not
+    /// one its account's server has, which is the server's, read from it again, and keeps the
+    /// name the server gave it, nor one sent to be made there that no answer has come for, which
+    /// the server may have as it was sent.
+    pub fn rules_renaming(&self, account: Id, from: &str) -> Vec<(usize, bool)> {
+        let list = self.category_list_owner(account);
+        let mut renaming = Vec::new();
+        for (i, r) in self.rules.iter().enumerate().filter(|(_, r)| r.server.is_none() && !r.unanswered) {
+            let whole = self.category_list_owner(r.account) == list;
+            if (whole || r.account == 0) && r.names_category(from.trim(), whole) {
+                renaming.push((i, whole));
+            }
+        }
+        renaming
     }
 
     /// Remove a category from the list `account`'s items use, and from the items that use it.

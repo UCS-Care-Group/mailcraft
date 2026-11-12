@@ -694,28 +694,55 @@ impl Rule {
         if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
     }
 
-    /// The category `from` called `to` wherever it names it, matched as the mail's own categories
-    /// are renamed ([`Mailbox::rename_category`](crate::Mailbox::rename_category)), each name once:
-    /// an exception for it still leaves that mail alone, a condition still takes it, and
-    /// Categorize puts it on by its new name (#566).
-    pub fn rename_category(&mut self, from: &str, to: &str) {
-        for c in self.conditions.iter_mut().chain(self.exceptions.iter_mut()) {
-            if let Condition::Category(names) = c
-                && names.iter().any(|n| n.eq_ignore_ascii_case(from))
-            {
-                let mut kept: Vec<String> = Vec::with_capacity(names.len());
-                for n in names.drain(..) {
-                    let n = if n.eq_ignore_ascii_case(from) { to.to_string() } else { n };
-                    if !kept.iter().any(|k| k.eq_ignore_ascii_case(&n)) {
+    /// Whether it names the category `name`, as a rule matches a category
+    /// ([`crate::sync::same_category`]): in an exception, or (`whole`) in a condition or
+    /// Categorize too.
+    pub fn names_category(&self, name: &str, whole: bool) -> bool {
+        let named = |n: &String| crate::sync::same_category(n, name);
+        let names = |c: &Condition| matches!(c, Condition::Category(names) if names.iter().any(named));
+        self.exceptions.iter().any(names)
+            || (whole && (self.conditions.iter().any(names) || self.actions.iter().any(|a| matches!(a, Action::Categorize(n) if named(n)))))
+    }
+
+    /// The category `from` called `to` wherever it names it, matched as a rule matches a category
+    /// ([`crate::sync::same_category`]), each name once (#566): a condition takes the mail by its
+    /// new name and Categorize puts that on, while an exception names it by both, so that it still
+    /// leaves alone the mail renamed here and the mail that comes with the old name (a server's
+    /// rule, or another program, may still put that on: a Microsoft account's list isn't written
+    /// to its server, #661). Only in its exceptions unless `whole`.
+    pub fn rename_category(&mut self, from: &str, to: &str, whole: bool) {
+        let rename = |names: &mut Vec<String>, keep_old: bool| {
+            if !names.iter().any(|n| crate::sync::same_category(n, from)) {
+                return;
+            }
+            let mut kept: Vec<String> = Vec::with_capacity(names.len().saturating_add(1));
+            for n in names.drain(..) {
+                let renamed = crate::sync::same_category(&n, from);
+                let old = (!renamed || keep_old).then_some(n);
+                for n in old.into_iter().chain(renamed.then(|| to.to_string())) {
+                    if !kept.iter().any(|k| crate::sync::same_category(k, &n)) {
                         kept.push(n);
                     }
                 }
-                *names = kept;
+            }
+            *names = kept;
+        };
+        for c in &mut self.exceptions {
+            if let Condition::Category(names) = c {
+                rename(names, true);
+            }
+        }
+        if !whole {
+            return;
+        }
+        for c in &mut self.conditions {
+            if let Condition::Category(names) = c {
+                rename(names, false);
             }
         }
         for a in &mut self.actions {
             if let Action::Categorize(name) = a
-                && name.eq_ignore_ascii_case(from)
+                && crate::sync::same_category(name, from)
             {
                 *name = to.to_string();
             }
