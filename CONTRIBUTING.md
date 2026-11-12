@@ -19,7 +19,14 @@ much as the work.
    who claimed it in the issue. A claim lapses when its author has posted no comment, pull request
    or draft for 14 days, and anyone may then claim it with a new comment. A new feature or change
    that isn't in the issues: open one and wait for a yes before building it.
-4. **Found a bug and have the fix? Send both at once.** Open the
+4. **An open pull request holds its feature.** While a pull request is open, its feature is its
+   author's. A pull request still waiting for a review keeps it however long that takes. Once a
+   review asks for changes, the author has 7 days from that review to answer, with a commit or a
+   comment. After 7 days without an answer the feature is free: the issue's claim lapses with it,
+   anyone may claim the issue with a new comment and build the feature afresh, from the specs and
+   never from that pull request's code. The pull request can still be updated and merged if nobody
+   has built the feature meanwhile.
+5. **Found a bug and have the fix? Send both at once.** Open the
    [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
    and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
    claim and no wait. A report without a fix is just as welcome. If the fix needs one of the
