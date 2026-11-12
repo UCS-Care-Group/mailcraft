@@ -50,7 +50,7 @@ impl Flow {
         app.autosave = false;
         app.services.graph = Some(Box::new(move |request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
-            let _ = tx.send(super::graph_in_with(request, "UTC", &renew));
+            let _ = tx.send(super::graph_in_with(request, "UTC", NOW, &renew));
             rx
         }));
         let added = app.execute(

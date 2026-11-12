@@ -182,7 +182,7 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
             let _route = mailcraft_net::graph::standin::route(&base);
             let tokens = Tokens { access: TOKEN.into(), refresh: "ref".into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() };
             let renewed = GraphTokens { tokens, extras_missing: false, covers_favorites: false };
-            let _ = tx.send(super::graph_with(request, "UTC", &move |_, _, _| Ok(renewed.clone())));
+            let _ = tx.send(super::graph_with(request, "UTC", NOW, &move |_, _, _| Ok(renewed.clone())));
         });
         rx
     }));
@@ -365,7 +365,7 @@ fn a_message_over_16_mb_and_those_refused_dont_hold_the_background_up() {
             let _route = mailcraft_net::graph::standin::route(&base);
             let tokens = Tokens { access: TOKEN.into(), refresh: "ref".into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() };
             let renewed = GraphTokens { tokens, extras_missing: false, covers_favorites: false };
-            let _ = tx.send(super::graph_with(request, "UTC", &move |_, _, _| Ok(renewed.clone())));
+            let _ = tx.send(super::graph_with(request, "UTC", NOW, &move |_, _, _| Ok(renewed.clone())));
         });
         rx
     }));

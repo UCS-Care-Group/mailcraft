@@ -899,12 +899,15 @@ fn log_outcome(outcome: &mailcraft_model::remote::EventOutcome) {
 /// the Outbox, and bring the calendar and the contacts down. Nothing here stops the mail: every
 /// trouble is a line in the answer.
 fn graph(request: GraphRequest) -> GraphResult {
-    graph_in(request, &local_zone())
+    graph_in(request, &local_zone(), mailcraft_time::now())
 }
 
-/// [`graph`], with the owner's time zone as `zone` (a name Microsoft Graph knows).
-fn graph_in(request: GraphRequest, zone: &str) -> GraphResult {
-    graph_in_with(request, zone, &mailcraft_net::oauth::refresh_graph_opened_calendars)
+/// [`graph`], with the owner's time zone as `zone` (a name Microsoft Graph knows) and the moment
+/// it is as `now`: the wide stretch of the calendar is a month back and a year ahead of it. (A
+/// test hands in the moment its mailbox's clock stands at, so that the events it puts on its
+/// server are in that stretch on whatever day the test runs, #1186.)
+fn graph_in(request: GraphRequest, zone: &str, now: i64) -> GraphResult {
+    graph_in_with(request, zone, now, &mailcraft_net::oauth::refresh_graph_opened_calendars)
 }
 
 /// [`graph_in`], with how a token that covers other people's calendars is had as `renew_calendars`
@@ -912,6 +915,7 @@ fn graph_in(request: GraphRequest, zone: &str) -> GraphResult {
 fn graph_in_with(
     request: GraphRequest,
     zone: &str,
+    now: i64,
     renew_calendars: &dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
 ) -> GraphResult {
     use mailcraft_net::oauth;
@@ -940,9 +944,9 @@ fn graph_in_with(
     let (request, opened) = opened_token(request, shared, renew_calendars);
     // (And a shared mailbox's calendar change that makes the server send mail from it.)
     let mut out = if shared_calendars {
-        graph_sending_with(request, zone, renew, &oauth::refresh_graph_shared_calendars_send)
+        graph_sending_with(request, zone, now, renew, &oauth::refresh_graph_shared_calendars_send)
     } else {
-        graph_sending_with(request, zone, renew, &oauth::refresh_graph_shared_send)
+        graph_sending_with(request, zone, now, renew, &oauth::refresh_graph_shared_send)
     };
     out.shared_calendars_consent_needed = opened.consent_needed;
     if out.tokens.is_none() {
@@ -1011,8 +1015,8 @@ fn favorites_words(error: &mailcraft_net::NetError) -> &'static str {
 /// [`graph_in`], with the token coming from `renew` when the request brings none (and, for a
 /// shared mailbox's mail to send, from `renew` too).
 #[cfg(test)]
-fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResult {
-    graph_sending_with(request, zone, renew, &|settings, refresh| renew(settings, refresh, false))
+fn graph_with(request: GraphRequest, zone: &str, now: i64, renew: Renew<'_>) -> GraphResult {
+    graph_sending_with(request, zone, now, renew, &|settings, refresh| renew(settings, refresh, false))
 }
 
 /// How a shared mailbox's run that has mail to send gets a token that covers sending from it
@@ -1021,7 +1025,7 @@ type RenewSend<'a> = &'a dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcra
 
 /// [`graph_in`], with the token coming from `renew` when the request brings none, and from
 /// `renew_send` for a shared mailbox's run that has mail to send.
-fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, renew_send: RenewSend<'_>) -> GraphResult {
+fn graph_sending_with(mut request: GraphRequest, zone: &str, now: i64, renew: Renew<'_>, renew_send: RenewSend<'_>) -> GraphResult {
     use mailcraft_model::remote::{FavoritesDownload, FavoritesOutcome};
     use mailcraft_net::{NetError, graph};
     let mut out = GraphResult { account: request.account.id, ..Default::default() };
@@ -1214,7 +1218,6 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         out.uploaded = Some(uploaded);
     }
     // The wide stretch with the contacts, every quarter of an hour; otherwise the days on screen.
-    let now = mailcraft_time::now();
     let stretch = if request.directory { Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD)) } else { request.calendar };
     // A shared mailbox's calendars (#70): asked for and written at its own address, and only
     // those that are ticked are asked for (the window says which, in the asks); no contacts,

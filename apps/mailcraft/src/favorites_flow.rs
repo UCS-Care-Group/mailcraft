@@ -100,7 +100,7 @@ impl Flow {
         app.services.graph = Some(Box::new(move |request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
             // The host's own job, with the test in the token endpoint's place.
-            let result = super::graph_with(request, "UTC", &|_, _, favorites| {
+            let result = super::graph_with(request, "UTC", NOW, &|_, _, favorites| {
                 asked.lock().unwrap().push(favorites);
                 let tokens =
                     Tokens { access: TOKEN.into(), refresh: "ref-2".into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() };

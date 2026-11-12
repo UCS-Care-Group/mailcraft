@@ -48,7 +48,7 @@ fn a_token_refused_part_way_through_a_send_receive_is_renewed_once_and_kept() {
         let (route, said) = (route.clone(), said.clone());
         std::thread::spawn(move || {
             let _route = mailcraft_net::graph::standin::route(&route);
-            let result = super::graph_with(request, "UTC", &move |_, refresh, _| {
+            let result = super::graph_with(request, "UTC", NOW, &move |_, refresh, _| {
                 let mut said = said.lock().unwrap();
                 said.push(refresh.to_string());
                 let refresh = format!("ref-{}", said.len() + 1);

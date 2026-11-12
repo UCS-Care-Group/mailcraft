@@ -109,7 +109,7 @@ impl Flow {
         app.services.graph = Some(Box::new(move |request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
             // The host's own job, with the test in the token endpoint's place.
-            let result = super::graph_with(request, "UTC", &|_, _, favorites| {
+            let result = super::graph_with(request, "UTC", NOW, &|_, _, favorites| {
                 let covers = favorites && asked.lock().unwrap().graph;
                 Ok(GraphTokens { tokens: fresh(graph::TOKEN, &directory), extras_missing: false, covers_favorites: covers })
             });

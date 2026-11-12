@@ -58,7 +58,7 @@ fn the_first_send_from_a_shared_mailbox_waits_for_its_permission_and_then_goes_t
                 said.1 += 1;
                 if said.0 { renewed() } else { Err(NetError::ConsentNeeded("consent_required".into())) }
             };
-            let _ = tx.send(super::graph_sending_with(request, "UTC", &|_, _, _| renewed(), &send));
+            let _ = tx.send(super::graph_sending_with(request, "UTC", NOW, &|_, _, _| renewed(), &send));
         });
         rx
     }));

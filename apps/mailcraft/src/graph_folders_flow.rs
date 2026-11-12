@@ -51,7 +51,7 @@ fn a_send_receive_keeps_the_folders_in_step_through_graph_and_never_imap() {
         // On a thread of its own, as the host runs it: the mail comes a piece at a time.
         std::thread::spawn(move || {
             let _route = mailcraft_net::graph::standin::route(&route);
-            let result = super::graph_with(request, "UTC", &move |_, _, _| {
+            let result = super::graph_with(request, "UTC", NOW, &move |_, _, _| {
                 *counted.lock().unwrap() += 1;
                 let tokens =
                     Tokens { access: TOKEN.into(), refresh: "ref-2".into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() };
@@ -128,7 +128,7 @@ fn a_token_refused_for_the_mail_has_the_owner_asked_to_sign_in() {
         app.services.graph = Some(Box::new(move |request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
-                let _ = tx.send(super::graph_with(request, "UTC", &move |_, _, _| Err(answer())));
+                let _ = tx.send(super::graph_with(request, "UTC", NOW, &move |_, _, _| Err(answer())));
             });
             rx
         }));

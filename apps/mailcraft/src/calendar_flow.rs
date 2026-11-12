@@ -72,7 +72,7 @@ impl Flow {
         app.autosave = false;
         app.services.graph = Some(Box::new(|request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
-            let _ = tx.send(super::graph_in(request, EASTERN));
+            let _ = tx.send(super::graph_in(request, EASTERN, NOW));
             rx
         }));
         app.services.check_calendar = Some(Box::new(|request: CalendarCheckRequest| {

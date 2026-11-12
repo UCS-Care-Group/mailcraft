@@ -55,7 +55,7 @@ impl Flow {
         app.autosave = false;
         app.services.graph = Some(Box::new(move |request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
-            let _ = tx.send(super::graph_in_with(request, "UTC", &granted));
+            let _ = tx.send(super::graph_in_with(request, "UTC", NOW, &granted));
             rx
         }));
         let account = app.execute("account.add", json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
