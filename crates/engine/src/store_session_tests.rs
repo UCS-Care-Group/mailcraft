@@ -426,6 +426,70 @@ fn arranged_by_attachments_opening_a_message_or_letting_it_go_never_moves_it() {
     assert_eq!(order(&mut s), before);
 }
 
+/// #575 review: a PDF in place (Apple Mail sends one with a `Content-ID` the HTML names) is a file:
+/// a message of no server's with one sorts with files, as its row wears the paperclip; a picture
+/// in place doesn't, and a part said to be of another type counts as a file whatever its bytes.
+/// None of it moves as the message is opened and let go of again.
+#[test]
+fn arranged_by_attachments_a_pdf_in_place_sorts_with_files() {
+    let tmp = Temp::new("sort-inline-pdf");
+    let path = tmp.file();
+    let mut mb = mailbox(12);
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    for &id in &ids {
+        mb.message_mut(id).unwrap().attachments.clear();
+    }
+    let (pdf, picture, octets) = (ids[2], ids[5], ids[7]);
+    let png = |len: usize| {
+        let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+        bytes.resize(len, 0);
+        bytes
+    };
+    for (id, cid, part) in [
+        (pdf, "doc1", Attachment::new("figures.pdf", "application/pdf", noise(11, 4_000))),
+        (picture, "pic1", Attachment::new("chart.png", "image/png", png(4_000))),
+        (octets, "pic2", Attachment::new("chart.png", "application/octet-stream", png(4_000))),
+    ] {
+        let m = mb.message_mut(id).unwrap();
+        m.body.html = Some(format!("<p>{}</p><img src=\"cid:{cid}\">", "The figures. ".repeat(200)));
+        m.attachments.push(Attachment { content_id: cid.into(), inline: true, ..part });
+        assert_eq!((m.server_attachments, m.attachments_changed_here), (None, None));
+    }
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    for id in [pdf, picture, octets] {
+        let m = s.mailbox.message(id).unwrap();
+        assert!(m.body_is_kept() && !m.attachments[0].is_loaded(), "{id} kept on disk");
+    }
+    s.run("view.sort", &json!({"by": "attachments"})).unwrap();
+    let order = |s: &mut Session| s.rows().iter().map(|r| r.id).collect::<Vec<_>>();
+    let sorted = |s: &Session| [pdf, picture, octets].map(|id| crate::columns::sorts_with_files(s.mailbox.message(id).unwrap()));
+    let pdf_clip = |s: &Session| crate::columns::has_files(s.mailbox.message(pdf).unwrap());
+    let before = order(&mut s);
+    assert_eq!(sorted(&s), [true, false, true]);
+    assert!(pdf_clip(&s), "the PDF wears the paperclip");
+    // The only two with files make one end of the list, and the picture isn't among them.
+    let ends = [&before[..2], &before[before.len() - 2..]];
+    assert!(ends.iter().any(|end| end.contains(&pdf) && end.contains(&octets)), "{before:?}");
+
+    // Opened: read whole, nothing moves.
+    for id in [pdf, picture, octets] {
+        assert!(s.load_message(id).unwrap());
+        assert!(s.mailbox.message(id).unwrap().attachments[0].is_loaded());
+    }
+    assert_eq!((order(&mut s), sorted(&s), pdf_clip(&s)), (before.clone(), [true, false, true], true));
+
+    // Let go of again.
+    s.loaded_budget = 1;
+    let other = *ids.iter().find(|id| ![pdf, picture, octets].contains(id)).unwrap();
+    s.load_message(other).unwrap();
+    for id in [pdf, picture, octets] {
+        assert!(!s.mailbox.message(id).unwrap().attachments[0].is_loaded(), "{id} let go of");
+    }
+    assert_eq!((order(&mut s), sorted(&s), pdf_clip(&s)), (before, [true, false, true], true));
+}
+
 /// #575 review: a server's messages, arranged by attachments, go by what the server said of their
 /// files: a calendar file attached, which reads as an invitation, sorts with files and wears the
 /// paperclip, and neither changes as its bytes are read from disk and let go of again.

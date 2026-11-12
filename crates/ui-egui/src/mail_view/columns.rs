@@ -148,7 +148,8 @@ fn sort_mark_x(cell: Rect, written: f32) -> Option<f32> {
     (x + SORT_MARK / 2.0 <= cell.max.x).then_some(x)
 }
 
-/// Metadata only: no body or attachment is loaded to paint a column.
+/// Metadata only: no body or attachment is loaded to paint a column, but for the seal, whose check
+/// reads the bytes a signed message came as, one row a frame ([`crate::reading::signature_seal`]).
 pub(super) fn paint(app: &mut MailApp, ui: &Ui, m: &Message, rect: Rect, unread: bool, members: usize, under: bool, server: bool) {
     let t = Tokens::get(ui.ctx());
     let font = if unread { semibold(12.0) } else { regular(12.0) };
@@ -216,6 +217,18 @@ pub(super) fn paint(app: &mut MailApp, ui: &Ui, m: &Message, rect: Rect, unread:
             if !server {
                 app.hit.add("messageWarning", m.id, at);
             }
+            left += 16.0;
+        }
+        // What checking its Digital signature found (#30): its seal, after the warning, as in the
+        // list without columns. Not for a row of the server's results, whose id is none of the
+        // mailbox's.
+        if column == Column::From
+            && !server
+            && let Some(seal) = crate::reading::signature_seal(app, m)
+        {
+            let at = Rect::from_center_size(pos2(left + 6.0, cell.center().y), vec2(12.0, 12.0));
+            icons::paint(&p, at, seal, t.icon, t.accent);
+            app.hit.add("messageSignature", m.id, at.intersect(cell));
             left += 16.0;
         }
         if column == Column::Subject {
