@@ -349,6 +349,9 @@ fn arrive(app: &mut MailApp, arrival: Arrival) {
     next.styled = app.styled;
     next.fonts_frames = app.fonts_frames;
     next.applied_theme = app.applied_theme;
+    // What the styles had before animations were stopped while the mailbox was read (#1183): the
+    // window that takes over gives it back when they play again.
+    next.motion = std::mem::take(&mut app.motion);
     *app = next;
     for what in o.queued {
         app.open_from_system(&what);

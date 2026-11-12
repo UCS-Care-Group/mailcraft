@@ -198,3 +198,30 @@ fn playing_again_gives_back_what_the_styles_had() {
     tracker.apply(&ctx, true);
     assert_eq!(ctx.global_style().animation_time, 0.2);
 }
+
+/// Animations stopped while the mailbox is read stay stoppable and come back once it is open:
+/// the window that takes over keeps what the styles had before (#1183, CodeRabbit on the PR).
+#[test]
+fn the_window_that_takes_over_from_the_opening_one_can_play_them_again() {
+    use crate::opening::{Arrival, Build, Opening};
+    let off = UiState { animations: Motion::Off, ..UiState::default() };
+    let (tx, rx) = std::sync::mpsc::channel();
+    let kept = off.clone();
+    let build: Build = Box::new(move |arrival: Arrival| {
+        let mut app = MailApp::new(Session::at(arrival.mailbox, NOW, 0), Services::default());
+        app.autosave = false;
+        app.ui = kept;
+        app
+    });
+    let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
+    let mut a = MailApp::opening(Opening::new(rx, progress, build), Some(off), None);
+    let ctx = egui::Context::default();
+    assert!(!animates(&mut a, &ctx), "off while the mailbox is read");
+    tx.send(Arrival::opened(mailcraft_engine::sample::mailbox(NOW, 0), None)).unwrap();
+    a.logic(&ctx);
+    assert!(a.opening.is_none(), "the mailbox is open");
+    assert!(!animates(&mut a, &ctx), "still off once it is open");
+    a.execute("ui.animations", json!({"value": "on"})).unwrap();
+    assert!(animates(&mut a, &ctx));
+    assert_eq!(ctx.global_style().animation_time, egui::Style::default().animation_time);
+}
