@@ -449,3 +449,27 @@ fn an_account_that_is_no_longer_a_microsoft_account_has_a_list_it_can_change() {
     assert_eq!(mb.categories_of(a).iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Urgent", "New"]);
     assert!(mb.category_upload(a).is_empty());
 }
+
+/// Renames waiting on a full list are tidied with each list keyed once, as every job's answer and
+/// every read tidies them (#661). (A key for each pair took about 7 s here, keying once about 0.01 s.)
+#[test]
+fn renames_waiting_on_a_full_list_are_tidied_in_one_pass() {
+    let name = |what: &str, i: usize| format!("A category with a long name shared by many, {what} {i:04}");
+    let mut mb = Mailbox::default();
+    mb.account_categories.insert(1, (0..MAX_CATEGORIES).map(|i| tagged(&name("new", i), RED)).collect());
+    mb.synced_categories.insert(1, (0..MAX_CATEGORIES).map(|i| tagged(&name("old", i), RED)).collect());
+    mb.category_renames.insert(1, (0..MAX_CATEGORIES).map(|i| (crate::category_key(&name("new", i)), name("old", i))).collect());
+    let started = std::time::Instant::now();
+    for _ in 0..4 {
+        let mut tidied = mb.clone();
+        tidied.tidy_renames(1);
+        assert_eq!(tidied.category_renames, mb.category_renames, "each still waits");
+    }
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+    // One whose new name is Outlook's by now, or whose old one Outlook no longer has, waits no more.
+    let mut tidied = mb.clone();
+    tidied.synced_categories.get_mut(&1).unwrap().retain(|c| c.name != name("old", 1));
+    tidied.synced_categories.get_mut(&1).unwrap().push(tagged(&name("NEW", 2), RED));
+    tidied.tidy_renames(1);
+    assert_eq!(tidied.category_renames[&1].len(), MAX_CATEGORIES - 2);
+}

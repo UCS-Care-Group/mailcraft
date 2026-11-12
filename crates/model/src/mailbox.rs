@@ -3768,14 +3768,16 @@ impl Mailbox {
     /// What `owner` keeps of its renames ([`Mailbox::category_renames`]) is what still waits: a
     /// new name on the list here that its server hasn't, for an old one it still has.
     pub fn tidy_renames(&mut self, owner: Id) {
+        if self.category_renames.get(&owner).is_none_or(BTreeMap::is_empty) {
+            self.category_renames.remove(&owner);
+            return;
+        }
+        // (Each list keyed once: a key worked out for each pair would be millions of them.)
+        let keys = |list: Option<&Vec<Category>>| list.into_iter().flatten().map(|c| category_key(&c.name)).collect::<HashSet<String>>();
+        let (list, synced) = (keys(self.account_categories.get(&owner)), keys(self.synced_categories.get(&owner)));
+        let local: HashSet<String> = self.local_categories.get(&owner).into_iter().flatten().map(|n| category_key(n)).collect();
         let Some(renames) = self.category_renames.get_mut(&owner) else { return };
-        let list = self.account_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
-        let synced = self.synced_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
-        let local = self.local_categories.get(&owner).map(Vec::as_slice).unwrap_or_default();
-        renames.retain(|new, old| {
-            let here = list.iter().any(|c| category_key(&c.name) == *new) && !local.iter().any(|n| category_key(n) == *new);
-            here && !synced.iter().any(|c| category_key(&c.name) == *new) && on_categories(synced, old)
-        });
+        renames.retain(|new, old| list.contains(new) && !local.contains(new) && !synced.contains(new) && synced.contains(&category_key(old)));
         if renames.is_empty() {
             self.category_renames.remove(&owner);
         }
