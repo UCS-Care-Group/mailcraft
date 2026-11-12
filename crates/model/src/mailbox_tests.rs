@@ -613,6 +613,18 @@ fn a_change_waiting_for_a_mailbox_numbered_anew_is_kept_when_it_can_be_found_aga
 }
 
 #[test]
+fn a_change_waiting_for_a_copy_in_a_folder_that_is_gone_is_let_go_by_the_repair() {
+    let (mut mb, account) = mailbox();
+    let inbox = mb.inbox().unwrap();
+    mb.folder_mut(inbox).unwrap().remote = "INBOX".into();
+    let seen = MailIdentity { date: 1_700_000_000, from: "a@mail.example".into(), subject: "Hi".into(), people: vec!["b@mail.example".into()] };
+    // Waits for its copy in "Projects", which no folder follows (any more).
+    mb.pending = vec![Pending::Delete { account, from: "Projects".into(), uid: 0, message_id: "gone@mail.example".into(), seen: Some(seen) }];
+    mb.repair();
+    assert!(mb.pending.is_empty(), "{:?}", mb.pending);
+}
+
+#[test]
 fn a_change_of_0_8_0_waiting_for_a_renumbered_mailbox_is_let_go_and_the_file_still_opens() {
     let (mut mb, account) = mailbox();
     let inbox = mb.inbox().unwrap();

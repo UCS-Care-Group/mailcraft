@@ -109,6 +109,11 @@ pub fn redact_line(line: &str) -> String {
 /// ponytail: pattern rules, not a list of allowed words. A name the program logs bare (a folder
 /// called `Accounts`) would pass; the program's own lines name folders and calendars by id, and
 /// server errors quote names, which are caught. Move to an allow-list if a report shows a leak.
+///
+/// Residual risk: a folder name a server writes into its own answer with no quotes (Dovecot's
+/// `Mailbox doesn't exist: Taxes (0.001 + 0.000 secs).`) is a bare word, and passes. The program
+/// logs problems of its own with every value put aside (`ui-egui/src/problem_log.rs`), but a
+/// server's words, kept in a problem text, are not ours to mask.
 pub fn redact(text: &str) -> String {
     unquote(text, true).split_inclusive(char::is_whitespace).map(|w| word(w, true)).collect()
 }
