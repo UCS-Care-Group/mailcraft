@@ -228,7 +228,11 @@ pub(super) fn paint(app: &mut MailApp, ui: &Ui, m: &Message, rect: Rect, unread:
         {
             let at = Rect::from_center_size(pos2(left + 6.0, cell.center().y), vec2(12.0, 12.0));
             icons::paint(&p, at, seal, t.icon, t.accent);
-            app.hit.add("messageSignature", m.id, at.intersect(cell));
+            // What of it the cell shows; none when a narrow column leaves it out.
+            let shown = at.intersect(cell);
+            if shown.is_positive() {
+                app.hit.add("messageSignature", m.id, shown);
+            }
             left += 16.0;
         }
         if column == Column::Subject {
