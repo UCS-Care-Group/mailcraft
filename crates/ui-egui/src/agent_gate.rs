@@ -76,7 +76,8 @@ pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Optio
     let p = &req.params;
     let given = |k: &str| p.get(k).is_some_and(|v| !v.is_null());
     match req.method.as_str() {
-        "engine.commands" | "mailbox.inspect" | "ui.inspect" | "ui.alerts" | "ui.parity" | "ui.resize" | "ui.focus" | "app.status" => None,
+        "engine.commands" | "mailbox.inspect" | "ui.inspect" | "ui.alerts" | "ui.parity" | "ui.resize" | "ui.focus" | "ui.minimize"
+        | "app.status" => None,
         "ui.screenshot" if given("path") => Some(err("agents don't name files: the screenshot comes back in the answer (leave out `path`)")),
         "ui.screenshot" => None,
         "ui.click" | "ui.move" | "ui.drag" | "ui.key" | "ui.text" => {
@@ -96,7 +97,7 @@ pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Optio
             let params = p.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));
             Some(gate(app, req, &id, params, allow))
         }
-        "app.quit" | "auth" => Some(err(format!("`{}` isn't available to agents", req.method))),
+        "app.quit" | "ui.closeWindow" | "auth" => Some(err(format!("`{}` isn't available to agents", req.method))),
         other => Some(gate(app, req, other, p.clone(), allow)),
     }
 }
@@ -589,6 +590,7 @@ mod tests {
             ("engine.execute", json!({"command": "no.such"})),
             ("ui.screenshot", json!({"path": "/tmp/evil.png"})),
             ("app.quit", json!({})),
+            ("ui.closeWindow", json!({})),
         ] {
             let (r, _) = ask(&mut a, method, params.clone(), all.clone());
             assert_eq!(r.unwrap_or_default()["ok"], false, "{method} {params}");

@@ -383,7 +383,17 @@ fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Out
             ok(json!({}))
         }
         "ui.focus" => {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ok(json!({}))
+        }
+        "ui.minimize" => {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            ok(json!({}))
+        }
+        "ui.closeWindow" => {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             ok(json!({}))
         }
         "app.quit" => {

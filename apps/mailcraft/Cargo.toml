@@ -109,6 +109,8 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 keyring-core = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# Safe notification-area integration; MIT OR Apache-2.0, Windows only.
+tray-icon = { version = "0.24.1", default-features = false }
 # Windows Credential Manager, for the credential store above.
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy

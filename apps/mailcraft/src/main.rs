@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! MailCraft desktop app.
 //!
-//! Usage: `mailcraft [--control <port> [--control-agents-only]] [--sample] [--mailbox <file>] [files or mailto: links…]`
+//! Usage: `mailcraft [--start-in-tray (Windows)] [--control <port> [--control-agents-only]] [--sample] [--mailbox <file>] [files or mailto: links…]`
 //!
 //! The mailbox lives in `<settings>/mailbox.mailcraft` (or the file `--mailbox` names) and is saved
 //! as you go. `--sample` opens the sample mailbox instead and keeps nothing. On the command line
@@ -100,6 +100,8 @@ mod system_locale;
 mod tasks_job_tests;
 #[cfg(test)]
 mod token_renew_flow;
+#[cfg(target_os = "windows")]
+mod tray;
 #[cfg(test)]
 mod unconfirmed_flow;
 #[cfg(test)]
@@ -128,6 +130,7 @@ struct App(
     file_dialogs::Launcher,
     Option<single_instance::Guard>,
     Option<HostUpdates>,
+    #[cfg(target_os = "windows")] Option<tray::Tray>,
     #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
     #[cfg(target_os = "macos")] Option<menubar::MenuBar>,
 );
@@ -168,6 +171,7 @@ impl eframe::App for App {
                 self.0.open_from_system(what);
             }
             self.0.note_left_alone(asked.refused);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             // Where the system won't let a window step in front by itself, its button says so.
@@ -204,7 +208,17 @@ impl eframe::App for App {
         open_pages(ctx, frame);
         // Leaving (the close button, Quit, the Dock): a message being written asks first, then
         // the platform's own way out (`quit`). Last in `logic`, which runs while minimized too.
+        #[cfg(target_os = "windows")]
+        if let Some(tray) = &mut self.6 {
+            if tray.on_frame(ctx, &mut self.0) {
+                return;
+            }
+        }
         quit::on_frame(ctx, &mut self.0);
+        #[cfg(target_os = "windows")]
+        if let Some(tray) = &mut self.6 {
+            tray.after_frame(ctx);
+        }
     }
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
         // On Linux and the BSDs, the desktop's light or dark preference (`desktop_theme`), for
@@ -2037,6 +2051,8 @@ fn main() -> eframe::Result {
     let mut control_agents_only = std::env::var("MAILCRAFT_CONTROL_AGENTS_ONLY").is_ok_and(|v| v == "1");
     let mut files = Vec::new();
     let mut sample = false;
+    #[cfg(target_os = "windows")]
+    let mut start_in_tray = false;
     let mut mailbox_path: Option<PathBuf> = None;
     let mut after_update = false;
     let mut args = std::env::args().skip(1);
@@ -2045,6 +2061,8 @@ fn main() -> eframe::Result {
             "--control" => control_port = args.next().and_then(|p| p.parse().ok()),
             "--control-agents-only" => control_agents_only = true,
             "--sample" => sample = true,
+            #[cfg(target_os = "windows")]
+            "--start-in-tray" => start_in_tray = true,
             "--mailbox" => mailbox_path = args.next().map(PathBuf::from),
             // Started by the version this one replaced: it is let go first.
             self_update::AFTER_UPDATE => after_update = true,
@@ -2147,6 +2165,10 @@ fn main() -> eframe::Result {
             .with_title_shown(false),
         ..Default::default()
     };
+    #[cfg(target_os = "windows")]
+    if start_in_tray {
+        options.viewport = options.viewport.with_visible(false);
+    }
     if let Some(icon) = app_icon() {
         options.viewport = options.viewport.with_icon(icon);
     }
@@ -2302,6 +2324,14 @@ fn main() -> eframe::Result {
                 dialogs,
                 guard,
                 updates,
+                #[cfg(target_os = "windows")]
+                {
+                    let tray = tray::Tray::new(&cc.egui_ctx, start_in_tray);
+                    if tray.is_none() {
+                        cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    }
+                    tray
+                },
                 #[cfg(target_os = "macos")]
                 apple_events.connect(&cc.egui_ctx),
                 #[cfg(target_os = "macos")]
