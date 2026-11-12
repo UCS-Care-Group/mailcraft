@@ -1,0 +1,1 @@
+- The log now carries the text of each Send/Receive problem, once (cut short, quoted names and addresses taken out), so Copy Diagnostics shows what failed.

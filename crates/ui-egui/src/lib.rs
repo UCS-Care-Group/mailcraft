@@ -154,6 +154,7 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+mod problem_log;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -1817,6 +1818,8 @@ pub struct MailApp {
     /// the account, its name, when, and the lines, as texts said in the interface's language
     /// when they are shown (#872).
     sync_problems: Vec<(Id, String, String, Vec<mailcraft_i18n::Text>)>,
+    /// The problem texts the log has had from each account's last run (`problem_log`).
+    logged_problems: Vec<(Id, Vec<String>)>,
     /// Send/Receive Progress, when it is open ([`sync_panel`]).
     pub(crate) sync_panel: Option<sync_panel::Panel>,
     /// What runs now was asked for by the owner's own hand: a frame of the window that a press, a
@@ -2013,6 +2016,7 @@ impl MailApp {
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
+            logged_problems: Vec::new(),
             sync_panel: None,
             by_hand: false,
             last_error: None,
@@ -4273,18 +4277,21 @@ impl MailApp {
         self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.iter().map(problem_line).collect()).unwrap_or_default()
     }
 
-    /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
+    /// Keep what a Send/Receive said went wrong (the log gets how many and each new text, cut short); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
+                problem_log::forget(&mut self.logged_problems, account);
             }
             return;
         }
-        // The lines name subjects, addresses and folders: they are for the owner to read in the
-        // problems report, and the log says only how many there were.
+        // The lines name subjects, addresses and folders: the log gets how many there were and,
+        // for a diagnostics report, each new text cut short (the log's writer takes quoted text,
+        // addresses and links out, and the copied report takes out hosts and paths).
         log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
+        problem_log::log_new(&mut self.logged_problems, account, errors);
         self.keep_sync_problems(account, errors);
     }
 
@@ -5632,6 +5639,8 @@ pub fn now_ms() -> f64 {
 
 #[cfg(test)]
 mod privacy_tests;
+#[cfg(test)]
+mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
 #[cfg(test)]

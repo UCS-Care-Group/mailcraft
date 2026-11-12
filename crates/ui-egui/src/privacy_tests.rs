@@ -17,9 +17,10 @@ fn app() -> MailApp {
 }
 
 /// (A5-3) A Send/Receive problem names a subject, an address, a folder: the owner reads it in the
-/// problems report, and the log has only how many there were.
+/// problems report; the log has how many there were and each text (the log's writer takes the
+/// quoted parts and addresses out, `diagnostics::scrub`; this capture is before that).
 #[test]
-fn send_receive_problems_are_kept_for_the_owner_and_not_logged() {
+fn send_receive_problems_are_kept_for_the_owner_and_logged_as_texts() {
     let logged = crate::graph_switch::tests::logged();
     let mut app = app();
     let account = app.session.mailbox.accounts[0].id;
@@ -31,9 +32,7 @@ fn send_receive_problems_are_kept_for_the_owner_and_not_logged() {
     assert_eq!(app.sync_problem_lines().iter().filter(|l| l.contains("Quarterly figures") || l.contains("Private/Taxes")).count(), 2);
     let log = logged.lock().unwrap().join("\n");
     assert!(log.contains("2 problem(s) reported"), "{log}");
-    for secret in ["Quarterly figures", "ada@example.org", "Private/Taxes"] {
-        assert!(!log.contains(secret), "{secret} reached the log");
-    }
+    assert!(log.contains("problem: Couldn't open"), "{log}");
 }
 
 /// (A3-5) The question says what a Yes does: check, download and install.

@@ -41,6 +41,8 @@ mod desktop_icons;
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
+mod diagnostics_problem_tests;
+#[cfg(test)]
 mod ews_mail_flow;
 mod ews_runner;
 mod ews_setup;
