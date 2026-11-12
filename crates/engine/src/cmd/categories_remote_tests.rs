@@ -1484,6 +1484,13 @@ fn a_new_name_on_an_event_contact_or_todo_made_there_is_undone_there_and_redone(
         // An agent's undo of it takes a category away there: asked as Delete.
         assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Delete, _)), "{command}");
         s.run("edit.undo", &json!({})).unwrap();
+        if command == "calendar.categorize" {
+            // The event's change waited, and may have been on its way: the event there is told
+            // again, and the name waits for it (here, gone).
+            assert!(deletes(&mut s, a).is_empty(), "{command}");
+            assert_eq!(s.mailbox.event_changes.len(), 1, "{command}");
+            s.mailbox.event_changes.clear();
+        }
         assert_eq!(deletes(&mut s, a), ["Fresh"], "{command}");
         let sent = changes(&mut s, a);
         took(&mut s, a, &sent);
@@ -2062,18 +2069,19 @@ fn a_rename_or_a_removal_is_told_to_the_calendar_and_the_old_name_waits_for_it()
 }
 
 /// An undo of a rename whose events' server was told tells it the old name again, and a redo
-/// the new one, as mail and to-dos go by themselves; one whose change never went tells nothing,
-/// nor does one its server changed since (#661).
+/// the new one, as mail and to-dos go by themselves; so does one undone before its change went,
+/// which can't be told from one on its way; one its server changed since tells nothing (#661).
 #[test]
 fn an_undo_of_a_rename_that_reached_the_events_server_tells_it_again() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
     let e = server_event(&mut s, a, &["Old"]);
     let told = |s: &Session| s.mailbox.event_changes.iter().map(|c| c.base.as_ref().map(|b| b.categories.clone())).collect::<Vec<_>>();
     s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
-    // Undone before it went: nothing to tell.
+    // Undone before it went, or while it was on its way: the server may have the new name, so
+    // it is told the old one.
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
-    assert!(s.mailbox.event_changes.is_empty());
+    assert_eq!(told(&s), [Some(vec!["New".to_string()])]);
     s.run("edit.redo", &json!({})).unwrap();
     assert_eq!(told(&s), [Some(vec!["Old".to_string()])]);
     // Gone, then undone: the server, which has the new name, is told the old one.
@@ -2155,6 +2163,33 @@ fn an_undo_of_a_rename_whose_event_change_was_on_its_way_and_lost_tells_the_old_
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
     assert_eq!(event_told(&s, a, e).2.as_deref(), Some("Moved"));
+}
+
+/// The same with no older change: the rename's own change of the event is on its way when the
+/// undo comes. Whether its answer is lost or comes, the server may have the new name, so the old
+/// one is told again, and the new name isn't deleted there while the event there may have it.
+#[test]
+fn an_undo_of_a_rename_whose_own_event_change_was_on_its_way_tells_the_old_name_again() {
+    for result in [EventResult::Failed, EventResult::Done] {
+        let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+        let e = server_event(&mut s, a, &["Old"]);
+        s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+        let sent = changes(&mut s, a);
+        took(&mut s, a, &sent);
+        let upload = remote::event_upload(&s, a).unwrap();
+        s.run("edit.undo", &json!({})).unwrap();
+        assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
+        let [op] = upload.ops.as_slice() else { panic!("{:?}", upload.ops) };
+        let answer = EventOutcome { op: op.clone(), result, error: "connection lost".into(), ..Default::default() };
+        let uploaded = EventsUploaded { account: a, email: "a@example.org".into(), outcomes: vec![answer], ..Default::default() };
+        remote::apply_event_outcomes(&mut s, &uploaded).unwrap();
+        assert!(
+            !changes(&mut s, a).iter().any(|c| c.kind == CategoryChangeKind::Delete && c.name == "New"),
+            "{result:?}: deleted while the event there may have it"
+        );
+        s.mailbox.event_changes.iter_mut().for_each(|c| c.retry_at = 0);
+        assert_eq!(event_told(&s, a, e), (vec!["New".to_string()], Some(vec!["Old".to_string()]), None), "{result:?}");
+    }
 }
 
 /// An undo of a change of an event's categories in a shared mailbox's calendar, which went to its
@@ -2592,15 +2627,16 @@ fn a_new_name_the_server_wont_make_keeps_its_old_name_there_and_lets_other_delet
 }
 
 #[test]
-fn an_undo_of_a_rename_before_its_event_change_goes_sends_nothing_and_once_it_went_there_is_none() {
-    // Undone while the event's change waits: the change goes with the undo, and nothing is sent.
+fn an_undo_of_a_rename_before_its_event_change_goes_tells_the_old_name_and_once_it_went_there_is_none() {
+    // Undone while the event's change waits: it may be on its way, so the old name is told
+    // again (which the server has, unless it was), and nothing else is sent.
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
     let e = server_event(&mut s, a, &["Old"]);
     s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
     assert_eq!(s.mailbox.event_changes.len(), 1);
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.event(e).unwrap().categories, ["Old"]);
-    assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
+    assert_eq!(event_told(&s, a, e), (vec!["New".to_string()], Some(vec!["Old".to_string()]), None));
     assert!(changes(&mut s, a).is_empty(), "{:?}", changes(&mut s, a));
 
     // Once the server took the event's change, the undo history is forgotten, as for any change

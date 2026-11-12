@@ -3126,19 +3126,18 @@ impl Session {
     /// The events whose categories the step undone (or redone) changed and whose servers were
     /// to be told of it are told again, the other way (#661): mail and to-dos need nothing of the
     /// kind, as what differs from the server's copy goes by itself, but an event's change goes
-    /// only when it is noted. One changed since (by its server, say) is left alone, and so is one
-    /// whose change never went: the changes waiting that are put back haven't got it, and its
-    /// server has what is put back. One whose change went has a change that waited before the
-    /// step dropped: it went with it, and the server has what the step left, which the change
-    /// noted again starts from. One whose change is still waiting, or on its way with its answer
-    /// to come or lost, may be on its server as the step left it or not: a change of it that
-    /// waited before the step, which the undo puts back, is to send the categories again either
-    /// way, so that the name the step gave isn't deleted there while the event there may have it.
-    /// (Without one, an answer that comes is taken in as for any change undone on its way.) Only
-    /// the categories go, which writes to nobody, and only to a calendar that may be changed by
-    /// what its server last said (the calendars put back are as they were). A change is this
-    /// event's by its id here and its server's id for it both: another account's server may use
-    /// the same id.
+    /// only when it is noted. One changed since (by its server, say) is left alone. One whose
+    /// change went has a change that waited before the step dropped: it went with it, and the
+    /// server has what the step left, which the change noted again starts from. One whose change
+    /// is still waiting, or on its way with its answer to come or lost, may be on its server as
+    /// the step left it or not, so it is told either way, and the name the step gave isn't
+    /// deleted there while the event there may have it: a change of it that waited before the
+    /// step, which the undo puts back, sends the categories again, and without one a change is
+    /// noted again. (That sends the server what it has when the step's change never went, and
+    /// the answer to the step's change is taken in against it.) Only the categories go, which
+    /// writes to nobody, and only to a calendar that may be changed by what its server last said
+    /// (the calendars put back are as they were). A change is this event's by its id here and its
+    /// server's id for it both: another account's server may use the same id.
     fn tell_events_again(&mut self, now: &Mailbox, touched: &crate::undo::Touched) {
         use mailcraft_model::remote::{EventChange, EventChangeKind};
         let offset_at = crate::cmd::remote::offset_of(self);
@@ -3154,9 +3153,10 @@ impl Session {
             {
                 continue;
             }
-            if now.event_changes.iter().any(|c| waiting(c, *id, &was.origin.id)) {
-                let put_back = self.mailbox.event_changes.iter_mut().find(|c| waiting(c, *id, &is.origin.id));
-                if let Some(base) = put_back.and_then(|c| c.base.as_deref_mut()) {
+            if now.event_changes.iter().any(|c| waiting(c, *id, &was.origin.id))
+                && let Some(put_back) = self.mailbox.event_changes.iter_mut().find(|c| waiting(c, *id, &is.origin.id))
+            {
+                if let Some(base) = put_back.base.as_deref_mut() {
                     base.categories.clone_from(&was.categories);
                 }
                 continue;
