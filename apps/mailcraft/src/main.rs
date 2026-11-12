@@ -75,6 +75,8 @@ mod key_holders;
 mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
+#[cfg(test)]
+mod live_tests;
 mod logging;
 #[cfg(target_os = "macos")]
 mod menubar;

@@ -75,7 +75,9 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **New Rust files start with the two SPDX lines** (copyright and licence); `cargo xtask spdx --fix`
   adds them.
 - **Tests never touch a real mailbox.** Use the fake servers in `crates/net/src/fake.rs` and the
-  Graph stand-ins, with `example.org` addresses.
+  Graph stand-ins, with `example.org` addresses. To see the JMAP code work against a real server
+  as well, in a throwaway container on your own computer, there is `cargo xtask live`
+  ([`docs/live-tests.md`](docs/live-tests.md)): opt-in, and never part of `cargo xtask ci`.
 - **Changes to sync, the store, sign-in and secrets** (the paths in
   [`CODEOWNERS`](.github/CODEOWNERS), which asks a maintainer for review) are read by a maintainer
   before they land. Expect questions.

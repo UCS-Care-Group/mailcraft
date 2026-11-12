@@ -188,6 +188,9 @@ For the desktop app, make a mailbox file with the account as [Adding an account]
 says, with `"session": "http://127.0.0.1:8780/jmap/session"` and `"bearer": true`, open it with
 File › Open, and give the token when Send/Receive asks.
 
+To run the desktop app's JMAP code against a real server instead, in a throwaway container on
+this computer, see [live-tests.md](live-tests.md) (`cargo xtask live`, opt-in).
+
 ## How it is built
 
 - `crates/jmap` (`mailcraft-jmap`): the JMAP client, with no sockets and no browser APIs; it builds
