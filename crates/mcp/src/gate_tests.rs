@@ -373,3 +373,33 @@ fn an_agents_delete_of_a_conversations_row_is_refused_naming_and_goes_ahead_with
     assert_eq!(err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {"ids": ids}})), None);
     assert!(row.members.iter().all(|id| h.session.mailbox.message(*id).is_none()));
 }
+
+/// A session whose last step copied a message, with its accounts changed since: undoing it puts
+/// the accounts back and takes the copy away (#473).
+fn copied_then_accounts_changed(allow: Vec<Class>) -> (Headless, usize) {
+    let mut s = sample();
+    let m = s.mailbox.messages.values().find(|m| !m.draft).unwrap();
+    let (m, account, folder) = (m.id, m.account, m.folder);
+    let other = s.mailbox.folders.iter().find(|f| f.account == account && f.id != folder && f.kind == FolderKind::Custom).unwrap().id;
+    s.run("mail.copy", &json!({"ids": [m], "folder": other})).unwrap();
+    if let Some(a) = s.mailbox.accounts.first_mut() {
+        a.name.push_str(" (renamed)");
+    }
+    let n = s.mailbox.messages.len();
+    (Headless::new(s, allow), n)
+}
+
+#[test]
+fn an_undo_that_reverts_the_accounts_and_takes_mail_names_both_grants_headless() {
+    let pol = Policy::default();
+    let undo = json!({"command": "edit.undo", "params": {}});
+    for allow in [vec![], vec![Class::Accounts], vec![Class::Delete]] {
+        let (mut h, n) = copied_then_accounts_changed(allow.clone());
+        let e = err(&mut h, &pol, "execute", undo.clone());
+        assert!(e.as_deref().is_some_and(|e| e.contains("--allow accounts,delete") && e.contains("takes away 1 message")), "{allow:?}: {e:?}");
+        assert_eq!(h.session.mailbox.messages.len(), n, "{allow:?}: nothing was taken");
+    }
+    let (mut h, n) = copied_then_accounts_changed(vec![Class::Accounts, Class::Delete]);
+    assert_eq!(err(&mut h, &pol, "execute", undo), None);
+    assert_eq!(h.session.mailbox.messages.len(), n - 1);
+}

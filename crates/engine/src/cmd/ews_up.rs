@@ -5,7 +5,9 @@
 //! are longer than any server's, is dropped rather than taken in. A change that has no answer here
 //! is worked out again for the next run, as one that never got one is.
 
-use mailcraft_model::sync::{ChangeOutcome, DraftDone, EwsMailResult, GraphFolder, MessageChange, MessageChangeDone, MessageOutcome, SendDone};
+use mailcraft_model::sync::{
+    ChangeOutcome, DraftDone, EwsMailResult, GraphFolder, MessageChange, MessageChangeDone, MessageOutcome, SendDone, SendOutcome,
+};
 
 use super::ews_down::is_id;
 
@@ -52,10 +54,15 @@ pub(crate) fn bounded_up(result: &mut EwsMailResult) {
     result.placed.clear();
     result.changes.retain(|done| match &done.outcome {
         ChangeOutcome::Done { folder } => folder_ok(folder),
-        ChangeOutcome::Refused { why } => why.len() <= 4096,
-        ChangeOutcome::Gone => true,
+        ChangeOutcome::Refused { why } | ChangeOutcome::OwnFolder { why } => why.len() <= 4096,
+        ChangeOutcome::Gone | ChangeOutcome::NotShown { .. } => true,
     });
     result.messages.retain(message_ok);
     result.drafts.retain(draft_ok);
-    result.sent.retain(sent_ok);
+    // A send whose answer can't be taken in was handed to the server all the same (AU3-26): it
+    // may have gone, so it is held, never left for the next run to send again.
+    for done in result.sent.iter_mut().filter(|d| !sent_ok(d)) {
+        *done =
+            SendDone { message: done.message, outcome: SendOutcome::Held { lost: true, why: String::new() }, draft: None, draft_left: String::new() };
+    }
 }

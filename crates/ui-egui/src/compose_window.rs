@@ -116,25 +116,10 @@ pub(crate) fn leave_for_selection(app: &mut MailApp, id: &str, params: &Value) -
     Ok(())
 }
 
-/// Whether `mail.select` takes `params`, read as it reads them (#553): each message named is in
-/// the mailbox, and a row named by `copy` is one the list shows. (What it refuses changes nothing,
-/// so nothing is let go of for it.)
+/// Whether `mail.select` takes `params`, as the engine reads them (#553, `select_target`). (What
+/// it refuses changes nothing, so nothing is let go of for it.)
 fn selectable(app: &mut MailApp, params: &Value) -> bool {
-    let none = params.get("id").is_none() && params.get("ids").and_then(Value::as_array).is_some_and(Vec::is_empty);
-    if none {
-        return true;
-    }
-    let Ok(Some(ids)) = mailcraft_engine::p::ids_strict(params) else { return false };
-    if !ids.iter().all(|id| app.session.mailbox.message(*id).is_some()) {
-        return false;
-    }
-    match params.get("copy") {
-        None => true,
-        Some(copy) => copy.as_u64().and_then(|c| u16::try_from(c).ok()).is_some_and(|copy| {
-            let last = ids.last().copied();
-            copy == 0 || app.session.rows().iter().any(|r| Some(r.id) == last && r.copy == copy)
-        }),
-    }
+    mailcraft_engine::cmd::mail::select_target(&mut app.session, params).is_ok()
 }
 
 /// Whether the list move `id` leaves the selection as it is, as the engine moves it: Next Message

@@ -115,7 +115,11 @@ pub fn read_mailbox(bytes: &[u8]) -> Result<Mailbox, String> {
     if bytes.starts_with(FAMILY) {
         return Err(NEWER.into());
     }
-    let mut mb: Mailbox = serde_json::from_slice(bytes).map_err(|e| format!("this isn't a MailCraft mailbox ({e})"))?;
+    // (Within the budget a mailbox file is opened with: what parsing builds is charged while it is
+    // built, and a file that would cost more memory than it may is refused before it does.)
+    let budget = mailbox_budget();
+    let mut mb: Mailbox = mailcraft_model::load_limit::read_json(bytes, &budget)
+        .map_err(|e| if let Some(why) = budget.spent() { why.to_string() } else { format!("this isn't a MailCraft mailbox ({e})") })?;
     match mb.version {
         0 | 1 => {}
         2 => return Err(KEPT_BESIDE.into()),
@@ -126,6 +130,29 @@ pub fn read_mailbox(bytes: &[u8]) -> Result<Mailbox, String> {
     }
     Ok(mb)
 }
+
+/// The budget [`read_mailbox`] reads within: a desktop program's, the one any mailbox file opens
+/// with (`store::open_budget`); in the browser, which can't measure its memory and keeps the
+/// mailbox in its own storage, [`WEB_ITEMS`] items and [`WEB_BYTES`] of parsed values.
+fn mailbox_budget() -> std::sync::Arc<mailcraft_model::load_limit::Budget> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        crate::store::open_budget()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        mailcraft_model::load_limit::Budget::new(WEB_ITEMS, WEB_BYTES)
+    }
+}
+
+/// Items a mailbox is read with in the browser: as many as a desktop program always allows.
+#[cfg(target_arch = "wasm32")]
+const WEB_ITEMS: usize = 250_000;
+
+/// Bytes of parsed values a mailbox is read with in the browser: 1 GiB (of a page's 4 GiB at
+/// the most).
+#[cfg(target_arch = "wasm32")]
+const WEB_BYTES: u64 = 1 << 30;
 
 /// The mailbox as one self-contained file: everything in it, attachments as base64.
 pub fn write_mailbox(mb: &Mailbox) -> Result<Vec<u8>, String> {
@@ -252,6 +279,12 @@ pub trait ContentSource: Send + Sync {
     /// The bytes kept under `r` for the mailbox file at `mailbox`, checked against the length and
     /// SHA-256 the reference names (anything else is "missing or damaged", never bytes).
     fn fetch(&self, mailbox: &std::path::Path, r: &ContentRef) -> Result<std::sync::Arc<Vec<u8>>, String>;
+
+    /// [`ContentSource::fetch`], read from where it is kept now and from no copy kept of it in
+    /// memory: for a decision that must not stand on bytes the disk no longer holds (#30).
+    fn fetch_fresh(&self, mailbox: &std::path::Path, r: &ContentRef) -> Result<std::sync::Arc<Vec<u8>>, String> {
+        self.fetch(mailbox, r)
+    }
 }
 
 pub use mailcraft_model::ContentRef;
@@ -351,7 +384,7 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
         return Err(failed!("{name}: not a message file", name));
     }
     let folder = s.mailbox.imported_folder(false)?;
-    let mut m = mailcraft_mime::parse(bytes);
+    let mut m = mailcraft_mime::parse_fetched(bytes);
     m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
     let hash = file_sha256(bytes);
     // The same Message-ID (none for both, too), and, when the copy there keeps the SHA-256 of the
@@ -391,7 +424,7 @@ pub fn parse_unfiled(name: &str, bytes: &[u8]) -> Result<mailcraft_model::Messag
     if Format::detect(name, bytes) != Some(Format::Eml) {
         return Err(failed!("{name}: not a message file", name));
     }
-    let mut m = mailcraft_mime::parse(bytes);
+    let mut m = mailcraft_mime::parse_fetched(bytes);
     m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
     (m.id, m.uid, m.folder, m.draft, m.read) = (0, 0, 0, false, true);
     (m.server, m.synced) = (None, None);
@@ -410,7 +443,7 @@ fn show_opened(s: &mut Session, id: Id) {
 }
 
 /// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
-/// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
+/// view, or the Inbox), events to a calendar on this computer (#1050), contacts and to-dos to their lists.
 pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
     let format = Format::detect(name, bytes).ok_or_else(|| failed!("{name}: not a message, calendar or contact file MailCraft reads", name))?;
     let explicit = folder.is_some();
@@ -441,7 +474,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             // At most MAX_IMPORT_MESSAGES are taken from a file; the one after them tells whether
             // the file went on ("stopped after N").
             let mut messages: Vec<_> = if format == Format::Eml {
-                vec![mailcraft_mime::parse(bytes)]
+                vec![mailcraft_mime::parse_fetched(bytes)]
             } else {
                 mailcraft_mime::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
             };
@@ -469,6 +502,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 m.id = 0;
                 m.uid = 0;
                 m.folder = folder;
+                m.left_gmail_inbox();
                 m.draft = drafts;
                 // Only a message opened from a file keeps that file's SHA-256 (`import_opened`).
                 m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
@@ -516,16 +550,20 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 let existing = if e.uid.is_empty() { None } else { own_uids.get(&e.uid).copied() };
                 // (Two that name nobody are the owner's own appointment, exported and imported again.)
                 let existing = existing.filter(|(id, _)| s.mailbox.event(*id).is_some_and(|have| crate::cmd::calendar::same_organizer(have, &e)));
+                // What a file brings is the owner's, on this computer, until the owner moves it
+                // (#1050): never into a calendar that an account's server keeps, where it would
+                // look sent and never be, and where nothing would offer to send it.
                 match existing {
                     Some((id, calendar)) => {
                         e.id = id;
-                        e.calendar = calendar;
+                        e.calendar = if crate::cmd::calendar::served(s, calendar) { crate::cmd::calendar::own_calendar_or_new(s)? } else { calendar };
                         *s.mailbox.event_mut(id)? = e;
                         updated += 1;
                         events.push(id);
                     }
                     None => {
                         let uid = e.uid.clone();
+                        e.calendar = crate::cmd::calendar::own_calendar_or_new(s)?;
                         let (calendar, id) = (e.calendar, s.mailbox.add_event(e)?);
                         if !uid.is_empty() {
                             own_uids.entry(uid).or_insert((id, calendar));

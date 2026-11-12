@@ -15,7 +15,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
             .reads()
             .key("Mod+Y")
-            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
+            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
         CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
@@ -168,6 +168,17 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
+/// [`target`], refused with the menu's reason when it is one of the server's own folders (#756;
+/// RSS Feeds and the like once the server has said so, #1069): an agent or a script that asks
+/// anyway is told why, and nothing changes.
+fn not_servers(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let id = target(s, v)?;
+    if s.mailbox.folder(id).is_some_and(|f| f.server_owned()) {
+        return Err(fail("the server keeps this folder: it can't be renamed, moved or deleted"));
+    }
+    Ok(id)
+}
+
 /// A folder by `Inbox/Projects/Apollo` (case-insensitive), in `account` or any account.
 pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
     let want = path.trim().trim_matches('/').to_lowercase();
@@ -194,16 +205,37 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     } else {
         return Err(bad("`id`, `kind` or `path` is required"));
     };
-    if s.view.folder != id || s.view.module != Module::Mail {
+    // One of Gmail's categories of a Gmail account's Inbox (#911).
+    let gmail = match v.get("gmail") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(code)) => {
+            let category =
+                mailcraft_model::GmailCategory::parse(code).ok_or_else(|| bad("`gmail` is primary, social, promotions, updates or forums"))?;
+            if !crate::gmail::listed_under(s, id) {
+                return Err(fail("only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"));
+            }
+            Some((id, category))
+        }
+        Some(_) => return Err(bad("`gmail` is primary, social, promotions, updates or forums")),
+    };
+    if s.view.folder != id || s.view.module != Module::Mail || s.view.gmail != gmail {
         s.view.folder = id;
         s.view.module = Module::Mail;
+        s.view.gmail = gmail;
         s.sel.messages.clear();
     }
     // A search belongs to the folder it was typed in.
     s.view.search.clear();
     // From the counts the window has anyway, not two walks over every message.
     let counts = s.folder_counts();
-    Ok(json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)}))
+    let mut out = json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)});
+    if let (Some((_, category)), Some(o)) = (gmail, out.as_object_mut()) {
+        let held = counts.gmail(id, category);
+        o.insert("gmail".into(), json!(category.code()));
+        o.insert("gmailMessages".into(), json!(held.total));
+        o.insert("gmailUnread".into(), json!(held.unread));
+    }
+    Ok(out)
 }
 
 /// The folders under `parent`, each with its counts from `counts` (counted once for the whole
@@ -271,13 +303,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     s.mailbox.rename_folder(id, p::req_str(v, "name")?)?;
     Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
 }
 
 fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     let parent = match v.get("parent") {
         Some(Value::Null) => None,
         Some(_) => Some(p::req_id(v, "parent")?),
@@ -288,7 +320,7 @@ fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    let id = target(s, v)?;
+    let id = not_servers(s, v)?;
     let parent = s.mailbox.folder(id).and_then(|f| f.parent);
     let account = s.mailbox.folder(id).map(|f| f.account);
     let permanently = s.mailbox.delete_folder(id)?;
@@ -315,26 +347,64 @@ fn favorite(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "favorite": f.favorite}))
 }
 
+/// The folders that go with a folder when it is emptied: those deleted into Deleted Items, when it
+/// is Deleted Items. (Not one of the server's own that an earlier version put there, #756: it
+/// can't be deleted, and the next listing puts it back where the server has it.)
+fn emptied_folders(s: &Session, id: Id) -> Vec<Id> {
+    if s.mailbox.folder(id).map(|f| f.kind) != Some(FolderKind::Deleted) {
+        return Vec::new();
+    }
+    s.mailbox.folders.iter().filter(|f| f.parent == Some(id) && !f.server_owned()).map(|f| f.id).collect()
+}
+
+/// The messages in `folders` and in every folder under them.
+fn held_under(s: &Session, folders: &[Id]) -> Vec<Id> {
+    let all: HashSet<Id> = folders.iter().flat_map(|f| s.mailbox.subtree(*f)).collect();
+    s.mailbox.messages.values().filter(|m| all.contains(&m.folder)).map(|m| m.id).collect()
+}
+
+/// The messages `folder.empty` of `id` takes away: those in it, and those in the folders that go
+/// with it ([`emptied_folders`]).
+pub fn emptied(s: &Session, id: Id) -> Vec<Id> {
+    let mut ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).collect();
+    ids.extend(held_under(s, &emptied_folders(s, id)));
+    ids
+}
+
+/// The folders `folder.empty` of `id` deletes: those that go with it and every folder under them.
+pub fn emptied_with(s: &Session, id: Id) -> Vec<Id> {
+    emptied_folders(s, id).into_iter().flat_map(|c| s.mailbox.subtree(c)).collect()
+}
+
+/// The messages `folder.delete` of `id` takes with the folder: those in it and under it.
+pub fn deleted_with(s: &Session, id: Id) -> Vec<Id> {
+    held_under(s, &[id])
+}
+
 fn empty(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let kind = s.mailbox.folder(id).map(|f| f.kind);
-    let ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).collect();
-    for m in &ids {
-        // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items.
-        if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
-            s.mailbox.remove_message(*m)?;
-        } else {
-            s.mailbox.delete_message(*m)?;
-        }
+    // On the owner's yes to an agent's question, only what the question showed goes
+    // (`Session::only_shown`): what came in meanwhile stays.
+    let only = s.only_shown.clone();
+    let shown = |m: &Id| only.as_ref().is_none_or(|o| o.messages.contains(m));
+    let ids: Vec<Id> = s.mailbox.messages_in(id).map(|m| m.id).filter(shown).collect();
+    // Folders deleted into Deleted Items go with it, but one that wasn't shown, or that holds a
+    // folder or a message that wasn't, stays.
+    let folder_shown = |f: &Id| only.as_ref().is_none_or(|o| o.folders.contains(f));
+    let children: Vec<Id> = emptied_folders(s, id)
+        .into_iter()
+        .filter(|c| s.mailbox.subtree(*c).iter().all(folder_shown) && held_under(s, &[*c]).iter().all(shown))
+        .collect();
+    // Emptying Deleted Items or Junk removes for good; any other folder goes to Deleted Items. All
+    // of it in one go (#1037): one at a time, a folder of 200,000 took an hour.
+    if matches!(kind, Some(FolderKind::Deleted | FolderKind::Junk)) {
+        s.mailbox.remove_messages(&ids)?;
+    } else {
+        s.mailbox.delete_messages(&ids)?;
     }
-    // Folders deleted into Deleted Items go with it.
-    if kind == Some(FolderKind::Deleted) {
-        // (Not one of the server's own that an earlier version put there, #756: it can't be
-        // deleted, and the next listing puts it back where the server has it.)
-        let children: Vec<Id> = s.mailbox.folders.iter().filter(|f| f.parent == Some(id) && !f.server_owned()).map(|f| f.id).collect();
-        for c in children {
-            s.mailbox.delete_folder(c)?;
-        }
+    for c in children {
+        s.mailbox.delete_folder(c)?;
     }
     s.sel.messages.clear();
     Ok(json!({"removed": ids.len()}))

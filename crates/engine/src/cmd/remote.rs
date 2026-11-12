@@ -1397,6 +1397,11 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         let cancel = change.kind == EventChangeKind::Delete
             && change.send
             && if change.of_occurrence() { series().is_some_and(|series| invited(series)) } else { change.base.as_deref().is_some_and(invited) };
+        // Whether people are invited to it, before the change or after, whoever organizes it: a
+        // server may write to them for any change of it (AU3-V2).
+        let meeting = event.is_some_and(|event| !event.attendees.is_empty())
+            || change.base.as_deref().is_some_and(|base| !base.attendees.is_empty())
+            || (change.of_occurrence() && series().is_some_and(|series| !series.attendees.is_empty()));
         let forwards = change.kind == EventChangeKind::Forward;
         let said = cancel || change.kind == EventChangeKind::Respond || forwards;
         // Another time is proposed with an answer that is sent, and only with one that isn't a yes.
@@ -1416,6 +1421,7 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
             comment: if said { change.comment.clone() } else { String::new() },
             proposed: change.proposed.filter(|_| proposes),
             to: if forwards && change.send { change.to.clone() } else { Vec::new() },
+            meeting,
         });
     }
     // (The zone the calendar is shown in: whole days are days there, and a series without a
@@ -2680,6 +2686,7 @@ fn settle_calendars(mailbox: &mut Mailbox) {
     if !mailbox.calendars.iter().any(|calendar| server_kept(mailbox, calendar)) {
         return;
     }
+    rehome_strays(mailbox);
     let renamed: Vec<Id> = mailbox
         .calendars
         .iter()
@@ -2704,6 +2711,41 @@ fn settle_calendars(mailbox: &mut Mailbox) {
     }
     mailbox.calendars.retain(|calendar| !(own.contains(&calendar.id) && !in_use.contains(&calendar.id)));
 }
+
+/// An event of the owner's own in a calendar that a server keeps (an `.ics` file put one there
+/// before #1050) is on that server nowhere, and nothing would ever send it: it goes to a calendar
+/// on this computer, which says where it is and offers to move it to the account's calendar.
+fn rehome_strays(mailbox: &mut Mailbox) {
+    let served = |mailbox: &Mailbox, calendar: Id| mailbox.calendar(calendar).is_some_and(|c| keeper(mailbox, &c.origin).is_some());
+    // What is on its way to a server is never a stray: one made or moved into a server's
+    // calendar has that account in its origin from then on ([`note_created`], [`note_moved`]),
+    // and anything a waiting change names stays where it is all the same.
+    let waiting: HashSet<Id> = mailbox.event_changes.iter().map(|change| change.event).collect();
+    let stray = |e: &Event| e.origin.is_local() && !waiting.contains(&e.id) && served(mailbox, e.calendar);
+    let strays: Vec<Id> = mailbox.events.values().filter(|e| stray(e)).map(|e| e.id).take(MAX_STRAYS).collect();
+    if strays.is_empty() {
+        return;
+    }
+    // (One that is shown, when there is one: what was in view stays in view.)
+    let own = || mailbox.calendars.iter().filter(|c| keeper(mailbox, &c.origin).is_none());
+    let home = match own().find(|c| c.visible).or_else(|| own().next()).map(|c| c.id) {
+        Some(calendar) => calendar,
+        None if mailbox.calendars.len() < MAX_CALENDARS => {
+            let (id, color) = (mailbox.alloc_id(), super::calendar::next_color(mailbox));
+            mailbox.calendars.push(Calendar { id, name: LOCAL_CALENDAR.into(), color, visible: true, ..Default::default() });
+            id
+        }
+        None => return,
+    };
+    for id in strays {
+        if let Ok(event) = mailbox.event_mut(id) {
+            event.calendar = home;
+        }
+    }
+}
+
+/// Most events [`rehome_strays`] moves in one go (the rest at the next download).
+const MAX_STRAYS: usize = 10_000;
 
 /// What a download makes of the changes that were sent and are yet to be seen ([`check_sent`]).
 #[derive(Default)]

@@ -26,6 +26,7 @@ mod alerts;
 mod apple_events;
 #[cfg(test)]
 mod approval_flow;
+mod attachment_render;
 mod block_on;
 mod browser;
 #[cfg(test)]
@@ -40,6 +41,8 @@ mod desktop_icons;
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
+mod diagnostics_problem_tests;
+#[cfg(test)]
 mod ews_mail_flow;
 mod ews_runner;
 mod ews_setup;
@@ -53,6 +56,11 @@ mod favorites_flow;
 mod favorites_organisation_flow;
 mod file_dialogs;
 mod file_launcher;
+// OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
+#[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
+mod gpg_agent;
+#[cfg(test)]
+mod gpg_agent_tests;
 #[cfg(test)]
 mod graph_folders_flow;
 #[cfg(test)]
@@ -62,6 +70,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod key_holders;
 mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
@@ -71,6 +80,7 @@ mod menubar;
 mod opened_files;
 #[cfg(test)]
 mod opened_flow;
+mod own_keys;
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
@@ -1120,10 +1130,14 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 refused = true;
                 out.held.push(message.id);
             }
-            // Whether it went is not known, or Microsoft said later: not sent a second way now.
+            // Whether it went is not known (then it is held for the owner), or Microsoft said
+            // later (then it goes next run): not sent a second way now.
             Err(e) => {
                 out.held.push(message.id);
-                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
+                if graph::send_unsure(&e) {
+                    out.unsure.push(message.id);
+                }
+                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim().replace(['"', '\\'], "'")));
             }
         }
     }
@@ -1202,8 +1216,9 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         out.uploaded = Some(uploaded);
     }
     // The wide stretch with the contacts, every quarter of an hour; otherwise the days on screen.
+    // (The window counts the wide stretch from its own clock and says it in `calendar`.)
     let now = mailcraft_time::now();
-    let stretch = if request.directory { Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD)) } else { request.calendar };
+    let stretch = if request.directory { request.calendar.or(Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD))) } else { request.calendar };
     // A shared mailbox's calendars (#70): asked for and written at its own address, and only
     // those that are ticked are asked for (the window says which, in the asks); no contacts,
     // categories or settings of it.
@@ -1697,10 +1712,13 @@ fn services(
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
+    let report_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
+    let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
@@ -1762,7 +1780,8 @@ fn services(
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
-            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.to_string()))
+            // The window says why in its own language (#872).
+            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.said()))
         })),
         // The copy of the mailbox kept before an account switches to Microsoft Graph: a large
         // mailbox takes a while to write, and the window shows a spinner meanwhile (#118).
@@ -1834,7 +1853,14 @@ fn services(
         // folder and opened with the system's program for its kind (#126).
         open_file: opened_files()
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
+        attachment_preview,
         secrets: secrets::store(),
+        // File › Options › Security (#30 R13): the owner's own certificates and keys listed,
+        // GnuPG's valid keys read, and a key file imported, each on a thread of its own.
+        own_keys: Some(Box::new(move |job| {
+            let store = keys_store.clone();
+            background(&keys_ctx, "own keys", move || own_keys::run(job, store))
+        })),
         // File › Info › Remove MailCraft's data from this computer (#177): the folders this
         // program works in, and no others. Not offered by a run that keeps nothing.
         data_wipe: prefs_enabled().then(|| {
@@ -1850,9 +1876,18 @@ fn services(
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
+        // Help › Report a Problem › Send report (#956), on the owner's click alone: the report the
+        // window showed goes to the project's relay, once. A build that names no relay has none.
+        report_send: mailcraft_net::report::relay().map(|_| {
+            Box::new(move |report: mailcraft_model::report::ProblemReport| {
+                background(&report_ctx, "problem report", move || mailcraft_net::report::send(&report))
+            }) as Box<dyn Fn(_) -> _>
+        }),
         microsoft_client_id: microsoft_client_id(),
         google_client_id: google_client_id(),
         google_client_secret: google_client_secret(),
+        // ponytail: false once Google has verified the app (#232).
+        google_testers_only: true,
         // Whether a new version is out: GitHub is asked about this build's repository and told
         // nothing else, once a day when the owner wants that, or when they press Check for Updates.
         update_check: Some(Box::new(move |pre_releases| {
@@ -1865,6 +1900,8 @@ fn services(
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
         // The system's language, for an interface language left on Automatic.
         system_locale: system_locale::system_locale(),
+        // And its regional format, whose region English dates are written for (#978).
+        system_time_locale: system_locale::system_time_locale(),
         ..Default::default()
     }
 }
@@ -2148,6 +2185,9 @@ fn main() -> eframe::Result {
             // the mailbox is there (`build`).
             let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
             let reading = progress.clone();
+            // The certification authorities this computer trusts, for checking Digital
+            // signatures (#30): read from the system's store while the mailbox is read.
+            let anchors = trust_anchors();
             let wake = cc.egui_ctx.clone();
             let arriving = launch::start(move || launch::first_mailbox(sample, mailbox_path, &reading), move || wake.request_repaint());
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
@@ -2171,6 +2211,7 @@ fn main() -> eframe::Result {
                 services.claim_mailbox =
                     claimer.map(|c| Box::new(move |path: &std::path::Path| c.claim(path)) as Box<dyn Fn(&std::path::Path) -> bool>);
                 let mut app = MailApp::new(session, services);
+                app.trust_anchors_arriving = Some(anchors);
                 // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
                 app.autosave = kept;
                 if let Some(path) = &app.session.path {
@@ -2271,4 +2312,28 @@ fn main() -> eframe::Result {
             )))
         }),
     )
+}
+
+/// The system's certification authorities for mail, read on a thread of their own (#30): the
+/// answer comes on the channel, and the window takes it when it comes, never waiting. A read
+/// that finds none, or stops on a panic, is tried once more a little later; a panic is a store
+/// that couldn't be read, said as that.
+fn trust_anchors() -> std::sync::mpsc::Receiver<Vec<Vec<u8>>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let read = move || {
+        let once = || std::panic::catch_unwind(mailcraft_net::system_trust_anchors).unwrap_or_default();
+        let mut found = once();
+        if found.is_empty() {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            found = once();
+        }
+        if found.is_empty() {
+            log::warn!("no certification authorities for mail could be read: Digital signatures are checked without them");
+        }
+        let _ = tx.send(found);
+    };
+    if let Err(e) = std::thread::Builder::new().name("trust anchors".into()).spawn(read) {
+        log::warn!("the system's certification authorities couldn't be read for checking Digital signatures: {e}");
+    }
+    rx
 }

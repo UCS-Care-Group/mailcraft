@@ -29,9 +29,10 @@ use mailcraft_model::{FolderKind, Id};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, searchable, uid_sets};
 
-use crate::sync::{Run, label, shown, subject_of};
+use crate::sync::{Run, because, label, shown, subject_said};
 use crate::transport::Stream;
 use crate::{NetError, kinds};
+use mailcraft_i18n::{Text, said};
 
 /// Most changes pushed in one run; the rest waits for the next one.
 const MAX_OPS: usize = 10_000;
@@ -78,7 +79,7 @@ pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mail
             // A server that won't say is taken for one that can do neither.
             Err(ProtoError::Rejected(_)) => {}
             Err(e) => {
-                run.out.errors.push(format!("Couldn't bring the server up to date: {e}"));
+                run.out.problem(because(said!("Couldn't bring the server up to date"), &e.into()));
                 return None;
             }
         }
@@ -144,9 +145,10 @@ struct Push<'a> {
     searching: Option<(String, u32)>,
 }
 
-/// Note a problem that ends the work on a mailbox; answers whether the connection is still good.
-fn stop(result: &mut SyncResult, line: String, error: &NetError) -> bool {
-    result.errors.push(line);
+/// Note a problem that ends the work on a mailbox: what couldn't be done, and `error`, why.
+/// Answers whether the connection is still good.
+fn stop(result: &mut SyncResult, what: Text, error: &NetError) -> bool {
+    result.problem(because(what, error));
     !error.is_fatal()
 }
 
@@ -174,7 +176,7 @@ impl<'a> Push<'a> {
             // Not in the server's list. It may be gone for good, or the list may be short this
             // once; taking it for gone would call its changes done that were never made. They
             // wait, and the owner is told (removing the folder here ends the wait).
-            result.errors.push(format!("Couldn't bring \"{name}\" up to date: the folder is not on the server"));
+            result.problem(said!("Couldn't bring \"{name}\" up to date: the folder is not on the server", name));
             return true;
         };
         // UIDs are good for one life of a mailbox only. Without knowing which life the request's
@@ -185,7 +187,7 @@ impl<'a> Push<'a> {
         }
         let selected = match imap.select(&mailbox.raw, false) {
             Ok(selected) => selected,
-            Err(e) => return stop(result, format!("Couldn't open \"{name}\" to bring it up to date: {e}"), &e.into()),
+            Err(e) => return stop(result, said!("Couldn't open \"{name}\" to bring it up to date", name), &e.into()),
         };
         if selected.uid_validity != learned_under {
             // The mailbox was made anew: the UIDs name other messages now, or none. The download
@@ -228,7 +230,7 @@ impl<'a> Push<'a> {
                 Ok(listed) => present.extend(listed.iter().filter(|m| !has(&m.flags, "\\Deleted")).map(|m| m.uid)),
                 // Some servers refuse to look into an empty mailbox rather than answer with nothing.
                 Err(ProtoError::Rejected(_)) if exists == 0 => {}
-                Err(e) => return Err(stop(result, format!("Couldn't read \"{name}\": {e}"), &e.into())),
+                Err(e) => return Err(stop(result, said!("Couldn't read \"{name}\"", name), &e.into())),
             }
         }
         self.moves(imap, name, ops, &present, result)?;
@@ -254,7 +256,7 @@ impl<'a> Push<'a> {
         'changes: for (flag, on, uids) in &changes {
             for (set, uids) in uid_sets(uids) {
                 if let Err(e) = imap.uid_store_set(&set, *on, &[*flag]) {
-                    outcome = Err(stop(result, format!("Couldn't change flags in \"{name}\": {e}"), &e.into()));
+                    outcome = Err(stop(result, said!("Couldn't change flags in \"{name}\"", name), &e.into()));
                     break 'changes;
                 }
                 for uid in uids {
@@ -310,8 +312,8 @@ impl<'a> Push<'a> {
                 let copied = match went {
                     Ok(copied) => copied.unwrap_or_default(),
                     Err(e) => {
-                        let line = format!("Couldn't move messages from \"{name}\" to \"{}\": {e}", shown(&destination.remote));
-                        return Err(stop(result, line, &e.into()));
+                        let what = said!("Couldn't move messages from \"{name}\" to \"{to}\"", name, to = shown(&destination.remote));
+                        return Err(stop(result, what, &e.into()));
                     }
                 };
                 // They are in their new mailbox, whatever comes next.
@@ -325,9 +327,12 @@ impl<'a> Push<'a> {
                     // A copy that can't be taken back is no reason to copy again next time: the
                     // move is done, and the original stays for the owner to see to.
                     Err(Removal::Unmarked(e)) => {
-                        let line =
-                            format!("Messages moved from \"{name}\" to \"{}\" are still in \"{name}\" as well: {e}", shown(&destination.remote));
-                        if !stop(result, line, &e.into()) {
+                        let what = said!(
+                            "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well",
+                            name,
+                            to = shown(&destination.remote)
+                        );
+                        if !stop(result, what, &e.into()) {
                             return Err(false);
                         }
                     }
@@ -335,7 +340,7 @@ impl<'a> Push<'a> {
                     Err(Removal::Marked(e)) => {
                         let e = NetError::from(e);
                         if e.is_fatal() {
-                            return Err(stop(result, format!("Couldn't bring \"{name}\" up to date: {e}"), &e));
+                            return Err(stop(result, said!("Couldn't bring \"{name}\" up to date", name), &e));
                         }
                     }
                 }
@@ -389,12 +394,12 @@ impl<'a> Push<'a> {
             }
             match removed {
                 Ok(()) => {}
-                Err(Removal::Unmarked(e)) => return Err(stop(result, format!("Couldn't delete messages from \"{name}\": {e}"), &e.into())),
+                Err(Removal::Unmarked(e)) => return Err(stop(result, said!("Couldn't delete messages from \"{name}\"", name), &e.into())),
                 // Marked and still there: only a lost connection is worth a word.
                 Err(Removal::Marked(e)) => {
                     let e = NetError::from(e);
                     if e.is_fatal() {
-                        return Err(stop(result, format!("Couldn't bring \"{name}\" up to date: {e}"), &e));
+                        return Err(stop(result, said!("Couldn't bring \"{name}\" up to date", name), &e));
                     }
                 }
             }
@@ -436,7 +441,7 @@ impl<'a> Push<'a> {
                     there.extend(copied.uids.iter().map(|(_, new_uid)| (copied.uid_validity, *new_uid)).filter(|(_, uid)| *uid != 0));
                 }
                 Err(e) => {
-                    outcome = Err(stop(result, format!("Couldn't delete messages from \"{name}\": {e}"), &e.into()));
+                    outcome = Err(stop(result, said!("Couldn't delete messages from \"{name}\"", name), &e.into()));
                     break;
                 }
             }
@@ -447,7 +452,9 @@ impl<'a> Push<'a> {
         let trash_name = shown(&kinds::remote_name(trash));
         let selected = match imap.select(&trash.raw, false) {
             Ok(selected) => selected,
-            Err(e) => return Err(stop(result, format!("Couldn't open \"{trash_name}\" to permanently delete messages: {e}"), &e.into())),
+            Err(e) => {
+                return Err(stop(result, said!("Couldn't open \"{name}\" to permanently delete messages", name = trash_name.as_str()), &e.into()));
+            }
         };
         // UIDs the server gave under another life of the mailbox name other messages now.
         let new_uids: Vec<u32> = there.iter().filter(|(validity, _)| *validity == selected.uid_validity).map(|(_, uid)| *uid).collect();
@@ -455,12 +462,16 @@ impl<'a> Push<'a> {
             match self.remove(imap, &set) {
                 Ok(()) => {}
                 Err(Removal::Unmarked(e)) => {
-                    return Err(stop(result, format!("Messages deleted from \"{name}\" are still in \"{trash_name}\": {e}"), &e.into()));
+                    return Err(stop(
+                        result,
+                        said!("Messages deleted from \"{name}\" are still in \"{trash}\"", name, trash = trash_name.as_str()),
+                        &e.into(),
+                    ));
                 }
                 Err(Removal::Marked(e)) => {
                     let e = NetError::from(e);
                     if e.is_fatal() {
-                        return Err(stop(result, format!("Couldn't bring \"{trash_name}\" up to date: {e}"), &e));
+                        return Err(stop(result, said!("Couldn't bring \"{name}\" up to date", name = trash_name.as_str()), &e));
                     }
                 }
             }
@@ -502,7 +513,7 @@ impl<'a> Push<'a> {
         let found = match self.find_destination(imap, to, to_folder, create, result) {
             Ok(destination) => Some(destination),
             Err((line, alive)) => {
-                result.errors.push(line);
+                result.problem(line);
                 if !alive {
                     return Err(false);
                 }
@@ -544,11 +555,16 @@ impl<'a> Push<'a> {
             let key = marker.map(|m| id.map_or((PLACE_HEADER, m.to_string()), |id| ("Message-ID", id)));
             // Said, for the run ends there: a server that cuts off the same look every time keeps
             // the account's new mail away until the message is moved out of it.
-            let looked =
-                |e: &NetError| format!("Couldn't look for \"{}\" in \"{}\" on the server: {e}", subject_of(message), shown(&destination.remote));
+            let looked = || {
+                said!(
+                    "Couldn't look for \"{subject}\" in \"{folder}\" on the server",
+                    subject = subject_said(message),
+                    folder = shown(&destination.remote)
+                )
+            };
             let before = match self.copies(imap, &destination, *to_folder, key.as_ref()) {
                 Ok(before) => before,
-                Err(e) => return stop(result, looked(&e), &e),
+                Err(e) => return stop(result, looked(), &e),
             };
             if let (Some((uid_validity, uids)), Some(marker)) = (&before, marker) {
                 match self.carrying(imap, uids, marker) {
@@ -556,11 +572,19 @@ impl<'a> Push<'a> {
                         // Put there before: it is the message's copy, with the flags it has there
                         // (what changed here since goes up next).
                         self.arrived.entry(destination.remote.clone()).or_default().push((*uid_validity, uid));
-                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags });
+                        // (What it was written from then isn't known: not said to be the bytes it came as, #30.)
+                        result.placed.push(Placed {
+                            message: message.id,
+                            to_folder: *to_folder,
+                            uid,
+                            uid_validity: *uid_validity,
+                            flags,
+                            original: false,
+                        });
                         continue;
                     }
                     Ok(None) => {}
-                    Err(e) => return stop(result, looked(&e), &e),
+                    Err(e) => return stop(result, looked(), &e),
                 }
             }
             let mut flags = Vec::new();
@@ -578,10 +602,22 @@ impl<'a> Push<'a> {
             // Without who got a blind copy: the copy is for anyone else who can open the mailbox
             // to see too.
             let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-            let written = match marker {
-                Some(marker) => mailcraft_mime::write_placed(message, &options, marker),
-                None => mailcraft_mime::write(message, &options),
+            // A protected message with a part sent as `binary` (#30) goes written from its parts:
+            // its bytes aren't the lines an APPEND carries (RFC 3501; the BINARY extension's
+            // literals, RFC 3516, aren't sent), and a server may refuse or change them. Its
+            // Digital signature doesn't check on that copy; the one kept here, and the copy it
+            // came from, stay as they came.
+            let parts;
+            let message = if message.original_bytes().is_some_and(mailcraft_mime::has_binary) {
+                log::info!("message {}: a part of it is binary, so the copy put on the server is written from its parts", message.id);
+                parts = mailcraft_model::Message { original: None, ..message.clone() };
+                &parts
+            } else {
+                message
             };
+            let written = mailcraft_mime::write_placed(message, &options, marker.unwrap_or_default());
+            // Written from the bytes it came as (#30): what it was moved out of may go then.
+            let original = mailcraft_mime::writes_original(message);
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
@@ -595,20 +631,27 @@ impl<'a> Push<'a> {
                             Ok(Some((validity, now))) => match self.carrying(imap, &now, marker) {
                                 Ok(Some((found, _))) => (uid_validity, uid) = (validity, found),
                                 Ok(None) => {}
-                                Err(e) => return stop(result, looked(&e), &e),
+                                Err(e) => return stop(result, looked(), &e),
                             },
                             Ok(None) => {}
-                            Err(e) => return stop(result, looked(&e), &e),
+                            Err(e) => return stop(result, looked(), &e),
                         }
                     }
                     if uid != 0 {
                         self.arrived.entry(destination.remote.clone()).or_default().push((uid_validity, uid));
                     }
-                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given });
+                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given, original });
                 }
                 Err(e) => {
                     let e = NetError::from(e);
-                    result.errors.push(format!("Couldn't put \"{}\" in \"{}\" on the server: {e}", subject_of(message), shown(&destination.remote)));
+                    result.problem(because(
+                        said!(
+                            "Couldn't put \"{subject}\" in \"{folder}\" on the server",
+                            subject = subject_said(message),
+                            folder = shown(&destination.remote)
+                        ),
+                        &e,
+                    ));
                     if e.is_fatal() {
                         // The connection went while it was on its way: it may have got there all
                         // the same, and the next run looks for it there.
@@ -688,7 +731,7 @@ impl<'a> Push<'a> {
         to_folder: Id,
         create: &[String],
         result: &mut SyncResult,
-    ) -> Result<Destination, (String, bool)> {
+    ) -> Result<Destination, (Text, bool)> {
         if create.is_empty() {
             let mailbox = self.listed(to).filter(|m| kinds::selectable(m)).ok_or_else(|| gone(to))?;
             return Ok(Destination { raw: mailbox.raw.clone(), remote: to.to_string() });
@@ -707,14 +750,14 @@ impl<'a> Push<'a> {
         }
         if let Err(e) = imap.create(&raw) {
             let e = NetError::from(e);
-            return Err((format!("Couldn't make the folder \"{}\" on the server: {e}", shown(&remote)), !e.is_fatal()));
+            return Err((because(said!("Couldn't make the folder \"{name}\" on the server", name = shown(&remote)), &e), !e.is_fatal()));
         }
         result.created.push(Created { folder: to_folder, remote: remote.clone() });
         // So that other mail programs list it too. A server that keeps no such list loses nothing.
         if let Err(e) = imap.subscribe(&raw)
             && NetError::from(e.clone()).is_fatal()
         {
-            return Err((format!("Couldn't make the folder \"{}\" on the server: {e}", shown(&remote)), false));
+            return Err((because(said!("Couldn't make the folder \"{name}\" on the server", name = shown(&remote)), &e.into()), false));
         }
         Ok(Destination { raw, remote })
     }
@@ -746,7 +789,7 @@ impl<'a> Push<'a> {
 
     /// The mailbox to make for a folder that only exists here, `create` below `to` (see
     /// [`RemoteOp::Move`]): its name as the server wants it, and as it will be known here.
-    fn name_below(&self, to: &str, create: &[String]) -> Result<(String, String), (String, bool)> {
+    fn name_below(&self, to: &str, create: &[String]) -> Result<(String, String), (Text, bool)> {
         // Below the nearest folder the server has, in the server's spelling of it and with the
         // server's own separator.
         let (mut raw, delimiter) = if to.is_empty() {
@@ -755,11 +798,11 @@ impl<'a> Push<'a> {
         } else {
             let parent = self.listed(to).ok_or_else(|| gone(to))?;
             let Some(delimiter) = parent.delimiter else {
-                return Err((format!("Couldn't make a folder inside \"{}\": the server keeps no folders inside others", shown(to)), true));
+                return Err((said!("Couldn't make a folder inside \"{name}\": the server keeps no folders inside others", name = shown(to)), true));
             };
             (parent.raw.clone(), delimiter)
         };
-        let unnamed = || ("Couldn't make a folder on the server: it has no usable name".to_string(), true);
+        let unnamed = || (said!("Couldn't make a folder on the server: it has no usable name"), true);
         if create.len() > MAX_LEVELS {
             return Err(unnamed());
         }
@@ -783,11 +826,14 @@ impl<'a> Push<'a> {
     /// The mailbox the server already has under the name one would be made with for local folder
     /// `to_folder`; `None` when it has none. It is the folder's, unless it can't be opened or a
     /// folder here follows it already.
-    fn already_there(&self, raw: &str, remote: &str, to_folder: Id) -> Option<Result<Destination, (String, bool)>> {
+    fn already_there(&self, raw: &str, remote: &str, to_folder: Id) -> Option<Result<Destination, (Text, bool)>> {
         let existing = self.mailboxes.iter().find(|m| m.raw == raw || kinds::remote_name(m) == remote)?;
         let remote = kinds::remote_name(existing);
         if !kinds::selectable(existing) || self.request.folders.iter().any(|f| f.id != to_folder && f.remote == remote) {
-            return Some(Err((format!("Couldn't make the folder \"{}\" on the server: it has another folder of that name", shown(&remote)), true)));
+            return Some(Err((
+                said!("Couldn't make the folder \"{name}\" on the server: it has another folder of that name", name = shown(&remote)),
+                true,
+            )));
         }
         Some(Ok(Destination { raw: existing.raw.clone(), remote }))
     }
@@ -816,8 +862,8 @@ impl<'a> Push<'a> {
 }
 
 /// What the owner is told when the mailbox that messages were to go to isn't there.
-fn gone(remote: &str) -> (String, bool) {
-    (format!("Couldn't move messages to \"{}\": the folder is no longer on the server", shown(remote)), true)
+fn gone(remote: &str) -> (Text, bool) {
+    (said!("Couldn't move messages to \"{name}\": the folder is no longer on the server", name = shown(remote)), true)
 }
 
 /// Why messages weren't removed.

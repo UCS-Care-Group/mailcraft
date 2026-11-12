@@ -203,7 +203,11 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            m.server.as_ref().filter(|server| m.unfetched && ews_down::is_id(&server.id)).map(|server| vec![server.id.clone()]).unwrap_or_default()
+            m.server
+                .as_ref()
+                .filter(|server| graph_down::still_to_fetch(&s.mailbox, m) && ews_down::is_id(&server.id))
+                .map(|server| vec![server.id.clone()])
+                .unwrap_or_default()
         }
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable)
             .into_iter()
@@ -298,7 +302,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // refusal is said once per kind and reason), the drafts, and what was sent.
     let mut errors = result.errors.clone();
     for done in &result.changes {
-        if let Some(said) = graph_mail::change_done(&mut s.mailbox, account, &done.change, &done.outcome, &mut taken) {
+        if let Some(said) = graph_mail::change_done(&mut s.mailbox, account, &done.change, &done.outcome, s.interface_language, &mut taken) {
             errors.push(said);
         }
     }
@@ -306,8 +310,12 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // folder list afresh (#779): its state goes, and the run's folder piece, when the run gets
     // that far, sets it again. A run that stops first (a 429, called off, a read that failed)
     // leaves the next one to read the list afresh.
-    let refused_delete =
-        |done: &FolderChangeDone| matches!((&done.change, &done.outcome), (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. }));
+    let refused_delete = |done: &FolderChangeDone| {
+        matches!(
+            (&done.change, &done.outcome),
+            (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. } | ChangeOutcome::OwnFolder { .. } | ChangeOutcome::NotShown { .. })
+        )
+    };
     if result.changes.iter().any(refused_delete)
         && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())
     {

@@ -31,17 +31,33 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+mod digital_signature;
+#[cfg(test)]
+mod digital_signature_tests;
+pub mod gmail;
 pub mod import_pst;
 pub mod import_tree;
 pub mod io;
 #[cfg(test)]
 mod launchable_tests;
 pub mod list;
+#[cfg(test)]
+mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
+#[cfg(test)]
+mod opening_tests;
+#[cfg(test)]
+mod openpgp_signature_tests;
 mod picture_fit;
+pub mod private_keys;
+#[cfg(test)]
+#[allow(dead_code)]
+mod private_keys_fixtures_tests;
+#[cfg(test)]
+mod private_keys_tests;
 pub mod sample;
 pub mod sender_warnings;
 mod session;
@@ -49,6 +65,8 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 mod undo;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
@@ -399,6 +417,8 @@ mod agent_ids_tests;
 #[cfg(test)]
 mod agent_tests;
 #[cfg(test)]
+mod catalog_tests;
+#[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
@@ -408,6 +428,10 @@ mod counts_tests;
 mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
+#[cfg(test)]
+mod gmail_tests;
+#[cfg(test)]
+mod import_pst_calendar_tests;
 #[cfg(test)]
 mod import_pst_memory_tests;
 #[cfg(test)]
@@ -423,7 +447,11 @@ mod import_tree_tests;
 #[cfg(test)]
 mod list_sort_tests;
 #[cfg(test)]
+mod many_folders_tests;
+#[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod sender_trust_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]

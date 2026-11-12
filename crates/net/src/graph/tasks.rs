@@ -101,8 +101,11 @@ pub(super) fn tasks_at(base: &str, token: &str, zone: Zone) -> Result<TasksDownl
     Ok(download)
 }
 
+/// An id from Graph (or the mailbox file) that is put in an address: none that is empty, too long,
+/// has spaces or control characters, or is `.` or `..`, which an address reads as a step to the
+/// same or the parent place (H3).
 pub(super) fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.len() <= MAX_ID && !id.chars().any(|c| c.is_control() || c.is_whitespace())
+    !id.is_empty() && id.len() <= MAX_ID && !matches!(id, "." | "..") && !id.chars().any(|c| c.is_control() || c.is_whitespace())
 }
 
 /// The day a task's `{"dateTime": …, "timeZone": …}` stands for, for an owner in `owner` (#809).
@@ -345,7 +348,7 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload, zone:
             status => {
                 done.result = TaskResult::Refused;
                 done.error = match super::refusal(Doing::Tasks, &reply, &[token, sent], mailcraft_time::now()) {
-                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why,
+                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why.to_string(),
                     e => e.to_string(),
                 };
                 if done.error.is_empty() {

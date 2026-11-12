@@ -238,8 +238,8 @@ fn folders_are_made_renamed_moved_and_deleted_softly() {
     let changes = vec![
         FolderChange::Rename { folder: 10, id: projects.id.clone(), name: "Work".into() },
         FolderChange::Move { folder: 11, id: apollo.id.clone(), parent: String::new() },
-        FolderChange::Delete { id: apollo.id.clone() },
-        FolderChange::Delete { id: apollo.id.clone() },
+        FolderChange::Delete { id: apollo.id.clone(), shown: Default::default() },
+        FolderChange::Delete { id: apollo.id.clone(), shown: Default::default() },
     ];
     let result = run(&standin, &EwsMailRequest { changes, ..base() });
     assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Done { folder } if folder.name == "Work"));
@@ -247,7 +247,8 @@ fn folders_are_made_renamed_moved_and_deleted_softly() {
     assert!(matches!(&result.changes[2].outcome, ChangeOutcome::Done { .. }));
     assert!(matches!(&result.changes[3].outcome, ChangeOutcome::Gone));
     let state = standin.state();
-    assert_eq!(state.deletes, ["SoftDelete", "SoftDelete"]);
+    // (The second finds it gone when what it holds is looked at first, AU3-H7: it isn't asked.)
+    assert_eq!(state.deletes, ["SoftDelete"]);
     assert!(state.folders.iter().any(|f| f.name == "Work") && state.folders.iter().all(|f| f.name != "Apollo"));
 }
 
@@ -255,8 +256,19 @@ fn folders_are_made_renamed_moved_and_deleted_softly() {
 fn a_special_folder_cannot_be_deleted() {
     let standin = StandIn::new();
     let inbox = standin.state().folder_id("inbox").unwrap();
-    let result = run(&standin, &EwsMailRequest { changes: vec![FolderChange::Delete { id: inbox }], ..base() });
-    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { .. }));
+    let result = run(&standin, &EwsMailRequest { changes: vec![FolderChange::Delete { id: inbox, shown: Default::default() }], ..base() });
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::OwnFolder { .. }));
+}
+
+#[test]
+fn a_special_folder_the_server_wont_move_is_said_to_be_its_own() {
+    // #1069: the server's word (`ErrorMoveDistinguishedFolder`) has the folder put back and
+    // marked, not left where it was moved to here.
+    let standin = StandIn::new();
+    let junk = standin.state().folder_id("junkemail").unwrap();
+    let deleted = standin.state().folder_id("deleteditems").unwrap();
+    let result = run(&standin, &EwsMailRequest { changes: vec![FolderChange::Move { folder: 9, id: junk, parent: deleted }], ..base() });
+    assert!(matches!(&result.changes[0].outcome, ChangeOutcome::OwnFolder { why } if why.contains("moved")), "{:?}", result.changes);
 }
 
 fn draft(marker: &str, subject: &str) -> DraftUp {

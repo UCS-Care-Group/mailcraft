@@ -56,7 +56,8 @@ pub(crate) struct InboxCheck {
     /// seconds; 0 before the first).
     last: i64,
     /// Checks that gave way to a run: only their answer's sign-in is still waited for.
-    gave_way: Vec<(Id, Receiver<GraphResult>)>,
+    /// (With the mailbox opening each was started under: one for another mailbox is let go of.)
+    gave_way: Vec<(Id, u64, Receiver<GraphResult>)>,
     /// Accounts whose last check went wrong and said so: said once, until one gets through.
     failing: HashSet<Id>,
 }
@@ -65,6 +66,23 @@ impl InboxCheck {
     /// Whether a check is under way.
     pub(crate) fn under_way(&self) -> bool {
         self.running.is_some()
+    }
+
+    /// Whether a check that gave way to a run still owes its answer.
+    pub(crate) fn gave_way_waiting(&self) -> bool {
+        !self.gave_way.is_empty()
+    }
+
+    /// Another mailbox took the place of the open one: the check under way is called off, and
+    /// what waited is let go of. (When the last check was stays: it is the clock's.)
+    pub(crate) fn forget(&mut self) {
+        if let Some(cancel) = self.cancel.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.running = None;
+        self.queue.clear();
+        self.gave_way.clear();
+        self.failing.clear();
     }
 }
 
@@ -131,8 +149,8 @@ impl MailApp {
         if let Some(cancel) = self.inbox_check.cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }
-        if let Some((account, _, _, job)) = self.graph_rx.take() {
-            self.inbox_check.gave_way.push((account, job));
+        if let Some((account, _, _, opening, job)) = self.graph_rx.take() {
+            self.inbox_check.gave_way.push((account, opening, job));
             self.take_in_given_way();
         }
         self.graph_pieces = None;
@@ -181,7 +199,7 @@ impl MailApp {
         }
         let oauth = owner.oauth.clone()?;
         let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if refresh.is_empty() {
             return None;
         }
@@ -217,6 +235,7 @@ impl MailApp {
         if !check {
             self.services.sync_cancel.store(false, Ordering::Relaxed);
         }
+        let opening = self.session.openings();
         let job = graph(ask);
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
@@ -225,13 +244,13 @@ impl MailApp {
         if check {
             // Quiet: no row of Send/Receive Progress, no word in the status line.
             (self.inbox_check.running, self.inbox_check.cancel) = (Some(account), Some(cancel));
-            self.graph_rx = Some((account, true, false, job));
+            self.graph_rx = Some((account, true, false, opening, job));
             return Some(json!({"started": true, "account": account, "graph": true, "inbox": true, "check": true}));
         }
         // (No run of its own to call off for something made here: the round's runs do that.)
         self.sync_run = None;
         self.session.sync_progress.phase(account, mailcraft_model::sync::SyncPhase::Inbox);
-        self.graph_rx = Some((account, quiet, false, job));
+        self.graph_rx = Some((account, quiet, false, opening, job));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Some(json!({"started": true, "account": account, "graph": true, "inbox": true}))
     }
@@ -239,10 +258,14 @@ impl MailApp {
     /// The answers of checks that gave way, as they come: their sign-in is kept, nothing else.
     fn take_in_given_way(&mut self) {
         let mut waiting = Vec::new();
-        for (account, job) in std::mem::take(&mut self.inbox_check.gave_way) {
+        for (account, opening, job) in std::mem::take(&mut self.inbox_check.gave_way) {
+            if opening != self.session.openings() {
+                log::info!("inbox check: its answer is for a mailbox that is no longer open; let go of");
+                continue;
+            }
             match job.try_recv() {
                 Ok(result) => self.keep_inbox_tokens(account, &result),
-                Err(TryRecvError::Empty) => waiting.push((account, job)),
+                Err(TryRecvError::Empty) => waiting.push((account, opening, job)),
                 Err(TryRecvError::Disconnected) => {}
             }
         }
@@ -252,17 +275,17 @@ impl MailApp {
     /// What an Inbox pass's answer says of its sign-in, kept as for any job: renewed tokens (the
     /// refresh token for the owner, in the system's store when remembered), or a token refused.
     fn keep_inbox_tokens(&mut self, account: Id, result: &GraphResult) {
-        let owner = self.session.mailbox.owner_of(account).map(|o| (o.id, o.email.clone()));
+        let owner = self.session.mailbox.owner_of(account).map(|o| o.id);
         if result.token_refused {
             self.graph_tokens.remove(&account);
         }
+        // (A shared mailbox's sign-in is its owner's: checked against the owner, AU3-10.)
+        let owner = owner.unwrap_or(account);
         if let Some(tokens) = result.tokens.clone()
-            && (owner.is_some() || !self.signed_in_as_other(account, &tokens))
+            && !self.signed_in_as_other(owner, &tokens)
         {
-            let (owner, address) =
-                owner.unwrap_or_else(|| (account, self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default()));
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", &address, &tokens.refresh);
+                self.remember("refresh", owner, &tokens.refresh);
                 if let Some(kept) = self.tokens.get_mut(&owner) {
                     kept.refresh = tokens.refresh.clone();
                 }

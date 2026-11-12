@@ -67,8 +67,7 @@ impl MailApp {
         if let Some(typed) = self.passwords.get(&account) {
             return Some(typed.clone());
         }
-        let address = self.session.mailbox.account(account)?.email.clone();
-        self.remembered("password", &address)
+        self.remembered("password", account)
     }
 
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
@@ -85,14 +84,21 @@ impl MailApp {
             self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
             return Ok(json!({"pending": "password"}));
         };
-        let Some(run) = &self.services.ews else { return Err(tl!("This build can't connect to mail servers").to_string()) };
         let inbox_pass = p.get("inboxPass").and_then(Value::as_bool).unwrap_or(false);
         let params = json!({"account": account, "background": quiet, "inboxPass": inbox_pass});
         let request = self.session.run("sync.ewsRequest", &params).map_err(|e| e.to_string())?;
-        let request: EwsMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
+        let mut request: EwsMailRequest = serde_json::from_value(request).map_err(|e| e.to_string())?;
+        // A certificate a file trusts counts once the owner has confirmed the file (AU3-02).
+        if self.unconfirmed {
+            request.trusted.clear();
+        }
+        if self.services.ews.is_none() {
+            return Err(tl!("This build can't connect to mail servers").to_string());
+        }
         self.services.sync_cancel.store(false, Ordering::Relaxed);
         let sent = Some(secret.clone());
-        let pieces = run(EwsJob { request, secret, cancel: self.services.sync_cancel.clone() });
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let pieces = self.hand_ews(account, EwsJob { request, secret, cancel: self.services.sync_cancel.clone() })?;
         (self.sync_refused, self.sync_password) = (false, sent);
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
@@ -169,6 +175,7 @@ impl MailApp {
                 }
                 Err(e) => {
                     self.status(e.to_string());
+                    self.send_doubt = true;
                     // A piece that was refused is not skipped over: the run is called off, and the
                     // pages after it (read from the state it would have kept) are left out by the
                     // engine, whichever of them still come ([`apply_ews_mail`]).
@@ -181,7 +188,10 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
+            // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
+            self.run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.sync_queue.push_front((whose, quiet));

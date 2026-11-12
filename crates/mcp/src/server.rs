@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! JSON-RPC 2.0 framing and the MCP lifecycle / tools / resources methods.
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 
 use serde_json::{Value, json};
 
@@ -19,6 +19,41 @@ const METHOD_NOT_FOUND: i64 = -32601;
 const INVALID_PARAMS: i64 = -32602;
 const INTERNAL_ERROR: i64 = -32603;
 const RESOURCE_NOT_FOUND: i64 = -32002;
+
+/// The longest message read from the client: 1 MiB, a line. A longer one is answered with an
+/// error and its rest is read past without being kept.
+pub const MAX_LINE: usize = 1 << 20;
+
+/// The most of a client's own words (a method's name, a resource's address) an error gives back.
+const MAX_ECHO: usize = 200;
+
+/// `t` as an error message gives it back: at most [`MAX_ECHO`] characters.
+pub(crate) fn clip(t: &str) -> String {
+    match t.char_indices().nth(MAX_ECHO) {
+        Some((at, _)) => format!("{}…", t.get(..at).unwrap_or("")),
+        None => t.to_string(),
+    }
+}
+
+/// Read past the rest of a line without keeping it.
+fn skip_line(input: &mut impl BufRead) -> std::io::Result<()> {
+    loop {
+        let (used, done) = {
+            let b = input.fill_buf()?;
+            if b.is_empty() {
+                return Ok(());
+            }
+            match b.iter().position(|&c| c == b'\n') {
+                Some(i) => (i + 1, true),
+                None => (b.len(), false),
+            }
+        };
+        input.consume(used);
+        if done {
+            return Ok(());
+        }
+    }
+}
 
 const INSTRUCTIONS: &str = "MailCraft is a mail, calendar, contacts and tasks program (in the style of Microsoft Outlook). Every \
 action is a command: find ids and parameters with list_commands and run them with execute (or several with batch). \
@@ -74,17 +109,31 @@ impl Server {
     }
 
     /// Serve newline-delimited JSON-RPC until `input` closes. Logs go to stderr only (stdout is
-    /// the protocol stream).
-    pub fn serve(&mut self, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
-        for line in input.lines() {
-            let line = line?;
-            if let Some(reply) = self.handle_line(&line) {
+    /// the protocol stream). A line is read up to [`MAX_LINE`] bytes: a longer one is answered
+    /// with an error, its rest read past without being kept, and the next line served.
+    pub fn serve(&mut self, mut input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
+        loop {
+            let mut buf = Vec::new();
+            if input.by_ref().take(MAX_LINE as u64 + 1).read_until(b'\n', &mut buf)? == 0 {
+                return Ok(());
+            }
+            let reply = if buf.len() > MAX_LINE {
+                if buf.last() != Some(&b'\n') {
+                    skip_line(&mut input)?;
+                }
+                Some(error(Value::Null, INVALID_REQUEST, format!("line too long: a message is at most {} MiB", MAX_LINE >> 20)).to_string())
+            } else {
+                match String::from_utf8(buf) {
+                    Ok(line) => self.handle_line(&line),
+                    Err(_) => Some(error(Value::Null, PARSE_ERROR, "parse error: the line is not UTF-8").to_string()),
+                }
+            };
+            if let Some(reply) = reply {
                 output.write_all(reply.as_bytes())?;
                 output.write_all(b"\n")?;
                 output.flush()?;
             }
         }
-        Ok(())
     }
 
     /// Handle one line; returns the reply line (None for notifications and blank lines).
@@ -138,7 +187,7 @@ impl Server {
         match method {
             "notifications/initialized" => self.initialized = true,
             "notifications/cancelled" | "notifications/progress" | "notifications/roots/list_changed" => {}
-            other => log::debug!("ignoring notification {other}"),
+            other => log::debug!("ignoring notification {}", clip(other)),
         }
     }
 
@@ -174,12 +223,12 @@ impl Server {
                 let v = match uri {
                     MAILBOX_URI => self.backend.call("mailbox.inspect", json!({})),
                     COMMANDS_URI => self.backend.call("engine.commands", json!({})),
-                    _ => return Err((RESOURCE_NOT_FOUND, format!("resource not found: {uri}"))),
+                    _ => return Err((RESOURCE_NOT_FOUND, format!("resource not found: {}", clip(uri)))),
                 }
                 .map_err(|e| (INTERNAL_ERROR, e))?;
                 Ok(json!({"contents": [{"uri": uri, "mimeType": "application/json", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}]}))
             }
-            other => Err((METHOD_NOT_FOUND, format!("method not found: {other}"))),
+            other => Err((METHOD_NOT_FOUND, format!("method not found: {}", clip(other)))),
         }
     }
 }

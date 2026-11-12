@@ -202,12 +202,22 @@ fn what_graph_says_to_a_message_it_does_not_take() {
         ("503 Service Unavailable", "Retry-After: 0\r\n", Some(0), "Microsoft Graph is busy; try again in 0 seconds"),
         ("503 Service Unavailable", "", None, "Microsoft Graph is busy; try again later"),
         ("503 Service Unavailable", "Retry-After: 99999999999999\r\n", Some(86_400), "Microsoft Graph is busy; try again in 86400 seconds"),
-        ("504 Gateway Timeout", "Retry-After: soon\r\n", None, "Microsoft Graph is busy; try again later"),
+        ("503 Service Unavailable", "Retry-After: soon\r\n", None, "Microsoft Graph is busy; try again later"),
         ("429 Too Many Requests", "Retry-After: -5\r\n", None, "Microsoft Graph is busy; try again later"),
     ] {
         let busy = sent_to(answer(status, headers, &graph_error("TooManyRequests", "Please retry again later."))).unwrap_err();
         assert_eq!(busy, NetError::Busy { text: said.into(), retry_after: wait }, "{status} {headers}");
         assert!(busy.to_string() == said && !busy.is_refused_sign_in() && !busy.is_consent_needed());
+        // Not taken: it goes again next run (AU3-26).
+        assert!(!send_unsure(&busy), "{status}");
+    }
+    // A gateway that gave up waiting, a server error and a timeout don't say whether it went: held.
+    let gave_up = sent_to(answer("504 Gateway Timeout", "", "")).unwrap_err();
+    assert!(send_unsure(&gave_up) && !matches!(gave_up, NetError::Busy { .. }), "{gave_up:?}");
+    assert!(send_unsure(&sent_to(answer("500 Internal Server Error", "", "")).unwrap_err()));
+    assert!(send_unsure(&NetError::Proto(ProtoError::Io("timed out".into()))));
+    for sure in [NetError::Config("no recipients".into()), NetError::Connect { host: "graph.example".into(), reason: "refused".into() }] {
+        assert!(!send_unsure(&sure), "{sure:?}");
     }
     assert!(started.elapsed() < Duration::from_secs(20), "{:?}", started.elapsed());
 
@@ -288,7 +298,7 @@ fn what_cannot_be_sent_is_refused_before_graph_is_asked() {
     let server = FakeHttp::answering(ACCEPTED.to_vec());
     let (base, options) = (server.url(""), SendOptions::default());
     let config = |result: Result<(), NetError>| match result {
-        Err(NetError::Config(why)) => why,
+        Err(NetError::Config(why)) => why.to_string(),
         other => panic!("expected the message to be refused, got {other:?}"),
     };
     // Nobody to send it to.
@@ -314,7 +324,12 @@ fn what_cannot_be_sent_is_refused_before_graph_is_asked() {
             Message { bcc: stranger.clone(), ..message() },
         ] {
             let why = config(send_at(&base, TOKEN, &message, &options));
-            assert!(why.contains("isn't an address mail can be sent to") && !why.contains('\r') && !why.contains('\n'), "{bad:?}: {why}");
+            assert!(
+                why.to_string().contains("isn't an address mail can be sent to")
+                    && !why.to_string().contains('\r')
+                    && !why.to_string().contains('\n'),
+                "{bad:?}: {why}"
+            );
         }
     }
     // No token, or what couldn't be one: there is no sign-in to show, and nothing to show it to.
@@ -736,7 +751,7 @@ fn hostile_calendar_answers_give_events_or_nothing() {
     ] {
         let result = listed(junk);
         assert!(
-            matches!(&result, Err(NetError::Proto(ProtoError::Protocol(why))) if why.starts_with("Microsoft Graph's answer")),
+            matches!(&result, Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().starts_with("Microsoft Graph's answer")),
             "{junk:.40}: {result:?}"
         );
     }
@@ -1231,7 +1246,7 @@ proptest! {
                     prop_assert!((0..sent.len() - MAX_ECHO).all(|from| !shown.contains(&sent[from..from + MAX_ECHO])), "{}", shown);
                 }
                 if let NetError::Busy { retry_after, .. } = error {
-                    prop_assert!(matches!(status, 429 | 503 | 504) && retry_after.is_none_or(|seconds| seconds <= 86_400));
+                    prop_assert!(matches!(status, 429 | 503 | 504) && !(status == 504 && doing == Doing::Sending) && retry_after.is_none_or(|seconds| seconds <= 86_400));
                 }
             }
         }
@@ -1294,6 +1309,7 @@ proptest! {
             response: [Response::None, Response::Accepted, Response::Tentative, Response::Declined][usize::from(flags.2)],
             send: flags.0,
             comment: title.clone(),
+            meeting: flags.0,
         }).collect::<Vec<_>>();
         let upload = EventsUpload { account: 3, email: "ada@example.org".into(), ops, ..Default::default() };
         let uploaded = push_events_at(&server.url(""), TOKEN, &upload, &EventOptions { zone, ..Default::default() });

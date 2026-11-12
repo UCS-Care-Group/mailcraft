@@ -386,7 +386,64 @@ fn a_received_message_quoted_in_a_reply_is_still_read_by_the_reading_rule() {
     run(&mut s, "compose.close", json!({}));
     run(&mut s, "mail.editDraft", json!({"id": draft}));
     let quote = compose(&s).quote.clone().unwrap();
-    let links: Vec<String> = mailcraft_html::parse(&quote.html).iter().flat_map(|b| b.spans.iter()).filter_map(|sp| sp.link.clone()).collect();
+    let links: Vec<String> =
+        mailcraft_html::parse(&quote.html).iter().flat_map(|b| b.spans.iter()).filter_map(|sp| sp.link.as_deref().map(str::to_string)).collect();
     assert_eq!(links, vec!["https://example.org/".to_string()], "{}", quote.html);
     assert!(!compose(&s).body.text().paragraphs().iter().flat_map(|p| p.runs.iter()).any(|r| r.style.link.is_some()));
+}
+
+/// Lists as you type (#973): `* `, `- `, `1. ` and `1) ` at the start of a paragraph, typed with a
+/// space from the keyboard (`autoList`), start a list; Undo puts the marker back; nothing else does.
+#[test]
+fn a_typed_marker_and_space_start_a_list_and_undo_puts_the_marker_back() {
+    let key = |s: &mut Session, text: &str| {
+        for c in text.chars() {
+            let c = c.to_string();
+            let params = if c == " " { json!({"text": c, "autoList": true}) } else { json!({"text": c}) };
+            run(s, "compose.type", params);
+        }
+    };
+    for (marker, kind) in [("* ", ListKind::Bullet), ("- ", ListKind::Bullet), ("1. ", ListKind::Numbered), ("1) ", ListKind::Numbered)] {
+        let mut s = session();
+        run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+        key(&mut s, marker);
+        assert_eq!(compose(&s).body.text().list_at(0), kind, "{marker}");
+        assert_eq!(compose(&s).body.selection(), Selection::caret(0), "{marker}");
+        key(&mut s, "Milk");
+        assert_eq!(mine(&s), "Milk", "{marker}");
+        // Undo: the word, then the list, which leaves the marker as it was typed.
+        run(&mut s, "compose.undo", json!({}));
+        run(&mut s, "compose.undo", json!({}));
+        assert_eq!(compose(&s).body.text().list_at(0), ListKind::None, "{marker}");
+        assert_eq!(mine(&s), marker, "{marker}");
+    }
+    let stays = |setup: &dyn Fn(&mut Session), typed: &str, expect: &str| {
+        let mut s = session();
+        run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+        setup(&mut s);
+        key(&mut s, typed);
+        assert_eq!(compose(&s).body.text().list_at(0), ListKind::None, "{typed}");
+        assert_eq!(mine(&s), expect, "{typed}");
+    };
+    // Not at the start of the paragraph, another marker, or a marker longer than the list's.
+    stays(&|_| {}, "a * b", "a * b");
+    stays(&|_| {}, "2. x", "2. x");
+    stays(&|_| {}, "** x", "** x");
+    stays(&|_| {}, "+ x", "+ x");
+    // The owner turned it off.
+    stays(&|s| drop(run(s, "file.options", json!({"autoLists": false}))), "* x", "* x");
+    // A plain-text message.
+    stays(&|s| drop(run(s, "compose.formatPlain", json!({}))), "* x", "* x");
+    // A command without the keyboard's word (an agent, a script) types it as text.
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+    run(&mut s, "compose.type", json!({"text": "* "}));
+    run(&mut s, "compose.type", json!({"text": " "}));
+    assert_eq!(compose(&s).body.text().list_at(0), ListKind::None);
+    // Inside a list item already: the marker stays text.
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
+    run(&mut s, "format.bullets", json!({}));
+    key(&mut s, "* ");
+    assert_eq!(mine(&s), "* ");
 }

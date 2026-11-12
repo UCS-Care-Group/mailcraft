@@ -188,7 +188,7 @@ fn frame(app: &mut MailApp, ctx: &egui::Context, focused: bool) {
 fn run(app: &mut MailApp, ctx: &egui::Context, focused: bool, account: Id, inbox: Id, messages: &[(u32, &str, &str)]) {
     frame(app, ctx, focused);
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
     frame(app, ctx, focused);
     deliver(app, account, inbox, messages);
     app.sync_rx = None;
@@ -248,7 +248,7 @@ fn a_mailbox_opened_during_a_run_is_not_compared_with_the_one_before() {
     let ctx = egui::Context::default();
     frame(&mut app, &ctx, false);
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(crate::MailRun::Imap(rx));
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
     frame(&mut app, &ctx, false);
     deliver(&mut app, account, inbox, &[(2, "A", "B")]);
     app.session.path = Some(std::path::PathBuf::from("another.mailcraft"));
@@ -301,6 +301,50 @@ fn why_alerts_cant_be_shown_is_said() {
     for t in [AlertTrouble::NotInstalled, AlertTrouble::OutsideApp, AlertTrouble::TurnedOff, AlertTrouble::NoService] {
         assert!(!t.notice().is_empty());
     }
+}
+
+/// "Desktop alerts can't be shown" is translated once and each reason by itself (#912), and the
+/// sentence they make is the one shown before, in English and in a translation; French keeps its
+/// narrow no-break space before the colon.
+#[test]
+fn why_alerts_cant_be_shown_is_one_heading_and_a_reason() {
+    use crate::i18n::{Lang, RestoreLanguage, set_current};
+    let _language = RestoreLanguage::hold();
+    let said = [
+        (
+            Lang::English,
+            [
+                "Desktop alerts can't be shown: this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it.",
+                "Desktop alerts can't be shown: this copy doesn't run from the MailCraft app.",
+                "Desktop alerts can't be shown: no notification service answers on this desktop.",
+            ],
+        ),
+        (
+            Lang::German,
+            [
+                "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht.",
+                "Desktopbenachrichtigungen können nicht angezeigt werden: Diese Kopie läuft nicht aus der MailCraft-App.",
+                "Desktopbenachrichtigungen können nicht angezeigt werden: Auf diesem Desktop antwortet kein Benachrichtigungsdienst.",
+            ],
+        ),
+        (
+            Lang::French,
+            [
+                "Impossible d'afficher les alertes sur le bureau\u{202f}: cette copie de MailCraft n'a pas été installée avec son programme d'installation (.msi), Windows ne la connaît donc pas.",
+                "Impossible d'afficher les alertes sur le bureau\u{202f}: cette copie ne s'exécute pas depuis l'application MailCraft.",
+                "Impossible d'afficher les alertes sur le bureau\u{202f}: aucun service de notification ne répond sur ce bureau.",
+            ],
+        ),
+    ];
+    for (lang, texts) in said {
+        set_current(lang);
+        let troubles = [AlertTrouble::NotInstalled, AlertTrouble::OutsideApp, AlertTrouble::NoService];
+        for (trouble, text) in troubles.into_iter().zip(texts) {
+            assert_eq!(trouble.notice(), text, "{lang:?} {trouble:?}");
+        }
+    }
+    set_current(Lang::English);
+    assert_eq!(AlertTrouble::TurnedOff.notice(), "Desktop alerts are turned off for MailCraft in System Settings.");
 }
 
 #[test]

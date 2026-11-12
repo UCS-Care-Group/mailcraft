@@ -19,5 +19,5 @@ fn an_address_that_never_answers_leaves_time_for_the_next() {
 
 #[test]
 fn no_address_says_so() {
-    assert_eq!(connect_first(&[], Duration::from_secs(1)).err(), Some("no address was found for the name"));
+    assert_eq!(connect_first(&[], Duration::from_secs(1)).err().map(|e| e.to_string()).as_deref(), Some("no address was found for the name"));
 }

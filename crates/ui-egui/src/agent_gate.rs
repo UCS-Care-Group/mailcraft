@@ -6,9 +6,11 @@
 //! not for agents, or names a file, is refused; one that needs the owner is asked about in a
 //! question over the window ("An agent wants to send …"), whose default answer is no. It runs
 //! only on the owner's yes; nobody's answer within [`WAIT_MS`] is a no. While a question is up,
-//! no input from the control channel reaches the window.
+//! no input from the control channel reaches the window. Other agent commands still run, and
+//! the yes reaches only what the question showed ([`agent::bind`], kept in the question's own
+//! record with the windows as they were): what changed meanwhile makes it do nothing.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::mpsc::Sender;
 
 use egui::vec2;
@@ -31,6 +33,15 @@ pub struct Asking {
     pub id: String,
     pub params: Value,
     pub class: Class,
+    /// What else it needs, which the question names and a yes covers ([`agent::also`], #473).
+    also: Vec<Class>,
+    /// The messages an undo or redo would take away, which the question names, and the steps
+    /// as they were when it was asked ([`mailcraft_engine::Session::undo_steps_moved`], #473).
+    taken: HashSet<u64>,
+    steps: u64,
+    /// The contacts, events, tasks, calendars and categories it would take away
+    /// ([`mailcraft_engine::Session::undo_takes`]): a yes reaches none that came since.
+    items: HashSet<String>,
     /// What it would do, after "An agent wants to".
     pub what: String,
     allow: Vec<Class>,
@@ -41,6 +52,11 @@ pub struct Asking {
     /// The messages a Delete or Move names, with the folder each was in when the owner was asked
     /// (#503).
     counted: Vec<(u64, u64)>,
+    /// What the question showed, kept here and never in the agent's params: the yes reaches that
+    /// alone ([`agent::bind`], AU3-24).
+    shown: agent::bind::Shown,
+    /// And the windows as it saw them (AU3-20).
+    windows: crate::windows::Seen,
 }
 
 /// The questions waiting, the first one on screen.
@@ -96,26 +112,38 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         return err(why);
     }
     match agent::check(&app.session, id, &params, allow) {
-        Verdict::Run => run(app, id, params, allow),
+        Verdict::Run => run(app, id, params, allow, None),
         Verdict::Refuse(why) => err(why),
         Verdict::Ask(class, what) => {
             if app.asking.len() >= MOST {
                 return err("too many questions are waiting for the owner; nothing was done");
             }
+            let Some(shown) = agent::bind::Shown::new(&app.session, id, &params, &what) else {
+                return err(format!("`{id}` isn't available to agents: what it acts on can't be shown to the owner"));
+            };
             let counted = match counted(app, id, &params) {
                 Ok(counted) => counted,
                 Err(why) => return err(why),
             };
+            let also = agent::also(&app.session, id, &params, class);
+            let (taken, items) = undo_takes(app, id);
+            let steps = app.session.undo_steps_moved();
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
                 params,
                 class,
+                also,
+                taken,
+                steps,
+                items,
                 what,
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
                 deadline: crate::now_ms() + WAIT_MS,
                 opening: app.session.openings(),
+                shown,
+                windows: crate::windows::seen(app),
             });
             Outcome::Pending
         }
@@ -206,7 +234,8 @@ fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
 /// shown. (Closing it, or another dialog in its place, was asked about: `unsaved`.) Nor does the
 /// command take away an appointment the owner is changing: in that form, or in a window unless
 /// the owner said yes to what the window would lose (`unsaved`).
-fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
+/// `only`: of a folder's messages and folders, the command takes none but these (the owner's yes, AU3-24).
+fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option<agent::bind::Only>) -> Outcome {
     let said_yes = params.get("unsaved").is_some_and(|v| !v.is_null());
     let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && said_yes;
     let owners = match &app.dialog {
@@ -222,9 +251,11 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
     }
     app.session.agent = Some(allow.to_vec());
     app.session.owner_changing = changing;
+    app.session.only_shown = only;
     let r = app.execute(id, params);
     app.session.agent = None;
     app.session.owner_changing = Vec::new();
+    app.session.only_shown = None;
     if let Some(form) = owners
         && let Some(opened) = app.dialog.replace(form)
     {
@@ -278,6 +309,18 @@ fn still_where_counted(app: &MailApp, counted: &[(u64, u64)], mut params: Value)
     Some(params)
 }
 
+/// The messages, and the contacts and the like, an agent's undo or redo would take away (none
+/// for any other command), as sets: an undo of a large import is looked up in, not walked.
+fn undo_takes(app: &MailApp, id: &str) -> (HashSet<u64>, HashSet<String>) {
+    match id {
+        "edit.undo" | "edit.redo" => {
+            let (taken, items) = app.session.undo_takes(id == "edit.redo");
+            (taken.into_iter().collect(), items.into_iter().collect())
+        }
+        _ => (HashSet::new(), HashSet::new()),
+    }
+}
+
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
@@ -297,12 +340,42 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         let lost = params.get("unsaved").filter(|u| !u.is_null());
         let other = lost.is_some() && lost != a.params.get("unsaved");
         let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
+        // What else it needs now, which the yes covers only when the question named it (#473).
+        let also = agent::also(&app.session, &a.id, &params, a.class);
+        // Nor does it cover another step than the one asked about, or other messages, drafts,
+        // contacts and the like than the question named.
+        let undoing = matches!(a.id.as_str(), "edit.undo" | "edit.redo");
+        let more = also.iter().any(|c| !a.also.contains(c) && !a.allow.contains(c))
+            || {
+                let (taken, items) = undo_takes(app, &a.id);
+                !taken.is_subset(&a.taken) || !items.is_subset(&a.items)
+            }
+            || (undoing && (app.session.undo_steps_moved() != a.steps || agent::describe(&app.session, &a.id, &params) != a.what));
+        // Nor anything but what the question showed (AU3-24): what the command would take from the
+        // window, what it names, and the windows, as they were.
+        let reach = if crate::windows::seen(app) != a.windows {
+            Err(format!("the windows `{}` was asked about have changed since the owner was asked: nothing was done. Ask the owner again", a.id))
+        } else {
+            a.shown.check(&app.session, &a.id, &params)
+        };
         let mut allow = a.allow.clone();
         allow.push(a.class);
+        allow.extend(also);
         match verdict {
             _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
+            _ if more => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
             _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
-            Verdict::Run => run(app, &a.id, params, &allow),
+            _ if let Err(why) = &reach => {
+                app.status(tl!("Nothing was done: what the agent asked about changed after you were asked."));
+                err(why)
+            }
+            Verdict::Run => {
+                let only = match reach {
+                    Ok(agent::bind::Reach::Only(only)) => Some(only),
+                    _ => None,
+                };
+                run(app, &a.id, params, &allow, only)
+            }
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
         }
@@ -451,6 +524,7 @@ mod tests {
     fn every_window_command_has_a_class() {
         let missing: Vec<&str> = crate::UI_COMMANDS.iter().map(|c| c.0).filter(|id| agent::access(id).is_none()).collect();
         assert!(missing.is_empty(), "classify these for agents in crates/engine/src/agent.rs: {missing:?}");
+        assert_eq!(agent::access("ui.previewAttachment"), Some(agent::Access::Never));
         assert_eq!(agent::access("ui.googleClientId"), Some(mailcraft_engine::agent::Access::Never));
         // The retired secret setter stays explicitly denied, but is no longer a window command.
         assert_eq!(agent::access("ui.googleClientSecret"), Some(mailcraft_engine::agent::Access::Never));
@@ -511,6 +585,7 @@ mod tests {
             ("engine.execute", json!({"command": "sync.apply", "params": {}})),
             ("engine.execute", json!({"command": "ui.copyLinkAddress", "params": {"url": "https://x.example"}})),
             ("engine.execute", json!({"command": "ui.copySelection", "params": {"pane": true}})),
+            ("engine.execute", json!({"command": "ui.previewAttachment", "params": {"id": 13, "index": 0}})),
             ("engine.execute", json!({"command": "no.such"})),
             ("ui.screenshot", json!({"path": "/tmp/evil.png"})),
             ("app.quit", json!({})),

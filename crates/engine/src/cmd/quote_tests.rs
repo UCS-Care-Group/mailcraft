@@ -13,16 +13,16 @@ use serde_json::{Value, json};
 use super::compose::QUOTE_MARK;
 use crate::{BodyFormat, Compose, Session, sample};
 
-fn session() -> Session {
+pub(super) fn session() -> Session {
     let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
     Session::at(sample::mailbox(now, 0), now, 0)
 }
 
-fn run(s: &mut Session, id: &str, params: Value) -> Value {
+pub(super) fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.run(id, &params).unwrap_or_else(|e| panic!("{id} {params}: {e}"))
 }
 
-fn compose(s: &Session) -> &Compose {
+pub(super) fn compose(s: &Session) -> &Compose {
     s.compose.as_ref().unwrap()
 }
 
@@ -37,7 +37,11 @@ const BODY: &str = "<table class=\"grid\"><tr><td class=\"col\"><h1>October</h1>
 fn newsletter(s: &mut Session) -> Id {
     let inbox = s.mailbox.inbox().unwrap();
     let account = s.mailbox.accounts[0].id;
-    let logo = Attachment { content_id: "logo@news.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", vec![137, 80, 78, 71]) };
+    let logo = Attachment {
+        content_id: "logo@news.example".into(),
+        inline: true,
+        ..Attachment::new("logo.png", "image/png", b"\x89PNG\r\n\x1a\n".to_vec())
+    };
     let menu = Attachment::new("menu.pdf", "application/pdf", vec![1, 2, 3]);
     let m = Message {
         account,
@@ -304,6 +308,7 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         (Lang::Spanish, "-----Mensaje original-----", "De: "),
         (Lang::Italian, "-----Messaggio originale-----", "Da: "),
         (Lang::Dutch, "-----Oorspronkelijk bericht-----", "Van: "),
+        (Lang::Romanian, "-----Mesaj original-----", "De la: "),
     ];
     for (lang, marker, from) in markers {
         let mut s = session();

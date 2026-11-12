@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-04 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** patch
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -19,7 +19,14 @@ much as the work.
    who claimed it in the issue. A claim lapses when its author has posted no comment, pull request
    or draft for 14 days, and anyone may then claim it with a new comment. A new feature or change
    that isn't in the issues: open one and wait for a yes before building it.
-4. **Found a bug and have the fix? Send both at once.** Open the
+4. **An open pull request holds its feature.** While a pull request is open, its feature is its
+   author's. A pull request still waiting for a review keeps it however long that takes. Once a
+   review asks for changes, the author has 7 days from that review to answer, with a commit or a
+   comment. After 7 days without an answer the feature is free: the issue's claim lapses with it,
+   anyone may claim the issue with a new comment and build the feature afresh, from the specs and
+   never from that pull request's code. The pull request can still be updated and merged if nobody
+   has built the feature meanwhile.
+5. **Found a bug and have the fix? Send both at once.** Open the
    [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
    and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
    claim and no wait. A report without a fix is just as welcome. If the fix needs one of the
@@ -55,6 +62,9 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
   table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
 - **Every crash fix and every data-loss fix comes with a regression test.**
+- **Security fixes: a fix for a security finding comes with a test that covers every site of its
+  root cause**, not only the one that was reported: a table over every command, reader or writer
+  of that kind, built so that one added later without the fix fails it.
 - **Tests go in files of their own**: `tests.rs`, `<name>_tests.rs` or a `tests/` directory,
   brought in with `#[cfg(test)] mod <name>_tests;`, not an inline `mod tests { … }` in a source
   file. Code scanning ([`.github/codeql/codeql-config.yml`](.github/codeql/codeql-config.yml))
@@ -99,10 +109,19 @@ Want to use it rather than build it? Sign up with the
 Found something wrong? Use the
 [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml).
 
+A build from this repository sends Help › Report a Problem › Send report to the project's real
+report relay (`MAILCRAFT_REPORT_URL` in `.cargo/config.toml`), where every report becomes an
+issue the maintainers read. Don't press it to try the window out: build with
+`MAILCRAFT_REPORT_URL=` (empty) to have Open on GitHub alone, and use the tests' stand-in relay
+(`crates/net/src/report_tests.rs`) for the sending.
+
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |
+| 2026-11-07 | minor | Security fixes: a fix for a security finding comes with a test that covers every site of its root cause |
+| 2026-11-04 | minor | A row of a document's revision history or of the progress log is a fragment, `docs/log.d/…`, joined in at release like a release-notes line |
 | 2026-11-03 | minor | Claim an issue by commenting on it: no waiting for an assignee; `claimed` stays as a maintainer's marker; the first claim stands and lapses after 14 quiet days |
 | 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
