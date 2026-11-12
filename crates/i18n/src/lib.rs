@@ -63,6 +63,7 @@ pub enum Lang {
     Italian,
     Dutch,
     Romanian,
+    Georgian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -70,7 +71,8 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 8] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Pseudo];
+    pub const ALL: [Lang; 9] =
+        [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Georgian, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -82,6 +84,7 @@ impl Lang {
             Lang::Italian => "it",
             Lang::Dutch => "nl",
             Lang::Romanian => "ro",
+            Lang::Georgian => "ka",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -102,6 +105,7 @@ impl Lang {
             "it" => Some(Lang::Italian),
             "nl" => Some(Lang::Dutch),
             "ro" => Some(Lang::Romanian),
+            "ka" => Some(Lang::Georgian),
             _ => None,
         }
     }
@@ -116,13 +120,14 @@ impl Lang {
             Lang::Italian => "Italiano",
             Lang::Dutch => "Nederlands",
             Lang::Romanian => "Română",
+            Lang::Georgian => "ქართული",
             Lang::Pseudo => "Pseudo",
         }
     }
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian)
+        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Georgian)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -407,6 +412,7 @@ mod tests {
                 "Italiano (anteprima)",
                 "Nederlands (voorbeeld)",
                 "Română (previzualizare)",
+                "ქართული (TODO-preview)", // TODO(translation): "{language} (preview)" in ka.po
             ]
         );
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
@@ -417,6 +423,8 @@ mod tests {
         assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
         assert_eq!(Lang::from_pref("auto", Some("ro_RO.UTF-8")), Lang::Romanian);
         assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
+        assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
+        assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
     }
 
     #[test]

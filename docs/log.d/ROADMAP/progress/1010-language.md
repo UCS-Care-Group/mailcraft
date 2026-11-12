@@ -1,0 +1,1 @@
+| 2026-11-13 | #1010 part 2: Georgian as a preview language: every interface text translated and marked as not yet reviewed, ქართული (TODO-preview) in File › Options, Automatic following `ka-GE`, dates day first with a 24-hour clock and Monday first, the same two plural forms as English; after beta item 15 names seven preview languages |
