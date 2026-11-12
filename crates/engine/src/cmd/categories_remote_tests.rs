@@ -2318,9 +2318,9 @@ fn an_undo_tells_only_its_own_event_when_another_accounts_server_uses_the_same_i
     let theirs = event_of(&mut s, b, Vec::new());
     s.run("calendar.edit", &json!({"id": theirs, "title": "Theirs, moved"})).unwrap();
     s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
-    // Our event's change went; theirs waits.
-    s.mailbox.event_changes.retain(|c| c.account != a);
-    let before = s.mailbox.event_changes.clone();
+    // Both wait (ours may be on its way).
+    let before: Vec<_> = s.mailbox.event_changes.iter().filter(|c| c.account == b).cloned().collect();
+    assert_eq!(before.len(), 1);
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(s.mailbox.event(ours).unwrap().categories, ["Old"]);
     let theirs_now: Vec<_> = s.mailbox.event_changes.iter().filter(|c| c.account == b).cloned().collect();
@@ -2337,7 +2337,7 @@ fn an_undo_tells_nothing_to_a_calendar_that_may_only_be_read_by_now() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
     let e = server_event(&mut s, a, &["Old"]);
     s.run("calendar.edit", &json!({"id": e, "categories": ["Red category"]})).unwrap();
-    s.mailbox.event_changes.clear();
+    assert_eq!(s.mailbox.event_changes.len(), 1, "the edit waits, or is on its way");
     let calendar = s.mailbox.event(e).unwrap().calendar;
     s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().rights = Rights::Read;
     s.run("edit.undo", &json!({})).unwrap();

@@ -347,6 +347,11 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
+  (`send`) before it writes a category there: one kept on this computer only sent there, a rename,
+  a name new to the list (given to an item, or by a rule) or another colour; so is an Undo or Redo
+  that would make one there again or give one there another colour, and one that would have a
+  category deleted there is asked as `delete`; the question names the category.
   A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
   server account has made goes to Deleted Items on undo and is not counted as a removal; on any
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
