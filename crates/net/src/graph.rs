@@ -859,7 +859,10 @@ fn send_at(base: &str, token: &str, message: &Message, options: &SendOptions) ->
         }
         bodies.push(mime_body_with(&copy, options)?);
     }
-    bodies.push(mime_body_with(&message.for_main(), options)?);
+    // (A message to Bcc recipients alone has no message but theirs.)
+    if message.has_main_recipients() || bodies.is_empty() {
+        bodies.push(mime_body_with(&message.for_main(), options)?);
+    }
     let graph = Graph::at(base, token)?;
     for body in &bodies {
         let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some(body), SEND_TIMEOUT, http::MAX_BODY)?;

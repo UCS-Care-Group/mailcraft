@@ -1310,6 +1310,11 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // said already that it couldn't send it.)
     let mut said = Vec::new();
     super::graph_send::hold_lost(mb, account, &result.unsure, "the server", s.interface_language, &mut said);
+    // A message cut off after some of its Bcc recipients had theirs (#30 part 7): told, so that the next
+    // try sends only the rest.
+    for (id, addresses) in &result.blind_sent {
+        super::graph_send::note_blind_sent(mb, account, *id, addresses);
+    }
     // Not Digitally signed as it was to be (#30): it didn't go, and waits for the owner.
     super::signing::hold_unsigned(mb, account, &result.unsigned, s.interface_language, &mut said);
     for made in &result.created {

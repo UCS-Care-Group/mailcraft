@@ -77,7 +77,7 @@ pub(super) fn drafts(graph: &Graph<'_>, drafts: &[DraftUp], out: &mut Vec<DraftD
     for draft in drafts.iter().take(MAX_DRAFTS) {
         let mut done = DraftDone { change: draft.without_data(), id: draft.id.clone(), ..Default::default() };
         let result = one(graph, draft, &mut done);
-        let answered = !done.id.is_empty() || done.refused.is_some() || done.conflict;
+        let answered = !done.id.is_empty() || done.refused.is_some() || done.conflict || done.purged;
         match result {
             Ok(()) if answered => out.push(done),
             Ok(()) => {}
@@ -116,6 +116,9 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
     if !marker_ok(&d.marker) {
         done.refused = Some(400);
         return Ok(());
+    }
+    if d.purge_only {
+        return purge_copies(graph, &d.marker, &d.id, done);
     }
     if d.is_sealed() {
         return sealed(graph, d, done);
@@ -235,6 +238,11 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
         400 | 403 | 404 | 410 | 413 => {
             refused(graph, &reply, "making an Encrypted draft");
             done.refused = Some(reply.status);
+            // The draft is kept here alone, then: an earlier copy of it on the server, which may hold
+            // the text in the clear, goes all the same.
+            if d.purge || !d.id.is_empty() {
+                purge_copies(graph, &d.marker, "", done)?;
+            }
             return Ok(());
         }
         // (What was sent is never put in the log.)
@@ -244,7 +252,7 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
         // Made, but which one isn't said: it can't be found, so it is made again next run.
         return Ok(());
     };
-    let old = std::mem::replace(&mut done.id, new.clone());
+    done.id = new.clone();
     done.folder = id_of(text(&json, "parentFolderId")).unwrap_or_default();
     done.fields = true;
     let Some(at) = piece(&new) else { return Ok(()) };
@@ -257,13 +265,10 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
         Err(e) if e.is_unreachable() => {}
         Err(e) => return Err(e),
     }
-    // The earlier copy goes for good: it may hold the text in the clear, and a delete would leave
-    // it in the recoverable items.
-    if !old.is_empty()
-        && old != new
-        && let Some(was) = piece(&old)
-    {
-        remove_for_good(graph, &was)?;
+    // The earlier copies go for good: they may hold the text in the clear, and a delete would
+    // leave them in the recoverable items. Found by the marker and checked first.
+    if d.purge || !d.id.is_empty() {
+        purge_copies(graph, &d.marker, &new, done)?;
     }
     // Its change key and folder as they are now.
     let query = http::form(&[("$select", "changeKey,parentFolderId")]);
@@ -279,26 +284,76 @@ fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), Ne
     Ok(())
 }
 
-/// Take an earlier copy of a draft away so that it can't be had back: `POST …/permanentDelete`
-/// (Microsoft's "message: permanentDelete": it goes to the purges folder, which no mail client reads,
-/// for the retention period alone). A mailbox that refuses it gets the plain `DELETE`, which keeps the
-/// copy recoverable for the retention period; that is logged, without the id.
+/// The drafts in Drafts that carry `marker`: the earlier copies of a draft, which are all there is
+/// to take away. A message that is no draft (sent from another device since, which keeps its id),
+/// or is not in Drafts (moved), is not among them, and is never touched.
+fn earlier_copies(graph: &Graph<'_>, marker: &str) -> Result<Vec<String>, NetError> {
+    let filter = format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')");
+    let query = http::form(&[("$filter", &filter), ("$select", "id,isDraft"), ("$top", "50")]);
+    let url = graph.url(&format!("{}?{query}", graph.mail_path("/mailFolders/drafts/messages")));
+    let reply = graph.call(Kind::Read, &url, "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    if reply.status != 200 {
+        return Err(graph.refusal(Doing::Mail, &reply, ""));
+    }
+    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    let all = json.get("value").and_then(Value::as_array).cloned().unwrap_or_default();
+    let (mut drafts, mut left) = (Vec::new(), 0usize);
+    for m in &all {
+        match (m.get("isDraft").and_then(Value::as_bool), id_of(text(m, "id"))) {
+            (Some(true), Some(id)) => drafts.push(id),
+            _ => left += 1,
+        }
+    }
+    if left > 0 {
+        log::info!("graph drafts: {left} messages carrying a draft's marker are no draft any more and are left alone");
+    }
+    Ok(drafts)
+}
+
+/// Take away, beyond recovery, every earlier copy of the draft marked `marker` but `keep` (the
+/// one it has now, or none): `done.purged` says they were dealt with.
+fn purge_copies(graph: &Graph<'_>, marker: &str, keep: &str, done: &mut DraftDone) -> Result<(), NetError> {
+    if !marker_ok(marker) {
+        return Ok(());
+    }
+    let keep = id_of(keep).unwrap_or_default();
+    for id in earlier_copies(graph, marker)? {
+        if id == keep {
+            continue;
+        }
+        if let Some(at) = piece(&id) {
+            remove_for_good(graph, &at)?;
+        }
+    }
+    done.purged = true;
+    Ok(())
+}
+
+/// Take a draft away so that it can't be had back: Microsoft's permanent delete of a message (it goes
+/// to the purges folder, which no mail client reads, for the retention period alone). Only a mailbox
+/// that doesn't offer it (400, 403, 405, 501) gets the plain `DELETE`, which keeps the copy
+/// recoverable for the retention period; that is logged, without the id. Any other answer (the
+/// server busy, throttled) is an error for the run, which tries again with the next: a copy that may
+/// hold the text in the clear is never soft-deleted for that.
 fn remove_for_good(graph: &Graph<'_>, id: &str) -> Result<(), NetError> {
     let url = graph.url(&format!("{}/{id}/permanentDelete", messages(graph)));
-    match graph.call(Kind::Same, &url, "POST", &[], None, WRITE_TIMEOUT, MAX_PAGE) {
-        Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => return Ok(()),
-        Ok(reply) => log::info!("graph drafts: a permanent delete was refused (status {}); the plain delete is used", reply.status),
-        Err(e) if e.is_unreachable() => return Ok(()),
-        Err(e) => return Err(e),
+    let reply = graph.call(Kind::Same, &url, "POST", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200..=299 | 404 | 410 => return Ok(()),
+        400 | 403 | 405 | 501 => log::info!("graph drafts: a permanent delete isn't offered (status {}); the plain delete is used", reply.status),
+        _ => return Err(graph.refusal(Doing::Mail, &reply, "")),
     }
     let url = graph.url(&format!("{}/{id}", messages(graph)));
-    match graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE) {
-        Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => {}
-        Ok(reply) => refused(graph, &reply, "taking away an earlier copy of a draft"),
-        Err(e) if e.is_unreachable() => {}
-        Err(e) => return Err(e),
+    let reply = graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    match reply.status {
+        200..=299 | 404 | 410 => Ok(()),
+        400 | 403 => {
+            refused(graph, &reply, "taking away an earlier copy of a draft");
+            Ok(())
+        }
+        _ => Err(graph.refusal(Doing::Mail, &reply, "")),
     }
-    Ok(())
 }
 
 fn change_key(json: &Value) -> String {

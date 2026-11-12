@@ -273,12 +273,20 @@ impl FindDraft {
     /// again by an older program), the one whose change key was last known, else the newest. A
     /// third is never made.
     pub fn answer(&self, reply: &Reply) -> Result<Option<Saved>, Error> {
+        let found = self.answer_all(reply)?;
+        Ok(found.iter().find(|f| !self.known.is_empty() && f.change_key == self.known).or(found.first()).cloned())
+    }
+
+    /// Every draft found in the folder carrying the marker (at most the ten the view asks for): the
+    /// earlier copies of one draft, which are all there is to take away (#30 part 7). They are in
+    /// the server's Drafts, by what was asked, so each is a draft there.
+    pub fn answer_all(&self, reply: &Reply) -> Result<Vec<Saved>, Error> {
         let messages = reply.messages("FindItem")?;
         let [message] = messages.as_slice() else { return Err(Error::Unexpected) };
         let node = message.ok()?;
         let root = node.child_in(MESSAGES, "RootFolder").ok_or(Error::Unexpected)?;
-        let Some(items) = root.child_in(TYPES, "Items") else { return Ok(None) };
-        let found: Vec<Saved> = items
+        let Some(items) = root.child_in(TYPES, "Items") else { return Ok(Vec::new()) };
+        Ok(items
             .children
             .iter()
             .filter(|c| *c.namespace == *TYPES)
@@ -287,8 +295,7 @@ impl FindDraft {
                 let take = |name: &str| id.attribute(name).filter(|v| valid_id(v)).map(str::to_owned);
                 Some(Saved { id: take("Id")?, change_key: take("ChangeKey").unwrap_or_default() })
             })
-            .collect();
-        Ok(found.iter().find(|f| !self.known.is_empty() && f.change_key == self.known).or(found.first()).cloned())
+            .collect())
     }
 }
 
@@ -422,6 +429,35 @@ impl SendMessage {
             .into_iter()
             .map(|(_, copy)| if mailcraft_mime::body_not_encrypted(&copy) { Err(Unsendable::NotEncrypted) } else { Self::build(&copy, false) })
             .collect()
+    }
+
+    /// Everything a message is sent as, in order, each with the Bcc recipient it is the message of
+    /// (none for the message itself): theirs first, then the message everybody else gets, which is
+    /// the one filed in Sent Items. A message to Bcc recipients alone has no message but theirs, and
+    /// the last of theirs is the one filed. Nothing at all when every one of them has had theirs
+    /// already and there is no more. Whatever can't go is found before any goes.
+    pub fn plan(message: &Message) -> Result<Vec<(Option<String>, Self)>, Unsendable> {
+        if mailcraft_mime::signature_missing(message) {
+            return Err(Unsendable::NotSigned);
+        }
+        if mailcraft_mime::encryption_missing(message) {
+            return Err(Unsendable::NotEncrypted);
+        }
+        let mut ops = Vec::new();
+        for (address, copy) in message.blind_messages(true) {
+            if mailcraft_mime::body_not_encrypted(&copy) {
+                return Err(Unsendable::NotEncrypted);
+            }
+            ops.push((Some(address), Self::build(&copy, false)?));
+        }
+        if message.has_main_recipients() {
+            ops.push((None, Self::build(&message.for_main(), true)?));
+        } else if let Some((_, last)) = ops.last_mut() {
+            last.save_copy = true;
+        } else if message.blind_sent.is_empty() {
+            return Err(Unsendable::NoRecipients);
+        }
+        Ok(ops)
     }
 
     fn build(message: &Message, save_copy: bool) -> Result<Self, Unsendable> {

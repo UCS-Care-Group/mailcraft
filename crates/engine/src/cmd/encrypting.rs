@@ -209,6 +209,12 @@ pub fn plan_with(
         }
     }
     let Some(best) = best else { return Will::Clear };
+    // Several different keys for a recipient stop Send, whatever governs the message (Encrypt asked
+    // for, or the account's setting): never a message in the clear because one forged message made
+    // a second key (N3). Only a recipient with no key at all goes clear under the account's setting.
+    if !asked && !best.conflicts.is_empty() {
+        return Will::Conflict { format: best.format, conflicts: best.conflicts };
+    }
     if !best.missing.is_empty() {
         return if asked {
             Will::Missing { format: best.format, addresses: best.missing }
@@ -217,11 +223,7 @@ pub fn plan_with(
         };
     }
     if !best.conflicts.is_empty() {
-        return if asked {
-            Will::Conflict { format: best.format, conflicts: best.conflicts }
-        } else {
-            Will::ClearBecause { addresses: best.conflicts.into_iter().map(|c| c.address).collect() }
-        };
+        return Will::Conflict { format: best.format, conflicts: best.conflicts };
     }
     let blind = blind.iter().filter(|b| **b != own).cloned().collect();
     Will::Encrypted { to: Encryption { format: best.format, recipients: best.keys, own_address: own }, unverified: best.unverified, blind }
@@ -289,13 +291,11 @@ fn pick<'a>(mb: &'a Mailbox, address: &str, format: SignatureFormat, now: i64) -
 /// checked), and this is asked at every change to the recipients, so the answer is kept for the
 /// hour (a key's validity is by the hour at most), by what the key is, bounded.
 fn usable(k: &PublicKey, now: i64) -> bool {
-    use std::hash::{Hash, Hasher};
     use std::sync::{LazyLock, Mutex};
-    static ANSWERS: LazyLock<Mutex<std::collections::HashMap<(u8, u64, i64), bool>>> = LazyLock::new(Default::default);
+    static ANSWERS: LazyLock<Mutex<std::collections::HashMap<(u8, crate::store::Digest, i64), bool>>> = LazyLock::new(Default::default);
     const MAX_ANSWERS: usize = 4_096;
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    k.data.hash(&mut hasher);
-    let key = (k.format as u8, hasher.finish(), now.div_euclid(3_600));
+    // (By SHA-256 of what the key is, so that no two keys share an answer.)
+    let key = (k.format as u8, crate::store::Digest::of(&k.data), now.div_euclid(3_600));
     if let Ok(answers) = ANSWERS.lock()
         && let Some(known) = answers.get(&key)
     {
@@ -467,6 +467,12 @@ pub fn decided(mb: &Mailbox, mut m: Message, now: i64) -> Message {
         let blind = m.blind_addresses();
         m.encrypt_with = match plan_with(mb, account, &recipients, &blind, m.sign_with.as_ref(), m.encrypt, now) {
             Will::Encrypted { to, .. } => Some(to),
+            // Several keys for a recipient since it was queued: held for the owner to choose, never
+            // sent in the clear, whatever governed it.
+            Will::Conflict { .. } => {
+                m.encrypt = Some(true);
+                None
+            }
             _ => None,
         };
     }

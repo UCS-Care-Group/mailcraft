@@ -251,7 +251,13 @@ fn a_draft_saved_goes_up_is_taken_in_and_a_send_is_held_when_its_answer_was_lost
     assert_eq!(request.sends.len(), 2);
     // The answer to one was lost: held, said so, not sent again by itself.
     let lost = request.sends[1].message;
-    let sent = SendDone { message: lost, outcome: SendOutcome::Held { lost: true, why: String::new() }, draft: None, draft_left: String::new() };
+    let sent = SendDone {
+        message: lost,
+        outcome: SendOutcome::Held { lost: true, why: String::new() },
+        draft: None,
+        draft_left: String::new(),
+        blind_sent: Vec::new(),
+    };
     let said = took(&mut s, account, mailcraft_model::sync::EwsMailResult { sent: vec![sent], partial: true, ..piece(account) });
     let held = &s.mailbox.message(lost).unwrap().held;
     assert!(held.contains("may have been sent") && held.contains("from the server") && !held.contains("Microsoft"), "{held}");
@@ -260,7 +266,7 @@ fn a_draft_saved_goes_up_is_taken_in_and_a_send_is_held_when_its_answer_was_lost
     assert!(next.sends.iter().all(|send| send.message != lost), "a held message is not offered again");
     // The other went: it leaves the Outbox, the server files the copy.
     let went = request.sends[0].message;
-    let sent = SendDone { message: went, outcome: SendOutcome::Sent, draft: None, draft_left: String::new() };
+    let sent = SendDone { message: went, outcome: SendOutcome::Sent, draft: None, draft_left: String::new(), blind_sent: Vec::new() };
     let said = took(&mut s, account, mailcraft_model::sync::EwsMailResult { sent: vec![sent], ..piece(account) });
     assert!(s.mailbox.message(went).is_none() && said["errors"].as_array().is_some());
     // Send Again puts the held one back.
@@ -293,7 +299,7 @@ fn a_saved_draft_goes_as_its_mime_and_a_draft_left_after_the_send_is_deleted_by_
     assert_eq!(send.draft.as_ref().map(|d| d.id.as_str()), Some("D1"));
     // It went, and the draft could not be taken away: the send is not offered again, and the
     // takeaway is an ordinary delete of the next run.
-    let sent = SendDone { message: queued, outcome: SendOutcome::Sent, draft: None, draft_left: "D1".into() };
+    let sent = SendDone { message: queued, outcome: SendOutcome::Sent, draft: None, draft_left: "D1".into(), blind_sent: Vec::new() };
     took(&mut s, account, mailcraft_model::sync::EwsMailResult { sent: vec![sent], partial: true, ..piece(account) });
     assert!(s.mailbox.message(queued).is_none());
     let next = ews_mail_request(&s, account, false).unwrap();

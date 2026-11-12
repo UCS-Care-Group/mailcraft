@@ -471,6 +471,10 @@ impl State {
             self.outgoing.push(out);
             item.draft = false;
         }
+        if disposition == "SendOnly" {
+            // Sent and not kept: no copy in Sent Items.
+            return yes("CreateItem", "<m:Items/>");
+        }
         let xml = item_id_xml(&item);
         self.item_log.push(ItemLog { rev: self.rev, folder: folder.id, id: item.id.clone(), kind: ItemChange::Create });
         self.items.push(item);

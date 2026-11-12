@@ -176,6 +176,12 @@ impl DigitalSignatures {
         let (ok, cancel) = crate::dialogs::buttons(ui, tl!("OK"), !self.always || self.chosen.is_some());
         if ok || (enter && (!self.always || self.chosen.is_some())) {
             let key = self.chosen.as_ref().map(|k| json!({"format": k.format.as_str(), "fingerprint": k.fingerprint, "label": k.label}));
+            // The account's signing is the owner's to set, by their own hand: input the control channel
+            // injected changes nothing here (as the account's encrypting below).
+            if app.driven {
+                self.error = tl!("The setting couldn't be changed.").to_string();
+                return cancel;
+            }
             match app.execute("account.setSigning", json!({"account": self.account, "key": key, "always": self.always})) {
                 Ok(_) => {
                     // How an account encrypts is the owner's to change, by their own hand: input

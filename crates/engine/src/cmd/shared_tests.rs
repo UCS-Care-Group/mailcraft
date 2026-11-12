@@ -251,6 +251,7 @@ fn a_send_exchange_wont_let_go_as_a_shared_mailbox_is_held_and_says_its_address(
         outcome: SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() },
         draft: None,
         draft_left: String::new(),
+        blind_sent: Vec::new(),
     }];
     apply_graph_mail(&mut s, result).unwrap();
     let m = s.mailbox.message(id).unwrap();

@@ -177,7 +177,7 @@ fn graph_done(s: &mut Session, account: Id, message: Id, outcome: SendOutcome) {
     let result = GraphMailResult {
         account,
         email: "ada@example.org".into(),
-        sent: vec![SendDone { message, outcome, draft: None, draft_left: String::new() }],
+        sent: vec![SendDone { message, outcome, draft: None, draft_left: String::new(), blind_sent: Vec::new() }],
         ..Default::default()
     };
     apply_graph_mail(s, result).unwrap();

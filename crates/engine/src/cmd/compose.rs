@@ -1508,18 +1508,34 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         m.sealed_draft = false;
         sealed = Some(super::encrypting::seal_draft(s, &mut m).is_ok());
     }
-    let uploads = sealed == Some(true) && s.mailbox.keeps_drafts_on_server(m.account);
+    let keeps = s.mailbox.keeps_drafts_on_server(m.account);
+    let uploads = sealed == Some(true) && keeps;
     m.local_only = encrypting && !uploads;
-    let graph = s.mailbox.keeps_drafts_on_server(m.account) && !m.local_only;
+    let graph = keeps && !m.local_only;
     let on_server = |o: &Message| o.account == m.account && !o.local_only && (o.server_draft.is_some() || o.server.is_some() || o.uid != 0);
-    // (An Encrypted copy made into a clear one is made again too: Graph's draft made from MIME
-    // can't be changed field by field.)
-    let away_from_server = old.as_ref().is_some_and(|o| on_server(o) && (m.local_only || (o.sealed_draft && !m.sealed_draft)));
+    let old_there = old.as_ref().is_some_and(on_server);
+    // Earlier copies on a server that keeps drafts, with the text in the clear or not, are taken
+    // away beyond recovery when the draft is Encrypted now (whether it goes up as that or stays
+    // here): found by the marker, checked, and purged by the run (#30 part 7).
+    let purge_earlier = keeps && encrypting && old_there;
+    // (Where drafts aren't kept on the server by marker, a copy of an earlier save goes by being
+    // deleted there, as when a draft is discarded: what is made here is a new message. And an
+    // Encrypted copy made into a clear one is made again too: Graph's draft made from MIME can't be
+    // changed field by field.)
+    let away_from_server = old_there && ((m.local_only && !keeps) || (!encrypting && old.as_ref().is_some_and(|o| o.sealed_draft)));
     if m.local_only {
         m.server_draft = None;
     }
     if away_from_server {
         (m.server_draft, m.server, m.uid, m.synced) = (None, None, 0, None);
+    }
+    if purge_earlier {
+        // What is made now has nothing of the server's: the earlier copies are found by the marker.
+        let marker = old.as_ref().and_then(|o| o.server_draft.as_ref()).map(|d| d.marker.clone()).unwrap_or_default();
+        (m.server, m.uid, m.synced) = (None, 0, None);
+        if m.local_only && !marker.is_empty() {
+            m.server_draft = Some(ServerDraft { marker, purge: true, saves: 1, ..Default::default() });
+        }
     }
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
@@ -1545,6 +1561,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
             sd.synced = Some(DraftState::of(old));
         }
         sd.pending = true;
+        sd.purge |= purge_earlier && !sd.marker.is_empty();
         sd.saves = sd.saves.saturating_add(1);
         m.server_draft = Some(sd);
     }

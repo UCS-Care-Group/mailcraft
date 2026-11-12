@@ -1353,7 +1353,20 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     let names: Vec<String> = c.attachments.iter().take(5).map(|a| clip(&a.name, 40)).collect();
                     format!(" with {} ({})", plural(c.attachments.len(), "{n} attachment", "{n} attachments"), names.join(", "))
                 };
-                format!("send {} to {to}{files}", quoted(&c.subject))
+                // How it will go (#30 part 7): an owner who approves a send is told when it goes
+                // unencrypted, which an agent adding a recipient without a key would have brought about.
+                let how = match crate::cmd::encrypting::will_encrypt(s, c) {
+                    crate::cmd::encrypting::Will::Encrypted { .. } => " (Encrypted)".to_string(),
+                    crate::cmd::encrypting::Will::ClearBecause { addresses } => {
+                        format!(" (goes UNENCRYPTED: no single Public key for {})", some(&addresses, 6))
+                    }
+                    crate::cmd::encrypting::Will::Missing { addresses, .. } => {
+                        format!(" (it will be stopped: no Public key for {})", some(&addresses, 6))
+                    }
+                    crate::cmd::encrypting::Will::Conflict { .. } => " (it will be stopped: several keys for a recipient)".to_string(),
+                    _ => String::new(),
+                };
+                format!("send {} to {to}{files}{how}", quoted(&c.subject))
             }
             None => "send the message being written".to_string(),
         },

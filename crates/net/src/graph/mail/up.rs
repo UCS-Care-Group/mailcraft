@@ -19,7 +19,9 @@
 //!   made twice (S21).
 //! - **Deletes for good** (`DELETE /me/messages/{id}`), which leave the message recoverable for
 //!   the server's retention period, as Outlook does. Nothing here asks Graph to remove anything
-//!   past that (S19). A delete the server refuses (403, 400) is followed by a read of the
+//!   past that (S19); the one thing the program asks Graph to take away beyond recovery is the
+//!   earlier copy of a draft kept Encrypted, in `drafts.rs` and nowhere else (#30 part 7, guarded
+//!   by a test of the command line's that scans the code). A delete the server refuses (403, 400) is followed by a read of the
 //!   message (`GET /me/messages/{id}`), for the engine to put it back here as the server has it;
 //!   one whose read isn't answered waits for the next run, delete and all.
 //!

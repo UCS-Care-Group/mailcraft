@@ -131,6 +131,11 @@ pub struct ServerDraft {
     /// (#611), wherever it lies.
     #[serde(skip_serializing_if = "is_false")]
     pub theirs: bool,
+    /// Earlier copies of this draft on the server are to be taken away beyond recovery (#30 part 7):
+    /// they may hold the text in the clear, and the draft is kept Encrypted now (or kept here
+    /// alone). Found by the marker, in Drafts, and checked to be drafts first.
+    #[serde(skip_serializing_if = "is_false")]
+    pub purge: bool,
 }
 
 impl ServerDraft {
@@ -263,6 +268,14 @@ pub struct DraftUp {
     /// applies. The fields above are all `None` beside it.
     #[serde(with = "crate::b64", skip_serializing_if = "no_data")]
     pub sealed: Arc<Vec<u8>>,
+    /// The earlier copies of it on the server (those carrying its marker, in Drafts, and drafts)
+    /// are taken away beyond recovery once this one is there ([`ServerDraft::purge`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub purge: bool,
+    /// Nothing of the draft goes up, only the taking away of those earlier copies: a draft that
+    /// stays on this computer now.
+    #[serde(skip_serializing_if = "is_false")]
+    pub purge_only: bool,
 }
 
 impl DraftUp {
@@ -329,6 +342,10 @@ pub struct DraftDone {
     /// both are to be kept (S26).
     #[serde(skip_serializing_if = "is_false")]
     pub conflict: bool,
+    /// The earlier copies were dealt with: taken away, or found not to be what they were
+    /// (a draft that was sent or moved meanwhile is never taken away).
+    #[serde(skip_serializing_if = "is_false")]
+    pub purged: bool,
 }
 
 /// Most messages one Graph run sends; more go with the next.
@@ -399,4 +416,8 @@ pub struct SendDone {
     /// takeaway is queued as an ordinary delete; the send is not made again.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub draft_left: String,
+    /// The Bcc recipients of an Encrypted message whose message of their own went in this run
+    /// (#30 part 7), whatever became of the rest: a send again gives them nothing more.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub blind_sent: Vec<String>,
 }

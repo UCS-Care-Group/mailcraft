@@ -191,7 +191,7 @@ fn a_leftover_held_after_its_draft_went_up_goes_with_send_again() {
                 change: up.without_data(),
                 ..Default::default()
             };
-            let done = SendDone { message: stuck, outcome: outcome.clone(), draft: Some(draft), draft_left: String::new() };
+            let done = SendDone { message: stuck, outcome: outcome.clone(), draft: Some(draft), draft_left: String::new(), blind_sent: Vec::new() };
             let mut said = Vec::new();
             assert!(graph_send::send_done(&mut s.mailbox, account, &done, lang, &mut said), "{kind:?} {outcome:?}");
             let m = s.mailbox.message(stuck).unwrap();

@@ -122,6 +122,11 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         sd.marker = super::graph_drafts::marker(done.message, u64::from(sd.saves));
         changed = true;
     }
+    // The Bcc recipients whose message went, told before anything is made of the outcome: a message
+    // that wasn't sent for all of them is retried for the rest alone (N1, N4).
+    if !done.blind_sent.is_empty() {
+        changed |= note_blind_sent(mb, account, done.message, &done.blind_sent);
+    }
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
     let server = if mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) { "the server" } else { "Microsoft" };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
@@ -180,6 +185,26 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
 
 /// What a message held for having been handed to a server without an answer coming back says.
 pub const MAY_HAVE_GONE: &str = "It may have been sent: it was handed to the server, and the answer never came back (another mailbox was opened, or MailCraft stopped). Look in Sent Items before you send it again.";
+
+/// The Bcc recipients of an Encrypted message in `account`'s Outbox whose message of their own went
+/// (#30 part 7), whatever became of the rest: a send again gives them nothing more, and the message
+/// everybody else gets leaves them out. Whether anything changed.
+pub fn note_blind_sent(mb: &mut Mailbox, account: Id, id: Id, addresses: &[String]) -> bool {
+    let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
+    let Ok(m) = mb.message_mut(id) else { return false };
+    if m.account != account || Some(m.folder) != outbox {
+        return false;
+    }
+    let mut changed = false;
+    for address in addresses {
+        let address = address.trim().to_lowercase();
+        if !address.is_empty() && !m.blind_sent.contains(&address) && m.blind_sent.len() < mailcraft_model::encrypting::MAX_BLIND {
+            m.blind_sent.push(address);
+            changed = true;
+        }
+    }
+    changed
+}
 
 /// Mark the messages `ids` of `account`'s Outbox as being sent (AU3-26), before the run that
 /// sends them is handed to the host. Whether any mark is new (the mailbox is to be saved before
@@ -284,8 +309,13 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
     let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty()).map(|m| m.id).take(MAX_SENDS).collect();
     let mut said = Vec::new();
     for id in &waiting {
-        let done =
-            SendDone { message: *id, outcome: SendOutcome::Held { lost: false, why: why.to_string() }, draft: None, draft_left: String::new() };
+        let done = SendDone {
+            message: *id,
+            outcome: SendOutcome::Held { lost: false, why: why.to_string() },
+            draft: None,
+            draft_left: String::new(),
+            blind_sent: Vec::new(),
+        };
         send_done(&mut s.mailbox, account, &done, s.interface_language, &mut said);
     }
     if let Some(first) = said.first() {

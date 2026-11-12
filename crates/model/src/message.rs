@@ -436,6 +436,11 @@ pub struct Message {
     /// and only in the copy the run is handed.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
     pub blind_copies: Vec<crate::encrypting::BlindCopy>,
+    /// The Bcc recipients of an Encrypted message whose message of their own has gone already (a
+    /// send cut off part way, #30 part 7): a send again gives them nothing more, and the message
+    /// everybody else gets leaves them out. Kept with the message in the Outbox.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub blind_sent: Vec<String>,
     /// Where the host hands back what an Encrypted message went as (#30 part 7), for the copy
     /// kept in Sent Items to be that and not the clear text. Shared by the copies of the message
     /// the run is handed; never written.

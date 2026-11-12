@@ -218,7 +218,7 @@ fn new_mail(account: Id, email: &str) -> GraphMailResult {
 }
 
 fn sent(message: Id) -> SendDone {
-    SendDone { message, outcome: SendOutcome::Sent, draft: None, draft_left: String::new() }
+    SendDone { message, outcome: SendOutcome::Sent, draft: None, draft_left: String::new(), blind_sent: Vec::new() }
 }
 
 /// The open mailbox, as its file has it.

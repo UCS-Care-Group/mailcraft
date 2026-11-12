@@ -42,8 +42,8 @@ send ([Problem reports](#problem-reports)).
   A draft with Encrypt on is kept Encrypted to your own key, and what goes up to a Microsoft or Exchange server account
   is that Encrypted message alone (its header, with the recipients and the subject, is in the clear as in any encrypted
   message); where no key of yours can be found it stays on this computer as you wrote it and is never uploaded, and the
-  composer says so. A clear copy an earlier save put on a server is deleted there. The copy of an encrypted message kept in Sent Items here is the encrypted message, never the text. Each
-  Bcc recipient gets a message of their own, so no recipient learns who else was blind-copied. No key look-up
+  composer says so. A clear copy an earlier save put on a server is deleted there beyond recovery (only what is still a draft, in Drafts, with the program's own marker). The copy of an encrypted message kept in Sent Items here is the encrypted message, never the text. Each
+  Bcc recipient gets a message of their own, so no recipient learns who else was blind-copied (the recipients, Bcc included, are in the clear header of what goes to your server, as in any message). No key look-up
   goes out to any server for this.
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how

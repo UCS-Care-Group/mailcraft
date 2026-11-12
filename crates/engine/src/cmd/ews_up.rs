@@ -62,7 +62,12 @@ pub(crate) fn bounded_up(result: &mut EwsMailResult) {
     // A send whose answer can't be taken in was handed to the server all the same (AU3-26): it
     // may have gone, so it is held, never left for the next run to send again.
     for done in result.sent.iter_mut().filter(|d| !sent_ok(d)) {
-        *done =
-            SendDone { message: done.message, outcome: SendOutcome::Held { lost: true, why: String::new() }, draft: None, draft_left: String::new() };
+        *done = SendDone {
+            message: done.message,
+            outcome: SendOutcome::Held { lost: true, why: String::new() },
+            draft: None,
+            draft_left: String::new(),
+            blind_sent: Vec::new(),
+        };
     }
 }

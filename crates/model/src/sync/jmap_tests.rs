@@ -71,6 +71,7 @@ fn result() -> JmapMailResult {
             outcome: SendOutcome::Held { lost: false, why: format!("{ME} was refused") },
             draft: None,
             draft_left: String::new(),
+            blind_sent: Vec::new(),
         }],
         listing: Some(FolderListing {
             folders: vec![GraphFolder { id: "M1".into(), name: ME.into(), kind: FolderKind::Inbox, total: 4, unread: 1, ..Default::default() }],

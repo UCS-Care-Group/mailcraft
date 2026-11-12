@@ -364,7 +364,8 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
             continue;
         }
         run.asked = run.asked.saturating_add(1);
-        let outcome = deliver_all(&mut smtp, &request.account, &message);
+        let mut went = Vec::new();
+        let outcome = deliver_all(&mut smtp, &request.account, &message, &mut went);
         match outcome {
             Ok(()) => {
                 run.out.sent.push(message.id);
@@ -375,6 +376,10 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
                 run.hand_over(SyncStep::new(SyncStage::Sending, "", at + 1, waiting));
             }
             Err(e) => {
+                // The Bcc recipients whose message went stay told: the next try sends only the rest.
+                if !went.is_empty() {
+                    run.out.blind_sent.push((message.id, went));
+                }
                 run.out.problem(said!("Couldn't send \"{subject}\": {error}", subject = subject_said(&message), error = Arg::said(e.said())));
                 // Cut off once it was handed over: whether it went is not known (AU3-26). A
                 // refusal the server answered with is known not to have gone.

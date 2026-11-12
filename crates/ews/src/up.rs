@@ -119,14 +119,14 @@ impl<E: HttpExchange> Run<'_, E> {
         }
         for draft in request.drafts.iter().take(MAX_DRAFTS) {
             let (done, ended) = self.draft(draft).await;
-            if !done.id.is_empty() || done.refused.is_some() || done.conflict {
+            if !done.id.is_empty() || done.refused.is_some() || done.conflict || done.purged {
                 piece.drafts.push(done);
             }
             ended?;
         }
         for send in request.sends.iter().take(MAX_SENDS) {
             let (done, ended) = self.send(send).await;
-            if done.draft.is_some() || done.outcome != SendOutcome::Waits {
+            if done.draft.is_some() || done.outcome != SendOutcome::Waits || !done.blind_sent.is_empty() {
                 piece.sent.push(done);
             }
             ended?;
@@ -318,6 +318,9 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 
     async fn draft_into(&mut self, up: &DraftUp, done: &mut DraftDone) -> Result<(), Asked> {
+        if up.purge_only {
+            return self.purge_copies(&up.marker, &up.id, done).await;
+        }
         if up.is_sealed() {
             return self.sealed_draft(up, done).await;
         }
@@ -390,48 +393,55 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 
     /// A draft kept Encrypted (#30 part 7): made from the Encrypted message alone (`MimeContent`),
-    /// found by its marker first when an earlier make was not answered, and the server's earlier copy
-    /// of it, its fields in the clear, taken away once the new one is there. A draft made from MIME is
-    /// made again, not changed field by field, when it is saved again.
+    /// and then the earlier copies of it on the server, which may hold the text in the clear, taken
+    /// away beyond recovery: those in Drafts that carry its marker (a make whose answer was lost
+    /// included), but the new one. A draft made from MIME is made again, not changed field by
+    /// field, when it is saved again.
     async fn sealed_draft(&mut self, up: &DraftUp, done: &mut DraftDone) -> Result<(), Asked> {
+        let purge = up.purge || !up.id.is_empty();
         let Some(op) = CreateSealedDraft::new(&up.sealed, &up.marker) else {
+            // Too large for the server: the draft stays here alone, and what was there goes.
             done.refused = Some(413);
-            return Ok(());
+            return if purge { self.purge_copies(&up.marker, "", done).await } else { Ok(()) };
         };
-        // The copies the server has by now: the earlier one, and one whose make was not answered
-        // (found by the marker). What they hold is older than this, so they go once this is made.
-        let mut earlier: Vec<String> = Vec::new();
-        if !up.id.is_empty() {
-            earlier.push(up.id.clone());
-        }
-        let find = FindDraft::new(None, &up.marker);
-        match self.ask(&find.element(), &|reply| find.answer(reply)).await {
-            Ok(Some(found)) if !earlier.contains(&found.id) => earlier.push(found.id),
-            Ok(_) => {}
-            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-            Err(_) => return Ok(()),
-        }
         let saved = match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
             Ok(saved) => saved,
             Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
             Err(Asked::Code(code)) => {
                 done.refused = Some(refused_status(&code));
-                return Ok(());
+                return if purge { self.purge_copies(&up.marker, "", done).await } else { Ok(()) };
             }
-            // (Lost: found by its marker next run, and taken away then.)
+            // (Lost: found by its marker next run, and the copy before it taken away then.)
             Err(_) => return Ok(()),
         };
         (done.id, done.change_key, done.fields) = (saved.id.clone(), saved.change_key, true);
-        for old in earlier.iter().filter(|old| **old != saved.id) {
-            // For good: an earlier copy may hold the text in the clear.
-            let del = DeleteItem::new(old, DeleteMode::HardDelete);
+        if purge { self.purge_copies(&up.marker, &saved.id, done).await } else { Ok(()) }
+    }
+
+    /// Takes away beyond recovery (`HardDelete`) every draft in Drafts that carries `marker` but
+    /// `keep`: the earlier copies of a draft that is kept Encrypted now. What is not in Drafts or is
+    /// no longer there is not touched. `done.purged` says they were dealt with.
+    async fn purge_copies(&mut self, marker: &str, keep: &str, done: &mut DraftDone) -> Result<(), Asked> {
+        if marker.is_empty() {
+            return Ok(());
+        }
+        let find = FindDraft::new(None, marker);
+        let copies = match self.ask(&find.element(), &|reply| find.answer_all(reply)).await {
+            Ok(copies) => copies,
+            Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+            // (Not found out: tried again with the next run.)
+            Err(_) => return Ok(()),
+        };
+        let mut all = true;
+        for copy in copies.iter().filter(|c| c.id != keep) {
+            let del = DeleteItem::new(&copy.id, DeleteMode::HardDelete);
             match self.ask(&del.element(), &|reply| del.answer(reply)).await {
                 Ok(()) | Err(Asked::Code(ResponseCode::ItemNotFound)) => {}
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                // (The new one is there: nothing is lost, and the next save tries again.)
-                Err(_) => log::info!("ews up: an earlier copy of an Encrypted draft couldn't be taken away"),
+                Err(_) => all = false,
             }
         }
+        done.purged = all;
         Ok(())
     }
 
@@ -562,7 +572,8 @@ impl<E: HttpExchange> Run<'_, E> {
     /// One message sent (a saved draft is brought up to date and sent as the draft; one never saved
     /// goes as its MIME). Never twice: a lost answer is held.
     pub(crate) async fn send(&mut self, send: &SendUp) -> (SendDone, Result<(), Asked>) {
-        let mut done = SendDone { message: send.message, outcome: SendOutcome::Waits, draft: None, draft_left: String::new() };
+        let mut done =
+            SendDone { message: send.message, outcome: SendOutcome::Waits, draft: None, draft_left: String::new(), blind_sent: Vec::new() };
         let ended = self.send_into(send, &mut done).await;
         (done, ended)
     }
@@ -577,18 +588,30 @@ impl<E: HttpExchange> Run<'_, E> {
         };
         // (An Encrypted message's Bcc recipients are each sent a message of their own first, to them
         // alone, #30 part 7; whatever can't go is found before any goes.)
-        let ops = match SendMessage::blind(message)
-            .and_then(|mut ops| SendMessage::new(message).map(|main| ops.drain(..).chain([main]).collect::<Vec<_>>()))
-        {
+        let ops = match SendMessage::plan(message) {
             Ok(ops) => ops,
             Err(e) => {
                 done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
                 return Ok(());
             }
         };
-        for op in &ops {
+        // Only the last, the message everybody else gets, makes it sent: a run cut off before it
+        // (the server busy, the sign-in gone, called off) leaves it waiting, with those whose message
+        // went remembered, so that a send again gives them nothing more.
+        let last = ops.len().checked_sub(1);
+        if last.is_none() {
+            done.outcome = SendOutcome::Sent;
+        }
+        for (at, (address, op)) in ops.iter().enumerate() {
             match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
-                Ok(()) => done.outcome = SendOutcome::Sent,
+                Ok(()) => {
+                    if let Some(address) = address {
+                        done.blind_sent.push(address.clone());
+                    }
+                    if Some(at) == last {
+                        done.outcome = SendOutcome::Sent;
+                    }
+                }
                 Err(error) => return self.sent(error, done, plain_or_lost),
             }
         }

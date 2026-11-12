@@ -22,8 +22,8 @@ pub fn draft_changes(s: &Session, account: Id, limit: usize) -> (Vec<DraftUp>, u
         .messages
         .values()
         .map(AsRef::as_ref)
-        .filter(|m| m.account == account && m.draft && !m.local_only && Some(m.folder) != outbox)
-        .filter(|m| m.server_draft.as_ref().is_some_and(|d| d.pending))
+        .filter(|m| m.account == account && m.draft && Some(m.folder) != outbox)
+        .filter(|m| waits(m))
         .collect();
     waiting.sort_by_key(|m| m.id);
     let count = waiting.len();
@@ -46,18 +46,25 @@ pub fn draft_changes(s: &Session, account: Id, limit: usize) -> (Vec<DraftUp>, u
 /// How many drafts of `account` wait to go up (cheap: nothing is compared).
 pub fn pending(mb: &Mailbox, account: Id) -> usize {
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
-    mb.messages
-        .values()
-        .filter(|m| {
-            m.account == account && m.draft && !m.local_only && Some(m.folder) != outbox && m.server_draft.as_ref().is_some_and(|d| d.pending)
-        })
-        .count()
+    mb.messages.values().filter(|m| m.account == account && m.draft && Some(m.folder) != outbox && waits(m)).count()
+}
+
+/// Whether the draft `m` has something to take up: a save the server hasn't had (a draft that
+/// stays on this computer has none), or earlier copies on the server to be taken away beyond
+/// recovery (#30 part 7), which a draft kept here alone has too.
+fn waits(m: &Message) -> bool {
+    m.server_draft.as_ref().is_some_and(|d| (d.pending && !m.local_only) || d.purge)
 }
 
 /// What of `m` goes up: what differs from what the server last had.
 pub fn draft_up(m: &Message) -> Option<DraftUp> {
     let sd = m.server_draft.as_ref()?;
     let id = m.server.as_ref().filter(|s| !s.gone).map(|s| s.id.clone()).unwrap_or_default();
+    // Nothing of it goes up (it stays on this computer, or the server has all of it), and earlier
+    // copies of it on the server are to be taken away: that alone, keeping the one it has now.
+    if sd.purge && (m.local_only || !sd.pending) {
+        return Some(DraftUp { message: m.id, id, marker: sd.marker.clone(), saves: sd.saves, purge: true, purge_only: true, ..Default::default() });
+    }
     // A draft kept Encrypted (#30 part 7): the Encrypted message alone goes up, never a field of
     // it (what its fields say here is a note), and the server's earlier copy goes once it is there.
     if m.sealed_draft {
@@ -74,6 +81,7 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
             change_key: m.server.as_ref().filter(|s| !s.gone).map(|s| s.change_key.clone()).unwrap_or_default(),
             saves: sd.saves,
             sealed: std::sync::Arc::new(bytes),
+            purge: sd.purge,
             ..Default::default()
         });
     }
@@ -108,6 +116,8 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         read_receipt: differs(&|was| was.read_receipt == now.read_receipt).then_some(m.read_receipt).filter(|on| synced.is_some() || *on),
         attachments,
         sealed: Default::default(),
+        purge: sd.purge,
+        purge_only: false,
     })
 }
 
@@ -151,6 +161,21 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
     let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
     let drafts_there =
         mb.folder_of_kind(account, FolderKind::Drafts).and_then(|f| mb.folder(f)).and_then(|f| f.server.as_ref()).map(|s| s.id.clone());
+    // Only the earlier copies on the server were to be taken away (the draft stays on this computer,
+    // or the server has all of it): done, nothing more is asked of it.
+    if change.purge_only {
+        let Ok(m) = mb.message_mut(change.message) else { return false };
+        if !done.purged {
+            return false;
+        }
+        if let Some(sd) = m.server_draft.as_mut() {
+            sd.purge = false;
+        }
+        if m.local_only {
+            (m.server_draft, m.server) = (None, None);
+        }
+        return true;
+    }
     if done.conflict {
         // Changed elsewhere too: the server's version comes down by itself, as a draft of its own.
         return keep_twice(mb, change.message, None).is_some();
@@ -158,6 +183,9 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
     if let Some(status) = done.refused {
         let Ok(m) = mb.message_mut(change.message) else { return false };
         let Some(sd) = m.server_draft.as_mut() else { return false };
+        if done.purged {
+            sd.purge = false;
+        }
         if matches!(status, 404 | 410) && !change.id.is_empty() {
             // The server's copy is gone: this one is made there again, nothing of it lost.
             log::info!("graph drafts: a draft was gone from the server; it is made there again");
@@ -246,7 +274,7 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
         synced.get_or_insert_with(DraftState::default).attachments = attachments.clone();
     }
     let complete = !done.id.is_empty() && done.fields && (change.attachments.is_none() || done.attachments.is_some());
-    let sd = ServerDraft { synced, pending: sd.pending && !(complete && sd.saves == change.saves), ..sd };
+    let sd = ServerDraft { synced, pending: sd.pending && !(complete && sd.saves == change.saves), purge: sd.purge && !done.purged, ..sd };
     m.server_draft = Some(sd);
     true
 }

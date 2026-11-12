@@ -704,6 +704,10 @@ pub struct SyncResult {
     /// for the owner, never sent again by itself (AU3-26).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unsure: Vec<Id>,
+    /// For Outbox messages that were Encrypted and not all sent, the Bcc recipients whose message of
+    /// their own went (#30 part 7): a send again gives them nothing more.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blind_sent: Vec<(Id, Vec<String>)>,
     /// Outbox messages that were to be Digitally signed and couldn't be (#30): not sent, and
     /// held in the Outbox with why.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -813,6 +817,7 @@ impl SyncResult {
             && self.filed.is_empty()
             && self.unfiled.is_empty()
             && self.unsure.is_empty()
+            && self.blind_sent.is_empty()
             && self.unsigned.is_empty()
             && self.gmail_refused.is_empty()
             && self.gmail_unsent == 0
@@ -833,6 +838,7 @@ impl SyncResult {
             filed: _,
             unfiled: _,
             unsure: _,
+            blind_sent: _,
             unsigned: _,
             flagged: _,
             moved: _,
@@ -863,6 +869,7 @@ impl SyncResult {
         self.filed.extend(later.filed);
         self.unfiled.extend(later.unfiled);
         self.unsure.extend(later.unsure);
+        self.blind_sent.extend(later.blind_sent);
         self.unsigned.extend(later.unsigned);
         self.flagged.extend(later.flagged);
         self.moved.extend(later.moved);

@@ -110,7 +110,9 @@ impl State {
         }
         self.fault(&id)?;
         self.mailbox.delete(&id);
-        self.file_sent(m, "send", true);
+        // (A draft marked `PidTagDeleteAfterSubmit` is taken away once sent: no copy in Sent Items.)
+        let filed = !m.extended.iter().any(|(id, value)| id.eq_ignore_ascii_case("Boolean 0xe01") && value == "true");
+        self.file_sent(m, "send", filed);
         Ok((202, None))
     }
 }

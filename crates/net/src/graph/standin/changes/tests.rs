@@ -252,12 +252,18 @@ fn a_delete_takes_the_message_out_of_every_folder() {
     // Under its folder's address too.
     assert_eq!(send(&server, "DELETE", &format!("/v1.0/me/mailFolders/inbox/messages/{}", ids[1]), None).0, 204);
     assert!(server.state().mailbox.messages.is_empty());
-    // Past the recoverable items is nothing the stand-in does: that address names nothing.
+    // Past the recoverable items is the stand-in's to do on that address, which the program asks
+    // for in one place alone (the earlier copy of a draft kept Encrypted, #30 part 7: the guard is
+    // `graphs_delete_past_the_retention_period_is_used_in_one_place_only`). It takes no body.
     let kept = server.state().mailbox.add(&inbox, "Kept", NOW);
-    // (Spelled in pieces: the word is nowhere in MailCraft's code, R3 spec S19.)
+    // (Spelled in pieces, as the guard spells it.)
     let action = ["perm", "anent", "Delete"].concat();
-    assert_eq!(send(&server, "POST", &format!("/v1.0/me/messages/{kept}/{action}"), None).0, 400);
+    let url = format!("/v1.0/me/messages/{kept}/{action}");
+    assert_eq!(send(&server, "POST", &url, Some(&json!({"x": 1}))).0, 400);
     assert!(server.state().mailbox.messages.contains_key(&kept));
+    assert_eq!(send(&server, "POST", &url, None).0, 204);
+    assert!(!server.state().mailbox.messages.contains_key(&kept));
+    assert_eq!(server.state().mailbox.purged, [kept]);
 }
 
 #[test]

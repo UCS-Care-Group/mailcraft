@@ -2637,3 +2637,55 @@ fn an_encrypted_message_whose_bcc_recipient_has_no_message_of_their_own_is_held(
     assert!(result.unsigned[0].encrypting);
     assert!(smtp.world().delivered.is_empty(), "never sent as one message for everybody");
 }
+
+#[test]
+fn a_message_that_stops_after_the_bcc_copies_is_not_sent_and_remembers_them() {
+    let mut world = smtp_world();
+    world.refuse = vec!["bob@example.org".into(), "carol@example.org".into()];
+    let smtp = Fake::smtp(world);
+    let mut request = request(account(None, Some(&smtp)), local_folders());
+    request.outbox = vec![encrypted_for_bcc()];
+    let result = sync(&request);
+    assert!(result.sent.is_empty(), "{:?}", result.sent);
+    assert_eq!(result.blind_sent, [(601, vec!["erin@example.org".to_string()])], "{:?}", result.errors);
+    assert_eq!(smtp.world().delivered.len(), 1, "Erin's went");
+}
+
+#[test]
+fn a_send_again_gives_those_who_had_theirs_nothing_more() {
+    let smtp = Fake::smtp(smtp_world());
+    let mut request = request(account(None, Some(&smtp)), local_folders());
+    let mut m = encrypted_for_bcc();
+    (m.blind_copies, m.blind_sent) = (Vec::new(), vec!["erin@example.org".into()]);
+    request.outbox = vec![m];
+    let result = sync(&request);
+    assert_eq!(result.sent, [601], "{:?}", result.errors);
+    let world = smtp.world();
+    assert_eq!(world.delivered.len(), 1, "only the message for the rest");
+    assert_eq!(world.delivered[0].recipients, ["bob@example.org", "carol@example.org"]);
+}
+
+#[test]
+fn an_encrypted_message_to_bcc_recipients_alone_goes_to_them() {
+    let smtp = Fake::smtp(smtp_world());
+    let mut request = request(account(None, Some(&smtp)), local_folders());
+    let mut m = encrypted_for_bcc();
+    (m.to, m.cc) = (Vec::new(), Vec::new());
+    request.outbox = vec![m];
+    let result = sync(&request);
+    assert_eq!(result.sent, [601], "{:?}", result.errors);
+    let world = smtp.world();
+    assert_eq!(world.delivered.len(), 1);
+    assert_eq!(world.delivered[0].recipients, ["erin@example.org"]);
+}
+
+#[test]
+fn each_bcc_copy_has_a_message_id_of_its_own() {
+    let smtp = Fake::smtp(smtp_world());
+    let mut request = request(account(None, Some(&smtp)), local_folders());
+    request.outbox = vec![encrypted_for_bcc()];
+    sync(&request);
+    let world = smtp.world();
+    let id_of = |data: &str| data.lines().find(|l| l.to_lowercase().starts_with("message-id:")).unwrap_or_default().to_string();
+    assert_ne!(id_of(&world.delivered[0].data), id_of(&world.delivered[1].data));
+}

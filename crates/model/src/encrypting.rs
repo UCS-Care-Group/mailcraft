@@ -149,10 +149,31 @@ impl PartialEq for Sealed {
 
 impl Eq for Sealed {}
 
+/// The Message-ID of the message the `at`th Bcc recipient is sent of their own: that of the message
+/// with `-b{at+1}` before its `@` (or at its end). Empty stays empty.
+fn blind_message_id(id: &str, at: usize) -> String {
+    let id = id.trim();
+    if id.is_empty() {
+        return String::new();
+    }
+    match id.rsplit_once('@') {
+        Some((local, host)) => format!("{local}-b{}@{host}", at.saturating_add(1)),
+        None => format!("{id}-b{}", at.saturating_add(1)),
+    }
+}
+
 impl Message {
     /// The Bcc recipients written to blind in an Encrypted message: those of the Bcc line who are
     /// not also on To or Cc (who are known to the others), in lower case, each once.
     pub fn blind_addresses(&self) -> Vec<String> {
+        let mut out = self.blind_all();
+        // (Those whose message of their own has gone already are not to be sent another.)
+        out.retain(|a| !self.blind_sent.contains(a));
+        out
+    }
+
+    /// Every blind recipient, those given their message already included.
+    fn blind_all(&self) -> Vec<String> {
         let key = |a: &Address| a.email.trim().to_lowercase();
         let visible: Vec<String> = self.to.iter().chain(&self.cc).map(key).collect();
         let mut out: Vec<String> = Vec::new();
@@ -165,10 +186,16 @@ impl Message {
         out
     }
 
+    /// Whether the message everybody but the Bcc recipients gets has anyone to go to (a message
+    /// written to Bcc recipients alone has none: only their messages go).
+    pub fn has_main_recipients(&self) -> bool {
+        self.for_main().recipients().any(|a| !a.email.trim().is_empty())
+    }
+
     /// The message that goes to everybody but the Bcc recipients, when each of them is given a
     /// message of their own ([`Message::blind_copies`]): the Bcc line is left out. Else as it is.
     pub fn for_main(&self) -> Cow<'_, Message> {
-        if self.blind_copies.is_empty() {
+        if self.blind_copies.is_empty() && self.blind_sent.is_empty() {
             return Cow::Borrowed(self);
         }
         Cow::Owned(Message { bcc: Vec::new(), blind_copies: Vec::new(), ..self.clone() })
@@ -183,9 +210,13 @@ impl Message {
         let own = self.encrypt_with.as_ref();
         self.blind_copies
             .iter()
-            .map(|copy| {
+            .enumerate()
+            .map(|(at, copy)| {
                 let to = Address { name: String::new(), email: copy.address.clone() };
                 let mut m = Message { original: Some(copy.original.clone()), blind_copies: Vec::new(), ..self.clone() };
+                // Its own Message-ID: a server or a client that takes two messages with one for the
+                // same is not to merge or drop one of them (and the message itself keeps its own).
+                m.message_id = blind_message_id(&self.message_id, at);
                 // (It is Encrypted to this recipient and the owner alone: what says so is its plan.)
                 m.encrypt_with = own.map(|e| Encryption {
                     format: e.format,
@@ -202,3 +233,7 @@ impl Message {
             .collect()
     }
 }
+
+#[cfg(test)]
+#[path = "encrypting_tests.rs"]
+mod encrypting_tests;

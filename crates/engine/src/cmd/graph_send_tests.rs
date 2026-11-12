@@ -219,7 +219,13 @@ fn each_send_the_answer_accounts_for_loses_its_mark() {
     let lang = mailcraft_i18n::Lang::default();
     let mut said = Vec::new();
     for (message, outcome) in [(refused, SendOutcome::Held { lost: false, why: "no recipients".into() }), (busy, SendOutcome::Waits)] {
-        send_done(&mut s.mailbox, account, &SendDone { message, outcome, draft: None, draft_left: String::new() }, lang, &mut said);
+        send_done(
+            &mut s.mailbox,
+            account,
+            &SendDone { message, outcome, draft: None, draft_left: String::new(), blind_sent: Vec::new() },
+            lang,
+            &mut said,
+        );
         assert!(!s.mailbox.message(message).unwrap().sending);
     }
     assert!(s.mailbox.message(untold).unwrap().sending, "one the answer doesn't name keeps its mark");
@@ -234,8 +240,13 @@ fn a_held_answer_for_the_servers_own_mail_doesnt_make_it_the_owners() {
     let theirs = queued(&mut s, account, outbox, "Theirs", delivered());
     // Only what a fetch gave it: no marker, nothing pending.
     s.mailbox.message_mut(theirs).unwrap().server_draft = Some(ServerDraft::default());
-    let done =
-        SendDone { message: theirs, outcome: SendOutcome::Held { lost: false, why: "declined".into() }, draft: None, draft_left: String::new() };
+    let done = SendDone {
+        message: theirs,
+        outcome: SendOutcome::Held { lost: false, why: "declined".into() },
+        draft: None,
+        draft_left: String::new(),
+        blind_sent: Vec::new(),
+    };
     let mut said = Vec::new();
     send_done(&mut s.mailbox, account, &done, mailcraft_i18n::Lang::default(), &mut said);
     assert!(s.mailbox.message(theirs).unwrap().server_draft.as_ref().unwrap().marker.is_empty());

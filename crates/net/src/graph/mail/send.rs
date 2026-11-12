@@ -36,9 +36,12 @@ use crate::http::{self, Reply};
 /// anything was asked to go).
 pub(super) fn sends(graph: &Graph<'_>, sends: &[SendUp], out: &mut Vec<SendDone>) -> Result<(), NetError> {
     for send in sends.iter().take(MAX_SENDS) {
-        let mut done = SendDone { message: send.message, outcome: SendOutcome::Waits, draft: None, draft_left: String::new() };
+        let mut done =
+            SendDone { message: send.message, outcome: SendOutcome::Waits, draft: None, draft_left: String::new(), blind_sent: Vec::new() };
         let result = one(graph, send, &mut done);
-        let tried = done.draft.is_some() || done.outcome != SendOutcome::Waits;
+        // (A message cut off after some of its Bcc recipients had theirs is told, so that a retry
+        // sends only the rest.)
+        let tried = done.draft.is_some() || done.outcome != SendOutcome::Waits || !done.blind_sent.is_empty();
         if tried {
             out.push(done);
         }
@@ -87,53 +90,70 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
         (None, Some(message)) => {
             // Each of an Encrypted message's Bcc recipients is sent a message of their own first, to
             // them alone (#30 part 7: one message for everybody would name their keys); then the
-            // message goes without them. Whatever can't go is found before any goes.
-            let mut bodies = Vec::new();
-            for (_, copy) in message.blind_messages(true) {
+            // message goes without them (or not at all when it has nobody but them). Whatever can't
+            // go is found before any goes.
+            let mut parts: Vec<(Option<String>, String)> = Vec::new();
+            for (address, copy) in message.blind_messages(true) {
                 if mailcraft_mime::body_not_encrypted(&copy) {
                     done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_ENCRYPTED.to_string() };
                     return Ok(());
                 }
-                bodies.push(copy);
-            }
-            bodies.push(message.for_main().into_owned());
-            let bodies: Result<Vec<String>, NetError> = bodies.iter().map(mime_body).collect();
-            // (Not a message that can go (no recipients, an address that isn't one): said so.)
-            let bodies = match bodies {
-                Ok(bodies) => bodies,
-                Err(e) => {
-                    done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
-                    return Ok(());
+                match mime_body(&copy) {
+                    Ok(body) => parts.push((Some(address), body)),
+                    Err(e) => {
+                        done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
+                        return Ok(());
+                    }
                 }
+            }
+            if message.has_main_recipients() {
+                match mime_body(&message.for_main()) {
+                    Ok(body) => parts.push((None, body)),
+                    Err(e) => {
+                        done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
+                        return Ok(());
+                    }
+                }
+            } else if parts.is_empty() && message.blind_sent.is_empty() {
+                done.outcome = SendOutcome::Held { lost: false, why: "the message has no recipients".to_string() };
+                return Ok(());
+            }
+            // Everybody who was to get a message of their own has had it: nothing is left to send.
+            let Some(last) = parts.len().checked_sub(1) else {
+                done.outcome = SendOutcome::Sent;
+                return Ok(());
             };
-            let Some((body, earlier)) = bodies.split_last() else { return Ok(()) };
-            for body in earlier {
-                let asked = graph.call(
-                    Kind::Once,
-                    &graph.url(&graph.mail_path("/sendMail")),
-                    "POST",
-                    &[("Content-Type", "text/plain")],
-                    Some(body),
-                    SEND_TIMEOUT,
-                    MAX_PAGE,
-                );
-                settle(graph, asked, done)?;
+            for (at, (address, body)) in parts.iter().enumerate() {
+                // The message itself files the one copy in Sent Items (a message to Bcc recipients
+                // alone, the last of theirs does); the copies of the others are not filed.
+                let filed = at == last;
+                done.outcome = SendOutcome::Waits;
+                if filed {
+                    let asked = graph.call(
+                        Kind::Once,
+                        &graph.url(&graph.mail_path("/sendMail")),
+                        "POST",
+                        &[("Content-Type", "text/plain")],
+                        Some(body),
+                        SEND_TIMEOUT,
+                        MAX_PAGE,
+                    );
+                    settle(graph, asked, done)?;
+                } else {
+                    send_unfiled(graph, body, done)?;
+                }
                 if done.outcome != SendOutcome::Sent {
+                    // (Held, or told to wait: what went already is remembered, and a send again
+                    // gives them nothing more. Only the message itself, last, makes it Sent.)
                     return Ok(());
                 }
+                if let Some(address) = address {
+                    done.blind_sent.push(address.clone());
+                }
+                if !filed {
+                    done.outcome = SendOutcome::Waits;
+                }
             }
-            // (Whether the message itself went is the answer to this one, not to theirs.)
-            done.outcome = SendOutcome::Waits;
-            let asked = graph.call(
-                Kind::Once,
-                &graph.url(&graph.mail_path("/sendMail")),
-                "POST",
-                &[("Content-Type", "text/plain")],
-                Some(body),
-                SEND_TIMEOUT,
-                MAX_PAGE,
-            );
-            settle(graph, asked, done)?;
             // A Digitally signed message saved as a draft went as its own bytes (#30 R19): the
             // draft the server has goes now. One that couldn't be taken away is named, and goes
             // with the next run as any other delete; the send is never made again.
@@ -154,6 +174,63 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
     };
     let asked = graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some("{}"), SEND_TIMEOUT, MAX_PAGE);
     settle(graph, asked, done)
+}
+
+/// The property that has the server take a message away once it is sent, so that no copy is filed in
+/// Sent Items (`PidTagDeleteAfterSubmit`, a Boolean).
+const DELETE_AFTER_SUBMIT: &str = "Boolean 0xe01";
+
+/// Send the message `body` (MIME in base64) to whom it names without a copy of it staying in Sent
+/// Items: `sendMail` with MIME files one, and has no way not to, so it is made a draft, marked to be
+/// taken away once it is sent, and sent as a draft (#30 part 7: each Bcc recipient of an Encrypted
+/// message has a message of their own, and the owner's Sent Items has the one). A server that won't
+/// mark it sends it all the same, and its copy stays: logged. Whatever became of it is `done.outcome`,
+/// as for any send.
+fn send_unfiled(graph: &Graph<'_>, body: &str, done: &mut SendDone) -> Result<(), NetError> {
+    let made = graph.call(
+        Kind::Once,
+        &graph.url(&graph.mail_path("/messages")),
+        "POST",
+        &[("Content-Type", "text/plain")],
+        Some(body),
+        SEND_TIMEOUT,
+        MAX_PAGE,
+    );
+    let reply = match made {
+        Ok(reply) => reply,
+        // (Not known whether it was made; it was not sent, as nothing asked for that.)
+        Err(e) if e.is_unreachable() => {
+            done.outcome = SendOutcome::Held { lost: false, why: "Microsoft didn't answer".to_string() };
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
+    super::refusing(graph, &reply)?;
+    let id = match reply.status {
+        200 | 201 => {
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            id_of(text(&json, "id")).map(|id| http::encode(&id))
+        }
+        _ => None,
+    };
+    let Some(id) = id else {
+        // Refused or not understood: what a send says of it.
+        return settle(graph, Ok(reply), done);
+    };
+    let mark = serde_json::json!({"singleValueExtendedProperties": [{"id": DELETE_AFTER_SUBMIT, "value": "true"}]}).to_string();
+    let url = graph.url(&graph.mail_path(&format!("/messages/{id}")));
+    match graph.call(Kind::Same, &url, "PATCH", &[("Content-Type", "application/json")], Some(&mark), SEND_TIMEOUT, MAX_PAGE) {
+        Ok(reply) if matches!(reply.status, 200..=299) => {}
+        _ => log::info!("graph sending: a Bcc recipient's message couldn't be marked not to be filed; it is sent, and its copy stays in Sent Items"),
+    }
+    let url = graph.url(&graph.mail_path(&format!("/messages/{id}/send")));
+    let asked = graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some("{}"), SEND_TIMEOUT, MAX_PAGE);
+    settle(graph, asked, done)?;
+    // Not sent and not lost (the server refused it): the draft made for it goes again, best effort.
+    if matches!(done.outcome, SendOutcome::Held { lost: false, .. }) {
+        let _ = graph.call(Kind::Same, &graph.url(&graph.mail_path(&format!("/messages/{id}"))), "DELETE", &[], None, SEND_TIMEOUT, MAX_PAGE);
+    }
+    Ok(())
 }
 
 /// What the answer to a send means: sent, held, or the error that stops the run (it wasn't taken).

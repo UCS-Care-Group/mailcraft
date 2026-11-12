@@ -830,8 +830,162 @@ fn an_encrypted_draft_whose_make_was_lost_is_not_left_twice() {
     // A make whose answer went missing: the server has it, with the marker.
     let first = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() }).drafts[0].clone();
     // Saved again, the old id still unknown here: the one with the marker is found, a new one made, the found one goes.
-    let result = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() });
+    let result = run(&standin, &EwsMailRequest { drafts: vec![DraftUp { purge: true, ..sealed_draft("") }], ..base() });
     let made = &result.drafts[0];
     assert!(made.id != first.id && made.fields);
     assert_eq!(standin.state().items.iter().filter(|i| i.draft).count(), 1);
+}
+
+// ---- an Encrypted message to Bcc recipients (#30 part 7) ----
+
+/// An Encrypted message as the host hands it to a run: its body for everybody but the Bcc recipients,
+/// and the message each Bcc recipient has of their own (bodies of a stand-in's: the server reads no
+/// encryption). The recipients of the Bcc line are `bcc`; `to` is who the message itself is for.
+fn encrypted_bcc(to: &[&str], bcc: &[&str]) -> Box<Message> {
+    use mailcraft_model::encrypting::{BlindCopy, EncryptTo, Encryption};
+    let body = |tag: u8| mailcraft_model::Original::new(mailcraft_mime::smime_enveloped(&[0x30, 0x03, 0x02, 0x01, tag]).unwrap()).unwrap();
+    let people = |all: &[&str]| all.iter().map(|a| Address::new("", *a)).collect::<Vec<_>>();
+    Box::new(Message {
+        subject: "Rota".into(),
+        from: Address::new("Ada", "ada@example.org"),
+        to: people(to),
+        bcc: people(bcc),
+        date: 1_791_993_600,
+        message_id: "rota@example.org".into(),
+        encrypt: Some(true),
+        encrypt_with: Some(Encryption {
+            format: mailcraft_model::digital_signature::SignatureFormat::Smime,
+            recipients: vec![EncryptTo {
+                address: "zoe@example.org".into(),
+                fingerprint: "AB".into(),
+                key: std::sync::Arc::new(vec![1]),
+                own: false,
+            }],
+            own_address: "ada@example.org".into(),
+        }),
+        original: Some(body(0xAA)),
+        blind_copies: bcc
+            .iter()
+            .enumerate()
+            .map(|(at, a)| BlindCopy { address: (*a).to_string(), original: body(0xB0 + u8::try_from(at).unwrap_or(0)) })
+            .collect(),
+        ..Default::default()
+    })
+}
+
+fn bcc_send(message: Box<Message>) -> EwsMailRequest {
+    EwsMailRequest { sends: vec![SendUp { message: 3, draft: None, mime: Some(message), discard: String::new() }], ..base() }
+}
+
+/// Answers a send that stops the run (the server busy, and nobody to wait for it) from the `after`th
+/// `CreateItem` on.
+struct BusyFrom<'a> {
+    inner: &'a StandIn,
+    after: u32,
+    seen: Cell<u32>,
+}
+
+impl HttpExchange for BusyFrom<'_> {
+    fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
+        let body = String::from_utf8_lossy(request.body()).into_owned();
+        if body.contains("<m:CreateItem ") || body.contains("<m:CreateItem>") {
+            let at = self.seen.get();
+            self.seen.set(at + 1);
+            if at >= self.after {
+                return std::future::ready(Ok(fault_answer("CreateItem", "ErrorServerBusy")));
+            }
+        }
+        std::future::ready(block_on(self.inner.exchange(request)).unwrap())
+    }
+}
+
+/// A run whose waits are refused: what the server's busy answers stop.
+fn run_refusing_waits<E: HttpExchange>(exchange: &E, request: &EwsMailRequest) -> EwsMailResult {
+    let mut pieces = Vec::new();
+    let cancel = AtomicBool::new(false);
+    let _ = block_on(sync_mail(&client(), exchange, request, &cancel, &mut |_| false, &mut |piece| pieces.push(piece)));
+    let mut all = EwsMailResult::default();
+    for piece in pieces {
+        all.absorb(piece);
+    }
+    all
+}
+
+#[test]
+fn an_encrypted_message_to_bcc_recipients_goes_theirs_first_and_only_the_message_itself_is_filed() {
+    let standin = StandIn::new();
+    let result = run(&standin, &bcc_send(encrypted_bcc(&["zoe@example.org"], &["erin@example.org", "finn@example.org"])));
+    assert_eq!(result.sent[0].outcome, SendOutcome::Sent);
+    assert_eq!(result.sent[0].blind_sent, ["erin@example.org", "finn@example.org"]);
+    let state = standin.state();
+    assert_eq!(state.outgoing.len(), 3);
+    let sent_items = state.folder_id("sentitems").unwrap();
+    assert_eq!(state.items.iter().filter(|i| i.folder == sent_items).count(), 1, "one copy in Sent Items");
+}
+
+#[test]
+fn a_run_stopped_after_a_bcc_message_never_reports_the_message_sent() {
+    // Stopped at the second of three: Erin's went, and the message is neither Sent nor lost.
+    for after in [1, 2] {
+        let standin = StandIn::new();
+        let busy = BusyFrom { inner: &standin, after, seen: Cell::new(0) };
+        let request = bcc_send(encrypted_bcc(&["zoe@example.org"], &["erin@example.org", "finn@example.org"]));
+        let result = run_refusing_waits(&busy, &request);
+        assert!(!result.sent.iter().any(|d| d.outcome == SendOutcome::Sent), "stopped after {after}: {:?}", result.sent);
+        let went: Vec<&String> = result.sent.iter().flat_map(|d| &d.blind_sent).collect();
+        assert_eq!(went.len(), after as usize, "{:?}", result.sent);
+        assert_eq!(standin.state().outgoing.len(), after as usize);
+    }
+}
+
+#[test]
+fn a_send_again_gives_those_who_had_theirs_nothing_more() {
+    let standin = StandIn::new();
+    let mut message = encrypted_bcc(&["zoe@example.org"], &["erin@example.org", "finn@example.org"]);
+    // Erin's went in a run that was stopped: only Finn's is made now, and the message is sent without Erin.
+    message.blind_sent = vec!["erin@example.org".into()];
+    message.blind_copies.retain(|c| c.address != "erin@example.org");
+    let result = run(&standin, &bcc_send(message));
+    assert_eq!(result.sent[0].outcome, SendOutcome::Sent);
+    assert_eq!(result.sent[0].blind_sent, ["finn@example.org"]);
+    let state = standin.state();
+    assert_eq!(state.outgoing.len(), 2, "Finn's and the message itself");
+    let text: Vec<String> = state.outgoing.iter().map(|o| String::from_utf8_lossy(o).into_owned()).collect();
+    assert!(!text.iter().any(|t| t.contains("erin@example.org")), "{text:?}");
+}
+
+#[test]
+fn an_encrypted_message_to_bcc_recipients_alone_goes_and_the_last_of_theirs_is_filed() {
+    let standin = StandIn::new();
+    let result = run(&standin, &bcc_send(encrypted_bcc(&[], &["erin@example.org", "finn@example.org"])));
+    assert_eq!(result.sent[0].outcome, SendOutcome::Sent, "{:?}", result.sent);
+    assert_eq!(result.sent[0].blind_sent.len(), 2);
+    let state = standin.state();
+    assert_eq!(state.outgoing.len(), 2);
+    let sent_items = state.folder_id("sentitems").unwrap();
+    assert_eq!(state.items.iter().filter(|i| i.folder == sent_items).count(), 1);
+}
+
+#[test]
+fn a_draft_kept_encrypted_is_taken_away_only_when_it_is_still_a_draft_in_drafts_with_its_marker() {
+    let standin = StandIn::new();
+    let first = run(&standin, &EwsMailRequest { drafts: vec![sealed_draft("")], ..base() }).drafts[0].clone();
+    // Another message that carries the same marker but is in Sent Items (the draft was sent from another device).
+    {
+        let mut state = standin.state();
+        let sent_items = state.folder_id("sentitems").unwrap();
+        let id = state.item(&first.id).unwrap().id.clone();
+        let mut copy = state.item(&id).unwrap().clone();
+        copy.id = "sent-copy".into();
+        copy.folder = sent_items;
+        copy.draft = false;
+        state.items.push(copy);
+    }
+    let result = run(&standin, &EwsMailRequest { drafts: vec![DraftUp { purge: true, ..sealed_draft("") }], ..base() });
+    let made = &result.drafts[0];
+    assert!(made.purged && made.id != first.id);
+    let state = standin.state();
+    assert!(state.item("sent-copy").is_some(), "what is no longer a draft in Drafts is never taken away");
+    assert!(state.item(&first.id).is_none(), "the earlier draft is");
+    assert_eq!(state.deletes, ["HardDelete"]);
 }

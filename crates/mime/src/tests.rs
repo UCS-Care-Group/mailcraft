@@ -553,6 +553,7 @@ fn message() -> impl Strategy<Value = Message> {
             encrypt: None,
             encrypt_with: None,
             blind_copies: Vec::new(),
+            blind_sent: Vec::new(),
             sealed: Default::default(),
             sealed_draft: false,
             local_only: false,

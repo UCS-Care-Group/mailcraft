@@ -552,10 +552,20 @@ fn an_account_that_encrypts_when_it_can_says_why_a_message_goes_unencrypted() {
     write(&mut s, a, "maya@lumen.example; kit@lumen.example");
     // (No choice made: the account's setting holds, and a recipient has no key.)
     assert_eq!(will_encrypt(&s, s.compose.as_ref().unwrap()), Will::ClearBecause { addresses: vec!["kit@lumen.example".to_string()] });
-    // Several keys for a recipient say so too.
+    // Several keys for a recipient stop Send, as under Encrypt asked for: never a message in the clear
+    // because one forged message made a second key.
     collected(&mut s, "kit@lumen.example", SMIME_KIT, &"44".repeat(32), NOW);
     collected(&mut s, "kit@lumen.example", SMIME_OWNER, &"55".repeat(32), NOW);
-    assert_eq!(will_encrypt(&s, s.compose.as_ref().unwrap()), Will::ClearBecause { addresses: vec!["kit@lumen.example".to_string()] });
+    let will = will_encrypt(&s, s.compose.as_ref().unwrap());
+    assert!(matches!(&will, Will::Conflict { conflicts, .. } if conflicts[0].address == "kit@lumen.example"), "{will:?}");
+    assert!(s.run("compose.send", &json!({})).is_err(), "Send stops");
+    // (And one already queued is held, not sent as it was.)
+    let queued = crate::cmd::encrypting::decided(
+        &s.mailbox,
+        Message { account: a, to: vec![mailcraft_model::Address::new("", "kit@lumen.example")], ..Default::default() },
+        NOW,
+    );
+    assert!(queued.encrypt == Some(true) && queued.encrypt_with.is_none() && mailcraft_mime::encryption_missing(&queued));
 }
 
 #[test]
@@ -692,21 +702,18 @@ fn a_clear_copy_of_a_draft_on_a_server_goes_from_it_when_encrypt_is_turned_on() 
         let m = s.mailbox.message_mut(plain).unwrap();
         m.server = Some(mailcraft_model::sync::ServerMessage { id: "AAMkAD-clear".into(), folder: "drafts".into(), ..Default::default() });
     }
-    // Encrypt is turned on, and it is saved again: the server's copy is taken away, and nothing of the
-    // draft there is kept here.
+    // Encrypt is turned on, and it is saved again (no way to keep it Encrypted on the server here): the
+    // draft stays on this computer, and the server's clear copy is to be taken away for good, found by
+    // its marker (a run does it; nothing of the draft goes up).
     s.run("compose.encrypt", &json!({"value": true})).unwrap();
     let kept = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
-    assert_ne!(kept, plain, "made again as a draft of this computer's alone");
-    assert!(s.mailbox.message(plain).is_none());
+    assert_eq!(kept, plain, "the same draft here");
     let m = s.mailbox.message(kept).unwrap();
-    assert!(m.local_only && m.server.is_none() && m.server_draft.is_none());
-    assert!(
-        s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "AAMkAD-clear")),
-        "the server is told to delete its copy: {:?}",
-        s.mailbox.queued.len()
-    );
-    // (And nothing of it goes up again.)
-    assert_eq!(crate::cmd::graph_drafts::pending(&s.mailbox, a), 0);
+    assert!(m.local_only && m.server.is_none());
+    assert!(m.server_draft.as_ref().is_some_and(|d| d.purge && !d.marker.is_empty()), "{:?}", m.server_draft);
+    let (ups, count) = crate::cmd::graph_drafts::draft_changes(&s, a, 10);
+    assert_eq!(count, 1);
+    assert!(ups[0].purge_only && ups[0].purge && !ups[0].is_sealed() && !ups[0].has_fields(), "{:?}", ups[0]);
     assert_eq!(s.compose.as_ref().unwrap().draft, Some(kept));
 }
 
@@ -763,7 +770,7 @@ fn an_encrypted_draft_of_a_server_that_keeps_drafts_goes_up_as_the_encrypted_mes
     let up = &ups[0];
     // The Encrypted message is all that goes up of it, over the clear copy's id (which goes after).
     assert!(up.is_sealed() && mailcraft_mime::is_encrypted(&up.sealed), "{:?}", String::from_utf8_lossy(&up.sealed));
-    assert_eq!(up.id, "AAMkAD-clear");
+    assert!(up.purge && up.id.is_empty(), "the earlier copy is found by its marker and taken away for good by the run");
     assert!(!up.has_fields() && up.attachments.is_none() && up.body.is_none());
     assert!(!String::from_utf8_lossy(&up.sealed).contains("4417"), "no clear text goes up");
     // It is never sent as fields.
@@ -805,4 +812,24 @@ fn an_encrypted_draft_with_no_key_of_the_owners_is_never_uploaded() {
     assert!(m.local_only && !m.sealed_draft);
     assert_eq!(s.compose.as_ref().unwrap().draft_sealed, Some(false));
     assert_eq!(crate::cmd::graph_drafts::pending(&s.mailbox, a), 0);
+}
+
+#[test]
+fn a_run_that_stopped_after_some_bcc_copies_is_remembered_and_the_message_stays_queued() {
+    let (mut s, a) = imap();
+    import(&mut s, SMIME_MAYA);
+    import(&mut s, SMIME_OWNER);
+    s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Rota", "body": "Hi.", "account": a})).unwrap();
+    s.run("compose.encrypt", &json!({"value": true})).unwrap();
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    let email = s.mailbox.account(a).unwrap().email.clone();
+    let result =
+        SyncResult { account: a, email, blind_sent: vec![(id, vec!["Erin@Example.net".into(), "erin@example.net".into()])], ..Default::default() };
+    s.run("sync.apply", &json!({"result": result})).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.blind_sent, ["erin@example.net"], "once, in lower case");
+    // Still waiting in the Outbox: it is not sent, and a retry is told who has theirs.
+    assert_eq!(m.folder, s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap());
+    // (A message of another account is not touched.)
+    assert!(!crate::cmd::graph_send::note_blind_sent(&mut s.mailbox, a + 1, id, &["x@example.net".into()]));
 }

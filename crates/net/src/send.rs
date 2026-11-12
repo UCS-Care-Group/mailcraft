@@ -57,7 +57,10 @@ impl Envelope {
                 recipients.push(email.to_string());
             }
         }
-        if recipients.is_empty() {
+        // (A message to Bcc recipients alone has no message but theirs: nobody is left for this one,
+        // and `deliver_all` sends none.)
+        let theirs_alone = !message.blind_copies.is_empty() || !message.blind_sent.is_empty();
+        if recipients.is_empty() && !theirs_alone {
             return Err(NetError::Config(said!("the message has no recipients")));
         }
         Ok(Envelope { from: from.to_string(), recipients })
@@ -154,15 +157,20 @@ pub(crate) fn deliver(smtp: &mut Smtp<Stream<'_>>, envelope: &Envelope, message:
 
 /// Hand a message to an open session, and the message each of its Bcc recipients is given of
 /// their own first when it is Encrypted (#30 part 7: one message for everybody would name their
-/// keys), each to them alone. A message that is cut off part way is sent again whole: a Bcc
-/// recipient it had reached may be sent theirs twice, which is better than not at all.
-pub(crate) fn deliver_all(smtp: &mut Smtp<Stream<'_>>, account: &Account, message: &Message) -> Result<(), NetError> {
+/// keys), each to them alone. The Bcc recipients whose message went are put in `went` as it goes,
+/// also when a later one fails: a message cut off part way is sent again to the rest alone, never
+/// to them twice. A message to Bcc recipients alone has none but theirs.
+pub(crate) fn deliver_all(smtp: &mut Smtp<Stream<'_>>, account: &Account, message: &Message, went: &mut Vec<String>) -> Result<(), NetError> {
     let envelope = Envelope::of(account, message)?;
     for (address, copy) in message.blind_messages(false) {
         if mailcraft_mime::body_not_encrypted(&copy) {
             return Err(NetError::Config(said!("it was to be Encrypted and wasn't, so it wasn't sent")));
         }
         deliver(smtp, &Envelope::to_one(account, &address)?, &copy)?;
+        went.push(address);
+    }
+    if envelope.recipients.is_empty() {
+        return Ok(());
     }
     deliver(smtp, &envelope, message)
 }
@@ -176,7 +184,7 @@ pub fn send(account: &Account, secret: &str, message: &Message) -> Result<(), Ne
     let envelope = Envelope::of(account, message)?;
     let mut smtp = open_smtp(account, secret).map_err(|e| e.without(secret))?;
     let _ = envelope;
-    let sent = deliver_all(&mut smtp, account, message).map_err(|e| e.without(secret));
+    let sent = deliver_all(&mut smtp, account, message, &mut Vec::new()).map_err(|e| e.without(secret));
     let _ = smtp.quit();
     sent
 }

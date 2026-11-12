@@ -616,27 +616,52 @@ fn local_mail_moved_and_copied_into_a_microsoft_account_is_made_on_its_server() 
     assert_eq!(rig.server.state().mailbox.messages.values().filter(|m| m.subject == "Moved in").count(), 1);
 }
 
-/// Graph's delete past the recoverable items is used nowhere (R3 spec S19). The name is spelled in
-/// pieces here so that this file isn't a place it is written.
+/// Graph's delete past the recoverable items is used in one place alone (R3 spec S19, narrowed by
+/// #30 part 7): `remove_for_good` in `crates/net/src/graph/mail/drafts.rs`, which takes away the
+/// earlier copy of a draft that is now kept Encrypted, after checking it is that draft. Nowhere else
+/// in the program names it; what serves it and tests it (the stand-in, its tests) may. The name is
+/// spelled in pieces here so that this file isn't a place it is written.
 #[test]
-fn graphs_delete_past_the_retention_period_is_nowhere_in_the_code() {
+fn graphs_delete_past_the_retention_period_is_used_in_one_place_only() {
     let name = ["perm", "anent", "delete"].concat();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // What may name it: the one call site, the stand-in that answers it, and the tests of both.
+    let allowed = [
+        "crates/net/src/graph/mail/drafts.rs",
+        "crates/net/src/graph/standin/changes.rs",
+        "crates/net/src/graph/standin/changes/tests.rs",
+        "crates/net/src/graph/standin/messages.rs",
+        "crates/net/src/graph/mail/sealed_draft_tests.rs",
+    ];
     let mut stack = vec![root.join("crates"), root.join("apps")];
-    let mut looked = 0;
+    let (mut looked, mut at_call_site) = (0, 0);
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).unwrap().flatten() {
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);
             } else if path.extension().is_some_and(|e| e == "rs") {
-                let text = std::fs::read_to_string(&path).unwrap_or_default().to_lowercase();
-                assert!(!text.contains(&name), "{} names it", path.display());
+                let mut text = std::fs::read_to_string(&path).unwrap_or_default().to_lowercase();
                 looked += 1;
+                let shown = path.to_string_lossy().replace('\\', "/");
+                let is_allowed = allowed.iter().any(|a| shown.ends_with(a));
+                if !is_allowed {
+                    assert!(!text.contains(&name), "{} names it", path.display());
+                    continue;
+                }
+                // In the one file that calls it, only inside `remove_for_good` itself.
+                if shown.ends_with("crates/net/src/graph/mail/drafts.rs") {
+                    let start = text.find("fn remove_for_good").expect("the one call site is there");
+                    let end = text[start..].find("\n}\n").map(|e| start + e).expect("its end");
+                    at_call_site = text[start..end].matches(&name).count();
+                    text.replace_range(start..end, "");
+                    assert!(!text.contains(&name), "{} names it outside remove_for_good", path.display());
+                }
             }
         }
     }
     assert!(looked > 100, "{looked} files looked at");
+    assert!(at_call_site >= 1, "the call site was not found");
 }
 
 /// Microsoft 365 answers a flag with a start and no due date 400 (and takes the same with the
