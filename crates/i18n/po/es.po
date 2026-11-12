@@ -3921,6 +3921,11 @@ msgstr "Editar evento"
 msgid "Edit Message"
 msgstr "Editar mensaje"
 
+#. command label, interface
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
+msgid "Edit Rule"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -3941,6 +3946,11 @@ msgstr "Editar tarea"
 #. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Edit signature as text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Edit this rule"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -7560,6 +7570,11 @@ msgstr "Nuevo buzón"
 msgid "New Meeting"
 msgstr "Nueva reunión"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "New Rule"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -7600,12 +7615,6 @@ msgstr "Mensaje nuevo"
 #, fuzzy
 msgid "New messages"
 msgstr "Mensajes nuevos"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "New rule"
-msgstr "Nueva regla"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -18020,6 +18029,11 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule has parts the server knows but MailCraft doesn't: it can be switched on or off, moved or deleted only"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
@@ -19597,6 +19611,10 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "New rule"
+#~ msgstr "Nueva regla"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

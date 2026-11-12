@@ -4804,6 +4804,7 @@ pub(crate) mod rules {
                 f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
             }
             // Edit an existing rule if requested
+            #[allow(clippy::collapsible_if)]
             if let Some(edit_id) = params.get("edit").and_then(Value::as_u64) {
                 if let Some(rule) = s.mailbox.rules.iter().find(|r| r.id == edit_id) {
                     if rule.known() {
@@ -4876,7 +4877,7 @@ pub(crate) mod rules {
             self.conds = vec![Cond::default()];
             self.acts = vec![self.fresh_action()];
             self.editing = 0;
-            self.open = false;  // Collapse builder after reset
+            self.open = false; // Collapse builder after reset
         }
 
         fn fresh_action(&self) -> Act {
@@ -5242,7 +5243,12 @@ pub(crate) mod rules {
                 });
             }
             row(ui, "", |ui| {
-                add = ui.add_enabled(ready, egui::Button::new(if self.is_editing() { tl!("Edit Rule") } else { tl!("Add Rule") }).min_size(vec2(84.0, 24.0))).clicked();
+                add = ui
+                    .add_enabled(
+                        ready,
+                        egui::Button::new(if self.is_editing() { tl!("Edit Rule") } else { tl!("Add Rule") }).min_size(vec2(84.0, 24.0)),
+                    )
+                    .clicked();
                 if !ready {
                     ui.label(egui::RichText::new(tl!("A rule needs a name, and something to look for.")).color(t.text_dim).size(11.5));
                 }

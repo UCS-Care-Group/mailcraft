@@ -3429,6 +3429,11 @@ msgstr ""
 msgid "Edit Message"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
+msgid "Edit Rule"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Edit Signature"
@@ -3447,6 +3452,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Edit signature as text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Edit this rule"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -6633,6 +6643,11 @@ msgstr ""
 msgid "New Meeting"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "New Rule"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
 msgid "New Task"
@@ -6666,11 +6681,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "New messages"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-msgid "New rule"
 msgstr ""
 
 #. interface
@@ -15886,6 +15896,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule has parts the server knows but MailCraft doesn't: it can be switched on or off, moved or deleted only"
 msgstr ""
 
 #. what a command says
