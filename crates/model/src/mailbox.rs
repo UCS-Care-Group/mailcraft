@@ -3253,8 +3253,8 @@ impl Mailbox {
         {
             m.rule_alert |= alert;
             if !waiting.is_empty() && m.unfetched {
-                let marks = Some(crate::RulesWaiting::marks_of(m));
-                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, copied, marks }));
+                let marked = Some(crate::Marks::of(m));
+                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, copied, marked }));
             }
         }
         ran
@@ -3288,7 +3288,7 @@ impl Mailbox {
         // (After a copy made as it arrived, as before the rules that couldn't tell have had their
         // say, nothing goes for good; nor once its categories, flag or importance were changed
         // meanwhile, which the rules that acted then may have read.)
-        let changed = waiting.marks.is_some_and(|k| k != crate::RulesWaiting::marks_of(m));
+        let changed = waiting.marked.as_ref().is_some_and(|then| *then != crate::Marks::of(m));
         if m.folder != waiting.folder || !self.rules_reach(account) {
             return ran;
         }

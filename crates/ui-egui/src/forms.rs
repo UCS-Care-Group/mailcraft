@@ -5288,7 +5288,8 @@ pub(crate) mod rules {
                 if mb.folder(in_view).is_some_and(|f| f.account == account) { Some(in_view) } else { mb.folder_of_kind(account, FolderKind::Inbox) };
             let folder_over = over.map(|f| crate::nav::folder_path(mb, f)).unwrap_or_default();
             // (Not over a shared mailbox's folder: the rules leave its mail alone.)
-            let reach = over.and_then(|f| mb.folder(f)).is_some_and(|f| mb.rules_reach(f.account));
+            let shared = over.and_then(|f| mb.folder(f)).is_some_and(|f| !mb.rules_reach(f.account));
+            let reach = over.is_some() && !shared;
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
@@ -5351,10 +5352,10 @@ pub(crate) mod rules {
                     let any = !(there.is_empty() && here.is_empty()) && reach;
                     let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
                     // Greyed over a shared mailbox's folder: says why.
-                    let button = if reach {
-                        button
-                    } else {
+                    let button = if shared {
                         button.on_disabled_hover_text(tl!("The rules leave a shared mailbox's mail alone: its rules are its own."))
+                    } else {
+                        button
                     };
                     if button.clicked()
                         && let Some(folder) = over

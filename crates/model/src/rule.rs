@@ -565,34 +565,32 @@ pub struct RulesWaiting {
     /// hold a delete for good behind it, so none of the rules that wait deletes it for good.
     #[serde(skip_serializing_if = "is_false")]
     pub copied: bool,
-    /// Its categories, flag and importance once the rules had acted on it as it arrived, as a
-    /// checksum ([`RulesWaiting::marks_of`]). Changed by the time it is here whole (by an agent,
-    /// say, or on another device), what the rules decided then may no longer hold, so none of the
-    /// rules that wait deletes it for good (#566).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub marks: Option<u32>,
+    /// Its categories, flag and importance once the rules had acted on it as it arrived
+    /// ([`Marks`]). Changed by the time it is here whole (by an agent, say, or on another device),
+    /// what the rules decided then may no longer hold, so none of the rules that wait deletes it for
+    /// good (#566).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub marked: Option<Marks>,
 }
 
-impl RulesWaiting {
-    /// What [`RulesWaiting::marks`] holds for `m`.
-    pub fn marks_of(m: &Message) -> u32 {
-        // FNV-1a: the same in every build, so a mailbox file opened again compares alike.
-        let mut h: u32 = 0x811c_9dc5;
-        let mut eat = |bytes: &[u8]| {
-            for b in bytes {
-                h ^= u32::from(*b);
-                h = h.wrapping_mul(0x0100_0193);
-            }
-        };
-        // (In any order and case: a server may give back the categories it was sent so.)
+/// What a message carries that a rule reads and an agent may change without asking: its
+/// categories (in any order and case: a server may give back the categories it was sent so), its
+/// flag and its importance (#566). Kept as they are, never as a checksum, which an agent could
+/// match by the categories it chooses.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Marks {
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub categories: Vec<String>,
+    pub flag: FlagStatus,
+    pub importance: Importance,
+}
+
+impl Marks {
+    pub fn of(m: &Message) -> Marks {
         let mut categories: Vec<String> = m.categories.iter().map(|c| c.to_lowercase()).collect();
         categories.sort_unstable();
-        for c in &categories {
-            eat(c.as_bytes());
-            eat(&[0]);
-        }
-        eat(format!("{:?} {:?}", m.flag, m.importance).as_bytes());
-        h
+        Marks { categories, flag: m.flag, importance: m.importance }
     }
 }
 

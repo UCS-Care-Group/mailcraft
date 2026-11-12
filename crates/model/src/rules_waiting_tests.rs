@@ -66,8 +66,8 @@ fn a_rule_that_couldnt_tell_acts_once_the_message_is_whole_and_one_that_acted_is
     assert_eq!(mb.messages_in(kept).count(), 1);
     let waiting = mb.message(m).unwrap().rules_waiting.clone().unwrap();
     // (With the copy it made as it arrived noted: nothing that waits deletes it for good.)
-    let marks = Some(RulesWaiting::marks_of(mb.message(m).unwrap()));
-    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], copied: true, marks });
+    let marked = Some(crate::Marks::of(mb.message(m).unwrap()));
+    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], copied: true, marked });
     // A copy of it doesn't wait for anything.
     let other = mb.add_folder(mb.accounts[0].id, None, "Other").unwrap();
     let copied = mb.copy_message(m, other).unwrap();
@@ -77,6 +77,11 @@ fn a_rule_that_couldnt_tell_acts_once_the_message_is_whole_and_one_that_acted_is
     assert!(json.contains(r#""rulesWaiting":{"folder":"#), "{json}");
     assert_eq!(serde_json::from_str::<Message>(&json).unwrap().rules_waiting, Some(waiting));
     assert!(serde_json::from_str::<Message>(r#"{"id": 3, "rulesWaiting": "soon"}"#).unwrap().rules_waiting.is_none());
+    // Its marks as they were, never a checksum; nonsense there is none, and the waiting rules stay.
+    assert!(json.contains(r#""marked":{"#), "{json}");
+    let odd = r#"{"id": 3, "rulesWaiting": {"folder": 2, "rules": [{"rule": 1}], "marks": 12345, "marked": "red"}}"#;
+    let read = serde_json::from_str::<Message>(odd).unwrap().rules_waiting.unwrap();
+    assert_eq!((read.folder, read.rules.len(), read.marked), (2, 1, None));
     // Not while it is only listed.
     assert!(mb.run_waiting_rules(m, &clock()).is_empty());
     assert!(mb.message(m).unwrap().rules_waiting.is_some());

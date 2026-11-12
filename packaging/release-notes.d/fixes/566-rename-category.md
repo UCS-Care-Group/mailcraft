@@ -1,1 +1,1 @@
-- Renaming a category renames it in the rules on this computer too: a rule kept putting on the old name ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
+- Renaming a category renames it in the rules too, except in a rule a Microsoft account's server already has: a rule kept putting on the old name ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

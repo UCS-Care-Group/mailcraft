@@ -2391,7 +2391,8 @@ fn an_undo_that_unblocks_a_sender_beside_a_rule_that_deletes_for_good_is_asked_a
 /// An agent asks Run Rules Now over a folder where the rule that deletes for good matches
 /// nothing, then gives the messages there the category it looks for, which it may do unasked. The
 /// owner's yes runs nothing: what the rules would do was asked about the messages as they were.
-/// Left as they were (a change to another folder's mail aside), the yes runs.
+/// With their categories, flag and importance as they were (another folder's mail flagged, a read
+/// mark, what a server last said), the yes runs.
 #[test]
 fn run_rules_nows_yes_isnt_steered_by_a_safe_edit_meanwhile() {
     use crate::agent::bind::Shown;
@@ -2416,7 +2417,10 @@ fn run_rules_nows_yes_isnt_steered_by_a_safe_edit_meanwhile() {
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let elsewhere = s.mailbox.add_message(Message { folder: inbox, subject: "Elsewhere".into(), ..Default::default() }).unwrap();
     run(&mut s, "mail.flag", json!({"id": elsewhere}));
-    assert!(shown.check(&s, "rules.run", &params).is_ok(), "nothing in the folder changed");
+    // What only a server changes (what it last said of a message) isn't what the rules read.
+    s.mailbox.message_mut(one).unwrap().synced = Some(Default::default());
+    s.mailbox.message_mut(two).unwrap().read = true;
+    assert!(shown.check(&s, "rules.run", &params).is_ok(), "nothing the rules read changed in the folder");
     // While the question is up, the agent tags both messages: no question for that.
     let tag = json!({"category": "Bin", "value": true, "ids": [one, two]});
     assert_eq!(check(&s, "mail.categorize", &tag, &[]), Verdict::Run, "categorize is safe");
