@@ -3074,12 +3074,14 @@ impl Mailbox {
     /// again; one that copies or moves it into another account and waited acts now, unless a rule
     /// before it applies after all and stops the rules after it. Returns the names of the rules
     /// that acted. One that shows a desktop alert marks the message for it
-    /// ([`Message::rule_alert`]), as it would have as the message arrived.
+    /// ([`Message::rule_alert`]), as it would have as the message arrived. Mail in Deleted Items
+    /// (its folder deleted meanwhile, which keeps the folder's id) is let alone too.
     pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
         let mut ran = Vec::new();
         if !self.message(id).is_some_and(|m| m.rules_waiting.is_some() && !m.partly_here()) {
             return ran;
         }
+        let deleted = self.in_deleted_items(id);
         let Ok(m) = self.message_mut(id) else { return ran };
         let Some(waiting) = m.rules_waiting.take() else { return ran };
         let account = m.account;
@@ -3087,7 +3089,7 @@ impl Mailbox {
         // acted then may have read, nothing goes onto another account's server, by a copy or a
         // move.)
         let changed = waiting.marked.as_ref().is_some_and(|then| *then != crate::Marks::of(m));
-        if m.folder != waiting.folder || !self.rules_reach(account) {
+        if m.folder != waiting.folder || deleted || !self.rules_reach(account) {
             return ran;
         }
         // A rule that still can't tell, now the message is here (a header past what is kept):

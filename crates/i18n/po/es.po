@@ -19920,62 +19920,10 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
 
 #, fuzzy
-#~ msgid "'{subject}' was permanently deleted: that can't be undone here."
-#~ msgstr "'{subject}' se eliminó definitivamente: eso no se puede deshacer aquí."
-
-#, fuzzy
-#~ msgid "Delete permanently"
-#~ msgstr "Eliminar definitivamente"
-
-#, fuzzy
-#~ msgid "It skips Deleted Items"
-#~ msgstr "Sin pasar por Elementos eliminados"
-
-#, fuzzy
-#~ msgid "The copy made of '{subject}' stays: it is all there is of the message now."
-#~ msgstr "La copia de '{subject}' se queda: ahora es todo lo que queda del mensaje."
-
-#, fuzzy
-#~ msgid "The copy made of {n} message stays: it is all there is of it now."
-#~ msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
-#~ msgstr[0] "La copia de {n} mensaje se queda: ahora es todo lo que queda de él."
-#~ msgstr[1] "Las copias de {n} mensajes se quedan: ahora son todo lo que queda de esos mensajes."
-
-#, fuzzy
-#~ msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-#~ msgstr "elimina el correo definitivamente, y MailCraft no le pide eso a ningún servidor"
-
-#, fuzzy
-#~ msgid "{n} message was permanently deleted: that can't be undone here."
-#~ msgid_plural "{n} messages were permanently deleted: that can't be undone here."
-#~ msgstr[0] "Se eliminó definitivamente {n} mensaje: eso no se puede deshacer aquí."
-#~ msgstr[1] "Se eliminaron definitivamente {n} mensajes: eso no se puede deshacer aquí."
-
-#, fuzzy
-#~ msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
-#~ msgstr "«{subject}» es una copia que el servidor de su buzón todavía tiene que hacer, y aún no se ha descargado: muévala cuando esté hecha"
-
-#, fuzzy
-#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
-#~ msgstr "«{subject}» todavía va de camino al servidor de su buzón, y el mensaje del que se copió se queda en su propio servidor hasta que llegue: muévalo cuando haya llegado"
-
-#, fuzzy
-#~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-#~ msgstr "Una notificación para el correo sobre el que actúa esta regla al llegar, como para el correo nuevo, aunque las notificaciones de correo nuevo estén desactivadas"
-
-#, fuzzy
 #~ msgid "{n} message matched"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} mensaje coincidió"
 #~ msgstr[1] "{n} mensajes coincidieron"
-
-#, fuzzy
-#~ msgid "It can't be undone"
-#~ msgstr "No se puede deshacer"
-
-#, fuzzy
-#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
-#~ msgstr "«{subject}» todavía va de camino al servidor de su buzón, y el mensaje del que se copió se queda en su propio servidor hasta que llegue: muévalo después del siguiente Enviar y recibir"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

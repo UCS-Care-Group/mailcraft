@@ -2308,14 +2308,20 @@ impl MailApp {
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.refusal_said(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }
         self.status(said);
+    }
+
+    /// What a dialog or the status bar says of `e`, the refusal of the command just run: in the
+    /// window's language, as the engine gave its words.
+    pub(crate) fn refusal_said(&mut self, e: &str) -> String {
+        match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        }
     }
 
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.

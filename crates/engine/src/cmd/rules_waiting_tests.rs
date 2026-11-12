@@ -823,3 +823,45 @@ fn a_known_server_rule_that_stops_holds_the_copy() {
     let _ = graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() });
     assert_eq!(copies(&s, to, b), (0, 0));
 }
+
+/// The first rule files Zoe's new mail into "Kept"; the next copies it into an IMAP account (or,
+/// behind a rule that stops and can't tell yet, moves it there) and waits for the download. The
+/// owner deletes "Kept" meanwhile, and the message goes into Deleted Items with it, the folder
+/// keeping its id: once downloaded, it goes onto no other server.
+#[test]
+fn mail_in_a_folder_deleted_before_the_download_isnt_put_onto_another_server_by_a_rule_that_waited() {
+    let mut outcome = Vec::new();
+    for action in ["copyTo", "moveTo"] {
+        let mut s = Session::empty();
+        let (account, _, kept) = microsoft_with(&mut s, "Kept");
+        let (to, b) = imap_inbox(&mut s);
+        let file = json!({"name": "Zoe to Kept", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "moveTo", "value": kept}]});
+        s.run("rules.add", &file).unwrap();
+        if action == "moveTo" {
+            let private = json!({"name": "Private stays", "account": account, "server": false, "stop": true,
+                "conditions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "flag"}]});
+            s.run("rules.add", &private).unwrap();
+        }
+        let out = json!({"name": "Zoe to Blake", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": action, "value": to}]});
+        s.run("rules.add", &out).unwrap();
+        arrives(&mut s, account, "Plan");
+        let m = here(&s, account, "N1").id;
+        let waiting = s.mailbox.message(m).map(|m| (m.folder == kept, m.rules_waiting.is_some()));
+        assert_eq!(waiting, Some((true, true)), "{action}: filed into Kept, a rule waiting");
+        // The owner deletes the folder, and the message with it, before it is downloaded.
+        assert_eq!(s.run("folder.delete", &json!({"id": kept})).unwrap()["permanently"], false);
+        let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+        assert_eq!(s.mailbox.folder(kept).and_then(|f| f.parent), Some(deleted));
+        let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let in_b = s.mailbox.messages.values().filter(|m| m.subject == "Plan" && m.account == b).count();
+        outcome.push(format!("{action}: in the other account {in_b}, (made, placed) {:?}", copies(&s, to, b)));
+    }
+    assert_eq!(
+        outcome,
+        ["copyTo: in the other account 0, (made, placed) (0, 0)", "moveTo: in the other account 0, (made, placed) (0, 0)"],
+        "mail the owner deleted with its folder went onto another account's server"
+    );
+}

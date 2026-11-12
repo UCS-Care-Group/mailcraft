@@ -19904,62 +19904,10 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
 
 #, fuzzy
-#~ msgid "'{subject}' was permanently deleted: that can't be undone here."
-#~ msgstr "'{subject}' wurde endgültig gelöscht: das lässt sich hier nicht rückgängig machen."
-
-#, fuzzy
-#~ msgid "Delete permanently"
-#~ msgstr "Endgültig löschen"
-
-#, fuzzy
-#~ msgid "It skips Deleted Items"
-#~ msgstr "Ohne den Umweg über „Gelöschte Elemente“"
-
-#, fuzzy
-#~ msgid "The copy made of '{subject}' stays: it is all there is of the message now."
-#~ msgstr "Die Kopie von '{subject}' bleibt: sie ist jetzt alles, was von der E-Mail da ist."
-
-#, fuzzy
-#~ msgid "The copy made of {n} message stays: it is all there is of it now."
-#~ msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
-#~ msgstr[0] "Die Kopie von {n} E-Mail bleibt: sie ist jetzt alles, was davon da ist."
-#~ msgstr[1] "Die Kopien von {n} E-Mails bleiben: sie sind jetzt alles, was von diesen E-Mails da ist."
-
-#, fuzzy
-#~ msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-#~ msgstr "sie löscht E-Mails endgültig, und darum bittet MailCraft keinen Server"
-
-#, fuzzy
-#~ msgid "{n} message was permanently deleted: that can't be undone here."
-#~ msgid_plural "{n} messages were permanently deleted: that can't be undone here."
-#~ msgstr[0] "{n} E-Mail wurde endgültig gelöscht: das lässt sich hier nicht rückgängig machen."
-#~ msgstr[1] "{n} E-Mails wurden endgültig gelöscht: das lässt sich hier nicht rückgängig machen."
-
-#, fuzzy
-#~ msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
-#~ msgstr "„{subject}“ ist eine Kopie, die der Server seines Postfachs noch erstellen muss, und ist noch nicht heruntergeladen: Verschieben Sie sie, sobald sie erstellt ist"
-
-#, fuzzy
-#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
-#~ msgstr "„{subject}“ ist noch auf dem Weg zum Server seines Postfachs, und die Nachricht, von der es kopiert wurde, bleibt auf ihrem eigenen Server, bis es dort ist: Verschieben Sie es, sobald es dort ist"
-
-#, fuzzy
-#~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-#~ msgstr "Eine Benachrichtigung für die E-Mails, auf die diese Regel beim Eintreffen wirkt, wie bei neuen E-Mails, auch wenn Benachrichtigungen für neue E-Mails ausgeschaltet sind"
-
-#, fuzzy
 #~ msgid "{n} message matched"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} Nachricht gefunden"
 #~ msgstr[1] "{n} Nachrichten gefunden"
-
-#, fuzzy
-#~ msgid "It can't be undone"
-#~ msgstr "Das lässt sich nicht rückgängig machen"
-
-#, fuzzy
-#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
-#~ msgstr "„{subject}“ ist noch auf dem Weg zum Server seines Postfachs, und die Nachricht, von der es kopiert wurde, bleibt auf ihrem eigenen Server, bis es dort ist: Verschieben Sie es nach dem nächsten Senden/Empfangen"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

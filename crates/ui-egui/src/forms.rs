@@ -5411,13 +5411,13 @@ pub(crate) mod rules {
                             if let Some(((folder, _), rule)) = self.run_in.take().filter(|_| self.then_run).zip(made) {
                                 match app.execute("rules.run", json!({"folder": folder, "id": rule})) {
                                     Ok(v) => self.ran = v.get("matched").and_then(Value::as_u64),
-                                    Err(e) => self.error = e,
+                                    Err(e) => self.error = app.refusal_said(&e),
                                 }
                             }
                             self.reset();
                         }
                     }
-                    Err(e) => self.error = e,
+                    Err(e) => self.error = app.refusal_said(&e),
                 }
             }
             error(ui, &self.error);

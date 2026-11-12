@@ -7483,7 +7483,7 @@ msgstr "Mes tâches"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "My address is in Cc"
-msgstr "Mon adresse est en Cc"
+msgstr "Mon adresse est dans Cc"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -19920,62 +19920,10 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #, fuzzy
-#~ msgid "'{subject}' was permanently deleted: that can't be undone here."
-#~ msgstr "'{subject}' a été supprimé définitivement : cela ne peut pas être annulé ici."
-
-#, fuzzy
-#~ msgid "Delete permanently"
-#~ msgstr "Supprimer définitivement"
-
-#, fuzzy
-#~ msgid "It skips Deleted Items"
-#~ msgstr "Sans passer par Éléments supprimés"
-
-#, fuzzy
-#~ msgid "The copy made of '{subject}' stays: it is all there is of the message now."
-#~ msgstr "La copie de '{subject}' reste : c’est désormais tout ce qui reste du message."
-
-#, fuzzy
-#~ msgid "The copy made of {n} message stays: it is all there is of it now."
-#~ msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
-#~ msgstr[0] "La copie de {n} message reste : c’est désormais tout ce qui en reste."
-#~ msgstr[1] "Les copies de {n} messages restent : c’est désormais tout ce qui reste de ces messages."
-
-#, fuzzy
-#~ msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-#~ msgstr "elle supprime le courrier définitivement, ce que MailCraft ne demande à aucun serveur"
-
-#, fuzzy
-#~ msgid "{n} message was permanently deleted: that can't be undone here."
-#~ msgid_plural "{n} messages were permanently deleted: that can't be undone here."
-#~ msgstr[0] "{n} message a été supprimé définitivement : cela ne peut pas être annulé ici."
-#~ msgstr[1] "{n} messages ont été supprimés définitivement : cela ne peut pas être annulé ici."
-
-#, fuzzy
-#~ msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
-#~ msgstr "« {subject} » est une copie que le serveur de sa boîte aux lettres doit encore faire, et n'est pas encore téléchargée : déplacez-la une fois qu'elle est faite"
-
-#, fuzzy
-#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
-#~ msgstr "« {subject} » est encore en route vers le serveur de sa boîte aux lettres, et le message dont il a été copié reste sur son propre serveur jusqu'à ce qu'il y soit : déplacez-le une fois qu'il y est"
-
-#, fuzzy
-#~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"
-#~ msgstr "Une notification pour le courrier sur lequel cette règle agit à son arrivée, comme pour le nouveau courrier, même si les notifications de nouveau courrier sont désactivées"
-
-#, fuzzy
 #~ msgid "{n} message matched"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} message correspondant"
 #~ msgstr[1] "{n} messages correspondants"
-
-#, fuzzy
-#~ msgid "It can't be undone"
-#~ msgstr "Impossible à annuler"
-
-#, fuzzy
-#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it after the next Send/Receive"
-#~ msgstr "« {subject} » est encore en route vers le serveur de sa boîte aux lettres, et le message dont il a été copié reste sur son propre serveur jusqu'à ce qu'il y soit : déplacez-le après le prochain Envoyer/Recevoir"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

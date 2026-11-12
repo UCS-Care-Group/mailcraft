@@ -992,7 +992,7 @@ fn renamed_rules<'a>(s: &'a Session, params: &Value) -> Vec<&'a mailcraft_model:
 }
 
 /// What a question about a `category.rename` adds for the rules beside those it rewrites
-/// ([`renamed_rules`]) that delete mail for good or put it onto another server, as
+/// ([`renamed_rules`]) that put mail onto another server, as
 /// [`beside_said`] does for a change to the rules.
 fn rename_beside_said(s: &Session, params: &Value) -> String {
     let mut said = String::new();
@@ -1011,7 +1011,7 @@ fn reads_me(r: &mailcraft_model::Rule) -> bool {
 }
 
 /// What a question about a change of an account's address adds for the rules beside it that read
-/// that address ([`me_changes`]) and delete mail for good or put it onto another server: their
+/// that address ([`me_changes`]) and put mail onto another server: their
 /// names (at most five), and why.
 fn me_beside_said(s: &Session, account: Id) -> String {
     reads_beside_said(s, account, reads_me, "this account's address (\"sent to me\", say)")
