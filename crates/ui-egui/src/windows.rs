@@ -152,6 +152,9 @@ pub(crate) struct Open {
     waited: bool,
     /// Open, it was put at its place by its own scale.
     positioned: bool,
+    /// The backend was asked for its window at least once (it can be asked for it only while the
+    /// main window is on screen, #1224).
+    asked: bool,
     /// Its size and place, in the system's pixels, as the system last said.
     seen: Option<window_places::Place>,
 }
@@ -245,6 +248,7 @@ impl Windows {
             start: None,
             waited: false,
             positioned: false,
+            asked: false,
             seen: None,
         });
         self.last
@@ -1126,11 +1130,25 @@ fn placed(window: &Open) -> Option<egui::Rect> {
     window.seen.and_then(|p| p.rect()).or(window.start.and_then(|s| s.rect()))
 }
 
+/// The main window is minimized, or hidden (a pass of it may then run with no event loop to make
+/// a window in).
+fn main_is_hidden(ctx: &egui::Context) -> bool {
+    ctx.input(|i| i.viewport().visible()) == Some(false)
+}
+
 /// A window of the system. `last`: where the last other window of its kind that is open is, for
 /// it to cascade from when it opens. `true` when it is to close.
 fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: Option<egui::Rect>) -> bool {
     let viewport = viewport_of(window.id);
     let kind = window.what.kind();
+    // A window of the system that doesn't exist yet is made by the backend from inside this
+    // frame, which it can't do for a main window that is minimized or hidden: it paints such a
+    // main window outside its event loop, finds no window to make, never runs the callback, and
+    // egui panics (#1224). The window waits, still open, until the main window is on screen.
+    if !window.asked && main_is_hidden(ctx) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        return false;
+    }
     if window.start.is_none() {
         // The host lists the monitors in the frame after a window was asked for: it waits for
         // them one frame, no more (a host that lists none has the system place it).
@@ -1162,6 +1180,7 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         ctx.send_viewport_cmd_to(viewport, egui::ViewportCommand::Focus);
     }
     let mut close = false;
+    window.asked = true;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
         // What was chosen in a text's menu here, before anything reads the input.
@@ -2863,6 +2882,10 @@ mod tests {
         assert!(after.exceptions.contains(&mailcraft_time::Date::new(2026, 10, 20).unwrap()) && harness.state().windows.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "window_minimized_tests.rs"]
+mod window_minimized_tests;
 
 #[cfg(test)]
 #[path = "window_identity_tests.rs"]
