@@ -60,7 +60,7 @@ pub enum Outcome {
         path: Option<String>,
         inline: bool,
     },
-    /// The owner is asked first ([`crate::agent_gate`]); the answer goes back from there.
+    /// The answer goes back from an owner question or a background worker.
     Pending,
 }
 
@@ -282,6 +282,18 @@ impl Drop for Driven<'_> {
 #[cfg(test)]
 mod tests;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn filing_suggestions(app: &mut MailApp, req: &ControlRequest, params: &Value) -> Outcome {
+    if app.opening.is_some() {
+        return err(crate::opening::STILL_OPENING);
+    }
+    match crate::filing_suggestions::start_control(app, req.reply.clone(), params) {
+        Ok(true) => Outcome::Pending,
+        Ok(false) => ok(json!({"suggestions": []})),
+        Err(error) => err(error),
+    }
+}
+
 fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
     if let Some(allow) = &req.agent
         && let Some(settled) = crate::agent_gate::screen(app, req, allow)
@@ -295,6 +307,10 @@ fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Out
         "engine.execute" | "command" => {
             let Some(id) = s("command").or(s("id")) else { return err("missing `command`") };
             let params = p.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));
+            #[cfg(not(target_arch = "wasm32"))]
+            if id == "mail.suggestFolders" {
+                return filing_suggestions(app, req, &params);
+            }
             match app.execute(id, params) {
                 Ok(v) => ok(v),
                 Err(e) => err(e),

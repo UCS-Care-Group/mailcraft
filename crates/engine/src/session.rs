@@ -824,6 +824,8 @@ pub struct Prefs {
     pub default_reminder: Option<u32>,
     /// Put the original message under a reply.
     pub quote_on_reply: bool,
+    /// Offer local filing suggestions in the Move menu.
+    pub suggest_folders: bool,
     /// Typing `* `, `- `, `1. ` or `1) ` at the start of a paragraph of an HTML message starts a
     /// list (#973; `compose.type` with `autoList`, which only the keyboard sends).
     pub auto_lists: bool,
@@ -908,6 +910,7 @@ impl Default for Prefs {
             mark_read_on_open: true,
             default_reminder: Some(15),
             quote_on_reply: true,
+            suggest_folders: true,
             auto_lists: true,
             preview_lines: 1,
             show_groups: true,

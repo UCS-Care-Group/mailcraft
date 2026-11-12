@@ -89,6 +89,7 @@ pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
 pub mod files;
+mod filing_suggestions;
 mod find_replace;
 mod folder_properties;
 mod font_index;
@@ -1835,6 +1836,7 @@ pub struct MailApp {
     pub(crate) remote_pictures: reading::RemotePictures,
     /// The pictures of the senders in the message list, as far as they have come.
     pub(crate) sender_images: sender_images::SenderImages,
+    filing_suggestions: filing_suggestions::Pending,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -2020,6 +2022,7 @@ impl MailApp {
             windows: Default::default(),
             remote_pictures: Default::default(),
             sender_images: Default::default(),
+            filing_suggestions: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
