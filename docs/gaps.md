@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-07 · **Change:** patch
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-11 · **Change:** minor
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -73,7 +73,21 @@ this code base.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #815 part 5: gap 12: a `.pst` file's notes and journal entries import, HTML kept in rich text comes in as HTML, and the import is no longer a preview |
+| 2026-11-11 | minor | #815 part 4: gap 12: a `.pst` file's calendar items and tasks import; notes and journal left for a later part |
+| 2026-11-11 | patch | #956 part 3: rough edges: Send report is in the desktop app only, carries no screenshot or file, and answers come only on GitHub |
+| 2026-11-11 | patch | #30 part 4a: gap 16: OpenPGP Digital signatures are checked in the reading pane; the Public keys kept are listed, imported and removed by command; no window for them or for the owner's own keys yet |
+| 2026-11-11 | patch | #30 part 4b: gap 16: File › Options › Security lists and imports the owner's own keys and lists the Public keys kept, Verified marked in a dialog only; a contact's card shows its keys |
+| 2026-11-10 | minor | #815: gap 12: a `.pst` body that is rich text alone comes in as its text |
+| 2026-11-10 | patch | #966: rough edges: Mail to keep offline applies to Exchange server accounts too |
+| 2026-11-09 | minor | #30 part 2: gap 16: an S/MIME Digital signature is checked, one of four results in a bar with Details and a seal on the row, read by agents too; certificates kept for the sender; the browser build trusts no authority; revocation not checked; OpenPGP not checked yet |
+| 2026-11-09 | patch | #30 part 3: gap 16: OpenPGP Digital signatures can be checked by a library (`mailcraft-openpgp`), not yet shown in the window; the row is unchanged until it is |
+| 2026-11-09 | patch | #30 key holders: gap 16: the keys for signing and decrypting are reached where the system keeps them, not wired yet; a PKCS#11 key that asks for its PIN at every use (a PIV card's signing key) is refused for now |
+| 2026-11-09 | patch | #620: rough edges: what an agent and the owner still share in one window (the message being written, Undo) |
+| 2026-11-08 | patch | #30 part 1: gap 16: signed and encrypted messages keep the bytes they came as (well-formed only; 64 MB a message, 1 GB a mailbox), and a move onto another IMAP server, Save Message As and Forward as Attachment write their body as it came under a header written from the message; rough edges: the move note says so, that a moved copy carries no DKIM signature or ARC seal, and that a copy into a Microsoft mailbox is still made from its parts; the bytes stay named until a download brings them, are asked for again once, and a move waits for them from the copy it came from, which stays until it has brought them (a refusal is asked again, ever less often, over at least a day; a refusal past that, bytes too big to take or no room here hold the move, the status bar says why, and Check again asks once more; the copy it came from goes only once the bytes were written into the copy where it is now, are read whole from the disk here then (in memory only once saved), or that copy brought none, also when it is moved on, and an undo of a move on that can't put it back says why); a message with a part sent as `binary` goes onto an IMAP server made from its parts |
+| 2026-11-07 | patch | Gap 14: why an IMAP or SMTP server couldn't be used is said in the interface language wherever the window shows it, a server's own reason as the server wrote it, #872 |
 | 2026-11-07 | patch | AU3-V1: gap 5: Autodiscover asks before the sign-in goes to any host in the owner's domain but its Autodiscover host and the hosts its SRV record names, naming the host whole |
+| 2026-11-05 | minor | Gap 6: a reply or forward carries the pictures written into the original (`data:`) as parts of their own (#602) |
 | 2026-11-05 | minor | #815 part 3: gap 12: a `.pst` file's contacts and distribution lists import too; calendar, tasks and notes left for a later part |
 | 2026-11-05 | minor | #815 part 2: gap 12: a `.pst` file's mail imports (preview), with its report; calendar, contacts, tasks and notes left for a later part |
 | 2026-11-05 | minor | #745: gap 8: selecting copies nothing, a change to the mailbox costs what it changed (chunked messages) and the conversations are kept through it: a click 1.3–3.9 ms, a Shift+click 0.1 ms, Undo of 1,000 deletes 30 + 14 ms at 326,000 messages |
