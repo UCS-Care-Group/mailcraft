@@ -92,7 +92,9 @@ computer, for you, and for nothing else:
   or give another colour here (one of Outlook's 25) is made, deleted or recoloured in your Microsoft
   account, and a renamed one is made under its new name, given to your mail, events and to-dos there, and
   the old one deleted. Only your automatic
-  replies, your rules and your categories are changed with it, never your working hours or other settings;
+  replies, your rules and your categories are changed with it, never your working hours or other settings.
+  A category kept on this computer only is not put on that list, but mail, events and to-dos you give it
+  still carry its name to your account's server, as they always did;
 - reading and changing your To Do lists and tasks (`Tasks.ReadWrite`), so that your tasks are kept in
   step with Microsoft To Do: your tasks' titles, notes, dates, importance, categories and whether they are
   done go to your own Microsoft account and come back from it, and nowhere else. Once it is given, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
