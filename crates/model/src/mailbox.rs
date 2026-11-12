@@ -2164,14 +2164,25 @@ impl Mailbox {
         self.message(id).is_some_and(|m| m.server.is_some() && self.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap))
     }
 
+    /// The JMAP server's id of the mailbox the folder `folder` of `account` is: one of that
+    /// account's folders that its server has, by an id that is one ([`crate::is_jmap_id`]; a
+    /// mailbox file can say anything). The one test of where a JMAP account's mail can be moved
+    /// ([`Mailbox::stays_out_of`]) and of what a move goes up as, so that no folder takes a
+    /// message whose move the server would never hear of.
+    pub fn jmap_mailbox(&self, account: Id, folder: Id) -> Option<&str> {
+        let f = self.folder(folder).filter(|f| f.account == account)?;
+        f.server.as_ref().map(|server| server.id.as_str()).filter(|id| crate::is_jmap_id(id))
+    }
+
     /// Whether the message `id` can't go into `folder` because a JMAP account's server has it
     /// ([`Mailbox::on_jmap_server`]) and `folder` is not one of that account's folders that the
-    /// server has too ([`ONLY_SERVER_FOLDERS`]): a folder made here, a standard folder the server
-    /// has no mailbox for, the Outbox, another account's folder. The server would never hear of
-    /// it, and the next run would bring the message back.
+    /// server has too ([`Mailbox::jmap_mailbox`], [`ONLY_SERVER_FOLDERS`]): a folder made here, a
+    /// standard folder the server has no mailbox for, one whose server id is none a server hands
+    /// out, the Outbox, another account's folder. The server would never hear of it, and the
+    /// next run would bring the message back.
     pub fn stays_out_of(&self, id: Id, folder: Id) -> bool {
         let Some(m) = self.message(id).filter(|_| self.on_jmap_server(id)) else { return false };
-        !self.folder(folder).is_some_and(|f| f.account == m.account && f.server.is_some())
+        self.jmap_mailbox(m.account, folder).is_none()
     }
 
     /// Whether a message deleted for good in `account` waits in the queue for its server to delete

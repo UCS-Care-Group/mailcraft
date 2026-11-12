@@ -11,7 +11,8 @@
 //!   reach the server in the order they were made.
 //! - **What comes back.** For each change the server's word: done (with the email's new id, when the server
 //!   gave it one), gone (`notFound`), or refused, with why. A change the answer says nothing of is looked up
-//!   with one `Email/get`: an email the server has not got is gone (some servers pass over an id they do not
+//!   with `Email/get` (the server's `maxObjectsInGet` ids to a call at most, which may be fewer than a `set`
+//!   takes): an email the server has not got is gone (some servers pass over an id they do not
 //!   know instead of saying `notFound`), and anything else is left unanswered. A change left unanswered is not
 //!   reported, and neither is any change of a call that failed as a whole: the engine works those out again.
 //!   A change that names an id no server hands out is refused here, without asking.
@@ -138,6 +139,7 @@ impl<H: HttpExchange> Run<'_, H> {
             return Ok(());
         }
         let at_once = usize::try_from(self.connection.client().limits().max_objects_in_set()).unwrap_or(usize::MAX).clamp(1, MAX_CHANGES);
+        let get_at_once = usize::try_from(self.connection.client().limits().max_objects_in_get()).unwrap_or(usize::MAX).clamp(1, MAX_CHANGES);
         // Emails a move gave a new id in this run, and emails whose later changes wait for the next.
         let mut renamed: HashMap<String, String> = HashMap::new();
         let mut waiting: HashSet<String> = HashSet::new();
@@ -222,8 +224,10 @@ impl<H: HttpExchange> Run<'_, H> {
                     }
                 }
             }
-            if !silent.is_empty() {
-                let ids: Vec<&str> = silent.iter().map(|(_, id)| id.as_str()).collect();
+            // (As many ids to a look as the server answers in one `get`, which may be fewer than it
+            // takes in a `set`: a look for more would be refused as too large, at every run.)
+            for looked_for in silent.chunks(get_at_once) {
+                let ids: Vec<&str> = looked_for.iter().map(|(_, id)| id.as_str()).collect();
                 let looked = match self.check() {
                     Ok(()) => self.one_call("Email/get", json!({"accountId": self.account(), "ids": ids, "properties": ["id"]}), SET_BYTES).await,
                     Err(stop) => Err(stop),
@@ -238,13 +242,14 @@ impl<H: HttpExchange> Run<'_, H> {
                             .take(MAX_LISTED)
                             .filter_map(Value::as_str)
                             .collect();
-                        for (change, _) in silent.iter().filter(|(_, id)| gone.contains(id.as_str())) {
+                        for (change, _) in looked_for.iter().filter(|(_, id)| gone.contains(id.as_str())) {
                             answered = answered.saturating_add(1);
                             known.push(JmapChangeDone { change: (*change).clone(), outcome: JmapOutcome::Gone });
                         }
                     }
-                    // The look alone failed: they are asked again with the next run, as before.
-                    Err(Stop::Failed(_) | Stop::Down(_)) => {}
+                    // The look alone failed: they are asked again with the next run, as before, and so
+                    // are those of the looks that would have followed.
+                    Err(Stop::Failed(_) | Stop::Down(_)) => break,
                     Err(stop) => {
                         hand_on(known);
                         return Err(stop);

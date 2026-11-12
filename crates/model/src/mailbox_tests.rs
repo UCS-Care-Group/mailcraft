@@ -1058,6 +1058,25 @@ fn a_jmap_servers_mail_moves_between_its_folders_and_its_deletion_is_queued() {
         assert_eq!(mb.move_messages(&[theirs], folder).unwrap_err().to_string(), ONLY_SERVER_FOLDERS);
     }
     assert_eq!(mb.message(theirs).map(|m| m.folder), Some(inbox));
+    // Nor into a folder whose server id is none a server hands out (a mailbox file can say
+    // anything): it is no mailbox a move could name, so the move is refused, not left unsent.
+    for id in [
+        "",
+        "../M9",
+        "M 9",
+        "M9
+",
+        &"M".repeat(256),
+    ] {
+        mb.folder_mut(ours).unwrap().server = Some(ServerFolder { id: id.into(), ..Default::default() });
+        assert!(!crate::is_jmap_id(id) && mb.jmap_mailbox(account, ours).is_none(), "{id:?}");
+        assert!(mb.stays_out_of(theirs, ours) && !mb.stays_out_of(mine, ours));
+        assert_eq!(mb.move_message(theirs, ours).unwrap_err().to_string(), ONLY_SERVER_FOLDERS);
+    }
+    mb.folder_mut(ours).unwrap().server = None;
+    // (An id is 1 to 255 of the letters, digits, `-` and `_`; a folder is its own account's.)
+    assert!(crate::is_jmap_id("M-9_a") && crate::is_jmap_id(&"M".repeat(255)));
+    assert_eq!((mb.jmap_mailbox(account, deleted), mb.jmap_mailbox(mb.accounts[0].id, deleted)), (Some("M2"), None));
     // Into one it has: moved here, and what the server last said of it stays, for the difference to go up.
     assert!(!mb.stays_out_of(theirs, deleted));
     mb.move_message(theirs, deleted).unwrap();
