@@ -1716,7 +1716,8 @@ fn services(
     let alert_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
-    let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
+    let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, probe_ctx, dav_ctx, test_ctx, dav_test_ctx) =
+        (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
     Services {
@@ -1776,9 +1777,75 @@ fn services(
         lookup_mx: Some(Box::new(move |domain| {
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
         })),
+        // Which of the domain's exchangers publishes CalDAV and CardDAV, if one does: asked
+        // without a password, and only when the owner pressed Connect.
+        probe_dav: Some(Box::new(move |hosts| {
+            background(&probe_ctx, "caldav and carddav", move || {
+                let mut last = None;
+                for host in hosts.into_iter().take(20) {
+                    match mailcraft_net::probe_dav(&host) {
+                        Ok(Some(found)) => {
+                            return Ok(Some(mailcraft_model::DavServer { caldav: found.caldav, carddav: found.carddav, ..Default::default() }));
+                        }
+                        Ok(None) => {}
+                        Err(e) => last = Some(e.to_string()),
+                    }
+                }
+                if let Some(e) = last { Err(e) } else { Ok(None) }
+            })
+        })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).
             background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.said()))
+        })),
+        // A CalDAV and CardDAV sign-in tried at both service roots, before the account is added.
+        test_dav: Some(Box::new(move |dav, username, secret| {
+            background(&dav_test_ctx, "caldav and carddav check", move || {
+                mailcraft_net::check_dav(&dav.caldav, &dav.carddav, &username, &secret).map_err(|e| e.said())
+            })
+        })),
+        // An account's calendars and address books, over CalDAV and CardDAV.
+        dav: Some(Box::new(move |job: mailcraft_ui_egui::dav_sync::DavJob| {
+            background(&dav_ctx, "calendars and address books", move || {
+                let id = job.account.id;
+                let Some(dav) = job.account.dav.as_ref() else {
+                    return mailcraft_ui_egui::dav_sync::DavResult {
+                        account: id,
+                        errors: vec!["This account has no CalDAV or CardDAV address.".into()],
+                        ..Default::default()
+                    };
+                };
+                // What was changed here goes first, then the server's copies come down.
+                let uploaded = job
+                    .changes
+                    .as_ref()
+                    .map(|changes| mailcraft_net::upload_dav_events(&dav.caldav, &job.username, &job.password, changes, &job.main_calendar));
+                let synced = mailcraft_net::sync_dav(&dav.caldav, &dav.carddav, &job.username, &job.password, job.from, job.to);
+                // A contact made here goes after the read: the read's list cannot yet show it,
+                // and applying its answer before the list would make the next one remove it.
+                let uploaded_contacts = job
+                    .contact_changes
+                    .as_ref()
+                    .map(|changes| mailcraft_net::upload_dav_contacts(&dav.carddav, &job.username, &job.password, changes));
+                match synced {
+                    Ok(got) => mailcraft_ui_egui::dav_sync::DavResult {
+                        account: id,
+                        calendars: Some(got.calendars),
+                        events: got.events,
+                        contacts: Some(got.contacts),
+                        uploaded,
+                        uploaded_contacts,
+                        errors: got.errors,
+                    },
+                    Err(e) => mailcraft_ui_egui::dav_sync::DavResult {
+                        account: id,
+                        uploaded,
+                        uploaded_contacts,
+                        errors: vec![e.to_string()],
+                        ..Default::default()
+                    },
+                }
+            })
         })),
         // The copy of the mailbox kept before an account switches to Microsoft Graph: a large
         // mailbox takes a while to write, and the window shows a spinner meanwhile (#118).

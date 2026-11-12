@@ -26,7 +26,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
-use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, provider};
+use mailcraft_model::{Account, AccountKind, DavServer, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;
@@ -105,17 +105,20 @@ pub enum Kind {
     Local,
     /// An Exchange server the owner's organisation runs itself (#252).
     Exchange,
+    /// Calendars and address books alone, over CalDAV and CardDAV.
+    CalDav,
 }
 
 impl Kind {
     /// The kinds that have servers, in the order of their tiles.
     const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
 
-    /// The tiles of the Choose page: the kinds with servers, and the Exchange server (an explicit
-    /// choice: nothing detects it).
+    /// The tiles of the Choose page: the kinds with servers, the Exchange server and CalDAV and
+    /// CardDAV (explicit choices: nothing detects them).
     fn tiles() -> Vec<Kind> {
         let mut tiles = Kind::HOSTED.to_vec();
         tiles.push(Kind::Exchange);
+        tiles.push(Kind::CalDav);
         tiles
     }
 
@@ -127,7 +130,7 @@ impl Kind {
             Kind::Google => Some("google"),
             Kind::Yahoo => Some("yahoo"),
             Kind::ICloud => Some("icloud"),
-            Kind::Other | Kind::Local | Kind::Exchange => None,
+            Kind::Other | Kind::Local | Kind::Exchange | Kind::CalDav => None,
         }
     }
 
@@ -141,6 +144,7 @@ impl Kind {
             Kind::Other => "Other (IMAP)",
             Kind::Local => "This device only",
             Kind::Exchange => "Exchange server (your organisation's own)",
+            Kind::CalDav => "CalDAV / CardDAV",
         }
     }
 
@@ -154,6 +158,7 @@ impl Kind {
             Kind::Other => "Any other mail server",
             Kind::Local => "A mailbox kept here, with no mail server",
             Kind::Exchange => "A mail server your organisation runs itself",
+            Kind::CalDav => "Calendars and address books, without mail",
         }
     }
 
@@ -164,6 +169,7 @@ impl Kind {
             Kind::OutlookCom | Kind::Google | Kind::Yahoo | Kind::ICloud => "mail",
             Kind::Other | Kind::Exchange => "server",
             Kind::Local => "device",
+            Kind::CalDav => "calendar",
         }
     }
 }
@@ -218,6 +224,8 @@ enum Outcome {
     Offline,
     /// A mailbox on this device only.
     Local,
+    /// Calendars and address books alone, downloading now.
+    Calendars,
 }
 
 /// A password while it is being typed: never printed, and blanked when it goes.
@@ -348,6 +356,62 @@ impl ServerFields {
     }
 }
 
+/// The CalDAV and CardDAV services as typed: two addresses, and the name they know the owner
+/// by when it differs from the account's. Empty fields mean the account keeps neither.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct DavFields {
+    caldav: String,
+    carddav: String,
+    username: String,
+}
+
+impl DavFields {
+    /// The fields for an account's services.
+    fn of(dav: Option<&DavServer>) -> DavFields {
+        match dav {
+            Some(dav) => DavFields {
+                caldav: line(&dav.caldav, DavServer::MAX_URL),
+                carddav: line(&dav.carddav, DavServer::MAX_URL),
+                username: line(&dav.username, DavServer::MAX_USERNAME),
+            },
+            None => DavFields::default(),
+        }
+    }
+
+    /// Whether anything at all was typed: the account keeps calendars and address books.
+    fn used(&self) -> bool {
+        !self.caldav.trim().is_empty() || !self.carddav.trim().is_empty() || !self.username.trim().is_empty()
+    }
+
+    /// What the fields describe: `None` when neither service is used, or why they can't be.
+    fn server(&self) -> Result<Option<DavServer>, String> {
+        if !self.used() {
+            return Ok(None);
+        }
+        let caldav = self.caldav.trim().to_string();
+        let carddav = self.carddav.trim().to_string();
+        let username = self.username.trim().to_string();
+        if let Err(why) = DavServer::check_url(&caldav) {
+            return Err(fmt(tl!("The CalDAV address {why}"), &[("why", why)]));
+        }
+        if let Err(why) = DavServer::check_url(&carddav) {
+            return Err(fmt(tl!("The CardDAV address {why}"), &[("why", why)]));
+        }
+        if let Err(why) = DavServer::check_username(&username) {
+            return Err(fmt(tl!("The user name for calendars and address books {why}"), &[("why", why)]));
+        }
+        Ok(Some(DavServer { caldav, carddav, username }))
+    }
+
+    /// The services as `account.add` and `account.edit` take them: `null` when none.
+    fn value(&self) -> Value {
+        match self.server() {
+            Ok(Some(dav)) => json!({"caldav": dav.caldav, "carddav": dav.carddav, "username": dav.username}),
+            _ => Value::Null,
+        }
+    }
+}
+
 /// What `account.preset` answered, as far as the wizard goes by it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Preset {
@@ -360,6 +424,8 @@ pub struct Preset {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// The account's CalDAV and CardDAV roots, when discovery found them.
+    dav: Option<DavServer>,
     /// Something the owner should know before connecting; may be empty.
     note: String,
 }
@@ -370,6 +436,13 @@ impl Preset {
         let text = |k: &str, max: usize| line(v.get(k).and_then(Value::as_str).unwrap_or_default(), max);
         let oauth = (v.get("auth").and_then(Value::as_str) == Some("oauth2"))
             .then(|| v.get("provider").and_then(Value::as_str).and_then(OAuthProvider::parse).unwrap_or_default());
+        let dav = v.get("dav").and_then(Value::as_object).and_then(|dav| {
+            let caldav = line(dav.get("caldav").and_then(Value::as_str).unwrap_or_default(), DavServer::MAX_URL);
+            let carddav = line(dav.get("carddav").and_then(Value::as_str).unwrap_or_default(), DavServer::MAX_URL);
+            let username = line(dav.get("username").and_then(Value::as_str).unwrap_or_default(), DavServer::MAX_USERNAME);
+            (DavServer::check_url(&caldav).is_ok() && DavServer::check_url(&carddav).is_ok() && DavServer::check_username(&username).is_ok())
+                .then_some(DavServer { caldav, carddav, username })
+        });
         Preset {
             known: v.get("known").and_then(Value::as_bool).unwrap_or(false),
             service: text("service", 60),
@@ -377,6 +450,7 @@ impl Preset {
             username: text("username", LINE),
             incoming: ServerFields::read(v.get("incoming")),
             outgoing: ServerFields::read(v.get("outgoing")),
+            dav,
             note: text("note", 300),
         }
     }
@@ -431,11 +505,20 @@ pub struct AccountSetup {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// CalDAV and CardDAV, for an account whose calendars and address books are kept there:
+    /// at the same provider as its mail or another one.
+    dav: DavFields,
+    /// The account is its calendars and address books alone, with no mail (a CalDAV and CardDAV
+    /// account).
+    dav_only: bool,
     /// The servers are shown on the password page.
     settings_open: bool,
     /// The servers are a guess made from the domain: the page says so.
     guessed: bool,
     password: Secret,
+    /// The password for the CalDAV and CardDAV services, when they are not the account's own
+    /// sign-in. Empty means the account's password, for services that know the same name.
+    dav_password: Secret,
     /// The application (client) ID Microsoft's sign-in goes by.
     client_id: String,
     /// The Microsoft directory an existing account signs in to.
@@ -446,8 +529,14 @@ pub struct AccountSetup {
     focus: bool,
     /// The domain's mail exchangers, once the host has them.
     lookup: Option<Receiver<Result<Vec<String>, String>>>,
+    /// The mail exchangers asked for CalDAV and CardDAV services, once the host knows.
+    probe: Option<Receiver<Result<Option<DavServer>, String>>>,
+    /// The exchangers the probe is about.
+    probing: Vec<String>,
     /// Whether the servers took the password, once the host knows.
     check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
+    /// The check in flight is of a CalDAV and CardDAV sign-in, not of a mail account.
+    checking_dav: bool,
     /// The owner is in the browser, signing in for this wizard.
     waiting: bool,
     /// This is a reconnect of an existing Google OAuth account, not an app-password conversion.
@@ -498,6 +587,8 @@ pub struct AccountSetup {
     /// The owner clicked the password's eye: it is shown until the next click, the next page, or
     /// the dialog's end (#438).
     reveal: bool,
+    /// The same for the eye of the calendars and address books password, when it is shown.
+    dav_reveal: bool,
     /// What the Exchange server pages keep (#252).
     exchange: exchange::Exchange,
     /// The settings are of an Exchange server account: where it connects is shown, not changed.
@@ -521,14 +612,19 @@ fn password_id() -> egui::Id {
     field_id(("account", "password"))
 }
 
+fn dav_password_id() -> egui::Id {
+    field_id(("account", "davPassword"))
+}
+
 /// Where a wizard that went while its owner was in the browser says so.
 fn left_waiting() -> egui::Id {
     egui::Id::unique("account_setup_left_waiting")
 }
 
-/// Drop what the password field keeps between frames: its undo history holds what was typed.
+/// Drop what the password fields keep between frames: their undo histories hold what was typed.
 fn forget_field(ctx: &egui::Context) {
     ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(password_id()));
+    ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(dav_password_id()));
 }
 
 /// A Google OAuth conversion must retain the saved IMAP/SMTP servers and user name.
@@ -569,15 +665,21 @@ impl AccountSetup {
             username: String::new(),
             incoming: ServerFields::default(),
             outgoing: ServerFields::default(),
+            dav: DavFields::default(),
+            dav_only: false,
             settings_open: false,
             guessed: false,
             password: Secret::default(),
+            dav_password: Secret::default(),
             client_id: String::new(),
             tenant: String::new(),
             error: String::new(),
             focus: true,
             lookup: None,
+            probe: None,
+            probing: Vec::new(),
             check: None,
+            checking_dav: false,
             waiting: false,
             reconnecting_google: false,
             mail_only: false,
@@ -599,6 +701,7 @@ impl AccountSetup {
             newer: false,
             ctx: None,
             reveal: false,
+            dav_reveal: false,
             exchange: Default::default(),
             ews: None,
         }
@@ -649,6 +752,8 @@ impl AccountSetup {
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
+        w.dav = DavFields::of(a.dav.as_ref());
+        w.dav_only = a.kind == AccountKind::Dav;
         if let Some(oauth) = &a.oauth {
             w.client_id = line(&oauth.client_id, 200);
             w.tenant = line(&oauth.tenant, 64);
@@ -693,6 +798,20 @@ impl AccountSetup {
 
     // ---- what each page runs ----
 
+    /// What the address field holds when it can name an account: an e-mail address, or for a
+    /// CalDAV and CardDAV account alone, a name that isn't one. `None` when it is empty, too
+    /// long, or holds a control character.
+    fn name_typed(&self) -> Option<&str> {
+        let text = self.email.trim();
+        (!text.is_empty() && text.chars().count() <= LINE && !text.chars().any(char::is_control)).then_some(text)
+    }
+
+    /// The name the account is known by: an e-mail address, or the name typed for a CalDAV and
+    /// CardDAV account alone.
+    fn account_name(&self) -> Option<&str> {
+        if self.dav_only { self.name_typed() } else { address(&self.email).map(|(email, _)| email) }
+    }
+
     /// `account.preset` for the address: with the domain's mail exchangers once the host has
     /// them, or with the service the owner picked. `None` while the text isn't an address.
     pub fn preset_command(&self, mx: Option<&[String]>, service: Option<&str>) -> Option<(&'static str, Value)> {
@@ -711,16 +830,24 @@ impl AccountSetup {
     /// name as the provider gave it, used when none was typed. `None` while the address or a
     /// server can't be used.
     pub fn add_command(&self, fallback: &str) -> Option<(&'static str, Value)> {
-        let (email, _) = address(&self.email)?;
+        let email = self.account_name()?;
         if self.settings_problem(true).is_some() {
             return None;
         }
         let name = if self.name.trim().is_empty() { line(fallback, LINE) } else { self.name.trim().to_string() };
         let mut m = object(json!({"email": email, "displayName": name, "username": self.login(email)}));
-        for (key, server) in [("incoming", &self.incoming), ("outgoing", &self.outgoing)] {
-            if let Some(v) = server.value() {
-                m.insert(key.into(), v);
+        if self.dav_only {
+            // Calendars and address books alone: no mail servers to name.
+            m.insert("kind".into(), json!("dav"));
+        } else {
+            for (key, server) in [("incoming", &self.incoming), ("outgoing", &self.outgoing)] {
+                if let Some(v) = server.value() {
+                    m.insert(key.into(), v);
+                }
             }
+        }
+        if let Ok(Some(dav)) = self.dav.server() {
+            m.insert("dav".into(), json!({"caldav": dav.caldav, "carddav": dav.carddav, "username": dav.username}));
         }
         match &self.oauth {
             Some(oauth) => {
@@ -767,19 +894,21 @@ impl AccountSetup {
 
     /// The account the fields describe, for the host to try before it is added.
     pub fn account(&self) -> Option<Account> {
-        let (email, _) = address(&self.email)?;
+        let email = self.account_name()?;
         if self.settings_problem(true).is_some() {
             return None;
         }
+        let dav = self.dav.server().ok().flatten();
         Some(Account {
             name: email.to_string(),
             email: email.to_string(),
             display_name: self.name.trim().to_string(),
-            kind: AccountKind::Imap,
-            incoming: self.incoming.server(),
-            outgoing: self.outgoing.server(),
+            kind: if self.dav_only { AccountKind::Dav } else { AccountKind::Imap },
+            incoming: if self.dav_only { None } else { self.incoming.server() },
+            outgoing: if self.dav_only { None } else { self.outgoing.server() },
             username: self.login(email),
             oauth: self.oauth.clone(),
+            dav,
             ..Default::default()
         })
     }
@@ -804,30 +933,37 @@ impl AccountSetup {
             m.insert("clientId".into(), json!(self.client_id.trim()));
             m.insert("tenant".into(), json!(self.tenant.trim()));
         }
+        // Always here, so that clearing both addresses removes the services from an account
+        // that had them; `null` is what `account.edit` takes for that.
+        m.insert("dav".into(), self.dav.value());
         m
     }
 
     /// What keeps the servers from being used, in the interface language; nothing when they can be. A new
     /// account needs its incoming server (`connected`); an existing one may have none.
     fn settings_problem(&self, connected: bool) -> Option<String> {
-        let (incoming, outgoing) = (&self.incoming, &self.outgoing);
-        if incoming.host.trim().is_empty() {
-            if connected {
-                return Some(tl!("Type the name of the incoming mail server").to_string());
+        // A CalDAV and CardDAV account has no mail servers to check.
+        if !self.dav_only {
+            let (incoming, outgoing) = (&self.incoming, &self.outgoing);
+            if incoming.host.trim().is_empty() {
+                if connected {
+                    return Some(tl!("Type the name of the incoming mail server").to_string());
+                }
+            } else if !incoming.host_ok() {
+                return Some(tl!("The incoming mail server isn't a host name (letters, digits, dots and dashes)").to_string());
             }
-        } else if !incoming.host_ok() {
-            return Some(tl!("The incoming mail server isn't a host name (letters, digits, dots and dashes)").to_string());
-        }
-        if !outgoing.host.trim().is_empty() && !outgoing.host_ok() {
-            return Some(tl!("The outgoing mail server isn't a host name (letters, digits, dots and dashes)").to_string());
-        }
-        if incoming.port().is_none() || outgoing.port().is_none() {
-            return Some(tl!("A port is a number from 1 to 65535").to_string());
-        }
-        if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
-            return Some(
-                tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).").to_string(),
-            );
+            if !outgoing.host.trim().is_empty() && !outgoing.host_ok() {
+                return Some(tl!("The outgoing mail server isn't a host name (letters, digits, dots and dashes)").to_string());
+            }
+            if incoming.port().is_none() || outgoing.port().is_none() {
+                return Some(tl!("A port is a number from 1 to 65535").to_string());
+            }
+            if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
+                return Some(
+                    tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).")
+                        .to_string(),
+                );
+            }
         }
         if self.edit.is_some() {
             match self.oauth.as_ref().map(|oauth| oauth.provider) {
@@ -842,6 +978,12 @@ impl AccountSetup {
                 _ => {}
             }
         }
+        match self.dav.server() {
+            Ok(Some(_)) => {}
+            Ok(None) if self.dav_only => return Some(tl!("Type the CalDAV and CardDAV addresses").to_string()),
+            Ok(None) => {}
+            Err(why) => return Some(why),
+        }
         None
     }
 
@@ -851,6 +993,7 @@ impl AccountSetup {
         self.page = page;
         // A password shown on one page is dots on the next.
         self.reveal = false;
+        self.dav_reveal = false;
         self.error.clear();
         self.app_passwords = false;
         self.focus = true;
@@ -870,6 +1013,8 @@ impl AccountSetup {
         self.username = preset.username;
         self.incoming = preset.incoming;
         self.outgoing = preset.outgoing;
+        self.dav = DavFields::of(preset.dav.as_ref());
+        self.dav_only = false;
         self.settings_open = false;
         self.guessed = false;
     }
@@ -888,6 +1033,7 @@ impl AccountSetup {
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
                 self.lookup = None;
+                self.probe = None;
                 self.go(Page::Address);
             }
             (Page::Choose, Action::Pick(kind)) => self.pick(app, kind),
@@ -1035,6 +1181,7 @@ impl AccountSetup {
             }
             (Page::Password, Action::Back) => {
                 self.forget_password();
+                self.forget_dav_password();
                 self.go(self.origin());
             }
             (Page::Checking, Action::Back) => {
@@ -1054,14 +1201,19 @@ impl AccountSetup {
     /// Connect on the first page: find out whose the address is, or ask, and move on.
     fn connect(&mut self, app: &mut MailApp) {
         self.picked = false;
+        let Some(text) = self.name_typed() else {
+            self.error = self.not_an_address();
+            return;
+        };
+        // A name that isn't an e-mail address sets up calendars and address books alone for now.
+        if self.manual || address(text).is_none() {
+            self.go(Page::Choose);
+            return;
+        }
         let Some((command, params)) = self.preset_command(None, None) else {
             self.error = self.not_an_address();
             return;
         };
-        if self.manual {
-            self.go(Page::Choose);
-            return;
-        }
         let preset = match app.execute(command, params) {
             Ok(v) => Preset::read(&v),
             Err(e) => {
@@ -1107,6 +1259,32 @@ impl AccountSetup {
 
     /// A tile of the Choose page.
     fn pick(&mut self, app: &mut MailApp, kind: Kind) {
+        // Only calendars and address books can be set up with a name that isn't an e-mail
+        // address for now. (A CalDAV and CardDAV account may be named either way.)
+        if kind != Kind::CalDav && address(&self.email).is_none() {
+            self.error = self.not_an_address();
+            return;
+        }
+        // Nothing typed for another kind of account goes with a CalDAV and CardDAV one.
+        if kind == Kind::CalDav {
+            // (The name typed already is the account's; nothing is sent yet.)
+            if self.name_typed().is_none() {
+                self.error = self.not_an_address();
+                return;
+            }
+            self.picked = true;
+            self.dav_only = true;
+            (self.service, self.note) = (String::new(), String::new());
+            self.oauth = None;
+            (self.incoming, self.outgoing) = (ServerFields::default(), ServerFields::default());
+            self.dav = DavFields::default();
+            self.guessed = false;
+            // The addresses are the one thing to fill in; show them at once.
+            self.settings_open = true;
+            self.go(Page::Password);
+            return;
+        }
+        self.dav_only = false;
         if kind == Kind::Exchange {
             // (The address typed already is the account's; nothing is sent yet.)
             if address(&self.email).is_none() {
@@ -1250,12 +1428,28 @@ impl AccountSetup {
             forget_field(ctx);
         }
         // (Working offline, it is added untried.)
-        match app.services.test_account.as_ref().filter(|_| !app.offline()) {
-            Some(test) => {
-                self.check = Some(test(account, self.password.0.clone()));
-                self.go(Page::Checking);
+        if self.dav_only {
+            let Some(dav) = account.dav.clone() else {
+                self.refuse(tl!("Type the CalDAV and CardDAV addresses").to_string());
+                return;
+            };
+            match app.services.test_dav.as_ref().filter(|_| !app.offline()) {
+                Some(test) => {
+                    self.checking_dav = true;
+                    self.check = Some(test(dav, account.dav_login().to_string(), self.password.0.clone()));
+                    self.go(Page::Checking);
+                }
+                None => self.add_with_password(app),
             }
-            None => self.add_with_password(app),
+        } else {
+            match app.services.test_account.as_ref().filter(|_| !app.offline()) {
+                Some(test) => {
+                    self.checking_dav = false;
+                    self.check = Some(test(account, self.password.0.clone()));
+                    self.go(Page::Checking);
+                }
+                None => self.add_with_password(app),
+            }
         }
     }
 
@@ -1268,8 +1462,17 @@ impl AccountSetup {
         match added.map(|v| v.get("id").and_then(Value::as_u64)) {
             Ok(Some(id)) => {
                 let password = self.password.take();
-                if !password.is_empty() {
-                    app.adopt_password(id, password);
+                if self.dav_only {
+                    // The one password the owner typed is for the calendars and address books.
+                    app.adopt_dav_password(id, password);
+                } else {
+                    if !password.is_empty() {
+                        app.adopt_password(id, password);
+                    }
+                    let dav_password = self.dav_password.take();
+                    if !dav_password.is_empty() && self.dav.server().ok().flatten().is_some() {
+                        app.adopt_dav_password(id, dav_password);
+                    }
                 }
                 self.finish(app, id);
             }
@@ -1450,11 +1653,20 @@ impl AccountSetup {
 
     /// The account exists: start its first download, and say how things stand.
     fn finish(&mut self, app: &mut MailApp, id: Id) {
+        if self.dav_only {
+            // There is no mail to fetch: the calendars and address books are the first download.
+            self.outcome = if app.services.dav.is_some() { Outcome::Calendars } else { Outcome::Offline };
+            app.dav_sync_soon(id);
+            self.go(Page::Done);
+            return;
+        }
         self.outcome = match app.execute("ui.sync", json!({"account": id})) {
             Ok(_) => Outcome::Downloading,
             Err(_) if app.services.sync.is_none() => Outcome::Offline,
             Err(_) => Outcome::Later,
         };
+        // A DAV account's calendars and address books come right after its first mail.
+        app.dav_sync_soon(id);
         self.go(Page::Done);
     }
 
@@ -1464,6 +1676,7 @@ impl AccountSetup {
     fn unchanged(&self) -> bool {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
+            && self.dav_password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
     }
 
@@ -1512,6 +1725,19 @@ impl AccountSetup {
         if !password.is_empty() && self.oauth.is_none() {
             app.adopt_password(id, password);
         }
+        // The calendars and address books may have a sign-in of their own. A changed one, or a
+        // changed address, is read again at once.
+        let dav = self.dav.value();
+        let dav_changed = self.edit.as_ref().is_some_and(|edit| edit.baseline.get("dav") != Some(&dav));
+        let dav_password = self.dav_password.take();
+        let dav_password_given = !dav_password.is_empty() && self.dav.server().ok().flatten().is_some();
+        if dav_password_given {
+            app.adopt_dav_password(id, dav_password);
+        }
+        // A new address, or the sign-in a read waited for, is read at once.
+        if dav_changed || dav_password_given {
+            app.dav_sync_soon(id);
+        }
         true
     }
 
@@ -1520,7 +1746,12 @@ impl AccountSetup {
     /// Take in what came back since the last frame.
     fn poll(&mut self, app: &mut MailApp) {
         match self.page {
-            Page::Detecting => self.poll_lookup(app),
+            Page::Detecting => {
+                self.poll_lookup(app);
+                if self.page == Page::Detecting && self.probe.is_some() {
+                    self.poll_probe(app);
+                }
+            }
             Page::SignIn if self.waiting => self.poll_sign_in(app),
             // (A sign-in may still be waiting behind the approval page: the owner may sign in
             // with an administrator's account on Microsoft's page after all.)
@@ -1546,19 +1777,57 @@ impl AccountSetup {
             Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
         };
         self.lookup = None;
-        let found = answer
-            .ok()
-            .and_then(|mx| self.preset_command(Some(&mx), None))
+        let mx = answer.unwrap_or_default();
+        let found = self
+            .preset_command(Some(&mx), None)
             .and_then(|(command, params)| app.execute(command, params).ok())
             .map(|v| Preset::read(&v))
             .filter(|preset| preset.known);
-        match found {
-            Some(preset) => {
-                self.take(preset);
-                self.proceed(app);
-            }
-            // The guess made from the domain stays, for the owner to check.
-            None => self.go(Page::Password),
+        if let Some(preset) = found {
+            self.take(preset);
+            self.proceed(app);
+            return;
+        }
+        // No provider MailCraft knows takes the domain's mail: ask each exchanger whether it
+        // publishes CalDAV and CardDAV services beside its mail.
+        if !mx.is_empty()
+            && let Some(probe) = app.services.probe_dav.as_ref().filter(|_| !app.offline())
+        {
+            self.probing = mx;
+            self.probe = Some(probe(self.probing.clone()));
+            return;
+        }
+        // The guess made from the domain stays, for the owner to check.
+        self.go(Page::Password);
+    }
+
+    fn poll_probe(&mut self, app: &mut MailApp) {
+        let answer = match self.probe.as_ref().map(Receiver::try_recv) {
+            Some(Err(TryRecvError::Empty)) => return,
+            Some(Ok(answer)) => answer,
+            Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
+        };
+        self.probe = None;
+        let endpoints = answer.ok().flatten();
+        let Some(endpoints) = endpoints else {
+            self.go(Page::Password);
+            return;
+        };
+        // The exchanger that answered names the server the rest of the settings come from.
+        let host = DavServer::host(&endpoints.caldav).map(str::to_string);
+        let found = host
+            .as_ref()
+            .and_then(|host| self.preset_command(Some(std::slice::from_ref(host)), Some("dav")))
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v))
+            .filter(|preset| preset.known);
+        if let Some(mut preset) = found {
+            // Whatever path the service answered on is the one that is used.
+            preset.dav = Some(DavServer { caldav: endpoints.caldav.clone(), carddav: endpoints.carddav.clone(), ..Default::default() });
+            self.take(preset);
+            self.proceed(app);
+        } else {
+            self.go(Page::Password);
         }
     }
 
@@ -1608,6 +1877,7 @@ impl AccountSetup {
             Some(Err(TryRecvError::Disconnected)) | None => Err(mailcraft_i18n::Text::verbatim(tl!("Checking the account stopped unexpectedly"))),
         };
         self.check = None;
+        let dav = std::mem::take(&mut self.checking_dav);
         match answer {
             Ok(()) => self.add_with_password(app),
             Err(said) => {
@@ -1615,7 +1885,7 @@ impl AccountSetup {
                 // for a problem report, and the English is what the kind of refusal is known by.
                 let e = said.to_string();
                 log::warn!("add account: the servers couldn't be checked: {e}");
-                let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
+                let google = !dav && self.incoming.server().is_some_and(|s| is_google(&s.host));
                 self.refuse(said.in_lang(crate::i18n::current()));
                 // (A connection that takes no password takes no app password either: that is
                 // said as it is, Google's or not.)
@@ -1645,13 +1915,23 @@ impl AccountSetup {
         self.password.wipe();
         self.reveal = false;
         if let Some(ctx) = &self.ctx {
-            forget_field(ctx);
+            ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(password_id()));
+        }
+    }
+
+    /// The same for the password of the calendars and address books.
+    fn forget_dav_password(&mut self) {
+        self.dav_password.wipe();
+        self.dav_reveal = false;
+        if let Some(ctx) = &self.ctx {
+            ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(dav_password_id()));
         }
     }
 
     /// The dialog is closing: stop what is under way and keep nothing that was typed in confidence.
     pub(crate) fn give_up(&mut self, app: &mut MailApp) {
         (self.lookup, self.check) = (None, None);
+        self.checking_dav = false;
         self.exchange_stop();
         self.stop_sign_in(app);
         // An administrator's approval that Microsoft's page is open for is given up with it.
@@ -1659,6 +1939,7 @@ impl AccountSetup {
             app.cancel_admin_consent();
         }
         self.forget_password();
+        self.forget_dav_password();
     }
 
     /// A wizard that went while its owner was in the browser, in a way it couldn't see, left that
@@ -1703,6 +1984,16 @@ impl AccountSetup {
             Page::Approval => self.approval_page(app, ui, &pass),
             Page::SomeoneElse => self.someone_else_page(ui, &pass),
             Page::Password => self.password_page(app, ui, &mut pass),
+            Page::Checking if self.dav_only => {
+                let server = shown(DavServer::host(self.dav.caldav.trim()).unwrap_or(self.dav.caldav.trim()), 120);
+                waiting_page(
+                    ui,
+                    &pass,
+                    self.page,
+                    tl!("Checking the CalDAV and CardDAV account…"),
+                    &fmt(tl!("Signing in to {server}"), &[("server", &server)]),
+                )
+            }
             Page::Checking => {
                 let server = shown(self.incoming.host.trim(), 120);
                 waiting_page(ui, &pass, self.page, tl!("Checking the account…"), &fmt(tl!("Signing in to {server}"), &[("server", &server)]))
@@ -1725,6 +2016,9 @@ impl AccountSetup {
             note(ui, tl!("Type your address. MailCraft finds your mail servers and how you sign in."), t.text_dim);
             if field(ui, pass, "email", tl!("Email address"), &mut self.email, tl!("you@example.org"), LINE).changed() {
                 self.error.clear();
+            }
+            if self.name_typed().is_some() && address(&self.email).is_none() {
+                note(ui, tl!("A name that isn't an e-mail address can set up calendars and address books alone for now."), t.text_dim);
             }
             error(ui, &self.error);
             ui.add_space(2.0);
@@ -1749,20 +2043,28 @@ impl AccountSetup {
             heading(ui, tl!("Choose the kind of account"), &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
             ui.add_space(4.0);
-            let gap = ui.spacing().item_spacing.x;
-            let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-            for pair in Kind::tiles().chunks(2) {
-                ui.horizontal(|ui| {
-                    for kind in pair {
-                        if tile(ui, *kind, half, &t).clicked() {
-                            action = Some(Action::Pick(*kind));
+            if address(&self.email).is_none() {
+                note(ui, tl!("This isn't an e-mail address, so only calendars and address books can be set up for now."), t.text_dim);
+                let whole = ui.available_width().max(40.0);
+                if tile(ui, Kind::CalDav, whole, &t).clicked() {
+                    action = Some(Action::Pick(Kind::CalDav));
+                }
+            } else {
+                let gap = ui.spacing().item_spacing.x;
+                let half = ((ui.available_width() - gap) / 2.0).max(40.0);
+                for pair in Kind::tiles().chunks(2) {
+                    ui.horizontal(|ui| {
+                        for kind in pair {
+                            if tile(ui, *kind, half, &t).clicked() {
+                                action = Some(Action::Pick(*kind));
+                            }
                         }
-                    }
-                });
-            }
-            let whole = ui.available_width().max(40.0);
-            if tile(ui, Kind::Local, whole, &t).clicked() {
-                action = Some(Action::Pick(Kind::Local));
+                    });
+                }
+                let whole = ui.available_width().max(40.0);
+                if tile(ui, Kind::Local, whole, &t).clicked() {
+                    action = Some(Action::Pick(Kind::Local));
+                }
             }
             error(ui, &self.error);
         });
@@ -1822,14 +2124,18 @@ impl AccountSetup {
 
     fn password_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
         let t = pass.t;
-        let asks = app.services.test_account.is_some() || app.services.sync.is_some();
+        // A CalDAV and CardDAV account always signs in: there is no mail account's password to
+        // fall back to.
+        let asks = self.dav_only || app.services.test_account.is_some() || app.services.sync.is_some();
         let google = self.edit.is_none()
             && self.oauth.is_none()
             && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com")
             && app.services.sign_in.is_some();
         let configured = app.google_registration_ready();
         let oauth_first = self.google_oauth_first(app);
-        let title = if self.service.is_empty() {
+        let title = if self.dav_only {
+            tl!("CalDAV and CardDAV account").to_string()
+        } else if self.service.is_empty() {
             tl!("Sign in to your account").to_string()
         } else {
             fmt(tl!("{service} account"), &[("service", &self.service)])
@@ -1894,10 +2200,17 @@ impl AccountSetup {
                     note(ui, tl!("This build can't connect to mail servers. The account can still be added."), t.text_dim);
                 }
             }
+            if self.dav_only {
+                note(ui, tl!("This account keeps calendars and address books only. Your mail can be another account."), t.text_dim);
+            }
             ui.add_space(2.0);
-            disclosure(ui, tl!("Change account settings"), &mut self.settings_open, &t);
-            if self.settings_open {
-                indented(ui, |ui| self.settings(ui, pass));
+            if self.dav_only {
+                indented(ui, |ui| self.settings(app, ui, pass));
+            } else {
+                disclosure(ui, tl!("Change account settings"), &mut self.settings_open, &t);
+                if self.settings_open {
+                    indented(ui, |ui| self.settings(app, ui, pass));
+                }
             }
         });
         problem(ui, &self.error);
@@ -2004,6 +2317,7 @@ impl AccountSetup {
                 )
             }
             Outcome::Local => tl!("It is on this device only: nothing is sent to or fetched from a server."),
+            Outcome::Calendars => tl!("Your calendars and address books are downloading now."),
         };
         page(ui, &t, |ui| {
             ui.add_space(6.0);
@@ -2035,7 +2349,9 @@ impl AccountSetup {
         }
         let t = pass.t;
         let exchange = self.ews.is_some();
-        let asks = self.oauth.is_none()
+        // A CalDAV and CardDAV account's password is asked for with its services, below.
+        let asks = !self.dav_only
+            && self.oauth.is_none()
             && if exchange {
                 app.services.ews_setup.is_some() || app.services.ews.is_some()
             } else {
@@ -2055,6 +2371,7 @@ impl AccountSetup {
         let how = match &self.oauth {
             None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
             Some(oauth) => fmt(tl!("Signs in on the {provider} page in your browser"), &[("provider", oauth.provider.label())]),
+            None if self.dav_only => tl!("Keeps calendars and address books over CalDAV and CardDAV").to_string(),
             None if self.incoming.host.trim().is_empty() && self.outgoing.host.trim().is_empty() => {
                 tl!("On this device only: no mail server").to_string()
             }
@@ -2116,7 +2433,7 @@ impl AccountSetup {
                 let server = self.ews.clone();
                 self.exchange_settings(ui, &t, server.as_ref());
             } else if !self.graph {
-                self.settings(ui, pass);
+                self.settings(app, ui, pass);
             }
             if let Some(oauth) = &self.oauth {
                 field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
@@ -2214,11 +2531,84 @@ impl AccountSetup {
         pass.field(&resp);
     }
 
-    /// The user name and the two servers.
-    fn settings(&mut self, ui: &mut Ui, pass: &mut Pass) {
-        field(ui, pass, "username", tl!("User name"), &mut self.username, tl!("Usually the whole address"), LINE);
-        server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
-        server_row(ui, pass, tl!("Outgoing mail (SMTP)"), "outgoing", &mut self.outgoing, "smtp.example.org", (465, 587));
+    /// The password of the CalDAV and CardDAV services, when they have one of their own.
+    fn dav_password_field(&mut self, ui: &mut Ui, pass: &mut Pass, watch: Watch, hint: &str) {
+        caption(ui, tl!("Password for calendars and address books"), &pass.t);
+        let resp = secret_field::field_named(
+            ui,
+            &mut self.dav_password.0,
+            &mut self.dav_reveal,
+            watch,
+            FIELD_MARGIN,
+            tl!("Hide calendar password"),
+            tl!("Show calendar password"),
+            |edit| edit.id(dav_password_id()).char_limit(SECRET).hint_text(hint.to_owned()),
+        );
+        pass.field(&resp);
+    }
+
+    /// The user name and the two mail servers, then the calendars and address books.
+    fn settings(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) {
+        if !self.dav_only {
+            field(ui, pass, "username", tl!("User name"), &mut self.username, tl!("Usually the whole address"), LINE);
+            server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
+            server_row(ui, pass, tl!("Outgoing mail (SMTP)"), "outgoing", &mut self.outgoing, "smtp.example.org", (465, 587));
+        }
+        self.dav_settings(app, ui, pass);
+    }
+
+    /// CalDAV and CardDAV: the two service roots, and the sign-in they use when it isn't the
+    /// account's own (calendars at another provider than the mail).
+    fn dav_settings(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) {
+        let t = pass.t;
+        caption(ui, tl!("Calendars and address books (CalDAV / CardDAV)"), &t);
+        if self.dav_only {
+            note(
+                ui,
+                tl!("Your provider's CalDAV and CardDAV addresses, usually under /remote.php/dav/ for Nextcloud and /dav/ for many others."),
+                t.text_dim,
+            );
+        } else {
+            note(
+                ui,
+                tl!(
+                    "Leave both empty to keep no calendars or address books for this account. They may be on another server than the mail, with a sign-in of their own."
+                ),
+                t.text_dim,
+            );
+        }
+        field(ui, pass, "caldav", tl!("CalDAV address"), &mut self.dav.caldav, tl!("https://cloud.example.org/remote.php/dav/"), DavServer::MAX_URL);
+        field(
+            ui,
+            pass,
+            "carddav",
+            tl!("CardDAV address"),
+            &mut self.dav.carddav,
+            tl!("https://cloud.example.org/remote.php/dav/"),
+            DavServer::MAX_URL,
+        );
+        if self.dav.used() {
+            field(
+                ui,
+                pass,
+                "davUsername",
+                tl!("User name for calendars and address books"),
+                &mut self.dav.username,
+                tl!("Usually the same as the account"),
+                LINE,
+            );
+            if self.edit.is_none() && self.dav_only {
+                note(ui, tl!("The password above is for these calendars and address books."), t.text_dim);
+            } else {
+                let hint = if self.edit.is_some() {
+                    tl!("Leave empty to keep the one in use")
+                } else {
+                    tl!("Leave empty to use the account's password when they are on your mail server")
+                };
+                self.dav_password_field(ui, pass, app.secret_watch(), hint);
+                note(ui, kept_where_now(app), t.text_dim);
+            }
+        }
     }
 }
 
@@ -2226,6 +2616,16 @@ impl AccountSetup {
 fn kept_where(app: &MailApp) -> &'static str {
     if app.ui.remember_sign_in && app.services.secrets.is_some() && app.secrets_trouble.is_none() {
         tl!("Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox.")
+    } else {
+        tl!("MailCraft keeps it in memory until you close the app. It is never written to disk.")
+    }
+}
+
+/// Where the calendars' password goes when it is saved from Account Settings: it is kept as
+/// soon as it is given (its services are read at once), so nothing is promised of a try first.
+fn kept_where_now(app: &MailApp) -> &'static str {
+    if app.ui.remember_sign_in && app.services.secrets.is_some() && app.secrets_trouble.is_none() {
+        tl!("Your system's credential store keeps it for next time. It is never written to the mailbox.")
     } else {
         tl!("MailCraft keeps it in memory until you close the app. It is never written to disk.")
     }
@@ -2483,6 +2883,8 @@ mod tests {
     use crate::{Services, SignInRequest};
     use egui::Key;
 
+    /// CalDAV and CardDAV accounts, and calendars at another provider than the mail.
+    mod dav_tests;
     /// Google-specific keyboard, accessibility and compact-window behavior in both themes.
     mod google_accessibility_tests;
     /// Existing Gmail account preservation and transactional OAuth conversion.
@@ -2537,6 +2939,48 @@ mod tests {
             rx
         }));
         asked
+    }
+
+    /// What a host that asks a mail exchanger for its DAV services was asked, and what it answers.
+    fn dav_probes(app: &mut MailApp, answer: Option<Result<Option<DavServer>, &str>>) -> Log<Vec<String>> {
+        let asked: Log<Vec<String>> = Default::default();
+        let log = asked.clone();
+        let answer = answer.map(|a| a.map_err(str::to_string));
+        let silent: Log<mpsc::Sender<Result<Option<DavServer>, String>>> = Default::default();
+        app.services.probe_dav = Some(Box::new(move |hosts: Vec<String>| {
+            log.lock().unwrap().push(hosts);
+            let (tx, rx) = mpsc::channel();
+            match &answer {
+                Some(answer) => tx.send(answer.clone()).unwrap(),
+                None => silent.lock().unwrap().push(tx),
+            }
+            rx
+        }));
+        asked
+    }
+
+    /// A domain whose mail exchanger publishes CalDAV and CardDAV: the account is set up with
+    /// IMAP and SMTP for mail and those services for the calendar and address books, and its
+    /// own password signs it in.
+    #[test]
+    fn a_dav_server_at_the_mail_exchanger_is_found() {
+        let dav = DavServer {
+            caldav: "https://mail.example.org/caldav/".into(),
+            carddav: "https://mail.example.org/carddav/".into(),
+            ..Default::default()
+        };
+        let mut a = app(false);
+        lookups(&mut a, Some(Ok(vec!["mail.example.org"])));
+        let asked = dav_probes(&mut a, Some(Ok(Some(dav.clone()))));
+        let mut h = open(a, json!({}));
+        connect(&mut h, "noor@example.org");
+        assert_eq!(page(&h), Some(Page::Password));
+        assert_eq!(asked.lock().unwrap().as_slice(), [vec!["mail.example.org".to_string()]]);
+        let w = wizard(&h).unwrap();
+        assert_eq!((w.service.as_str(), w.incoming.host.as_str(), w.outgoing.host.as_str()), ("", "mail.example.org", "mail.example.org"));
+        assert_eq!(w.dav, DavFields::of(Some(&dav)));
+        let (command, params) = w.add_command("").unwrap();
+        assert_eq!((command, params["dav"]["caldav"].as_str()), ("account.add", Some("https://mail.example.org/caldav/")));
     }
 
     /// What a sign-in was asked for: the address, the application ID, and the flag that stops it.

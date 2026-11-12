@@ -288,6 +288,11 @@ pub enum AccountKind {
     /// Its server is [`Account::ews`]; the password is given by whoever holds the connection and
     /// is never written anywhere.
     Exchange,
+    /// Calendars and address books alone, kept in step over CalDAV and CardDAV, without mail
+    /// (mail from another provider is its own account, or the same account's IMAP and SMTP
+    /// servers). Its services are [`Account::dav`]; the secret is given by whoever holds the
+    /// connection and is never written anywhere.
+    Dav,
     /// A kind this version doesn't know: an account that a newer MailCraft added, in a file that
     /// one wrote (or one whose kind can't be read at all). Only what says which account it is
     /// is read of it; the whole of it is kept as the file had it and written back so
@@ -298,9 +303,10 @@ pub enum AccountKind {
 }
 
 impl AccountKind {
-    /// Whether the account is kept in step with a server (by IMAP, by Microsoft Graph or by JMAP).
-    /// Not an account of a kind this version doesn't know: whatever server it has, this version
-    /// can't use it.
+    /// Whether the account is kept in step with a mail server (by IMAP, by Microsoft Graph, by
+    /// JMAP or by Exchange Web Services). Not an account of a kind this version doesn't know:
+    /// whatever server it has, this version can't use it. A CalDAV and CardDAV account keeps
+    /// calendars and address books in step and has no mail, so it is not one.
     pub fn has_server(self) -> bool {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
@@ -407,6 +413,12 @@ pub struct Account {
     /// there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub ews: Option<EwsServer>,
+    /// For an account whose calendars and address books are kept over CalDAV and CardDAV while
+    /// its mail goes over IMAP and SMTP as any other account's does: where those services are.
+    /// Plain settings: the password is never kept here. `None` for every other account, and in a
+    /// file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub dav: Option<crate::DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
@@ -694,6 +706,20 @@ impl Account {
     /// Whether its contacts are read from Microsoft: as for its to-dos ([`Account::keeps_tasks`]).
     pub fn keeps_contacts(&self) -> bool {
         self.keeps_tasks()
+    }
+
+    /// Whether the account keeps its calendars and address books over CalDAV and CardDAV
+    /// ([`Account::dav`]). Its mail may go over IMAP and SMTP as any other account's, or it may
+    /// have no mail at all ([`AccountKind::Dav`]).
+    pub fn is_dav(&self) -> bool {
+        matches!(self.kind, AccountKind::Imap | AccountKind::Dav) && self.dav.is_some()
+    }
+
+    /// The name the CalDAV and CardDAV services know the owner by: the one given for them, else
+    /// the account's own login (mail and calendars usually share one).
+    pub fn dav_login(&self) -> &str {
+        let user = self.dav.as_ref().map(|dav| dav.username.trim()).unwrap_or_default();
+        if user.is_empty() { self.login() } else { user }
     }
 
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
@@ -1090,6 +1116,15 @@ pub struct Mailbox {
     pub messages: Messages,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
+    /// The address books the accounts' servers list, each with the URL a contact is sent to
+    /// ([`crate::ContactBook`]). Empty for accounts whose contacts are one list and for a
+    /// mailbox from before there were any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_books: Vec<crate::ContactBook>,
+    /// Changes to contacts that an account's CardDAV server is yet to receive, oldest first
+    /// ([`crate::remote::ContactChange`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_changes: Vec<crate::remote::ContactChange>,
     pub calendars: Vec<Calendar>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
@@ -1207,6 +1242,8 @@ impl Default for Mailbox {
             folders: Vec::new(),
             messages: Messages::new(),
             contacts: BTreeMap::new(),
+            contact_books: Vec::new(),
+            contact_changes: Vec::new(),
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),
@@ -1339,16 +1376,20 @@ impl Mailbox {
             account.name = if account.email.trim().is_empty() { "Mailbox".into() } else { account.email.clone() };
         }
         self.accounts.push(account);
-        for kind in FolderKind::STANDARD {
-            let fid = self.alloc_id();
-            self.folders.push(Folder {
-                id: fid,
-                account: id,
-                name: kind.default_name().into(),
-                kind,
-                favorite: kind == FolderKind::Inbox,
-                ..Default::default()
-            });
+        // Calendars and address books alone have no mail folders: their account is reached from
+        // the calendar and the contacts, not from the folder pane's mail.
+        if self.account(id).is_some_and(|a| a.kind != AccountKind::Dav) {
+            for kind in FolderKind::STANDARD {
+                let fid = self.alloc_id();
+                self.folders.push(Folder {
+                    id: fid,
+                    account: id,
+                    name: kind.default_name().into(),
+                    kind,
+                    favorite: kind == FolderKind::Inbox,
+                    ..Default::default()
+                });
+            }
         }
         if self.calendars.is_empty() {
             let cid = self.alloc_id();
@@ -3494,10 +3535,31 @@ impl Mailbox {
         }
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
+        // An account of calendars and address books alone has no mail folders; a folder of one
+        // (made by an earlier repair) is not a mail folder and goes, unless it still holds
+        // messages: those are never thrown away by a repair.
+        let dav_accounts: HashSet<Id> = self.accounts.iter().filter(|a| a.kind == AccountKind::Dav).map(|a| a.id).collect();
+        let holding: HashSet<Id> = self.messages.values().map(|message| message.folder).collect();
         let before = self.folders.len();
-        self.folders.retain(|f| known_accounts.contains(&f.account));
+        let mut kept_holding = 0usize;
+        self.folders.retain(|folder| {
+            if !known_accounts.contains(&folder.account) {
+                return false;
+            }
+            if dav_accounts.contains(&folder.account) {
+                if holding.contains(&folder.id) {
+                    kept_holding += 1;
+                    return true;
+                }
+                return false;
+            }
+            true
+        });
         if self.folders.len() != before {
-            fixed.push(format!("{} folder(s) of unknown accounts removed", before - self.folders.len()));
+            fixed.push(format!("{} folder(s) of accounts without mail removed", before - self.folders.len() - kept_holding));
+        }
+        if kept_holding > 0 {
+            fixed.push(format!("{kept_holding} folder(s) of a calendars-only account kept because they hold messages"));
         }
         for f in &mut self.folders {
             if f.id == 0 || !sane(&f.id) || !seen.insert(f.id) {
@@ -3545,7 +3607,7 @@ impl Mailbox {
                 f.kind = FolderKind::Custom;
             }
         }
-        for account in accounts {
+        for account in accounts.into_iter().filter(|account| !dav_accounts.contains(account)) {
             for kind in FolderKind::STANDARD {
                 if !has.contains(&(account, kind)) {
                     let id = self.alloc_id();

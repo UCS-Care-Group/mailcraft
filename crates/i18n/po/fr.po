@@ -421,6 +421,11 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Une réunion périodique qui saute certains jours ne peut pas être placée d'ici dans le calendrier du serveur : chaque invité recevrait une annulation pour chaque jour sauté. Conservez-la dans un calendrier sur cet ordinateur, ou recréez-la sans les jours sautés."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A name that isn't an e-mail address can set up calendars and address books alone for now."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -870,6 +875,21 @@ msgstr "Ajouté par une version plus récente de MailCraft : envoyez et receve
 #, fuzzy
 msgid "Address"
 msgstr "Adresse"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Address book unavailable"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Address books on {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1966,6 +1986,26 @@ msgstr "Par taille"
 msgid "By Subject"
 msgstr "Par objet"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV / CardDAV"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV and CardDAV account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "CalDAV and CardDAV · no usable service address"
+msgstr ""
+
 #. command label, interface, name, ribbon, ribbon location, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2006,6 +2046,31 @@ msgstr "Calendrier et contacts"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Le calendrier et les contacts ont besoin de votre autorisation : Fichier › Informations › Connecter le calendrier et les contacts"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Calendars and address books (CalDAV / CardDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars and address books on {host}"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Calendars and address books, without mail"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on {caldav} · address books on {carddav}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -2117,6 +2182,11 @@ msgstr "Annuler cette réunion ?"
 #, fuzzy
 msgid "Cancelled"
 msgstr "Annulé"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CardDAV address"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -2356,6 +2426,11 @@ msgstr ""
 #, fuzzy
 msgid "Checking for a new version…"
 msgstr "Recherche d'une nouvelle version…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Checking the CalDAV and CardDAV account…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5189,6 +5264,11 @@ msgid "Hide This Copy"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Hide calendar password"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/secret_field.rs
 msgid "Hide password"
 msgstr ""
@@ -6102,6 +6182,11 @@ msgid "Keeping a copy of what was sent"
 msgstr "Conservation d'une copie de ce qui a été envoyé"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keeps calendars and address books over CalDAV and CardDAV"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Kept Public key"
 msgstr ""
@@ -6213,9 +6298,19 @@ msgstr "Disposition"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Leave both empty to keep no calendars or address books for this account. They may be on another server than the mail, with a sign-in of their own."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Leave empty to keep the one in use"
 msgstr "Laisser vide pour garder celui qui est utilisé"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Leave empty to use the account's password when they are on your mail server"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6276,6 +6371,11 @@ msgstr ""
 #, fuzzy
 msgid "List Accounts"
 msgstr "Lister les comptes"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "List Address Books"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -8935,6 +9035,11 @@ msgid "Password"
 msgstr "Mot de passe"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Password for calendars and address books"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Password for {account}"
@@ -11278,6 +11383,11 @@ msgstr ""
 msgid "Show as Conversations"
 msgstr "Afficher sous forme de conversations"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Show calendar password"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -12370,6 +12480,16 @@ msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The CalDAV address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The CardDAV address {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The Digital signature can't be read."
 msgstr ""
@@ -12460,6 +12580,26 @@ msgstr "Le serveur du compte n'a pas encore attribué à cette réunion de lien 
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Le serveur du compte la crée à l'envoi de la réunion ; le lien pour rejoindre revient avec elle."
 
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "The address book chosen is no longer available. Send/Receive may bring it back, and the contact can be saved then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
@@ -12498,7 +12638,7 @@ msgid "The calendar \"{name}\" only shows when its owner is busy: this account c
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dav_sync.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Les modifications du calendrier n'ont pas pu être intégrées : {error}"
@@ -12538,6 +12678,11 @@ msgstr "La connexion du calendrier fonctionne : ce qui a été envoyé est arr
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Le calendrier n'a pas pu être intégré : {error}"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendar events couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -12590,6 +12735,16 @@ msgid ""
 "The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars and address books need their sign-in again: press Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars couldn't be taken in: {error}"
 msgstr ""
 
 #. interface
@@ -12665,7 +12820,12 @@ msgid "The contact's form was closed: open it again to add the key"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The contacts couldn't be saved: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dav_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Les contacts n'ont pas pu être intégrés : {error}"
@@ -13012,6 +13172,11 @@ msgid "The owner hasn't allowed update checks."
 msgstr "Le propriétaire n'a pas autorisé la recherche de mises à jour."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The password above is for these calendars and address books."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "L'image était trop grande et a été réduite ({w} px de large)."
@@ -13189,6 +13354,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The server refused the sign-in for the calendars and address books: type it again."
 msgstr ""
 
 #. interface
@@ -13413,6 +13583,11 @@ msgid "The to-dos sent couldn't be noted: {error}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The user name for calendars and address books {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The user name is too long or has a character in it that a name can't have"
 msgstr ""
@@ -13597,6 +13772,11 @@ msgid "This account is no longer in the mailbox."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account keeps calendars and address books only. Your mail can be another account."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
@@ -13672,6 +13852,11 @@ msgstr "Cette version ne peut pas demander à un serveur quand les autres person
 #, fuzzy
 msgid "This build can't connect to Microsoft"
 msgstr "Cette version ne peut pas se connecter à Microsoft"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This build can't connect to calendars and address books (a browser can't open DAV connections)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
@@ -13942,6 +14127,11 @@ msgstr ""
 #, fuzzy
 msgid "This is not somebody else's meeting: a message can't call it off."
 msgstr "Ce n'est pas la réunion de quelqu'un d'autre : un message ne peut pas l'annuler."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This isn't an e-mail address, so only calendars and address books can be set up for now."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -14661,6 +14851,11 @@ msgstr "Saisir"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Type the CalDAV and CardDAV addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
 msgstr "Saisissez le nom du serveur de courrier entrant"
@@ -14686,6 +14881,11 @@ msgstr "Tapez votre adresse e-mail et MailCraft trouve le reste : Microsoft 36
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
 msgstr ""
 
 #. interface
@@ -14879,6 +15079,11 @@ msgid "User name"
 msgstr "Nom d'utilisateur"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "User name for calendars and address books"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "User name: {name}"
 msgstr ""
@@ -14888,6 +15093,11 @@ msgstr ""
 #, fuzzy
 msgid "Username"
 msgstr "Nom d'utilisateur"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Usually the same as the account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15512,6 +15722,11 @@ msgid "Your calendar: {day}"
 msgstr "Votre calendrier : {day}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your calendars and address books are downloading now."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Your certificates and keys"
 msgstr ""
@@ -15694,6 +15909,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Your own name."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your provider's CalDAV and CardDAV addresses, usually under /remote.php/dav/ for Nextcloud and /dav/ for many others."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr ""
 
 #. interface
@@ -16244,6 +16469,11 @@ msgstr ""
 #, fuzzy
 msgid "hours"
 msgstr "heures"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "https://cloud.example.org/remote.php/dav/"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -18038,6 +18268,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "fois"
 msgstr[1] "fois"
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "too many contact changes are waiting for the server: try again after a Send/Receive"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs

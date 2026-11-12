@@ -21,6 +21,49 @@ fn an_edit_preserves_unknown_bytes_photos_folding_and_nested_components() {
 }
 
 #[test]
+fn a_writer_normalised_email_type_does_not_refuse_an_address_change() {
+    // Nextcloud writes EMAIL;TYPE=work, the vCard writer writes EMAIL;TYPE=INTERNET,WORK for the
+    // same address. Changing the address must still be possible, and the untouched bytes stay.
+    let source = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nEMAIL;TYPE=work:ada@example.org\r\nX-KEEP:opaque\r\nEND:VCARD\r\n";
+    let before = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nEMAIL;TYPE=INTERNET,WORK:ada@example.org\r\nX-KEEP:opaque\r\nEND:VCARD\r\n";
+    let after = before.replace("ada@example.org", "ada.updated@example.org");
+    let got = patch(source, before, &after, Component::Card).unwrap();
+    assert!(got.contains("ada.updated@example.org"), "{got}");
+    assert!(!got.contains("ada@example.org"), "{got}");
+    assert!(got.contains("X-KEEP:opaque"), "{got}");
+}
+
+#[test]
+fn an_all_day_event_can_become_a_timed_one() {
+    let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:all-day\r\nDTSTART;VALUE=DATE:20261120\r\nDTEND;VALUE=DATE:20261121\r\nSUMMARY:Day off\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let before = source;
+    let after =
+        source.replace("DTSTART;VALUE=DATE:20261120", "DTSTART:20261120T100000Z").replace("DTEND;VALUE=DATE:20261121", "DTEND:20261120T110000Z");
+    let got = patch(source, before, &after, Component::Event).unwrap();
+    assert!(got.contains("DTSTART:20261120T100000Z"), "{got}");
+    assert!(got.contains("DTEND:20261120T110000Z"), "{got}");
+    assert!(!got.contains("VALUE=DATE"), "{got}");
+}
+
+#[test]
+fn a_timed_event_can_become_all_day() {
+    let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:timed\r\nDTSTART:20261120T100000Z\r\nDTEND:20261120T110000Z\r\nSUMMARY:Meeting\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let after =
+        source.replace("DTSTART:20261120T100000Z", "DTSTART;VALUE=DATE:20261120").replace("DTEND:20261120T110000Z", "DTEND;VALUE=DATE:20261121");
+    let got = patch(source, source, &after, Component::Event).unwrap();
+    assert!(got.contains("DTSTART;VALUE=DATE:20261120"), "{got}");
+    assert!(got.contains("DTEND;VALUE=DATE:20261121"), "{got}");
+}
+
+#[test]
+fn a_different_type_parameter_is_still_refused() {
+    let source = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nTEL;TYPE=HOME:+1-555-0101\r\nEND:VCARD\r\n";
+    let before = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nTEL;TYPE=CELL:+1-555-0101\r\nEND:VCARD\r\n";
+    let after = before.replace("+1-555-0101", "+1-555-0199");
+    assert!(patch(source, before, &after, Component::Card).is_err());
+}
+
+#[test]
 fn changed_properties_can_be_added_removed_or_repeated() {
     let before = CARD.replace("FN:Old", "FN:Old\r\nEMAIL:one@example.org\r\nEMAIL:two@example.org");
     let after = CARD.replace("FN:Old", "FN:New\r\nTEL:123");

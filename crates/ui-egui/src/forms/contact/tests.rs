@@ -114,6 +114,74 @@ fn an_existing_contact_fills_the_form_and_sends_its_changes() {
 }
 
 #[test]
+fn a_book_says_whose_account_it_is() {
+    let mut account = mailcraft_model::Account { name: "Ada".into(), email: "ada@example.org".into(), ..Default::default() };
+    assert_eq!(ContactForm::book_label("Contacts", &account), "Contacts (Ada)");
+    account.name.clear();
+    assert_eq!(ContactForm::book_label("Contacts", &account), "Contacts (ada@example.org)");
+    account.email.clear();
+    assert_eq!(ContactForm::book_label("Contacts", &account), "Contacts");
+}
+
+#[test]
+fn a_new_contact_defaults_to_a_writable_server_book() {
+    use mailcraft_model::{ContactBook, Rights};
+    let mut s = session();
+    let account = s.mailbox.accounts.first().unwrap().id;
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    s.mailbox.contact_books.push(ContactBook { account, id: book.into(), name: "Contacts".into(), rights: Rights::Read });
+    let mut f = ContactForm::new(&json!({}));
+    f.default_book(&s);
+    assert!(f.address_book.is_empty(), "a read-only book is not a default");
+    s.mailbox.contact_books[0].rights = Rights::Edit;
+    f.default_book(&s);
+    assert_eq!((f.address_book.as_str(), f.address_book_account), (book, account));
+}
+
+#[test]
+fn a_contact_in_a_read_only_book_has_no_form() {
+    use mailcraft_model::{Contact, ContactBook, Origin, Rights};
+    let mut s = session();
+    let account = s.mailbox.accounts.first().unwrap().id;
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    s.mailbox.contact_books.push(ContactBook { account, id: book.into(), name: "Contacts".into(), rights: Rights::Read });
+    let id = s.mailbox.add_contact(Contact {
+        first: "Ada".into(),
+        display_name: "Ada".into(),
+        uid: "ada-book".into(),
+        book: "Contacts".into(),
+        book_id: book.into(),
+        origin: Origin { account, id: "/carddav/ada@example.org/contacts/personal/ada-book.vcf".into(), ..Default::default() },
+        ..Default::default()
+    });
+    assert!(ContactForm::edit(&s, &json!({"id": id})).is_none(), "a read-only book's contact cannot be opened");
+    // The same contact is editable in a book the account may write to.
+    s.mailbox.contact_books[0].rights = Rights::Edit;
+    assert!(ContactForm::edit(&s, &json!({"id": id})).is_some());
+}
+
+#[test]
+fn a_new_contact_can_say_which_address_book_to_save_it_in() {
+    use mailcraft_model::{ContactBook, Rights};
+    let mut s = session();
+    let account = s.mailbox.accounts.first().unwrap().id;
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    s.mailbox.contact_books.push(ContactBook { account, id: book.into(), name: "My contacts".into(), rights: Rights::Edit });
+    // A new contact without a choice says nothing, and stays on this computer.
+    assert!(ContactForm::new(&json!({"first": "Ada"})).command().1.get("addressBook").is_none());
+    let mut f = ContactForm::new(&json!({"first": "Ada"}));
+    f.address_book = book.into();
+    f.address_book_account = account;
+    let (command, params) = f.command();
+    assert_eq!((command, params.get("addressBook").and_then(Value::as_str)), ("people.new", Some(book)));
+    assert_eq!(params.get("addressBookAccount").and_then(Value::as_u64), Some(account));
+    let id = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
+    let c = s.mailbox.contact(id).unwrap();
+    assert_eq!((c.book.as_str(), c.book_id.as_str(), c.origin.account), ("My contacts", book, account));
+    assert!(!c.uid.is_empty());
+}
+
+#[test]
 fn ok_waits_for_someone_to_save() {
     let mut f = ContactForm::new(&json!({}));
     assert!(!f.ready());

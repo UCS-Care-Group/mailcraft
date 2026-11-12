@@ -5,7 +5,7 @@
 use mailcraft_time::Date;
 use serde::{Deserialize, Serialize};
 
-use crate::{Address, Id, Origin};
+use crate::{Address, Id, Origin, Rights};
 
 /// A value with a label (`work`, `home`, `mobile`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,6 +153,17 @@ mod key_bytes {
     }
 }
 
+/// An address book a DAV account's server lists: the account it belongs to, the URL the
+/// server knows it by, its name there, and what this account may do with it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactBook {
+    pub account: Id,
+    pub id: String,
+    pub name: String,
+    pub rights: Rights,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Contact {
@@ -193,6 +204,15 @@ pub struct Contact {
     /// never set by a command's params. Not written to a vCard.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub imported_from: String,
+    /// The address book it came from on its account's server (an account's personal book, a book
+    /// shared with the owner, or the organization directory). Empty for a contact kept here only
+    /// and for servers whose contacts are one list.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub book: String,
+    /// The URL of that address book, when the server names one. It is what a contact made here
+    /// is sent to, before its own URL on the server exists.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub book_id: String,
     /// Set for a contact that an account's server keeps: it is a copy of the server's, and what
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]

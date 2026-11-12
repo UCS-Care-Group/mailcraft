@@ -1563,6 +1563,28 @@ fn deleting_a_contact_is_asked_about_first() {
     assert!(a.session.mailbox.contact(only).is_some());
 }
 
+/// A contact kept by a server is asked about before it is deleted there too.
+#[test]
+fn deleting_a_server_contact_is_asked_about_first() {
+    use crate::dialogs::Dialog;
+    use mailcraft_model::{Contact, ContactBook, Origin, Rights};
+    let mut a = app();
+    a.session.mailbox.contact_books.push(ContactBook { account: 1, id: "team".into(), name: "Team".into(), rights: Rights::Edit });
+    let id = a.session.mailbox.add_contact(Contact {
+        display_name: "Remote Person".into(),
+        uid: "remote-1".into(),
+        book: "Team".into(),
+        book_id: "team".into(),
+        origin: Origin { account: 1, id: "/carddav/me@example.org/contacts/team/remote-1.vcf".into(), ..Default::default() },
+        ..Default::default()
+    });
+    assert_eq!(a.run("people.delete", json!({"id": id})).unwrap()["pending"], "confirm");
+    let Some(Dialog::Confirm { ask, command, .. }) = &a.dialog else { panic!("a server contact is asked about too") };
+    assert_eq!((command.as_str(), ask.title.as_str(), ask.action.as_str()), ("people.delete", "Delete Contact", "Delete"));
+    a.dialog = None;
+    assert!(a.session.mailbox.contact(id).is_some());
+}
+
 /// Typing a recipient offers the people it could be; Enter takes the one that is marked, the
 /// arrows mark another, and typing carries on after it.
 #[test]
@@ -2293,6 +2315,37 @@ fn an_account_a_newer_version_added_is_said_to_be_one_and_left_out_of_send_recei
     let mut h = window(a);
     h.run_steps(3);
     assert!(h.state().ui.backstage && h.state().session.mailbox.account(newer).is_some());
+}
+
+/// A CalDAV and CardDAV account, or calendars at another provider than the mail: File › Info
+/// names the hosts alone, never the addresses' paths.
+#[test]
+fn a_calendar_account_card_names_its_services_and_not_the_paths() {
+    let mut a = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    a.autosave = false;
+    let dav = json!({
+        "caldav": "https://cloud.example.org/remote.php/dav/calendars/ada/",
+        "carddav": "https://cloud.example.org/remote.php/dav/addressbooks/ada/"
+    });
+    let calendar = a.execute("account.add", json!({"email": "ada@calendar.example", "kind": "dav", "dav": dav})).unwrap()["id"].as_u64().unwrap();
+    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(calendar).unwrap());
+    assert_eq!(card, "Calendars and address books on cloud.example.org");
+    assert!(a.server_accounts().is_empty(), "a calendar account has no mail server to send or receive with");
+
+    let mail = a
+        .execute(
+            "account.add",
+            json!({
+                "email": "ada@mail.example",
+                "incoming": {"host": "imap.mail.example"},
+                "dav": {"caldav": "https://cloud.example.org/caldav/", "carddav": "https://cloud.example.org/carddav/"}
+            }),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(mail).unwrap());
+    assert!(card.contains("IMAP imap.mail.example") && card.contains("Calendars and address books on cloud.example.org"), "{card}");
 }
 
 /// A JMAP account (M6): no Send/Receive of the window takes it in until the window has a runner
