@@ -149,6 +149,29 @@ impl DigitalSignatures {
                         }
                     }
                 });
+                // The one chosen, said again under the list, where it can't be scrolled out of
+                // sight: a key for another of the owner's addresses signs, but the recipients'
+                // programs say the signer isn't who the message is from.
+                let other = self
+                    .chosen
+                    .as_ref()
+                    .and_then(|k| keys.iter().find(|c| c.key.format == k.format && c.key.fingerprint == k.fingerprint))
+                    .filter(|c| !email.is_empty() && !c.addresses.iter().any(|a| a.eq_ignore_ascii_case(&email)));
+                if let Some(choice) = other {
+                    let text = if choice.addresses.is_empty() {
+                        crate::i18n::fmt(
+                            tl!("The chosen key names no e-mail address, so it isn't for {account}: recipients will see the signer as not verified."),
+                            &[("account", &email)],
+                        )
+                    } else {
+                        crate::i18n::fmt(
+                            tl!("The chosen key is for {addresses}, not {account}: recipients will see the signer as not verified."),
+                            &[("addresses", &choice.addresses.join(", ")), ("account", &email)],
+                        )
+                    };
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(text).color(t.red).strong());
+                }
             }
         }
         if let Some(chosen) =

@@ -203,6 +203,8 @@ pub enum Action {
     NotNow,
     /// Set up the account that signed in, rather than the address that was typed.
     UseSignedIn,
+    /// Open Digital Signatures for the account whose settings these are (#30).
+    DigitalSignatures,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -1043,6 +1045,13 @@ impl AccountSetup {
             (Page::Settings, Action::Go) => return self.save(app),
             (Page::Settings, Action::ConvertToGoogle) => self.start_google_conversion(app),
             (Page::Settings, Action::GoogleReconnect) => self.start_google_reconnect(app),
+            // Account Settings closes and Digital Signatures opens in its place (with nothing
+            // unsaved here: the button waits for that).
+            (Page::Settings, Action::DigitalSignatures) => {
+                if let Some(id) = self.edit.as_ref().map(|e| e.id) {
+                    return app.run("ui.dialog", json!({"name": "digitalSignatures", "account": id})).is_ok();
+                }
+            }
             _ => {}
         }
         false
@@ -2016,7 +2025,14 @@ impl AccountSetup {
         // footer. At 320px it would push Save/Cancel outside the window, so it moves into
         // the scrollable body instead (where keyboard focus can still reach it).
         let footer_google_action = ui.available_width() >= 390.0;
-        let (mut convert, mut reconnect) = (false, false);
+        let (mut convert, mut reconnect, mut sign_open) = (false, false, false);
+        // For an account that can send Digitally signed mail: the label of the key it signs with.
+        let signing = self
+            .edit
+            .as_ref()
+            .and_then(|edit| app.session.mailbox.account(edit.id))
+            .filter(|a| mailcraft_engine::cmd::signing::can_sign(a))
+            .map(|a| a.signing.key.as_ref().map(|k| k.label.clone()));
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
@@ -2101,6 +2117,20 @@ impl AccountSetup {
                 }
                 note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
             }
+            // Which certificate or OpenPGP key its mail is Digitally signed with (#30).
+            if let Some(key) = &signing {
+                caption(ui, tl!("Digital Signatures"), &t);
+                let now = match key {
+                    Some(label) if !label.is_empty() => fmt(tl!("Signs with {key}"), &[("key", label)]),
+                    Some(_) => tl!("A certificate or key to sign with is chosen").to_string(),
+                    None => tl!("No certificate or key to sign with is chosen").to_string(),
+                };
+                note(ui, &now, t.text_dim);
+                sign_open = button(ui, tl!("Digital Signatures…"), false, unchanged).clicked();
+                if !unchanged {
+                    note(ui, tl!("Save or discard changes here before choosing how this account signs."), t.orange);
+                }
+            }
             if let Some(gmail) = self.gmail.as_mut() {
                 caption(ui, tl!("Gmail categories"), &t);
                 ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
@@ -2127,6 +2157,8 @@ impl AccountSetup {
             Some(Action::ConvertToGoogle)
         } else if reconnect {
             Some(Action::GoogleReconnect)
+        } else if sign_open {
+            Some(Action::DigitalSignatures)
         } else {
             (save || pass.submit).then_some(Action::Go)
         }

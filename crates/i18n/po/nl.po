@@ -320,6 +320,11 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Een agendawijziging kan nog niet worden verzonden en wordt opnieuw geprobeerd: {error}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A certificate or key to sign with is chosen"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
@@ -665,8 +670,8 @@ msgstr ""
 "Account\n"
 "instellingen"
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/signing.rs crates/ui-egui/src/account_setup.rs
+#. command label, interface
+#: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Account Settings"
 msgstr "Accountinstellingen"
@@ -2686,6 +2691,11 @@ msgstr "Zoekopdracht wissen"
 msgid "Clear search (Esc)"
 msgstr "Zoekopdracht wissen (Esc)"
 
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Click here to choose the certificate or key to sign with, or turn Sign off"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3644,8 +3654,13 @@ msgid "Digital Signature"
 msgstr "Digitale ondertekening"
 
 #. command label, interface
-#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs
 msgid "Digital Signatures"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Digital Signatures…"
 msgstr ""
 
 #. interface
@@ -5989,7 +6004,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "E-mail indexeren: {percent}%"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Info"
@@ -8197,6 +8212,11 @@ msgstr "Geen categorie"
 #. interface
 #: crates/ui-egui/src/digital_signatures.rs
 msgid "No certificate or OpenPGP key that can sign was found on this computer: an S/MIME certificate with its private key in the system's certificate store (or on a smartcard), or an OpenPGP key in GnuPG."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "No certificate or key to sign with is chosen"
 msgstr ""
 
 #. interface
@@ -10896,6 +10916,11 @@ msgstr "Concept opslaan"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Save or discard changes here before choosing how this account signs."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Save or discard changes here before reconnecting."
 msgstr "Sla hier uw wijzigingen op, of verwerp ze, voordat u opnieuw verbindt."
@@ -11669,8 +11694,8 @@ msgstr "Handmatig instellen"
 msgid "Setting up the account stopped unexpectedly"
 msgstr "Het instellen van het account is onverwacht gestopt"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, ribbon location
+#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Settings"
 msgstr "Instellingen"
@@ -12294,6 +12319,11 @@ msgstr "Meldt aan met {provider}"
 #, fuzzy
 msgid "Signs in with: {how}"
 msgstr "Meldt aan met: {how}"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Signs with {key}"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/ribbon.rs
@@ -13335,6 +13365,16 @@ msgstr "Het certificaat werd niet uitgegeven door een certificeringsautoriteit d
 #. interface
 #: crates/ui-egui/src/digital_signatures.rs
 msgid "The certificates and keys couldn't be looked for."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The chosen key is for {addresses}, not {account}: recipients will see the signer as not verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The chosen key names no e-mail address, so it isn't for {account}: recipients will see the signer as not verified."
 msgstr ""
 
 #. what a command says
@@ -17012,7 +17052,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/signing.rs
-msgid "choose the certificate or key to sign with first (File › Account Settings › Digital Signatures), or turn Sign off"
+msgid "choose the certificate or key to sign with first (File › Info › Settings › Digital Signatures), or turn Sign off"
 msgstr ""
 
 #. what a command says

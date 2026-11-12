@@ -27,9 +27,9 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("compose.sign", "Sign", "Options › Encrypt", sign)
             .pure()
-            .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written goes with a Digital signature, made at Send with the key its account signs with (File › Account Settings › Digital Signatures); until this is set the account's Always add a Digital signature holds, and a change of that setting applies to it. Kept with its draft. Answers {"sign": bool, "key"?: string, "form": "clear-signed"}"#)
+            .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written goes with a Digital signature, made at Send with the key its account signs with (File › Info › Settings › Digital Signatures); until this is set the account's Always add a Digital signature holds, and a change of that setting applies to it. Kept with its draft. Answers {"sign": bool, "key"?: string, "form": "clear-signed"}"#)
             .when_writing(needs_compose),
-        CommandSpec::new("account.setSigning", "Digital Signatures", "File › Account Settings", set_signing).params(
+        CommandSpec::new("account.setSigning", "Digital Signatures", "File › Info › Settings", set_signing).params(
             r#"{"account": number, "key"?: {"format": "smime"|"openpgp", "fingerprint": string, "label"?: string} | null, "always"?: bool} — the certificate or OpenPGP key the account signs with (by its fingerprint; null: none) and whether every message from it is Digitally signed. The window's only"#,
         ),
     ]
@@ -47,7 +47,7 @@ pub const NOT_HERE: &str = "this account doesn't send mail from here, so its mes
 /// Why Always can't be on.
 pub const NO_KEY_FOR_ALWAYS: &str = "choose the certificate or key to sign with before turning Always on";
 /// Why a message to be signed can't be sent yet.
-pub const NO_KEY: &str = "choose the certificate or key to sign with first (File › Account Settings › Digital Signatures), or turn Sign off";
+pub const NO_KEY: &str = "choose the certificate or key to sign with first (File › Info › Settings › Digital Signatures), or turn Sign off";
 
 /// What the message being written will be at Send (R16a): `Ok(None)` unsigned, `Ok(Some(key))`
 /// Digitally signed with that key, `Err` signed but it can't be (no key chosen, an account that

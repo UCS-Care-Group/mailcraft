@@ -310,6 +310,10 @@ fn signing_line(app: &mut MailApp, ui: &mut Ui, c: &Shown) {
     let (text, problem) = match &c.signing {
         Ok(None) => return,
         Ok(Some(key)) => (crate::i18n::fmt(tl!("Digitally signed at Send with {key} (clear-signed)"), &[("key", key)]), false),
+        // (The line itself opens Digital Signatures: it says so, rather than where else it is.)
+        Err(why) if *why == mailcraft_engine::cmd::signing::NO_KEY => {
+            (tl!("Click here to choose the certificate or key to sign with, or turn Sign off").to_string(), true)
+        }
         Err(why) => (crate::i18n::t(why).to_string(), true),
     };
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
