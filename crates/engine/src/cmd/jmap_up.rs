@@ -8,7 +8,10 @@
 //!
 //! - **Marks** go as the server's keywords: read (`$seen`), flagged (`$flagged`), answered
 //!   (`$answered`) and forwarded (`$forwarded`), only those that differ, as one change of the
-//!   message. A follow-up marked complete here is not flagged there.
+//!   message. A follow-up marked complete here is not flagged there, and its due date stays here:
+//!   the server keeps `$flagged` and nothing else, so only that bit is compared, here and when a
+//!   run reads the marks ([`super::graph_down`] takes the server's flag when the bit is as the
+//!   server last said here and another there).
 //! - **A move** goes when the message lies in another of the server's mailboxes than the server
 //!   last said. Delete is a move into the server's Deleted Items, as for a Microsoft account. A
 //!   folder the server hasn't got takes none of its mail ([`mailcraft_model::Mailbox::stays_out_of`]).
@@ -49,10 +52,10 @@ fn keywords_of(m: &Message, server: &ServerMessage) -> Option<JmapChange> {
     Some(JmapChange::Keywords { message: m.id, id: server.id.clone(), read, flagged, answered, forwarded })
 }
 
-/// The server's id of the mailbox each folder of `account` is, for those the server has.
+/// The server's id of the mailbox each folder of `account` is, for those the server has: the
+/// folders its mail can be moved into, by the one test of that ([`Mailbox::jmap_mailbox`]).
 fn mailboxes_of(mb: &Mailbox, account: Id) -> HashMap<Id, &str> {
-    let theirs = mb.folders.iter().filter(|f| f.account == account);
-    theirs.filter_map(|f| f.server.as_ref().filter(|server| is_id(&server.id)).map(|server| (f.id, server.id.as_str()))).collect()
+    mb.folders.iter().filter_map(|f| mb.jmap_mailbox(account, f.id).map(|mailbox| (f.id, mailbox))).collect()
 }
 
 /// The changes of messages made in `account` that its server hasn't heard of: at most `limit`
@@ -242,8 +245,13 @@ pub(crate) fn change_done(mb: &mut Mailbox, account: Id, done: &JmapChangeDone, 
                     if read.is_some_and(|read| m.read == read) {
                         m.read = server.read;
                     }
+                    // (Flagged again after a "complete" the server wouldn't take, a follow-up keeps
+                    // the date it was due, which only this computer knows; not flagged, it has none.)
                     if flagged.is_some_and(|flagged| (m.flag == FlagStatus::Flagged) == flagged) {
-                        (m.flag, m.flag_due) = (server.flag, server.flag_due);
+                        m.flag = server.flag;
+                        if m.flag != FlagStatus::Flagged {
+                            m.flag_due = None;
+                        }
                     }
                     if answered.is_some_and(|answered| m.answered == answered) {
                         m.answered = server.answered;

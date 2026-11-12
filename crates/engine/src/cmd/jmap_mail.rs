@@ -29,7 +29,8 @@
 //! a complete listing of it ([`mailcraft_model::sync::MessagePage::afresh`]); at the end of a run
 //! that went well, what the complete windows of that run left out is gone ([`jmap_down::sweep`]).
 //! A mark the server changed comes down, but for one changed here since the server last said
-//! (three ways, as for Graph). A folder whose mailbox the server no longer lists goes with its
+//! (three ways, as for Graph; a flag by its `$flagged` bit alone, since the server keeps no due
+//! date and no "complete": [`super::graph_down`]). A folder whose mailbox the server no longer lists goes with its
 //! mail, but not a standard folder, nor one holding mail only this computer has
 //! ([`jmap_down::keep_what_is_only_here`]).
 
@@ -411,3 +412,7 @@ mod tests;
 #[cfg(test)]
 #[path = "jmap_up_tests.rs"]
 mod up_tests;
+
+#[cfg(test)]
+#[path = "jmap_flag_tests.rs"]
+mod flag_tests;

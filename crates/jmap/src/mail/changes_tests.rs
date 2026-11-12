@@ -928,6 +928,80 @@ fn a_stand_in_that_passes_over_what_it_does_not_know_has_its_emails_looked_up() 
     assert!(stand_in.with(|d| d.email(&kept).is_none() && d.email(&stays).is_some()));
 }
 
+#[test]
+fn the_look_asks_no_more_ids_at_a_time_than_the_server_answers_in_a_get() {
+    // A stand-in that takes 500 changes in a `set` and answers three ids in a `get` (it has three
+    // mailboxes to list): seven emails it passes over are three looks, none refused as too large, and every
+    // one of them is gone.
+    let (stand_in, _) = world();
+    stand_in.with(|d| (d.passes_over_unknown, d.max_get) = (true, 3));
+    let changes: Vec<JmapChange> = (0..7).map(|n| destroyed(&format!("E99{n}"))).collect();
+    let pieces = change(&stand_in, changes.clone());
+    let told = changes_of(&pieces);
+    assert_eq!(told.iter().map(|done| &done.change).collect::<Vec<_>>(), changes.iter().collect::<Vec<_>>());
+    assert!(told.iter().all(|done| done.outcome == JmapOutcome::Gone));
+    let calls: Vec<Vec<String>> = stand_in.seen().iter().filter(|seen| !seen.calls.is_empty()).map(|seen| seen.calls.clone()).collect();
+    assert_eq!(
+        calls[..4],
+        [vec!["Email/set".to_string()], vec!["Email/get".to_string()], vec!["Email/get".to_string()], vec!["Email/get".to_string()]]
+    );
+    assert!(last(&pieces).whole && last(&pieces).errors.is_empty(), "{:?}", last(&pieces));
+
+    // What a session says of its limit is held to sense: none named, or an absurd one, is one look for a
+    // run's changes; nought is one id at a time, not none.
+    let looks = |core: Value| {
+        let fake = Fake::new(move |req, _| {
+            if req.method() == Method::Get {
+                return session_reply(core.clone(), false);
+            }
+            api_reply(req, |name, args| match name {
+                "Email/set" => Answer::Is(json!({"accountId": "A1", "updated": {"E1": null}})),
+                _ if is_look(name, args) => Answer::Is(json!({"list": [], "notFound": args["ids"].clone()})),
+                _ => reading(name, args),
+            })
+        });
+        let pieces = change_fake(&fake, passed_over());
+        assert_eq!(changes_of(&pieces).len(), 5, "each is answered, or gone");
+        let sizes: Vec<usize> =
+            fake.args_of("Email/get").iter().filter(|args| is_look("Email/get", args)).map(|args| args["ids"].as_array().unwrap().len()).collect();
+        sizes
+    };
+    assert_eq!(looks(json!({"maxCallsInRequest": 16})), [4]);
+    assert_eq!(looks(json!({"maxCallsInRequest": 16, "maxObjectsInGet": 1e15})), [4]);
+    assert_eq!(looks(json!({"maxCallsInRequest": 16, "maxObjectsInGet": 3, "maxObjectsInSet": 500})), [3, 1]);
+    assert_eq!(looks(json!({"maxCallsInRequest": 16, "maxObjectsInGet": 0})), [1, 1, 1, 1]);
+}
+
+#[test]
+fn a_look_that_fails_ends_the_looking_and_keeps_what_the_looks_before_it_found() {
+    // Two ids to a look; the second look fails: what the first found gone is gone, the rest is asked again.
+    let count = std::cell::Cell::new(0usize);
+    let fake = Fake::new(move |req, _| {
+        if req.method() == Method::Get {
+            return session_reply(json!({"maxCallsInRequest": 16, "maxObjectsInGet": 2}), false);
+        }
+        api_reply(req, |name, args| match name {
+            "Email/set" => Answer::Is(json!({"accountId": "A1", "updated": {"E1": null}})),
+            _ if is_look(name, args) => {
+                count.set(count.get() + 1);
+                if count.get() == 1 {
+                    Answer::Is(json!({"list": [], "notFound": args["ids"].clone()}))
+                } else {
+                    Answer::Error("serverFail", "not now".to_string())
+                }
+            }
+            _ => reading(name, args),
+        })
+    });
+    let changes = passed_over();
+    let pieces = change_fake(&fake, changes.clone());
+    // (E1 answered by the set; E2 and E3 gone by the first look; E4 and E5 asked again with the next run.)
+    let told: Vec<JmapChange> = changes_of(&pieces).into_iter().map(|done| done.change).collect();
+    assert_eq!(told, changes[..3]);
+    assert_eq!(fake.args_of("Email/get").iter().filter(|args| is_look("Email/get", args)).count(), 2);
+    assert!(read_on(&pieces));
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 

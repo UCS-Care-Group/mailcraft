@@ -63,7 +63,7 @@ pub use calendar::{
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
-pub use jmap_server::JmapServer;
+pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{

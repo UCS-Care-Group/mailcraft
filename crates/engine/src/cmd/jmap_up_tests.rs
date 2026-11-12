@@ -13,7 +13,7 @@ use super::*;
 
 /// A session whose JMAP account has `One` (E1) and `Two` (E2) in its Inbox (M1), unread, and
 /// `Plan` (P1) in Projects (M5); the account, and the three messages.
-fn mail() -> (Session, Id, [Id; 3]) {
+pub(super) fn mail() -> (Session, Id, [Id; 3]) {
     let (mut s, account) = session();
     let inbox = window("M1", vec![email("E1", "One", 1), email("E2", "Two", 2)], true);
     run(&mut s, account, vec![inbox, window("M5", vec![email("P1", "Plan", 3)], true)], true);
@@ -22,26 +22,26 @@ fn mail() -> (Session, Id, [Id; 3]) {
 }
 
 /// What the next run of the account would take up.
-fn up(s: &Session, account: Id) -> Vec<JmapChange> {
+pub(super) fn up(s: &Session, account: Id) -> Vec<JmapChange> {
     jmap_mail_request(s, account, true).unwrap().changes
 }
 
 /// A piece that says what became of `changes`, more of the run to come; what taking it in answered.
-fn answered(s: &mut Session, account: Id, changes: Vec<(JmapChange, JmapOutcome)>) -> Value {
+pub(super) fn answered(s: &mut Session, account: Id, changes: Vec<(JmapChange, JmapOutcome)>) -> Value {
     let changes = changes.into_iter().map(|(change, outcome)| JmapChangeDone { change, outcome }).collect();
     apply_jmap_mail(s, JmapMailResult { changes, ..piece(account) }).unwrap()
 }
 
-fn done() -> JmapOutcome {
+pub(super) fn done() -> JmapOutcome {
     JmapOutcome::Done { id: String::new() }
 }
 
-fn refused(why: &str) -> JmapOutcome {
+pub(super) fn refused(why: &str) -> JmapOutcome {
     JmapOutcome::Refused { why: why.into() }
 }
 
 /// The end of a run that went well and read nothing more.
-fn ended(s: &mut Session, account: Id) -> Value {
+pub(super) fn ended(s: &mut Session, account: Id) -> Value {
     apply_jmap_mail(s, JmapMailResult { whole: true, partial: false, ..piece(account) }).unwrap()
 }
 
@@ -377,4 +377,22 @@ fn a_message_the_server_never_had_moved_to_another_account_goes_back_with_undo()
     assert!(s.mailbox.message(mine).is_some_and(|m| m.server.is_none() && m.moving_out.is_none()));
     assert!(s.undo_said().is_empty(), "{:?}", s.undo_said());
     assert!(up(&s, account).is_empty());
+}
+
+#[test]
+fn a_folder_whose_server_id_is_no_id_takes_none_of_the_servers_mail_so_no_move_is_left_unsent() {
+    let (mut s, account, [one, ..]) = mail();
+    let inbox = folder_here(&s, account, "M1");
+    // A mailbox file can say anything: a folder of the account tied to a "mailbox" no server names.
+    let odd = s.run("folder.new", &json!({"name": "Odd", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    s.mailbox.folder_mut(odd).unwrap().server = Some(mailcraft_model::ServerFolder { id: "not an id".into(), ..Default::default() });
+    // The move is refused, as into a folder the server hasn't got: where mail may go and what
+    // goes up are told by one test, so nothing lies in a folder with its move never sent.
+    let before = s.mailbox.clone();
+    assert_eq!(s.run("mail.move", &json!({"ids": [one], "folder": odd})).unwrap_err().to_string(), mailcraft_model::ONLY_SERVER_FOLDERS);
+    assert!(s.mailbox == before && up(&s, account).is_empty());
+    // With an id that is one, it takes the message and the move goes up.
+    s.mailbox.folder_mut(odd).unwrap().server = Some(mailcraft_model::ServerFolder { id: "M9".into(), ..Default::default() });
+    s.run("mail.move", &json!({"ids": [one], "folder": odd})).unwrap();
+    assert_eq!(up(&s, account), [JmapChange::Move { message: one, id: "E1".into(), from: "M1".into(), to: "M9".into() }]);
 }

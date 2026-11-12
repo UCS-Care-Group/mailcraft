@@ -29,6 +29,21 @@ sync` refuses it.
   are touched; the server's other keywords stay. A change the server refuses is put back to how
   the server has it and said once, in the status bar and in Send/Receive Progress, and so is a
   change to a message the server no longer has.
+- **A flag is the server's `$flagged` and nothing else.** A JMAP server keeps no due date and no
+  "complete": a follow-up's due date stays on this computer, and one marked complete is not flagged
+  there. So whether a flag was changed here is told by that one bit. A flag you didn't change since
+  the last Send/Receive follows the server: cleared on another device, it is cleared here with its
+  due date; flagged again there after you marked it complete, it is flagged here. One you changed
+  here goes up, whatever the server said meanwhile. Changed on both sides between two runs, the two
+  can only have gone the same way, and the due date or the "complete" kept here stays.
+- **A move takes the message out of the mailbox it was in and puts it into the other**, and says
+  nothing of any other mailbox (`mailboxIds/<from>` and `mailboxIds/<to>`, never the whole of
+  `mailboxIds`). That way it doesn't undo what another program did to the message meanwhile, and
+  never takes it out of a mailbox this computer didn't know it was in (a server may keep a message
+  in several). The other side of it: a message another program moved on in the meantime, or one
+  that lay in a second mailbox already, ends up in both. The next Send/Receive that reads those
+  mailboxes lists it where the server has it, and it is shown there (in one of them, when the
+  server keeps it in two).
 - **Mail is sent** (#1074): a message written from the account waits in its Outbox and goes with
   the next Send/Receive, which starts by itself a few seconds after Send; Send asks for the
   password or token when it isn't at hand. The server itself sends it (JMAP submission, RFC 8621):

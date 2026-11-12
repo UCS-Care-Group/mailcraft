@@ -35,8 +35,6 @@ use mailcraft_model::{Address, FlagStatus, FolderKind, Id, Importance, Mailbox, 
 
 use super::graph_down::{self, Down, ServerIndex};
 
-/// Longest an id may be, in octets (RFC 8620 §1.2).
-const MAX_ID: usize = 255;
 /// Most windows one piece brings: a run reads a thousand mailboxes at the most, a window each.
 const MAX_PAGES: usize = 1_000;
 /// Lines of trouble kept of one piece, and the longest, in characters.
@@ -61,9 +59,10 @@ pub(crate) const MAX_BATCH: usize = 64 << 20;
 /// it is opened, so that what a browser tab holds stays small.
 pub(crate) const BACKGROUND_NEWEST: usize = 40;
 
-/// Whether `id` may be a JMAP id: 1 to 255 octets of `A-Z a-z 0-9 - _` (RFC 8620 §1.2).
+/// Whether `id` may be a JMAP id: 1 to 255 octets of `A-Z a-z 0-9 - _` (RFC 8620 §1.2), as the
+/// mailbox itself tests it ([`mailcraft_model::is_jmap_id`]).
 pub(crate) fn is_id(id: &str) -> bool {
-    !id.is_empty() && id.len() <= MAX_ID && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    mailcraft_model::is_jmap_id(id)
 }
 
 /// What `account` has of each mailbox: the server ids of the messages the server last said lie in
