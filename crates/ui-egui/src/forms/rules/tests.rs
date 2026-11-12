@@ -143,6 +143,11 @@ fn rules_and_folders_read_as_people_know_them() {
     f.name.clone_from(&junk);
     f.conds[0].text.clone_from(&junk);
     f.acts[0] = Act { kind: Do::Categorize, category: junk.clone(), ..f.fresh_action() };
+    // A category's name longer than a category keeps is refused, not cut: the rule would put on
+    // another category than the one named (the dialog offers the names on the list).
+    let (command, params) = f.command();
+    assert!(s.run(command, &params).is_err());
+    f.acts[0].category = "Purple category".into();
     let (command, params) = f.command();
     let id = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
     let rule = s.mailbox.rules.iter().find(|r| r.id == id).cloned().unwrap();
