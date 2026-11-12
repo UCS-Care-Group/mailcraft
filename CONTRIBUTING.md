@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-07 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** patch
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -102,10 +102,17 @@ Want to use it rather than build it? Sign up with the
 Found something wrong? Use the
 [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml).
 
+A build from this repository sends Help › Report a Problem › Send report to the project's real
+report relay (`MAILCRAFT_REPORT_URL` in `.cargo/config.toml`), where every report becomes an
+issue the maintainers read. Don't press it to try the window out: build with
+`MAILCRAFT_REPORT_URL=` (empty) to have Open on GitHub alone, and use the tests' stand-in relay
+(`crates/net/src/report_tests.rs`) for the sending.
+
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |
 | 2026-11-07 | minor | Security fixes: a fix for a security finding comes with a test that covers every site of its root cause |
 | 2026-11-04 | minor | A row of a document's revision history or of the progress log is a fragment, `docs/log.d/…`, joined in at release like a release-notes line |
 | 2026-11-03 | minor | Claim an issue by commenting on it: no waiting for an assignee; `claimed` stays as a maintainer's marker; the first claim stands and lapses after 14 quiet days |

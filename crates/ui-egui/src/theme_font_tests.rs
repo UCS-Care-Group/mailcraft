@@ -201,8 +201,29 @@ fn has_glyphs(fonts: egui::FontDefinitions, chars: &[char]) -> bool {
     all
 }
 
+/// Flatpak exposes host fonts in addition to the fonts in its runtime.
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_font_search_includes_flatpak_host_fonts() {
+    let dirs = super::font_dirs();
+    for path in ["/run/host/user-fonts", "/run/host/local-fonts", "/run/host/fonts"] {
+        assert!(dirs.contains(&PathBuf::from(path)), "missing font directory {path}");
+    }
+}
+
+/// A host can have just the upstream variable CJK collection installed.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+#[test]
+fn the_variable_noto_collection_is_a_system_fallback() {
+    let dir = FontsDir::new("variable-noto");
+    dir.put("noto/NotoSansCJK-VF.otf.ttc", &collection(A_FONT));
+    let system = SystemFont::none().with_fallbacks_from(&dir.dirs(), super::FALLBACK_FACES);
+    assert_eq!(system.fallback_count(), 1);
+    draws(font_definitions_with(&system));
+}
+
 /// What this system has, whatever that is, goes behind the other fonts and draws text in other
-/// scripts: with real glyphs, where it has a face for Chinese or Hebrew.
+/// scripts: with real glyphs, where it has a face for Chinese, Japanese or Hebrew.
 #[test]
 fn the_fallbacks_of_this_system_draw() {
     // The bundled fonts alone draw Chinese and Hebrew as empty boxes, which the check sees.
@@ -224,6 +245,9 @@ fn the_fallbacks_of_this_system_draw() {
         };
         if super::FALLBACK_FACES.first().is_some_and(|chinese| has(chinese)) {
             assert!(has_glyphs(fonts.clone(), &['斯', '洛', '票']), "Chinese is drawn with {found:?}");
+        }
+        if has(&["NotoSansCJK-Regular.ttc"]) {
+            assert!(has_glyphs(fonts.clone(), &['山', '田', 'の', 'ラ']), "Japanese is drawn with {found:?}");
         }
         if has(&["NotoSansHebrew-Regular.ttf", "DejaVuSans.ttf", "ArialHB.ttc", "arial.ttf"]) {
             assert!(has_glyphs(fonts, &['ש', 'ל', 'ו', 'ם']), "Hebrew is drawn with {found:?}");

@@ -17,6 +17,13 @@ const MAX_DEPTH: usize = 20;
 /// Most MIME parts read from one message.
 const MAX_PARTS: usize = 1000;
 
+/// How many S/MIME opaque signed parts of one message are opened (#30): one. Signed data inside
+/// signed data is a file, so that nesting can't make a message many times its size (each level
+/// would be kept as a file and opened again).
+const MAX_OPAQUE: usize = 1;
+/// The most bytes opened from opaque signed parts in one message: past it they stay files.
+const MAX_OPAQUE_BYTES: usize = 64 * 1024 * 1024;
+
 /// Most unmodelled header fields kept in [`Message::headers`], and their total size in bytes.
 const MAX_KEPT_HEADERS: usize = 200;
 const MAX_KEPT_BYTES: usize = 64 * 1024;
@@ -51,12 +58,20 @@ const MAX_IDS: usize = 1000;
 /// Attachments: every part with `Content-Disposition: attachment`, every part with a file name,
 /// and every part that is neither text nor multipart. A `message/rfc822` part is one attachment;
 /// it is not opened. `inline` is set for `Content-Disposition: inline`, and for a part with a
-/// `Content-ID` inside `multipart/related`.
+/// `Content-ID` inside `multipart/related`. An S/MIME opaque signed part (`application/pkcs7-mime`
+/// signed data, #30) is an attachment, and what it holds is read as if it stood in its place:
+/// its text joins the body and its files the attachments.
 pub fn parse(bytes: &[u8]) -> Message {
+    parse_opening(bytes, MAX_OPAQUE_BYTES)
+}
+
+/// [`parse`], opening at most `opaque_limit` bytes of opaque signed parts (for the tests, which
+/// have no 64 MB to spare).
+pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     let (headers, body) = header::split(bytes, true);
     let mut message = Message::default();
     read_headers(&headers, &mut message);
-    let mut walk = Walk::default();
+    let mut walk = Walk { opaque_limit, ..Walk::default() };
     walk.part(&headers, body, 0, Parent::None);
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
     let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
@@ -209,6 +224,12 @@ struct Walk {
     html: Option<String>,
     attachments: Vec<Attachment>,
     parts: usize,
+    /// Opaque signed parts opened so far, and the bytes of what they held ([`MAX_OPAQUE`],
+    /// [`MAX_OPAQUE_BYTES`]).
+    opaque: usize,
+    opaque_bytes: usize,
+    /// The most bytes opened from opaque signed parts ([`MAX_OPAQUE_BYTES`] but in tests).
+    opaque_limit: usize,
 }
 
 impl Walk {
@@ -273,7 +294,30 @@ impl Walk {
         };
         let name = file_name.unwrap_or_else(|| media::default_name(&mime));
         let inline = disposition.value == "inline" || (!content_id.is_empty() && parent == Parent::Related);
-        self.attachments.push(Attachment { name, mime, content_id, inline, data: Arc::new(decode(body, &encoding)), kept: None });
+        let data = Arc::new(decode(body, &encoding));
+        // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
+        // the file itself. Not one sent along as a file inside another message, and nothing is
+        // checked here. The file is kept beside what it holds (about twice the room): it is the
+        // Digital signature's own file, which Details opens and saves and an agent is pointed to
+        // (`signaturePart`), and a message read without the bytes it came as (past the cap of
+        // those) has nothing else to check its signature from; the window and `mail.get` leave it
+        // out of the files.
+        let pkcs7 = matches!(mime.as_str(), "application/pkcs7-mime" | "application/x-pkcs7-mime");
+        let openable = pkcs7
+            && (depth == 0 || disposition.value != "attachment")
+            && depth < MAX_DEPTH
+            && self.opaque < MAX_OPAQUE
+            && data.len() <= self.opaque_limit.saturating_sub(self.opaque_bytes);
+        let signed = openable.then(|| mailcraft_model::ber::signed_content(&data)).flatten();
+        if let Some(content) = &signed {
+            self.opaque = self.opaque.saturating_add(1);
+            self.opaque_bytes = self.opaque_bytes.saturating_add(content.len());
+        }
+        self.attachments.push(Attachment { name, mime, content_id, inline, data, kept: None });
+        if let Some(content) = signed {
+            let (inner_headers, inner_body) = header::split(&content, false);
+            self.part(&inner_headers, inner_body, depth.saturating_add(1), parent);
+        }
     }
 
     fn add_text(&mut self, text: String, parent: Parent) {
@@ -323,7 +367,7 @@ fn decode(body: &[u8], encoding: &str) -> Vec<u8> {
 /// The parts of a multipart body: what lies between `--boundary` lines, without the line break
 /// that belongs to the delimiter. The text before the first delimiter and after the closing
 /// `--boundary--` is ignored. A body that is cut short still gives its last part.
-fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) -> Vec<&'a [u8]> {
+pub(crate) fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) -> Vec<&'a [u8]> {
     let delimiter = [b"--", boundary.as_bytes()].concat();
     let mut parts = Vec::new();
     let mut start: Option<usize> = None;

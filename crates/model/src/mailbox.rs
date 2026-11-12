@@ -8,6 +8,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::messages::Messages;
+use bulk::Removal;
+
+#[path = "mailbox_bulk.rs"]
+mod bulk;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
@@ -301,6 +305,13 @@ impl AccountKind {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
+    /// Whether the account keeps its mail in full only within its mail to keep offline (#143),
+    /// and older mail as headers and a preview: a Microsoft account and an Exchange server account
+    /// (#966), which both bring every message's headers and fetch the whole messages afterwards.
+    pub fn has_offline_window(self) -> bool {
+        matches!(self, AccountKind::Microsoft | AccountKind::Exchange)
+    }
+
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
     /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
     /// sending comes after its reading, and until then no mail is put in its Outbox, where it
@@ -402,6 +413,13 @@ pub struct Account {
     /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub skip_conversation_question: bool,
+    /// The account's colour (#893): a dot beside its name in the folder pane, and a stripe on
+    /// its mail where the list holds mail of more than one account, so that whose mail is whose
+    /// is seen at a glance. A new account is given one ([`Mailbox::unused_account_color`]);
+    /// `None` for none, as in a file from before there were any, and for one the file has in a
+    /// form this version can't read.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub color: Option<Rgb>,
     /// For a Gmail account: its owner turned off Gmail's categories (#911), which the folder pane
     /// then doesn't show under its Inbox. Off for a new account and in a file from before there
     /// was one: they are shown. Every other account has none to show, whatever this says.
@@ -849,6 +867,9 @@ fn kept_for_put_back(m: &Message) -> Message {
         for a in &mut copy.attachments {
             a.kept = None;
         }
+        if let Some(o) = copy.original.as_mut() {
+            o.kept = None;
+        }
     } else {
         copy.to_fetch_again();
     }
@@ -975,6 +996,23 @@ pub struct Category {
     pub color: Rgb,
 }
 
+/// The twelve colours a category or an account can be given in the window: ours, each strong
+/// enough to be seen as a mark on a light and on a dark background.
+pub const PALETTE: [Rgb; 12] = [
+    Rgb(0xD1, 0x3B, 0x3B),
+    Rgb(0xE0, 0x7B, 0x1F),
+    Rgb(0xD9, 0xA4, 0x0C),
+    Rgb(0x2E, 0x8B, 0x57),
+    Rgb(0x1A, 0x9B, 0xA6),
+    Rgb(0x2F, 0x6F, 0xD0),
+    Rgb(0x7E, 0x57, 0xC2),
+    Rgb(0xC2, 0x4E, 0x9A),
+    Rgb(0x8A, 0x5A, 0x44),
+    Rgb(0x6B, 0x7A, 0x1F),
+    Rgb(0x4F, 0x6D, 0x8F),
+    Rgb(0x7A, 0x7A, 0x7A),
+];
+
 /// The colour of a category with none: one a list doesn't have, or one new to the list.
 pub const GREY_CATEGORY: Rgb = Rgb(0x8A, 0x8A, 0x8A);
 
@@ -1057,6 +1095,10 @@ pub struct Mailbox {
     pub events: BTreeMap<Id, Arc<Event>>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub tasks: BTreeMap<Id, Arc<Task>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
+    pub notes: BTreeMap<Id, Arc<crate::Note>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
+    pub journal: BTreeMap<Id, Arc<crate::JournalEntry>>,
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub categories: Vec<Category>,
     pub rules: Vec<Rule>,
@@ -1149,6 +1191,10 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The Public keys of the people mail came from, by address (#30 R9): certificates
+    /// collected from Digitally signed mail, contact or not.
+    #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
+    pub public_keys: crate::public_keys::PublicKeys,
     next_id: Id,
 }
 
@@ -1164,6 +1210,8 @@ impl Default for Mailbox {
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),
+            notes: BTreeMap::new(),
+            journal: BTreeMap::new(),
             categories: default_categories(),
             rules: Vec::new(),
             junk: crate::JunkLists::default(),
@@ -1185,6 +1233,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            public_keys: Default::default(),
             next_id: 1,
         }
     }
@@ -1419,6 +1468,13 @@ impl Mailbox {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
     }
 
+    /// The colour a new account is given (#893): the first of [`PALETTE`] no account has yet, and
+    /// once every one is taken, the one the fewest have (the first of those).
+    pub fn unused_account_color(&self) -> Rgb {
+        let used = |c: &Rgb| self.accounts.iter().filter(|a| a.color == Some(*c)).count();
+        PALETTE.iter().min_by_key(|c| used(c)).copied().unwrap_or_default()
+    }
+
     /// Whether Delete on a whole conversation of `account`'s asks first (#503): its own switch,
     /// and for a shared mailbox its owner's.
     pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
@@ -1522,6 +1578,8 @@ impl Mailbox {
             kind: AccountKind::Microsoft,
             download_in_full,
             shared_of: Some(owner),
+            // A colour of its own, as `account.add` gives a new account (#893).
+            color: Some(self.unused_account_color()),
             ..Default::default()
         };
         let id = self.add_account(shared);
@@ -1748,9 +1806,13 @@ impl Mailbox {
     }
 
     fn name_taken(&self, account: Id, parent: Option<Id>, name: &str, except: Option<Id>) -> bool {
-        self.folders
-            .iter()
-            .any(|f| f.account == account && f.parent == parent && Some(f.id) != except && f.name.to_lowercase() == name.to_lowercase())
+        // Lowered once, and not at all for two names in ASCII: a server's thousands of folders
+        // are each checked against all the others beside them (#991).
+        let lowered = name.to_lowercase();
+        let same = |other: &str| {
+            if other.is_ascii() && name.is_ascii() { other.eq_ignore_ascii_case(name) } else { other.to_lowercase() == lowered }
+        };
+        self.folders.iter().any(|f| f.account == account && f.parent == parent && Some(f.id) != except && same(&f.name))
     }
 
     /// Create a folder under `parent` (or at the account's top level).
@@ -1928,9 +1990,11 @@ impl Mailbox {
                     .filter(|(id, elsewhere, out)| *elsewhere || *out || waiting.contains(id))
                     .map(|(id, elsewhere, _)| (id, elsewhere))
                     .collect();
+                let mut r = Removal::start(self);
                 for (id, elsewhere) in moved_in {
-                    self.queue_graph_delete(id, elsewhere);
+                    self.queue_graph_delete_in(id, elsewhere, &mut r);
                 }
+                self.end_removal(r);
                 let messages = &self.messages;
                 for p in &mut self.pending {
                     if let Pending::Move { account, message, from, uid, to, .. } = p
@@ -1975,6 +2039,10 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        // Within what the mailbox keeps of originals in all (#30).
+        if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
+            m.original = None;
+        }
         if m.id == 0 || self.messages.contains_key(&m.id) {
             m.id = self.alloc_id();
         }
@@ -1982,6 +2050,12 @@ impl Mailbox {
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
+    }
+
+    /// Whether an original of `size` more bytes fits within [`crate::MAX_ORIGINALS`] (#30), by the
+    /// running total the messages keep ([`Messages::originals_size`]).
+    pub fn room_for_original(&mut self, size: u64) -> bool {
+        self.messages.originals_size().saturating_add(size) <= crate::MAX_ORIGINALS
     }
 
     pub fn message(&self, id: Id) -> Option<&Message> {
@@ -2072,25 +2146,8 @@ impl Mailbox {
     /// something waited for before the first of them was moved: moving one adds nothing for
     /// another, so a big move takes time in proportion to its size rather than to its square.
     pub fn move_messages(&mut self, ids: &[Id], folder: Id) -> Result<Vec<(Id, Id)>, ModelError> {
-        let pending = self.pending.iter().filter_map(|p| match p {
-            Pending::Move { message, .. } => Some(*message),
-            Pending::Delete { .. } => None,
-        });
-        let queued = self.queued.iter().filter_map(|q| match q {
-            Queued::PlaceMessage { message, .. } => Some(*message),
-            _ => None,
-        });
-        let waited: HashSet<Id> = pending.chain(queued).collect();
-        let mut moved = Vec::new();
-        for id in ids {
-            let Some(account) = self.message(*id).filter(|m| m.folder != folder).map(|m| m.account) else { continue };
-            if self.folder(folder).is_some() && self.stays_on_server(*id) {
-                return Err(invalid(NOT_MOVING_YET));
-            }
-            self.move_anyway(*id, folder, !waited.contains(id))?;
-            moved.push((*id, account));
-        }
-        Ok(moved)
+        let moves: Vec<(Id, Id)> = ids.iter().map(|id| (*id, folder)).collect();
+        self.move_each(&moves)
     }
 
     /// Whether `id` is a message a JMAP account's server has. It stays where it is until moves and
@@ -2419,6 +2476,17 @@ impl Mailbox {
             self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
             return;
         }
+        // The bytes a protected message came as may be lost with the original (#30): it stays the
+        // copy the message is moved out of, by the gate every release goes through, and this one,
+        // which Graph made of its parts and so holds none of them, goes. (A record of where it
+        // was put is of the mailbox it leaves: [`Message::original_placed`] counts not here.)
+        let protected = m.original.is_some() && !m.original_asked;
+        let held = original.as_ref().is_some_and(|out| (!out.left || out.listing) && !out.id.is_empty())
+            || self.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == id) && p.account() != m.account);
+        if protected && held {
+            self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
+            return;
+        }
         if let Ok(m) = self.message_mut(id) {
             m.moving_out = Some(copy);
         }
@@ -2645,62 +2713,14 @@ impl Mailbox {
         Ok(new)
     }
 
-    /// What the server of a Microsoft account is to be told when `id` goes for good here: its
-    /// copy is deleted there (`own`; not when its folder's deletion takes it along), and so is
-    /// the server's copy of one being moved out of the account, and a copy of it not yet made
-    /// there is not made.
-    fn queue_graph_delete(&mut self, id: Id, own: bool) {
-        let Some(m) = self.message(id) else { return };
-        let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
-            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
-        }
-        if let Some(out) = &m.moving_out {
-            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
-        }
-        if !self.queued.is_empty() {
-            self.queued.retain(|q| match q {
-                Queued::CopyMessage { copy, .. } => *copy != id,
-                Queued::PlaceMessage { message, .. } => *message != id,
-                _ => true,
-            });
-        }
-        for delete in deletes {
-            let Queued::DeleteMessage { account, id, .. } = &delete else { continue };
-            if !self.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account: a, id: i, .. } if a == account && i == id)) {
-                self.queued.push(delete);
-            }
-        }
-    }
-
     /// Remove a message for good, as its owner asks. When the server has it, a
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
     pub fn remove_message(&mut self, id: Id) -> Result<Message, ModelError> {
-        // Not one a JMAP account's server has: the next run would bring it back.
-        if self.stays_on_server(id) {
-            return Err(invalid(NOT_MOVING_YET));
-        }
-        let (was_in, account, uid, message_id, seen) = {
-            let m = self.message(id).ok_or(not_found("message", id))?;
-            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
-        };
-        self.queue_graph_delete(id, true);
-        match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
-            Some(op) => {
-                if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
-                    *op = delete;
-                }
-            }
-            None => {
-                let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
-                if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen });
-                }
-            }
-        }
-        self.forget_message(id)
+        let mut r = Removal::start(self);
+        let removed = self.remove_one(id, &mut r);
+        self.end_removal(r);
+        removed.map(Arc::unwrap_or_clone)
     }
 
     /// Remove a message without a word to the server: for a synchronisation taking out what the
@@ -3034,6 +3054,20 @@ impl Mailbox {
         self.events.remove(&id).map(|_| ()).ok_or(not_found("event", id))
     }
 
+    pub fn add_note(&mut self, mut n: crate::Note) -> Id {
+        n.id = self.alloc_id();
+        let id = n.id;
+        self.notes.insert(id, Arc::new(n));
+        id
+    }
+
+    pub fn add_journal(&mut self, mut j: crate::JournalEntry) -> Id {
+        j.id = self.alloc_id();
+        let id = j.id;
+        self.journal.insert(id, Arc::new(j));
+        id
+    }
+
     pub fn add_task(&mut self, mut t: Task) -> Id {
         if t.id == 0 || self.tasks.contains_key(&t.id) {
             t.id = self.alloc_id();
@@ -3330,6 +3364,8 @@ impl Mailbox {
             .chain(self.contacts.keys())
             .chain(self.events.keys())
             .chain(self.tasks.keys())
+            .chain(self.notes.keys())
+            .chain(self.journal.keys())
             .copied()
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))

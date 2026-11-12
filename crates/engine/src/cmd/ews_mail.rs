@@ -311,7 +311,10 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // that far, sets it again. A run that stops first (a 429, called off, a read that failed)
     // leaves the next one to read the list afresh.
     let refused_delete = |done: &FolderChangeDone| {
-        matches!((&done.change, &done.outcome), (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. } | ChangeOutcome::NotShown { .. }))
+        matches!(
+            (&done.change, &done.outcome),
+            (FolderChange::Delete { .. }, ChangeOutcome::Refused { .. } | ChangeOutcome::OwnFolder { .. } | ChangeOutcome::NotShown { .. })
+        )
     };
     if result.changes.iter().any(refused_delete)
         && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())

@@ -1,6 +1,6 @@
 # Gmail and Google Workspace on the desktop
 
-> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-08 · **Change:** minor
+> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-09 · **Change:** minor
 
 MailCraft offers **Sign in with Google** first for new Google accounts when its Desktop OAuth
 registration is configured. **Use an app password instead** is a separate alternative. An
@@ -134,7 +134,41 @@ names. Agents choose the same with `view.gmailCategories` (`{"value": "tabs"}` o
 Gmail's categories are not MailCraft's own categories: search for them with
 `gmail:primary`, `gmail:social`, `gmail:promotions`, `gmail:updates` or `gmail:forums`, while
 `category:` still finds your own. Agents see a message's `gmailCategory` beside its other fields.
-Moving mail from one Gmail category to another is not available yet.
+
+### Moving mail between categories
+
+Gmail lets you move a message from one category to another, and MailCraft is built to as well:
+drag messages onto a category's folder or tab, or right-click them and choose **Move to Category**
+and one of the five. The move shows here at once, can be undone, and goes to Gmail at the next
+Send/Receive, also when you made it offline; in conversation view, every message of the
+conversation in that Inbox moves. A move made here wins over Gmail until Gmail has it; a change
+made only in Gmail (on the web, on a phone) is taken in at the next Send/Receive. Agents move
+mail with `mail.setGmailCategory` (`{"ids": [...], "category": "social"}`), naming the messages
+as for a move to a folder: those messages move, with any other copy here of the same Gmail message
+(Gmail keeps one category for a message), and never other messages of their conversations.
+
+**This is switched off in this version**, and comes once Google has reviewed MailCraft's use of
+Gmail's API for it: until then the item isn't in the menu or in command search, the folders and
+tabs take no messages, and nothing is sent to Gmail's API. A move left waiting by a build that had
+it switched on gives way to Gmail's category at the next Send/Receive.
+
+Gmail's IMAP extensions can read the categories but not change them, so a move goes through
+Gmail's API (`gmail.googleapis.com`, one request for each category moved to): the messages' Gmail
+ids (`X-GM-MSGID`) and the category's label (Primary is `CATEGORY_PERSONAL`; the other four are
+taken off), with the account's Google sign-in, whose `https://mail.google.com/` permission covers
+it. Nothing else of the messages goes. Gmail answers such a request as a whole: when it refuses
+one, MailCraft sends it again in halves, after every category's first request, so that the rest
+still go (at most 32 requests a Send/Receive; what is left waits for the next). A message Gmail
+refuses on its own is asked for again at the next Send/Receive; once Gmail has refused it three
+times (a Send/Receive that didn't get to try it counts neither way) the move is given up, the
+message stays where Gmail has it, and MailCraft says so ("Gmail wouldn't move 1 message"). A new
+move of yours starts the count again. A message Gmail no longer has is set right at the next reading of the
+Inbox.
+
+Once moving is switched on, an account that signs in with an **app password** will still only show
+the categories: Gmail's API takes no app password, so its Move to Category will be greyed, with a
+note that it needs Google sign-in, and switching the account to Google sign-in will let it move.
+The browser build won't move them either.
 
 ## Google restrictions and useful error distinctions
 
@@ -277,6 +311,13 @@ sign-in is not public-app approval. See [release readiness](releasing.md#google-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-09 | patch | #911: how a refused request is split, the cap a Send/Receive, and a move Gmail refuses three times given up |
+| 2026-11-09 | patch | #911: named messages move with their copies of the same Gmail message; a move given up once Gmail has refused it three times |
+| 2026-11-08 | minor | #911: Gmail's inbox categories shown as five folders under a Gmail account's Inbox, read with Gmail's own search; the two account settings, the `gmail:` search and what agents see |
+| 2026-11-08 | minor | #911: Gmail's categories as tabs above the Inbox (View › Gmail Categories), how they are chosen with the mouse and the keyboard |
+| 2026-11-08 | minor | #911: moving mail between Gmail's categories (drag, Move to Category, `mail.setGmailCategory`), why an app-password account can't, and that it is switched off until Google has reviewed MailCraft |
+| 2026-11-08 | patch | #911: moves between Gmail's categories go one request for each category; named messages move alone; switched off, Move to Category isn't in command search and a move left waiting gives way to Gmail |
+| 2026-11-08 | patch | #911: an app-password account and Google sign-in described as they will be once moves are switched on; a refused request split to send the rest |
 | 2026-11-08 | minor | #232: Google sign-in is for invited testers while Google reviews MailCraft, with how to join; a new Gmail account starts on an app password |
 | 2026-11-04 | minor | #232: document primary-address identity checks and unsupported Workspace aliases; keep the public client-ID option while taking the matching registration secret only from build or environment configuration, including migration from the former preference |
 | 2026-11-03 | major | Desktop Google sign-in, app-password alternative, explicit conversion, registration overrides, restrictions and verified acceptance scope (#232) |
