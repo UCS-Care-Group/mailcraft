@@ -72,6 +72,9 @@
 //!   create-reply, create-reply-all and create-forward, a draft's subject, body and recipients
 //!   changed in place, attachments added, listed and deleted, large ones through upload
 //!   sessions, and answers lost on demand ([`State::lose_next`]): [`drafts`].
+//! - **To Do and categories.** `/me/todo/lists[/{id}/tasks[/{id}]]` and
+//!   `/me/outlook/masterCategories[/{id}]` as the reference has them, each property of its type
+//!   ([`State::add_todo_list`], [`State::add_todo`], [`State::add_category`]).
 //! - **Time.** [`State::stale_views`] calendar views after a change are answered as the calendar
 //!   was before it: an answer may be older than the last change. [`State::keeps_times`] makes it
 //!   say yes to a change of time and not make it, which no client should take for done.
@@ -85,12 +88,14 @@ mod messages;
 mod people;
 mod search;
 mod send;
+mod todo;
 
 pub use changes::Fault;
 pub use drafts::Attached;
 pub use messages::{Mail, Message};
 pub use people::{Access, Person};
 pub use send::Sent;
+pub use todo::{Category, TodoList, TodoTask};
 
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -461,6 +466,10 @@ pub struct State {
     pub prefixes: (String, String),
     /// The messages of every folder, and the rounds of their delta ([`messages`]).
     pub mailbox: Mail,
+    /// The owner's lists of Microsoft To Do, with their tasks ([`todo`]).
+    pub todo: Vec<TodoList>,
+    /// The owner's colour categories ([`todo`]).
+    pub categories: Vec<Category>,
     /// The mailboxes other than the owner's that it knows (#70); any other address is 404
     /// (`ErrorInvalidUser`).
     pub others: Vec<OtherMailbox>,
@@ -2160,7 +2169,9 @@ impl State {
             ["messages", id, "attachments", attachment] => self.attachments_at(asked, method, id, Some(attachment)),
             ["messages", id] => self.message_at(asked, method, id, None),
             ["messages", id, action] => self.message_at(asked, method, id, Some(action)),
-            ["contacts"] | ["outlook", "masterCategories"] if method == "GET" => self.page(asked, Vec::new()),
+            ["todo", tail @ ..] => self.todo_at(asked, method, tail),
+            ["outlook", "masterCategories", tail @ ..] => self.categories_at(asked, method, tail),
+            ["contacts"] if method == "GET" => self.page(asked, Vec::new()),
             ["mailboxSettings", "workingHours"] if method == "GET" => Ok((
                 200,
                 Some(json!({
@@ -2583,7 +2594,13 @@ impl StandIn {
     /// Start one: a main calendar called "Calendar" with nothing in it, for the owner
     /// `owner@example.org`, taking [`TOKEN`].
     pub fn start() -> std::io::Result<StandIn> {
-        let listener = TcpListener::bind("127.0.0.1:0")?;
+        StandIn::start_on(0)
+    }
+
+    /// The same on a port of this computer's loopback address (0: one it picks). Never on any
+    /// other address: nothing here is for anybody else to reach.
+    pub fn start_on(port: u16) -> std::io::Result<StandIn> {
+        let listener = TcpListener::bind(("127.0.0.1", port))?;
         let port = listener.local_addr()?.port();
         let mut state = State {
             token: TOKEN.into(),
@@ -2614,6 +2631,9 @@ impl StandIn {
             }
         }
         state.add_hidden_folders();
+        // The lists of To Do every account has: its own, and the one that holds flagged mail.
+        state.add_todo_list("Tasks", "defaultList");
+        state.add_todo_list("Flagged Email", "flaggedEmails");
         let state = Arc::new(Mutex::new(state));
         let shared = state.clone();
         std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {
