@@ -272,8 +272,9 @@ fn search(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, mean
     Some(handles.into_iter().map(read).collect())
 }
 
-/// The first `most` objects of the session that match `template`: the module is asked for no
-/// more than that, and the search is over before anything of them is read.
+/// The first `most` objects of the session that match `template`, and the search over before
+/// anything of them is read. (`cryptoki` takes the handles from the module ten at a time, so up to
+/// nine more may be fetched and let go of.)
 fn handles(session: &Session, template: &[Attribute], most: usize) -> cryptoki::error::Result<Vec<ObjectHandle>> {
     session.iter_objects(template)?.take(most).collect()
 }
