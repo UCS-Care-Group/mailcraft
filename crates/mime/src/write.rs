@@ -289,7 +289,9 @@ fn calendar_form(message: &Message) -> Option<(usize, String)> {
 /// `multipart/signed` that doesn't end with a line end one, which changed an entity ending
 /// `--boundary--` without one under its signature (#30: every such signature checked BAD). It
 /// is added only when the entity doesn't end with one already (text that ends with a line end),
-/// so that a server that trims a part's line ends at its end to one changes nothing either.
+/// so that a server that trims a part's line ends at its end to one changes nothing either; for
+/// the same reason, signed text keeps at most one line end at its end (blank lines there show
+/// nothing).
 pub fn signable(message: &Message) -> Vec<u8> {
     let mut entity = body(message, true).bytes();
     if !entity.ends_with(b"\r\n") {
@@ -350,7 +352,16 @@ fn body(message: &Message, signing: bool) -> Part {
 }
 
 fn text_part(subtype: &str, text: &str, signing: bool) -> Part {
-    let text = charset::unix_lines(text);
+    let mut text = charset::unix_lines(text);
+    if signing {
+        // Blank lines at the end show nothing, and a server that trims a part's line ends at its
+        // end to one would change them under the signature (#30): signed text ends with one at
+        // most, as the signed entity does.
+        let kept = text.trim_end_matches('\n').len();
+        if text.len() > kept.saturating_add(1) {
+            text.truncate(kept.saturating_add(1));
+        }
+    }
     let seven_bit = text.bytes().all(|b| matches!(b, b'\n' | b'\t' | 0x20..=0x7E))
         && text.split('\n').all(|line| line.len() <= MAX_LINE && !(signing && changes_on_the_way(line)));
     let (encoding, content) =

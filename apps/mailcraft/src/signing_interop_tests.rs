@@ -35,17 +35,18 @@ const MESSAGE_DIGEST: der::oid::ObjectIdentifier = der::oid::ObjectIdentifier::n
 
 /// The forms of message signed: text and HTML, as the owner's was (`multipart/alternative`);
 /// with a file besides (`multipart/mixed`); and text alone (`text/plain` is the signed part),
-/// ending with a line end and without one.
+/// ending with a line end, without one, and with a blank line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Shape {
     Alternative,
     Mixed,
     TextEndingWithALineEnd,
     TextWithout,
+    TextEndingWithABlankLine,
 }
 
 impl Shape {
-    const ALL: [Shape; 4] = [Shape::Alternative, Shape::Mixed, Shape::TextEndingWithALineEnd, Shape::TextWithout];
+    const ALL: [Shape; 5] = [Shape::Alternative, Shape::Mixed, Shape::TextEndingWithALineEnd, Shape::TextWithout, Shape::TextEndingWithABlankLine];
 }
 
 fn message(format: SignatureFormat, fingerprint: &str, shape: Shape) -> Message {
@@ -54,6 +55,7 @@ fn message(format: SignatureFormat, fingerprint: &str, shape: Shape) -> Message 
         Shape::Alternative | Shape::Mixed => (text.to_string(), Some("<div><br></div><div>Regards,</div><div>Owner</div>".to_string())),
         Shape::TextEndingWithALineEnd => (format!("{text}\n"), None),
         Shape::TextWithout => (text.to_string(), None),
+        Shape::TextEndingWithABlankLine => (format!("{text}\n\n"), None),
     };
     let attachments = if shape == Shape::Mixed {
         vec![Attachment {
@@ -190,11 +192,11 @@ fn pgp_key() -> SignedSecretKey {
 
 /// Signs as Send does with `secret` in place of gpg-agent: the holder is handed the digest and
 /// gives back what `PKSIGN` would.
-fn pgp_signed(secret: &SignedSecretKey, file: Shape) -> Message {
+fn pgp_signed(secret: &SignedSecretKey, shape: Shape) -> Message {
     let public = SignedPublicKey::from(secret.clone());
     let keys = mailcraft_openpgp::signing_keys(&public.to_bytes().unwrap(), 4_102_444_800);
     let key = keys.first().unwrap_or_else(|| panic!("the key signs"));
-    let mut m = message(SignatureFormat::OpenPgp, &key.primary().to_hex(), file);
+    let mut m = message(SignatureFormat::OpenPgp, &key.primary().to_hex(), shape);
     let created = secret.primary_key.created_at().as_secs() + 60;
     sign_by(&mut m, &|_, entity| {
         let armoured = mailcraft_openpgp::sign_detached(entity, key, created, mailcraft_openpgp::HashAlgorithm::Sha256, |digest| {
@@ -214,8 +216,8 @@ fn pgp_signed(secret: &SignedSecretKey, file: Shape) -> Message {
 fn an_openpgp_signature_checks_in_rpgp_on_what_goes_and_what_arrives() {
     let secret = pgp_key();
     let public = SignedPublicKey::from(secret.clone());
-    for file in Shape::ALL {
-        let m = pgp_signed(&secret, file);
+    for shape in Shape::ALL {
+        let m = pgp_signed(&secret, shape);
         for wire in as_it_arrives(&m) {
             assert_eq!(top_param(&wire, "protocol"), "application/pgp-signature");
             let (_, parts, _) = parts(&wire);
@@ -276,9 +278,9 @@ fn certificate(key: &p256::ecdsa::SigningKey) -> Vec<u8> {
     p.signed_by(&public, &rcgen::Issuer::new(ca, &ca_key)).unwrap().der().to_vec()
 }
 
-fn smime_signed(key: &p256::ecdsa::SigningKey, file: Shape) -> Message {
+fn smime_signed(key: &p256::ecdsa::SigningKey, shape: Shape) -> Message {
     let cert = certificate(key);
-    let mut m = message(SignatureFormat::Smime, &"AB".repeat(32), file);
+    let mut m = message(SignatureFormat::Smime, &"AB".repeat(32), shape);
     sign_by(&mut m, &|_, entity| {
         let request = mailcraft_smime::SignRequest {
             content: entity,
@@ -318,8 +320,8 @@ fn smime_checks(cms: &[u8], content: &[u8], key: &p256::ecdsa::VerifyingKey) -> 
 #[test]
 fn an_smime_signature_checks_in_rustcrypto_on_what_goes_and_what_arrives() {
     let key = p256_key();
-    for file in Shape::ALL {
-        let m = smime_signed(&key, file);
+    for shape in Shape::ALL {
+        let m = smime_signed(&key, shape);
         for wire in as_it_arrives(&m) {
             assert_eq!(top_param(&wire, "protocol"), "application/pkcs7-signature");
             let (_, parts, _) = parts(&wire);
@@ -384,13 +386,13 @@ fn gnupg_checks_what_gpg_agent_signed_at_send() {
     let fingerprint = std::env::var("MAILCRAFT_GNUPG_TEST_KEY").expect("MAILCRAFT_GNUPG_TEST_KEY");
     assert!(std::env::var_os("GNUPGHOME").is_some(), "a throwaway GNUPGHOME, never the owner's own");
     let dir = scratch("gnupg");
-    for file in Shape::ALL {
-        let mut m = message(SignatureFormat::OpenPgp, &fingerprint, file);
+    for shape in Shape::ALL {
+        let mut m = message(SignatureFormat::OpenPgp, &fingerprint, shape);
         sign(&Host::default(), &mut m, mailcraft_time::now()).unwrap();
         for (i, wire) in as_it_arrives(&m).into_iter().enumerate() {
             let (_, parts, _) = parts(&wire);
             let [signed, signature] = parts.as_slice() else { panic!("two parts") };
-            let (part, sig) = (dir.join(format!("part-{file:?}-{i}")), dir.join(format!("sig-{file:?}-{i}.asc")));
+            let (part, sig) = (dir.join(format!("part-{shape:?}-{i}")), dir.join(format!("sig-{shape:?}-{i}.asc")));
             std::fs::write(&part, signed).unwrap();
             std::fs::write(&sig, body_of(signature)).unwrap();
             let out = std::process::Command::new("gpg").args(["--batch", "--status-fd", "1", "--verify"]).arg(&sig).arg(&part).output().unwrap();
@@ -407,10 +409,10 @@ fn gnupg_checks_what_gpg_agent_signed_at_send() {
 fn openssl_checks_an_smime_signature_made_at_send() {
     let key = p256_key();
     let dir = scratch("openssl");
-    for file in Shape::ALL {
-        let m = smime_signed(&key, file);
+    for shape in Shape::ALL {
+        let m = smime_signed(&key, shape);
         for (i, wire) in as_it_arrives(&m).into_iter().enumerate() {
-            let path = dir.join(format!("m-{file:?}-{i}.eml"));
+            let path = dir.join(format!("m-{shape:?}-{i}.eml"));
             std::fs::write(&path, &wire).unwrap();
             let out = std::process::Command::new("openssl")
                 .args(["cms", "-verify", "-noverify", "-inform", "SMIME", "-out"])

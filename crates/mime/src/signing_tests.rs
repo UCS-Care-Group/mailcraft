@@ -82,8 +82,8 @@ fn what_is_signed_is_the_body_as_it_would_be_written() {
     assert!(entity.contains("Hello Bob,\r\n\r\nSee you at ten.\r\n"), "{entity}");
     // Its own last line end, before the boundary's: Microsoft 365 adds one to a part without.
     assert!(entity.ends_with("--\r\n") && !entity.ends_with("\r\n\r\n"), "{entity:?}");
-    // Text alone ends with one line end, whether the text ended with one or not.
-    for text in ["Hi", "Hi\n"] {
+    // Text alone ends with one line end, whether the text ended with none, one or blank lines.
+    for text in ["Hi", "Hi\n", "Hi\n\n\n"] {
         let alone = signable(&Message { body: Body { text: text.into(), html: None }, ..Message::default() });
         assert!(alone.ends_with(b"Hi\r\n"), "{text:?}: {:?}", String::from_utf8_lossy(&alone));
     }

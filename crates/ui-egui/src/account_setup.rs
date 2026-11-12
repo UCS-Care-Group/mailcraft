@@ -3677,8 +3677,6 @@ mod tests {
         }
     }
 
-    /// Account Settings in the window: the servers at once, a password field only for an account
-    /// that has one, and Save.
     /// Digital Signatures… closes Account Settings without saving, so it waits while anything
     /// Save would write is changed: the switches below the servers too (#30).
     #[test]
@@ -3715,6 +3713,8 @@ mod tests {
         }
     }
 
+    /// Account Settings in the window: the servers at once, a password field only for an account
+    /// that has one, and Save.
     #[test]
     fn account_settings_open_on_the_servers() {
         let mut a = app(true);
