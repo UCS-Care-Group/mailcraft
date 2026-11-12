@@ -3124,7 +3124,7 @@ impl Session {
     /// Go to the mailbox of `u`. A Microsoft account's mail stays in step with its server: what
     /// the server last said is kept, so the next run sends the reverse ([`crate::undo`]).
     /// The events whose categories the step undone (or redone) changed and whose servers were
-    /// told are told again, the other way (#661): mail and to-dos need nothing of the
+    /// to be told of it are told again, the other way (#661): mail and to-dos need nothing of the
     /// kind, as what differs from the server's copy goes by itself, but an event's change goes
     /// only when it is noted. One changed since (by its server, say) is left alone, and so is one
     /// whose change never went: the changes waiting that are put back haven't got it, and its
@@ -3142,7 +3142,11 @@ impl Session {
         let waiting = |c: &EventChange, remote: &str| c.kind == EventChangeKind::Update && !c.remote.is_empty() && c.remote == remote;
         for (id, left) in touched.event_categories() {
             let (Some(was), Some(is)) = (now.events.get(id), self.mailbox.events.get(id).cloned()) else { continue };
-            if was.categories != *left || is.categories == was.categories || !crate::cmd::category::told(&self.mailbox, &is) {
+            if was.categories != *left
+                || is.categories == was.categories
+                || !touched.told_event(*id)
+                || crate::cmd::remote::writable(&self.mailbox, is.calendar).is_err()
+            {
                 continue;
             }
             if now.event_changes.iter().any(|c| waiting(c, &was.origin.id)) {
@@ -3173,8 +3177,6 @@ impl Session {
     fn swap(&mut self, u: Undo) -> Undo {
         let now = std::mem::take(&mut self.mailbox);
         let (back, said) = crate::undo::keep_in_step(u.mailbox, &u.touched, &now, self.interface_language);
-        // Undone, the step is to be done again from here: what that does is the way back.
-        let touched = crate::undo::touched(&now, &back);
         self.mailbox = back;
         self.recount(&now);
         // The counts of the mailbox as it was, brought in step with what this puts back, under
@@ -3193,6 +3195,9 @@ impl Session {
             .and_then(|(_, mut counts)| Arc::make_mut(&mut counts).apply(&changes).then_some((after, counts)));
         self.undo_said = said;
         self.tell_events_again(&now, &u.touched);
+        // Undone, the step is to be done again from here: what that does is the way back (with
+        // the events it told their servers of again).
+        let touched = crate::undo::touched(&now, &self.mailbox);
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
         self.ews_run_cut.clear();

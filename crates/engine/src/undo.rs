@@ -54,6 +54,9 @@ pub(crate) struct Touched {
     keys: Vec<mailcraft_model::public_keys::KeyName>,
     /// The events whose categories it changed, with the categories it left them (#661).
     event_categories: BTreeMap<Id, Vec<String>>,
+    /// Of those, the ones a change waited to go to the server for once it was made: what it did
+    /// to them was to reach their servers, not this computer alone (#661).
+    told_events: BTreeSet<Id>,
 }
 
 /// What a change did to one account's own list of categories (#661): each category it made,
@@ -82,6 +85,11 @@ impl Touched {
     /// The events whose categories the change changed, with the categories it left them (#661).
     pub(crate) fn event_categories(&self) -> &BTreeMap<Id, Vec<String>> {
         &self.event_categories
+    }
+
+    /// Whether what the change did to the event `id`'s categories was to reach its server (#661).
+    pub(crate) fn told_event(&self, id: Id) -> bool {
+        self.told_events.contains(&id)
     }
 }
 
@@ -186,6 +194,13 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
                 is.next();
             }
         }
+    }
+    if !t.event_categories.is_empty() {
+        let update = mailcraft_model::remote::EventChangeKind::Update;
+        let waiting: HashSet<&str> =
+            after.event_changes.iter().filter(|c| c.kind == update && !c.remote.is_empty()).map(|c| c.remote.as_str()).collect();
+        let told = |id: &Id| after.events.get(id).is_some_and(|e| waiting.contains(e.origin.id.as_str()));
+        t.told_events = t.event_categories.keys().filter(|id| told(id)).copied().collect();
     }
     for b in &before.folders {
         match after.folder(b.id) {

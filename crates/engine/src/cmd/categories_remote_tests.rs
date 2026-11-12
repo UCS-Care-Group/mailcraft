@@ -2157,6 +2157,39 @@ fn an_undo_of_a_rename_whose_event_change_was_on_its_way_and_lost_tells_the_old_
     assert_eq!(event_told(&s, a, e).2.as_deref(), Some("Moved"));
 }
 
+/// An undo of a change of an event's categories in a shared mailbox's calendar, which went to its
+/// server, tells it again the other way, as for the owner's own calendar; a rename on the list
+/// the rest share, which changed it here only, tells nothing (#661).
+#[test]
+fn an_undo_of_a_shared_mailboxs_event_edit_that_went_tells_its_server_again() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    s.mailbox.categories = vec![tag("Old", GREEN), tag("Red category", RED)];
+    let a = s.run("account.add", &json!({"email": "a@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": a, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let theirs = server_event(&mut s, shared, &["Old"]);
+    s.run("calendar.edit", &json!({"id": theirs, "categories": ["Red category"]})).unwrap();
+    assert_eq!(s.mailbox.event_changes.len(), 1, "the edit goes to its server");
+    s.mailbox.event_changes.clear();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(theirs).unwrap().categories, ["Old"]);
+    let [change] = s.mailbox.event_changes.as_slice() else { panic!("the undo changes it here only: {:?}", s.mailbox.event_changes) };
+    assert_eq!(change.base.as_ref().unwrap().categories, ["Red category"]);
+    // Redone, once that went: the edit's categories again.
+    s.mailbox.event_changes.clear();
+    s.run("edit.redo", &json!({})).unwrap();
+    let [change] = s.mailbox.event_changes.as_slice() else { panic!("the redo changes it here only: {:?}", s.mailbox.event_changes) };
+    assert_eq!(change.base.as_ref().unwrap().categories, ["Old"]);
+
+    // A rename on the list the rest share changed it here only: its undo tells nothing.
+    s.mailbox.event_changes.clear();
+    s.run("category.rename", &json!({"from": "Red category", "to": "New"})).unwrap();
+    assert_eq!(s.mailbox.event(theirs).unwrap().categories, ["New"]);
+    assert!(s.mailbox.event_changes.is_empty());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.event(theirs).unwrap().categories, ["Red category"]);
+    assert!(s.mailbox.event_changes.is_empty(), "{:?}", s.mailbox.event_changes);
+}
+
 #[test]
 fn other_letters_alone_go_at_once_for_the_items_there_are_the_same_name() {
     let (mut s, a) = rig(vec![tag("Red category", RED), tag("client", GREEN)], true);
