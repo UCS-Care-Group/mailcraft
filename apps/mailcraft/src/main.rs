@@ -54,6 +54,8 @@ mod favorites_flow;
 mod favorites_organisation_flow;
 mod file_dialogs;
 mod file_launcher;
+#[cfg(target_os = "linux")]
+mod gnome_accounts;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
@@ -1716,10 +1718,14 @@ fn services(
     let alert_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
+    #[cfg(target_os = "linux")]
+    let goa_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
     Services {
+        #[cfg(target_os = "linux")]
+        gnome_accounts: Some(Box::new(move || background(&goa_ctx, "gnome account discovery", gnome_accounts::discover))),
         file_dialog: Some(file_dialog),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
         // channel short enough that a busy window holds the run back instead of piling pieces up.

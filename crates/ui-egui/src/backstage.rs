@@ -365,6 +365,11 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ) {
         let _ = app.run("ui.dialog", json!({"name": "account"}));
     }
+    if app.services.gnome_accounts.is_some()
+        && tile(ui, "account", tl!("Import accounts from GNOME…"), tl!("Choose an account already configured in GNOME, then sign in to MailCraft"), t)
+    {
+        let _ = app.run("ui.dialog", json!({"name": "gnomeAccounts"}));
+    }
     crate::auto_replies::info_tiles(app, ui, t);
     // The calendar of an account that signs in with Microsoft is kept on its server: the owner
     // can see for himself that what is changed here arrives there.

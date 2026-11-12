@@ -405,6 +405,8 @@ impl GmailSwitches {
 
 /// The Add Account wizard, and Account Settings for an account that exists.
 pub struct AccountSetup {
+    /// Provider selected in the separate system-account import dialog. Applied only on Connect.
+    imported_kind: Option<Kind>,
     page: Page,
     /// Google refused the password: the password page links to Google's App passwords page.
     app_passwords: bool,
@@ -552,8 +554,22 @@ fn google_conversion_ready(account: &Account) -> bool {
 }
 
 impl AccountSetup {
+    /// Start with the selected GOA account's public identity. No discovery request contacts a
+    /// provider; the owner still presses Connect in the unchanged setup wizard.
+    pub(crate) fn from_gnome(app: &MailApp, account: &crate::gnome_accounts::Account) -> Self {
+        use crate::gnome_accounts::Provider;
+        let mut setup = Self::new(app, &json!({"email": account.email, "displayName": account.name}));
+        setup.imported_kind = match account.provider {
+            Provider::Google => Some(Kind::Google),
+            Provider::Microsoft365 => Some(Kind::Microsoft365),
+            Provider::OutlookCom => Some(Kind::OutlookCom),
+            Provider::Unsupported => None,
+        };
+        setup
+    }
     fn blank(page: Page) -> AccountSetup {
         AccountSetup {
+            imported_kind: None,
             page,
             email: String::new(),
             name: String::new(),
@@ -1053,6 +1069,10 @@ impl AccountSetup {
 
     /// Connect on the first page: find out whose the address is, or ask, and move on.
     fn connect(&mut self, app: &mut MailApp) {
+        if let Some(kind) = self.imported_kind.take().filter(|_| !self.manual) {
+            self.pick(app, kind);
+            return;
+        }
         self.picked = false;
         let Some((command, params)) = self.preset_command(None, None) else {
             self.error = self.not_an_address();

@@ -23,6 +23,8 @@ pub enum Form {
     Task(Box<task::TaskForm>),
     /// Add Account, and the settings of an account that exists.
     Account(Box<account::AccountForm>),
+    /// Explicit discovery of accounts configured in GNOME, before normal account setup.
+    GnomeAccounts(Box<crate::gnome_accounts::Import>),
     /// The colour categories: recolour, rename, delete, add.
     Categories(Box<categories::CategoriesForm>),
     /// The mail rules, and a builder for a new one.
@@ -47,6 +49,7 @@ impl Form {
             "task" => Form::Task(Box::new(task::TaskForm::new(s, params))),
             "editTask" => Form::Task(Box::new(task::TaskForm::edit(s, params)?)),
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
+            "gnomeAccounts" => Form::GnomeAccounts(Box::new(crate::gnome_accounts::Import::open(app)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s, params)?)),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s, params))),
             "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
@@ -61,6 +64,7 @@ impl Form {
             Form::Contact(f) => f.name(),
             Form::Task(f) => f.name(),
             Form::Account(_) => "account",
+            Form::GnomeAccounts(_) => "gnomeAccounts",
             Form::Categories(_) => "categories",
             Form::Rules(_) => "rules",
             Form::Junk(_) => "junkOptions",
@@ -74,6 +78,7 @@ impl Form {
             Form::Contact(f) => f.title(),
             Form::Task(f) => f.title(),
             Form::Account(f) => f.title(),
+            Form::GnomeAccounts(_) => tl!("Import accounts from GNOME…").to_string(),
             Form::Categories(_) => tl!("Categories").to_string(),
             Form::Rules(_) => tl!("Rules").to_string(),
             Form::Junk(_) => tl!("Junk E-mail Options").to_string(),
@@ -86,6 +91,7 @@ impl Form {
             Form::Event(_) | Form::Task(_) => 580.0,
             Form::Contact(_) => 540.0,
             Form::Account(_) => crate::account_setup::WIDTH,
+            Form::GnomeAccounts(_) => crate::account_setup::WIDTH,
             Form::Categories(_) => 420.0,
             Form::Rules(_) => 620.0,
             Form::Junk(_) => junk::WIDTH,
@@ -99,6 +105,13 @@ impl Form {
             Form::Contact(f) => f.show(app, ui),
             Form::Task(f) => f.show(app, ui),
             Form::Account(f) => f.show(app, ui),
+            Form::GnomeAccounts(f) => {
+                let (setup, close) = f.show(app, ui);
+                if let Some(setup) = setup {
+                    *self = Form::Account(Box::new(setup));
+                }
+                close
+            }
             Form::Categories(f) => f.show(app, ui),
             Form::Rules(f) => f.show(app, ui),
             Form::Junk(f) => f.show(app, ui),
@@ -157,7 +170,7 @@ impl Form {
             Form::Event(f) => f.editing(),
             Form::Contact(f) => f.editing(),
             Form::Task(f) => f.editing(),
-            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => None,
+            Form::Account(_) | Form::GnomeAccounts(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => None,
         }
     }
 
@@ -169,7 +182,7 @@ impl Form {
             Form::Event(f) => f.dirty(),
             Form::Contact(f) => f.dirty(),
             Form::Task(f) => f.dirty(),
-            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => false,
+            Form::Account(_) | Form::GnomeAccounts(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => false,
         }
     }
 
@@ -187,7 +200,7 @@ impl Form {
             Form::Event(f) => (if f.is_meeting() { "meeting" } else { "appointment" }, f.subject().to_string()),
             Form::Contact(f) => ("contact", f.subject()),
             Form::Task(f) => ("task", f.subject().to_string()),
-            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
+            Form::Account(_) | Form::GnomeAccounts(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
         };
         self.changed().then(|| serde_json::json!({"form": form, "title": title}))
     }

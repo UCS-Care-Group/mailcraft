@@ -47,6 +47,13 @@ MailCraft follows the architecture and conventions of [WordCraft](https://github
 - **Installing:** every release is on the [Releases page](https://github.com/UCS-Care-Group/mailcraft/releases) with its checksums: a Windows installer (`.msi`) and portable zip for x64, x86 and ARM64; `.AppImage`, `.deb`, `.rpm`, `.flatpak` and `.tar.gz` for Linux on x86_64 and aarch64; a macOS disk image for Apple silicon and Intel; a FreeBSD tarball; a static site for the browser. The builds are not signed yet, so Windows and macOS ask before running them. One window per mailbox: starting MailCraft again, or opening a message file or a `mailto:` link, goes to the window that is already open. See [docs/releasing.md](docs/releasing.md) for what has been built and tested so far.
 - **Agents:** a CLI, a JSON control channel and an MCP server expose every command; the same registry drives the ribbon and the keyboard.
 
+## Accounts from GNOME (Linux)
+
+File → Info → Import accounts from GNOME… offers enabled Google and Microsoft mail accounts
+configured in GNOME Online Accounts. Pick one, then sign in separately through MailCraft.
+Add Account is unchanged; no GNOME libraries are required. See [the GNOME import guide](docs/gnome-accounts.md)
+for supported providers and limits.
+
 ## Google accounts on the desktop
 
 Use **Send / Receive → Add Account → Sign in with Google**. App-password setup is a separate

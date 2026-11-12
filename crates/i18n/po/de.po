@@ -1033,6 +1033,11 @@ msgid "Allow Sending from Shared Mailboxes"
 msgstr "Senden aus freigegebenen Postfächern zulassen"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "Already added to MailCraft"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
@@ -2060,7 +2065,7 @@ msgid "Can't sign"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/gnome_accounts.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Abbrechen"
@@ -2428,6 +2433,16 @@ msgid "Choose a folder"
 msgstr "Ordner wählen"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Choose an account already configured in GNOME, then sign in to MailCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "Choose an account to set up in MailCraft. You will sign in separately; your GNOME accounts stay unchanged."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Choose default signatures"
@@ -2756,7 +2771,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "Kontakte werden nicht in „Gelöschte Elemente“ verschoben."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/gnome_accounts.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Weiter"
@@ -2876,6 +2891,11 @@ msgstr "In Ordner kopieren"
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Could not open Google sign-in"
 msgstr "Google-Anmeldung konnte nicht geöffnet werden"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "Could not read GNOME accounts. Check access to GNOME Online Accounts and try again."
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -4769,6 +4789,16 @@ msgstr ""
 msgid "Full messages: {done} of {total}"
 msgstr "Vollständige Nachrichten: {done} von {total}"
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "GNOME Online Accounts is unavailable. You can still use Add Account."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "GNOME returned too many accounts. Use Add Account instead."
+msgstr ""
+
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
@@ -5421,6 +5451,11 @@ msgid "Import a certificate (.p12)…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs
+msgid "Import accounts from GNOME…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Import an OpenPGP Key"
 msgstr ""
@@ -5428,6 +5463,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Import an OpenPGP key (.asc)…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "Import is not supported for this provider yet. Use Add Account."
 msgstr ""
 
 #. interface
@@ -7859,6 +7899,11 @@ msgid "No key imported here has that fingerprint"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "No mail accounts enabled in GNOME were found."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "No mailbox is being opened"
 msgstr ""
@@ -9431,6 +9476,11 @@ msgstr "Lesebereich"
 #, fuzzy
 msgid "Reading Pane"
 msgstr "Lesebereich"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+msgid "Reading accounts from GNOME…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
