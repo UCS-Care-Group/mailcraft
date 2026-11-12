@@ -1137,7 +1137,20 @@ pub struct LeftServer {
     /// The run under way did.
     #[serde(skip_serializing_if = "is_false")]
     pub cut_now: bool,
+    /// Runs in a row that read the Inbox whole and not Junk E-mail (a Junk folder its server no
+    /// longer has, or never hands over whole): the [`JUNK_MISSES`]th ends as if it had, so that
+    /// what is kept doesn't grow to the cap and stay there.
+    #[serde(skip_serializing_if = "is_zero_u8")]
+    pub junk_missed: u8,
 }
+
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
+}
+
+/// How many runs in a row may read the Inbox whole and not Junk E-mail before one ends as if it
+/// had read both ([`LeftServer::junk_missed`]).
+pub const JUNK_MISSES: u8 = 3;
 
 /// The most of [`LeftServer`] a run keeps: Message-IDs, and the bytes of them.
 pub const MAX_LEFT: usize = 20_000;
@@ -1174,6 +1187,7 @@ impl LeftServer {
         if read {
             self.before = std::mem::take(&mut self.now);
             self.cut_before = std::mem::take(&mut self.cut_now);
+            self.junk_missed = 0;
         }
         (self.inbox_read, self.junk_read) = (false, false);
     }

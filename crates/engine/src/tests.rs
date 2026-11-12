@@ -2381,6 +2381,71 @@ mod two_way {
         }
     }
 
+    /// Past what is kept of one run (`MAX_LEFT`, an Archive of 20,001 emptied on a phone), all new
+    /// mail is taken as mail the account had for a while (`LeftServer`); some Send/Receives later,
+    /// each reading the Inbox whole, a new "Hello" gets its rule's desktop alert again. Also when
+    /// Junk E-mail here still names a mailbox the server no longer lists (deleted in the webmail,
+    /// say), which no run reads whole (#566).
+    #[test]
+    fn new_mail_alerts_again_some_runs_after_a_run_that_said_too_much_left() {
+        let mut silent = Vec::new();
+        for junk_listed in [true, false] {
+            let mut s = session();
+            let a =
+                run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+            let told =
+                json!({"name": "Told", "account": a, "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+            run(&mut s, "rules.add", told);
+            let many: Vec<Message> = (1..=20_001).map(|uid| from_server(uid, &format!("Filed {uid}"))).collect();
+            let first = SyncResult {
+                account: a,
+                folders: vec![
+                    FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One")], vec![]) },
+                    FolderDelta { complete: true, ..news(None, "Junk", FolderKind::Junk, 9, vec![], vec![]) },
+                    FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, many, vec![]) },
+                ],
+                ..Default::default()
+            };
+            apply(&mut s, first);
+            let (inbox, archive, junk) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive), folder(&s, a, FolderKind::Junk));
+            assert_eq!(s.mailbox.folder(junk).unwrap().remote, "Junk");
+            let reads = |new: Vec<Message>, removed: Vec<u32>| {
+                let mut folders = vec![FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, new, vec![]) }];
+                if junk_listed {
+                    folders.push(FolderDelta { complete: true, ..news(Some(junk), "Junk", FolderKind::Junk, 9, vec![], vec![]) });
+                }
+                if !removed.is_empty() {
+                    let uid_seen = removed.len() as u32;
+                    folders.push(FolderDelta {
+                        removed,
+                        uid_seen,
+                        complete: true,
+                        ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![])
+                    });
+                }
+                SyncResult { account: a, folders, ..Default::default() }
+            };
+            // Archive emptied on a phone.
+            let emptied = reads(vec![], (1..=20_001).collect());
+            apply(&mut s, emptied);
+            assert_eq!(s.mailbox.count(archive), 0);
+            // Send/Receives that read the Inbox whole, nothing new.
+            for _ in 0..2 * mailcraft_model::JUNK_MISSES {
+                let quiet = reads(vec![], vec![]);
+                apply(&mut s, quiet);
+            }
+            let hello = reads(vec![from_server(2, "Hello")], vec![]);
+            apply(&mut s, hello);
+            if !s.mailbox.message(titled(&s, a, "Hello")).unwrap().rule_alert {
+                silent.push(format!(
+                    "Junk E-mail listed: {junk_listed}, left_server: {:?}",
+                    s.mailbox.left_server.get(&a).map(|l| (l.before.len(), l.now.len(), l.cut()))
+                ));
+            }
+        }
+        assert!(silent.is_empty(), "new mail no longer alerted of four runs after: {silent:?}");
+    }
+
     /// The move on a phone during a run, as above, with the owner's Undo of a step taken before
     /// that run (a flag) between the two runs. The undo puts the mailbox back as it was before the
     /// run but for what the servers said, so the next run still knows the message as mail the

@@ -1368,7 +1368,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
 pub(crate) fn end_run(mb: &mut Mailbox, account: Id, whole: bool) {
     let junk = mb.folder_of_kind(account, FolderKind::Junk).and_then(|f| mb.folder(f)).is_some_and(|f| !f.remote.is_empty());
     if let Some(left) = mb.left_server.get_mut(&account) {
-        let read = whole || (left.inbox_read && (left.junk_read || !junk));
+        if left.inbox_read && junk && !left.junk_read {
+            left.junk_missed = left.junk_missed.saturating_add(1);
+        }
+        let read = whole || (left.inbox_read && (left.junk_read || !junk || left.junk_missed >= mailcraft_model::JUNK_MISSES));
         left.end_run(read);
         if left.is_empty() {
             mb.left_server.remove(&account);

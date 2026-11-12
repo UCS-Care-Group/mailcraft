@@ -68,9 +68,9 @@ pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_ke
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
-    FolderCounts, FolderKind, GREY_CATEGORY, Going, GraphSwitch, IMPORTED, INTO_OUTBOX, LeftServer, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_LEFT,
-    MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, PALETTE, Pending, Queued,
-    Security, Server, ServerFavorites, ServerFolder, preset_category_color,
+    FolderCounts, FolderKind, GREY_CATEGORY, Going, GraphSwitch, IMPORTED, INTO_OUTBOX, JUNK_MISSES, LeftServer, MAX_FOLDER_DEPTH, MAX_FOLDERS,
+    MAX_LEFT, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, PALETTE,
+    Pending, Queued, Security, Server, ServerFavorites, ServerFolder, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
