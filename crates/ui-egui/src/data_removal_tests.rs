@@ -162,7 +162,7 @@ impl SecretStore for Locked {
         None
     }
     fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
-        Err("locked".into())
+        Err(mailcraft_host::SecretError::Other("locked"))
     }
     fn delete(&self, _: &str) {}
     fn take_trouble(&self) -> Option<crate::StoreTrouble> {

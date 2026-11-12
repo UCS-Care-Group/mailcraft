@@ -500,10 +500,8 @@ impl SecretStore for RejectStore {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, _: &str, value: &str) -> Result<(), mailcraft_host::SecretError> {
-        // OS keychains can echo an attempted credential in their error message. No code
-        // should copy the store's text into a status, log or diagnostics.
-        Err(format!("the system rejected the secret: {value}").into())
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
+        Err(mailcraft_host::SecretError::Refused)
     }
     fn delete(&self, _: &str) {}
 }

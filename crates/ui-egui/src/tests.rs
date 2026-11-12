@@ -954,7 +954,7 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
         fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
             self.1.fetch_add(1, Ordering::Relaxed);
             *self.0.lock().unwrap() = Some(StoreTrouble::Unavailable);
-            Err("the system's credential store refused: no Secret Service".into())
+            Err(mailcraft_host::SecretError::Other("the system's credential store refused: no Secret Service"))
         }
         fn delete(&self, _: &str) {}
         fn take_trouble(&self) -> Option<StoreTrouble> {
