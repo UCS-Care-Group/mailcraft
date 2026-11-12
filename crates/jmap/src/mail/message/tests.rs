@@ -394,3 +394,17 @@ fn a_subject_longer_than_is_kept_marks_the_message_cut() {
         [cut(&format!(" {} confidential", "a".repeat(1_000))), cut(&format!(" {a} confidential")), cut(&format!(" {a}a")), cut(&format!(" {a}   "))];
     assert_eq!(found, [(998, true), (998, true), (998, true), (998, false)], "(kept, cut): over 998; a blank at the cut; 999; blanks after 998");
 }
+
+/// The reader keeps 8,192 bytes of a Subject field before it is decoded: an encoded subject past
+/// that room loses its end although it decodes to fewer than 998 characters, and the message says
+/// it was cut (#566). (Japanese, as a mail program writes it in quoted-printable: 7 characters in
+/// each encoded word of 75; 840 characters in all.)
+#[test]
+fn an_encoded_subject_past_the_fields_room_marks_the_message_cut() {
+    let word = format!("=?UTF-8?Q?{}?=", "=E4=B8=AD".repeat(7));
+    let subject = format!("{} confidential", vec![word; 120].join(" "));
+    let m = read(&[("Subject", &subject)]);
+    assert!(m.subject.chars().count() < 998, "{}", m.subject.chars().count());
+    assert!(!m.subject.contains("confidential"));
+    assert!(m.cut, "the end of the subject was left out, unsaid: kept {} characters", m.subject.chars().count());
+}

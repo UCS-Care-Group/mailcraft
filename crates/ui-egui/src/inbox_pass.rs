@@ -143,9 +143,9 @@ impl MailApp {
     /// run then goes with it), else when the answer comes.
     pub(crate) fn give_up_inbox_check(&mut self) {
         self.inbox_check.queue.clear();
-        if self.inbox_check.running.take().is_none() {
-            return;
-        }
+        let Some(account) = self.inbox_check.running.take() else { return };
+        // (Its last piece never comes: the check ends here, a download of its own.)
+        self.session.end_run_unfinished(account);
         if let Some(cancel) = self.inbox_check.cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }

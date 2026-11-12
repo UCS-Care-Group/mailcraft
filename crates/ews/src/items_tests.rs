@@ -131,3 +131,15 @@ fn an_item_that_leaves_a_recipient_or_the_end_of_its_subject_out_says_it_cut_the
     assert!(cut.cut && cut.subject.chars().count() == 998);
     assert!(!read(&"a".repeat(998), "").cut, "a subject that fits is whole");
 }
+
+/// A subject over the 8 KB the XML reader keeps of an element's text comes out empty: the item
+/// says it was cut, as one over 998 characters does (#566).
+#[test]
+fn a_subject_over_the_xml_readers_room_says_it_was_cut() {
+    let item = format!(
+        "<t:Create><t:Message><t:ItemId Id=\"ID1\" ChangeKey=\"CK\"/><t:Subject>{} confidential</t:Subject></t:Message></t:Create>",
+        "a".repeat(9_000)
+    );
+    let m = page(&item, 10).unwrap().messages.remove(0);
+    assert_eq!((m.subject.chars().count(), m.cut), (0, true), "(kept, cut)");
+}

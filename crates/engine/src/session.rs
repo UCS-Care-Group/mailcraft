@@ -3135,6 +3135,13 @@ impl Session {
         self.redo.last().map(|u| u.label)
     }
 
+    /// A run of `account` that ends without its last piece (an Inbox check that gave way to a run
+    /// the owner asked for): what the account had before the run's new mail is let go of, so that
+    /// its next run starts from what it has then (#566).
+    pub fn end_run_unfinished(&mut self, account: Id) {
+        self.run_had.remove(&account);
+    }
+
     /// Forget every undo and redo step: the mailbox as it was then is not what the mail server
     /// has any more (changes were pushed, mail was sent), and going back to it would undo here
     /// what can't be undone there.

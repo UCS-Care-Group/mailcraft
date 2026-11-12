@@ -248,8 +248,12 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
     // end of a subject past what is kept of one (#566).
     let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
     let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
-    let subject = item.child_in(TYPES, "Subject").map_or("", |n| n.text.as_str());
-    let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients") || line(subject, MAX_SUBJECT + 1).chars().count() > MAX_SUBJECT;
+    // (A subject longer than the XML reader keeps of a text comes with none.)
+    let (subject, subject_cut) = item.child_in(TYPES, "Subject").map_or(("", false), |n| (n.text.as_str(), n.text_cut));
+    let cut = to.len() < listed("ToRecipients")
+        || cc.len() < listed("CcRecipients")
+        || subject_cut
+        || line(subject, MAX_SUBJECT + 1).chars().count() > MAX_SUBJECT;
     let categories_cut = listed("Categories") > MAX_CATEGORIES;
     Some(GraphMessage {
         server: ServerMessage {

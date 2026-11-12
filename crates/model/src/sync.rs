@@ -1493,7 +1493,7 @@ pub struct GraphMailResult {
     /// The last piece of the Inbox pass: the pass is a download of its own for what the account
     /// had before its new mail (#566), so that the next check of the Inbox, or the run after it,
     /// starts from what the account has then. (A check that gave way to a run the owner asked for
-    /// never brings it: that run reads on from where the check stopped, as one download with it.)
+    /// never brings it: the window then ends the check by itself.)
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass_end: bool,
     /// What the server said of the conversations of the messages the run asked about
