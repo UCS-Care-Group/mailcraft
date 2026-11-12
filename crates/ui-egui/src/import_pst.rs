@@ -198,7 +198,7 @@ impl ImportPst {
         self.poll(app, budget);
         if self.is_importing() {
             // A turn with nothing painted asks for the next one itself.
-            ctx.request_repaint_after(Duration::from_millis(100));
+            crate::software::repaint_after(ctx, Duration::from_millis(100));
         }
     }
 
@@ -385,7 +385,7 @@ impl ImportPst {
 
     fn importing(&self, ui: &mut Ui, t: &Tokens) {
         use std::sync::atomic::Ordering::Relaxed;
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        crate::software::repaint_after(ui.ctx(), std::time::Duration::from_millis(100));
         let p = &self.progress;
         let (done, total) = (p.done.load(Relaxed), p.total.load(Relaxed));
         ui.horizontal(|ui| {

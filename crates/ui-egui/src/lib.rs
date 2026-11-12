@@ -199,6 +199,7 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+pub mod software;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -1018,6 +1019,9 @@ pub struct UiState {
     pub update_skip: String,
     /// The owner has been told, once, that MailCraft now installs its updates itself.
     pub update_install_told: bool,
+    /// The owner has been told, once, that the window is drawn without the graphics card
+    /// ([`software`]).
+    pub software_told: bool,
     /// Show a desktop alert when new mail arrives in an Inbox of the owner's own accounts while
     /// the window isn't in front ([`alerts`]): on unless the owner turns it off.
     pub alert_new_mail: bool,
@@ -1078,6 +1082,7 @@ impl Default for UiState {
             update_install: true,
             update_skip: String::new(),
             update_install_told: false,
+            software_told: false,
             alert_new_mail: true,
             alert_reminders: true,
             imported_keys: Vec::new(),
@@ -1482,6 +1487,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{} — puts away the line that says the settings file couldn't be read at start, so MailCraft started with its own settings (for this run). Answers {"dismissed": bool}"#,
     ),
     (
+        "ui.dismissSoftwareNotice",
+        "Dismiss Software Drawing Notice",
+        "Above the status bar",
+        r#"{} — puts away the line that says the window is drawn by the processor, not the graphics card, which uses a lot of processor time; said once, kept in the settings. Answers {"dismissed": bool}"#,
+    ),
+    (
         "ui.dismissUpdateNotice",
         "Dismiss Update Notice",
         "Above the status bar",
@@ -1592,6 +1603,9 @@ pub struct MailApp {
     /// The settings file couldn't be read at start, and the line saying so hasn't been put away
     /// ([`settings_notice`]).
     pub settings_unread: Option<settings_notice::SettingsUnread>,
+    /// The window is drawn by the processor, not the graphics card (the host says so at start):
+    /// said once, and the window's own repaints are held to a few a second ([`software`]).
+    pub software_drawing: bool,
     /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
     pub(crate) held: unconfirmed::Held,
     /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
@@ -1917,6 +1931,7 @@ impl MailApp {
             unconfirmed: false,
             shared_address_judged: None,
             settings_unread: None,
+            software_drawing: false,
             held: Default::default(),
             own_mailbox,
             secrets_trouble: None,
@@ -2486,6 +2501,7 @@ impl MailApp {
             "ui.openDataFolder" => self.open_data_folder(),
             "ui.confirmServers" => self.confirm_servers(),
             "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
+            "ui.dismissSoftwareNotice" => software::dismiss(self),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -4720,14 +4736,14 @@ impl MailApp {
         self.offline_tick();
         self.drive_server_search();
         if self.server_searching.busy() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
         if self.fetching.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
         // The pieces of a Graph mail run come without waking the window: it looks again soon.
         if self.graph_pieces.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(150));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
         self.poll_tasks();
@@ -4778,7 +4794,7 @@ impl MailApp {
         self.issue_screenshots(ctx);
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
         } else if self.auto_sync && self.services.can_sync() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
             // Nothing is happening: look again in a while, in case a Send/Receive round is due or
             // something waits to go out.
@@ -5201,6 +5217,7 @@ impl MailApp {
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
             settings_notice::bar(self, ui);
+            software::bar(self, ui);
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);

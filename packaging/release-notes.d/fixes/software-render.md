@@ -1,0 +1,1 @@
+- On Linux and FreeBSD, a computer whose graphics card Mesa cannot use no longer ends up drawing every frame on the processor when OpenGL can reach the card; if MailCraft still has to draw without the card, it says so once above the status bar and slows its own animations and progress repaints to about four a second, so the processor is not kept busy.

@@ -426,7 +426,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
         app.sync_panel = None;
     }
     if syncing || rows.iter().any(Row::running) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
     }
 }
 

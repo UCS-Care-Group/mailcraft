@@ -177,7 +177,7 @@ fn show_copying(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
         );
     });
     // The spinner turns while the copy is written.
-    ctx.request_repaint_after(std::time::Duration::from_millis(100));
+    crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
     !open || !copying(app, account)
 }
 

@@ -63,7 +63,7 @@ mod gpg_agent_tests;
 mod graph_folders_flow;
 #[cfg(test)]
 mod graph_mail_flow;
-#[cfg(any(target_os = "windows", test))]
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd", test))]
 mod graphics;
 mod install;
 #[cfg(test)]
@@ -2152,8 +2152,9 @@ fn main() -> eframe::Result {
         options.viewport = options.viewport.with_icon(icon);
     }
     // Before eframe creates the wgpu instance: default Windows to DirectX 12 only, or OpenGL when
-    // DirectX 12 has no GPU driver (see graphics.rs).
-    #[cfg(target_os = "windows")]
+    // DirectX 12 has no GPU driver; on Linux and FreeBSD, hardware OpenGL when Vulkan is software only
+    // (see graphics.rs).
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
     let (prefs, settings_unread) = load_prefs();
     let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);
@@ -2181,6 +2182,13 @@ fn main() -> eframe::Result {
             // The mailbox is read on a thread of its own, so that the window is there at once
             // (#519): it shows the opening screen meanwhile, and is made as it always was once
             // the mailbox is there (`build`).
+            // Drawing by the processor (a software rasteriser) is said once and slows the window's
+            // own repaints down (#software-render); the adapter is known now.
+            let software = cc.wgpu_render_state.as_ref().is_some_and(|s| graphics::is_software_adapter(s.adapter.get_info().device_type));
+            if software {
+                log::warn!("graphics: drawing with a software rasteriser, expect high processor use");
+            }
+            mailcraft_ui_egui::software::set_software(software);
             let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
             let reading = progress.clone();
             // The certification authorities this computer trusts, for checking Digital
@@ -2259,6 +2267,7 @@ fn main() -> eframe::Result {
                     None => app.fresh_prefs(),
                 }
                 app.settings_unread = settings_unread;
+                app.software_drawing = software;
                 app.ui.window = restored;
                 app.integrated_titlebar = cfg!(target_os = "macos");
                 for f in files {

@@ -1690,7 +1690,7 @@ impl AccountSetup {
             return true;
         }
         if self.busy() {
-            ui.ctx().request_repaint_after(Duration::from_millis(100));
+            crate::software::repaint_after(ui.ctx(), Duration::from_millis(100));
         }
         let mut pass = Pass::new(ui, &app.session, &mut self.focus);
         let action = match self.page {
