@@ -436,12 +436,12 @@ pub struct Account {
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
+    #[serde(skip)]
+    pub as_written: Option<AsWritten>,
     /// The folder this account's snoozed mail waits in (#949), known by its id so that a rename
     /// or another language makes no second one. `None` until the first message is snoozed.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub snoozed_folder: Option<Id>,
-    #[serde(skip)]
-    pub as_written: Option<AsWritten>,
 }
 
 impl Account {

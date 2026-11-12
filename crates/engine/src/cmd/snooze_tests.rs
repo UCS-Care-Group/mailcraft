@@ -103,17 +103,17 @@ fn after_a_restart_past_the_time_it_comes_back_marked_with_when_it_came_back() {
 fn mail_in_the_same_conversation_brings_it_back_at_once() {
     let mut w = world();
     w.s.run("mail.snooze", &json!({"ids": [w.a, w.b], "until": NOON + 86_400})).unwrap();
-    let mark = snooze::mark(&w.s.mailbox);
     let reply = Message {
         account: w.account,
         folder: w.inbox,
         subject: "Re: Kickoff".into(),
         message_id: "r@example.org".into(),
         in_reply_to: "a@example.org".into(),
+        received: NOON + 10,
         ..Default::default()
     };
     w.s.mailbox.add_message(reply).unwrap();
-    snooze::after(&mut w.s, &mark);
+    snooze::after(&mut w.s);
     let m = w.s.mailbox.message(w.a).unwrap();
     assert_eq!((m.folder, m.read), (w.inbox, false));
     assert_eq!(m.snooze.unwrap().returned, Some(NOON));
@@ -126,14 +126,20 @@ fn mail_in_the_same_conversation_brings_it_back_at_once() {
 fn what_the_owner_did_and_what_is_not_news_does_not_bring_it_back() {
     let mut w = world();
     w.s.run("mail.snooze", &json!({"ids": [w.a], "until": NOON + 86_400})).unwrap();
-    let mark = snooze::mark(&w.s.mailbox);
     let sent = w.s.mailbox.folder_of_kind(w.account, FolderKind::Sent).unwrap();
     let junk = w.s.mailbox.folder_of_kind(w.account, FolderKind::Junk).unwrap();
     for folder in [sent, junk] {
-        let m = Message { account: w.account, folder, subject: "Re: Kickoff".into(), in_reply_to: "a@example.org".into(), ..Default::default() };
+        let m = Message {
+            account: w.account,
+            folder,
+            subject: "Re: Kickoff".into(),
+            in_reply_to: "a@example.org".into(),
+            received: NOON + 10,
+            ..Default::default()
+        };
         w.s.mailbox.add_message(m).unwrap();
     }
-    snooze::after(&mut w.s, &mark);
+    snooze::after(&mut w.s);
     assert!(w.s.mailbox.message(w.a).unwrap().snooze.is_some_and(|z| z.waiting()));
 }
 
@@ -226,7 +232,8 @@ fn a_return_time_that_is_not_in_the_future_or_is_not_a_time_is_refused_and_a_far
     w.s.run("mail.snooze", &json!({"ids": [w.a], "until": i64::MAX})).unwrap();
     let until = w.s.mailbox.message(w.a).unwrap().snooze.unwrap().until;
     assert_eq!(until, NOON + mailcraft_model::MAX_SNOOZE_AHEAD);
-    w.s.run("mail.snooze", &json!({"ids": [w.b], "until": "9999-12-31T23:59"})).unwrap();
+    w.s.run("mail.snooze", &json!({"ids": [w.b], "until": "2200-12-31T23:59"})).unwrap();
+    assert!(w.s.run("mail.snooze", &json!({"ids": [w.a], "until": "9999-12-31T23:59"})).is_err());
 }
 
 #[test]

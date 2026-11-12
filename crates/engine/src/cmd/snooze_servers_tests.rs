@@ -196,7 +196,7 @@ fn an_exchange_server_bringing_a_reply_in_the_same_conversation_brings_the_snooz
         message_id: "a9@example.org".into(),
         subject: "Re: Kickoff".into(),
         from: Address::new("Zoe", "zoe@example.org"),
-        received: 2_000,
+        received: now + 10,
         ..Default::default()
     };
     let page = EwsMessagePage { folder: "F1".into(), messages: vec![reply], last: true, from: "S1".into(), state: "S2".into(), ..Default::default() };

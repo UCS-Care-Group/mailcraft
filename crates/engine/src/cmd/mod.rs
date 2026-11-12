@@ -130,6 +130,8 @@ pub mod signature;
 mod signature_tests;
 pub mod snooze;
 #[cfg(test)]
+mod snooze_review_tests;
+#[cfg(test)]
 mod snooze_servers_tests;
 #[cfg(test)]
 mod snooze_tests;

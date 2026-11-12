@@ -12,20 +12,25 @@
 //! - `mail.returnDue` is the return step the window runs every minute and at start-up: it isn't a
 //!   step of the history (nobody did it), and it also calls off the snooze of mail that was moved
 //!   out of the Snoozed folder by other means.
-//! - Taking in a run's news ([`mark`], [`after`]) brings a snoozed message back at once when mail
-//!   of its conversation arrived, and calls off the snooze of mail the server shows elsewhere.
+//! - Taking in a run's news ([`after`]) brings a snoozed message back at once when mail of its
+//!   conversation arrived, and calls off the snooze of mail the server shows elsewhere. Mail is of
+//!   its conversation only by a link that is known: it answers the message (`In-Reply-To`,
+//!   `References`) or has the server's conversation id the message has.
+//! - A JMAP account's server isn't told of moves yet, so a message it has is refused.
 
-use mailcraft_model::{FolderKind, Id, MAX_SNOOZE_AHEAD, Mailbox, ThreadKey};
+use mailcraft_model::{FolderKind, Id, MAX_SNOOZE_AHEAD};
 use serde_json::{Value, json};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::{bad, fail, needs_message, needs_movable, select_after_removal, targets, targets_whole};
+
+/// The years a Return time given as a date and time may be in, as an automatic reply's are.
+const FIRST_YEAR: i32 = 1990;
+const LAST_YEAR: i32 = 2200;
 use crate::{CmdResult, CommandSpec, Session};
 
 /// The most messages one `mail.returnDue` brings back; the rest come at the next one, a minute on.
 pub const MOST_RETURNED_AT_ONCE: usize = 1_000;
-/// The most new messages of one run looked at for the conversations they are in.
-const MOST_ARRIVALS_LOOKED_AT: usize = 20_000;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -43,15 +48,23 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// The Return time `until` names: a number of seconds since 1970 (UTC) or an ISO date and time.
+/// The Return time `until` names: a number of seconds since 1970 (UTC), or a date and time like
+/// 2026-10-11T09:00: in the zone the calendar is shown in (so that a time across a change of the
+/// clocks is the wall-clock time written), or with its own offset.
 fn until(s: &Session, v: &Value) -> Result<i64, crate::CmdError> {
     let now = s.now();
     let wrong = || bad("`until` is a time: seconds since 1970 (UTC), or a date and time like 2026-10-11T09:00");
     let at = match v.get("until") {
         Some(Value::Number(n)) => n.as_i64().ok_or_else(wrong)?,
         Some(Value::String(text)) => {
-            let (wall, offset) = mailcraft_time::parse_iso(text).ok_or_else(wrong)?;
-            wall.to_timestamp(offset.unwrap_or_else(|| s.offset_at(now)))
+            let (wall, offset) = (text.len() <= 40).then(|| mailcraft_time::parse_iso(text)).flatten().ok_or_else(wrong)?;
+            if !(FIRST_YEAR..=LAST_YEAR).contains(&wall.date.year) {
+                return Err(wrong());
+            }
+            match offset {
+                Some(offset) => wall.to_timestamp(offset),
+                None => s.zone().instant(wall),
+            }
         }
         _ => return Err(wrong()),
     };
@@ -66,8 +79,9 @@ fn snooze(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets_whole(s, v)?;
     let before = s.rows();
     let name = s.interface_language.t("Snoozed").to_string();
+    let now = s.now();
     // Taken whole: a refusal leaves the mailbox as it was.
-    let count = s.mailbox.snooze_messages(&ids, at, &name)?;
+    let count = s.mailbox.snooze_messages(&ids, at, now, &name)?;
     select_after_removal(s, &before, &ids);
     let folders: Vec<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id).map(|m| m.folder)).collect::<HashSet<_>>().into_iter().collect();
     Ok(json!({"snoozed": count, "until": at, "folders": folders}))
@@ -86,7 +100,7 @@ fn unsnooze(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn return_due(s: &mut Session, _: &Value) -> CmdResult {
-    let called_off = s.mailbox.call_off_strays();
+    let called_off = s.mailbox.settle_snoozes();
     let now = s.now();
     let mut due = s.mailbox.due_snoozes(now);
     due.truncate(MOST_RETURNED_AT_ONCE);
@@ -94,53 +108,59 @@ fn return_due(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"returned": back, "calledOff": called_off}))
 }
 
-/// What a run's news is compared with ([`after`]): the newest message id before it was taken in.
-/// Ids are handed out in increasing order and never again, so a message with a higher one arrived
-/// since.
-pub(crate) struct Mark(Id);
-
-/// Mark the mailbox before a run's news is taken in.
-pub(crate) fn mark(mailbox: &Mailbox) -> Mark {
-    Mark(mailbox.messages.keys().next_back().copied().unwrap_or(0))
-}
-
-/// After a run's news was taken in: a snooze is called off for mail the server shows outside the
-/// Snoozed folder (moved by hand elsewhere), and a message that waits comes back at once when mail
-/// of its conversation arrived (a reply). Mail that only says what the owner did does not count:
-/// what was sent, drafts, and what lies in Deleted Items, Junk E-mail or the Snoozed folder.
-pub(crate) fn after(s: &mut Session, since: &Mark) {
+/// After a run's news was taken in: the snoozes are put right with where the mail is now (called
+/// off for mail the server shows outside the Snoozed folder; waiting again for mail whose move
+/// back the server refused), and a message that waits comes back at once when mail of its
+/// conversation arrived since it was snoozed. The mailbox is marked changed when anything was.
+///
+/// Mail only says what the owner did, and is no news, when it was sent, is a draft, lies in
+/// Deleted Items, Junk E-mail or the Snoozed folder, or is from the account's own address (a copy
+/// to themselves, a list's echo). It is of the conversation only by a known link: it answers the
+/// snoozed message by `In-Reply-To` or `References`, or the server gave both the same conversation
+/// id. Nothing is remembered between runs: mail that got its conversation id in a later piece of a
+/// run is found then.
+pub(crate) fn after(s: &mut Session) {
     if !s.mailbox.has_snoozed() {
         return;
     }
-    s.mailbox.call_off_strays();
-    let Some(from) = since.0.checked_add(1) else { return };
+    let mut changed = s.mailbox.settle_snoozes() > 0;
     let mb = &s.mailbox;
-    let arrived: Vec<Id> = mb
-        .messages
-        .range(from..)
-        .map(|(id, _)| *id)
-        .filter(|id| {
-            let Some(m) = mb.message(*id) else { return false };
-            let Some(folder) = mb.folder(m.folder) else { return false };
-            let own = matches!(folder.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox | FolderKind::Deleted | FolderKind::Junk);
-            !m.draft && !own && mb.snoozed_folder(m.account) != Some(m.folder)
-        })
-        .take(MOST_ARRIVALS_LOOKED_AT)
-        .collect();
-    if arrived.is_empty() {
-        return;
+    let waiting: Vec<_> = mb.messages.values().filter(|m| m.snooze.is_some_and(|z| z.waiting())).collect();
+    let Some(oldest) = waiting.iter().filter_map(|m| m.snooze.map(|z| z.since)).min() else { return };
+    let mut by_id: HashMap<(Id, &str), Vec<Id>> = HashMap::new();
+    let mut by_thread: HashMap<(Id, &str), Vec<Id>> = HashMap::new();
+    for m in &waiting {
+        if !m.message_id.is_empty() {
+            by_id.entry((m.account, m.message_id.as_str())).or_default().push(m.id);
+        }
+        if let Some(thread) = m.server.as_ref().map(|x| x.thread.as_str()).filter(|t| !t.is_empty()) {
+            by_thread.entry((m.account, thread)).or_default().push(m.id);
+        }
     }
-    let threads = s.threads();
-    let replied: HashSet<(Id, ThreadKey)> = arrived.iter().filter_map(|id| s.mailbox.message(*id).map(|m| (m.account, threads.key(*id)))).collect();
-    let waiting: Vec<Id> = s
-        .mailbox
-        .messages
-        .values()
-        .filter(|m| m.snooze.is_some_and(|z| z.waiting()) && replied.contains(&(m.account, threads.key(m.id))))
-        .map(|m| m.id)
-        .collect();
-    if !waiting.is_empty() {
+    let since = |id: Id| mb.message(id).and_then(|m| m.snooze).map_or(i64::MAX, |z| z.since);
+    let mut back: HashSet<Id> = HashSet::new();
+    for m in mb.messages.values().filter(|m| m.received > oldest && !m.draft) {
+        let Some(folder) = mb.folder(m.folder) else { continue };
+        let own = matches!(folder.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox | FolderKind::Deleted | FolderKind::Junk);
+        if own || mb.snoozed_folder(m.account) == Some(m.folder) {
+            continue;
+        }
+        if mb.account(m.account).is_some_and(|a| !a.email.is_empty() && a.email.trim().eq_ignore_ascii_case(m.from.email.trim())) {
+            continue;
+        }
+        let linked = Some(m.in_reply_to.as_str()).filter(|id| !id.is_empty()).into_iter().chain(m.references.iter().map(String::as_str));
+        let mut hits: Vec<Id> = linked.filter_map(|id| by_id.get(&(m.account, id))).flatten().copied().collect();
+        if let Some(thread) = m.server.as_ref().map(|x| x.thread.as_str()).filter(|t| !t.is_empty()) {
+            hits.extend(by_thread.get(&(m.account, thread)).into_iter().flatten().copied());
+        }
+        back.extend(hits.into_iter().filter(|id| *id != m.id && m.received > since(*id)));
+    }
+    if !back.is_empty() {
         let now = s.now();
-        s.mailbox.return_snoozed(&waiting, now);
+        let back: Vec<Id> = back.into_iter().collect();
+        changed |= !s.mailbox.return_snoozed(&back, now).is_empty();
+    }
+    if changed {
+        s.mailbox_changed();
     }
 }

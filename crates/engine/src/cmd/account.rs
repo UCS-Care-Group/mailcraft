@@ -1215,9 +1215,8 @@ pub const MAX_PIECES_TOGETHER: usize = 256;
 /// piece brings; a run that reads thousands of folders hands over a piece or more for each, so
 /// a host with several pieces waiting takes them in together ([`apply_sync_parts`], #991).
 pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, result: SyncResult) -> CmdResult {
-    let mark = super::snooze::mark(&s.mailbox);
     let taken = apply_sync_piece(s, run, result);
-    super::snooze::after(s, &mark);
+    super::snooze::after(s);
     taken
 }
 

@@ -527,7 +527,7 @@ fn message() -> impl Strategy<Value = Message> {
             uid: 11,
             draft: true,
             pinned: true,
-            snooze: Some(mailcraft_model::Snooze { until: 1_900_000_000, from: 7, returned: None }),
+            snooze: Some(mailcraft_model::Snooze { until: 1_900_000_000, since: 5, from: 7, returned: None }),
             warnings_dismissed: vec!["external".into()],
             forwarded: true,
             flag_due: Some(1),
