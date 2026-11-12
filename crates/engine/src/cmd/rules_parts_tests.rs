@@ -849,3 +849,22 @@ fn an_exception_word_kept_once_still_leaves_its_mail_alone() {
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     assert!(here(&s, m), "the exception for ΟΔΟΣ leaves it alone; kept: {kept}");
 }
+
+/// `rules.fromMessage` refuses a key it doesn't take, as `rules.add` does: a misspelt `server`
+/// would keep on the server a rule meant for this computer, and exceptions would be dropped.
+#[test]
+fn rules_from_message_refuses_a_key_it_doesnt_take() {
+    let (mut s, _, inbox, kept) = session();
+    let m = arriving(&mut s, inbox, "news@example.org", "Weekly");
+    let mut wrong = Vec::new();
+    for extra in [json!({"exceptions": [{"type": "subjectContains", "value": "urgent"}]}), json!({"sever": false})] {
+        let mut params = json!({"folder": kept, "id": m});
+        for (k, v) in extra.as_object().unwrap() {
+            params[k] = v.clone();
+        }
+        if let Ok(v) = s.run("rules.fromMessage", &params) {
+            wrong.push(format!("{params} made a rule: {v}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

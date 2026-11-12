@@ -3472,7 +3472,9 @@ impl Mailbox {
     /// while a rule naming it waits for its server's answer.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
-        if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
+        // Taken by another category in any script's case, as the rules tell names apart: else a rule
+        // that follows the rename would take that category's mail too (#566).
+        if self.categories_of(account).iter().any(|c| !c.name.eq_ignore_ascii_case(from.trim()) && crate::sync::same_category(&c.name, &to)) {
             return Err(invalid(format!("a category named \"{to}\" already exists")));
         }
         if !self.categories_of_mut(account).iter().any(|c| c.name.eq_ignore_ascii_case(from.trim())) {

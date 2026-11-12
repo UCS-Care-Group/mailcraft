@@ -2787,3 +2787,57 @@ fn an_undo_beside_two_rules_onto_one_server_names_both() {
     let said = crate::agent::describe(&s, "edit.undo", &json!({}));
     assert!(said.contains("“Away”") && said.contains("“Also away”"), "{said}");
 }
+
+/// The Rules dialog's "Keep on the server" box reads `server_cannot_draft`, and `rules.add` keeps
+/// an action given twice once. A rule with the same move (or copy) twice: the box and the command
+/// agree on where it is kept.
+#[test]
+fn the_dialog_and_rules_add_agree_on_an_action_given_twice() {
+    let mut wrong = Vec::new();
+    for kind in ["moveTo", "copyTo"] {
+        let (mut s, account, _, news) = session();
+        let params = json!({"name": "News", "account": account, "conditions": [{"type": "subjectContains", "value": "digest"}],
+            "actions": [{"type": kind, "value": news}, {"type": kind, "value": news}]});
+        let said = super::rules::server_cannot_draft(&s, &params);
+        let made = run(&mut s, "rules.add", params);
+        if (made["keep"] == "server") != said.is_none() {
+            wrong.push(format!("{kind}: the builder says {said:?}, rules.add answered {made}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// A category a rule puts on, given back by the server in capitals outside A to Z ("BÜRO" for
+/// "Büro"), is the same rule's, as a rule compares categories: a lost answer doesn't have the rule
+/// made twice.
+#[test]
+fn a_category_in_the_servers_capitals_finds_the_rule_again() {
+    let (mut s, account, _, _) = session();
+    let made = run(
+        &mut s,
+        "rules.add",
+        json!({
+            "name": "Office",
+            "account": account,
+            "conditions": [{"type": "subjectContains", "value": "office"}],
+            "actions": [{"type": "categorize", "value": "Büro"}],
+        }),
+    );
+    assert_eq!(made["keep"], "server");
+    let id = made["id"].as_u64().unwrap();
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    mark_sent(&mut s, &upload);
+    // The answer is lost; the server has it, in its own capitals.
+    let mut there = remote("r9", "Office", 1);
+    there.conditions = vec![Condition::SubjectContains(vec!["office".into()])];
+    there.actions = vec![Action::Categorize("BÜRO".into())];
+    there.tidy();
+    let merged = apply_rules(&mut s, &download(account, vec![there])).unwrap();
+    assert!(rule(&s, id).on_server() || !rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+    assert_eq!(
+        (merged.added, s.mailbox.rules.len(), rule_upload(&s.mailbox, account).unwrap().ops.len()),
+        (0, 1, 0),
+        "taken for another rule and sent again: {:?}",
+        s.mailbox.rules.iter().map(|r| (&r.name, &r.actions, r.on_server())).collect::<Vec<_>>()
+    );
+}

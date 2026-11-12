@@ -572,3 +572,25 @@ fn a_rename_on_the_shared_list_doesnt_tag_a_microsoft_accounts_mail_into_its_own
     assert_eq!(mb.rules[0].actions, [Action::Categorize("Red".into())]);
     assert!(weekly_arrives(&mut mb, a, &[]), "A's new mail deleted");
 }
+
+/// The list holds "Spam" and "büro"; a rule deletes "Weekly" with the category Spam. A rename of
+/// Spam to "BÜRO", which differs from "büro" only in the case of a letter outside A to Z, is
+/// refused as a name already there: the rule, which follows a rename and tells names apart in
+/// every script, would else take the mail of "büro" too.
+#[test]
+fn a_rename_into_another_categorys_case_outside_a_to_z_is_refused() {
+    let (mut mb, a, _) = two_accounts();
+    mb.categories = vec![tagged("Spam", RED), tagged("büro", WINE)];
+    let mut purge = weekly_rule(&mut mb, "Purge spam", a);
+    purge.conditions.push(Condition::Category(vec!["Spam".into()]));
+    purge.actions = vec![Action::Delete];
+    mb.rules = vec![purge];
+    assert!(weekly_arrives(&mut mb, a, &["büro"]), "büro mail deleted before the rename");
+    let renamed = mb.rename_category(a, "Spam", "BÜRO");
+    assert!(renamed.is_err(), "{renamed:?}");
+    assert_eq!(mb.rules[0].conditions.last(), Some(&Condition::Category(vec!["Spam".into()])));
+    assert!(weekly_arrives(&mut mb, a, &["büro"]), "büro mail deleted after the rename");
+    // A category's own case changes, in any script, as before.
+    mb.categories = vec![tagged("Spam", RED), tagged("büro", WINE)];
+    assert!(mb.rename_category(a, "büro", "BÜRO").is_ok());
+}

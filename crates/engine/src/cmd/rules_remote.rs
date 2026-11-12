@@ -39,7 +39,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_model::remote_rules::{
     MAX_RULE_OPS, MAX_SERVER_RULES, RemoteRule, RuleOp, RuleOpKind, RuleOutcome, RuleResult, RulesDownload, RulesUpload, RulesUploaded,
 };
-use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule, same_word};
+use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule, Words, same_word};
 use serde_json::{Value, json};
 
 use super::remote::{Merged, owner};
@@ -270,7 +270,7 @@ fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action], unknown: &[String
 /// counts once: it goes to the server once, which gives it back so.
 fn same_actions(here: &[Action], there: &[Action]) -> bool {
     let same = |a: &Action, b: &Action| match (a, b) {
-        (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
+        (Action::Categorize(x), Action::Categorize(y)) => same_word(Words::Categories, x, y),
         _ => a == b,
     };
     here.iter().all(|a| there.iter().any(|b| same(a, b))) && there.iter().all(|b| here.iter().any(|a| same(a, b)))

@@ -4918,8 +4918,9 @@ pub(crate) mod rules {
         let addresses = mb.rule_reads_addresses(r);
         let when = r.conditions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" and ");
         let except = r.exceptions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" or ");
+        // (A rule for every account's mail names the account too: it is shown under each.)
         let into = |verb: &str, f: Id| match mb.folder(f) {
-            Some(folder) if folder.account == r.account || r.account == 0 => format!("{verb} it to {}", crate::nav::folder_path(mb, f)),
+            Some(folder) if folder.account == r.account => format!("{verb} it to {}", crate::nav::folder_path(mb, f)),
             Some(folder) if let Some(other) = mb.account(folder.account) => {
                 let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
                 format!("{verb} it to {} - {who}", crate::nav::folder_path(mb, f))

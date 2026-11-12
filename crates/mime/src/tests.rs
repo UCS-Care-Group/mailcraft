@@ -754,6 +754,24 @@ fn a_field_past_the_split_cap_is_said_cut() {
     assert!(m.headers_cut || m.header_contains("keep-this"), "a field left out, and nothing says so");
 }
 
+/// A Cc past the recipients kept after the To, and a header read into the message past the 64 KB
+/// kept of it as it came: the message says its header was cut, so that a rule that reads them
+/// can't tell, as for a To or a field count past what is kept (#566).
+#[test]
+fn a_cc_past_the_room_left_and_a_long_read_header_are_said_cut() {
+    let list = |n: usize| (0..n).map(|i| format!("c{i}@example.org")).collect::<Vec<_>>().join(", ");
+    let with_cc = |n: usize| parse(format!("From: a@example.org\r\nTo: b@example.org\r\nCc: {}\r\nSubject: s\r\n\r\nbody\r\n", list(n)).as_bytes());
+    // One in To leaves room for all but one in Cc.
+    let whole = with_cc(crate::MAX_RECIPIENTS - 1);
+    assert_eq!((whole.cc.len(), whole.headers_cut), (crate::MAX_RECIPIENTS - 1, false));
+    let cut = with_cc(crate::MAX_RECIPIENTS);
+    assert_eq!((cut.cc.len(), cut.headers_cut), (crate::MAX_RECIPIENTS - 1, true));
+    // A subject that the 64 KB of lines kept as they came can't hold.
+    let subject = |n: usize| parse(format!("From: a@example.org\r\nSubject: {}\r\n\r\nbody\r\n", "a".repeat(n)).as_bytes());
+    assert!(!subject(1_000).headers_cut);
+    assert!(subject(70_000).headers_cut);
+}
+
 #[test]
 fn a_header_block_keeps_a_bounded_number_of_bytes() {
     let mut raw = Vec::new();

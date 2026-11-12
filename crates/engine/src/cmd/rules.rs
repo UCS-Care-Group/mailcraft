@@ -434,17 +434,7 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     if actions.len() > MOST_PARTS {
         return Err(bad(format!("`actions` has more than {MOST_PARTS}")));
     }
-    let mut actions = actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
-    // An action given twice is done once: two copies into one folder are one, as Outlook's rule
-    // has each of its actions once.
-    let mut seen: Vec<Action> = Vec::new();
-    actions.retain(|a| {
-        let again = seen.contains(a);
-        if !again {
-            seen.push(a.clone());
-        }
-        !again
-    });
+    let actions = once_each(actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?);
     let alert = p::opt_bool(v, "alert")?.unwrap_or(false);
     if conditions.is_empty() || (actions.is_empty() && !alert) {
         return Err(bad("a rule needs at least one condition, and an action or a desktop alert (`alert`)"));
@@ -454,6 +444,20 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     let mut rule = Rule { id: 0, name, enabled: true, conditions, exceptions, actions, stop, alert, account, ..Default::default() };
     place(s, &mut rule, v)?;
     Ok(rule)
+}
+
+/// `actions` with each given once: an action given twice is done once, two copies into one folder
+/// are one, as Outlook's rule has each of its actions once.
+fn once_each(mut actions: Vec<Action>) -> Vec<Action> {
+    let mut seen: Vec<Action> = Vec::new();
+    actions.retain(|a| {
+        let again = seen.contains(a);
+        if !again {
+            seen.push(a.clone());
+        }
+        !again
+    });
+    actions
 }
 
 /// Where a new rule is kept, by `v`'s `server`: on a server that can do all of it, as Outlook
@@ -482,7 +486,8 @@ pub fn server_cannot_draft(s: &Session, v: &Value) -> Option<NotOnServer> {
     // which `rules.add` refuses and the builder says) are looked at as they are.
     let exceptions: Vec<Condition> = parts("exceptions").into_iter().filter_map(|c| condition(c).ok()).collect();
     let exceptions = mailcraft_model::fold_exceptions(exceptions.clone()).unwrap_or(exceptions);
-    let actions = parts("actions").into_iter().filter_map(|a| action(s, a).ok()).collect();
+    // As `rules.add` keeps them too.
+    let actions = once_each(parts("actions").into_iter().filter_map(|a| action(s, a).ok()).collect());
     let alert = p::bool(v, "alert").unwrap_or(false);
     let rule = Rule { conditions, exceptions, actions, alert, account, ..Default::default() };
     server_cannot(&s.mailbox, &rule, account)
@@ -612,6 +617,8 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
 /// The rule `rules.fromMessage` makes from `v`, with no id yet, and the folder the message is in
 /// (shared by the command and the agent's question).
 pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), CmdError> {
+    // (A misspelt `server` would keep on the server a rule meant for this computer.)
+    p::only(v, &["folder", "id", "server"])?;
     let folder = p::req_id(v, "folder")?;
     let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
     refuse_send_queue(s, folder)?;

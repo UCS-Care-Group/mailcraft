@@ -4446,7 +4446,7 @@ msgstr "Tot ce face interfața este o comandă: {commands} în total, acoperind 
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Except if"
-msgstr "Cu excepția cazului în care"
+msgstr "Doar dacă nu"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5078,7 +5078,7 @@ msgstr "De la expeditor"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr "De la și Trimis către primesc adrese întregi, cum ar fi someone@example.org."
+msgstr "„De la” și „Trimis către” primesc adrese întregi, cum ar fi someone@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -7911,7 +7911,7 @@ msgstr "Mutare în dosar"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
-msgstr "Mutare în dosar și Copiere în dosar au nevoie de un dosar; Clasificare are nevoie de o categorie."
+msgstr "„Mutare în dosar” și „Copiere în dosar” au nevoie de un dosar; „Clasificare” are nevoie de o categorie."
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -10209,7 +10209,7 @@ msgstr "Primit între"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr "Primit între primește una sau două zile (AAAA-LL-ZZ), mai întâi cea mai veche."
+msgstr "„Primit între” primește una sau două zile (AAAA-LL-ZZ), mai întâi cea mai veche."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -12614,7 +12614,7 @@ msgstr "Dimensiunea este între"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr "Dimensiunea este între primește două dimensiuni în KB, mai întâi cea mai mică."
+msgstr "„Dimensiunea este între” primește două dimensiuni în KB, mai întâi cea mai mică."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs

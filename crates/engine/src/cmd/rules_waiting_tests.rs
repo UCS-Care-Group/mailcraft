@@ -971,3 +971,52 @@ fn a_copy_that_waited_is_made_when_another_rule_put_the_mail_in_deleted_items() 
     }
     assert_eq!(outcome, ["copy first true: (made, placed) (1, 1)", "copy first false: (made, placed) (1, 1)"]);
 }
+
+/// A rule's copy into another account waits for the download, and so does a later rule's move of
+/// the same mail into that account: moved at once, the original would be gone from here before the
+/// copy was made of it, and the copy would never come (#566).
+#[test]
+fn a_move_into_another_account_waits_behind_a_copy_that_waits() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let (to, b) = imap_inbox(&mut s);
+    let delta = FolderDelta { remote: "Kept".into(), uid_validity: 9, ..Default::default() };
+    crate::cmd::account::apply_sync(&mut s, SyncResult { account: b, folders: vec![delta], ..Default::default() }).unwrap();
+    let kept = s.mailbox.folders.iter().find(|f| f.account == b && f.remote == "Kept").map(|f| f.id).unwrap();
+    copy_out(&mut s, account, to);
+    let keep = json!({"name": "Zoe kept at Blake's", "account": account, "server": false,
+        "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "moveTo", "value": kept}]});
+    s.run("rules.add", &keep).unwrap();
+    arrives(&mut s, account, "Plan");
+    assert_eq!(copies(&s, kept, b), (0, 0), "moved before the copy that waits was made");
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let made = |f: Id| s.mailbox.messages.values().filter(|m| m.folder == f && m.subject == "Plan").count();
+    assert_eq!((made(to), made(kept)), (1, 1), "the copy in Blake's Inbox and the original in Kept");
+}
+
+/// A Microsoft listing that left some of a message's categories out (past the 25 it keeps): the
+/// message stays one whose categories were cut once it is fetched, as the fetch brings none, so
+/// an exception for a category that may be among those left out still can't tell, and the rule
+/// that waited doesn't put the message in Deleted Items (#566).
+#[test]
+fn the_categories_a_listing_left_out_stay_untold_once_the_message_is_fetched() {
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let rule = json!({"name": "Zoe away", "account": account, "server": false,
+        "conditions": [{"type": "bodyContains", "value": "plan"}],
+        "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "delete"}]});
+    s.run("rules.add", &rule).unwrap();
+    let mut message = listed("N1", "F-in", "Plan");
+    message.server.categories = (0..25).map(|i| format!("Tag {i}")).collect();
+    message.cut = true;
+    let page = MessagePage { folder: "F-in".into(), messages: vec![message], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    assert!(here(&s, account, "N1").headers_cut);
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(here(&s, account, "N1").headers_cut, "the fetch said the listing's categories were all there were");
+    assert!(!binned(&s, account, "Plan"), "deleted past an exception for a category the listing may have left out");
+}

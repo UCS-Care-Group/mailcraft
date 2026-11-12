@@ -539,3 +539,34 @@ fn run_rules_now_with_a_shared_mailboxs_folder_in_view_runs_over_the_accounts_ow
     assert!(mb.message(ours).is_some_and(|m| m.read), "the rules shown ran over their account's Inbox");
     assert!(mb.message(theirs).is_some_and(|m| !m.read), "the shared mailbox's mail is left alone");
 }
+
+/// A rule the command refuses (a copy into an Outbox) is said in the dialog in the window's
+/// language, as the status bar says a refusal (#566).
+#[test]
+fn the_dialog_says_a_refusal_in_the_windows_language() {
+    use crate::forms::Form;
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let mut a = app();
+    let before = a.session.mailbox.rules.len();
+    a.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = window(a);
+    {
+        let app = h.state_mut();
+        let mb = app.session.mailbox.clone();
+        let Some(Dialog::Form(Form::Rules(f))) = &mut app.dialog else { panic!("the Rules dialog is open") };
+        let outbox = mb.folder_of_kind(f.account, FolderKind::Outbox).unwrap();
+        f.open = true;
+        f.name = "Invoices out".into();
+        f.conds = vec![Cond { kind: When::Subject, text: "invoice".into(), ..Default::default() }];
+        f.acts = vec![Act { kind: Do::Copy, folder: outbox, ..f.fresh_action() }];
+    }
+    h.run_steps(4);
+    // The window turns German at its next frame, the one that takes the click.
+    h.state_mut().ui.language = "de".into();
+    h.get_by_label("Add Rule").click();
+    h.run_steps(4);
+    let app = h.state();
+    assert_eq!(app.session.mailbox.rules.len(), before, "the rule was refused");
+    let Some(Dialog::Form(Form::Rules(f))) = &app.dialog else { panic!("the Rules dialog is open") };
+    assert_eq!(f.error, "eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: sie würden gesendet");
+}

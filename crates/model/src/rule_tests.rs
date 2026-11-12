@@ -501,3 +501,43 @@ fn an_earlier_builds_delete_for_good_reads_as_delete() {
     assert_eq!(rule.actions, vec![Action::Delete]);
     assert!(!serde_json::to_string(&rule).unwrap().contains("deleteForGood"));
 }
+
+/// "Sent only to me" of a message whose Cc was left out as it was read (`headers_cut`: the Cc line
+/// past the 2,000 fields a header keeps, say). The To that is here is the owner alone, but the Cc
+/// that came may name others: like "my address isn't in To", the condition can't be told, and the
+/// rule doesn't act on the guess, here a copy into an IMAP account, onto that account's server.
+#[test]
+fn sent_only_to_me_doesnt_hold_of_recipients_cut_short() {
+    let me = "ada@example.org";
+    let mut mb = Mailbox::with_local_account("Ada", me);
+    let local = mb.accounts[0].id;
+    let inbox = mb.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let other = mb.add_account(Account { email: "ada@imap.example".into(), kind: AccountKind::Imap, ..Default::default() });
+    let theirs = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    let rule = Rule {
+        id: 1,
+        enabled: true,
+        account: local,
+        conditions: vec![Condition::SentOnlyToMe],
+        actions: vec![Action::CopyTo(theirs)],
+        ..Default::default()
+    };
+    mb.rules.push(rule.clone());
+    let m = Message {
+        folder: inbox,
+        from: Address::new("Zoe", "zoe@example.org"),
+        to: vec![Address::new("Ada", me)],
+        subject: "Plan".into(),
+        headers_cut: true,
+        ..Default::default()
+    };
+    let id = mb.add_message(m).unwrap();
+    let how = Matching { me, ..Default::default() };
+    let msg = mb.message(id).unwrap().clone();
+    assert!(Condition::SentOnlyToMe.untold_in(&msg, &how), "the condition says it can't be told");
+    let clock = RuleClock { now: 1_800_000_000, zone: crate::time::Zone::UTC, due_hour: 17 };
+    mb.run_rules(id, true, &clock);
+    let copied = mb.messages.values().filter(|m| m.folder == theirs).count();
+    let placed = mb.queued.iter().filter(|q| matches!(q, Queued::PlaceMessage { account, .. } if *account == other)).count();
+    assert!(!rule.matches_in(&msg, &how) && (copied, placed) == (0, 0), "acted on a guess: copies {copied}, placed on the IMAP server {placed}");
+}

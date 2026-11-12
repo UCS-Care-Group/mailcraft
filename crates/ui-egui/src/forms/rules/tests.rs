@@ -128,9 +128,14 @@ fn rules_and_folders_read_as_people_know_them() {
     let rule = Rule {
         conditions: vec![Condition::SubjectContains(vec!["Atlas".into()])],
         actions: vec![Action::MoveTo(atlas), Action::MarkRead],
+        account,
         ..Default::default()
     };
     assert_eq!(describe(&s.mailbox, &rule), "When subject contains \"Atlas\": move it to Inbox/Projects/Atlas, mark it as read");
+    // A rule for every account's mail, shown under each account, names whose folder it is.
+    let every = Rule { account: 0, ..rule.clone() };
+    let who = s.mailbox.account(account).unwrap().email.clone();
+    assert_eq!(describe(&s.mailbox, &every), format!("When subject contains \"Atlas\": move it to Inbox/Projects/Atlas - {who}, mark it as read"));
     // The folder went away.
     let gone = Rule { actions: vec![Action::MoveTo(999_999)], ..rule };
     assert_eq!(describe(&s.mailbox, &gone), "When subject contains \"Atlas\": move it to a folder that is gone");

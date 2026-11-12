@@ -306,8 +306,9 @@ impl Condition {
     /// hold, though no header reads as Normal. A word found in what is here of the text holds, as
     /// ever, and a size that can't be told never matches.
     pub fn holds_in(&self, m: &Message, how: &Matching<'_>) -> bool {
-        // (Nor one that holds for what isn't there, of recipients that were left out.)
-        self.matches_in(m, how) && !(matches!(self, Condition::Sensitivity(_) | Condition::NotToMe) && self.unread_in(m))
+        // (Nor one that holds for what isn't there, of recipients that were left out: "sent only to
+        // me" of a Cc that was cut too.)
+        self.matches_in(m, how) && !(matches!(self, Condition::Sensitivity(_) | Condition::NotToMe | Condition::SentOnlyToMe) && self.unread_in(m))
     }
 
     /// Whether it can't be told of `m` yet: it reads what isn't here, of a message only part of

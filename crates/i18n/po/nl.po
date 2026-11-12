@@ -13979,7 +13979,7 @@ msgstr ""
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
-msgstr "De regels laten de mail van een gedeeld postvak met rust: het heeft eigen regels."
+msgstr "De regels laten de e-mail van een gedeeld postvak met rust: het heeft eigen regels."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs

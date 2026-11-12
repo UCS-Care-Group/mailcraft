@@ -228,8 +228,8 @@ app's Send/Receive) delivers it.
 Everything else goes through `execute`: replying (`mail.reply`, `compose.set`, `compose.send`),
 filing (`mail.move`, `mail.categorize`, `mail.archive`), rules (`rules.add`), the calendar
 (`calendar.new` with `recurrence`), contacts and tasks. `list_commands` gives each command's
-parameters. `rules.add` without `account` makes the rule for the account of the folder in view,
-and keeps it on that account's server when the server can do all of it, unless `server` is false.
+parameters. `rules.add` without `account` makes the rule for the account of the folder in view (with a
+shared mailbox's folder in view, the owner's own account), and keeps it on that account's server when the server can do all of it, unless `server` is false.
 
 ## Resources
 
