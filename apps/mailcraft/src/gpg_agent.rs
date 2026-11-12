@@ -153,7 +153,7 @@ impl Gpgconf {
         Gpgconf { program, prefix: Vec::new(), timeout: GPGCONF_TIMEOUT }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn script(shell: PathBuf, script: PathBuf, timeout: Duration) -> Gpgconf {
         Gpgconf { program: shell, prefix: vec![script.into_os_string()], timeout }
     }
