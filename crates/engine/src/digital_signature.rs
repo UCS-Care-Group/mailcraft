@@ -467,6 +467,22 @@ impl Session {
         self.signatures.kept.clear();
     }
 
+    /// Say that the key `fingerprint` of `format` kept for `address` is the one to encrypt to when
+    /// several arrived (#30 part 7): the owner's word in the window only, as marking one Verified is.
+    pub fn set_key_chosen(&mut self, address: &str, format: SignatureFormat, fingerprint: &str) -> Result<bool, crate::CmdError> {
+        let wanted = fingerprint_digits(fingerprint);
+        let Some(key) = self.mailbox.public_keys.of(address).iter().find(|k| k.format == format && fingerprint_digits(&k.fingerprint) == wanted)
+        else {
+            return Err(crate::cmd::fail("no Public key with that fingerprint is kept for that address"));
+        };
+        let exact = key.fingerprint.clone();
+        let changed = self.mailbox.public_keys.choose(address, format, &exact);
+        if changed {
+            self.dirty = true;
+        }
+        Ok(changed)
+    }
+
     /// Mark the OpenPGP key `fingerprint` (as kept, or in hexadecimal) kept for `address`
     /// Verified, or not (#30 R6, R12): the owner's word after comparing the fingerprint, given
     /// in the window only. No command's params reach it: the window's own command calls it, and
@@ -545,11 +561,17 @@ impl Session {
         // with; the check went by the one From field of its bytes. When the two aren't one
         // address, the signature is nobody's word for the sender shown.
         let checked = checked.map(|c| if pgp::from_address(&from) == address { c } else { address_differs(c) });
-        let seen = m.received.max(m.date);
+        let seen = self.received_at(m);
         self.keep_pgp_keys(&address, &brought, &ring, checked.as_ref(), seen);
         let Some(checked) = checked else { return Found::default() };
         let part = parts.and_then(|p| self.signature_part(m, &p.signature));
         Found { result: Some(Arc::new(openpgp_result(&checked))), part }
+    }
+
+    /// When a message came, for ranking the keys it brought: the time it arrived here, never what
+    /// its `Date:` header says (the sender writes that), and now for one that has no such time.
+    fn received_at(&self, m: &Message) -> i64 {
+        if m.received > 0 { m.received } else { self.now() }
     }
 
     /// The OpenPGP keys of the check of a message from `address` to keep for that address (#30
@@ -557,7 +579,10 @@ impl Session {
     /// sender's own; and any key kept for the sender already of which the message brought a copy
     /// (merged in `ring`, so that a revocation it carries counts, whatever the result).
     fn keep_pgp_keys(&mut self, address: &str, brought: &[pgp::PublicKey], ring: &pgp::KeyRing, checked: Option<&pgp::Checked>, seen: i64) {
-        if address.is_empty() {
+        // Never a key for one of the owner's own addresses: whoever writes in their name (a
+        // forged message is signed by a key made for the purpose) isn't the owner, and their own
+        // key comes from them alone (#30 part 7).
+        if address.is_empty() || self.mailbox.is_own_address(address) {
             return;
         }
         let signer = checked.and_then(|c| match &c.outcome {
@@ -613,7 +638,7 @@ impl Session {
                 data: Arc::new(der),
                 fingerprint: signer.fingerprint.clone(),
                 not_after: signer.not_after,
-                seen: m.received.max(m.date),
+                seen: self.received_at(m),
                 verified: false,
                 source: Default::default(),
             };
@@ -703,6 +728,9 @@ impl Session {
         }
         let mut changed = false;
         for (address, key) in std::mem::take(&mut self.signatures.to_keep) {
+            if self.mailbox.is_own_address(&address) {
+                continue;
+            }
             changed |= self.mailbox.public_keys.add(&address, key);
         }
         if changed {

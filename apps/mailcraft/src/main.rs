@@ -2229,6 +2229,8 @@ fn main() -> eframe::Result {
                 // Search answers from a word index kept beside the mailbox file, built in the
                 // background (R6.2).
                 session.index_words = true;
+                // A draft that is to be Encrypted is kept Encrypted to the owner's own key (#30).
+                session.sealer = Some(std::sync::Arc::new(encrypting::DraftSealer::new()));
                 // A run that keeps its mailbox and its settings keeps downloaded pictures too.
                 let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
                 let mut services = services(file_dialog, ctx.clone(), kept_pictures, host_updates.as_ref());

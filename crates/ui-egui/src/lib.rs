@@ -2165,6 +2165,10 @@ impl MailApp {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
         }
+        // Input the control channel injected never turns Encrypt off for the owner (#30 part 7).
+        if let Some(refused) = encryption::refused_when_driven(self, id, &params) {
+            return Err(refused);
+        }
         // Send with Encrypt on and a recipient with no Public key stops, naming them: Send
         // unencrypted, Remove or Cancel (#30 R18). The owner's press only; the engine refuses it for
         // everybody else.

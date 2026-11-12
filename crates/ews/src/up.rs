@@ -526,16 +526,22 @@ impl<E: HttpExchange> Run<'_, E> {
             log::info!("ews sending: a message without its content waits");
             return Ok(());
         };
-        let op = match SendMessage::new(message) {
-            Ok(op) => op,
+        // (An Encrypted message's Bcc recipients are each sent a message of their own first, to them
+        // alone, #30 part 7; whatever can't go is found before any goes.)
+        let ops = match SendMessage::blind(message)
+            .and_then(|mut ops| SendMessage::new(message).map(|main| ops.drain(..).chain([main]).collect::<Vec<_>>()))
+        {
+            Ok(ops) => ops,
             Err(e) => {
                 done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
                 return Ok(());
             }
         };
-        match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
-            Ok(()) => done.outcome = SendOutcome::Sent,
-            Err(error) => return self.sent(error, done, plain_or_lost),
+        for op in &ops {
+            match self.ask_once(&op.element(), &|reply| op.answer(reply)).await {
+                Ok(()) => done.outcome = SendOutcome::Sent,
+                Err(error) => return self.sent(error, done, plain_or_lost),
+            }
         }
         // The draft it was saved as goes only after a clear success, as a soft delete (kept
         // recoverable); never a hard one. Gone already is as good. A draft whose make was not

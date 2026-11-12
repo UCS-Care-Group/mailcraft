@@ -329,8 +329,16 @@ fn signing_line(app: &mut MailApp, ui: &mut Ui, c: &Shown) {
 /// and in which form, or why it can't be; nothing for a message that goes as it is.
 fn encryption_line(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let Some(will) = crate::encryption::shown(app) else { return };
-    let Some((text, problem)) = crate::encryption::words(&will) else { return };
+    let will = crate::encryption::shown(app);
+    let mut line = will.as_ref().and_then(crate::encryption::words);
+    // What became of the draft last saved (#30 part 7): kept Encrypted, or on this computer only.
+    if let Some(note) = crate::encryption::draft_note(app) {
+        line = Some(match line {
+            Some((text, problem)) => (format!("{text} · {note}"), problem),
+            None => (note, false),
+        });
+    }
+    let Some((text, problem)) = line else { return };
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
     let icon = Rect::from_center_size(pos2(r.min.x + 24.0, r.center().y), vec2(16.0, 16.0));
     icons::paint(ui.painter(), icon, "lock", if problem { t.red } else { t.icon }, t.accent);

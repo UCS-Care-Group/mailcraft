@@ -455,6 +455,11 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Een vergadering die wordt herhaald en sommige dagen overslaat, kan vanaf hier niet op de agenda van de server worden gezet: alle genodigden zouden voor elke overgeslagen dag een annulering ontvangen. Bewaar de vergadering in een agenda op deze computer, of maak de vergadering opnieuw zonder de overgeslagen dagen."
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "A message to somebody who has no Public key goes as it is, and the window says so before Send."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -2178,6 +2183,11 @@ msgstr "Agenda…"
 #, fuzzy
 msgid "Calibri"
 msgstr "Calibri"
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Can't be Encrypted yet: several keys came for {names}, and you say which is theirs"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/encryption.rs
@@ -4277,6 +4287,16 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/encryption.rs
+msgid "Encrypt is turned off only by you, not by input sent to the window"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Encrypt messages from this account when every recipient has a Public key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
 msgid "Encrypted at Send to {n} recipient and you"
 msgid_plural "Encrypted at Send to {n} recipients and you"
 msgstr[0] ""
@@ -5293,6 +5313,11 @@ msgstr "Naar de map gaan"
 #, fuzzy
 msgid "Goes to {host}"
 msgstr "Gaat naar {host}"
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Goes unencrypted: no single Public key for {names}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -11728,6 +11753,11 @@ msgstr "Instellingen"
 msgid "Settings…"
 msgstr "Instellingen…"
 
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Several different keys came with mail for these recipients, and nothing says which is theirs. Choose the one that is, or send without encryption:"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -14044,6 +14074,11 @@ msgid "The server's name"
 msgstr "De naam van de server"
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The setting couldn't be changed."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/settings_notice.rs
 #, fuzzy
 msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. It couldn't be renamed, so it was left as it is and won't be overwritten."
@@ -14691,6 +14726,11 @@ msgid "This domain's servers have no automatic setup. Type the server's address 
 msgstr "De servers van dit domein hebben geen automatische instelling. Typ het adres van de server bij Serverinstellingen."
 
 #. what a command says
+#: crates/engine/src/cmd/encrypting.rs
+msgid "This draft is kept Encrypted."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This event is kept by the server of {who}. It can be moved to another calendar of that account, not out of it: taking it out would delete it there."
@@ -15008,6 +15048,11 @@ msgstr "Dit bericht kan zich in meer weergaven opmaken dan MailCraft kon control
 #, fuzzy
 msgid "This message may not be what it seems."
 msgstr "Dit bericht is mogelijk niet wat het lijkt."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "This message was Encrypted when it was sent. It can't be opened here yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -15747,6 +15792,11 @@ msgstr "Mijn eigen werktijden gebruiken"
 #, fuzzy
 msgid "Use system setting"
 msgstr "Systeeminstelling gebruiken"
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "Use this key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17028,6 +17078,11 @@ msgid_plural "and {n} more, not merged now"
 msgstr[0] "en nog {n}, nu niet samengevoegd"
 msgstr[1] "en nog {n}, nu niet samengevoegd"
 
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "arrived {date}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -17065,6 +17120,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/signing.rs
 msgid "choose the certificate or key to sign with first (File › Account Settings › Digital Signatures), or turn Sign off"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "chosen by you"
 msgstr ""
 
 #. what a command says
@@ -17113,6 +17173,11 @@ msgstr "{host} kon niet worden bereikt: {reason}"
 #, fuzzy
 msgid "day"
 msgstr "dag"
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "each Bcc recipient gets a message of their own"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
@@ -17947,6 +18012,11 @@ msgstr "selecteer eerst een taak"
 msgid "select an appointment first"
 msgstr "selecteer eerst een afspraak"
 
+#. what a command says
+#: crates/engine/src/cmd/encrypting.rs
+msgid "several different keys arrived with mail for {recipients} and none is yours: choose one in the window (the stop that Send opens), or import their key, or send it unencrypted"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -18217,6 +18287,16 @@ msgstr "de download is mislukt"
 #, fuzzy
 msgid "the download stopped before it was done"
 msgstr "de download is gestopt voordat die klaar was"
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "the draft is kept Encrypted on this computer, and can't be reopened to edit until MailCraft can decrypt"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "the draft is kept on this computer only, as you wrote it, not Encrypted"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
@@ -18764,6 +18844,11 @@ msgstr "de handtekening is er niet meer"
 msgid "the signature was edited as text: its copy is what goes out"
 msgstr "de handtekening is bewerkt als tekst: die kopie is wat wordt verzonden"
 
+#. interface
+#: crates/ui-egui/src/encryption.rs
+msgid "the subject and the addresses aren't encrypted"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -19070,6 +19155,11 @@ msgstr "dit bericht heeft geen onderwerp om naar te zoeken"
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verzend het daarna opnieuw"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "this message was Encrypted when it was sent, and can't be sent again from here until MailCraft can decrypt"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

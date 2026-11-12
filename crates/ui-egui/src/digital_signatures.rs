@@ -62,6 +62,9 @@ pub struct DigitalSignatures {
     waiting: Option<Receiver<Result<Vec<SigningChoice>, String>>>,
     chosen: Option<SigningKey>,
     always: bool,
+    /// Encrypt when every recipient has a Public key (#30 R16): the account's own setting, changed
+    /// here by the owner's hand only.
+    encrypt_when_possible: bool,
     error: String,
 }
 
@@ -74,7 +77,15 @@ impl DigitalSignatures {
         }
         let waiting = app.services.signing.as_ref().map(|host| host.keys());
         let keys = if waiting.is_some() { None } else { Some(Err(tl!("Digital signatures are made by the desktop program.").to_string())) };
-        Some(DigitalSignatures { account, keys, waiting, chosen: a.signing.key.clone(), always: a.signing.always, error: String::new() })
+        Some(DigitalSignatures {
+            account,
+            keys,
+            waiting,
+            chosen: a.signing.key.clone(),
+            always: a.signing.always,
+            encrypt_when_possible: a.encryption.when_possible,
+            error: String::new(),
+        })
     }
 
     /// Draw it; whether it is done.
@@ -99,6 +110,8 @@ impl DigitalSignatures {
             &[("account", &email)],
         ));
         ui.checkbox(&mut self.always, tl!("Always add a Digital signature to messages from this account"));
+        ui.checkbox(&mut self.encrypt_when_possible, tl!("Encrypt messages from this account when every recipient has a Public key"))
+            .on_hover_text(tl!("A message to somebody who has no Public key goes as it is, and the window says so before Send."));
         ui.label(egui::RichText::new(tl!("Sign with")).strong());
         match &self.keys {
             None => {
@@ -164,12 +177,29 @@ impl DigitalSignatures {
         if ok || (enter && (!self.always || self.chosen.is_some())) {
             let key = self.chosen.as_ref().map(|k| json!({"format": k.format.as_str(), "fingerprint": k.fingerprint, "label": k.label}));
             match app.execute("account.setSigning", json!({"account": self.account, "key": key, "always": self.always})) {
-                Ok(_) => return true,
+                Ok(_) => {
+                    // How an account encrypts is the owner's to change, by their own hand: input
+                    // the control channel injected leaves it as it was.
+                    if apply_encryption(app, self.account, self.encrypt_when_possible) || app.driven {
+                        return true;
+                    }
+                    self.error = tl!("The setting couldn't be changed.").to_string();
+                }
                 Err(e) => self.error = e,
             }
         }
         cancel
     }
+}
+
+/// Set whether `account` encrypts when every recipient has a Public key, as the owner's own hand:
+/// input the control channel injected leaves it as it was. Whether it was set.
+pub(crate) fn apply_encryption(app: &mut MailApp, account: Id, when_possible: bool) -> bool {
+    if app.driven {
+        return false;
+    }
+    let was = app.session.mailbox.account(account).is_some_and(|a| a.encryption.when_possible);
+    was == when_possible || app.execute("account.setEncryption", json!({"account": account, "whenPossible": when_possible})).is_ok()
 }
 
 /// The question for a smartcard's PIN.

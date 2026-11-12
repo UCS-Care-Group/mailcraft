@@ -38,6 +38,9 @@ pub enum KeySource {
     Collected,
     /// Imported by the owner from a file (`keys.import`).
     Imported,
+    /// One of several keys that arrived for an address, which the owner said to use (#30 part 7):
+    /// by their word in the window, never a command's.
+    Chosen,
 }
 
 impl KeySource {
@@ -46,6 +49,7 @@ impl KeySource {
         match self {
             KeySource::Collected => "collected",
             KeySource::Imported => "imported",
+            KeySource::Chosen => "chosen",
         }
     }
 
@@ -88,7 +92,7 @@ impl PublicKey {
     /// Whether it is the owner's to keep: Verified or imported. Such a key never goes to make
     /// room before one that was only collected.
     pub fn is_owners(&self) -> bool {
-        self.verified || self.source == KeySource::Imported
+        self.verified || matches!(self.source, KeySource::Imported | KeySource::Chosen)
     }
 
     fn is(&self, format: SignatureFormat, fingerprint: &str) -> bool {
@@ -226,6 +230,21 @@ impl PublicKeys {
             self.revision = fresh_revision();
         }
         removed
+    }
+
+    /// Say that the key `fingerprint` of `format` kept for `address` is the one to use (#30 part 7):
+    /// the owner's word in the window, when several keys arrived for the address and nothing said
+    /// which is theirs. Whether it changed.
+    pub fn choose(&mut self, address: &str, format: SignatureFormat, fingerprint: &str) -> bool {
+        let Some(key) = self.keys.get_mut(&key_of(address)).and_then(|keys| keys.iter_mut().find(|k| k.is(format, fingerprint))) else {
+            return false;
+        };
+        if key.is_owners() {
+            return false;
+        }
+        key.source = KeySource::Chosen;
+        self.revision = fresh_revision();
+        true
     }
 
     /// Mark the OpenPGP key `fingerprint` kept for `address` Verified, or not (#30 R6): for the

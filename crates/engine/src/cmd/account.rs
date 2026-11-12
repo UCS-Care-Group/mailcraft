@@ -1305,7 +1305,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let gmail_moves = gmail_moves_go(s, account);
     let now = s.now();
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result);
+    let sent = file_sent(mb, account, result, s.interface_language);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1405,7 +1405,7 @@ impl OnServer {
 /// each): a message of the account's that is in Sent Items and not on the server yet is marked
 /// all the same. One whose copy didn't get to the server after all (`unfiled`) is no longer
 /// expected there. Returns how many were sent.
-fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
+fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, lang: mailcraft_i18n::Lang) -> usize {
     let (Some(outbox), Some(sent_items)) = (mb.folder_of_kind(account, FolderKind::Outbox), mb.folder_of_kind(account, FolderKind::Sent)) else {
         return 0;
     };
@@ -1421,6 +1421,20 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
             if let Ok(m) = mb.message_mut(*id) {
                 m.sign_with = None;
                 m.encrypt_with = None;
+                // An Encrypted message is kept as it went (#30 part 7): the Encrypted message,
+                // never the clear text it was made from, so that a copy moved to another account
+                // or an archive carries that too. What it says until it can be decrypted here
+                // (part 6) is a note.
+                if let Some(sealed) = m.sealed.take() {
+                    m.original = Some(sealed);
+                    m.body = mailcraft_model::Body {
+                        text: lang.t("This message was Encrypted when it was sent. It can't be opened here yet.").to_string(),
+                        html: None,
+                    };
+                    m.attachments.clear();
+                    m.hidden_text.clear();
+                    m.blind_copies.clear();
+                }
             }
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a

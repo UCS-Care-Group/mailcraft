@@ -233,7 +233,7 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], now: u64, random: &mut dy
             keys.push(key);
         }
     }
-    let mut random = Random { fill: random, failed: false };
+    let mut random = Random::new(random);
     let made = crate::guard(|| write(content, &keys, now, &mut random)).unwrap_or(Err(EncryptError::Encoding));
     if random.failed {
         return Err(EncryptError::Random);

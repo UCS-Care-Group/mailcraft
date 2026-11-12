@@ -1365,6 +1365,12 @@ impl Mailbox {
         self.accounts.iter().find(|a| a.id == id)
     }
 
+    /// Whether `address` is one of the owner's own: the address of any of the accounts.
+    pub fn is_own_address(&self, address: &str) -> bool {
+        let address = address.trim();
+        !address.is_empty() && self.accounts.iter().any(|a| a.email.trim().eq_ignore_ascii_case(address))
+    }
+
     pub fn account_mut(&mut self, id: Id) -> Result<&mut Account, ModelError> {
         self.accounts.iter_mut().find(|a| a.id == id).ok_or(not_found("account", id))
     }

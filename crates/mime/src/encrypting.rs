@@ -23,15 +23,27 @@ pub const NOT_ENCRYPTED: &str = "it was to be Encrypted and wasn't, so it wasn't
 
 /// Whether `message` was to be Encrypted at Send ([`Message::encrypt_with`]) and what it would
 /// be written as isn't an Encrypted message: no encrypted body kept, or one that isn't S/MIME's
-/// enveloped data or PGP/MIME's `multipart/encrypted`. Every path that sends mail refuses such a
-/// message.
+/// enveloped data or PGP/MIME's `multipart/encrypted`; or a Bcc recipient has no message of their
+/// own that is ([`Message::blind_copies`]: one message for everybody would name them in its key
+/// lines). Every path that sends mail refuses such a message.
 pub fn encryption_missing(message: &Message) -> bool {
     match &message.encrypt_with {
-        Some(_) => !(crate::writes_original(message) && message.original_bytes().is_some_and(is_encrypted)),
+        Some(_) => {
+            body_not_encrypted(message)
+                || message.blind_addresses().iter().any(|address| {
+                    !message.blind_copies.iter().any(|c| c.address == *address && c.original.is_loaded() && is_encrypted(c.original.data.as_slice()))
+                })
+        }
         // Encrypt asked for and nothing decided (a message put in the Outbox otherwise than with
         // Send, a recipient's key gone since): it isn't sent in the clear.
         None => message.encrypt == Some(true) && !message.draft,
     }
+}
+
+/// Whether `message`, to be Encrypted ([`Message::encrypt_with`]), has a body that isn't an Encrypted
+/// message: the check for one message of its own ([`Message::blind_messages`]).
+pub fn body_not_encrypted(message: &Message) -> bool {
+    message.encrypt_with.is_some() && !(crate::writes_original(message) && message.original_bytes().is_some_and(is_encrypted))
 }
 
 /// Whether the message `bytes` is an Encrypted message: PGP/MIME's

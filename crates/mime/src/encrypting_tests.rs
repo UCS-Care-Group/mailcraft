@@ -199,6 +199,10 @@ fn an_encrypted_message_is_written_with_its_headers_and_the_encrypted_body_only(
         assert!(text.contains(expected), "{text}");
         // None of the plain text, in any part.
         assert!(!text.contains("See you at ten"), "{text}");
+        assert!(!crate::body_not_encrypted(&m));
+        // A Bcc recipient with no message of their own leaves it missing: one for all is never sent.
+        assert!(encryption_missing(&m));
+        m.bcc.clear();
         assert!(!encryption_missing(&m));
     }
 }

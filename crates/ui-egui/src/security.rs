@@ -896,6 +896,7 @@ fn public_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, address: &str, key: 
         ui.label(RichText::new(said).color(hue).size(11.5));
         let source = match key.source {
             KeySource::Imported => tl!("imported"),
+            KeySource::Chosen => tl!("chosen by you"),
             _ => tl!("collected from mail"),
         };
         let mut facts = vec![source.to_string()];

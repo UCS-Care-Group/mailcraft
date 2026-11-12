@@ -11,14 +11,19 @@
 //! those keys and to the owner's own, and nothing sends it in the clear: a message that couldn't
 //! be encrypted is held in the Outbox with why ([`crate::signing::Unsigned`]).
 
-use std::sync::Arc;
+use std::borrow::Cow;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use crate::digital_signature::SignatureFormat;
+use crate::message::Original;
+use crate::{Address, Message};
 
 /// The most recipients one message is encrypted to (the owner's own key among them).
 pub const MAX_ENCRYPT_TO: usize = 200;
+/// The most Bcc recipients a message is encrypted for: each is given a message of their own.
+pub const MAX_BLIND: usize = 50;
 /// The longest address kept for a recipient.
 const MAX_ADDRESS: usize = 254;
 
@@ -97,4 +102,103 @@ impl Encryption {
 pub fn held_unencrypted(why: &str) -> String {
     let why: String = why.chars().filter(|c| !c.is_control()).take(300).collect();
     format!("It couldn't be Encrypted: {why}. It wasn't sent; Send Again tries again.")
+}
+
+/// The message one Bcc recipient is sent (#30 part 7): the content, encrypted to them and the
+/// owner alone, so that nobody else's message names their key.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlindCopy {
+    /// Their address, in lower case.
+    pub address: String,
+    /// The Encrypted message's bytes, as [`Message::original`] holds them.
+    pub original: Original,
+}
+
+/// Where the host hands back the Encrypted message a send went as. The message in the Outbox and
+/// the copies of it a run is handed share one, so that when the send is taken in, the copy kept in
+/// Sent Items is the Encrypted message and never the clear text it was made from. Equal to every
+/// other (it is not part of what a message says), and never written.
+#[derive(Clone, Default)]
+pub struct Sealed(Arc<Mutex<Option<Original>>>);
+
+impl Sealed {
+    /// Hand back what the message went as.
+    pub fn put(&self, original: Original) {
+        if let Ok(mut slot) = self.0.lock() {
+            *slot = Some(original);
+        }
+    }
+
+    /// What was handed back, once.
+    pub fn take(&self) -> Option<Original> {
+        self.0.lock().ok().and_then(|mut slot| slot.take())
+    }
+}
+
+impl std::fmt::Debug for Sealed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Sealed")
+    }
+}
+
+impl PartialEq for Sealed {
+    fn eq(&self, _: &Sealed) -> bool {
+        true
+    }
+}
+
+impl Eq for Sealed {}
+
+impl Message {
+    /// The Bcc recipients written to blind in an Encrypted message: those of the Bcc line who are
+    /// not also on To or Cc (who are known to the others), in lower case, each once.
+    pub fn blind_addresses(&self) -> Vec<String> {
+        let key = |a: &Address| a.email.trim().to_lowercase();
+        let visible: Vec<String> = self.to.iter().chain(&self.cc).map(key).collect();
+        let mut out: Vec<String> = Vec::new();
+        for a in &self.bcc {
+            let email = key(a);
+            if !email.is_empty() && !visible.contains(&email) && !out.contains(&email) {
+                out.push(email);
+            }
+        }
+        out
+    }
+
+    /// The message that goes to everybody but the Bcc recipients, when each of them is given a
+    /// message of their own ([`Message::blind_copies`]): the Bcc line is left out. Else as it is.
+    pub fn for_main(&self) -> Cow<'_, Message> {
+        if self.blind_copies.is_empty() {
+            return Cow::Borrowed(self);
+        }
+        Cow::Owned(Message { bcc: Vec::new(), blind_copies: Vec::new(), ..self.clone() })
+    }
+
+    /// The messages the Bcc recipients are each sent ([`Message::blind_copies`]): this message with
+    /// the Encrypted bytes made for them, and nothing else of its recipients but them when `alone`
+    /// (for a server that takes its recipients from the message's own header lines, as Microsoft
+    /// Graph and Exchange do), else with its To and Cc as they are and them as its Bcc (for SMTP,
+    /// whose envelope is the one address).
+    pub fn blind_messages(&self, alone: bool) -> Vec<(String, Message)> {
+        let own = self.encrypt_with.as_ref();
+        self.blind_copies
+            .iter()
+            .map(|copy| {
+                let to = Address { name: String::new(), email: copy.address.clone() };
+                let mut m = Message { original: Some(copy.original.clone()), blind_copies: Vec::new(), ..self.clone() };
+                // (It is Encrypted to this recipient and the owner alone: what says so is its plan.)
+                m.encrypt_with = own.map(|e| Encryption {
+                    format: e.format,
+                    recipients: e.recipients.iter().filter(|r| r.own || r.address == copy.address).cloned().collect(),
+                    own_address: e.own_address.clone(),
+                });
+                if alone {
+                    (m.to, m.cc, m.bcc) = (vec![to], Vec::new(), Vec::new());
+                } else {
+                    m.bcc = vec![to];
+                }
+                (copy.address.clone(), m)
+            })
+            .collect()
+    }
 }

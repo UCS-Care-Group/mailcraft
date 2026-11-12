@@ -539,8 +539,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
-        // A reply to an Encrypted message is Encrypted too, unless the owner turns it off (#30 R16).
-        encrypt: (mode != ComposeMode::Forward && super::encrypting::was_encrypted(&m)).then_some(true),
+        // A reply to or forward of an Encrypted message is Encrypted too, unless the owner turns it off (#30 R16).
+        encrypt: super::encrypting::was_encrypted(&m).then_some(true),
         ..Default::default()
     };
     if let Some(sig) = &sig {
@@ -860,6 +860,10 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
     if !m.draft {
         return Err(fail("that message isn't a draft"));
     }
+    // Kept Encrypted: what the owner wrote can't be read here until decrypting is built (part 6).
+    if m.sealed_draft {
+        return Err(fail(super::encrypting::SEALED_DRAFT));
+    }
     // Only its headers are here: written over, the server's whole draft would be lost.
     if m.unfetched {
         return Err(fail("this draft isn't downloaded yet: open it once you're online, then edit it"));
@@ -888,6 +892,11 @@ fn resend(s: &mut Session, v: &Value) -> CmdResult {
     let mine = s.mailbox.accounts.iter().any(|a| !a.email.is_empty() && a.email.eq_ignore_ascii_case(m.from.email.trim()));
     if !mine {
         return Err(fail("only a message you sent can be sent again"));
+    }
+    // An Encrypted message that was sent is kept as the Encrypted message: its text can't be had
+    // here until decrypting is built (part 6), and a new message made of it would be empty.
+    if super::encrypting::was_encrypted(&m) {
+        return Err(fail("this message was Encrypted when it was sent, and can't be sent again from here until MailCraft can decrypt"));
     }
     if m.unfetched || m.incomplete || not_downloaded(&m) {
         return Err(fail("this message isn't downloaded: open it once you're online, then send it again"));
@@ -1396,7 +1405,12 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     // And what it is Encrypted to, or why it can't be: a recipient with no key stops the send and
     // is named, never sent in the clear (R18).
     match super::encrypting::will_encrypt(s, &c) {
-        super::encrypting::Will::Encrypted { to, .. } => m.encrypt_with = Some(to),
+        super::encrypting::Will::Encrypted { to, .. } => {
+            m.encrypt_with = Some(to);
+            // Decided: a change of the account's setting before it goes doesn't take it back, and
+            // a key gone by then holds it rather than sending it in the clear.
+            m.encrypt = Some(true);
+        }
         other => {
             if let Some(e) = super::encrypting::send_refused(&other) {
                 return Err(e);
@@ -1481,11 +1495,22 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
     // A draft that is to be Encrypted stays on this computer: what a server would be given of it
-    // is its clear text (R20).
+    // is its clear text (R20). Here it is kept Encrypted to the owner's own key (what is kept of it
+    // is the Encrypted message, which can't be opened to edit until decrypting is built, part 6);
+    // where the host can't, it is kept as it was written, and the window says so. A clear copy an
+    // earlier save put on a server is taken away from it, and the draft made here again as a draft
+    // of this computer's alone.
     m.local_only = super::encrypting::keeps_draft_here(s, &c);
     let graph = s.mailbox.keeps_drafts_on_server(m.account) && !m.local_only;
+    let mut away_from_server = false;
+    let mut sealed = None;
     if m.local_only {
-        m.server_draft = None;
+        away_from_server = old.as_ref().is_some_and(|o| o.account == m.account && !o.local_only && (o.server.is_some() || o.uid != 0));
+        (m.server_draft, m.sealed_draft) = (None, false);
+        if away_from_server {
+            (m.server, m.uid, m.synced) = (None, 0, None);
+        }
+        sealed = Some(super::encrypting::seal_draft(s, &mut m).is_ok());
     }
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
@@ -1514,13 +1539,19 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         sd.saves = sd.saves.saturating_add(1);
         m.server_draft = Some(sd);
     }
+    // (The copy a server has goes by being deleted there, as when a draft is discarded: what is made
+    // here is a new message with nothing of the server's.)
+    let replaced = match old.as_ref().map(|o| o.id) {
+        Some(d) if away_from_server => s.mailbox.remove_message(d).is_ok(),
+        _ => false,
+    };
     let id = match old.as_ref().map(|o| o.id) {
-        Some(d) => {
+        Some(d) if !replaced => {
             m.id = d;
             *s.mailbox.message_mut(d)? = m;
             d
         }
-        None => s.mailbox.add_message(m)?,
+        _ => s.mailbox.add_message(m)?,
     };
     let now = u64::try_from(s.now()).unwrap_or_default();
     if let Ok(m) = s.mailbox.message_mut(id)
@@ -1530,6 +1561,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     }
     let c = compose_mut(s)?;
     c.draft = Some(id);
+    c.draft_sealed = sealed;
     c.autosaved = autosaved;
     // (Whoever saved it, what the owner wrote in it stays theirs until it is closed, #494.)
     c.dirty = false;

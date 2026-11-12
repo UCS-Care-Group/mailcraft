@@ -27,6 +27,7 @@ const NOW: i64 = 4_000_000_000;
 const SMIME_NOW: i64 = 2_000_000_000;
 const SMIME_MAYA: &[u8] = include_bytes!("../../../crates/smime/testdata/maya.enc.der");
 const SMIME_OWNER: &[u8] = include_bytes!("../../../crates/smime/testdata/owner.enc.der");
+const SMIME_KIT: &[u8] = include_bytes!("../../../crates/smime/testdata/kit.enc.der");
 const FAKE_SIGNATURE: &str = "-----BEGIN PGP SIGNATURE-----\n\niQEzBAABCAAdFiEE\n=abcd\n-----END PGP SIGNATURE-----\n";
 
 fn secret(user_id: &str, seed: u64) -> SignedSecretKey {
@@ -55,13 +56,17 @@ fn message(id: u64) -> Message {
         id,
         from: Address::new("Ada", "ada@mail.example"),
         to: vec![Address::new("Maya", "maya@lumen.example")],
-        bcc: vec![Address::new("", "kit@lumen.example")],
         subject: "Rota".into(),
         date: 1_790_000_000,
         message_id: format!("rota.{id}@mail.example"),
         body: Body { text: "The vault code is 4417.\n".into(), html: None },
         ..Message::default()
     }
+}
+
+/// [`message`] with Kit written to blind.
+fn with_bcc(id: u64) -> Message {
+    Message { bcc: vec![Address::new("", "kit@lumen.example")], ..message(id) }
 }
 
 fn plan(format: SignatureFormat, recipients: Vec<(&str, Vec<u8>, bool)>) -> Encryption {
@@ -77,7 +82,10 @@ fn plan(format: SignatureFormat, recipients: Vec<(&str, Vec<u8>, bool)>) -> Encr
 
 /// What the owner of `secret` reads out of the armoured message in a PGP/MIME body.
 fn read(sent: &Message, secret: &SignedSecretKey) -> Option<Vec<u8>> {
-    let body = sent.original_bytes()?;
+    read_bytes(sent.original_bytes()?, secret)
+}
+
+fn read_bytes(body: &[u8], secret: &SignedSecretKey) -> Option<Vec<u8>> {
     let text = String::from_utf8_lossy(body);
     let start = text.find("-----BEGIN PGP MESSAGE-----")?;
     let end = text.find("-----END PGP MESSAGE-----")? + "-----END PGP MESSAGE-----".len();
@@ -95,6 +103,7 @@ fn no_own(_: SignatureFormat, _: &str, _: Option<&str>, _: i64) -> Result<Vec<u8
 fn an_openpgp_message_is_encrypted_to_the_recipients_and_the_owner() {
     let (maya, ada, kit) = (secret("Maya <maya@lumen.example>", 71), secret("Ada <ada@mail.example>", 72), secret("Kit <kit@lumen.example>", 73));
     let mut m = message(1);
+    m.to.push(Address::new("Kit", "kit@lumen.example"));
     m.encrypt_with =
         Some(plan(SignatureFormat::OpenPgp, vec![("maya@lumen.example", public(&maya), false), ("kit@lumen.example", public(&kit), false)]));
     // The owner's own key isn't in the plan: found by the host, here handed in.
@@ -103,16 +112,159 @@ fn an_openpgp_message_is_encrypted_to_the_recipients_and_the_owner() {
         Ok(public(&ada))
     };
     encrypt_with(&mut m, NOW, &mut seeded(1), &own).unwrap();
-    let entity = mailcraft_mime::signable(&message(1));
+    let entity = mailcraft_mime::signable(&m);
     for key in [&maya, &ada, &kit] {
         assert_eq!(read(&m, key).as_deref(), Some(entity.as_slice()));
     }
     assert!(!mailcraft_mime::encryption_missing(&m));
-    // What goes out: the headers, and nothing of the text in the clear, the Bcc line included.
+    assert!(m.blind_copies.is_empty());
+    // What goes out: the headers, and nothing of the text in the clear.
     let wire = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
     let text = String::from_utf8_lossy(&wire);
     assert!(text.contains("multipart/encrypted") && text.contains("Subject: Rota"), "{text}");
     assert!(!text.contains("4417"), "{text}");
+}
+
+/// The key ids of the encrypted session keys in an armoured OpenPGP message.
+fn key_ids(body: &[u8]) -> Vec<String> {
+    let text = String::from_utf8_lossy(body);
+    let start = text.find("-----BEGIN PGP MESSAGE-----").unwrap();
+    let end = text.find("-----END PGP MESSAGE-----").unwrap() + "-----END PGP MESSAGE-----".len();
+    let armoured = text[start..end].replace("\r\n", "\n");
+    let (message, _) = PgpMessage::from_string(&armoured).unwrap();
+    let PgpMessage::Encrypted { esk, .. } = message else { panic!("encrypted") };
+    esk.iter()
+        .filter_map(|e| match e {
+            pgp::composed::Esk::PublicKeyEncryptedSessionKey(p) => p.id().ok().map(|id| format!("{id:?}")),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_openpgp_bcc_recipient_gets_a_message_of_their_own_and_is_in_nobody_elses() {
+    let (maya, ada, kit) = (secret("Maya <maya@lumen.example>", 71), secret("Ada <ada@mail.example>", 72), secret("Kit <kit@lumen.example>", 73));
+    let mut m = with_bcc(30);
+    m.encrypt_with = Some(plan(
+        SignatureFormat::OpenPgp,
+        vec![("maya@lumen.example", public(&maya), false), ("kit@lumen.example", public(&kit), false), ("ada@mail.example", public(&ada), true)],
+    ));
+    encrypt_with(&mut m, NOW, &mut seeded(30), &no_own).unwrap();
+    let entity = mailcraft_mime::signable(&m);
+    // The message to everybody else: Maya and the owner read it, Kit can't.
+    assert_eq!(read(&m, &maya).as_deref(), Some(entity.as_slice()));
+    assert_eq!(read(&m, &ada).as_deref(), Some(entity.as_slice()));
+    assert_eq!(read(&m, &kit), None, "the Bcc recipient is not among its keys");
+    // Nor does any encrypted session key in it carry their key's id (which names them to anyone
+    // who looks the key up), and it holds two: Maya's and the owner's.
+    let kit_ids = {
+        let mut sub = SignedPublicKey::from(kit.clone()).public_subkeys[0].key.clone();
+        let _ = &mut sub;
+        key_ids(&crate::encrypting::seal(SignatureFormat::OpenPgp, b"x", &[public(&kit)], NOW, &mut seeded(1)).unwrap())
+    };
+    let main_ids = key_ids(m.original_bytes().unwrap());
+    assert_eq!(main_ids.len(), 2, "{main_ids:?}");
+    assert!(main_ids.iter().all(|id| !kit_ids.contains(id)), "{main_ids:?} / {kit_ids:?}");
+    // Their own message: theirs and the owner's, and Maya can't read it.
+    assert_eq!(m.blind_copies.len(), 1);
+    assert_eq!(m.blind_copies[0].address, "kit@lumen.example");
+    let theirs: &[u8] = &m.blind_copies[0].original.data;
+    assert_eq!(read_bytes(theirs, &kit).as_deref(), Some(entity.as_slice()));
+    assert_eq!(read_bytes(theirs, &ada).as_deref(), Some(entity.as_slice()));
+    assert_eq!(read_bytes(theirs, &maya), None);
+    assert_eq!(key_ids(theirs).len(), 2);
+    assert!(!mailcraft_mime::encryption_missing(&m));
+    // The message that goes to the others has no Bcc recipient; theirs is to them alone.
+    assert!(m.for_main().bcc.is_empty());
+    let alone = m.blind_messages(true);
+    assert_eq!(alone.len(), 1);
+    assert_eq!((alone[0].1.to.len(), alone[0].1.cc.len(), alone[0].1.bcc.len()), (1, 0, 0));
+    assert_eq!(alone[0].1.to[0].email, "kit@lumen.example");
+    assert!(!mailcraft_mime::body_not_encrypted(&alone[0].1));
+}
+
+/// The serial numbers of the certificates a CMS EnvelopedData names its recipients by, as the
+/// bytes of the INTEGER each is written as.
+fn names_serial(der: &[u8], cert: &[u8]) -> bool {
+    use x509_cert::der::Decode;
+    let cert = x509_cert::Certificate::from_der(cert).unwrap();
+    let serial = cert.tbs_certificate().serial_number().as_bytes().to_vec();
+    let mut needle = vec![0x02, serial.len() as u8];
+    needle.extend(serial);
+    der.windows(needle.len()).any(|w| w == needle.as_slice())
+}
+
+fn enveloped_der(body: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8_lossy(body);
+    let b64 = text.split("\r\n\r\n").nth(1).unwrap().replace("\r\n", "");
+    mailcraft_charset::base64::STANDARD.decode(b64).unwrap()
+}
+
+#[test]
+fn an_smime_bcc_recipient_gets_a_message_of_their_own_and_is_in_nobody_elses() {
+    let mut m = with_bcc(31);
+    m.encrypt_with = Some(plan(
+        SignatureFormat::Smime,
+        vec![
+            ("maya@lumen.example", SMIME_MAYA.to_vec(), false),
+            ("kit@lumen.example", SMIME_KIT.to_vec(), false),
+            ("ada@mail.example", SMIME_OWNER.to_vec(), true),
+        ],
+    ));
+    encrypt_with(&mut m, SMIME_NOW, &mut seeded(31), &no_own).unwrap();
+    // The message to everybody else names Maya's and the owner's certificates, never Kit's.
+    let main = enveloped_der(m.original_bytes().unwrap());
+    assert!(names_serial(&main, SMIME_MAYA) && names_serial(&main, SMIME_OWNER));
+    assert!(!names_serial(&main, SMIME_KIT), "the Bcc recipient's certificate is in the message everybody gets");
+    // Theirs names theirs and the owner's.
+    assert_eq!(m.blind_copies.len(), 1);
+    let theirs = enveloped_der(&m.blind_copies[0].original.data);
+    assert!(names_serial(&theirs, SMIME_KIT) && names_serial(&theirs, SMIME_OWNER));
+    assert!(!names_serial(&theirs, SMIME_MAYA));
+    assert!(!mailcraft_mime::encryption_missing(&m));
+    // A message whose Bcc recipient has no message of their own isn't Encrypted: it isn't sent.
+    m.blind_copies.clear();
+    assert!(mailcraft_mime::encryption_missing(&m));
+}
+
+#[test]
+fn a_bcc_recipient_with_no_key_in_the_plan_holds_the_message_and_makes_nothing() {
+    let maya = secret("Maya <maya@lumen.example>", 71);
+    let mut m = with_bcc(32);
+    m.encrypt_with =
+        Some(plan(SignatureFormat::OpenPgp, vec![("maya@lumen.example", public(&maya), false), ("ada@mail.example", public(&maya), true)]));
+    let why = encrypt_with(&mut m, NOW, &mut seeded(32), &no_own).unwrap_err();
+    assert!(why.contains("Bcc recipient"), "{why}");
+    assert!(m.blind_copies.is_empty() && m.original.is_none());
+    assert!(mailcraft_mime::encryption_missing(&m));
+}
+
+#[test]
+fn the_owner_among_the_bcc_recipients_is_encrypted_for_with_their_own_key_alone() {
+    let (maya, ada) = (secret("Maya <maya@lumen.example>", 71), secret("Ada <ada@mail.example>", 72));
+    let mut m = message(33);
+    m.bcc = vec![Address::new("Ada", "ada@mail.example")];
+    m.encrypt_with =
+        Some(plan(SignatureFormat::OpenPgp, vec![("maya@lumen.example", public(&maya), false), ("ada@mail.example", public(&ada), true)]));
+    encrypt_with(&mut m, NOW, &mut seeded(33), &no_own).unwrap();
+    assert_eq!(m.blind_copies.len(), 1);
+    assert!(read(&m, &ada).is_some() && read_bytes(&m.blind_copies[0].original.data, &ada).is_some());
+    assert!(read_bytes(&m.blind_copies[0].original.data, &maya).is_none());
+}
+
+#[test]
+fn what_the_sent_copy_is_handed_back_and_the_clear_text_never_is() {
+    let (maya, ada) = (secret("Maya <maya@lumen.example>", 71), secret("Ada <ada@mail.example>", 72));
+    let mut m = message(34);
+    m.encrypt_with =
+        Some(plan(SignatureFormat::OpenPgp, vec![("maya@lumen.example", public(&maya), false), ("ada@mail.example", public(&ada), true)]));
+    // The copy the run is handed shares its slot with the message in the Outbox.
+    let waiting = m.clone();
+    assert!(waiting.sealed.take().is_none(), "nothing before it is encrypted");
+    encrypt_with(&mut m, NOW, &mut seeded(34), &no_own).unwrap();
+    let sealed = waiting.sealed.take().expect("handed back");
+    assert_eq!(sealed.data.as_slice(), m.original_bytes().unwrap());
+    assert!(!String::from_utf8_lossy(&sealed.data).contains("4417"));
 }
 
 #[test]

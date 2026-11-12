@@ -348,6 +348,9 @@ impl RemoveAttachments {
 #[derive(Clone, PartialEq, Eq)]
 pub struct SendMessage {
     mime: Vec<u8>,
+    /// The server files the copy in Sent Items: the message itself. Not the message of a Bcc
+    /// recipient (#30 part 7), which is only sent.
+    save_copy: bool,
 }
 
 impl std::fmt::Debug for SendMessage {
@@ -366,6 +369,22 @@ impl SendMessage {
         if mailcraft_mime::encryption_missing(message) {
             return Err(Unsendable::NotEncrypted);
         }
+        // (An Encrypted message whose Bcc recipients are each given a message of their own goes
+        // to the others alone, see [`SendMessage::blind`].)
+        Self::build(&message.for_main(), true)
+    }
+
+    /// The message each Bcc recipient of an Encrypted message is sent of their own (#30 part 7),
+    /// to them alone and not filed in Sent Items: they go before the message itself.
+    pub fn blind(message: &Message) -> Result<Vec<Self>, Unsendable> {
+        message
+            .blind_messages(true)
+            .into_iter()
+            .map(|(_, copy)| if mailcraft_mime::body_not_encrypted(&copy) { Err(Unsendable::NotEncrypted) } else { Self::build(&copy, false) })
+            .collect()
+    }
+
+    fn build(message: &Message, save_copy: bool) -> Result<Self, Unsendable> {
         let mut anyone = false;
         for address in message.recipients() {
             let email = address.email.trim();
@@ -389,16 +408,21 @@ impl SendMessage {
         if mime.len() > MAX_MIME {
             return Err(Unsendable::TooLarge);
         }
-        Ok(Self { mime })
+        Ok(Self { mime, save_copy })
     }
 
-    /// The operation: `SavedItemFolderId` and `Items` with the MIME content.
+    /// The operation: `SavedItemFolderId` (for the message itself) and `Items` with the MIME content.
     pub fn element(&self) -> Element {
         let message = Element::new("t:Message").child(Element::new("t:MimeContent").attr("CharacterSet", "UTF-8").text(&base64(&self.mime)));
-        Element::new("m:CreateItem")
-            .attr("MessageDisposition", "SendAndSaveCopy")
-            .child(folder_ref("m:SavedItemFolderId", "sentitems", None))
-            .child(Element::new("m:Items").child(message))
+        let items = Element::new("m:Items").child(message);
+        if self.save_copy {
+            Element::new("m:CreateItem")
+                .attr("MessageDisposition", "SendAndSaveCopy")
+                .child(folder_ref("m:SavedItemFolderId", "sentitems", None))
+                .child(items)
+        } else {
+            Element::new("m:CreateItem").attr("MessageDisposition", "SendOnly").child(items)
+        }
     }
 
     /// Whether the server took it (a send has no item to name: the copy is filed in Sent Items).
