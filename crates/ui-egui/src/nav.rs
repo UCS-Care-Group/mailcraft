@@ -113,30 +113,54 @@ fn dropped_as(m: Module) -> Option<(&'static str, &'static str)> {
     }
 }
 
+/// The window command a drop is, so that it waits for a message that isn't here in full as Reply
+/// and View Source do ([`MailApp::fetch_first`]) and runs again once it is.
+pub(crate) const DROP: &str = "ui.dropOnModule";
+
 /// Messages let go over Calendar, Tasks or People in the module bar (#873), as in classic Outlook:
 /// a new appointment (in a window of its own), task or contact opens, filled in from the first of
 /// them that is still there: its subject, its text, its sender. Nothing is made until the owner
 /// saves it there, and the message stays where it is, as it was. One form opens however many were
-/// dragged (a task or a contact is filled in in the one dialog), and the status bar says so.
+/// dragged (a task or a contact is filled in in the one dialog), and the status bar says so. A
+/// message of which only the server's short preview is here waits to be downloaded first.
 pub(crate) fn drop_on_module(app: &mut MailApp, m: Module, dragged: &[Id]) {
-    let Some((kind, form)) = dropped_as(m) else { return };
-    if app.opening.is_some() {
-        return;
-    }
-    let here: Vec<Id> = dragged.iter().copied().filter(|id| app.session.mailbox.message(*id).is_some()).take(2).collect();
-    // (The row grabbed comes first: `mail_view` puts it there.)
-    let Some(first) = here.first().copied() else { return };
-    let fields = match app.session.run("mail.itemFromMessage", &json!({"id": first, "as": kind})) {
-        Ok(fields) => fields,
-        Err(e) => {
-            app.status(e.to_string());
-            return;
-        }
+    let name = match m {
+        Module::Calendar => "calendar",
+        Module::Tasks => "tasks",
+        Module::People => "people",
+        Module::Mail => return,
     };
+    let _ = app.run(DROP, json!({"module": name, "ids": dragged}));
+}
+
+/// The messages of a drop (`ids`) that are still in the mailbox, the row grabbed first.
+pub(crate) fn dropped(app: &MailApp, p: &serde_json::Value) -> Vec<Id> {
+    let ids = p.get("ids").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(serde_json::Value::as_u64);
+    ids.filter(|id| app.session.mailbox.message(*id).is_some()).collect()
+}
+
+/// `ui.dropOnModule`; `None` for any other command.
+pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &serde_json::Value) -> Option<Result<serde_json::Value, String>> {
+    (id == DROP).then(|| drop_on(app, p))
+}
+
+fn drop_on(app: &mut MailApp, p: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let (kind, form) = match p.get("module").and_then(serde_json::Value::as_str) {
+        Some("calendar") => ("appointment", "event"),
+        Some("tasks") => ("task", "task"),
+        Some("people") => ("contact", "contact"),
+        _ => return Err("`module` is \"calendar\", \"tasks\" or \"people\"".into()),
+    };
+    let here = dropped(app, p);
+    let Some(first) = here.first().copied() else { return Err(tl!("None of those messages is in this mailbox any more.").to_string()) };
+    let fields = app.session.run("mail.itemFromMessage", &json!({"id": first, "as": kind})).map_err(|e| {
+        app.last_error = Some(e.clone());
+        e.to_string()
+    })?;
     if form == "event" {
         // (A window that can't open says why in the status bar itself.)
-        if let Some(Err(_)) = crate::windows::open_form(app, form, &fields) {
-            return;
+        if let Some(Err(e)) = crate::windows::open_form(app, form, &fields) {
+            return Err(e);
         }
     } else {
         match crate::dialogs::open_dialog(app, form, &fields) {
@@ -144,13 +168,14 @@ pub(crate) fn drop_on_module(app: &mut MailApp, m: Module, dragged: &[Id]) {
                 app.dialog = Some(dialog);
                 app.sync_panel = None;
             }
-            None => return,
+            None => return Ok(json!({"opened": null})),
         }
     }
     if here.len() > 1 {
-        let n = dragged.len();
+        let n = p.get("ids").and_then(serde_json::Value::as_array).map_or(here.len(), Vec::len);
         app.status(tln!(n, "{n} message was dragged: only the first was opened.", "{n} messages were dragged: only the first was opened."));
     }
+    Ok(json!({"opened": form, "message": first}))
 }
 
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox

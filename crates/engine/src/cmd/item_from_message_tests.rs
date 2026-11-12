@@ -90,6 +90,23 @@ fn hostile_text_loses_controls_and_turns_and_is_cut_on_a_character() {
 }
 
 #[test]
+fn a_page_that_reads_as_empty_gives_the_plain_text_the_pane_shows() {
+    let mut s = session();
+    let html = "<script>alert(1)</script><div style=\"display:none\">secret</div>";
+    let id = message(&mut s, "Scripts only", Body { text: "What the pane shows".into(), html: Some(html.into()) });
+    assert_eq!(run(&mut s, json!({"id": id, "as": "appointment"}))["description"], "What the pane shows");
+    // A page that says something is still what is read, not the alternative beside it.
+    let id = message(&mut s, "Both", Body { text: "plain".into(), html: Some("<p>html</p>".into()) });
+    assert_eq!(run(&mut s, json!({"id": id, "as": "task"}))["notes"], "html");
+}
+
+#[test]
+fn characters_that_show_nothing_go_as_they_do_from_names() {
+    // A Hangul filler, the combining grapheme joiner and a Khmer inherent vowel; a joiner stays.
+    assert_eq!(clean_text("a\u{3164}b\u{34f}c\u{17b4}d\u{200d}e\u{ffa0}", 20), "abcd\u{200d}e");
+}
+
+#[test]
 fn asking_changes_nothing() {
     let mut s = session();
     let id = message(&mut s, "Keep me", Body { text: "Body".into(), html: None });

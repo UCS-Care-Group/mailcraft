@@ -409,6 +409,8 @@ const SAFE: &[&str] = &[
     "ui.checkForUpdates",
     "ui.toggleCalendarGroup",
     "ui.findInvitation",
+    // Opens a form in the owner's window, filled in from a message; nothing is made until saved.
+    "ui.dropOnModule",
 ];
 
 const SEND: &[&str] = &[

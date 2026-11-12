@@ -126,8 +126,13 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
             | "mail.openAttachment"
             | "mail.viewSource"
             | "compose.attachItem"
+            | crate::nav::DROP
     ) {
         return None;
+    }
+    // A message let go over Calendar, Tasks or People (#873): the first that is still there.
+    if id == crate::nav::DROP {
+        return crate::nav::dropped(app, params).first().and_then(|m| to_fetch(app, id, *m));
     }
     let selected = match app.session.sel.messages.as_slice() {
         [one] => Some(*one),

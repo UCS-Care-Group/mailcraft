@@ -1408,6 +1408,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"notice": "installsItself" | "didntStart"} — puts away the line that says MailCraft now installs its updates itself (said once), or the offer to go back to the previous version (kept for this run)"#,
     ),
     (
+        "ui.dropOnModule",
+        "Make an Item from a Message",
+        "Module bar",
+        r#"{"module": "calendar"|"tasks"|"people", "ids": [number] (messages let go over its icon; the first that is still there is used)} — opens a new appointment, task or contact filled in from the message, as `mail.itemFromMessage` fills it in, in the window; nothing is made until it is saved there. A message of which only the server's short preview is here is downloaded first. Answers {"opened": "event"|"task"|"contact", "message"}"#,
+    ),
+    (
         "ui.toggleCalendarGroup",
         "Expand or Collapse Calendar Group",
         "Calendar",
@@ -2753,6 +2759,7 @@ impl MailApp {
                     .or_else(|| graph_switch::ui_command(self, id, p))
                     .or_else(|| updates::ui_command(self, id, p))
                     .or_else(|| attachment_open::ui_command(self, id, p))
+                    .or_else(|| nav::ui_command(self, id, p))
                     .or_else(|| report_problem::ui_command(self, id, p))
                     .or_else(|| sender_images::ui_command(self, id, p));
             }

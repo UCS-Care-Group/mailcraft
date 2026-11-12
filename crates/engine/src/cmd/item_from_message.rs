@@ -53,7 +53,7 @@ fn item_from_message(s: &mut Session, v: &Value) -> CmdResult {
         Kind::Appointment => {
             // Its text, from where the mailbox keeps it when it isn't in memory.
             let m = s.loaded_message_where(mid, |_| false)?;
-            let start = next_half_hour(s.local_now());
+            let start = super::calendar::next_half_hour(s.local_now());
             json!({"title": title, "description": text_of(&m), "start": minute(start), "end": minute(start.add_minutes(30))})
         }
         Kind::Task => {
@@ -86,11 +86,6 @@ fn item_from_message(s: &mut Session, v: &Value) -> CmdResult {
     })
 }
 
-/// The next half hour after `now` (a new appointment's start, as Outlook's).
-fn next_half_hour(now: DateTime) -> DateTime {
-    DateTime::at_midnight(now.date).add_minutes((i64::from(now.minutes_of_day()) / 30 + 1) * 30)
-}
-
 /// `2026-10-14T16:30`, as `calendar.new` takes a time.
 fn minute(at: DateTime) -> String {
     format!("{}T{:02}:{:02}", at.date.iso(), at.hour, at.minute)
@@ -98,14 +93,13 @@ fn minute(at: DateTime) -> String {
 
 /// The text of a message as the owner saw it, made safe to keep: its HTML read as text (else its
 /// plain text), lines ended by `\n`, without control characters (but the line break and the tab)
-/// or the characters that turn text around or show nothing, trimmed, at most [`MAX_TEXT`]
+/// or the characters that turn text around or show nothing (as names lose them), trimmed, at most [`MAX_TEXT`]
 /// characters.
 pub fn text_of(m: &Message) -> String {
-    let text = match m.body.html.as_deref().filter(|h| !h.trim().is_empty()) {
-        Some(html) => mailcraft_html::to_text(html),
-        None => m.body.text.clone(),
-    };
-    clean_text(&text, MAX_TEXT)
+    // (A page of nothing but scripts and hidden parts reads as empty: then the plain text, which
+    // is what the reading pane shows.)
+    let from_html = m.body.html.as_deref().map(|html| clean_text(&mailcraft_html::to_text(html), MAX_TEXT)).filter(|text| !text.is_empty());
+    from_html.unwrap_or_else(|| clean_text(&m.body.text, MAX_TEXT))
 }
 
 /// `text` without control characters but `\n` and `\t` (`\r\n` and a lone `\r` end a line), nor
@@ -129,6 +123,7 @@ pub fn clean_text(text: &str, max: usize) -> String {
             '\u{2028}' | '\u{2029}' => '\n',
             c if c.is_control() => continue,
             c if mailcraft_names::is_format(c) && !mailcraft_names::is_joiner(c) => continue,
+            c if mailcraft_names::is_ignorable(c) => continue,
             c => c,
         };
         out.push(c);
