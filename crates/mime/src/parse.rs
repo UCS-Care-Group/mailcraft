@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use mailcraft_model::auth_results::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
-use mailcraft_model::{Attachment, FlagStatus, Importance, Message};
+use mailcraft_model::{Attachment, FlagStatus, Importance, MAX_READ_HEADER, Message};
 
 use crate::header::{self, Headers, parse_params};
 use crate::words::{decode_words, has_words};
@@ -121,13 +121,18 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 m.references.extend(message_ids(value).into_iter().take(room));
             }
             "keywords" => {
+                read_as_it_came(m, &field.name, value);
                 let room = MAX_CATEGORIES.saturating_sub(m.categories.len());
                 let mut words = value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty());
                 m.categories.extend(words.by_ref().take(room));
                 m.headers_cut |= words.next().is_some();
             }
-            "status" => m.read |= value.contains('R'),
+            "status" => {
+                read_as_it_came(m, &field.name, value);
+                m.read |= value.contains('R');
+            }
             "x-status" => {
+                read_as_it_came(m, &field.name, value);
                 if value.contains('F') {
                     m.flag = FlagStatus::Flagged;
                 }
@@ -139,8 +144,10 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             // Nor of where in a .pst file a message was (#815).
             "x-mailcraft-pst-item" => {}
             // Read once, below.
-            "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
-            structural if structural.starts_with("content-") => {}
+            "from" | "subject" | "message-id" | "in-reply-to" => {}
+            // Read once too, and kept as they came for a rule with words in the header alone.
+            "date" | "importance" | "x-priority" | "mime-version" => read_as_it_came(m, &field.name, value),
+            structural if structural.starts_with("content-") => read_as_it_came(m, &field.name, value),
             // Kept apart from the cap below, so that a sender's padding can't push Exchange's own out.
             auth_as if auth_as.eq_ignore_ascii_case(AUTH_AS) => {
                 if kept_auth_as < MAX_AUTH_AS {
@@ -185,6 +192,18 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     m.message_id = first_id("message-id");
     m.in_reply_to = first_id("in-reply-to");
     m.importance = headers.get("importance").and_then(Importance::parse).or_else(|| headers.get("x-priority").and_then(priority)).unwrap_or_default();
+}
+
+/// A line of the header read into the message itself, kept as it came in
+/// [`Message::read_header`]; past [`MAX_READ_HEADER`] the header says it was cut (#566).
+fn read_as_it_came(m: &mut Message, name: &str, value: &str) {
+    let line = format!("{name}: {}", value.replace(['\r', '\n'], " "));
+    if m.read_header.len().saturating_add(line.len()).saturating_add(1) <= MAX_READ_HEADER {
+        m.read_header.push_str(&line);
+        m.read_header.push('\n');
+    } else {
+        m.headers_cut = true;
+    }
 }
 
 /// `X-Priority`: 1 and 2 are high, 4 and 5 low (`1 (Highest)` is common).

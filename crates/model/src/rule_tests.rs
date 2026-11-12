@@ -320,7 +320,10 @@ fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
             assert!(!rule.matches(part), "{:?}", rule.exceptions);
         }
     }
-    // Headers are there as soon as a message is, unless a server's list gave none.
+    // Headers are there as soon as a message is, unless a server's list gave none (and, for a
+    // rule with words in the header, with the lines read into it kept, as the reader keeps them).
+    let read = |m: &Message| Message { read_header: "MIME-Version: 1.0\n".into(), ..m.clone() };
+    let (whole, not_all, unreadable, stub, headers_only) = (read(&whole), read(&not_all), read(&unreadable), read(&stub), read(&headers_only));
     for exception in [Condition::HeaderContains(words("X-Keep")), Condition::Sensitivity(Sensitivity::Private), Condition::AutomaticReply] {
         rule.exceptions = vec![exception];
         for here in [&whole, &not_all, &unreadable] {

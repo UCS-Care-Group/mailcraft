@@ -62,11 +62,17 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
     }
 }
 
+/// `m` without the lines of its header read into it ([`Message::read_header`]): those a writer
+/// writes (its Date, its MIME-Version, its own boundary) are its, not the message's.
+fn unread(m: Message) -> Message {
+    Message { read_header: String::new(), ..m }
+}
+
 /// Write, read back, and compare with what must come back.
 fn round_trip(m: &Message) {
     for opts in [WriteOptions::default(), WriteOptions { include_bcc: true, offset_minutes: -330 }] {
         let bytes = write(m, &opts);
-        assert_eq!(parse(&bytes), expected(m, &opts), "{}", String::from_utf8_lossy(&bytes));
+        assert_eq!(unread(parse(&bytes)), expected(m, &opts), "{}", String::from_utf8_lossy(&bytes));
         assert_eq!(write(m, &opts), bytes, "writing is deterministic");
         check_wire_format(&bytes);
     }
@@ -246,7 +252,7 @@ fn an_attached_message_round_trips() {
     round_trip(&m);
     // The same through an mbox, where the inner `From ` line is quoted and unquoted.
     let mbox = write_mbox(&[&m], &WriteOptions::default());
-    assert_eq!(parse_mbox(&mbox), [expected(&m, &WriteOptions::default())]);
+    assert_eq!(parse_mbox(&mbox).into_iter().map(unread).collect::<Vec<_>>(), [expected(&m, &WriteOptions::default())]);
 }
 
 #[test]
@@ -325,7 +331,7 @@ fn a_foreign_message_survives_reading_writing_and_reading() {
     assert_eq!((first.importance, first.read, first.categories.len(), first.headers.len()), (Importance::High, true, 2, 1));
     let opts = WriteOptions { include_bcc: true, offset_minutes: 120 };
     let second = parse(&write(&first, &opts));
-    assert_eq!(second, first);
+    assert_eq!(unread(second), unread(first));
 }
 
 #[test]
@@ -520,6 +526,7 @@ fn message() -> impl Strategy<Value = Message> {
             categories,
             answered,
             headers,
+            read_header: "X-Priority: 9 (not carried)\n".into(),
             fresh_stamps: false,
             id: 7,
             account: 3,
@@ -597,8 +604,12 @@ proptest! {
     #[test]
     fn any_message_reads_back_as_written(m in message(), opts in options()) {
         let bytes = write(&m, &opts);
-        let back = parse(&bytes);
+        let mut back = parse(&bytes);
         let want = expected(&m, &opts);
+        // The lines read into it are the writer's (its Date, its MIME-Version), never what the
+        // message kept of the header it came with.
+        prop_assert!(back.read_header.contains("MIME-Version: 1.0") && !back.read_header.contains("not carried"));
+        back.read_header.clear();
         // The fields one by one first, for a readable failure.
         prop_assert_eq!(&back.from, &want.from);
         prop_assert_eq!(&back.to, &want.to);
@@ -648,7 +659,7 @@ proptest! {
         let refs: Vec<&Message> = messages.iter().collect();
         let mbox = write_mbox(&refs, &opts);
         let want: Vec<Message> = messages.iter().map(|m| expected(m, &opts)).collect();
-        prop_assert_eq!(parse_mbox(&mbox), want);
+        prop_assert_eq!(parse_mbox(&mbox).into_iter().map(unread).collect::<Vec<_>>(), want);
     }
 
     #[test]
@@ -817,27 +828,43 @@ fn exchanges_direction_is_kept_past_the_header_cap() {
     assert_ne!(words(&parse(long.as_bytes()))[0].trim(), "Incoming");
 }
 
-/// A rule with words in the message header looks in the lines View Message Source shows: those
-/// kept as they came, and Importance, References and Bcc written again from the message. The
-/// lines MailCraft reads into the message itself and doesn't keep (the date, the priority, the
-/// content type and the like) can't be told: such a rule doesn't act (#566).
+/// A rule with words in the message header finds them in any line of it as it came: those kept,
+/// those read into the message itself (the date, the priority, the content type and the like),
+/// and References and Bcc written again from the message (#566).
 #[test]
-fn a_header_rule_finds_the_lines_the_source_shows_and_cant_tell_the_others() {
+fn a_header_rule_finds_a_word_in_any_line_of_the_header() {
     let raw = b"From: Ann <ann@example.org>\r\nTo: bo@example.org\r\nBcc: cy@example.org\r\nSubject: hello\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nX-Priority: 1 (Highest)\r\nImportance: high\r\nReferences: <first@example.org>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=koi8-r\r\nContent-Language: ru\r\nX-Mailer: Example\r\n\r\nbody\r\n";
     let m = parse(raw);
     let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
-    let missed: Vec<&str> = ["x-mailer: example", "importance: high", "references: <first@example.org>", "bcc: cy@example.org"]
-        .into_iter()
-        .filter(|w| !header(w).matches(&m) || header(w).unread_in(&m))
-        .collect();
+    let words = [
+        "x-mailer: example",
+        "importance: high",
+        "references: <first@example.org>",
+        "bcc: cy@example.org",
+        "x-priority: 1",
+        "highest",
+        "charset=koi8-r",
+        "content-language: ru",
+        "mime-version",
+        "date: tue",
+    ];
+    let missed: Vec<&str> = words.into_iter().filter(|w| !header(w).matches(&m) || header(w).unread_in(&m)).collect();
     assert!(missed.is_empty(), "a header rule doesn't find these lines: {missed:?}");
-    let told: Vec<&str> = ["x-priority: 1", "charset=koi8-r", "content-language: ru", "mime-version", "date: tue", "keywords"]
-        .into_iter()
-        .filter(|w| !header(w).unread_in(&m))
-        .collect();
-    assert!(told.is_empty(), "a header rule takes these lines for not there: {told:?}");
-    // A word in a line it keeps is told, there or not.
     assert!(!header("x-spam-flag: yes").unread_in(&m) && !header("x-spam-flag: yes").matches(&m));
+    // Never written into the message again.
+    let written = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+    assert!(!written.contains("Content-Language") && !written.contains("koi8-r"), "{written}");
+}
+
+/// A message whose header lines read into it weren't kept (one read before they were, or made
+/// here): a header rule can't tell of it. A word found in a line it kept still holds.
+#[test]
+fn a_header_rule_cant_tell_of_a_message_without_its_lines_read_into_it() {
+    let mut m = parse(b"From: ann@example.org\r\nSubject: hello\r\nX-Mailer: Example\r\nX-Priority: 1\r\n\r\nbody\r\n");
+    m.read_header.clear();
+    let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
+    assert!(header("x-priority").unread_in(&m) && !header("x-priority").matches(&m));
+    assert!(header("x-mailer: example").matches(&m));
 }
 
 /// "Except if the header contains X-Priority: 1" leaves such a message alone: a rule that deletes

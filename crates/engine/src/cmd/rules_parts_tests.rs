@@ -633,3 +633,32 @@ fn a_long_category_exception_is_refused_not_cut() {
     assert!(s.run("rules.add", &categorize(&long)).is_err());
     assert!(s.run("rules.add", &categorize(&"y".repeat(120))).is_ok());
 }
+
+/// A rule deletes Ann's mail for good, except if its header holds "multipart/signed" (her signed
+/// mail) or "Highest" (`X-Priority: 1 (Highest)`): both words are in lines MailCraft reads into the
+/// message (the Content-Type, X-Priority), and neither message is deleted (#566).
+#[test]
+fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alone() {
+    let (mut s, account, inbox, _) = session();
+    let rule = json!({
+        "name": "Ann's, but signed or urgent", "account": account,
+        "conditions": [{"type": "from", "value": "ann@example.org"}],
+        "exceptions": [{"type": "headerContains", "value": ["multipart/signed", "Highest"]}],
+        "actions": [{"type": "deleteForGood"}],
+    });
+    s.run("rules.add", &rule).unwrap();
+    let mut add = |bytes: Vec<u8>| {
+        let mut m = mailcraft_mime::parse_fetched(&bytes);
+        m.folder = inbox;
+        s.mailbox.add_message(m).unwrap()
+    };
+    let signed = add(report("detached", 1024));
+    let urgent = add(
+        format!("From: Ann <ann@example.org>\r\nTo: Me <{ME}>\r\nSubject: Now\r\nMessage-ID: <urgent@example.org>\r\nX-Priority: 1 (Highest)\r\n\r\nCall me.\r\n")
+            .into_bytes(),
+    );
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let gone: Vec<&str> =
+        [("signed", signed), ("urgent", urgent)].into_iter().filter(|(_, id)| s.mailbox.message(*id).is_none()).map(|(k, _)| k).collect();
+    assert!(gone.is_empty(), "deleted for good past their exception: {gone:?}");
+}

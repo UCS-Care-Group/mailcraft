@@ -701,6 +701,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     }
     m.parts_removed = false;
     (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
+    m.read_header = read.read_header;
     // What a listing left out stays left out: its categories are the server's still (#566).
     m.headers_cut |= read.headers_cut;
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).

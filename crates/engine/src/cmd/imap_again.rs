@@ -139,6 +139,11 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     names(&mut m.reply_to, read.reply_to);
     m.body = read.body;
     m.hidden_text = read.hidden_text;
+    // The lines of its header read into it, for a rule with words in the header: from the same
+    // header, for a message read before they were kept (#566).
+    if m.read_header.is_empty() {
+        m.read_header = read.read_header;
+    }
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
     // Digitally signed or Encrypted: the bytes it came as (#30), unless a part was removed here:

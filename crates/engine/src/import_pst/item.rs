@@ -290,6 +290,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
         out.importance = parsed.importance;
         out.categories = parsed.categories;
         out.headers = parsed.headers;
+        out.read_header = parsed.read_header;
         out.headers_cut = parsed.headers_cut;
     }
 

@@ -2275,11 +2275,13 @@ mod two_way {
             },
         );
         let cut = Message { headers_cut: true, ..from_server(2, "news cut") };
+        // (Read as the reader reads a header: with the lines it reads into the message kept.)
+        let whole = Message { read_header: "MIME-Version: 1.0\n".into(), ..from_server(3, "news whole") };
         apply(
             &mut s,
             SyncResult {
                 account: a,
-                folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "news whole"), cut], vec![])],
+                folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![whole, cut], vec![])],
                 ..Default::default()
             },
         );

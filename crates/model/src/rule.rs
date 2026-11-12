@@ -135,18 +135,6 @@ pub struct RuleClock {
     pub due_hour: u8,
 }
 
-/// The lines of a message's header MailCraft reads into the message itself and doesn't keep as
-/// they came (`crates/mime/src/parse.rs`), and the content type's character set; Importance,
-/// References and Bcc are written again from the message ([`Message::header_lines_lowered`]).
-const NOT_KEPT: [&str; 8] = ["date", "x-priority", "mime-version", "content-", "charset", "keywords", "status", "x-status"];
-
-/// Whether `word` names one of the lines [`NOT_KEPT`], or starts one: a header rule can't tell
-/// whether it is in the message's header (#566).
-fn names_a_line_not_kept(word: &str) -> bool {
-    let word = word.trim().to_lowercase();
-    !word.is_empty() && NOT_KEPT.iter().any(|line| word.starts_with(line) || line.starts_with(word.as_str()))
-}
-
 /// The text of `m` a rule reads: none of a message too large to download, whose text here is
 /// MailCraft's note saying so ([`Message::not_downloaded`], which a sender can't set), not the
 /// message's own; nor of one whose text kept beside the mailbox couldn't be brought in, whose text
@@ -318,8 +306,9 @@ impl Condition {
             Condition::HasAttachment => m.partly_here() && !m.unfetched,
             Condition::SizeBetween { .. } => !m.size_known(),
             // Nor what the headers said past what was kept of them ([`Message::headers_cut`]), nor
-            // a line MailCraft reads into the message and doesn't keep as it came.
-            Condition::HeaderContains(w) => m.unfetched || m.incomplete || m.headers_cut || w.iter().any(|w| names_a_line_not_kept(w)),
+            // the header of a message whose lines MailCraft reads into it weren't kept as they came
+            // ([`Message::read_header`]: one read before they were, or made here).
+            Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty(),
             Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete || m.headers_cut,
             Condition::ToContains(_)
             | Condition::SentTo(_)

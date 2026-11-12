@@ -263,6 +263,10 @@ pub fn size_label_in(lang: mailcraft_i18n::Lang, bytes: u64) -> String {
 /// The most text of what a sender hid ([`Message::hidden_text`]) that is kept, in bytes.
 pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
+/// Most bytes [`Message::read_header`] keeps: past them, the message says its header was cut
+/// ([`Message::headers_cut`]).
+pub const MAX_READ_HEADER: usize = 4 * 1024;
+
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
 /// plain part); `html` is the original HTML when the message has one.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -334,6 +338,14 @@ pub struct Message {
     /// Headers MailCraft doesn't model, kept so a saved message round-trips.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
+    /// The lines of its header MailCraft reads into the message itself and doesn't keep in
+    /// [`Message::headers`] (Date, MIME-Version, the Content- lines, Importance, X-Priority,
+    /// Keywords, Status), as they came, one `name: value` to a line, at most
+    /// [`MAX_READ_HEADER`] bytes: for a rule with words in the header alone, never written into a
+    /// message (#566). Empty for a message read before it was kept, or made here: a header rule
+    /// can't tell of such a message ([`crate::Condition::unread_in`]).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub read_header: String,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
     /// that leaves them behind when mail goes to another account (#781). Only then are they
     /// believed: one saved before may be a sender's own, carried in from another account.
@@ -874,16 +886,10 @@ impl Message {
     }
 
     /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
-    /// all the words looked for. Those View Message Source shows, but for the date (shown by this
-    /// computer's clock, not as it came); what else MailCraft reads into the message itself isn't
-    /// among them ([`crate::Condition::unread_in`]).
+    /// all the words looked for: the header as it came, but for MailCraft's own lines
+    /// ([`Message::read_header`]).
     pub fn header_lines_lowered(&self) -> Vec<String> {
         let people = |list: &[Address]| list.iter().map(Address::full).collect::<Vec<_>>().join(", ");
-        let importance = match self.importance {
-            Importance::High => "high",
-            Importance::Low => "low",
-            Importance::Normal => "",
-        };
         let modelled = [
             ("From", self.from.full()),
             ("To", people(&self.to)),
@@ -894,13 +900,13 @@ impl Message {
             ("Message-ID", self.message_id.clone()),
             ("In-Reply-To", self.in_reply_to.clone()),
             ("References", self.references.iter().map(|r| format!("<{r}>")).collect::<Vec<_>>().join(" ")),
-            ("Importance", importance.to_string()),
         ];
         let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
         let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
         let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));
         let kept = self.headers.iter().filter(|(name, _)| !ours(name)).map(|(name, value)| line(name, value));
-        modelled.chain(kept).collect()
+        let read = self.read_header.lines().map(str::to_lowercase);
+        modelled.chain(kept).chain(read).collect()
     }
 }
 

@@ -224,7 +224,8 @@ Second body\n";
         let two = message("Two — ünïcode", "Grüße\n\nFrom München");
         let three = message("", "");
         let out = write_mbox(&[&one, &two, &three], &WriteOptions::default());
-        let got = parse_mbox(&out);
+        // (Without the lines of their headers read into them: the writer's Date and MIME-Version.)
+        let got: Vec<Message> = parse_mbox(&out).into_iter().map(|m| Message { read_header: String::new(), ..m }).collect();
         assert_eq!(got, [one, two, three]);
     }
 
