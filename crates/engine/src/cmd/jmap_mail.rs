@@ -149,8 +149,10 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = named_account(s, v)?;
     let mut request = jmap_mail_request(s, account, p::bool(v, "light").unwrap_or(false))?;
-    // A run begins: what one that never came to its end read is no part of it.
+    // A run begins: what one that never came to its end read is no part of it, and neither is
+    // what such a run was refused (it would be said at this run's end as if it were its own).
     s.jmap_read.remove(&account);
+    s.graph_said.clear();
     request.background = p::bool(v, "background").unwrap_or(false);
     serde_json::to_value(request).map_err(|e| fail(e.to_string()))
 }

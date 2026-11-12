@@ -396,3 +396,32 @@ fn a_folder_whose_server_id_is_no_id_takes_none_of_the_servers_mail_so_no_move_i
     s.run("mail.move", &json!({"ids": [one], "folder": odd})).unwrap();
     assert_eq!(up(&s, account), [JmapChange::Move { message: one, id: "E1".into(), from: "M1".into(), to: "M9".into() }]);
 }
+
+#[test]
+fn the_outbox_takes_none_of_the_servers_mail_whatever_a_mailbox_file_says_of_it() {
+    let (mut s, account, [one, ..]) = mail();
+    let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    // A mailbox file can say anything: the Outbox tied to a mailbox id that is one.
+    s.mailbox.folder_mut(outbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "M7".into(), ..Default::default() });
+    assert_eq!(s.mailbox.jmap_mailbox(account, outbox), None);
+    // What lies in the Outbox is mail to send and no change of a message: a move into it would
+    // never go up, so it is refused like a folder the server hasn't got.
+    let before = s.mailbox.clone();
+    assert_eq!(s.run("mail.move", &json!({"ids": [one], "folder": outbox})).unwrap_err().to_string(), mailcraft_model::ONLY_SERVER_FOLDERS);
+    assert!(s.mailbox == before && up(&s, account).is_empty());
+}
+
+#[test]
+fn what_a_run_that_never_ended_was_refused_is_not_said_at_the_end_of_the_next() {
+    let (mut s, account, [one, ..]) = mail();
+    s.run("mail.markRead", &json!({"ids": [one]})).unwrap();
+    let changes = up(&s, account);
+    let answer = answered(&mut s, account, changes.into_iter().map(|change| (change, refused("the mailbox is read-only."))).collect());
+    assert_eq!(lines(&answer).len(), 1);
+    // That run never came to its end (the host's task stopped). The next begins with its request,
+    // and at its end says nothing of what the one before was refused.
+    s.run("sync.jmapRequest", &json!({})).unwrap();
+    let last = ended(&mut s, account);
+    assert!(lines(&last).is_empty());
+    assert!(s.sync_status.starts_with("Up to date"), "{}", s.sync_status);
+}

@@ -55,7 +55,7 @@ fn keywords_of(m: &Message, server: &ServerMessage) -> Option<JmapChange> {
 /// The server's id of the mailbox each folder of `account` is, for those the server has: the
 /// folders its mail can be moved into, by the one test of that ([`Mailbox::jmap_mailbox`]).
 fn mailboxes_of(mb: &Mailbox, account: Id) -> HashMap<Id, &str> {
-    mb.folders.iter().filter_map(|f| mb.jmap_mailbox(account, f.id).map(|mailbox| (f.id, mailbox))).collect()
+    mb.folders.iter().filter_map(|f| Mailbox::jmap_mailbox_of(f, account).map(|mailbox| (f.id, mailbox))).collect()
 }
 
 /// The changes of messages made in `account` that its server hasn't heard of: at most `limit`
