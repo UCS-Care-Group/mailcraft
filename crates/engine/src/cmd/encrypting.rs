@@ -441,8 +441,9 @@ pub(crate) fn seal_draft(s: &Session, m: &mut Message) -> Result<(), String> {
     Err(why)
 }
 
-/// Whether a message with this `choice` stays on this computer when saved as a draft (R20): it is
-/// to be Encrypted, so what a server would be given of it is its clear text.
+/// Whether a message with this `choice` is saved as a draft Encrypted (R20): it is to be Encrypted,
+/// so what a server would be given of it is its clear text, and so it is kept (and goes up) as
+/// the Encrypted message alone, or stays on this computer when it can't be.
 pub fn keeps_draft_here(s: &Session, c: &Compose) -> bool {
     match c.encrypt {
         Some(on) => on,

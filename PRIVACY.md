@@ -39,9 +39,10 @@ send ([Problem reports](#problem-reports)).
 - **Encrypting** (S/MIME and OpenPGP) uses the Public keys kept in the mailbox for the people you write to,
   and your own, and nothing else: no key is looked up on a server (Web Key Directory look-ups aren't
   built), and no revocation is checked online (a revocation already in a kept key is honoured).
-  A draft with Encrypt on is kept on this computer only, Encrypted to your own key (as you wrote it, if no key of yours
-  can be found, and the composer says so), and is never uploaded; a clear copy an earlier save put on a server is deleted
-  there. The copy of an encrypted message kept in Sent Items here is the encrypted message, never the text. Each
+  A draft with Encrypt on is kept Encrypted to your own key, and what goes up to a Microsoft or Exchange server account
+  is that Encrypted message alone (its header, with the recipients and the subject, is in the clear as in any encrypted
+  message); where no key of yours can be found it stays on this computer as you wrote it and is never uploaded, and the
+  composer says so. A clear copy an earlier save put on a server is deleted there. The copy of an encrypted message kept in Sent Items here is the encrypted message, never the text. Each
   Bcc recipient gets a message of their own, so no recipient learns who else was blind-copied. No key look-up
   goes out to any server for this.
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept

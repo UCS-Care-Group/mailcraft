@@ -256,9 +256,21 @@ pub struct DraftUp {
     pub read_receipt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<AttachmentsUp>,
+    /// A draft kept Encrypted to the owner's own key (#30 part 7, [`Message::sealed_draft`]): the
+    /// Encrypted message itself, which is all that goes up of it. Made on the server from these
+    /// bytes (Graph: the MIME create; Exchange: `MimeContent`), and the server's earlier copy of it,
+    /// its fields in the clear, taken away. Empty for any other draft, and then none of the above
+    /// applies. The fields above are all `None` beside it.
+    #[serde(with = "crate::b64", skip_serializing_if = "no_data")]
+    pub sealed: Arc<Vec<u8>>,
 }
 
 impl DraftUp {
+    /// Whether this is a draft kept Encrypted, whose bytes alone go up.
+    pub fn is_sealed(&self) -> bool {
+        !self.sealed.is_empty()
+    }
+
     /// Whether it changes anything of the message itself (rather than its attachments).
     pub fn has_fields(&self) -> bool {
         self.subject.is_some()
@@ -282,6 +294,7 @@ impl DraftUp {
         if let Some(body) = out.body.as_mut() {
             body.content.clear();
         }
+        out.sealed = Arc::new(Vec::new());
         out
     }
 }

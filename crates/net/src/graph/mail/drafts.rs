@@ -117,6 +117,9 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
         done.refused = Some(400);
         return Ok(());
     }
+    if d.is_sealed() {
+        return sealed(graph, d, done);
+    }
     let mut fields_went = false;
     if done.id.is_empty() {
         match look(graph, &d.marker)? {
@@ -194,6 +197,84 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
     let query = http::form(&[("$select", "changeKey,parentFolderId")]);
     let reply = graph.call(Kind::Read, &graph.url(&format!("{}/{id}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
     if reply.status == 200 {
+        let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+        done.change_key = change_key(&json);
+        if let Some(folder) = id_of(text(&json, "parentFolderId")) {
+            done.folder = folder;
+        }
+    }
+    Ok(())
+}
+
+/// A draft kept Encrypted (#30 part 7): made on the server from its MIME, which is all that goes up
+/// of it (`POST /me/messages` with `text/plain`, the message in base64: Microsoft's "Create message
+/// in MIME format"), and the server's earlier copy of the draft, its fields in the clear, taken away
+/// once the new one is there (nothing is lost if the new one fails). A draft made from MIME can't be
+/// changed field by field, so a draft saved again is made again the same way. The marker, which a
+/// MIME create can't carry, is put on it by a change right after.
+///
+/// An answer lost on the way leaves a draft this run can't find (it has no marker yet): the next run
+/// makes another, and the owner may find the first beside it.
+fn sealed(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Result<(), NetError> {
+    // Microsoft takes an S/MIME message made this way up to 4 MB: a larger one is refused (413) and
+    // stays here as a draft of this computer's.
+    let body = STANDARD.encode(d.sealed.as_slice());
+    let url = graph.url(&messages(graph));
+    let reply = match graph.call(Kind::Once, &url, "POST", &[("Content-Type", "text/plain")], Some(&body), WRITE_TIMEOUT, MAX_PAGE) {
+        Ok(reply) => reply,
+        Err(e) if e.is_unreachable() => {
+            log::info!("graph drafts: the answer to making an Encrypted draft was lost; it is made again next run");
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
+    super::refusing(graph, &reply)?;
+    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    match reply.status {
+        200 | 201 => {}
+        400 | 403 | 404 | 410 | 413 => {
+            refused(graph, &reply, "making an Encrypted draft");
+            done.refused = Some(reply.status);
+            return Ok(());
+        }
+        // (What was sent is never put in the log.)
+        _ => return Err(graph.refusal(Doing::Mail, &reply, "")),
+    }
+    let Some(new) = id_of(text(&json, "id")) else {
+        // Made, but which one isn't said: it can't be found, so it is made again next run.
+        return Ok(());
+    };
+    let old = std::mem::replace(&mut done.id, new.clone());
+    done.folder = id_of(text(&json, "parentFolderId")).unwrap_or_default();
+    done.fields = true;
+    let Some(at) = piece(&new) else { return Ok(()) };
+    // The marker (which draft of this computer's it is), best effort: the draft is there without it.
+    let marker = json!({"singleValueExtendedProperties": [{"id": MARKER, "value": d.marker}]}).to_string();
+    let url = graph.url(&format!("{}/{at}", messages(graph)));
+    match graph.call(Kind::Same, &url, "PATCH", &[("Content-Type", "application/json")], Some(&marker), WRITE_TIMEOUT, MAX_PAGE) {
+        Ok(reply) if matches!(reply.status, 200..=299) => {}
+        Ok(reply) => refused(graph, &reply, "marking an Encrypted draft"),
+        Err(e) if e.is_unreachable() => {}
+        Err(e) => return Err(e),
+    }
+    // The earlier copy goes (Graph's delete keeps it recoverable for the retention period).
+    if !old.is_empty()
+        && old != new
+        && let Some(was) = piece(&old)
+    {
+        let url = graph.url(&format!("{}/{was}", messages(graph)));
+        match graph.call(Kind::Same, &url, "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE) {
+            Ok(reply) if matches!(reply.status, 200..=299 | 404 | 410) => {}
+            Ok(reply) => refused(graph, &reply, "taking away an earlier copy of a draft"),
+            Err(e) if e.is_unreachable() => {}
+            Err(e) => return Err(e),
+        }
+    }
+    // Its change key and folder as they are now.
+    let query = http::form(&[("$select", "changeKey,parentFolderId")]);
+    if let Ok(reply) = graph.call(Kind::Read, &graph.url(&format!("{}/{at}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)
+        && reply.status == 200
+    {
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         done.change_key = change_key(&json);
         if let Some(folder) = id_of(text(&json, "parentFolderId")) {

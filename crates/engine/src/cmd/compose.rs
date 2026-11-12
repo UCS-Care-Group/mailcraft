@@ -1494,23 +1494,32 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.server, m.server_draft, m.uid, m.synced) = (old.server.clone(), old.server_draft.clone(), old.uid, old.synced);
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
-    // A draft that is to be Encrypted stays on this computer: what a server would be given of it
-    // is its clear text (R20). Here it is kept Encrypted to the owner's own key (what is kept of it
-    // is the Encrypted message, which can't be opened to edit until decrypting is built, part 6);
-    // where the host can't, it is kept as it was written, and the window says so. A clear copy an
-    // earlier save put on a server is taken away from it, and the draft made here again as a draft
-    // of this computer's alone.
-    m.local_only = super::encrypting::keeps_draft_here(s, &c);
-    let graph = s.mailbox.keeps_drafts_on_server(m.account) && !m.local_only;
-    let mut away_from_server = false;
+    // A draft that is to be Encrypted is never given to a server in the clear (R20). It is kept
+    // Encrypted to the owner's own key (what is kept of it is the Encrypted message, which can't be
+    // opened to edit until decrypting is built, part 6), and on a server that keeps drafts that
+    // message alone goes up (Graph's MIME create, Exchange's `MimeContent`), the earlier copy
+    // there, its fields in the clear, taken away. Where the host can't encrypt it (no key of the
+    // owner's found), it stays on this computer as it was written, and the window says so; and where
+    // no server keeps drafts (IMAP, JMAP, a local account: none of their drafts go up) it stays here
+    // too. A clear copy an earlier save put on a server is taken away, and the draft made here again.
+    let encrypting = super::encrypting::keeps_draft_here(s, &c);
     let mut sealed = None;
-    if m.local_only {
-        away_from_server = old.as_ref().is_some_and(|o| o.account == m.account && !o.local_only && (o.server.is_some() || o.uid != 0));
-        (m.server_draft, m.sealed_draft) = (None, false);
-        if away_from_server {
-            (m.server, m.uid, m.synced) = (None, 0, None);
-        }
+    if encrypting {
+        m.sealed_draft = false;
         sealed = Some(super::encrypting::seal_draft(s, &mut m).is_ok());
+    }
+    let uploads = sealed == Some(true) && s.mailbox.keeps_drafts_on_server(m.account);
+    m.local_only = encrypting && !uploads;
+    let graph = s.mailbox.keeps_drafts_on_server(m.account) && !m.local_only;
+    let on_server = |o: &Message| o.account == m.account && !o.local_only && (o.server_draft.is_some() || o.server.is_some() || o.uid != 0);
+    // (An Encrypted copy made into a clear one is made again too: Graph's draft made from MIME
+    // can't be changed field by field.)
+    let away_from_server = old.as_ref().is_some_and(|o| on_server(o) && (m.local_only || (o.sealed_draft && !m.sealed_draft)));
+    if m.local_only {
+        m.server_draft = None;
+    }
+    if away_from_server {
+        (m.server_draft, m.server, m.uid, m.synced) = (None, None, 0, None);
     }
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.

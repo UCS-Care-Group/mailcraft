@@ -169,6 +169,46 @@ impl CreateDraft {
     }
 }
 
+/// `CreateItem` with `SaveOnly` and `MimeContent`: a draft kept Encrypted (#30 part 7) in the
+/// server's Drafts, made from the Encrypted message itself, which is all that goes up of it. The
+/// marker is put on it as on any draft, so that one whose make was not answered is found.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CreateSealedDraft {
+    mime: Vec<u8>,
+    marker: String,
+}
+
+impl std::fmt::Debug for CreateSealedDraft {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CreateSealedDraft(..)")
+    }
+}
+
+impl CreateSealedDraft {
+    /// Makes the draft of `mime` (a whole message, which holds nothing in the clear but its header)
+    /// in Drafts. Too large for any server: `None`.
+    pub fn new(mime: &[u8], marker: &str) -> Option<Self> {
+        (!mime.is_empty() && mime.len() <= MAX_MIME).then(|| Self { mime: mime.to_vec(), marker: marker.to_owned() })
+    }
+
+    /// The operation: `SavedItemFolderId` and `Items` with the MIME content and the marker.
+    pub fn element(&self) -> Element {
+        let mut message = Element::new("t:Message").child(Element::new("t:MimeContent").attr("CharacterSet", "UTF-8").text(&base64(&self.mime)));
+        if !self.marker.is_empty() {
+            message = message.child(Element::new("t:ExtendedProperty").child(marker_uri()).child(Element::new("t:Value").text(&line(&self.marker))));
+        }
+        Element::new("m:CreateItem")
+            .attr("MessageDisposition", "SaveOnly")
+            .child(folder_ref("m:SavedItemFolderId", "drafts", None))
+            .child(Element::new("m:Items").child(message))
+    }
+
+    /// The draft's ids.
+    pub fn answer(&self, reply: &Reply) -> Result<Saved, Error> {
+        saved_of(reply, "CreateItem")
+    }
+}
+
 fn saved_of(reply: &Reply, operation: &str) -> Result<Saved, Error> {
     let messages = reply.messages(operation)?;
     let [message] = messages.as_slice() else { return Err(Error::Unexpected) };

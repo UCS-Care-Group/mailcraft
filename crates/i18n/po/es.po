@@ -17360,7 +17360,7 @@ msgstr "la descarga se detuvo antes de terminar"
 
 #. interface
 #: crates/ui-egui/src/encryption.rs
-msgid "the draft is kept Encrypted on this computer, and can't be reopened to edit until MailCraft can decrypt"
+msgid "the draft is kept Encrypted, and can't be reopened to edit until MailCraft can decrypt"
 msgstr ""
 
 #. interface

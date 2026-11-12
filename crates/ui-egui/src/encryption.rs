@@ -115,7 +115,7 @@ pub(crate) fn words(will: &Will) -> Option<(String, bool)> {
 /// (#30 part 7): said in the line under its header.
 pub(crate) fn draft_note(app: &MailApp) -> Option<String> {
     match app.session.compose.as_ref()?.draft_sealed? {
-        true => Some(tl!("the draft is kept Encrypted on this computer, and can't be reopened to edit until MailCraft can decrypt").to_string()),
+        true => Some(tl!("the draft is kept Encrypted, and can't be reopened to edit until MailCraft can decrypt").to_string()),
         false => Some(tl!("the draft is kept on this computer only, as you wrote it, not Encrypted").to_string()),
     }
 }

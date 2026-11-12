@@ -330,7 +330,8 @@ fn a_draft_with_encrypt_on_stays_on_this_computer() {
     assert!(s.mailbox.message(again).unwrap().server_draft.as_ref().is_some_and(|d| d.pending));
     // Reopened, a draft is still to be Encrypted.
     s.run("compose.encrypt", &json!({"value": true})).unwrap();
-    s.run("compose.saveDraft", &json!({})).unwrap();
+    // (The clear copy the server may have is taken away, and the draft made again here: its id is new.)
+    let secret = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
     s.run("compose.close", &json!({})).unwrap();
     s.run("mail.editDraft", &json!({"id": secret})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().encrypt, Some(true));
@@ -731,4 +732,77 @@ fn a_sent_encrypted_message_keeps_the_encrypted_message_and_never_the_clear_text
     // It can't be sent again as a new message: there is no text to send.
     let e = s.run("mail.resend", &json!({"id": id})).unwrap_err().to_string();
     assert!(e.contains("Encrypted"), "{e}");
+}
+
+fn microsoft_draft(s: &mut Session, subject: &str) -> Id {
+    let a = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    s.run("mail.new", &json!({"to": "kit@lumen.example", "subject": subject, "body": "The vault code is 4417.", "account": a})).unwrap();
+    a
+}
+
+#[test]
+fn an_encrypted_draft_of_a_server_that_keeps_drafts_goes_up_as_the_encrypted_message_alone() {
+    let mut s = Session::empty();
+    s.clock.now = Some(NOW);
+    s.sealer = Some(std::sync::Arc::new(TestSealer));
+    let a = microsoft_draft(&mut s, "Plan");
+    // Saved in the clear first: the server has it, with its fields.
+    let plain = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    s.mailbox.message_mut(plain).unwrap().server =
+        Some(mailcraft_model::sync::ServerMessage { id: "AAMkAD-clear".into(), folder: "drafts".into(), ..Default::default() });
+    // Encrypt on, saved again: the same draft here, kept Encrypted, waiting to go up.
+    s.run("compose.encrypt", &json!({"value": true})).unwrap();
+    let id = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    assert_eq!(id, plain);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.sealed_draft && !m.local_only && m.server_draft.as_ref().is_some_and(|d| d.pending));
+    assert_eq!(s.compose.as_ref().unwrap().draft_sealed, Some(true));
+    assert_eq!(crate::cmd::graph_drafts::pending(&s.mailbox, a), 1);
+    let (ups, count) = crate::cmd::graph_drafts::draft_changes(&s, a, 10);
+    assert_eq!(count, 1);
+    let up = &ups[0];
+    // The Encrypted message is all that goes up of it, over the clear copy's id (which goes after).
+    assert!(up.is_sealed() && mailcraft_mime::is_encrypted(&up.sealed), "{:?}", String::from_utf8_lossy(&up.sealed));
+    assert_eq!(up.id, "AAMkAD-clear");
+    assert!(!up.has_fields() && up.attachments.is_none() && up.body.is_none());
+    assert!(!String::from_utf8_lossy(&up.sealed).contains("4417"), "no clear text goes up");
+    // It is never sent as fields.
+    assert!(crate::cmd::graph_drafts::draft_up_whole(s.mailbox.message(id).unwrap()).is_none());
+}
+
+#[test]
+fn an_encrypted_draft_made_clear_again_replaces_the_encrypted_copy_on_the_server() {
+    let mut s = Session::empty();
+    s.clock.now = Some(NOW);
+    s.sealer = Some(std::sync::Arc::new(TestSealer));
+    let a = microsoft_draft(&mut s, "Plan");
+    s.run("compose.encrypt", &json!({"value": true})).unwrap();
+    let sealed = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    s.mailbox.message_mut(sealed).unwrap().server =
+        Some(mailcraft_model::sync::ServerMessage { id: "AAMkAD-sealed".into(), folder: "drafts".into(), ..Default::default() });
+    // (Encrypt off for it: the server's draft, made from MIME, can't be changed by fields.)
+    s.run("compose.encrypt", &json!({"value": false})).unwrap();
+    let kept = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    assert_ne!(kept, sealed);
+    assert!(s.mailbox.message(sealed).is_none());
+    let m = s.mailbox.message(kept).unwrap();
+    assert!(!m.sealed_draft && !m.local_only && m.server.is_none());
+    assert!(
+        s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "AAMkAD-sealed")),
+        "the Encrypted copy is deleted there"
+    );
+    assert_eq!(crate::cmd::graph_drafts::pending(&s.mailbox, a), 1, "and the clear one is made");
+}
+
+#[test]
+fn an_encrypted_draft_with_no_key_of_the_owners_is_never_uploaded() {
+    let mut s = Session::empty();
+    s.clock.now = Some(NOW);
+    let a = microsoft_draft(&mut s, "Plan");
+    s.run("compose.encrypt", &json!({"value": true})).unwrap();
+    let id = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.local_only && !m.sealed_draft);
+    assert_eq!(s.compose.as_ref().unwrap().draft_sealed, Some(false));
+    assert_eq!(crate::cmd::graph_drafts::pending(&s.mailbox, a), 0);
 }

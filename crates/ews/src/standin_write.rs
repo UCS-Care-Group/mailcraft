@@ -405,6 +405,10 @@ impl State {
             item.subject = header("Subject");
             item.message_id = header("Message-ID");
             item.mime = bytes;
+            // (A draft made from MIME carries its marker as one made from fields does.)
+            if let Some(property) = message.child_in(TYPES, "ExtendedProperty") {
+                item.marker = property.text_of("Value").trim().to_owned();
+            }
         } else {
             let order = [
                 "Subject",
