@@ -146,6 +146,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.updateInstall"
         | "ui.dismissUpdateNotice"
         | "ui.dismissSettingsNotice"
+        | "ui.dismissSoftwareNotice"
         | "ui.reportProblem"
         // The zone the calendar is shown in, which a rule reads the days mail came by (#566).
         | "view.timeZone"
