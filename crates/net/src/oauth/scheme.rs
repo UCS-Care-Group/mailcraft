@@ -27,7 +27,7 @@ use mailcraft_proto::ProtoError;
 pub const DEFAULT_REDIRECT_PATH: &str = "/oauth2redirect";
 
 /// The longest address that is read; the rest of a longer one is not looked at, it is refused.
-const MAX_ADDRESS: usize = 8 * 1024;
+pub(super) const MAX_ADDRESS: usize = 8 * 1024;
 /// The most names and values an address may bring.
 const MAX_FIELDS: usize = 24;
 /// The longest value of any one name, as it comes (before it is decoded).
@@ -37,26 +37,37 @@ const MAX_SCHEME: usize = 128;
 const MAX_PATH: usize = 128;
 
 /// What a sign-in's page may send back (`response_mode=query`; RFC 6749 §4.1.2, RFC 9207, and
-/// what Microsoft adds). Anything else is refused.
-const SIGN_IN_FIELDS: &[&str] = &["code", "state", "error", "error_description", "error_subcode", "error_uri", "session_state", "iss", "client_info"];
-/// The same for the page of an administrator's approval.
-const CONSENT_FIELDS: &[&str] = &["state", "admin_consent", "tenant", "error", "error_description", "error_subcode", "error_uri"];
+/// what Microsoft adds). Anything else is refused. `iss` (RFC 9207) is not among them: the page of
+/// one fixed provider is the only one a sign-in is sent to, so there is no second server to mix
+/// it up with, and a field that is accepted without being compared would only look like a check.
+pub(super) const SIGN_IN_FIELDS: &[&str] =
+    &["code", "state", "error", "error_description", "error_subcode", "error_uri", "session_state", "client_info"];
+/// The same for the page of an administrator's approval (Microsoft's v2 `/adminconsent` sends
+/// `scope` back, on a yes and on a no).
+pub(super) const CONSENT_FIELDS: &[&str] = &["state", "admin_consent", "tenant", "scope", "error", "error_description", "error_subcode", "error_uri"];
 
 /// What the host gives to bring the address the system opened the program with: it waits (for
 /// no longer than the time given, and not past the flag being set) and returns the whole address,
 /// or says why there isn't one ([`NetError::SignInCancelled`], [`NetError::SignInTimedOut`]).
+/// An error it returns must not carry the address, the code or the state, or any part of them:
+/// only those two reach the owner as they are, and any other is replaced by a fixed message.
 pub type Handback = dyn Fn(&AtomicBool, Duration) -> Result<String, NetError>;
 
 /// A custom-scheme redirect: the registered address, and where the address it came back to is had.
 pub struct CustomScheme<'a> {
     scheme: String,
+    authority: Option<String>,
     path: String,
     handback: &'a Handback,
 }
 
 impl std::fmt::Debug for CustomScheme<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CustomScheme").field("scheme", &self.scheme).field("path", &self.path).finish_non_exhaustive()
+        f.debug_struct("CustomScheme")
+            .field("scheme", &self.scheme)
+            .field("authority", &self.authority)
+            .field("path", &self.path)
+            .finish_non_exhaustive()
     }
 }
 
@@ -72,12 +83,30 @@ impl<'a> CustomScheme<'a> {
         if !valid_path(path) {
             return Err(NetError::Config("the sign-in's redirect path must start with / and use letters, digits and - . _ ~ / only".into()));
         }
-        Ok(CustomScheme { scheme: scheme.to_string(), path: path.to_string(), handback })
+        Ok(CustomScheme { scheme: scheme.to_string(), authority: None, path: path.to_string(), handback })
+    }
+
+    /// The same with an authority, `scheme://host/path`, for a registration that is made in that
+    /// form (`host` in lower case: letters, digits, `.` and `-`). It is compared to the letter.
+    pub fn with_authority(mut self, host: &str) -> Result<CustomScheme<'a>, NetError> {
+        if !valid_host(host) {
+            return Err(NetError::Config("the sign-in's redirect host must be in lower case and use letters, digits, - and . only".into()));
+        }
+        self.authority = Some(host.to_string());
+        Ok(self)
+    }
+
+    /// What follows `scheme:` in the registered address.
+    fn after_scheme(&self) -> String {
+        match &self.authority {
+            Some(host) => format!("//{host}{}", self.path),
+            None => self.path.clone(),
+        }
     }
 
     /// The address as it is registered with the provider and sent on its page.
     pub fn redirect_uri(&self) -> String {
-        format!("{}:{}", self.scheme, self.path)
+        format!("{}:{}", self.scheme, self.after_scheme())
     }
 }
 
@@ -106,6 +135,18 @@ fn valid_scheme(scheme: &str) -> bool {
         && !scheme.contains("+.")
 }
 
+fn valid_host(host: &str) -> bool {
+    let bytes = host.as_bytes();
+    !host.is_empty()
+        && host.len() <= MAX_SCHEME
+        && bytes.first().is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && bytes.last().is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && bytes.iter().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'-'))
+        && !host.contains("..")
+        && !host.contains(".-")
+        && !host.contains("-.")
+}
+
 fn valid_path(path: &str) -> bool {
     path.len() >= 2
         && path.len() <= MAX_PATH
@@ -122,12 +163,14 @@ fn hostile(why: &'static str) -> NetError {
 
 /// The names and values the address the page came back to brings with `state`, when it is the
 /// registered address and the page that was given the state is the one that sent it.
-fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str, allowed: &[&str]) -> Result<Vec<(String, String)>, NetError> {
+pub(super) fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str, allowed: &[&str]) -> Result<Vec<(String, String)>, NetError> {
     if address.len() > MAX_ADDRESS {
         return Err(hostile("the sign-in came back with an address that is too long"));
     }
     // Visible ASCII only: no white space, no control characters, no letters that look like others.
-    // A `#` would be a fragment, which a page asked for the query never sends.
+    // A `#` would be a fragment, which a page asked for the query never sends; a bare one at the
+    // very end is what some providers leave after the query, and is dropped.
+    let address = address.strip_suffix('#').unwrap_or(address);
     if !address.bytes().all(|b| matches!(b, b'!'..=b'~')) || address.contains('#') {
         return Err(hostile("the sign-in came back with an address that is not valid"));
     }
@@ -135,7 +178,7 @@ fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str, allowed: &
     if !got_scheme.eq_ignore_ascii_case(&scheme.scheme) {
         return Err(hostile("the sign-in came back to an address that is not the registered one"));
     }
-    let query = match rest.strip_prefix(scheme.path.as_str()) {
+    let query = match rest.strip_prefix(scheme.after_scheme().as_str()) {
         Some("") => "",
         Some(after) => after.strip_prefix('?').ok_or_else(|| hostile("the sign-in came back to an address that is not the registered one"))?,
         None => return Err(hostile("the sign-in came back to an address that is not the registered one")),
@@ -152,9 +195,10 @@ fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str, allowed: &
         return Err(hostile("the sign-in came back with an address that is not valid"));
     }
     let fields = http::pairs(query);
+    let mut unexpected: Option<&str> = None;
     for (n, (name, _)) in fields.iter().enumerate() {
-        if !allowed.contains(&name.as_str()) {
-            return Err(hostile("the sign-in came back with something it was not asked for"));
+        if unexpected.is_none() && !allowed.contains(&name.as_str()) {
+            unexpected = Some(name.as_str());
         }
         if fields.iter().take(n).any(|(earlier, _)| earlier == name) {
             return Err(hostile("the sign-in came back with something said twice"));
@@ -164,6 +208,12 @@ fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str, allowed: &
     let sent = fields.iter().find(|(name, _)| name == "state").map_or("", |(_, value)| value.as_str());
     if state.is_empty() || !same(sent, state) {
         return Err(hostile("the sign-in came back for another sign-in"));
+    }
+    if let Some(name) = unexpected {
+        // Only once the state has matched: then it is the provider's page that said it, and the
+        // name (never the value) tells a real-device check what the list is missing.
+        log::debug!("the sign-in came back with a field that is not on the list: {}", name.chars().take(40).collect::<String>());
+        return Err(hostile("the sign-in came back with something it was not asked for"));
     }
     Ok(fields)
 }
@@ -226,7 +276,12 @@ fn handed_back(scheme: &CustomScheme<'_>, cancel: &AtomicBool, patience: Duratio
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let address = (scheme.handback)(cancel, patience)?;
+    let address = match (scheme.handback)(cancel, patience) {
+        Ok(address) => address,
+        Err(error @ (NetError::SignInCancelled | NetError::SignInTimedOut)) => return Err(error.into()),
+        // Whatever else the host says may hold the address; the owner is told nothing of it.
+        Err(_) => return Err(NetError::Config("the system could not bring the sign-in back to the program".into()).into()),
+    };
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }

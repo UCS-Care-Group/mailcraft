@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use proptest::prelude::*;
 
+use super::scheme::{CONSENT_FIELDS, MAX_ADDRESS, SIGN_IN_FIELDS, read_return};
 use super::*;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -103,7 +104,7 @@ fn a_sign_in_through_a_custom_scheme_brings_tokens() {
 #[test]
 fn what_the_provider_adds_is_taken_and_the_scheme_may_come_in_any_case() {
     for address in [
-        format!("{SCHEME}:{PATH}?code=c&state={{state}}&session_state=abc&iss=https%3A%2F%2Flogin.example.org%2F&client_info=xyz"),
+        format!("{SCHEME}:{PATH}?code=c&state={{state}}&session_state=abc&client_info=xyz"),
         format!("{}:{PATH}?state={{state}}&code=c", SCHEME.to_uppercase()),
         // An empty piece between two others says nothing.
         format!("{SCHEME}:{PATH}?code=c&&state={{state}}"),
@@ -408,7 +409,12 @@ fn approval_back(template: &str) -> Result<(), AdminRefusal> {
 
 #[test]
 fn an_administrators_approval_comes_back_through_a_custom_scheme_too() {
-    assert_eq!(approval_back(&format!("{SCHEME}:{PATH}?admin_consent=True&tenant=3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b&state={{state}}")), Ok(()));
+    // The shape Microsoft sends: the answer, the directory, the scope, the state.
+    let tenant = "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b";
+    let scope = "https%3A%2F%2Fgraph.microsoft.com%2Fmail.read";
+    assert_eq!(approval_back(&format!("{SCHEME}:{PATH}?admin_consent=True&tenant={tenant}&scope={scope}&state={{state}}")), Ok(()));
+    // The same with the bare `#` some pages leave at the end.
+    assert_eq!(approval_back(&format!("{SCHEME}:{PATH}?admin_consent=True&tenant={tenant}&scope={scope}&state={{state}}#")), Ok(()));
     for hostile in [
         format!("{SCHEME}:{PATH}?admin_consent=True&state=other"),
         format!("{SCHEME}:{PATH}?admin_consent=True"),
@@ -430,6 +436,165 @@ fn an_administrators_approval_comes_back_through_a_custom_scheme_too() {
     let no =
         approval_back(&format!("{SCHEME}:{PATH}?error=access_denied&error_description=AADSTS90094%3A+Admin+consent+is+required.&state={{state}}"));
     assert!(matches!(no, Err(AdminRefusal::NotAdministrator(_))), "{no:?}");
+    // A no that carries the scope is a no of the same kind.
+    let with_scope = approval_back(&format!(
+        "{SCHEME}:{PATH}?error=access_denied&error_description=AADSTS90094%3A+Admin+consent+is+required.&scope={scope}&state={{state}}"
+    ));
+    assert!(matches!(with_scope, Err(AdminRefusal::NotAdministrator(_))), "{with_scope:?}");
+}
+
+#[test]
+fn a_bare_hash_at_the_end_is_dropped_and_a_fragment_with_content_is_not() {
+    let server = token_server();
+    let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?code=c&state={{state}}#"));
+    assert!(result.is_ok(), "{result:?}");
+    let server = token_server();
+    for tail in ["#x", "##", "#/a", "#&code=d"] {
+        let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?code=c&state={{state}}{tail}"));
+        assert!(result.is_err(), "{tail}");
+    }
+    assert_eq!(server.asked(), 0);
+}
+
+#[test]
+fn an_address_with_an_authority_is_registered_and_read_to_the_letter() {
+    let handback = |_: &AtomicBool, _: Duration| Ok(String::new());
+    let plain = CustomScheme::new(SCHEME, PATH, &handback).unwrap();
+    assert_eq!(plain.redirect_uri(), format!("{SCHEME}:{PATH}"));
+    let with = CustomScheme::new(SCHEME, PATH, &handback).unwrap().with_authority("auth").unwrap();
+    assert_eq!(with.redirect_uri(), format!("{SCHEME}://auth{PATH}"));
+    for hostile in ["", "Auth", "au th", "a/b", "a@b", "a:1", "-a", "a-", ".a", "a..b", "a.-b", "a-.b", "a\u{e9}", "a?x", "a#", &"a".repeat(129)] {
+        let result = CustomScheme::new(SCHEME, PATH, &handback).unwrap().with_authority(hostile);
+        assert!(result.is_err(), "{hostile:?}");
+    }
+    // A sign-in that is registered with an authority comes back to it, and to nothing else.
+    let ok = |template: &str| {
+        let server = token_server();
+        let seen = Seen::default();
+        let handback = handback_of(&seen, template);
+        let scheme = CustomScheme::new(SCHEME, PATH, &handback).unwrap().with_authority("auth").unwrap();
+        let via = RedirectStrategy::CustomScheme(scheme);
+        let result = sign_in_via(&endpoints_of(&server), &oauth(), "ada@example.org", &noting(&seen), &AtomicBool::new(false), &via);
+        assert_eq!(asked_of(&seen)["redirect_uri"], format!("{SCHEME}://auth{PATH}"));
+        (result.is_ok(), server.asked())
+    };
+    assert_eq!(ok(&format!("{SCHEME}://auth{PATH}?code=c&state={{state}}")), (true, 1));
+    for hostile in [
+        format!("{SCHEME}:{PATH}?code=c&state={{state}}"),
+        format!("{SCHEME}://other{PATH}?code=c&state={{state}}"),
+        format!("{SCHEME}://auth.evil{PATH}?code=c&state={{state}}"),
+        format!("{SCHEME}://auth@evil{PATH}?code=c&state={{state}}"),
+        format!("{SCHEME}://AUTH{PATH}?code=c&state={{state}}"),
+        format!("{SCHEME}://auth//oauth2redirect?code=c&state={{state}}"),
+        format!("{SCHEME}:///auth{PATH}?code=c&state={{state}}"),
+    ] {
+        assert_eq!(ok(&hostile), (false, 0), "{hostile}");
+    }
+}
+
+#[test]
+fn a_field_that_is_not_listed_ends_the_sign_in_and_so_does_the_issuer() {
+    let server = token_server();
+    for extra in ["cloud_instance_name=x", "iss=https%3A%2F%2Flogin.example.org", "foo=bar"] {
+        let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?code=c&state={{state}}&{extra}"));
+        assert!(result.is_err(), "{extra}");
+    }
+    assert_eq!(server.asked(), 0);
+}
+
+#[test]
+fn what_the_host_says_when_it_fails_never_reaches_the_owner() {
+    let server = token_server();
+    let secret = "org.example.mail:/oauth2redirect?code=SECRET-CODE&state=SECRET-STATE";
+    let handback = move |_: &AtomicBool, _: Duration| Err(NetError::Config(secret.into()));
+    let via = RedirectStrategy::CustomScheme(CustomScheme::new(SCHEME, PATH, &handback).unwrap());
+    let result = sign_in_via(&endpoints_of(&server), &oauth(), "ada@example.org", &|_| {}, &AtomicBool::new(false), &via);
+    let said = format!("{result:?}");
+    assert!(result.is_err() && !said.contains("SECRET"), "{said}");
+    // The two ways a host may end the wait go through as they are.
+    let timed_out = |_: &AtomicBool, _: Duration| Err(NetError::SignInTimedOut);
+    let via = RedirectStrategy::CustomScheme(CustomScheme::new(SCHEME, PATH, &timed_out).unwrap());
+    let result = sign_in_explained_via(&endpoints_of(&server), &oauth(), "ada@example.org", &|_| {}, &AtomicBool::new(false), &via);
+    assert!(matches!(result, Err(SignInEnd::TimedOut)), "{result:?}");
+}
+
+#[test]
+fn a_no_on_the_page_is_declined_through_a_custom_scheme_too() {
+    let server = token_server();
+    let seen = Seen::default();
+    let handback = handback_of(&seen, &format!("{SCHEME}:{PATH}?error=access_denied&error_description=The+user+said+no.&state={{state}}"));
+    let via = RedirectStrategy::CustomScheme(CustomScheme::new(SCHEME, PATH, &handback).unwrap());
+    let result = sign_in_explained_via(&endpoints_of(&server), &oauth(), "ada@example.org", &noting(&seen), &AtomicBool::new(false), &via);
+    assert!(matches!(result, Err(SignInEnd::Declined)), "{result:?}");
+    assert_eq!(server.asked(), 0);
+}
+
+/// Hand-backs that give each answer in turn, with the state of the page just opened (or, for
+/// `{old}`, the state of the first page).
+fn in_turn(seen: &Seen, answers: &[&str]) -> (impl Fn(&AtomicBool, Duration) -> Result<String, NetError> + use<>, Arc<Mutex<Vec<String>>>) {
+    let (seen, answers) = (seen.clone(), answers.iter().map(|a| a.to_string()).collect::<Vec<_>>());
+    let states: Arc<Mutex<Vec<String>>> = Arc::default();
+    let log = states.clone();
+    let handback = move |_: &AtomicBool, _: Duration| {
+        let state = asked_of(&seen).get("state").cloned().unwrap_or_default();
+        let mut states = log.lock().unwrap();
+        states.push(state.clone());
+        let n = states.len();
+        let old = states.first().cloned().unwrap_or_default();
+        let answer = answers.get(n - 1).cloned().unwrap_or_default();
+        Ok(answer.replace("{state}", &state).replace("{old}", &old))
+    };
+    (handback, states)
+}
+
+#[test]
+fn the_retries_each_have_a_state_of_their_own_and_an_old_address_is_refused() {
+    let scope_no = "error=invalid_scope&error_description=AADSTS70011%3A+The+scope+is+not+valid.";
+    // Consent, then lesser, then bare: each page is sent for a new state.
+    let server = token_server();
+    let seen = Seen::default();
+    let first = format!("{SCHEME}:{PATH}?{scope_no}&state={{state}}");
+    let last = format!("{SCHEME}:{PATH}?code=c&state={{state}}");
+    let (handback, states) = in_turn(&seen, &[&first, &first, &last]);
+    let via = RedirectStrategy::CustomScheme(CustomScheme::new(SCHEME, PATH, &handback).unwrap());
+    let endpoints = Endpoints { consent: "graph.send graph.calendars".into(), lesser: "graph.send".into(), ..endpoints_of(&server) };
+    let result = sign_in_via(&endpoints, &oauth(), "ada@example.org", &noting(&seen), &AtomicBool::new(false), &via);
+    assert!(result.is_ok(), "{result:?}");
+    let states = states.lock().unwrap().clone();
+    assert_eq!(states.len(), 3);
+    assert!(states[0] != states[1] && states[1] != states[2] && states[0] != states[2]);
+    // The address of the first attempt, brought again on the second, is another sign-in's.
+    let server = token_server();
+    let seen = Seen::default();
+    let replay = format!("{SCHEME}:{PATH}?code=c&state={{old}}");
+    let (handback, _) = in_turn(&seen, &[&first, &replay]);
+    let via = RedirectStrategy::CustomScheme(CustomScheme::new(SCHEME, PATH, &handback).unwrap());
+    let endpoints = Endpoints { consent: "graph.send".into(), ..endpoints_of(&server) };
+    let result = sign_in_via(&endpoints, &oauth(), "ada@example.org", &noting(&seen), &AtomicBool::new(false), &via);
+    assert!(result.is_err(), "{result:?}");
+    assert_eq!(server.asked(), 0);
+}
+
+#[test]
+fn an_approval_that_is_refused_for_its_scope_is_asked_service_by_service() {
+    let seen = Seen::default();
+    let scope_no = format!("{SCHEME}:{PATH}?error=invalid_scope&error_description=AADSTS70011%3A+The+scope+is+not+valid.&state={{state}}");
+    let yes = format!("{SCHEME}:{PATH}?admin_consent=True&state={{state}}");
+    let pages: Arc<Mutex<Vec<String>>> = Arc::default();
+    let (seen2, log) = (seen.clone(), pages.clone());
+    let handback = move |_: &AtomicBool, _: Duration| {
+        let page = asked_of(&seen2);
+        let mut log = log.lock().unwrap();
+        log.push(page.get("scope").cloned().unwrap_or_default());
+        let answer = if log.len() == 1 { &scope_no } else { &yes };
+        Ok(answer.replace("{state}", page.get("state").map_or("", String::as_str)))
+    };
+    let via = RedirectStrategy::CustomScheme(CustomScheme::new(SCHEME, PATH, &handback).unwrap());
+    let settings = OAuth { client_id: "0f6c8d2a-1b3e-4c5d-9e7f-a1b2c3d4e5f6".into(), ..oauth() };
+    let result = admin_consent_via(&settings, "", &noting(&seen), &AtomicBool::new(false), &via);
+    assert_eq!(result, Ok(()));
+    let pages = pages.lock().unwrap().clone();
+    assert!(pages.len() > 2, "one page for everything, then one for each service: {pages:?}");
 }
 
 #[test]
@@ -455,6 +620,29 @@ proptest! {
         if result.is_ok() {
             prop_assert!(with_state);
         }
+    }
+
+    /// Random text around the real state: tokens only when nothing but the code and the state
+    /// is in the address.
+    #[test]
+    fn random_text_around_the_real_state_is_never_a_sign_in(before in "[ -~]{1,40}", after in "[ -~]{0,40}") {
+        let server = token_server();
+        let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}?{before}&state={{state}}{after}"));
+        let clean = before == "code=c" && after.is_empty();
+        prop_assert!(result.is_ok() == clean, "{before:?} {after:?}: {result:?}");
+    }
+
+    /// The reading of an address, on its own and as long as 64 KB.
+    #[test]
+    fn read_return_survives_any_length(text in "[ -~]{0,70000}", state in "[a-z]{0,8}") {
+        let handback = |_: &AtomicBool, _: Duration| Ok(String::new());
+        let scheme = CustomScheme::new(SCHEME, PATH, &handback).unwrap();
+        let long = format!("{SCHEME}:{PATH}?state={state}&{text}");
+        let result = read_return(&long, &scheme, &state, SIGN_IN_FIELDS);
+        if long.len() > MAX_ADDRESS {
+            prop_assert!(result.is_err());
+        }
+        let _ = read_return(&text, &scheme, &state, CONSENT_FIELDS);
     }
 
     /// Anything printable after the path, without the real state in it, is an error and nothing is traded.
