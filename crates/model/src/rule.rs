@@ -332,10 +332,12 @@ impl Condition {
 
 /// Whether `a` and `b`, two words of one condition, look for the same thing, and so are kept once:
 /// two people's addresses (`addresses`: From, Sent to) as [`Condition::matches_in`] compares a
-/// person's address, A to Z in either case and nothing else folded; any other two in any script's
-/// case, as words and categories are matched ([`crate::sync::same_category`]).
+/// person's address, A to Z in either case and nothing else folded; any other two when they are
+/// the same in small letters both as a word is found ([`contains_ci`]) and as a category is, a
+/// letter at a time ([`crate::sync::same_category`]), which differ in Greek at a word's end: a
+/// word kept once finds the same mail as the one let go.
 pub fn same_word(addresses: bool, a: &str, b: &str) -> bool {
-    if addresses { a.trim().eq_ignore_ascii_case(b.trim()) } else { crate::sync::same_category(a, b) }
+    if addresses { a.trim().eq_ignore_ascii_case(b.trim()) } else { crate::sync::same_category(a, b) && a.to_lowercase() == b.to_lowercase() }
 }
 
 /// Exceptions as a server keeps them: any one of them holding leaves a message alone, so two that
@@ -588,7 +590,8 @@ pub struct Marks {
 
 impl Marks {
     pub fn of(m: &Message) -> Marks {
-        let mut categories: Vec<String> = m.categories.iter().map(|c| c.to_lowercase()).collect();
+        // (Each letter in small, as "has the category" reads them, [`crate::sync::same_category`].)
+        let mut categories: Vec<String> = m.categories.iter().map(|c| c.chars().flat_map(char::to_lowercase).collect()).collect();
         categories.sort_unstable();
         Marks { categories, flag: m.flag, importance: m.importance }
     }
@@ -695,31 +698,31 @@ impl Rule {
     }
 
     /// Whether it names the category `name`, as a rule matches a category
-    /// ([`crate::sync::same_category`]): in an exception, or (`whole`) in a condition or
+    /// ([`crate::sync::same_category`]): in a condition or an exception, or (`whole`) in
     /// Categorize too.
     pub fn names_category(&self, name: &str, whole: bool) -> bool {
         let named = |n: &String| crate::sync::same_category(n, name);
         let names = |c: &Condition| matches!(c, Condition::Category(names) if names.iter().any(named));
-        self.exceptions.iter().any(names)
-            || (whole && (self.conditions.iter().any(names) || self.actions.iter().any(|a| matches!(a, Action::Categorize(n) if named(n)))))
+        self.conditions.iter().chain(&self.exceptions).any(names)
+            || (whole && self.actions.iter().any(|a| matches!(a, Action::Categorize(n) if named(n))))
     }
 
     /// The category `from` called `to` wherever it names it, matched as a rule matches a category
-    /// ([`crate::sync::same_category`]), each name once (#566): a condition takes the mail by its
-    /// new name and Categorize puts that on, while an exception names it by both, so that it still
-    /// leaves alone the mail renamed here and the mail that comes with the old name (a server's
-    /// rule, or another program, may still put that on: a Microsoft account's list isn't written
-    /// to its server, #661). Only in its exceptions unless `whole`.
+    /// ([`crate::sync::same_category`]), each name once (#566): Categorize puts the new name on,
+    /// while a condition and an exception name the category by both, so that the rule still takes
+    /// and leaves alone what it did: the mail renamed here and the mail that comes with the old
+    /// name (a server's rule, a rule for every account, or another program, may still put that
+    /// on: a Microsoft account's list isn't written to its server, #661). Categorize only when
+    /// `whole`.
     pub fn rename_category(&mut self, from: &str, to: &str, whole: bool) {
-        let rename = |names: &mut Vec<String>, keep_old: bool| {
+        let rename = |names: &mut Vec<String>| {
             if !names.iter().any(|n| crate::sync::same_category(n, from)) {
                 return;
             }
             let mut kept: Vec<String> = Vec::with_capacity(names.len().saturating_add(1));
             for n in names.drain(..) {
                 let renamed = crate::sync::same_category(&n, from);
-                let old = (!renamed || keep_old).then_some(n);
-                for n in old.into_iter().chain(renamed.then(|| to.to_string())) {
+                for n in std::iter::once(n).chain(renamed.then(|| to.to_string())) {
                     if !kept.iter().any(|k| crate::sync::same_category(k, &n)) {
                         kept.push(n);
                     }
@@ -727,18 +730,13 @@ impl Rule {
             }
             *names = kept;
         };
-        for c in &mut self.exceptions {
+        for c in self.conditions.iter_mut().chain(&mut self.exceptions) {
             if let Condition::Category(names) = c {
-                rename(names, true);
+                rename(names);
             }
         }
         if !whole {
             return;
-        }
-        for c in &mut self.conditions {
-            if let Condition::Category(names) = c {
-                rename(names, false);
-            }
         }
         for a in &mut self.actions {
             if let Action::Categorize(name) = a

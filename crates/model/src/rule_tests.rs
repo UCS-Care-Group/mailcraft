@@ -432,3 +432,36 @@ fn recipients_and_categories_left_out_cant_be_told() {
         assert!(c.unread_in(&m), "{c:?}");
     }
 }
+
+/// Two words that `same_word` keeps once find the same mail as the matcher reads it: a Greek
+/// capital word ending in Σ and the same with a small σ, which a letter at a time are alike in
+/// small letters but as a word are not (a final Σ is ς), are both kept (#566).
+#[test]
+fn words_kept_once_find_the_same_mail() {
+    let (a, b) = ("ΟΔΟΣ".to_string(), "ΟΔΟσ".to_string());
+    let m = Message { subject: "ΟΔΟΣΗ 12".into(), ..Default::default() };
+    // Each alone, as the matcher reads it.
+    let alone = |w: &str| Condition::SubjectContains(vec![w.to_string()]).matches(&m);
+    assert!(!alone(&a) && alone(&b), "the matcher tells them apart");
+    // Kept once as exceptions of a kind, the one that holds may be the one dropped.
+    let folded = fold_exceptions(vec![Condition::SubjectContains(vec![a.clone()]), Condition::SubjectContains(vec![b.clone()])]).unwrap();
+    let rule = Rule {
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["12".into()])],
+        exceptions: folded.clone(),
+        actions: vec![Action::DeleteForGood],
+        ..Default::default()
+    };
+    assert!(!rule.matches(&m), "an exception the owner gave leaves it alone; folded: {folded:?}");
+}
+
+/// `Marks` change when "has the category" reads a message's categories otherwise: "οδος" changed
+/// to "ΟΔΟΣ", the same in small letters as a word but not a letter at a time (#566).
+#[test]
+fn marks_change_when_a_category_rule_reads_otherwise() {
+    let before = Message { categories: vec!["οδος".into()], ..Default::default() };
+    let after = Message { categories: vec!["ΟΔΟΣ".into()], ..Default::default() };
+    let rule_reads = |m: &Message| Condition::Category(vec!["οδος".into()]).matches(m);
+    assert_ne!(rule_reads(&before), rule_reads(&after), "the rule reads them otherwise");
+    assert_ne!(Marks::of(&before), Marks::of(&after), "so the marks differ");
+}

@@ -1024,3 +1024,59 @@ fn many_imap_deletes_waiting_for_their_copies_keep_send_receive_quick() {
     assert_eq!(again.into_iter().collect::<Vec<_>>(), vec![((inbox, 8), asks)]);
     assert!(took.as_millis() < 200, "{took:?}");
 }
+
+/// A rule for IMAP account A copies new mail into IMAP account B and deletes it for good, so A's
+/// delete waits for B's copy. Before B's server has the copy, the owner undoes making the rule
+/// and then adding B. The undo takes B and its copy away, and puts the original back as removing
+/// B does: its delete on A's server doesn't go, since nothing else has the message (#566).
+#[test]
+fn undoing_the_added_account_a_rules_copy_waits_in_keeps_the_original() {
+    let mut s = Session::empty();
+    let servers = json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let from = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let first = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, complete: true, ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: from, folders: vec![first], ..Default::default() }).unwrap();
+    let to = imap_account(&mut s, "work@mail.example", vec![]);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let rule = json!({"name": "Hand on", "account": from, "conditions": [{"type": "subjectContains", "value": "Signed"}],
+        "actions": [{"type": "copyTo", "value": theirs}, {"type": "deleteForGood"}]});
+    s.run("rules.add", &rule).unwrap();
+    // New mail: the rule copies it into B and deletes it for good here.
+    let read = Message { uid: 1, ..mailcraft_mime::parse_fetched(&long_unprotected()) };
+    let later = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, new: vec![read], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: from, folders: vec![later], ..Default::default() }).unwrap();
+    assert!(s.mailbox.messages.values().all(|m| m.account != from), "deleted for good here");
+    assert_eq!(sync_request(&s, to).unwrap().places.len(), 1, "the copy waits for B's server");
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert!(!deletes(&s, from), "the original's delete waits for the copy");
+    // Undo the rule, then the adding of B.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(!deletes(&s, from), "still held after the first undo");
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.account(to).is_none(), "B is gone with its copy");
+    let back = s.mailbox.messages.values().any(|m| m.account == from && m.subject == "Signed");
+    assert!(back && !deletes(&s, from), "the original goes from A's server, and its only copy went with B: the message is lost");
+}
+
+/// The same, but B is removed (File › Account Settings › Remove) instead of its adding undone:
+/// the original comes back, and its delete is called off.
+#[test]
+fn removing_the_account_a_rules_copy_waits_in_keeps_the_original() {
+    let mut s = Session::empty();
+    let servers = json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let from = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let first = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, complete: true, ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: from, folders: vec![first], ..Default::default() }).unwrap();
+    let to = imap_account(&mut s, "work@mail.example", vec![]);
+    let theirs = s.mailbox.folder_of_kind(to, FolderKind::Inbox).unwrap();
+    let rule = json!({"name": "Hand on", "account": from, "conditions": [{"type": "subjectContains", "value": "Signed"}],
+        "actions": [{"type": "copyTo", "value": theirs}, {"type": "deleteForGood"}]});
+    s.run("rules.add", &rule).unwrap();
+    let read = Message { uid: 1, ..mailcraft_mime::parse_fetched(&long_unprotected()) };
+    let later = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, new: vec![read], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: from, folders: vec![later], ..Default::default() }).unwrap();
+    assert!(s.mailbox.messages.values().all(|m| m.account != from), "deleted for good here");
+    s.run("account.remove", &json!({"id": to})).unwrap();
+    let back = s.mailbox.messages.values().any(|m| m.account == from && m.subject == "Signed");
+    assert!(back && !deletes(&s, from), "removal puts the original back and calls the delete off");
+}

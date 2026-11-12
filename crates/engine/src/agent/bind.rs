@@ -14,8 +14,9 @@
 //!   came into it meanwhile stays (an empty takes the shown ones; a delete, which would take the
 //!   folder with what came, does nothing, and so does Run Rules Now over it, which would act on
 //!   what came: deleted for good, or put on another server, #566); nor does Run Rules Now when a
-//!   message shown had its categories, flag or importance changed meanwhile (by an agent, which
-//!   may change them unasked), which the rules may then take;
+//!   message shown was changed meanwhile in what the rules read of it (by an agent, which may
+//!   change a message unasked: its categories or flag, a draft's subject, an undo that puts an
+//!   attachment back), which they may then take;
 //! - anything else is described again: when what the command would read from the window, or the
 //!   question's text, differs, or what it names is gone, nothing runs.
 //!
@@ -24,8 +25,9 @@
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher, RandomState};
+use std::sync::Arc;
 
-use mailcraft_model::{Id, Marks};
+use mailcraft_model::{Id, Message};
 use serde_json::Value;
 
 use crate::{Compose, Selection, Session, ViewState, p};
@@ -202,17 +204,18 @@ struct Held {
     /// The folders that go with it: those deleted into Deleted Items that its emptying takes, or
     /// the folder deleted and every folder under it.
     folders: HashSet<Id>,
-    /// For Run Rules Now, its messages' marks as they were (#566): what the rules would do to them
-    /// is what the question was about.
+    /// For Run Rules Now, its messages as they were (#566): what the rules would do to them is
+    /// what the question was about.
     as_shown: AsShown,
     /// And the zone the rules read the days mail came by ([`Session::zone`]).
     zone: mailcraft_time::Zone,
 }
 
-/// The marks of messages as a question showed them ([`Marks`]: what a rule reads and an agent may
-/// change unasked). A change only a server makes (what it last said, its stamps) leaves them be.
+/// Messages as a question showed them, held as they were (the same in memory while nothing
+/// changes them). What only a server changes (what it last said, its stamps, a read mark) is no
+/// change to the rules ([`mailcraft_model::Mailbox::rules_read_alike`]).
 #[derive(Clone, Default, PartialEq, Eq)]
-struct AsShown(HashMap<Id, Marks>);
+struct AsShown(HashMap<Id, Arc<Message>>);
 
 impl std::fmt::Debug for AsShown {
     // (Their count alone: nothing of the mail goes into a debug line.)
@@ -222,9 +225,13 @@ impl std::fmt::Debug for AsShown {
 }
 
 impl AsShown {
-    /// Whether one of `ids` doesn't now have the marks it was shown with.
+    /// Whether the rules may read one of `ids` otherwise than they read it when it was shown.
     fn changed(&self, s: &Session, ids: &HashSet<Id>) -> bool {
-        ids.iter().any(|id| self.0.get(id) != s.mailbox.messages.get(id).map(|m| Marks::of(m)).as_ref())
+        let mb = &s.mailbox;
+        ids.iter().any(|id| match (self.0.get(id), mb.messages.get(id)) {
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && !mb.rules_read_alike(then, now, s.zone()),
+            _ => true,
+        })
     }
 }
 
@@ -310,7 +317,7 @@ impl Shown {
                 }
                 if id == "rules.run" && shown.as_shown.changed(s, &now.messages) {
                     return Err(
-                        "a message in the folder `rules.run` was asked about has other categories, another flag or another importance since the owner was asked, so the rules may act on it otherwise: nothing was done. Ask the owner again"
+                        "a message in the folder `rules.run` was asked about was changed since the owner was asked in what the rules read of it (its categories or flag, its subject, an attachment, say), so they may act on it otherwise: nothing was done. Ask the owner again"
                             .to_string(),
                     );
                 }
@@ -346,7 +353,7 @@ fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
     s.mailbox.folder(folder)?;
     let mut as_shown = AsShown::default();
     let (messages, folders) = if id == "rules.run" {
-        as_shown.0 = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| (m.id, Marks::of(m))).collect();
+        as_shown.0 = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| (m.id, Arc::clone(m))).collect();
         (as_shown.0.keys().copied().collect(), Vec::new())
     } else if id == "folder.empty" {
         (crate::cmd::folder::emptied(s, folder), crate::cmd::folder::emptied_with(s, folder))

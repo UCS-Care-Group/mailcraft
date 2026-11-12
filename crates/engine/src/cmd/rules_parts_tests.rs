@@ -699,9 +699,9 @@ fn a_long_word_is_refused_not_cut() {
 /// A rule deletes newsletters permanently, except those the owner put a category on to keep
 /// them. The owner renames that category (Categorize › All Categories › Rename): the mail has the
 /// new name, and the rule's exception names both, so that it still leaves that mail alone and the
-/// mail that comes with the old name too. A condition and a Categorize take the new name, Undo
-/// takes the rename back from the rules as well, and a rule its account's server has keeps the
-/// name the server gave it.
+/// mail that comes with the old name too. A condition names both as well, a Categorize takes the
+/// new name, Undo takes the rename back from the rules as well, and a rule its account's server
+/// has keeps the name the server gave it.
 #[test]
 fn renaming_the_category_an_exception_names_doesnt_let_the_rule_delete_that_mail_for_good() {
     let (mut s, account, inbox, _) = session();
@@ -719,7 +719,7 @@ fn renaming_the_category_an_exception_names_doesnt_let_the_rule_delete_that_mail
     let exceptions = &s.mailbox.rules[0].exceptions;
     assert!(s.mailbox.message(kept).is_some(), "deleted for good after the rename; the rule's exception is now {exceptions:?}");
     assert_eq!(s.mailbox.rules[0].exceptions, [Condition::Category(vec!["Red category".into(), "Keep".into()])]);
-    // A condition and a Categorize follow the rename too, each name once.
+    // A condition follows the rename by both names, a Categorize by the new one, each name once.
     s.run("category.add", &json!({"account": account, "name": "Blue category"})).ok();
     let tag = json!({"name": "Tag", "account": account,
         "conditions": [{"type": "category", "value": ["Keep", "Blue category"]}],
@@ -727,7 +727,7 @@ fn renaming_the_category_an_exception_names_doesnt_let_the_rule_delete_that_mail
     let tag = s.run("rules.add", &tag).unwrap()["id"].as_u64().unwrap();
     s.run("category.rename", &json!({"account": account, "from": "blue category", "to": "Sky"})).unwrap();
     let rule = s.mailbox.rules.iter().find(|r| r.id == tag).unwrap();
-    assert_eq!(rule.conditions, [Condition::Category(vec!["Keep".into(), "Sky".into()])]);
+    assert_eq!(rule.conditions, [Condition::Category(vec!["Keep".into(), "Blue category".into(), "Sky".into()])]);
     assert_eq!(rule.actions, [Action::Categorize("Sky".into())]);
     // Undo takes the rename back from the rules with the mail.
     s.run("edit.undo", &json!({})).unwrap();
@@ -854,4 +854,24 @@ fn a_rename_that_would_overfill_an_exception_is_refused_and_changes_nothing() {
     assert!(s.run("category.rename", &json!({"account": account, "from": "Kept 3", "to": "Archive"})).is_err());
     assert_eq!((s.mailbox.rules.clone(), s.mailbox.categories_of(account).to_vec()), before);
     assert_eq!(s.mailbox.message(kept).unwrap().categories, ["Kept 3"]);
+}
+
+/// An agent's `rules.add` with an exception that looks for two Greek words, the one typed in small
+/// letters with σ at its end and the one in capitals, which the matcher (a final Σ is ς in small
+/// letters) finds in different mail: both are kept, and the exception for the capitals' word
+/// still leaves its mail alone (#566).
+#[test]
+fn an_exception_word_kept_once_still_leaves_its_mail_alone() {
+    let (mut s, _, inbox, _) = session();
+    let rule = json!({
+        "name": "Clean up",
+        "conditions": [{"type": "subjectContains", "value": "report"}],
+        "exceptions": [{"type": "subjectContains", "value": ["οδοσ", "ΟΔΟΣ"]}],
+        "actions": [{"type": "deleteForGood"}],
+    });
+    s.run("rules.add", &rule).unwrap();
+    let kept = format!("{:?}", s.mailbox.rules.last().unwrap().exceptions);
+    let m = arriving(&mut s, inbox, "ada@example.org", "Report ΟΔΟΣ Αθηνάς");
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert!(s.mailbox.message(m).is_some(), "the exception for ΟΔΟΣ leaves it alone; kept: {kept}");
 }

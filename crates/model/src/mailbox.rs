@@ -1106,6 +1106,70 @@ fn default_categories() -> Vec<Category> {
     .collect()
 }
 
+/// The `Message-ID`s of mail an account's server said it no longer has in a folder (moved on
+/// another device, or deleted there), in the run under way and the one before it (#566). A run
+/// reads the Inbox first (`mailcraft_net::sync`), so mail filed away and moved back into the Inbox
+/// on a phone while a run reads the folders after it is said to have left the folder it was in,
+/// and is new to the Inbox in the next run, which gives it a new number there: by these, that
+/// run knows it as mail the account had, and its rules don't delete it for good. At most
+/// [`MAX_LEFT`] of a run; past that, all mail new in that run and the next is taken as mail the
+/// account had.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LeftServer {
+    /// Said in the run before.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub before: Vec<String>,
+    /// Said so far in the run under way.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub now: Vec<String>,
+    /// The run before said more than is kept.
+    #[serde(skip_serializing_if = "is_false")]
+    pub cut_before: bool,
+    /// The run under way did.
+    #[serde(skip_serializing_if = "is_false")]
+    pub cut_now: bool,
+}
+
+/// The most of [`LeftServer`] a run keeps: Message-IDs, and the bytes of them.
+pub const MAX_LEFT: usize = 20_000;
+const MAX_LEFT_BYTES: usize = 4 << 20;
+
+impl LeftServer {
+    /// Whether all mail new in the run under way is to be taken as mail the account had.
+    pub fn cut(&self) -> bool {
+        self.cut_before || self.cut_now
+    }
+
+    /// The `Message-ID`s the server said, in this run and the one before, it no longer has.
+    pub fn ids(&self) -> impl Iterator<Item = &String> {
+        self.before.iter().chain(&self.now)
+    }
+
+    /// `left` said in the run under way.
+    pub fn note(&mut self, left: impl IntoIterator<Item = String>) {
+        let mut bytes: usize = self.now.iter().map(String::len).sum();
+        for id in left {
+            bytes = bytes.saturating_add(id.len());
+            if self.now.len() >= MAX_LEFT || bytes > MAX_LEFT_BYTES {
+                self.cut_now = true;
+                return;
+            }
+            self.now.push(id);
+        }
+    }
+
+    /// The run under way ended: what it said is what the run before said.
+    pub fn end_run(&mut self) {
+        self.before = std::mem::take(&mut self.now);
+        self.cut_before = std::mem::take(&mut self.cut_now);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.before.is_empty() && self.now.is_empty() && !self.cut()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Mailbox {
@@ -1151,6 +1215,10 @@ pub struct Mailbox {
     /// of the account (a shared mailbox has its owner's, [`Mailbox::junk_owner`]).
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
     pub junk_accounts: BTreeMap<Id, crate::JunkLists>,
+    /// The mail each account's server said in its last runs it no longer has in a folder, by the
+    /// id of the account ([`LeftServer`], #566).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
+    pub left_server: BTreeMap<Id, LeftServer>,
     pub signatures: Vec<Signature>,
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -1256,6 +1324,7 @@ impl Default for Mailbox {
             rules: Vec::new(),
             junk: crate::JunkLists::default(),
             junk_accounts: BTreeMap::new(),
+            left_server: BTreeMap::new(),
             signatures: Vec::new(),
             pending: Vec::new(),
             event_changes: Vec::new(),
@@ -1470,6 +1539,7 @@ impl Mailbox {
         self.rules.retain(|r| !going.contains(&r.account));
         self.shared_task_lists.retain(|account, _| !going.contains(account));
         self.junk_accounts.retain(|account, _| !going.contains(account));
+        self.left_server.retain(|account, _| !going.contains(account));
         self.account_categories.retain(|account, _| !going.contains(account));
         self.server_categories.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
@@ -3086,6 +3156,25 @@ impl Mailbox {
         rule.account != 0 && rule.keep == crate::Keep::Server && self.keeps_rules(rule.account)
     }
 
+    /// Whether the rules for the mail of `then`'s account read `then` and `now` (the same message,
+    /// at two times) alike, by the clock of `zone` (#566): each condition and exception of each
+    /// holds, and can be told, of both or of neither, and the categories, flag and importance
+    /// that their actions change are the same ([`crate::Marks`]), so that the rules do the same to
+    /// both. What only a server says of a message (what it last said, a read mark) is no part of
+    /// that.
+    pub fn rules_read_alike(&self, then: &Message, now: &Message, zone: crate::time::Zone) -> bool {
+        if then.account != now.account || crate::Marks::of(then) != crate::Marks::of(now) {
+            return false;
+        }
+        self.rules_in_order(then.account).into_iter().filter_map(|i| self.rules.get(i)).all(|r| {
+            let how = self.rule_matching(r, then.account, zone);
+            r.conditions
+                .iter()
+                .chain(&r.exceptions)
+                .all(|c| c.matches_in(then, &how) == c.matches_in(now, &how) && c.unread_in(then) == c.unread_in(now))
+        })
+    }
+
     /// How `rule` is matched against a message of `account`, by the clock of `zone`: "me" is that
     /// account's address (for a rule for every account, the account the message is in).
     pub fn rule_matching(&self, rule: &Rule, account: Id, zone: crate::time::Zone) -> crate::Matching<'_> {
@@ -3287,7 +3376,8 @@ impl Mailbox {
         let account = m.account;
         // (After a copy made as it arrived, as before the rules that couldn't tell have had their
         // say, nothing goes for good; nor once its categories, flag or importance were changed
-        // meanwhile, which the rules that acted then may have read.)
+        // meanwhile, which the rules that acted then may have read: then nothing goes onto
+        // another account's server either, by a copy or a move.)
         let changed = waiting.marked.as_ref().is_some_and(|then| *then != crate::Marks::of(m));
         if m.folder != waiting.folder || !self.rules_reach(account) {
             return ran;
@@ -3310,7 +3400,10 @@ impl Mailbox {
             // refused since, and nothing holds the delete behind it.)
             if !rule.on_server() && !wait.delete_only {
                 alert |= rule.alert;
-                if self.act(id, &rule.actions, clock, !unsure, false, going) {
+                let out = |a: &Action| matches!(a, Action::CopyTo(f) | Action::MoveTo(f) if self.folder(*f).is_some_and(|f| f.account != account));
+                let actions: std::borrow::Cow<[Action]> =
+                    if changed { rule.actions.iter().filter(|a| !out(a)).cloned().collect() } else { std::borrow::Cow::Borrowed(&rule.actions) };
+                if self.act(id, &actions, clock, !unsure, false, going) {
                     ran.push(rule.name.clone());
                 }
             }
@@ -3689,9 +3782,10 @@ impl Mailbox {
         for (i, whole) in self.rules_renaming(account, from) {
             let Some(mut rule) = self.rules.get(i).cloned() else { continue };
             rule.rename_category(from.trim(), &to, whole);
-            if rule.exceptions.iter().any(|c| matches!(c, crate::Condition::Category(names) if names.len() > crate::MAX_WORDS_EACH)) {
+            let overfull = |c: &crate::Condition| matches!(c, crate::Condition::Category(names) if names.len() > crate::MAX_WORDS_EACH);
+            if rule.conditions.iter().chain(&rule.exceptions).any(overfull) {
                 return Err(invalid(format!(
-                    "the rule \"{}\" would look for more than {} categories in its exceptions, which name this one by its old name too",
+                    "the rule \"{}\" would look for more than {} categories in a condition or an exception, which name this one by its old name too",
                     rule.name,
                     crate::MAX_WORDS_EACH
                 )));
@@ -3717,15 +3811,19 @@ impl Mailbox {
     /// The rules (their places in [`Mailbox::rules`]) that a rename of the category `from` on the
     /// list `account`'s items use rewrites, and whether wholly ([`Rule::rename_category`]): those
     /// for the mail that uses that list that name it ([`Rule::names_category`]), and the
-    /// exceptions of a rule for every account's mail, which is mail on that list too (#566). Not
-    /// one its account's server has, which is the server's, read from it again, and keeps the
-    /// name the server gave it, nor one sent to be made there that no answer has come for, which
-    /// the server may have as it was sent.
+    /// conditions and exceptions of a rule for every account's mail, which is mail on that list
+    /// too (#566); its Categorize only on the list IMAP accounts and this computer share, and only
+    /// while no Microsoft account's own list has the category, whose mail it would otherwise put
+    /// a name on that that list and the rules for that mail don't know. Not one its account's
+    /// server has, which is the server's, read from it again, and keeps the name the server gave
+    /// it, nor one sent to be made there that no answer has come for, which the server may have
+    /// as it was sent.
     pub fn rules_renaming(&self, account: Id, from: &str) -> Vec<(usize, bool)> {
         let list = self.category_list_owner(account);
+        let elsewhere = self.account_categories.values().flatten().any(|c| crate::sync::same_category(&c.name, from.trim()));
         let mut renaming = Vec::new();
         for (i, r) in self.rules.iter().enumerate().filter(|(_, r)| r.server.is_none() && !r.unanswered) {
-            let whole = self.category_list_owner(r.account) == list;
+            let whole = self.category_list_owner(r.account) == list && !(r.account == 0 && elsewhere);
             if (whole || r.account == 0) && r.names_category(from.trim(), whole) {
                 renaming.push((i, whole));
             }

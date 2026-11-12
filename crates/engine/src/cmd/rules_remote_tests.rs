@@ -2688,3 +2688,193 @@ fn undoing_an_address_change_in_a_non_ascii_letters_case_is_asked_as_the_change_
     assert_eq!(classify(&s, "edit.undo", &json!({})), Access::Owner(Class::Accounts));
     assert!(also(&s, "edit.undo", &json!({}), Class::Accounts).contains(&Class::Delete));
 }
+
+/// The owner's yes to Run Rules Now is held to the mail as the rules read it when they were asked
+/// about, not to its marks alone (#566). A draft's subject an agent changes unasked
+/// (`mail.editDraft`, `compose.set`, `compose.saveDraft`, all safe) while the question is up keeps
+/// its id and its marks; the yes runs nothing, so the rule that deletes for good doesn't take the
+/// draft it didn't take when asked.
+#[test]
+fn a_drafts_subject_changed_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Class, Verdict, check, classify};
+    let (mut s, _, local, _) = session();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": local, "conditions": [{"type": "subjectContains", "value": "purge me"}],
+            "actions": [{"type": "deleteForGood"}]}),
+    );
+    // The owner's draft, in the local account's Drafts.
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"account": local, "to": "boss@example.org", "subject": "Contract", "body": "Owner's work"}));
+    let draft = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    let drafts = s.mailbox.folder_of_kind(local, FolderKind::Drafts).unwrap();
+    assert_eq!(s.mailbox.message(draft).unwrap().folder, drafts);
+    // The agent asks to run the rules over Drafts: the owner is asked, as a delete.
+    let params = json!({"folder": drafts});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    assert!(shown.check(&s, "rules.run", &params).is_ok(), "nothing changed yet");
+    // While the question is up, the agent changes the draft's subject, unasked: each call passes
+    // the gate with nothing allowed.
+    for (id, params) in [
+        ("mail.editDraft", json!({"id": draft})),
+        ("compose.set", json!({"subject": "purge me"})),
+        ("compose.saveDraft", json!({})),
+        ("compose.close", json!({})),
+    ] {
+        assert_eq!(check(&s, id, &params, &[]), Verdict::Run, "{id} runs unasked");
+        assert_eq!(classify(&s, id, &params), crate::agent::Access::Safe, "{id}");
+        s.agent = Some(Vec::new());
+        run(&mut s, id, params);
+        s.agent = None;
+    }
+    assert_eq!(s.mailbox.message(draft).map(|m| m.subject.clone()).as_deref(), Some("purge me"), "saved in place, same id");
+    let reach = shown.check(&s, "rules.run", &params);
+    assert!(reach.as_ref().is_err_and(|e| e.contains("what the rules read")), "the yes runs: {reach:?}");
+}
+
+/// An agent's change of the account's address is asked as a delete when a rule before the one
+/// that deletes for good reads the address and puts on a category the deleting rule's exception
+/// looks for (or stops the rules after it): that changes what reaches the deleting rule as
+/// switching the rule off would, which asks as a delete, and so does the undo of the change
+/// (#566).
+#[test]
+fn an_address_change_read_by_a_rule_before_one_that_deletes_for_good_is_asked_as_a_delete() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, account, _, _) = session();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Mine", "account": account, "server": false,
+        "conditions": [{"type": "toMe"}], "actions": [{"type": "categorize", "value": "Keep"}]}),
+    );
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "fromContains", "value": "shop.example"}],
+        "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    // Switching "Mine" off would let more mail reach "Purge": asked as a delete.
+    let mine = s.mailbox.rules.iter().find(|r| r.name == "Mine").unwrap().id;
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": mine, "value": false})), Access::Owner(Class::Delete));
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let to_me = |s: &mut Session| {
+        let m = Message {
+            folder: inbox,
+            from: Address::new("Shop", "news@shop.example"),
+            to: vec![Address::new("Me", EMAIL)],
+            subject: "Your order".into(),
+            ..Default::default()
+        };
+        let id = s.mailbox.add_message(m).unwrap();
+        let clock = s.rule_clock();
+        s.mailbox.apply_rules(id, &clock);
+        id
+    };
+    let kept = to_me(&mut s);
+    assert!(s.mailbox.message(kept).is_some(), "Mine puts Keep on it, so Purge leaves it alone");
+    let edit = json!({"id": account, "email": "other@example.org"});
+    let class = classify(&s, "account.edit", &edit);
+    let what = describe(&s, "account.edit", &edit);
+    // The owner's own change (or an agent's on `--allow accounts`), then the undo's class.
+    run(&mut s, "account.edit", edit);
+    let gone = to_me(&mut s);
+    let undo_asks_delete = crate::agent::also(&s, "edit.undo", &json!({}), Class::Accounts).contains(&Class::Delete);
+    assert!(s.mailbox.message(gone).is_none(), "what the change lets through");
+    assert!(undo_asks_delete, "the undo asks as a delete");
+    assert_eq!(class, Access::Owner(Class::Delete), "the change itself isn't asked as one: {what}");
+}
+
+/// The same for the time zone, which needs no grant otherwise: a rule before the one that deletes
+/// for good reads the days ("received on or after") and puts on the category the deleting rule's
+/// exception looks for, so `view.timeZone` is asked about (#566).
+#[test]
+fn a_zone_change_read_by_a_rule_before_one_that_deletes_for_good_is_asked_as_a_delete() {
+    use crate::agent::{Access, Class, Verdict, check, classify};
+    let (mut s, account, _, _) = session();
+    s.clock.zone = Some(mailcraft_time::Zone::named("Europe/London").unwrap());
+    run(&mut s, "view.timeZone", json!({"zone": "Europe/London"}));
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Recent", "account": account, "server": false,
+        "conditions": [{"type": "receivedBetween", "value": {"from": "2026-11-11"}}], "actions": [{"type": "categorize", "value": "Keep"}]}),
+    );
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "report"}],
+        "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let recent = s.mailbox.rules.iter().find(|r| r.name == "Recent").unwrap().id;
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": recent, "value": false})), Access::Owner(Class::Delete));
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    // 23:30 UTC on 10 November: the 10th in London, the 11th in Tokyo.
+    let at = 1_794_353_400;
+    let report = |s: &mut Session| {
+        let m = Message { folder: inbox, account, subject: "Monthly report".into(), received: at, date: at, ..Default::default() };
+        let id = s.mailbox.add_message(m).unwrap();
+        let clock = s.rule_clock();
+        s.mailbox.apply_rules(id, &clock);
+        id
+    };
+    let tokyo = json!({"zone": "Asia/Tokyo"});
+    let verdict = check(&s, "view.timeZone", &tokyo, &[]);
+    // In Tokyo it is the 11th, so Recent puts Keep on it; the agent moves the zone back to London.
+    run(&mut s, "view.timeZone", tokyo);
+    let kept = report(&mut s);
+    assert!(s.mailbox.message(kept).is_some(), "Recent puts Keep on it in Tokyo");
+    let london = json!({"zone": "Europe/London"});
+    let back = check(&s, "view.timeZone", &london, &[]);
+    run(&mut s, "view.timeZone", london);
+    let gone = report(&mut s);
+    assert!(s.mailbox.message(gone).is_none(), "what the change lets through");
+    assert_ne!(back, Verdict::Run, "the agent's zone change that lets more mail reach Purge runs unasked");
+    assert_ne!(verdict, Verdict::Run, "so does the one to Tokyo");
+}
+
+/// The same in any folder: an agent's undo (asked as nothing) puts an attachment back on a
+/// message while the owner is asked about Run Rules Now. It keeps its id and its marks, but the
+/// rules read it otherwise, and the yes runs nothing (#566).
+#[test]
+fn an_undo_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Access, Class, Verdict, check, classify};
+    let (mut s, _, local, _) = session();
+    let inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Big files", "account": local, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "deleteForGood"}]}),
+    );
+    let file = mailcraft_model::Attachment {
+        name: "a.pdf".into(),
+        mime: "application/pdf".into(),
+        data: std::sync::Arc::new(vec![1, 2, 3]),
+        ..Default::default()
+    };
+    let m = s
+        .mailbox
+        .add_message(Message { folder: inbox, account: local, subject: "Plans".into(), attachments: vec![file], ..Default::default() })
+        .unwrap();
+    // The owner took its file off before (and so the rule leaves it alone).
+    run(&mut s, "mail.removeAttachment", json!({"id": m, "index": 0}));
+    assert!(!s.mailbox.message(m).unwrap().has_attachments());
+    let params = json!({"folder": inbox});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    // While the question is up, the agent undoes, unasked.
+    let class = classify(&s, "edit.undo", &json!({}));
+    let verdict = check(&s, "edit.undo", &json!({}), &[]);
+    s.agent = Some(Vec::new());
+    let undone = s.run("edit.undo", &json!({}));
+    s.agent = None;
+    assert_eq!((class, verdict), (Access::Safe, Verdict::Run), "{undone:?}");
+    assert!(s.mailbox.message(m).is_some_and(|m| m.has_attachments()), "the file is back: {undone:?}");
+    assert!(shown.check(&s, "rules.run", &params).is_err(), "the yes runs: {what}");
+}

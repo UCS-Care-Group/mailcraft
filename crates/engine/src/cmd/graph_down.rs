@@ -120,13 +120,21 @@ impl Down {
     }
 
     /// Whether `account` had a message with the `Message-ID` `id` before the run's new mail: one
-    /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566).
+    /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566),
+    /// or one the end of a run before took away as gone ([`mailcraft_model::LeftServer`]: moved
+    /// while that run read the folders after the Inbox).
     fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
         if id.is_empty() {
             return false;
         }
+        let left = mb.left_server.get(&account);
+        if left.is_some_and(|l| l.cut()) {
+            return true;
+        }
         if self.had.as_ref().is_none_or(|(a, _)| *a != account) {
-            self.had = Some((account, super::account::message_ids(mb, account)));
+            let mut had = super::account::message_ids(mb, account);
+            had.extend(left.into_iter().flat_map(|l| l.ids()).cloned());
+            self.had = Some((account, had));
         }
         self.had.as_ref().is_some_and(|(_, had)| had.contains(id))
     }
@@ -509,6 +517,18 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
         mb.messages.values().filter(|m| m.account == account && m.returned > 0 && m.server.as_ref().is_some_and(|s| s.gone)).map(|m| m.id).collect();
     for id in returned {
         super::graph_place::kept_instead(mb, id);
+    }
+    // What goes is known as mail the account had through the next two sweeps (#566).
+    let left: Vec<String> = mb
+        .messages
+        .values()
+        .filter(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.gone) && !m.draft && !m.message_id.is_empty())
+        .filter(|m| mb.folder(m.folder).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox)))
+        .map(|m| m.message_id.clone())
+        .collect();
+    super::account::end_run(mb, account);
+    if !left.is_empty() {
+        mb.left_server.entry(account).or_default().note(left);
     }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));

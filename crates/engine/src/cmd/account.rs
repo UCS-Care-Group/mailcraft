@@ -1272,6 +1272,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     if !partial {
         // What nothing will answer any more is let go of (#30).
         super::mail::check_again::settle(&mut s.mailbox);
+        end_run(&mut s.mailbox, account);
         let held = super::graph_place::held_for_this_computer(s, account);
         for said in super::graph_place::unreadable_waiting(s, account).into_iter().chain(held) {
             if !run.errors.contains(&said) {
@@ -1350,6 +1351,8 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     for delta in std::mem::take(&mut result.folders) {
         take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, &clock);
     }
+    // What left the server's folders is known for the next run too ([`mailcraft_model::LeftServer`]).
+    mb.left_server.entry(account).or_default().note(std::mem::take(&mut on_server.left));
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
     if told {
@@ -1358,6 +1361,17 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Not through `run` when the host calls this, so say it here: the lists are out of date.
     s.mailbox_changed();
     (counts, sent)
+}
+
+/// A run of `account` ended: what its server said left its folders is what the run before said
+/// ([`mailcraft_model::LeftServer`]).
+pub(crate) fn end_run(mb: &mut Mailbox, account: Id) {
+    if let Some(left) = mb.left_server.get_mut(&account) {
+        left.end_run();
+        if left.is_empty() {
+            mb.left_server.remove(&account);
+        }
+    }
 }
 
 /// What taking in a result changed.
@@ -1405,13 +1419,23 @@ impl OnServer {
     /// Whether the account had a message by the Message-ID `id` in one of its folders: mail new
     /// to a folder that it had is mail moved there on another device (a filed message moved back
     /// into the Inbox, say), which the server gives a new UID. The run reads the Inbox before the
-    /// folder it left (`mailcraft_net::sync`), so it is still where it was. Not the owner's own
-    /// sent mail, or a draft, which a message to themselves comes back as.
+    /// folder it left (`mailcraft_net::sync`), so it is still where it was, or this run or the one
+    /// before said it left that folder ([`mailcraft_model::LeftServer`]: moved while the run before
+    /// read the folders after the Inbox). Not the owner's own sent mail, or a draft, which a
+    /// message to themselves comes back as.
     fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
         if id.is_empty() {
             return false;
         }
-        let had = self.had.get_or_insert_with(|| message_ids(mb, account));
+        let left = mb.left_server.get(&account);
+        if left.is_some_and(|l| l.cut()) {
+            return true;
+        }
+        let had = self.had.get_or_insert_with(|| {
+            let mut had = message_ids(mb, account);
+            had.extend(left.into_iter().flat_map(|l| l.ids()).cloned());
+            had
+        });
         had.contains(id) || self.left.contains(id)
     }
 

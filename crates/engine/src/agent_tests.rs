@@ -292,5 +292,8 @@ fn the_account_question_about_two_rules_that_read_its_address_agrees_in_number()
         s.run("rules.add", &rule).unwrap();
     }
     let q = describe(&s, "account.edit", &json!({"id": a, "email": "lovelace@example.org"}));
-    assert!(q.contains("the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, delete mail permanently and read"), "{q}");
+    assert!(
+        q.contains("the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, delete mail permanently, and the rules for that mail read"),
+        "{q}"
+    );
 }

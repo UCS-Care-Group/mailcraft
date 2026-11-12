@@ -958,13 +958,13 @@ fn rules_delete_for_good(s: &Session, id: &str, params: &Value) -> bool {
         return junk_lets_through(s, id, params).into_iter().any(|a| beside_for_good(mb, a, 0, true).next().is_some());
     }
     if id == "account.edit" {
-        return me_changes(s, id, params).is_some_and(|a| beside_for_good(mb, a, 0, true).any(reads_me));
+        return me_changes(s, id, params).is_some_and(|a| beside_for_good(mb, a, 0, true).any(|r| read_beside(mb, a, r, reads_me)));
     }
     if id == "category.rename" {
         return renamed_rules(s, params).iter().any(|r| beside_for_good(mb, r.account, r.id, true).next().is_some());
     }
     if id == "view.timeZone" {
-        return zone_changes(s, id, params) && beside_for_good(mb, 0, 0, true).any(reads_days);
+        return zone_changes(s, id, params) && beside_for_good(mb, 0, 0, true).any(|r| read_beside(mb, 0, r, reads_days));
     }
     if id == "rules.run" {
         let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
@@ -1096,12 +1096,26 @@ fn zone_changes(s: &Session, id: &str, params: &Value) -> bool {
     id == "view.timeZone" && crate::cmd::zones::rule_zone_after(s, params).is_some()
 }
 
+/// Whether `r`, a rule beside a change of something rules read (an account's address, the days
+/// mail came: `reads`), is reached by it: it reads that itself, or another rule switched on for
+/// the same mail (that of `account`; 0: whichever mail `r` is for) does, which may change what
+/// mail reaches `r` (a category its exception looks for, or a stop), as switching that rule off
+/// would (#566).
+fn read_beside(mb: &Mailbox, account: Id, r: &mailcraft_model::Rule, reads: fn(&mailcraft_model::Rule) -> bool) -> bool {
+    let mail = if account != 0 { account } else { r.account };
+    reads(r) || mb.rules.iter().any(|x| x.enabled && reads(x) && (x.account == 0 || mail == 0 || x.account == mail))
+}
+
 /// What a question about a change that rules switched on here read ([`me_beside_said`]) adds for
-/// those of them for the mail of `account` (0: every account's) that delete mail for good or put
-/// it onto another server: their names (at most five), and that they read `what`.
+/// those for the mail of `account` (0: every account's) that delete mail for good or put it onto
+/// another server, beside a rule that reads it ([`read_beside`]): their names (at most five), and
+/// that the rules for that mail read `what`.
 fn reads_beside_said(s: &Session, account: Id, reads: fn(&mailcraft_model::Rule) -> bool, what: &str) -> String {
-    let deleting: Vec<String> = beside_for_good(&s.mailbox, account, 0, true).filter(|r| reads(r)).map(|r| quoted(&r.name)).collect();
-    let onto: Vec<String> = beside_onto_server(s, account, 0, true).filter(|(r, _)| reads(r)).map(|(r, _)| quoted(&r.name)).collect();
+    let mb = &s.mailbox;
+    let deleting: Vec<String> =
+        beside_for_good(mb, account, 0, true).filter(|r| read_beside(mb, account, r, reads)).map(|r| quoted(&r.name)).collect();
+    let onto: Vec<String> =
+        beside_onto_server(s, account, 0, true).filter(|(r, _)| read_beside(mb, account, r, reads)).map(|(r, _)| quoted(&r.name)).collect();
     let mut said = String::new();
     let doing = [
         (deleting, "deletes mail permanently", "delete mail permanently"),
@@ -1116,8 +1130,8 @@ fn reads_beside_said(s: &Session, account: Id, reads: fn(&mailcraft_model::Rule)
         let does = if names.len() == 1 { does_one } else { does_many };
         said.push_str(&by_count(
             names.len(),
-            "; the rule {names}{more}, switched on here, {does} and reads {what}, so changing it may let more mail reach it",
-            "; the rules {names}{more}, switched on here, {does} and read {what}, so changing it may let more mail reach them",
+            "; the rule {names}{more}, switched on here, {does}, and the rules for that mail read {what}, so changing it may let more mail reach it",
+            "; the rules {names}{more}, switched on here, {does}, and the rules for that mail read {what}, so changing it may let more mail reach them",
             &[("names", &names.iter().take(5).cloned().collect::<Vec<_>>().join(", ")), ("more", &more), ("does", does), ("what", what)],
         ));
     }
@@ -1421,9 +1435,9 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         // A change to the Safe or Blocked Senders that lets more mail through to the rules.
         _ if id.starts_with("junk.") => junk_lets_through(s, id, params).into_iter().any(|a| beside(a, 0, true)),
         // A change of the address a rule beside it reads.
-        "account.edit" => me_changes(s, id, params).is_some_and(|a| beside_onto_server(s, a, 0, true).any(|(r, _)| reads_me(r))),
+        "account.edit" => me_changes(s, id, params).is_some_and(|a| beside_onto_server(s, a, 0, true).any(|(r, _)| read_beside(mb, a, r, reads_me))),
         // A change of the zone a rule beside it reads the days mail came by.
-        "view.timeZone" => zone_changes(s, id, params) && beside_onto_server(s, 0, 0, true).any(|(r, _)| reads_days(r)),
+        "view.timeZone" => zone_changes(s, id, params) && beside_onto_server(s, 0, 0, true).any(|(r, _)| read_beside(mb, 0, r, reads_days)),
         // A rename that rewrites the rules for the same mail.
         "category.rename" => renamed_rules(s, params).iter().any(|r| beside(r.account, r.id, true)),
         // A rule for one account files that account's new mail; one for every account, every

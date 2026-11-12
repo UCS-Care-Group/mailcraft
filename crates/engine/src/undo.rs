@@ -270,6 +270,14 @@ impl Said {
 /// step with `now`; `touched` is what the change being undone did. Answers the mailbox and what
 /// couldn't be undone, in words.
 pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, lang: mailcraft_i18n::Lang) -> (Mailbox, Vec<String>) {
+    let put_back;
+    let now = match waiting_in_gone(&out, now) {
+        Some(mb) => {
+            put_back = mb;
+            &put_back
+        }
+        None => now,
+    };
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
     // The certificates Digital signatures brought are what was learnt, not what the owner did
@@ -279,6 +287,8 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
     returned(&mut out, now);
+    // What the servers said left their folders is theirs (#566).
+    out.left_server = now.left_server.clone();
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
@@ -312,6 +322,21 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     out.favorites_from_server = now.favorites_from_server.clone();
     waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
+}
+
+/// `now` with the mail that waits to be made in an account the undo takes away (one the change
+/// added) put back where it came from, as removing that account puts it back (#451, #566): a
+/// rule's copy there whose original's delete for good waits for it has the original back and
+/// that delete called off, which would otherwise go to the original's server while the copy goes
+/// with the account. `None` when nothing waits so.
+fn waiting_in_gone(out: &Mailbox, now: &Mailbox) -> Option<Mailbox> {
+    let gone: BTreeSet<Id> = now.accounts.iter().map(|a| a.id).filter(|id| out.account(*id).is_none()).collect();
+    if !now.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { account, .. } if gone.contains(account))) {
+        return None;
+    }
+    let mut now = now.clone();
+    crate::cmd::graph_place::put_back_waiting(&mut now, |_, account, _| gone.contains(&account));
+    Some(now)
 }
 
 /// The rules waiting for the messages the change touched to be here whole are as they are now

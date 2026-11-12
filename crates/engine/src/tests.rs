@@ -2256,6 +2256,43 @@ mod two_way {
         }
     }
 
+    /// The same move on a phone, made while a run is under way, after it read the Inbox and
+    /// before it read Archive (the run reads the Inbox first, `mailcraft_net::sync`). That run says
+    /// only that Archive no longer has the message; the next one finds it new in the Inbox. It is
+    /// still mail the account had, known by what the run before said left, and the rule that
+    /// deletes for good doesn't take it (#566).
+    #[test]
+    fn mail_moved_into_the_inbox_during_a_run_isnt_deleted_for_good_by_the_next() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![
+                FolderDelta {
+                    complete: true,
+                    ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                },
+                FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![from_server(1, "Filed news")], vec![]) },
+            ],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", purge);
+        // The run: the Inbox read before the move (nothing new), Archive after it.
+        let quiet = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![], vec![]) };
+        let left =
+            FolderDelta { removed: vec![1], uid_seen: 1, complete: true, ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![]) };
+        apply(&mut s, SyncResult { account: a, folders: vec![quiet, left], ..Default::default() });
+        // The next run: the message in the Inbox under a new UID.
+        let came = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "Filed news")], vec![]);
+        apply(&mut s, SyncResult { account: a, folders: vec![came], ..Default::default() });
+        let deletes = s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count();
+        let here: Vec<Id> = s.mailbox.messages.values().filter(|m| m.subject == "Filed news").map(|m| m.folder).collect();
+        assert_eq!((deletes, here), (0, vec![inbox]), "deleted for good on the server by the next Send/Receive");
+    }
+
     /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes for
     /// good except if a header says to keep it can't tell, and leaves it alone (#566).
     #[test]

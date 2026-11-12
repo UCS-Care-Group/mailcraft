@@ -414,3 +414,102 @@ fn a_rename_follows_into_the_rules_for_the_mail_that_uses_that_list() {
     mb.rename_category(shared, "Red", "Crimson").unwrap();
     assert_eq!(named(&mb), [vec![Action::Categorize("Crimson".into())], vec![Action::Categorize("Urgent".into())]]);
 }
+
+/// The clock the rules run by below.
+fn weekly_clock() -> crate::RuleClock {
+    crate::RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 }
+}
+
+/// New mail "Weekly" arrives in `account`'s Inbox carrying `categories` (what its server's rule
+/// put on), and the rules run on it: whether it is still here after them.
+fn weekly_arrives(mb: &mut Mailbox, account: Id, categories: &[&str]) -> bool {
+    let m = message_of(mb, account, categories);
+    mb.message_mut(m).unwrap().subject = "Weekly".into();
+    mb.apply_rules(m, &weekly_clock());
+    mb.message(m).is_some()
+}
+
+/// A rule of `account` (0: every account's) for mail "Weekly", with no actions yet.
+fn weekly_rule(mb: &mut Mailbox, name: &str, account: Id) -> Rule {
+    Rule {
+        id: mb.alloc_id(),
+        name: name.into(),
+        enabled: true,
+        account,
+        conditions: vec![Condition::SubjectContains(vec!["Weekly".into()])],
+        ..Default::default()
+    }
+}
+
+/// A rule for every account's mail (from before rules had accounts) puts "Red" on new mail. A
+/// Microsoft account A, whose own list has "Red" too (#633 started it from the shared list),
+/// deletes such mail permanently except if it has the category Red. The owner renames Red to
+/// Crimson on the list IMAP accounts and this computer share: A's list keeps Red, and so does
+/// the rule's Categorize, so A's new mail is left alone as before (#566).
+#[test]
+fn a_rename_on_the_shared_list_leaves_a_microsoft_accounts_mail_as_it_was() {
+    let (mut mb, a, _) = two_accounts();
+    mb.categories = vec![tagged("Red", RED)];
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    let mut tag = weekly_rule(&mut mb, "Tag", 0);
+    tag.actions = vec![Action::Categorize("Red".into())];
+    let mut purge = weekly_rule(&mut mb, "Purge", a);
+    purge.exceptions = vec![Condition::Category(vec!["Red".into()])];
+    purge.actions = vec![Action::DeleteForGood];
+    mb.rules = vec![tag, purge];
+    assert!(weekly_arrives(&mut mb, a, &[]), "deleted before the rename");
+    let shared = mb.accounts.iter().find(|x| mb.category_list_owner(x.id).is_none()).map(|x| x.id).unwrap();
+    mb.rename_category(shared, "Red", "Crimson").unwrap();
+    assert!(mb.category_of(a, "Red").is_some(), "A's own list keeps Red");
+    assert!(weekly_arrives(&mut mb, a, &[]), "A's new mail deleted for good after a rename on another list; the rules are now {:?}", mb.rules);
+}
+
+/// The same every-account rule. A's own rule files mail with the category Red and stops the
+/// rules after it; a later rule of A deletes "Weekly" permanently. The owner renames Red to
+/// Urgent on A's own list: the every-account rule still puts Red on A's mail, and A's rule looks
+/// for both names, so it still stops the delete (#566).
+#[test]
+fn a_rename_on_a_microsoft_accounts_list_keeps_its_stop_rule_holding() {
+    let (mut mb, a, _) = two_accounts();
+    mb.categories = vec![tagged("Red", RED)];
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    let keep_in = mb.add_folder(a, None, "Kept").unwrap();
+    let mut tag = weekly_rule(&mut mb, "Tag", 0);
+    tag.actions = vec![Action::Categorize("Red".into())];
+    let mut keep = weekly_rule(&mut mb, "Keep", a);
+    keep.conditions = vec![Condition::Category(vec!["Red".into()])];
+    keep.actions = vec![Action::MoveTo(keep_in)];
+    keep.stop = true;
+    let mut purge = weekly_rule(&mut mb, "Purge", a);
+    purge.actions = vec![Action::DeleteForGood];
+    mb.rules = vec![tag, keep, purge];
+    assert!(weekly_arrives(&mut mb, a, &[]), "deleted before the rename");
+    mb.rename_category(a, "Red", "Urgent").unwrap();
+    assert!(weekly_arrives(&mut mb, a, &[]), "A's new mail deleted for good after the rename; the rules are now {:?}", mb.rules);
+}
+
+/// One account alone. A's server keeps a rule that puts Red on new mail (it keeps the name after
+/// a rename here, #661); A's rule on this computer flags mail with the category Red and stops the
+/// rules after it; a later one deletes "Weekly" permanently. The owner renames Red to Urgent on
+/// A's list: the server's rule still puts Red on, and A's rule here looks for both names, so the
+/// mail the server tagged is still kept (#566).
+#[test]
+fn a_rename_keeps_a_stop_rule_holding_for_mail_the_servers_rule_tagged() {
+    let (mut mb, a, _) = two_accounts();
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    let mut on_server = weekly_rule(&mut mb, "Tag on the server", a);
+    on_server.actions = vec![Action::Categorize("Red".into())];
+    on_server.keep = crate::Keep::Server;
+    on_server.server = Some(crate::ServerRule { id: "rule-1".into(), sequence: 1, synced_enabled: true, synced_sequence: 1, ..Default::default() });
+    let mut keep = weekly_rule(&mut mb, "Keep", a);
+    keep.conditions = vec![Condition::Category(vec!["Red".into()])];
+    keep.actions = vec![Action::Flag];
+    keep.stop = true;
+    let mut purge = weekly_rule(&mut mb, "Purge", a);
+    purge.actions = vec![Action::DeleteForGood];
+    mb.rules = vec![on_server, keep, purge];
+    assert!(weekly_arrives(&mut mb, a, &["Red"]), "deleted before the rename");
+    mb.rename_category(a, "Red", "Urgent").unwrap();
+    assert_eq!(mb.rules[0].actions, [Action::Categorize("Red".into())], "the server's rule keeps the old name");
+    assert!(weekly_arrives(&mut mb, a, &["Red"]), "mail the server tagged deleted for good after the rename; the rules are now {:?}", mb.rules);
+}

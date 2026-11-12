@@ -807,3 +807,50 @@ fn an_agents_edit_of_mail_waiting_for_its_rules_doesnt_let_a_later_rule_delete_i
         "an agent's unasked Clear All Categories made the rule delete the message for good"
     );
 }
+
+/// The same agent edit as the test above, with the last rule copying "Plan" into another
+/// account's folder instead of deleting it for good. The rule "Keep", which stops the others,
+/// would have kept the message off the other server; the agent's unasked Clear All Categories
+/// makes it not apply once the text is here. With the marks changed meanwhile, the rules that
+/// waited copy and move nothing onto another account's server, as they delete nothing for good,
+/// with or without the agent's edit (an agent's own copy there asks `send`).
+#[test]
+fn an_agents_edit_of_mail_waiting_for_its_rules_doesnt_let_a_later_rule_copy_it_onto_another_server() {
+    use crate::agent::{Verdict, check};
+    let mut outcome = Vec::new();
+    for agent in [false, true] {
+        let mut s = Session::empty();
+        let (account, _, _) = microsoft_with(&mut s, "Kept");
+        let (to, b) = imap_inbox(&mut s);
+        let boss = json!({"name": "Boss", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+            "actions": [{"type": "categorize", "value": "Boss"}]});
+        s.run("rules.add", &boss).unwrap();
+        let keep = json!({"name": "Keep", "account": account, "server": false, "stop": true,
+            "conditions": [{"type": "category", "value": "Boss"}, {"type": "bodyContains", "value": "keep"}], "actions": [{"type": "flag"}]});
+        s.run("rules.add", &keep).unwrap();
+        let plans = json!({"name": "Plans to Blake", "account": account, "server": false,
+            "conditions": [{"type": "subjectContains", "value": "Plan"}], "actions": [{"type": "copyTo", "value": to}]});
+        s.run("rules.add", &plans).unwrap();
+        arrives(&mut s, account, "Plan");
+        let m = here(&s, account, "N1").id;
+        assert!(s.mailbox.message(m).is_some_and(|x| x.rules_waiting.is_some() && x.has_category("Boss")));
+        if agent {
+            let params = json!({"ids": [m]});
+            assert_eq!(check(&s, "mail.clearCategories", &params, &[]), Verdict::Run, "asked about nothing");
+            s.agent = Some(Vec::new());
+            s.run("mail.clearCategories", &params).unwrap();
+            s.agent = None;
+        }
+        let fetched = vec![whole("N1", "Plan", "", "Please keep this.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        outcome.push(format!("agent {agent}: copies here and on their way to the other server {:?}", copies(&s, to, b)));
+    }
+    assert_eq!(
+        outcome,
+        [
+            "agent false: copies here and on their way to the other server (0, 0)",
+            "agent true: copies here and on their way to the other server (0, 0)"
+        ],
+        "an agent's unasked Clear All Categories made a rule copy the message onto another account's server"
+    );
+}
