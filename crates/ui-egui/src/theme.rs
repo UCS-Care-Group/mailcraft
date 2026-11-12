@@ -584,9 +584,14 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     // Segoe UI has Hebrew and Arabic; Thai and the scripts of India come from these.
     &["LeelawUI.ttf", "leelawad.ttf", "tahoma.ttf"],
     &["Nirmala.ttf", "mangal.ttf"],
+    GEORGIAN_FACES,
     // A broad last resort, for when Segoe UI isn't there: Arial has Hebrew and Arabic.
     &["arial.ttf"],
 ];
+
+/// Georgian (#1010): Sylfaen, the system's Georgian face since Windows XP, then Segoe UI.
+#[cfg(windows)]
+pub const GEORGIAN_FACES: &[&str] = &["sylfaen.ttf", "segoeui.ttf"];
 
 /// As on Windows, the faces macOS keeps in its fonts folders (`/System/Library/Fonts` and its
 /// `Supplemental`). PingFang is no longer among them on recent systems, so it comes last; Arial
@@ -600,7 +605,13 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["GeezaPro.ttc", "Arial Unicode.ttf"],
     &["Thonburi.ttc", "Arial Unicode.ttf"],
     &["Kohinoor.ttc", "DevanagariMT.ttc", "Arial Unicode.ttf"],
+    GEORGIAN_FACES,
 ];
+
+/// Georgian (#1010): Apple's own face (`SFGeorgian.ttf`, macOS 11 and later), then a Noto face the
+/// owner installed, then Arial Unicode, which has Mkhedruli alone.
+#[cfg(target_os = "macos")]
+pub const GEORGIAN_FACES: &[&str] = &["SFGeorgian.ttf", "NotoSansGeorgian-Regular.ttf", "Arial Unicode.ttf"];
 
 /// As on Windows, the faces the free desktops' packages install (Noto, Source Han, WenQuanYi,
 /// Nanum, DejaVu), in any of their fonts folders.
@@ -615,6 +626,8 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
         "SourceHanSans-Regular.ttc",
         "SourceHanSansSC-Regular.otf",
         "NotoSansCJK-VF.ttc",
+        // Upstream's variable collection is 32,682,580 bytes, close to FALLBACK_FONT_CAP.
+        "NotoSansCJK-VF.otf.ttc",
         "wqy-microhei.ttc",
         "wqy-zenhei.ttc",
         "DroidSansFallbackFull.ttf",
@@ -625,9 +638,15 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf"],
     &["NotoSansThai-Regular.ttf"],
     &["NotoSansDevanagari-Regular.ttf"],
+    GEORGIAN_FACES,
     // A broad last resort: Hebrew, Arabic, Armenian, Georgian and more.
     &["DejaVuSans.ttf", "FreeSans.ttf"],
 ];
+
+/// Georgian (#1010): Noto Sans Georgian (the packages of the free desktops), then DejaVu Sans and
+/// FreeSans, which have Mkhedruli but no Mtavruli.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+pub const GEORGIAN_FACES: &[&str] = &["NotoSansGeorgian-Regular.ttf", "DejaVuSans.ttf", "FreeSans.ttf"];
 
 /// The system's colour emoji face, by the name of its file, best first (#832): drawn in its own
 /// colours, in front of egui's black-and-white emoji. Apple Color Emoji is left out: at well over
@@ -861,6 +880,9 @@ pub(crate) fn font_dirs() -> Vec<std::path::PathBuf> {
             std::env::var_os("XDG_DATA_HOME").filter(|d| !d.is_empty()).map(PathBuf::from).or_else(|| home.as_ref().map(|h| h.join(".local/share")));
         dirs.extend(data_home.map(|d| d.join("fonts")));
         dirs.extend(home.iter().map(|h| h.join(".fonts")));
+        // Flatpak and other containers expose host fonts here. Missing paths are harmless.
+        #[cfg(target_os = "linux")]
+        dirs.extend(["/run/host/user-fonts", "/run/host/local-fonts", "/run/host/fonts"].map(PathBuf::from));
         let data_dirs = std::env::var_os("XDG_DATA_DIRS").filter(|d| !d.is_empty()).unwrap_or_else(|| "/usr/local/share:/usr/share".into());
         dirs.extend(std::env::split_paths(&data_dirs).filter(|d| d.is_absolute()).map(|d| d.join("fonts")));
         dirs.push("/usr/local/share/fonts".into());
@@ -987,7 +1009,6 @@ pub(crate) fn hide_bitmap_strikes(bytes: &mut [u8], index: u32) {
 /// Where the directory of the face `index` begins: 0 for a font of one face; in a collection
 /// (its tag, a version, how many faces it has and where each begins, every one of those places
 /// inside the file) the place its header gives for the face asked for.
-#[cfg(not(target_arch = "wasm32"))]
 fn face_start(bytes: &[u8], index: u32) -> Option<usize> {
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
     if u32_at(0) != Some(0x7474_6366) {
@@ -1013,7 +1034,6 @@ fn is_font(bytes: &[u8]) -> bool {
 
 /// [`is_font`] for the face `index` of a collection (a face of its own is face 0): the one egui is
 /// to draw with (`FontData::index`).
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn is_face(bytes: &[u8], index: u32) -> bool {
     let u16_at = |at: usize| bytes.get(at..at.checked_add(2)?).and_then(|b| <[u8; 2]>::try_from(b).ok()).map(u16::from_be_bytes);
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
@@ -1068,6 +1088,23 @@ pub fn install_fonts_with(ctx: &egui::Context, system: &SystemFont) {
 /// The interface fonts as [`install_fonts`] installs them on this system.
 pub fn font_definitions() -> FontDefinitions {
     font_definitions_with(&SystemFont::load())
+}
+
+/// `fonts` with one more face, `bytes` under `name`, last in every family: for the letters no other
+/// face has. The browser build's Georgian (#1010), which it fetches only when the language is
+/// Georgian, as it has no system faces. `None` when `bytes` are not a font egui can open (a server
+/// that answers a missing file with its home page, say): egui panics on such data.
+pub fn with_extra_face(mut fonts: FontDefinitions, name: &str, bytes: Vec<u8>) -> Option<FontDefinitions> {
+    if !is_face(&bytes, 0) {
+        return None;
+    }
+    fonts.font_data.insert(name.into(), Arc::new(FontData::from_owned(bytes)));
+    for names in fonts.families.values_mut() {
+        if !names.iter().any(|n| n == name) {
+            names.push(name.into());
+        }
+    }
+    Some(fonts)
 }
 
 /// The interface fonts with `system` in front of the bundled ones.
@@ -1346,20 +1383,7 @@ pub fn c32(c: mailcraft_model::Rgb) -> Color32 {
 }
 
 /// The colours a category can take: our own twelve, mid-tones that read in both themes.
-pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = [
-    mailcraft_model::Rgb(0xD1, 0x3B, 0x3B),
-    mailcraft_model::Rgb(0xE0, 0x7B, 0x1F),
-    mailcraft_model::Rgb(0xD9, 0xA4, 0x0C),
-    mailcraft_model::Rgb(0x2E, 0x8B, 0x57),
-    mailcraft_model::Rgb(0x1A, 0x9B, 0xA6),
-    mailcraft_model::Rgb(0x2F, 0x6F, 0xD0),
-    mailcraft_model::Rgb(0x7E, 0x57, 0xC2),
-    mailcraft_model::Rgb(0xC2, 0x4E, 0x9A),
-    mailcraft_model::Rgb(0x8A, 0x5A, 0x44),
-    mailcraft_model::Rgb(0x6B, 0x7A, 0x1F),
-    mailcraft_model::Rgb(0x4F, 0x6D, 0x8F),
-    mailcraft_model::Rgb(0x7A, 0x7A, 0x7A),
-];
+pub const CATEGORY_PALETTE: [mailcraft_model::Rgb; 12] = mailcraft_model::PALETTE;
 
 /// A stable colour for a person's avatar, from their address.
 pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
@@ -1665,6 +1689,7 @@ mod tests {
             ("es", include_str!("../../i18n/po/es.po")),
             ("it", include_str!("../../i18n/po/it.po")),
             ("nl", include_str!("../../i18n/po/nl.po")),
+            ("ro", include_str!("../../i18n/po/ro.po")),
         ];
         let mut chars = BTreeSet::new();
         for (code, text) in catalogues {

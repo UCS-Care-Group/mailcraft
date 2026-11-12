@@ -140,7 +140,10 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.updateInstall"
         | "ui.dismissUpdateNotice"
         | "ui.dismissSettingsNotice"
-        | "ui.reportProblem" => Options,
+        | "ui.reportProblem"
+        // The Public keys kept (File › Options › Security, #30): the question names the key.
+        | "keys.import"
+        | "keys.remove" => Options,
         _ => return None,
     })
 }
