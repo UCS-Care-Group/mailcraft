@@ -94,12 +94,12 @@ fn edit_items_become_the_input_a_text_field_takes() {
     let mut app = app();
     run(&mut app, &Action::Edit(EditKey::Paste), || "pasted".to_string());
     run(&mut app, &Action::Edit(EditKey::SelectAll), String::new);
-    assert!(app.synthetic.iter().any(|e| matches!(e, Event::Paste(t) if t == "pasted")));
-    assert!(app.synthetic.iter().any(|e| matches!(e, Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command)));
+    assert!(app.menu_input.iter().any(|e| matches!(e, Event::Paste(t) if t == "pasted")));
+    assert!(app.menu_input.iter().any(|e| matches!(e, Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command)));
     for _ in 0..200 {
         run(&mut app, &Action::Edit(EditKey::Copy), String::new);
     }
-    assert!(app.synthetic.len() <= 70);
+    assert!(app.menu_input.len() <= 70);
 }
 
 /// Wednesday 2026-10-14 16:00 UTC.

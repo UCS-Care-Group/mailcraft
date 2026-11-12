@@ -864,7 +864,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     let menu = crate::text_menu::taken_paste(&ctx, id);
                     // Files copied in a file manager are attached, not their names pasted as text (#807).
                     if menu.is_none()
-                        && let Some(files) = file_paste::files(app, which)
+                        && let Some(files) = file_paste::files(app, which, &text)
                     {
                         file_paste::attach(app, &files);
                         reveal = true;
@@ -928,7 +928,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 own(app, which, &mut st, Some(command));
             }
         }
-        if lost_paste && let Some(files) = file_paste::files(app, which) {
+        if lost_paste && let Some(files) = file_paste::files(app, which, "") {
             file_paste::attach(app, &files);
             reveal = true;
         }

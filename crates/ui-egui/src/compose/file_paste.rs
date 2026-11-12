@@ -65,20 +65,81 @@ impl Keys {
 }
 
 /// The files on the clipboard that a paste into the message being written attaches: none for a
-/// signature, without a clipboard that has files, or when what is on it is no files.
-pub(super) fn files(app: &MailApp, which: super::Which) -> Option<Vec<String>> {
+/// signature, without a clipboard that has files, when what is on it is no files, or when the
+/// text that came with the paste (`text`; empty for Ctrl+V the backend kept) is not what a file
+/// manager leaves beside the files it copies: their paths, addresses or names. A page can put a
+/// list of `file://` addresses on the clipboard beside the text the owner copied from it; that
+/// text is pasted as text, and no file of the owner's goes into the message.
+pub(super) fn files(app: &MailApp, which: super::Which, text: &str) -> Option<Vec<String>> {
     if which != super::Which::Message {
         return None;
     }
     let board = app.services.clipboard.as_ref()?;
     let files: Vec<String> = board.files().iter().filter_map(|p| p.to_str().map(str::to_string)).collect();
-    (!files.is_empty()).then_some(files)
+    (!files.is_empty() && names_them(text, &files)).then_some(files)
+}
+
+/// Whether `text` says no more than which `files` there are: nothing at all (what Explorer
+/// leaves), or lines each of which is the path of one of them, its `file://` address or its name
+/// (what Dolphin, GNOME Files and Finder leave).
+fn names_them(text: &str, files: &[String]) -> bool {
+    // (Slashes either way: a Windows path in an address has them forward.)
+    let slashed = |text: &str| text.replace('\\', "/");
+    let named = |line: &str| {
+        let (line, decoded) = (slashed(line), slashed(&decoded_address(line)));
+        files.iter().any(|f| {
+            let path = slashed(f);
+            let name = path.rsplit('/').next().unwrap_or(&path);
+            path == line || path == decoded || name == line || name == decoded
+        })
+    };
+    // (A paste of more lines than files can name is no list of them.)
+    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).take(files.len().saturating_add(1)).collect();
+    lines.len() <= files.len() && lines.iter().all(|line| named(line))
+}
+
+/// `line` with a `file://` address read as the path it names: the scheme and a local host taken
+/// off, `%20` and the like decoded. Any other line as it is.
+fn decoded_address(line: &str) -> String {
+    let Some(rest) = line.strip_prefix("file://") else { return line.to_string() };
+    let path = rest.strip_prefix("localhost").unwrap_or(rest);
+    let mut bytes = Vec::with_capacity(path.len());
+    let raw = path.as_bytes();
+    let mut i = 0;
+    while let Some(&b) = raw.get(i) {
+        let hex = |c: u8| (c as char).to_digit(16);
+        match (b, raw.get(i + 1).copied().and_then(hex), raw.get(i + 2).copied().and_then(hex)) {
+            (b'%', Some(hi), Some(lo)) => {
+                bytes.push((hi * 16 + lo) as u8);
+                i += 3;
+            }
+            _ => {
+                bytes.push(b);
+                i += 1;
+            }
+        }
+    }
+    let decoded = String::from_utf8_lossy(&bytes).into_owned();
+    // A Windows path in an address: `/C:/Users/…`.
+    match decoded.as_bytes() {
+        [b'/', drive, b':', ..] if drive.is_ascii_alphabetic() => decoded.get(1..).unwrap_or_default().to_string(),
+        _ => decoded,
+    }
 }
 
 /// Attach `paths`, as a pick of Attach File's would be: at most so many and so large, each in
-/// turn, and said once how many went in.
+/// turn, and said once how many went in, and which: so that files that came from the clipboard
+/// are seen for what they are.
 pub(super) fn attach(app: &mut MailApp, paths: &[String]) {
-    let _ = crate::files::attach_all(app, paths, None);
+    if crate::files::attach_all(app, paths, None).is_err() {
+        return;
+    }
+    let shown: Vec<&str> = paths.iter().take(3).map(|p| p.rsplit(['/', '\\']).next().unwrap_or(p)).collect();
+    if let Some((said, _)) = app.status_msg.clone() {
+        let more = paths.len().saturating_sub(shown.len());
+        let names = if more > 0 { format!("{}, …", shown.join(", ")) } else { shown.join(", ") };
+        app.status(format!("{said} ({names})"));
+    }
 }
 
 #[cfg(test)]

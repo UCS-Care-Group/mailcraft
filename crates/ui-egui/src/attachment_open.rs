@@ -22,6 +22,34 @@ use crate::MailApp;
 pub(crate) const OPEN: &str = "mail.openAttachment";
 pub(crate) const COPY: &str = "mail.copyAttachment";
 
+/// The attachments copied in this run, so that the same one copied again (Ctrl+C held down comes
+/// as a Copy for every key repeat) is put on the clipboard from the file written the first time,
+/// not written anew each time.
+#[derive(Default)]
+pub(crate) struct Copies(Vec<(Copied, std::path::PathBuf)>);
+
+/// Which attachment, of which opening of the mailbox: its message, its index, its name and size.
+#[derive(PartialEq)]
+struct Copied(u64, Id, usize, String, u64);
+
+/// The most attachments remembered; the oldest go first.
+const MOST_COPIES: usize = 16;
+
+impl Copies {
+    /// Where `what` was written, while that file is still there (the host tidies and caps them).
+    fn of(&self, what: &Copied) -> Option<&std::path::Path> {
+        self.0.iter().find(|(c, _)| c == what).map(|(_, path)| path.as_path()).filter(|path| path.is_file())
+    }
+
+    fn remember(&mut self, what: Copied, path: std::path::PathBuf) {
+        self.0.retain(|(c, _)| *c != what);
+        if self.0.len() >= MOST_COPIES {
+            self.0.remove(0);
+        }
+        self.0.push((what, path));
+    }
+}
+
 /// The attachment the params name: its message, its index and its name.
 fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
     // Read as the engine reads it (#553): named wrongly, it is refused, never taken for the selection.
@@ -76,11 +104,22 @@ fn copy(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let (Some(write), Some(board)) = (&app.services.copy_file, &app.services.clipboard) else {
         return Err(tl!("An attachment can't be copied here: save it with Save As instead.").to_string());
     };
+    let size = app.session.mailbox.message(message).and_then(|m| m.attachments.get(index)).map_or(0, |a| a.size() as u64);
+    let what = Copied(app.session.openings(), message, index, name.clone(), size);
+    // The same one again (a key held down repeats Ctrl+C): the file written for it already is put
+    // on the clipboard once more, nothing is read or written.
+    if let Some(path) = app.copies.of(&what).map(std::path::Path::to_path_buf) {
+        board.put_files(std::slice::from_ref(&path))?;
+        let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| opening::save_name(&name));
+        app.status(crate::i18n::fmt(tl!("Copied {name}"), &[("name", &file)]));
+        return Ok(json!({"name": file, "copied": true}));
+    }
     let bytes = app.session.content(message, mailcraft_engine::Part::Attachment(index)).map_err(|e| e.to_string())?;
     // The host names it, as Save As does ([`opening::save_name`]); said as it named it.
     let path = write(&name, bytes.as_slice())?;
     let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| opening::save_name(&name));
     board.put_files(std::slice::from_ref(&path))?;
+    app.copies.remember(what, path);
     app.status(crate::i18n::fmt(tl!("Copied {name}"), &[("name", &file)]));
     Ok(json!({"name": file, "copied": true}))
 }

@@ -436,9 +436,11 @@ pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> 
                 EditKey::Redo => press(Key::Z, Modifiers { shift: true, ..cmd }),
                 EditKey::SelectAll => press(Key::A, cmd),
             };
-            // (Bounded: the queue is drained a frame at a time.)
-            if app.synthetic.len() < 64 {
-                app.synthetic.extend(events);
+            // (Bounded: the queue is drained a frame at a time.) The owner's own input, as a key
+            // press is: not `synthetic`, which is the control channel's and is refused what only
+            // the owner may do (Copy of an attachment).
+            if app.menu_input.len() < 64 {
+                app.menu_input.extend(events);
             }
         }
     }

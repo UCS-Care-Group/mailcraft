@@ -168,10 +168,10 @@ fn a_signature_takes_no_files() {
     let mut h = writing(&board);
     *board.0.borrow_mut() = vec![folder.file("logo.png", b"png")];
     // Only the message being written attaches: the signature's body is no message.
-    assert!(super::files(h.state(), super::super::Which::Signature).is_none());
-    assert!(super::files(h.state(), super::super::Which::Message).is_some());
+    assert!(super::files(h.state(), super::super::Which::Signature, "").is_none());
+    assert!(super::files(h.state(), super::super::Which::Message, "").is_some());
     h.state_mut().services.clipboard = None;
-    assert!(super::files(h.state(), super::super::Which::Message).is_none());
+    assert!(super::files(h.state(), super::super::Which::Message, "").is_none());
     let _ = &mut h;
 }
 
@@ -189,4 +189,62 @@ fn input_the_control_channel_made_attaches_nothing() {
     h.state_mut().driven = false;
     key_with(&mut h, Modifiers::COMMAND, Key::V);
     assert!(attached(&h).is_empty());
+}
+
+#[test]
+fn text_that_names_other_files_is_pasted_as_text_and_attaches_nothing() {
+    // A page put an address of a file of the owner's on the clipboard beside the text copied from
+    // it: the text is what Ctrl+V pastes, and the file is not attached.
+    let folder = Folder::new("hostile");
+    let board = Files::default();
+    let mut h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("secret.txt", b"s")];
+    h.event(Event::Paste("Some words from a page".into()));
+    h.run_steps(2);
+    assert!(attached(&h).is_empty());
+    assert_eq!(plain(&h), "Some words from a page");
+    // More lines than files, or a line that is another file's: text too.
+    h.event(Event::Paste(format!("{}\nother.txt", folder.0.join("secret.txt").display())));
+    h.run_steps(2);
+    assert!(attached(&h).is_empty());
+}
+
+#[test]
+fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
+    let files = vec!["/home/ada/My Files/report.pdf".to_string(), "C:\\Users\\ada\\notes.txt".to_string()];
+    // Nothing (Explorer), paths, addresses (spaces as %20, a local host, a drive), names (Finder).
+    for text in [
+        "",
+        "  \n",
+        "/home/ada/My Files/report.pdf",
+        "/home/ada/My Files/report.pdf\r\nC:\\Users\\ada\\notes.txt\r\n",
+        "file:///home/ada/My%20Files/report.pdf\nfile://localhost/home/ada/My%20Files/report.pdf",
+        "file:///C:/Users/ada/notes.txt",
+        "report.pdf\nnotes.txt",
+    ] {
+        assert!(super::names_them(text, &files), "{text:?}");
+    }
+    // Anything else, however much of it names a file.
+    for text in [
+        "hello",
+        "report.pdf and more",
+        "report.pdf\nnotes.txt\nreport.pdf",
+        "file:///etc/passwd",
+        "/home/ada/My Files/other.pdf",
+        "file:///home/ada/My%2",
+    ] {
+        assert!(!super::names_them(text, &files), "{text:?}");
+    }
+}
+
+#[test]
+fn the_status_line_names_the_files_a_paste_attached() {
+    let folder = Folder::new("named");
+    let board = Files::default();
+    let mut h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one")];
+    h.event(Event::Paste(String::new()));
+    h.run_steps(2);
+    let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
+    assert!(said.contains("Attached 1 file") && said.contains("(report.pdf)"), "{said}");
 }

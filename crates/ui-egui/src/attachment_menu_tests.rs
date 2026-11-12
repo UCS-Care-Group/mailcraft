@@ -303,6 +303,29 @@ fn long_and_reversed_names_keep_the_chip_bounded() {
 struct Copied {
     written: std::rc::Rc<std::cell::RefCell<Vec<(String, Vec<u8>)>>>,
     put: std::rc::Rc<std::cell::RefCell<Vec<Vec<std::path::PathBuf>>>>,
+    /// Where the host writes the files, as a folder of its own: they are real files, for the
+    /// window to find the one it wrote before.
+    dir: std::rc::Rc<Dir>,
+}
+
+/// A folder of its own for a test, removed with it.
+struct Dir(std::path::PathBuf);
+
+impl Default for Dir {
+    fn default() -> Dir {
+        static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("mailcraft-copied-menu-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        Dir(dir)
+    }
+}
+
+impl Drop for Dir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 impl crate::RichClipboard for Copied {
@@ -325,11 +348,21 @@ fn copying(a_files: &[&str]) -> (Window, Copied) {
     let app = h.state_mut();
     app.services.clipboard = Some(Box::new(copied.clone()));
     let sink = copied.written.clone();
+    let dir = copied.dir.clone();
     app.services.copy_file = Some(Box::new(move |name, bytes| {
-        sink.borrow_mut().push((name.to_string(), bytes.to_vec()));
-        Ok(std::path::PathBuf::from("/copied").join(mailcraft_engine::opening::save_name(name)))
+        let mut written = sink.borrow_mut();
+        written.push((name.to_string(), bytes.to_vec()));
+        let path = dir.0.join(written.len().to_string()).join(mailcraft_engine::opening::save_name(name));
+        std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+        std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+        Ok(path)
     }));
     (h, copied)
+}
+
+/// The file the host wrote the `n`th time (from 1), as the clipboard was told of it.
+fn written(c: &Copied, n: usize, name: &str) -> std::path::PathBuf {
+    c.dir.0.join(n.to_string()).join(mailcraft_engine::opening::save_name(name))
 }
 
 fn put(c: &Copied) -> Vec<Vec<std::path::PathBuf>> {
@@ -343,7 +376,7 @@ fn copy_from_the_menu_puts_that_file_on_the_clipboard() {
     click(&mut h, at, PointerButton::Primary, 1);
     choose(&mut h, "Copy");
     assert_eq!(*c.written.borrow(), vec![("second.pdf".to_string(), b"a1".to_vec())]);
-    assert_eq!(put(&c), vec![vec![std::path::PathBuf::from("/copied/second.pdf")]]);
+    assert_eq!(put(&c), vec![vec![written(&c, 1, "second.pdf")]]);
     assert!(!egui::Popup::is_any_open(&h.ctx), "the menu closed");
     // And from a message's own window, its own file.
     let w = h.state_mut().run("ui.openWindow", json!({"message": B})).unwrap()["window"].as_u64().unwrap();
@@ -379,7 +412,7 @@ fn ctrl_c_on_a_picked_attachment_copies_the_file_and_not_the_text() {
     assert!(!h.get_by_role_and_label(Role::Button, "notes.pdf").is_focused());
     h.event(egui::Event::Copy);
     h.step();
-    assert_eq!(put(&c), vec![vec![std::path::PathBuf::from("/copied/notes.pdf")]]);
+    assert_eq!(put(&c), vec![vec![written(&c, 1, "notes.pdf")]]);
     assert!(!text_copied(&h), "no text went on the clipboard over the file");
     h.run_steps(2);
     // A press anywhere else lets go of it: Ctrl+C is the text's again.
@@ -411,7 +444,7 @@ fn ctrl_c_copies_the_focused_chip_over_a_picked_one() {
     h.run_steps(2);
     h.event(egui::Event::Copy);
     h.run_steps(2);
-    assert_eq!(put(&c), vec![vec![std::path::PathBuf::from("/copied/second.pdf")]]);
+    assert_eq!(put(&c), vec![vec![written(&c, 1, "second.pdf")]]);
     assert_eq!(*c.written.borrow(), vec![("second.pdf".to_string(), b"a1".to_vec())]);
 }
 
@@ -441,6 +474,61 @@ fn the_control_channel_copies_nothing() {
     assert!(put(&c).is_empty() && c.written.borrow().is_empty());
 }
 
+/// Holding Ctrl+C comes as a Copy for every key repeat: the file is written once, and put on the
+/// clipboard each time; one the host has tidied away since is written again.
+#[test]
+fn a_held_ctrl_c_writes_the_attachment_once() {
+    let (mut h, c) = copying(&["notes.pdf", "other.pdf"]);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    for _ in 0..30 {
+        h.event(egui::Event::Copy);
+        h.step();
+    }
+    assert_eq!(c.written.borrow().len(), 1, "written once");
+    assert_eq!(put(&c), vec![vec![written(&c, 1, "notes.pdf")]; 30]);
+    // Another attachment is a file of its own.
+    let other = chip(&h, A, 1).center();
+    click(&mut h, other, PointerButton::Primary, 1);
+    h.event(egui::Event::Copy);
+    h.step();
+    assert_eq!(c.written.borrow().len(), 2);
+    // The file gone (tidied, or capped): written anew.
+    std::fs::remove_dir_all(&c.dir.0).unwrap();
+    h.event(egui::Event::Copy);
+    h.step();
+    assert_eq!(c.written.borrow().len(), 3);
+    assert!(written(&c, 3, "other.pdf").is_file());
+}
+
+/// The macOS menu bar's Edit › Copy (⌘C) is the owner's own Copy, as the key is: it copies the
+/// picked attachment, where the control channel's input is refused.
+#[test]
+fn the_menu_bars_copy_copies_a_picked_attachment_but_the_control_channels_does_not() {
+    use crate::menubar::{Action, EditKey, run};
+    let (mut h, c) = copying(&["notes.pdf"]);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    run(h.state_mut(), &Action::Edit(EditKey::Copy), String::new);
+    assert!(h.state().synthetic.is_empty(), "not the control channel's queue");
+    let mut raw = std::mem::take(h.input_mut());
+    h.state_mut().raw_input_hook(&mut raw);
+    assert!(!h.state().driven, "the owner's input");
+    *h.input_mut() = raw;
+    h.step();
+    assert_eq!(put(&c), vec![vec![written(&c, 1, "notes.pdf")]]);
+    // The control channel's own Copy, driven through the same queue it uses, is still refused.
+    h.state_mut().synthetic.push(egui::Event::Copy);
+    let mut raw = std::mem::take(h.input_mut());
+    h.state_mut().raw_input_hook(&mut raw);
+    assert!(h.state().driven);
+    *h.input_mut() = raw;
+    h.step();
+    assert_eq!(put(&c).len(), 1, "nothing more on the clipboard");
+    let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
+    assert!(said.contains("Only you can copy"), "{said}");
+}
+
 /// Programs are copied as Save As saves them (nothing is opened), and where there is no host to
 /// write the copy (the browser) Copy says so and puts nothing on the clipboard.
 #[test]
@@ -456,4 +544,194 @@ fn any_kind_is_copied_and_without_a_host_copy_says_why() {
     let e = h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 0})).unwrap_err();
     assert!(e.contains("can't be copied here") && e.contains("Save As"), "{e}");
     assert_eq!(put(&c).len(), 2);
+}
+
+#[test]
+fn one_click_previews_the_attachment_and_can_turn_a_page() {
+    use crate::attachment_preview::{Format, Host, Page};
+    use std::sync::mpsc;
+
+    let (mut h, opened_files) = window();
+    let received = Arc::new(Mutex::new(Vec::new()));
+    let recorded = received.clone();
+    let bytes = b"%PDF-1.7 test input".to_vec();
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new("notes.pdf", "application/pdf", bytes.clone())];
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(move |request| {
+            assert_eq!(request.format, Format::Pdf);
+            recorded.lock().unwrap().push((request.page, request.load().unwrap().to_vec()));
+            let (send, receive) = mpsc::channel();
+            send.send(Ok(Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 2 })).unwrap();
+            receive
+        }),
+    });
+    h.run_steps(4);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    let next = h.state().hit.rect("attachmentPreviewNext", A).unwrap().center();
+    click(&mut h, next, PointerButton::Primary, 1);
+    assert_eq!(*received.lock().unwrap(), vec![(1, bytes.clone()), (2, bytes)]);
+    assert!(opened(&opened_files).is_empty());
+    let back = h.state().hit.rect("attachmentPreviewBack", A).unwrap().center();
+    click(&mut h, back, PointerButton::Primary, 1);
+    h.run_steps(2);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+}
+
+#[test]
+fn without_a_helper_single_click_keeps_the_message_and_open_still_works() {
+    let (mut h, opened_files) = window();
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(10);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    assert!(opened(&opened_files).is_empty());
+    let menu = arrow(&h, A, 0).center();
+    click(&mut h, menu, PointerButton::Primary, 1);
+    assert!(entry_nodes(&h, "Preview Attachment").next().is_none());
+    choose(&mut h, "Open");
+    assert_eq!(opened(&opened_files), vec![("notes.pdf".into(), b"a0".to_vec())]);
+}
+
+#[test]
+fn a_disguised_pdf_and_an_oversized_attachment_never_start_the_helper() {
+    use crate::attachment_preview::{Host, MAX_INPUT_BYTES};
+    let (mut h, _) = window();
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    app.services.attachment_preview =
+        Some(Host { pdf: true, images: false, render: Box::new(|_| panic!("an invalid attachment reached the helper")) });
+    let file = app.session.mailbox.message_mut(A).unwrap().attachments.first_mut().unwrap();
+    file.data = Arc::new(b"<html>not a PDF</html>".to_vec());
+    assert!(app.execute("ui.previewAttachment", json!({"id":A, "index":0})).is_err());
+    let file = app.session.mailbox.message_mut(A).unwrap().attachments.first_mut().unwrap();
+    file.data = Arc::new(Vec::new());
+    file.kept = Some(mailcraft_model::ContentRef { sha256: [0; 32], len: MAX_INPUT_BYTES as u64 + 1 });
+    assert!(!crate::attachment_preview::available(app, A, 0));
+    assert!(app.execute("ui.previewAttachment", json!({"id":A, "index":0})).is_err());
+}
+
+#[test]
+fn previews_are_off_by_default_and_double_click_only_opens_the_file() {
+    use crate::attachment_preview::Host;
+    let (mut h, opened_files) = window();
+    let bytes = b"%PDF-1.7 test input".to_vec();
+    let app = h.state_mut();
+    app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new("notes.pdf", "application/pdf", bytes.clone())];
+    app.services.attachment_preview = Some(Host { pdf: true, images: false, render: Box::new(|_| panic!("no preview expected")) });
+    h.run_steps(4);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    assert!(opened(&opened_files).is_empty());
+    assert!(!crate::attachment_preview::available(h.state(), A, 0));
+    h.state_mut().ui.attachment_previews = true;
+    click(&mut h, at, PointerButton::Primary, 2);
+    h.run_steps(30);
+    assert_eq!(opened(&opened_files), vec![("notes.pdf".to_string(), bytes)]);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+}
+
+/// In Junk itself, only the attachment menu can start a preview.
+#[test]
+fn junk_requires_the_explicit_attachment_menu() {
+    assert_junk_preview_restrictions(false);
+}
+
+/// A folder inside Junk inherits the same restrictions.
+#[test]
+fn a_subfolder_of_junk_requires_the_explicit_attachment_menu() {
+    assert_junk_preview_restrictions(true);
+}
+
+/// Check both preview entry points and the explicit menu in the requested Junk folder.
+fn assert_junk_preview_restrictions(in_subfolder: bool) {
+    use crate::attachment_preview::{Host, Page};
+    use std::sync::mpsc;
+
+    let (mut h, _) = window();
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    let message = app.session.mailbox.message(A).unwrap();
+    let account = message.account;
+    let junk = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Junk).unwrap();
+    let folder = if in_subfolder { app.session.mailbox.add_folder(account, Some(junk), "Held").unwrap() } else { junk };
+    let message = app.session.mailbox.message_mut(A).unwrap();
+    message.attachments = vec![Attachment::new("notes.pdf", "application/pdf", b"%PDF-1.7".to_vec())];
+    app.execute("mail.move", json!({"id": A, "folder": folder})).unwrap();
+    app.execute("folder.select", json!({"id": folder})).unwrap();
+    app.execute("mail.select", json!({"id": A})).unwrap();
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(|request| {
+            let (send, receive) = mpsc::channel();
+            send.send(request.load().map(|_| Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 1 })).unwrap();
+            receive
+        }),
+    });
+    let refused = app.execute("ui.previewAttachment", json!({"id": A, "index": 0})).unwrap_err();
+    assert_eq!(refused, "In Junk E-mail, preview an attachment from its menu.");
+    h.run_steps(4);
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    let at = arrow(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    choose(&mut h, "Preview Attachment");
+    h.run_steps(5);
+    assert!(h.state().hit.rect("attachmentPreviewImage", A).is_some());
+}
+
+#[test]
+fn the_latest_preview_retries_busy_and_is_discarded_when_its_attachment_is_removed() {
+    use crate::attachment_preview::{Error, Host, Page, open};
+    use std::sync::atomic::Ordering;
+    use std::sync::mpsc;
+
+    let (mut h, _) = window_with(&["one.pdf", "two.pdf"]);
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    for file in &mut app.session.mailbox.message_mut(A).unwrap().attachments {
+        file.data = Arc::new(format!("%PDF-1.7 {}", file.name).into_bytes());
+    }
+    let first = std::sync::atomic::AtomicBool::new(true);
+    let old = Arc::new(Mutex::new(None::<Arc<std::sync::atomic::AtomicBool>>));
+    let cancelled = old.clone();
+    let attempts = Arc::new(Mutex::new(Vec::new()));
+    let recorded = attempts.clone();
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(move |request| {
+            let bytes = request.load().unwrap();
+            let (send, receive) = mpsc::channel();
+            recorded.lock().unwrap().push(bytes.clone());
+            if bytes.ends_with(b"one.pdf") {
+                *cancelled.lock().unwrap() = Some(request.cancel);
+                return receive;
+            }
+            if first.swap(false, Ordering::Relaxed) {
+                send.send(Err(Error::Busy)).unwrap();
+            } else {
+                send.send(Ok(Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 1 })).unwrap();
+            }
+            receive
+        }),
+    });
+    open(app, egui::ViewportId::ROOT, A, 0).unwrap();
+    open(app, egui::ViewportId::ROOT, A, 1).unwrap();
+    assert!(old.lock().unwrap().as_ref().unwrap().load(Ordering::Relaxed));
+    h.run_steps(30);
+    assert_eq!(attempts.lock().unwrap().len(), 3);
+    assert!(h.state().hit.rect("attachmentPreviewImage", A).is_some());
+    h.state_mut().session.mailbox.message_mut(A).unwrap().attachments.remove(0);
+    h.run_steps(4);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
 }

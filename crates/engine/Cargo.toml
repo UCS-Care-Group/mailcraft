@@ -19,6 +19,8 @@ mailcraft-html = { workspace = true }
 mailcraft-mime = { workspace = true }
 # S/MIME Digital signatures checked where a message is read (#30).
 mailcraft-smime = { workspace = true }
+# OpenPGP Digital signatures checked where a message is read, and Public keys read for import (#30).
+mailcraft-openpgp = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
 serde = { workspace = true }

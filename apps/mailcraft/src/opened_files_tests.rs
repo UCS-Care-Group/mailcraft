@@ -57,6 +57,36 @@ fn a_copied_file_is_written_safely_and_outlives_the_run() {
     let _ = fs::remove_dir_all(base.parent().unwrap().parent().unwrap());
 }
 
+#[test]
+fn the_copies_kept_are_capped_and_the_oldest_go_first() {
+    let base = scratch("cap");
+    let opened = Opened::at(base.clone()).keeping_at_most(100);
+    let a = opened.copy("a.txt", &[1; 40]).unwrap();
+    let b = opened.copy("b.txt", &[2; 40]).unwrap();
+    assert!(a.exists() && b.exists());
+    // Past the cap: the oldest goes, the one just written stays.
+    let c = opened.copy("c.txt", &[3; 40]).unwrap();
+    assert!(!a.exists() && b.exists() && c.exists());
+    // One that is more than the cap alone is kept, for it is what was copied; the next copy takes it.
+    let big = opened.copy("big.bin", &[4; 300]).unwrap();
+    assert!(big.exists() && !b.exists() && !c.exists());
+    let d = opened.copy("d.txt", &[5; 40]).unwrap();
+    assert!(d.exists() && !big.exists());
+    // The same file copied over and over (a key held down) is as many files as there were Copies
+    // asked: the window writes it once (`attachment_open::Copies`), and the cap holds for the rest.
+    for _ in 0..50 {
+        opened.copy("d.txt", &[5; 40]).unwrap();
+    }
+    let kept: u64 = fs::read_dir(d.parent().unwrap().parent().unwrap()).unwrap().flatten().map(|e| tree_bytes(&e.path(), 1)).sum();
+    assert!(kept <= 100, "{kept}");
+    // Earlier runs' copies that are not old yet count too, and go oldest first.
+    let g = opened.copy("g.txt", &[7; 60]).unwrap();
+    let later = Opened::at(base.clone()).keeping_at_most(100);
+    let e = later.copy("e.txt", &[6; 90]).unwrap();
+    assert!(e.exists() && !g.exists());
+    let _ = fs::remove_dir_all(base.parent().unwrap().parent().unwrap());
+}
+
 #[cfg(unix)]
 #[test]
 fn a_copy_never_goes_through_a_link() {
