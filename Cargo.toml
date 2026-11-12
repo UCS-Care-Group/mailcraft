@@ -38,6 +38,7 @@ mailcraft-ui-egui = { path = "crates/ui-egui" }
 
 # foundation
 thiserror = "2"
+tempfile = "3.27"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 log = "0.4"

@@ -37,6 +37,8 @@ mod favorites_tests;
 pub mod file;
 pub mod folder;
 #[cfg(test)]
+mod folder_empty_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]

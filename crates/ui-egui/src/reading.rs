@@ -125,6 +125,8 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let picked = app.session.sel.messages.len();
+    let preview_message = if picked == 1 { app.session.sel.focus() } else { None };
+    crate::attachment_preview::follow_message(app, ui.ctx().viewport_id(), preview_message);
     // What showing it needs (its body, the pictures in it, a calendar part) is brought into
     // memory first, when the mailbox keeps it on disk; the message then shows whole in this
     // very frame. (One that can't be read says so in its text, once.)
@@ -236,6 +238,9 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // header too wide for a narrow pane must not make the text run out of sight with it.
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+        if crate::attachment_preview::show(app, ui, m.id) {
+            return;
+        }
         view::page(app, place, ui).show(ui, |ui| {
             // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
             egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
@@ -675,8 +680,9 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
             let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
             let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
-            if resp.hovered() {
-                ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
+            let selected = crate::attachment_preview::selected(app, ui.ctx().viewport_id(), m.id, index);
+            if selected || resp.hovered() {
+                ui.painter().rect_filled(main_rect.shrink(1.0), left, if selected { t.pressed } else { t.hover });
             }
             if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
                 ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
@@ -709,9 +715,18 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 drop.on_hover_text(why);
                 continue;
             }
-            let resp = resp.on_hover_text(crate::i18n::fmt(tl!("Double-click to open {name}; right-click to save it"), &[("name", &shown)]));
+            let can_preview = crate::attachment_preview::single_click_allowed(app, m.id, index);
+            let hint = if can_preview {
+                tl!("Click to preview {name}; double-click to open it")
+            } else {
+                tl!("Double-click to open {name}; right-click to save it")
+            };
+            let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", &shown)]));
             if resp.double_clicked() {
+                crate::attachment_preview::cancel_click(app);
                 let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
+            } else if can_preview && resp.clicked() {
+                crate::attachment_preview::queue_click(app, ui.ctx(), m.id, index);
             }
             resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
             // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
@@ -721,6 +736,7 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
         }
     });
+    crate::attachment_preview::finish_click(app, ui.ctx(), m.id);
 }
 
 /// The key of attachment `index` of message `id` in the hit map (`attachment` for the chip,
@@ -732,6 +748,12 @@ pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
 /// An attachment's menu, the same from a right-click on its chip and from the chip's `▾` (#785).
 /// Each entry is greyed when its command can't run, and the command keeps its own refusals.
 pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
+    if crate::attachment_preview::available(app, id, index) && ui.button(tl!("Preview Attachment")).clicked() {
+        if let Err(error) = crate::attachment_preview::open(app, ui.ctx().viewport_id(), id, index) {
+            app.status(error);
+        }
+        ui.close();
+    }
     crate::widgets::mi(ui, app, "Open", "mail.openAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": id}));

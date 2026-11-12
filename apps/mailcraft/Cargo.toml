@@ -18,6 +18,8 @@ mailcraft-link = { workspace = true }
 # A name from a certificate or a token is cleaned as every incoming name is (`key_holders`, #30).
 mailcraft-names = { workspace = true }
 image = { workspace = true }
+# A private scratch directory for the optional local attachment renderer.
+tempfile = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
 mailcraft-control-key = { workspace = true }

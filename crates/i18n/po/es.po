@@ -1650,7 +1650,7 @@ msgid "Attachment options for {name}"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Datos adjuntos"
@@ -1829,6 +1829,11 @@ msgstr "Atrás"
 #. interface
 #: crates/ui-egui/src/send_receive.rs
 msgid "Back online"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Back to Message"
 msgstr ""
 
 #. interface
@@ -2554,6 +2559,11 @@ msgstr "Borrar búsqueda (Esc)"
 #. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Click here to choose the certificate or key to sign with, or turn Sign off"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Click to preview {name}; double-click to open it"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -5588,6 +5598,11 @@ msgstr ""
 msgid "Importing… {messages} of {total}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "In Junk E-mail, preview an attachment from its menu."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "In Progress"
@@ -6155,6 +6170,11 @@ msgstr "Conservar esta versión"
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Siga esperando y el cambio se hará solo en cuanto MailCraft pueda conectar con el servidor. O cambie sin ellos, si ya no se puede conectar con el servidor (por ejemplo, si su organización ha desactivado IMAP):"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keep {address}"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -6621,7 +6641,7 @@ msgid "MailCraft doesn't know the settings for this address. The servers below a
 msgstr "MailCraft no conoce la configuración de esta dirección. Los servidores siguientes son solo una suposición hecha a partir de su dominio: compruébelos con su proveedor o su administrador antes de conectar."
 
 #. what a command says
-#: crates/model/src/mailbox.rs
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
 msgstr ""
 
@@ -7711,6 +7731,11 @@ msgstr "Mensaje siguiente"
 msgid "Next Month"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Next Page"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7953,6 +7978,11 @@ msgstr "No se está leyendo ningún mensaje allí"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "No hay ninguna versión nueva lista para instalar."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview helper is available for this attachment."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -8478,6 +8508,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 msgid "Only confirm if you know these servers."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
 msgstr ""
 
 #. interface
@@ -9235,6 +9270,11 @@ msgid "Preferences"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preparing attachment preview…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Press Send/Receive to download your mail."
@@ -9245,6 +9285,26 @@ msgstr "Presione Enviar y recibir para descargar su correo."
 #, fuzzy
 msgid "Preview"
 msgstr "Vista previa"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+msgid "Preview Attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft and PhotoCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PhotoCraft"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9267,6 +9327,11 @@ msgstr "Mensaje anterior"
 #. interface
 #: crates/ui-egui/src/date_picker.rs
 msgid "Previous Month"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Previous Page"
 msgstr ""
 
 #. interface
@@ -10748,6 +10813,11 @@ msgstr "Seleccione un elemento para leerlo"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Seleccione primero algo de texto"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Select the message before previewing its attachment."
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -12537,6 +12607,16 @@ msgid "The approval didn't go through."
 msgstr "La aprobación no se completó."
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview could not be opened."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview timed out."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/files.rs
 msgid "The browser can't read files by path"
 msgstr ""
@@ -12939,6 +13019,11 @@ msgstr "La lista de dominios está llena: quite algunos en Archivo › Opciones"
 #, fuzzy
 msgid "The list of senders is full: remove some in File › Options"
 msgstr "La lista de remitentes está llena: quite algunos en Archivo › Opciones"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The local program receives the selected attachment and runs with your permissions."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13725,6 +13810,16 @@ msgstr "Todavía no se puede consultar el calendario de esta cuenta: Enviar y re
 #, fuzzy
 msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
 msgstr "El servidor de esta cuenta guarda este contacto. Los cambios hechos aquí aún no se envían de vuelta, así que aquí no se puede editar ni eliminar. Favorito y categorías se guardan en este equipo."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment could not be previewed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment is too large to preview."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -14680,6 +14775,11 @@ msgid "Tuesday"
 msgstr "martes"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Turn on attachment previews in File › Options."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Turned off by your organisation"
@@ -15040,6 +15140,11 @@ msgstr ""
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
 msgid "Violet"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Wait for the other attachment preview to finish."
 msgstr ""
 
 #. interface
@@ -15763,7 +15868,7 @@ msgid "Z on top"
 msgstr "Z arriba"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
 msgstr "Zoom"
 
@@ -17519,6 +17624,11 @@ msgid "the server accepted a password that was not sent"
 msgstr "el servidor aceptó una contraseña que no se envió"
 
 #. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
@@ -17644,7 +17754,7 @@ msgstr "el servidor terminó la sesión: {reason}"
 msgid "the server greeted with a refusal: {reason}"
 msgstr "el servidor saludó con un rechazo: {reason}"
 
-#. why a command can't run
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
@@ -17661,6 +17771,11 @@ msgstr "el servidor no ofrece ninguna forma de iniciar sesión con contraseña"
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "el servidor no ofrece ninguna forma de iniciar sesión con un token de acceso"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
