@@ -733,6 +733,27 @@ fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
     assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
 }
 
+/// A field past the 2,000 a header is split into, after fields that trip none of the other caps
+/// (2,000 `MIME-Version` lines, 36 KB): the message says its header was cut, so an exception
+/// that looks for a word in it can't tell, and the rule doesn't delete the message (#566).
+#[test]
+fn a_field_past_the_split_cap_is_said_cut() {
+    use mailcraft_model::{Action, Condition, Rule};
+    let filler = "MIME-Version: 1.0\r\n".repeat(2_000);
+    let raw = format!("From: a@example.org\r\nSubject: offer\r\n{filler}X-Gateway: keep-this\r\n\r\nbody\r\n");
+    let m = parse(raw.as_bytes());
+    let rule = Rule {
+        name: "r".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
+        exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])],
+        actions: vec![Action::DeleteForGood],
+        ..Default::default()
+    };
+    assert!(!rule.matches(&m), "the rule deletes for good a message its exception was to leave alone");
+    assert!(m.headers_cut || m.header_contains("keep-this"), "a field left out, and nothing says so");
+}
+
 #[test]
 fn a_header_block_keeps_a_bounded_number_of_bytes() {
     let mut raw = Vec::new();

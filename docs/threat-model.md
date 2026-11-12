@@ -345,11 +345,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   waits until the message is here whole, and so does one that copies it into another account's
   folder; the rules after it act meanwhile, but one that deletes for good or moves the message
   into another account waits with it (after a rule that copied the message as it arrived, it
-  deletes nothing for good instead), and Run Rules Now moves or copies nothing into another
-  account after a rule that can't tell. Nothing
+  deletes nothing for good instead), and nothing is moved or copied into another account after
+  a rule that still can't tell once the message is here, or at Run Rules Now. Nothing
   is copied or deleted for good of mail its server had before it was read here (a first download,
   older mail, a mailbox the server numbered anew) or the account had (moved into the Inbox on
-  another device, where an IMAP or Exchange server gives it a new number), nor deleted for good by
+  another device, where an IMAP or Exchange server gives it a new number; new mail with no
+  Message-ID, which can't be told from it, is taken as such), nor deleted for good by
   Run Rules Now after a rule that can't tell (a Delete in Deleted Items included). An undo of a step that copied a
   message and deleted it for good brings the original back and takes the copy away, but for a
   Microsoft or Exchange account's original, which stays deleted: its copy stays then, all there

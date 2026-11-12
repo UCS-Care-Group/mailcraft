@@ -17,7 +17,14 @@ fn session() -> (Session, Id, Id) {
 }
 
 fn message(uid: u32, from: &str, subject: &str) -> Message {
-    Message { uid, from: Address::new(from, "someone@sender.example"), subject: subject.into(), date: 1_700_000_000, ..Default::default() }
+    Message {
+        uid,
+        from: Address::new(from, "someone@sender.example"),
+        subject: subject.into(),
+        message_id: format!("{uid}.{from}@sender.example"),
+        date: 1_700_000_000,
+        ..Default::default()
+    }
 }
 
 /// What the server says of its Inbox: these messages are new, and it has been read up to the last

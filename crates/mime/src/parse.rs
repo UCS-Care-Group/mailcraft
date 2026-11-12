@@ -88,6 +88,8 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
 }
 
 fn read_headers(headers: &Headers, m: &mut Message) {
+    // Fields left out as the header was split, past its caps: what they said can't be told (#566).
+    m.headers_cut |= headers.1;
     let mut kept_bytes = 0usize;
     let mut kept_auth_as = 0usize;
     let mut kept_direction = 0usize;

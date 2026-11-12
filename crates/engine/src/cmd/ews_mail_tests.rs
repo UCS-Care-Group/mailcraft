@@ -616,6 +616,33 @@ fn mail_moved_into_the_inbox_on_another_device_isnt_deleted_for_good() {
     }
 }
 
+/// The same move on a phone, of a message with no Message-ID: new mail with none is taken as mail
+/// the account may have had (#566).
+#[test]
+fn exchange_mail_with_no_message_id_moved_into_the_inbox_isnt_deleted_for_good() {
+    use mailcraft_model::Queued;
+    let deletes = |s: &Session| s.mailbox.queued.iter().filter(|q| matches!(q, Queued::DeleteMessage { .. })).count();
+    let (mut s, account) = session();
+    list(&mut s, account);
+    read(&mut s, account, page("F1", vec![mail("A1", "One", 1_000)], true, true), "S-1");
+    let mut filed = mail("A2", "Filed news", 2_000);
+    filed.message_id = String::new();
+    read(&mut s, account, page("F3", vec![filed], true, true), "S-3");
+    end(&mut s, account, true);
+    let purge = json!({"name": "Purge", "account": account, "server": false,
+        "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &purge).unwrap();
+    let mut back = mail("B2", "Filed news", 2_000);
+    back.message_id = String::new();
+    let came = EwsMessagePage { folder: "F1".into(), messages: vec![back], last: true, ..Default::default() };
+    let left = EwsMessagePage { folder: "F3".into(), removed: vec!["A2".into()], last: true, ..Default::default() };
+    read(&mut s, account, came, "S-2");
+    read(&mut s, account, left, "S-4");
+    end(&mut s, account, true);
+    let inbox = s.mailbox.folder_by_server(account, "F1").unwrap();
+    assert_eq!((deletes(&s), here(&s, account, "B2").map(|m| m.folder)), (0, Some(inbox)), "deleted for good");
+}
+
 /// The same move on a phone, made while a run is under way, after it read the Inbox and before
 /// it read Apollo. That run says only that Apollo no longer has the message; the next one finds
 /// it new in the Inbox under a new item id (#566).

@@ -3407,6 +3407,10 @@ impl Mailbox {
             return ran;
         }
         let mut unsure = waiting.copied || changed;
+        // A rule that still can't tell, now the message is here (a header past what is kept):
+        // nothing after it goes into another account either, where it would be past that rule's
+        // reach, as at Run Rules Now ([`Mailbox::rules_on`]).
+        let mut cant_tell = false;
         let mut alert = false;
         for wait in waiting.rules.iter().take(MAX_RULES) {
             let Some(m) = self.message(id).filter(|m| m.account == account && !going.has(id)) else { break };
@@ -3416,7 +3420,8 @@ impl Mailbox {
             }
             let how = self.rule_matching(&rule, account, clock.zone);
             if !rule.matches_in(m, &how) {
-                unsure |= rule.undecided_in(m, &how);
+                let undecided = rule.undecided_in(m, &how);
+                (unsure, cant_tell) = (unsure || undecided, cant_tell || undecided);
                 continue;
             }
             // (A delete for good that waited on its own, which an earlier build of #566 kept in the
@@ -3425,8 +3430,11 @@ impl Mailbox {
             if !rule.on_server() && !wait.delete_only {
                 alert |= rule.alert;
                 let out = |a: &Action| matches!(a, Action::CopyTo(f) | Action::MoveTo(f) if self.folder(*f).is_some_and(|f| f.account != account));
-                let actions: std::borrow::Cow<[Action]> =
-                    if changed { rule.actions.iter().filter(|a| !out(a)).cloned().collect() } else { std::borrow::Cow::Borrowed(&rule.actions) };
+                let actions: std::borrow::Cow<[Action]> = if changed || cant_tell {
+                    rule.actions.iter().filter(|a| !out(a)).cloned().collect()
+                } else {
+                    std::borrow::Cow::Borrowed(&rule.actions)
+                };
                 if self.act(id, &actions, clock, !unsure, false, going) {
                     ran.push(rule.name.clone());
                 }

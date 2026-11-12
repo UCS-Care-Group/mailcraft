@@ -2256,6 +2256,41 @@ mod two_way {
         }
     }
 
+    /// The same move on a phone, of a message with no Message-ID (RFC 5322 makes it a SHOULD):
+    /// new mail with none is taken as mail the account may have had (#566).
+    #[test]
+    fn mail_with_no_message_id_moved_into_the_inbox_on_another_device_isnt_deleted_for_good() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let bare = |uid: u32| Message { message_id: String::new(), ..from_server(uid, "Filed news") };
+        let first = SyncResult {
+            account: a,
+            folders: vec![
+                FolderDelta {
+                    complete: true,
+                    ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                },
+                FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![bare(1)], vec![]) },
+            ],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", purge);
+        let came = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![bare(3)], vec![]) };
+        let left =
+            FolderDelta { removed: vec![1], uid_seen: 1, complete: true, ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![]) };
+        apply(&mut s, SyncResult { account: a, folders: vec![came, left], ..Default::default() });
+        let deletes = s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count();
+        let here: Vec<Id> = s.mailbox.messages.values().filter(|m| m.subject == "Filed news").map(|m| m.folder).collect();
+        assert_eq!(
+            (deletes, here),
+            (0, vec![inbox]),
+            "a filed message with no Message-ID, moved back into the Inbox on a phone, is deleted for good"
+        );
+    }
+
     /// The same move on a phone, made while a run is under way, after it read the Inbox and
     /// before it read Archive (the run reads the Inbox first, `mailcraft_net::sync`). That run says
     /// only that Archive no longer has the message; the next one finds it new in the Inbox. It is

@@ -1425,9 +1425,11 @@ impl OnServer {
     /// before said it left that folder ([`mailcraft_model::LeftServer`]: moved while the run before
     /// read the folders after the Inbox). Not the owner's own sent mail, or a draft, which a
     /// message to themselves comes back as.
+    /// One with no Message-ID can't be told from one it had, so it is taken as one it may have:
+    /// nothing is copied or deleted for good of it, and no alert shown.
     fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
         if id.is_empty() {
-            return false;
+            return true;
         }
         let left = mb.left_server.get(&account);
         if left.is_some_and(|l| l.cut()) {

@@ -932,3 +932,39 @@ fn a_download_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
     assert!(s.mailbox.message(m).is_none(), "Run Rules Now now deletes it for good");
     assert!(reach.is_err(), "the yes runs, and deletes for good a message the rule left alone when asked: {what}");
 }
+
+/// The same two rules, and the message is private, but its Sensitivity line comes after 200
+/// trace lines (a mailing list's, say), past what is kept of a header: once it is downloaded,
+/// "Private stays" still can't tell, and the move or copy into the other account stays held
+/// behind it, as at Run Rules Now (#566).
+#[test]
+fn a_move_onto_another_server_stays_held_after_the_download_when_the_stop_rule_still_cant_tell() {
+    let mut outcome = Vec::new();
+    for action in ["copyTo", "moveTo"] {
+        let mut s = Session::empty();
+        let (account, _, _) = microsoft_with(&mut s, "Kept");
+        let (to, b) = imap_inbox(&mut s);
+        let private = json!({"name": "Private stays", "account": account, "server": false, "stop": true,
+            "conditions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "flag"}]});
+        s.run("rules.add", &private).unwrap();
+        let zoe = json!({"name": "Zoe to Blake", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": action, "value": to}]});
+        s.run("rules.add", &zoe).unwrap();
+        arrives(&mut s, account, "Plan");
+        assert_eq!(copies(&s, to, b), (0, 0), "{action}: held as it arrived");
+        let padding: String = (0..200).map(|i| format!("X-Trace-{i}: hop {i}\r\n")).collect();
+        let fetched = vec![whole("N1", "Plan", &format!("{padding}Sensitivity: Private\r\n"), "Between us.")];
+        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+        let cut = s.mailbox.messages.values().any(|m| m.subject == "Plan" && m.headers_cut);
+        let in_b = s.mailbox.messages.values().filter(|m| m.subject == "Plan" && m.account == b).count();
+        outcome.push(format!("{action}: headers cut {cut}, in the other account {in_b}, (made, placed) {:?}", copies(&s, to, b)));
+    }
+    assert_eq!(
+        outcome,
+        [
+            "copyTo: headers cut true, in the other account 0, (made, placed) (0, 0)",
+            "moveTo: headers cut true, in the other account 0, (made, placed) (0, 0)"
+        ],
+        "a private message went onto another account's server past a stop rule that still can't tell"
+    );
+}

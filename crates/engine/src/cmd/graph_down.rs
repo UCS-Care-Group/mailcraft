@@ -123,9 +123,11 @@ impl Down {
     /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566),
     /// or one the end of a run before took away as gone ([`mailcraft_model::LeftServer`]: moved
     /// while that run read the folders after the Inbox).
+    /// One with no Message-ID can't be told from one it had, so it is taken as one it may have:
+    /// nothing is copied or deleted for good of it, and no alert shown.
     fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
         if id.is_empty() {
-            return false;
+            return true;
         }
         let left = mb.left_server.get(&account);
         if left.is_some_and(|l| l.cut()) {
