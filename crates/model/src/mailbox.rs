@@ -3320,28 +3320,39 @@ impl Mailbox {
                 // the message is here, as Outlook's rule on the computer copies new mail into another
                 // account's folder; the deletes for good after it wait with it, as behind a rule
                 // that can't tell yet (#566).
-                let copies_out =
-                    waits && rule.actions.iter().any(|a| matches!(a, Action::CopyTo(f) if self.folder(*f).is_some_and(|f| f.account != account)));
+                let other = |f: &Id| self.folder(*f).is_some_and(|f| f.account != account);
+                let copies_out = waits && rule.actions.iter().any(|a| matches!(a, Action::CopyTo(f) if other(f)));
+                // One that moves it out of its account while a rule before it can't tell yet
+                // waits too: in another account, on another server, it would be past that rule's
+                // reach, which may have stopped the rest.
+                let moves_out = waits && unsure && rule.actions.iter().any(|a| matches!(a, Action::MoveTo(f) if other(f)));
                 // One that deletes for good while a rule before it can't tell yet waits whole, and
                 // acts once the message is here and that rule has had its say: its copy and its
                 // delete then go together, the delete held behind the copy until it is answered.
-                if copies_out || (waits && unsure && !copied && rule.actions.contains(&Action::DeleteForGood)) {
+                if copies_out || moves_out || (waits && unsure && !copied && rule.actions.contains(&Action::DeleteForGood)) {
                     waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
                     unsure |= copies_out;
                 } else {
                     alert |= rule.alert && ruling == Ruling::Arriving;
                     // (Copied as it first arrived, or there before: years of an Inbox aren't
-                    // copied, onto another server least of all.)
-                    let actions: std::borrow::Cow<[Action]> = if matches!(ruling, Ruling::Renumbered | Ruling::Found) {
-                        rule.actions.iter().filter(|a| !matches!(a, Action::CopyTo(_))).cloned().collect()
+                    // copied, onto another server least of all.) Nor copied or moved out of its
+                    // account past a rule before that couldn't tell, with nothing to wait for.
+                    let found = matches!(ruling, Ruling::Renumbered | Ruling::Found);
+                    let skip = |a: &Action| match a {
+                        Action::CopyTo(f) => found || (unsure && other(f)),
+                        Action::MoveTo(f) => unsure && other(f),
+                        _ => false,
+                    };
+                    let actions: std::borrow::Cow<[Action]> = if rule.actions.iter().any(skip) {
+                        rule.actions.iter().filter(|a| !skip(a)).cloned().collect()
                     } else {
                         std::borrow::Cow::Borrowed(&rule.actions)
                     };
                     let for_good = matches!(ruling, Ruling::Arriving | Ruling::Now) && !unsure;
+                    copied |= actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
                     if self.act(id, &actions, clock, for_good, from_bin, going) {
                         ran.push(rule.name.clone());
                     }
-                    copied |= rule.actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
                 }
             }
             if rule.stop {
@@ -3780,7 +3791,8 @@ impl Mailbox {
 
     /// Rename a category on the list `account`'s items use, on the items that use that list, and in
     /// the rules for them ([`Mailbox::rules_renaming`]). Refused, changing nothing, when an
-    /// exception would then name more categories than a rule looks for.
+    /// exception would then name more categories than a rule looks for, and when a rule for every
+    /// account's mail names it while another list has a category of its own by the new name.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
         if !from.eq_ignore_ascii_case(&to) && self.category_of(account, &to).is_some() {
@@ -3792,8 +3804,20 @@ impl Mailbox {
         // The rules for the mail that uses this list follow it (#566): else an exception for the
         // category stops leaving that mail alone.
         let mut renamed: Vec<(usize, Rule)> = Vec::new();
+        // A rule for every account's mail reads the other lists' mail too: where one of them has a
+        // category of its own by the new name, the rule would take that one, or put it on mail.
+        let list = self.category_list_owner(account);
+        let others = std::iter::once((None, &self.categories)).chain(self.account_categories.iter().map(|(a, l)| (Some(*a), l)));
+        let clash = !crate::sync::same_category(from.trim(), &to)
+            && others.filter(|(owner, _)| *owner != list).any(|(_, l)| l.iter().any(|c| crate::sync::same_category(&c.name, &to)));
         for (i, whole) in self.rules_renaming(account, from) {
             let Some(mut rule) = self.rules.get(i).cloned() else { continue };
+            if clash && rule.account == 0 {
+                return Err(invalid(format!(
+                    "the rule \"{}\" is for every account's mail, and other accounts have a category \"{to}\" of their own, which the rule would then take or put on their mail: choose another name",
+                    rule.name
+                )));
+            }
             rule.rename_category(from.trim(), &to, whole);
             let overfull = |c: &crate::Condition| matches!(c, crate::Condition::Category(names) if names.len() > crate::MAX_WORDS_EACH);
             if rule.conditions.iter().chain(&rule.exceptions).any(overfull) {

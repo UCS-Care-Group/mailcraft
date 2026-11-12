@@ -16,7 +16,8 @@
 //!   what came: deleted for good, or put on another server, #566); nor does Run Rules Now when a
 //!   message shown was changed meanwhile in what the rules read of it (by an agent, which may
 //!   change a message unasked: its categories or flag, a draft's subject, an undo that puts an
-//!   attachment back), which they may then take;
+//!   attachment back), which they may then take, or the rules were (a category they name renamed,
+//!   one switched on or off);
 //! - anything else is described again: when what the command would read from the window, or the
 //!   question's text, differs, or what it names is gone, nothing runs.
 //!
@@ -27,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::sync::Arc;
 
-use mailcraft_model::{Id, Message};
+use mailcraft_model::{Id, Message, Rule};
 use serde_json::Value;
 
 use crate::{Compose, Selection, Session, ViewState, p};
@@ -209,6 +210,10 @@ struct Held {
     as_shown: AsShown,
     /// And the zone the rules read the days mail came by ([`Session::zone`]).
     zone: mailcraft_time::Zone,
+    /// And the rules for its account, in the order they run, in what they read and do: one
+    /// rewritten, switched on or off or moved meanwhile (a category renamed rewrites them,
+    /// unasked) may take other mail.
+    rules: Vec<Rule>,
 }
 
 /// Messages as a question showed them, held as they were (the same in memory while nothing
@@ -315,6 +320,12 @@ impl Shown {
                             .to_string(),
                     );
                 }
+                if id == "rules.run" && shown.rules != now.rules {
+                    return Err(
+                        "the rules `rules.run` was asked about were changed since the owner was asked (a category they name renamed, a rule switched on or off, say), so they may act on other mail: nothing was done. Ask the owner again"
+                            .to_string(),
+                    );
+                }
                 if id == "rules.run" && shown.as_shown.changed(s, &now.messages) {
                     return Err(
                         "a message in the folder `rules.run` was asked about was changed since the owner was asked in what the rules read of it (its categories or flag, its subject, an attachment, say), so they may act on it otherwise: nothing was done. Ask the owner again"
@@ -350,17 +361,25 @@ impl Shown {
 /// finds it, and the messages and folders that go with it (the rules run over its messages alone).
 fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
     let folder = p::id_strict(params, if id == "rules.run" { "folder" } else { "id" }).ok()?.unwrap_or(s.view.folder);
-    s.mailbox.folder(folder)?;
+    let account = s.mailbox.folder(folder)?.account;
     let mut as_shown = AsShown::default();
+    let mut rules = Vec::new();
     let (messages, folders) = if id == "rules.run" {
         as_shown.0 = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| (m.id, Arc::clone(m))).collect();
+        rules = s.mailbox.rules_in_order(account).into_iter().filter_map(|i| s.mailbox.rules.get(i)).map(as_ruled).collect();
         (as_shown.0.keys().copied().collect(), Vec::new())
     } else if id == "folder.empty" {
         (crate::cmd::folder::emptied(s, folder), crate::cmd::folder::emptied_with(s, folder))
     } else {
         (crate::cmd::folder::deleted_with(s, folder), s.mailbox.subtree(folder))
     };
-    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect(), as_shown, zone: s.zone() })
+    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect(), as_shown, zone: s.zone(), rules })
+}
+
+/// A rule as far as what it reads and does: what only its server's answer changes (its copy
+/// there, a refusal, an answer awaited) leaves it as it was.
+fn as_ruled(r: &Rule) -> Rule {
+    Rule { server: None, refused: String::new(), unanswered: false, ..r.clone() }
 }
 
 /// Everybody a calendar command would write to, in full: the question names only the first few.

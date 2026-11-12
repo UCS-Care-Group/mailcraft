@@ -2346,6 +2346,44 @@ mod two_way {
         }
     }
 
+    /// The move on a phone during a run, as above, with the owner's Undo of a step taken before
+    /// that run (a flag) between the two runs. The undo puts the mailbox back as it was before the
+    /// run but for what the servers said, so the next run still knows the message as mail the
+    /// account had (#566).
+    #[test]
+    fn an_undo_between_the_runs_keeps_what_the_server_said_left() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![
+                FolderDelta {
+                    complete: true,
+                    ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                },
+                FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![from_server(1, "Filed news")], vec![]) },
+            ],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+        run(&mut s, "rules.add", purge);
+        let one = s.mailbox.messages.values().find(|m| m.subject == "One").map(|m| m.id).unwrap();
+        run(&mut s, "mail.flag", json!({"id": one}));
+        let quiet = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![], vec![]) };
+        let left =
+            FolderDelta { removed: vec![1], uid_seen: 1, complete: true, ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![]) };
+        apply(&mut s, SyncResult { account: a, folders: vec![quiet, left], ..Default::default() });
+        assert!(!s.mailbox.left_server.is_empty(), "the run noted what left");
+        run(&mut s, "edit.undo", json!({}));
+        assert!(s.mailbox.rules.iter().any(|r| r.name == "Purge"), "the undo took back the flag alone");
+        let came = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "Filed news")], vec![]);
+        apply(&mut s, SyncResult { account: a, folders: vec![came], ..Default::default() });
+        let deletes = s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. })).count();
+        assert_eq!(deletes, 0, "deleted for good on the server by the run after the undo");
+    }
+
     /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes for
     /// good except if a header says to keep it can't tell, and leaves it alone (#566).
     #[test]

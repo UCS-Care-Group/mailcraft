@@ -180,8 +180,8 @@ struct Said {
     /// waits for the bytes it came as (#30).
     held: Vec<String>,
     /// The messages the change deleted for good, which stay deleted: each one's id, its id on
-    /// its server and its Message-ID.
-    gone: Vec<(Id, String, String)>,
+    /// its server and its Message-ID, and the message itself when it has none.
+    gone: Vec<(Id, String, String, Option<Message>)>,
     /// A copy the change made of one of those, which stays ([`copies_kept`]).
     copies: Vec<String>,
     /// What the change made that was on its server already, put into Deleted Items by the undo.
@@ -631,15 +631,25 @@ fn messages(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id
 /// that message now: it stays as it is, where the rule put it, on its way onto a server too, and
 /// the server's delete of the original, which waits for it, still waits. A copy on its way to a
 /// server is known by what it is made from; one on this computer only, or one its server made
-/// already, by its Message-ID. Never a draft, nor anything in an Outbox, which would be sent: a
+/// already, by its Message-ID, or with none by its sender, subject, date and recipients. Never a draft, nor anything in an Outbox, which would be sent: a
 /// message sent from a draft has the draft's Message-ID.
 fn copies_kept(out: &mut Mailbox, touched: &Touched, now: &Mailbox, said: &mut Said) {
     if said.gone.is_empty() {
         return;
     }
-    let ids: HashSet<Id> = said.gone.iter().map(|(id, _, _)| *id).collect();
-    let on_servers: HashSet<&str> = said.gone.iter().map(|(_, server, _)| server.as_str()).filter(|id| !id.is_empty()).collect();
-    let message_ids: HashSet<&str> = said.gone.iter().map(|(_, _, m)| m.as_str()).filter(|id| !id.is_empty()).collect();
+    let ids: HashSet<Id> = said.gone.iter().map(|(id, ..)| *id).collect();
+    let on_servers: HashSet<&str> = said.gone.iter().map(|(_, server, ..)| server.as_str()).filter(|id| !id.is_empty()).collect();
+    let message_ids: HashSet<&str> = said.gone.iter().map(|(_, _, m, _)| m.as_str()).filter(|id| !id.is_empty()).collect();
+    // One with no Message-ID, by what a copy keeps of it: keeping a message that only looks like
+    // one is no loss, and letting the copy go is.
+    let bare: Vec<&Message> = said.gone.iter().filter_map(|(.., m)| m.as_ref()).collect();
+    let copy_of = |c: &Message| {
+        if c.message_id.is_empty() {
+            bare.iter().any(|t| t.subject == c.subject && t.from == c.from && t.date == c.date && t.to == c.to)
+        } else {
+            message_ids.contains(c.message_id.as_str())
+        }
+    };
     let mut made_from: HashMap<Id, bool> = HashMap::new();
     for q in &now.queued {
         match q {
@@ -660,7 +670,7 @@ fn copies_kept(out: &mut Mailbox, touched: &Touched, now: &Mailbox, said: &mut S
         let Some(c) = now.messages.get(id).filter(|c| !c.draft && !now.is_send_queue(c.folder) && out.folder(c.folder).is_some()) else {
             continue;
         };
-        if made_from.get(id).copied().unwrap_or_else(|| message_ids.contains(c.message_id.as_str())) {
+        if made_from.get(id).copied().unwrap_or_else(|| copy_of(c)) {
             said.copies.push(c.subject.clone());
             out.messages.insert(*id, c.clone());
         }
@@ -695,7 +705,8 @@ fn merge(
             // Deleted for good by the change: the server's copy is gone, or going.
             if t.server.as_ref().is_some_and(|s| !s.gone) || t.moving_out.is_some() {
                 said.deleted.push(t.subject.clone());
-                said.gone.push((t.id, t.server.as_ref().map(|s| s.id.clone()).unwrap_or_default(), t.message_id.clone()));
+                let bare = t.message_id.is_empty().then(|| t.clone());
+                said.gone.push((t.id, t.server.as_ref().map(|s| s.id.clone()).unwrap_or_default(), t.message_id.clone(), bare));
                 return None;
             }
             // Never on the server: back, as ever.

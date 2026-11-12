@@ -2878,3 +2878,73 @@ fn an_undo_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
     assert!(s.mailbox.message(m).is_some_and(|m| m.has_attachments()), "the file is back: {undone:?}");
     assert!(shown.check(&s, "rules.run", &params).is_err(), "the yes runs: {what}");
 }
+
+/// An agent's Run Rules Now over Deleted Items is asked as a delete, naming the rule "Tidy"
+/// ("has the category Bin": delete it), which leaves "Tax return" (tagged "Trash" by another
+/// program) alone. While the question is up the agent renames Bin to Trash, unasked, which
+/// rewrites Tidy to take "Bin or Trash": the owner's yes then runs nothing (#566).
+#[test]
+fn a_rename_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, account, _, _) = session();
+    run(&mut s, "category.set", json!({"name": "Bin", "color": "#2E8B57", "account": account}));
+    run(
+        &mut s,
+        "rules.add",
+        json!({"server": false, "name": "Tidy", "account": account,
+            "conditions": [{"type": "category", "value": "Bin"}], "actions": [{"type": "delete"}]}),
+    );
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    let tagged = s.mailbox.add_message(Message { folder: deleted, subject: "Tax return".into(), ..Default::default() }).unwrap();
+    s.mailbox.message_mut(tagged).unwrap().categories = vec!["Trash".into()];
+    let params = json!({"folder": deleted});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    let rename = json!({"from": "Bin", "to": "Trash", "account": account});
+    assert_eq!(check(&s, "category.rename", &rename, &[]), Verdict::Run, "the rename is safe");
+    s.agent = Some(Vec::new());
+    let renamed = s.run("category.rename", &rename);
+    s.agent = None;
+    assert!(renamed.is_ok(), "{renamed:?}");
+    let reach = shown.check(&s, "rules.run", &params);
+    assert!(reach.as_ref().is_err_and(|e| e.contains("the rules `rules.run` was asked about were changed")), "the yes runs: {reach:?}");
+}
+
+/// The same with `--allow settings`: a stop rule above "Tidy" keeps a contract out of its reach
+/// when the owner is asked; switching it off meanwhile, unasked, leaves the yes running nothing.
+#[test]
+fn a_stop_rule_switched_off_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, account, _, _) = session();
+    let keep = run(
+        &mut s,
+        "rules.add",
+        json!({"server": false, "name": "Contracts", "account": account, "stop": true,
+            "conditions": [{"type": "subjectContains", "value": "Contract"}], "actions": [{"type": "markRead"}]}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"server": false, "name": "Tidy", "account": account,
+            "conditions": [{"type": "fromContains", "value": "example.org"}], "actions": [{"type": "delete"}]}),
+    );
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox
+        .add_message(Message { folder: deleted, from: Address::new("Ada", "ada@example.org"), subject: "Contract".into(), ..Default::default() })
+        .unwrap();
+    let allow = [Class::Settings];
+    let params = json!({"folder": deleted});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &allow) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    let off = json!({"id": keep, "value": false});
+    assert_eq!(check(&s, "rules.enable", &off, &allow), Verdict::Run, "allowed in advance as settings");
+    s.agent = Some(allow.to_vec());
+    let switched = s.run("rules.enable", &off);
+    s.agent = None;
+    assert!(switched.is_ok(), "{switched:?}");
+    assert!(shown.check(&s, "rules.run", &params).is_err(), "the yes runs past the stop rule switched off");
+}

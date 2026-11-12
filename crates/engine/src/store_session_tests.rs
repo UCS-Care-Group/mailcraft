@@ -529,3 +529,19 @@ fn run_rules_now_doesnt_delete_for_good_on_the_note_of_a_text_that_couldnt_be_re
         "deleted for good on MailCraft's note in place of its text: matched {matched:?} of {kept_outside} kept on disk, {left} of 24 left"
     );
 }
+
+/// What a server said left its folders survives a quit (#566).
+#[test]
+fn what_left_the_server_survives_a_save_and_an_open() {
+    let tmp = Temp::new("left-server");
+    let path = tmp.file();
+    let mut mb = mailbox(4);
+    let account = mb.accounts[0].id;
+    mb.left_server.entry(account).or_default().note(["filed-news@mail.example".to_string()]);
+    mb.left_server.entry(account).or_default().end_run(true);
+    mb.left_server.entry(account).or_default().note(["other@mail.example".to_string()]);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let back = open(&path).unwrap().mailbox;
+    assert_eq!(back.left_server, mb.left_server);
+}

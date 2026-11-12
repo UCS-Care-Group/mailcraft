@@ -513,3 +513,62 @@ fn a_rename_keeps_a_stop_rule_holding_for_mail_the_servers_rule_tagged() {
     assert_eq!(mb.rules[0].actions, [Action::Categorize("Red".into())], "the server's rule keeps the old name");
     assert!(weekly_arrives(&mut mb, a, &["Red"]), "mail the server tagged deleted for good after the rename; the rules are now {:?}", mb.rules);
 }
+
+/// A rule for every account's mail deletes new mail with the category Red permanently. Microsoft
+/// account A has its own list (Red); an IMAP account uses the shared list, which has Red and a
+/// category of its own, Archive. A rename of Red to Archive on A's list is refused: the rule would
+/// then take the IMAP account's own Archive mail too (#566).
+#[test]
+fn a_rename_on_one_list_doesnt_make_an_every_account_rule_take_another_lists_category() {
+    let (mut mb, a, _) = two_accounts();
+    let imap = mb.add_account(Account { email: "i@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    mb.categories = vec![tagged("Red", RED), tagged("Archive", WINE)];
+    mb.account_categories.insert(a, vec![tagged("Red", RED)]);
+    let mut purge = weekly_rule(&mut mb, "Purge red", 0);
+    purge.conditions.push(Condition::Category(vec!["Red".into()]));
+    purge.actions = vec![Action::DeleteForGood];
+    mb.rules = vec![purge];
+    let refused = mb.rename_category(a, "Red", "Archive");
+    assert!(refused.as_ref().is_err_and(|e| e.to_string().contains("other accounts have a category")), "{refused:?}");
+    assert_eq!(mb.categories_of(a)[0].name, "Red", "nothing changed");
+    assert!(weekly_arrives(&mut mb, imap, &["Archive"]), "the IMAP account's own Archive mail deleted for good");
+}
+
+/// The same the other way: a rename on the shared list (Red to Archive) while Microsoft account
+/// A's own list has an Archive of its own.
+#[test]
+fn a_rename_on_the_shared_list_doesnt_make_an_every_account_rule_take_a_microsoft_accounts_category() {
+    let (mut mb, a, _) = two_accounts();
+    let imap = mb.add_account(Account { email: "i@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    mb.categories = vec![tagged("Red", RED)];
+    mb.account_categories.insert(a, vec![tagged("Archive", WINE)]);
+    let mut purge = weekly_rule(&mut mb, "Purge red", 0);
+    purge.conditions.push(Condition::Category(vec!["Red".into()]));
+    purge.actions = vec![Action::DeleteForGood];
+    mb.rules = vec![purge];
+    assert!(mb.rename_category(imap, "Red", "Archive").is_err());
+    assert!(weekly_arrives(&mut mb, a, &["Archive"]), "A's own Archive mail deleted for good");
+}
+
+/// A rule for every account's mail puts Red on new mail "Weekly"; Microsoft account A's own list
+/// has Red and a category of its own, Archive, and A's rule deletes "Weekly" with Archive
+/// permanently. The owner renames Red to Important on A's list, then Red to Archive on the shared
+/// list: that one is refused, else A's new "Weekly" would get A's own Archive and be deleted.
+#[test]
+fn a_rename_on_the_shared_list_doesnt_tag_a_microsoft_accounts_mail_into_its_own_other_category() {
+    let (mut mb, a, _) = two_accounts();
+    mb.categories = vec![tagged("Red", RED)];
+    mb.account_categories.insert(a, vec![tagged("Red", RED), tagged("Archive", WINE)]);
+    let mut tag = weekly_rule(&mut mb, "Tag", 0);
+    tag.actions = vec![Action::Categorize("Red".into())];
+    let mut purge = weekly_rule(&mut mb, "Purge archived", a);
+    purge.conditions.push(Condition::Category(vec!["Archive".into()]));
+    purge.actions = vec![Action::DeleteForGood];
+    mb.rules = vec![tag, purge];
+    assert!(weekly_arrives(&mut mb, a, &[]), "deleted before any rename");
+    mb.rename_category(a, "Red", "Important").unwrap();
+    let shared = mb.accounts.iter().find(|x| mb.category_list_owner(x.id).is_none()).map(|x| x.id).unwrap();
+    assert!(mb.rename_category(shared, "Red", "Archive").is_err());
+    assert_eq!(mb.rules[0].actions, [Action::Categorize("Red".into())]);
+    assert!(weekly_arrives(&mut mb, a, &[]), "A's new mail deleted for good");
+}

@@ -854,3 +854,81 @@ fn an_agents_edit_of_mail_waiting_for_its_rules_doesnt_let_a_later_rule_copy_it_
         "an agent's unasked Clear All Categories made a rule copy the message onto another account's server"
     );
 }
+
+/// The owner's first rule keeps Private mail where it is ("sensitivity is private: flag it, stop
+/// processing more rules"); the second files Zoe's mail into an IMAP account's Inbox. New mail
+/// on a Microsoft account is listed before it is fetched, so the first rule can't tell yet: a
+/// move into the other account waits for the download and for that rule's say, as a copy does,
+/// and doesn't go onto the other server on a guess (#566).
+#[test]
+fn a_move_onto_another_server_waits_for_an_earlier_stop_rule_that_cant_tell_yet() {
+    for action in ["copyTo", "moveTo"] {
+        let mut s = Session::empty();
+        let (account, _, _) = microsoft_with(&mut s, "Kept");
+        let (to, b) = imap_inbox(&mut s);
+        let private = json!({"name": "Private stays", "account": account, "server": false, "stop": true,
+            "conditions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "flag"}]});
+        s.run("rules.add", &private).unwrap();
+        let zoe = json!({"name": "Zoe to Blake", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": action, "value": to}]});
+        s.run("rules.add", &zoe).unwrap();
+        arrives(&mut s, account, "Plan");
+        let here = s.mailbox.messages.values().find(|m| m.subject == "Plan" && m.folder != to).map(|m| m.account == account);
+        let waits = s.mailbox.messages.values().any(|m| m.subject == "Plan" && m.rules_waiting.is_some());
+        assert_eq!((here, waits, copies(&s, to, b)), (Some(true), true, (0, 0)), "{action}: gone onto the other server on a guess");
+    }
+}
+
+/// The same two rules run by Run Rules Now over a Microsoft Inbox whose mail isn't fetched yet
+/// (older than Mail to keep offline): the first can't tell, so the second doesn't move the mail
+/// onto the other account's server (#566).
+#[test]
+fn run_rules_now_doesnt_move_onto_another_server_past_a_stop_rule_that_cant_tell() {
+    let mut s = Session::empty();
+    let (account, inbox, _) = microsoft_with(&mut s, "Kept");
+    let (to, b) = imap_inbox(&mut s);
+    arrives(&mut s, account, "Plan");
+    let private = json!({"name": "Private stays", "account": account, "server": false, "stop": true,
+        "conditions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &private).unwrap();
+    let zoe = json!({"name": "Zoe to Blake", "account": account, "server": false,
+        "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "moveTo", "value": to}]});
+    s.run("rules.add", &zoe).unwrap();
+    assert!(s.mailbox.messages.values().any(|m| m.subject == "Plan" && m.unfetched && m.folder == inbox));
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(copies(&s, to, b), (0, 0), "moved onto another server past a stop rule that couldn't tell");
+}
+
+/// An agent asks to Run Rules Now over the Inbox while a message there has only its preview: "Purge" (delete
+/// permanently, except if the text says "keep") can't tell, so it leaves the message alone. While
+/// the question is up the message is downloaded (the agent opened it, say): the text doesn't say
+/// "keep". Every condition and exception holds of it as before; only whether the exception can be
+/// told changed. The yes runs nothing (#566).
+#[test]
+fn a_download_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
+    use crate::agent::bind::Shown;
+    use crate::agent::{Class, Verdict, check};
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
+    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
+        .unwrap();
+    let purge = json!({"name": "Purge", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "exceptions": [{"type": "bodyContains", "value": "keep"}], "actions": [{"type": "deleteForGood"}]});
+    s.run("rules.add", &purge).unwrap();
+    let m = here(&s, account, "N1").id;
+    assert!(s.mailbox.message(m).unwrap().unfetched);
+    let params = json!({"folder": inbox});
+    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    assert!(s.mailbox.message(m).is_some_and(|m| !m.unfetched), "downloaded, and still here");
+    let reach = shown.check(&s, "rules.run", &params);
+    // What the yes would do now: Purge takes it.
+    s.run("rules.run", &params).unwrap();
+    assert!(s.mailbox.message(m).is_none(), "Run Rules Now now deletes it for good");
+    assert!(reach.is_err(), "the yes runs, and deletes for good a message the rule left alone when asked: {what}");
+}

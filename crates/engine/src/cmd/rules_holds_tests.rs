@@ -581,3 +581,32 @@ fn a_later_listing_that_cut_the_categories_keeps_a_rule_from_deleting_past_a_cat
     run(&mut s, "rules.run", json!({"folder": inbox}));
     assert!(s.mailbox.message(id).is_some(), "deleted permanently, though Keep may be among the categories left out");
 }
+
+/// The same undo when the message has no Message-ID (RFC 5322 makes it a SHOULD): the copy onto
+/// this computer is still known as the copy of the message deleted for good, and stays (#566).
+#[test]
+fn an_undo_keeps_the_copy_of_a_message_without_a_message_id() {
+    let (mut s, account, kept) = microsoft_and_here();
+    let mut bare = listed("N1", "F-in", "Plan");
+    bare.message_id = String::new();
+    let page = MessagePage { folder: "F-in".into(), messages: vec![bare], ..Default::default() };
+    super::graph_mail::apply_graph_mail(
+        &mut s,
+        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
+    )
+    .unwrap();
+    let mime = format!("From: Zoe Park <zoe@example.org>\r\nTo: Ada <{ME}>\r\nSubject: Plan\r\nContent-Type: text/plain\r\n\r\nThe plan.\r\n");
+    let fetched = vec![GraphFetched { id: "N1".into(), mime: mime.into_bytes() }];
+    super::graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]});
+    run(&mut s, "rules.add", rule);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
+    assert_eq!(copies_here(&s, kept, "Plan"), 1, "the rule made the copy");
+    let undone = run(&mut s, "edit.undo", json!({}));
+    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+    assert_eq!(graph_deletes(&s, account).len(), 1, "the original's delete for good still goes");
+    assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
+    assert_eq!(copies_here(&s, kept, "Plan"), 1, "the copy is all there is of it");
+}
