@@ -6,7 +6,7 @@
 
 use egui::accesskit::Role;
 use egui::vec2;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use mailcraft_engine::Session;
 use mailcraft_model::{FolderKind, Id};
 use serde_json::json;
@@ -144,6 +144,30 @@ fn the_folder_in_view_is_not_offered_for_a_move() {
     harness.run_steps(2);
     let Some(Dialog::MoveItems(d)) = harness.state().dialog.as_ref() else { panic!("Move Items is open") };
     assert_eq!(d.marked(), None, "the folder in view can't be marked for a move");
+}
+
+/// Each folder is a list option with its place for a name, and says whether it is marked and
+/// whether it can be.
+#[test]
+fn a_screen_reader_hears_each_folder_and_which_is_marked() {
+    let mut harness = window();
+    let (_, from, archive) = selected(&mut harness);
+    press(&mut harness, egui::Key::V);
+    let Some(Dialog::MoveItems(d)) = harness.state_mut().dialog.as_mut() else { panic!("Move Items is open") };
+    d.mark(archive);
+    harness.run_steps(3);
+    let option = |h: &Window, name: &str| {
+        let node = h
+            .query_all(egui_kittest::kittest::By::new().role(Role::ListBoxOption).label(name))
+            .next()
+            .unwrap_or_else(|| panic!("{name} is an option"));
+        let node = node.accesskit_node();
+        (node.is_selected(), node.is_disabled())
+    };
+    let archive_name = crate::nav::folder_path(&harness.state().session.mailbox, archive);
+    let here = crate::nav::folder_path(&harness.state().session.mailbox, from);
+    assert_eq!(option(&harness, &archive_name), (Some(true), false));
+    assert_eq!(option(&harness, &here), (Some(false), true), "the folder in view can't be chosen for a move");
 }
 
 /// Typing a folder's name marks it, and Enter moves the messages there.

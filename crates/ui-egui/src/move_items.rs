@@ -149,7 +149,12 @@ impl MoveItems {
             for row in &shown {
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
                 let can = Some(row.folder) != here;
-                if self.marked == Some(row.folder) {
+                // (Painted: its name, whether it is marked and whether it can be, for a screen reader.)
+                let marked = self.marked == Some(row.folder);
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ListBoxOption, can, &row.path));
+                // (A folder is chosen, AccessKit's `selected`, not switched on: as in `gmail_tabs`.)
+                ui.ctx().accesskit_node_builder(resp.id, |node| node.set_selected(marked));
+                if marked {
                     ui.painter().rect_filled(r, 4.0, t.selection);
                     if down || up {
                         ui.scroll_to_rect(r, None);
