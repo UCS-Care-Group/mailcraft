@@ -233,6 +233,7 @@ Format Text|Format|Plain Text|compose.formatPlain
 Format Text|Format|Rich Text|compose.formatRich
 Format Text|Paragraph|Line Spacing|format.lineSpacing
 Format Text|Paragraph|Indent|format.indent
+Format Text|Paragraph|Align Text|format.align
 Format Text|Styles|Styles|format.styles
 Format Text|Editing|Find|edit.find
 Format Text|Editing|Replace|edit.replace

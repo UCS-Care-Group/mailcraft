@@ -902,6 +902,21 @@ msgstr "Nach"
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr "Wenn Sie eine Besprechungsanfrage in der E-Mail zusagen, mit Vorbehalt zusagen oder ablehnen oder eine abgesagte Besprechung aus Ihrem Kalender entfernen, wird die Nachricht in „Gelöschte Elemente“ verschoben. Ist dies ausgeschaltet, bleibt sie, wo sie ist, und zeigt Ihre Antwort an."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr "Text ausrichten"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -2151,6 +2166,11 @@ msgstr "Cc:"
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "Cc: {names}"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -5252,6 +5272,11 @@ msgstr "Wichtigkeit: hoch"
 #, fuzzy
 msgid "High on top"
 msgstr "Hoch oben"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
