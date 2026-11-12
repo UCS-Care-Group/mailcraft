@@ -752,11 +752,16 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
     }
     // What waits to be moved or deleted on the server is there still: known, so that it doesn't
-    // come down again.
+    // come down again. The account's folders by the mailbox they follow, the first of each,
+    // looked up once for each change rather than searched (#991).
+    let mut by_remote: HashMap<&str, Id> = HashMap::new();
+    for f in s.mailbox.folders.iter().filter(|f| f.account == account) {
+        by_remote.entry(f.remote.as_str()).or_insert(f.id);
+    }
     for p in s.mailbox.pending.iter().filter(|p| p.account() == account) {
         let (from, uid) = p.source();
-        if let Some(f) = s.mailbox.folders.iter().find(|f| uid != 0 && f.account == account && f.remote == from) {
-            known.entry(f.id).or_default().push(uid);
+        if let Some(id) = by_remote.get(from).copied().filter(|_| uid != 0) {
+            known.entry(id).or_default().push(uid);
         }
     }
     let mut again = super::imap_again::wanted(&s.mailbox, account, s.now());
@@ -1176,6 +1181,22 @@ impl SyncTotals {
     }
 }
 
+/// [`apply_sync_part`] for several pieces waiting, in the order they came: taken in as one,
+/// which is the same as taking them in one after the other ([`SyncResult::absorb`]), with the
+/// whole account read once rather than once for each. A host hands over at most
+/// [`MAX_PIECES_TOGETHER`] at a time, so that the window waits for no more than that.
+pub fn apply_sync_parts(s: &mut Session, run: &mut SyncTotals, pieces: Vec<SyncResult>) -> CmdResult {
+    let mut pieces = pieces.into_iter();
+    let Some(mut whole) = pieces.next() else { return Err(failed!("there is nothing to take in")) };
+    for piece in pieces {
+        whole.absorb(piece);
+    }
+    apply_sync_part(s, run, whole)
+}
+
+/// Most pieces a host hands [`apply_sync_parts`] at a time.
+pub const MAX_PIECES_TOGETHER: usize = 256;
+
 /// [`apply_sync`] for an answer that comes in pieces, as `mailcraft_net::sync_with` hands it
 /// over: call it with each piece, in the order they come, and the same `run`, which adds up what
 /// they changed.
@@ -1189,6 +1210,10 @@ impl SyncTotals {
 /// program is closed), what was taken in is as good as a run that ended there.
 ///
 /// Answers what this piece changed, with the run's line (`summary`) and its sums so far (`total`).
+///
+/// Taking in a piece that brings anything reads the whole account once, however little the
+/// piece brings; a run that reads thousands of folders hands over a piece or more for each, so
+/// a host with several pieces waiting takes them in together ([`apply_sync_parts`], #991).
 pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncResult) -> CmdResult {
     let account = result.account;
     let Some(a) = s.mailbox.account(account) else { return Err(failed!("no account with id {id}", id = account)) };
@@ -1905,48 +1930,80 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
 /// except one at the top whose place in the tree is now known (folders moved here are not moved
 /// on the server yet, so the server's tree is the one that holds).
 fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed: &[mailcraft_model::sync::ListedFolder]) {
+    let listed = listed.get(..listed.len().min(mailcraft_model::sync::MAX_LISTED_FOLDERS)).unwrap_or_default();
+    // Each folder's parent by the folder's path, the first listed of a path being the one: one
+    // pass, not a search of the whole list at every step up (#991).
+    let mut parents: HashMap<&str, &str> = HashMap::with_capacity(listed.len());
+    for f in listed {
+        parents.entry(f.remote.as_str()).or_insert(f.parent.as_str());
+    }
     // Parents before their children, however the server ordered them.
     let depth = |f: &mailcraft_model::sync::ListedFolder| {
         let (mut above, mut n) = (f.parent.as_str(), 0);
         while !above.is_empty() && n < 32 {
-            above = listed.iter().find(|p| p.remote == above).map_or("", |p| p.parent.as_str());
+            above = parents.get(above).copied().unwrap_or_default();
             n += 1;
         }
         n
     };
-    let mut order: Vec<&mailcraft_model::sync::ListedFolder> = listed.iter().take(2000).filter(|f| !f.remote.is_empty()).collect();
+    let mut order: Vec<&mailcraft_model::sync::ListedFolder> = listed.iter().filter(|f| !f.remote.is_empty()).collect();
     order.sort_by_cached_key(|f| depth(f));
+    // Indexes made in one pass and kept up to date, so that thousands of folders are not each
+    // looked for, or checked against their siblings' names, by reading every folder (#991):
+    // where each folder is, and the names (lowered) under each folder of the account. A name
+    // a folder had before it was renamed or moved stays taken: at worst a new folder beside it
+    // gets a number it didn't need, never a name that is there already.
+    let mut at: HashMap<Id, usize> = mb.folders.iter().enumerate().map(|(i, f)| (f.id, i)).collect();
+    let mut names: HashMap<Option<Id>, HashSet<String>> = HashMap::new();
+    for f in mb.folders.iter().filter(|f| f.account == account) {
+        names.entry(f.parent).or_default().insert(f.name.to_lowercase());
+    }
+    let find = |mb: &Mailbox, at: &HashMap<Id, usize>, id: Id| -> Option<usize> {
+        at.get(&id).copied().filter(|i| mb.folders.get(*i).is_some_and(|f| f.id == id)).or_else(|| mb.folders.iter().position(|f| f.id == id))
+    };
     for f in order {
         let parent = on_server.by_remote.get(&f.parent).copied().filter(|_| !f.parent.is_empty());
         match on_server.by_remote.get(&f.remote).copied() {
             Some(id) => {
+                let here = find(mb, &at, id).and_then(|i| mb.folders.get(i)).cloned();
                 // A name an earlier version cut short at a dot is put right.
                 let listed_as = clean_name(&f.name).filter(|name| !name.contains('/'));
-                if let (Some(name), Some(here)) = (listed_as, mb.folder(id))
+                if let (Some(name), Some(here)) = (listed_as, &here)
                     && here.kind == FolderKind::Custom
                     && here.name != name
                     && here.name == cut_name(&f.remote)
+                    && mb.rename_folder(id, &name).is_ok()
                 {
-                    let _ = mb.rename_folder(id, &name);
+                    names.entry(here.parent).or_default().insert(name.to_lowercase());
                 }
-                let at_top = mb.folder(id).is_some_and(|here| here.parent.is_none() && here.kind == FolderKind::Custom);
+                let at_top = here.as_ref().is_some_and(|here| here.parent.is_none() && here.kind == FolderKind::Custom);
                 if let Some(p) = parent
                     && at_top
                     && !mb.subtree(id).contains(&p)
+                    && mb.move_folder(id, Some(p)).is_ok()
+                    && let Some(moved) = find(mb, &at, id).and_then(|i| mb.folders.get(i))
                 {
-                    let _ = mb.move_folder(id, Some(p));
+                    names.entry(Some(p)).or_default().insert(moved.name.to_lowercase());
                 }
             }
             None => {
                 let standard = if f.kind == FolderKind::Custom { None } else { mb.folder_of_kind(account, f.kind) };
-                let standard = standard.filter(|id| mb.folder(*id).is_some_and(|here| here.remote.is_empty()));
+                let standard = standard.filter(|id| find(mb, &at, *id).and_then(|i| mb.folders.get(i)).is_some_and(|here| here.remote.is_empty()));
                 let base = clean_name(&f.name).unwrap_or_else(|| leaf_name(&f.remote));
                 // A name already taken beside it gets a number.
                 let made = standard.or_else(|| {
-                    (1..=50).find_map(|n| mb.add_folder(account, parent, &if n == 1 { base.clone() } else { format!("{base} ({n})") }).ok())
+                    let taken = names.entry(parent).or_default();
+                    let free = (1..=50).find_map(|n| {
+                        let name = clean_name(&if n == 1 { base.clone() } else { format!("{base} ({n})") })?;
+                        (!taken.contains(&name.to_lowercase())).then_some(name)
+                    })?;
+                    let id = mb.add_folder_free(account, parent, &free).ok()?;
+                    taken.insert(free.to_lowercase());
+                    at.insert(id, mb.folders.len().saturating_sub(1));
+                    Some(id)
                 });
                 if let Some(id) = made {
-                    if let Ok(here) = mb.folder_mut(id) {
+                    if let Some(here) = find(mb, &at, id).and_then(|i| mb.folders.get_mut(i)) {
                         here.remote = f.remote.clone();
                     }
                     on_server.by_remote.insert(f.remote.clone(), id);

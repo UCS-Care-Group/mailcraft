@@ -756,6 +756,7 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
             card_account(app, ui, &c);
             card_places(ui, &c);
             card_birthday(app, ui, &c);
+            crate::security::card_section(app, ui, &c);
             if !c.notes.trim().is_empty() {
                 section(ui, tl!("Notes"));
                 ui.add(egui::Label::new(RichText::new(clip_chars(c.notes.trim(), NOTES_MAX)).font(regular(13.0)).color(t.text)).wrap());

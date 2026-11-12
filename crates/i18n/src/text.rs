@@ -26,6 +26,9 @@ pub enum Arg {
     /// A standard folder's default name ("Archive"), said as the language names that folder
     /// ([`Lang::folder`]), which may differ from the same English word elsewhere.
     Folder(&'static str),
+    /// A text of its own with its own values (why a sign-in failed, inside "Couldn't check for
+    /// new mail: {why}"), said in the language like the template.
+    Said(Box<Text>),
 }
 
 impl Arg {
@@ -37,6 +40,11 @@ impl Arg {
     /// A standard folder's default name, said as the language names the folder.
     pub fn folder(s: &'static str) -> Arg {
         Arg::Folder(s)
+    }
+
+    /// A text of its own, said in the language like the template.
+    pub fn said(text: Text) -> Arg {
+        Arg::Said(Box::new(text))
     }
 }
 
@@ -58,23 +66,77 @@ impl ToArg for Arg {
     }
 }
 
+/// The template of a [`Text::verbatim`]: no catalogue has it, so it is said as it is.
+const VERBATIM: &str = "{text}";
+
 impl Text {
     pub fn new(template: &'static str, args: Vec<(&'static str, Arg)>) -> Text {
         Text { template, args }
     }
 
+    /// Words that are said as they are in every language: what a server or the system said in
+    /// its own words, or a line nobody has made a template of yet.
+    pub fn verbatim(text: impl Into<String>) -> Text {
+        Text { template: VERBATIM, args: vec![("text", Arg::Plain(text.into()))] }
+    }
+
+    /// Whether it is said as it is in every language ([`Text::verbatim`]).
+    pub fn is_verbatim(&self) -> bool {
+        self.template == VERBATIM
+    }
+
+    /// The same text with every value that is said as it is ([`Arg::Plain`], in texts within it
+    /// too) put through `change`: a password a server wrote back, blanked out.
+    pub fn map_plain(self, change: &dyn Fn(String) -> String) -> Text {
+        let args = self
+            .args
+            .into_iter()
+            .map(|(k, a)| {
+                let a = match a {
+                    Arg::Plain(s) => Arg::Plain(change(s)),
+                    Arg::Said(t) => Arg::Said(Box::new(t.map_plain(change))),
+                    other => other,
+                };
+                (k, a)
+            })
+            .collect();
+        Text { template: self.template, args }
+    }
+
     /// The text in `lang`: its template from the catalogue (English when it has none), filled.
     pub fn in_lang(&self, lang: Lang) -> String {
+        let said: Vec<String> = self
+            .args
+            .iter()
+            .map(|(_, a)| match a {
+                Arg::Said(t) => t.in_lang(lang),
+                _ => String::new(),
+            })
+            .collect();
         let values: Vec<(&str, &str)> = self
             .args
             .iter()
-            .map(|(k, a)| match a {
+            .zip(&said)
+            .map(|((k, a), said)| match a {
                 Arg::Plain(s) => (*k, s.as_str()),
                 Arg::Words(w) => (*k, lang.t(w)),
                 Arg::Folder(w) => (*k, lang.folder(w)),
+                Arg::Said(_) => (*k, said.as_str()),
             })
             .collect();
         crate::fmt(lang.t(self.template), &values)
+    }
+}
+
+impl From<String> for Text {
+    fn from(text: String) -> Text {
+        Text::verbatim(text)
+    }
+}
+
+impl From<&str> for Text {
+    fn from(text: &str) -> Text {
+        Text::verbatim(text)
     }
 }
 

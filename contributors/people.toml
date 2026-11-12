@@ -18,6 +18,9 @@
 real_name = "David Despres"
 display_name = "David Despres"
 
+[people.dylanmtaylor]
+sync_github_name = true
+
 [people.benandez]
 real_name = "Martin Ball"
 display_name = "Martin Ball"

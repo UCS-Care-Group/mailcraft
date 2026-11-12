@@ -11,6 +11,7 @@ use mailcraft_proto::smtp::Smtp;
 
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, not_signed_in};
+use mailcraft_i18n::said;
 
 /// What the client calls itself in EHLO: an address literal that says nothing about this machine.
 const CLIENT_NAME: &str = "[127.0.0.1]";
@@ -29,7 +30,7 @@ impl Envelope {
     pub(crate) fn of(account: &Account, message: &Message) -> Result<Envelope, NetError> {
         let from = account.email.trim();
         if !is_address(from) {
-            return Err(NetError::Config("the account has no usable e-mail address to send from".into()));
+            return Err(NetError::Config(said!("the account has no usable e-mail address to send from")));
         }
         let mut recipients: Vec<String> = Vec::new();
         for address in message.recipients() {
@@ -39,14 +40,14 @@ impl Envelope {
             }
             // Leaving someone out silently would be worse than not sending.
             if !is_address(email) {
-                return Err(NetError::Config(format!("\"{}\" isn't an address mail can be sent to", shown(email))));
+                return Err(NetError::Config(said!("\"{address}\" isn't an address mail can be sent to", address = shown(email))));
             }
             if !recipients.iter().any(|r| r.eq_ignore_ascii_case(email)) {
                 recipients.push(email.to_string());
             }
         }
         if recipients.is_empty() {
-            return Err(NetError::Config("the message has no recipients".into()));
+            return Err(NetError::Config(said!("the message has no recipients")));
         }
         Ok(Envelope { from: from.to_string(), recipients })
     }
@@ -78,12 +79,12 @@ pub(crate) fn open_smtp_with<'a>(
     patience: &Patience,
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Smtp<Stream<'a>>, NetError> {
-    let server = account.outgoing.as_ref().ok_or_else(|| NetError::Config("the account has no outgoing server".into()))?;
+    let server = account.outgoing.as_ref().ok_or_else(|| NetError::Config(said!("the account has no outgoing server")))?;
     crate::sync::token_may_go_to(account, server, "smtp.gmail.com")?;
     let user = account.login();
     if account.oauth.is_some() {
         if user.is_empty() {
-            return Err(NetError::Config("the account has no user name or e-mail address to sign in with".into()));
+            return Err(NetError::Config(said!("the account has no user name or e-mail address to sign in with")));
         }
         // Without a token there is nothing to show the server: no connection is made.
         if secret.is_empty() {
@@ -97,7 +98,7 @@ pub(crate) fn open_smtp_with<'a>(
     if server.security == Security::StartTls {
         // Never carry on in the clear when encryption was asked for.
         if !offered.starttls {
-            return Err(NetError::Tls { host, reason: "the server doesn't offer STARTTLS".into() });
+            return Err(NetError::Tls { host, reason: said!("the server doesn't offer STARTTLS") });
         }
         let plain = smtp.starttls()?;
         smtp = Smtp::resume(transport::upgrade(plain, &host)?);
@@ -171,7 +172,7 @@ mod tests {
     #[test]
     fn messages_that_cannot_be_sent_are_config_errors() {
         let config = |account: &Account, message: &Message| match Envelope::of(account, message) {
-            Err(NetError::Config(why)) => why,
+            Err(NetError::Config(why)) => why.to_string(),
             other => panic!("expected a refusal, got {other:?}"),
         };
         assert_eq!(config(&account(), &Message::default()), "the message has no recipients");
