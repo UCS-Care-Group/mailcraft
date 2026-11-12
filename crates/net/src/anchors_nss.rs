@@ -18,6 +18,10 @@
 //!   object distrusts for mail doesn't count, whatever another says, and nor does one Mozilla
 //!   distrusts for mail after a date (`CKA_NSS_EMAIL_DISTRUST_AFTER`): the check can't tell when a
 //!   certificate under it was issued, so it is left out whole.
+//! - **Distrust read whole or nothing.** A search for distrust that fails, a distrust object that
+//!   can't be read whole, or more of them than are read, and the module gives no roots for mail at
+//!   all: a list whose distrust is not known in full could trust a root Mozilla distrusts. (An
+//!   anchor that can't be read is only left out: that trusts less, never more.)
 //! - **Bounded.** At most [`MAX_OBJECTS`] objects of each kind are read, and what comes back is
 //!   held to the sizes [`super::system_trust_anchors`] keeps.
 
@@ -188,7 +192,14 @@ fn builtins(context: &Pkcs11) -> Option<Vec<Vec<u8>>> {
     };
     let session = context.open_ro_session(slot).ok()?;
     let roots = roots(&session);
-    let trusts: Vec<Trust> = SEARCHES.iter().flat_map(|&(of, purpose, value, means)| trusts(&session, of, purpose, value, means)).collect();
+    let mut trusts: Vec<Trust> = Vec::new();
+    for &(of, purpose, value, means) in &SEARCHES {
+        let Some(found) = kept(means, search(&session, of, purpose, value, means)) else {
+            log::warn!("NSS's list of roots couldn't say in full what it distrusts for mail: it is not read for mail");
+            return None;
+        };
+        trusts.extend(found);
+    }
     Some(chosen(&roots, &trusts))
 }
 
@@ -226,14 +237,27 @@ fn roots(session: &Session) -> Vec<Root> {
     out
 }
 
-/// The trust objects of class `of` whose attribute `purpose` is `value`, as saying `means` of mail.
-fn trusts(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, means: Email) -> Vec<Trust> {
+/// What one of [`SEARCHES`] found, for [`chosen`]: `found` is `None` where the search failed,
+/// and holds `None` for an object that couldn't be read whole (at most one past [`MAX_OBJECTS`]
+/// is looked at). Anchors are kept as far as they could be read; for distrust anything short of
+/// all of it is `None`, and the module is then not read for mail.
+pub(crate) fn kept(means: Email, found: Option<Vec<Option<Trust>>>) -> Option<Vec<Trust>> {
+    let whole = means == Email::Distrusted;
+    let Some(found) = found else { return (!whole).then(Vec::new) };
+    if whole && (found.len() > MAX_OBJECTS || found.iter().any(Option::is_none)) {
+        return None;
+    }
+    Some(found.into_iter().take(MAX_OBJECTS).flatten().collect())
+}
+
+/// The trust objects of class `of` whose attribute `purpose` is `value`, as saying `means` of
+/// mail, as [`kept`] takes them.
+fn search(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, means: Email) -> Option<Vec<Option<Trust>>> {
     let template = [ulong(AttributeType::Class, of), ulong(AttributeType::VendorDefined(purpose), value)];
     let wanted = [AttributeType::Issuer, AttributeType::SerialNumber];
-    let handles = session.find_objects(&template).unwrap_or_default();
-    let mut out = Vec::new();
-    for handle in handles.into_iter().take(MAX_OBJECTS) {
-        let Ok(attributes) = session.get_attributes(handle, &wanted) else { continue };
+    let handles = session.find_objects(&template).map_err(|e| log::debug!("a search of NSS's list of roots failed: {e}")).ok()?;
+    let read = |handle| {
+        let attributes = session.get_attributes(handle, &wanted).ok()?;
         let mut trust = Trust { issuer: Vec::new(), serial: Vec::new(), email: means };
         for attribute in attributes {
             match attribute {
@@ -242,9 +266,7 @@ fn trusts(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, mean
                 _ => {}
             }
         }
-        if !trust.issuer.is_empty() && !trust.serial.is_empty() {
-            out.push(trust);
-        }
-    }
-    out
+        (!trust.issuer.is_empty() && !trust.serial.is_empty()).then_some(trust)
+    };
+    Some(handles.into_iter().take(MAX_OBJECTS.saturating_add(1)).map(read).collect())
 }

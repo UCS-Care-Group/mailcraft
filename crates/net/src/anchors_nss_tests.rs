@@ -107,3 +107,20 @@ fn many_threads_asking_at_once_share_one_read() {
     });
     assert!(answers.windows(2).all(|w| w[0] == w[1]));
 }
+
+#[test]
+fn distrust_not_read_in_full_gives_no_roots_but_an_unread_anchor_is_only_left_out() {
+    let (a, b) = (root(1, 1, b"cert-a"), root(2, 1, b"cert-b"));
+    let all = |of: &Root, email| Some(vec![Some(trust(of, email))]);
+    // Read in full: kept as found.
+    assert_eq!(kept(Email::Distrusted, all(&a, Email::Distrusted)), Some(vec![trust(&a, Email::Distrusted)]));
+    assert_eq!(kept(Email::Distrusted, Some(Vec::new())), Some(Vec::new()));
+    // A failed search, an object not read whole, or more than are read: no answer at all.
+    assert_eq!(kept(Email::Distrusted, None), None);
+    assert_eq!(kept(Email::Distrusted, Some(vec![Some(trust(&a, Email::Distrusted)), None])), None);
+    assert_eq!(kept(Email::Distrusted, Some(vec![Some(trust(&a, Email::Distrusted)); MAX_OBJECTS + 1])), None);
+    // Anchors: what could be read, and nothing where the search failed.
+    assert_eq!(kept(Email::Anchor, Some(vec![None, Some(trust(&b, Email::Anchor))])), Some(vec![trust(&b, Email::Anchor)]));
+    assert_eq!(kept(Email::Anchor, None), Some(Vec::new()));
+    assert_eq!(kept(Email::Anchor, Some(vec![Some(trust(&b, Email::Anchor)); MAX_OBJECTS + 1])).map(|v| v.len()), Some(MAX_OBJECTS));
+}
