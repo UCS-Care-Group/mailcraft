@@ -16,6 +16,27 @@ fn contact_id(s: &Session, name: &str) -> Id {
 }
 
 #[test]
+fn a_new_contact_can_say_which_address_book_to_save_it_in() {
+    use mailcraft_model::{ContactBook, Rights};
+    let mut s = session();
+    let account = s.mailbox.accounts.first().unwrap().id;
+    let book = "https://mail.example.org/carddav/ada@example.org/contacts/personal/";
+    s.mailbox.contact_books.push(ContactBook { account, id: book.into(), name: "My contacts".into(), rights: Rights::Edit });
+    // A new contact without a choice says nothing, and stays on this computer.
+    assert!(ContactForm::new(&json!({"first": "Ada"})).command().1.get("addressBook").is_none());
+    let mut f = ContactForm::new(&json!({"first": "Ada"}));
+    f.address_book = book.into();
+    f.address_book_account = account;
+    let (command, params) = f.command();
+    assert_eq!((command, params.get("addressBook").and_then(Value::as_str)), ("people.new", Some(book)));
+    assert_eq!(params.get("addressBookAccount").and_then(Value::as_u64), Some(account));
+    let id = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
+    let c = s.mailbox.contact(id).unwrap();
+    assert_eq!((c.book.as_str(), c.book_id.as_str(), c.origin.account), ("My contacts", book, account));
+    assert!(!c.uid.is_empty());
+}
+
+#[test]
 fn a_new_contact_sends_what_was_filled_in() {
     let mut f = ContactForm::new(&json!({"first": "Ada", "last": "Lovelace", "email": "ada@example.org"}));
     assert_eq!((f.name(), f.title().as_str()), ("contact", "New Contact"));
