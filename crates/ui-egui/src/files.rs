@@ -70,6 +70,12 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
             let message = params.get("id").and_then(Value::as_u64).and_then(|id| s.mailbox.message(id)).or_else(|| s.focused_message());
             message.map_or_else(|| clean("message", "eml"), mailcraft_engine::cmd::file::eml_name)
         }
+        "file.saveAsPdf" => {
+            let ids: Vec<u64> = params.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
+            let mut ids = ids;
+            ids.extend(params.get("id").and_then(Value::as_u64));
+            mailcraft_engine::cmd::file::pdf_name(s, &ids)
+        }
         "file.exportFolder" => clean(&s.mailbox.folder(s.view.folder).map(|f| f.name.clone()).unwrap_or_default(), "mbox"),
         "file.exportCalendar" => clean(
             &params.get("id").and_then(Value::as_u64).and_then(|id| s.mailbox.event(id)).map_or("calendar".to_string(), |e| e.title.clone()),

@@ -477,6 +477,8 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let save_out = [
         ("save", tl!("Save Mailbox As"), tl!("Everything here in one .mailcraft file"), "file.saveAs"),
         ("save", tl!("Save Message As"), tl!("The selected message, as .eml"), "file.exportMessage"),
+        ("print", tl!("Print"), tl!("The selected messages, on a printer"), "file.print"),
+        ("save", tl!("Save as PDF"), tl!("The selected messages as they print, as .pdf"), "file.saveAsPdf"),
         ("export", tl!("Export Folder"), tl!("The messages of the folder in view, as .mbox"), "file.exportFolder"),
         ("calendar", tl!("Save Calendar"), tl!("Every event and task, as .ics"), "file.exportCalendar"),
         ("people", tl!("Export Contacts"), tl!("Every contact, as .vcf"), "file.exportContacts"),

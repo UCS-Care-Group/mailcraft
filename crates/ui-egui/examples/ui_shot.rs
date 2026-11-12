@@ -41,6 +41,8 @@
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
 //! `{"host": {"ownKeys": true}}` lists two made-up keys of the owner's in File › Options › Security (#30).
+//! `{"host": {"printers": true}}` has two made-up printers for File › Print (#32), the second the
+//! default; a job sent to one is taken and goes nowhere.
 //! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
@@ -691,6 +693,20 @@ fn main() {
         lines.iter().find_map(|l| l.pointer("/host/updates").and_then(|v| v.as_str())?.strip_prefix("didntStart ").map(str::to_string))
     {
         services.update_start.didnt_start = Some((env!("CARGO_PKG_VERSION").to_string(), kept));
+    }
+    // Printers (#32), when a line says (`{"host": {"printers": true}}`): made up, and what is
+    // printed on them goes nowhere.
+    if lines.iter().any(|l| l.pointer("/host/printers").is_some()) {
+        use mailcraft_ui_egui::printing::{Host, Printer};
+        services.print = Some(Host {
+            printers: Box::new(|| {
+                vec![
+                    Printer { name: "Office_Laser".into(), label: "Laser on the second floor".into(), default: false },
+                    Printer { name: "Home_Inkjet".into(), label: "Home Inkjet".into(), default: true },
+                ]
+            }),
+            submit: Box::new(|_job| Ok(())),
+        });
     }
     // The owner's own keys (#30), when a line says (`{"host": {"ownKeys": true}}`): a smartcard's
     // certificate and a GnuPG key, made up, and GnuPG trusting nothing.

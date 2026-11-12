@@ -656,6 +656,8 @@ pub struct SystemFont {
     semibold: Option<Arc<FontData>>,
     bold: Option<Arc<FontData>>,
     fallbacks: Vec<Arc<FontData>>,
+    /// The files the fallback faces were read from, for printing (#32).
+    fallback_paths: Vec<std::path::PathBuf>,
     /// The system's colour emoji face ([`EMOJI_FACES`]), when there is one.
     emoji: Option<Arc<FontData>>,
     /// The installed face of each font a message can be written in (#582), by font and whether
@@ -765,6 +767,7 @@ impl SystemFont {
                 let Some(bytes) = read_font(path, cap.min(FALLBACK_FONTS_CAP.saturating_sub(total))) else { continue };
                 total = total.saturating_add(bytes.len() as u64);
                 used.push(path);
+                self.fallback_paths.push(path.clone());
                 // The first face of a collection: `FontData::from_owned` takes face 0.
                 self.fallbacks.push(Arc::new(FontData::from_owned(bytes)));
                 break;
@@ -784,6 +787,11 @@ impl SystemFont {
             .find_map(|path| read_font(path, FALLBACK_FONT_CAP))
             .map(|bytes| Arc::new(FontData::from_owned(bytes)));
         self
+    }
+
+    /// The files of the fallback faces, best first: what a print draws other scripts in (#32).
+    pub fn fallback_paths(&self) -> Vec<std::path::PathBuf> {
+        self.fallback_paths.clone()
     }
 
     /// Whether a colour emoji face was found and read.
@@ -834,6 +842,7 @@ impl SystemFont {
                 semibold: face("seguisb.ttf"),
                 bold: face("segoeuib.ttf"),
                 fallbacks: Vec::new(),
+                fallback_paths: Vec::new(),
                 emoji: None,
                 document: Vec::new(),
             },
@@ -1081,11 +1090,11 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     let add = |fonts: &mut FontDefinitions, name: &str, bytes: &'static [u8]| {
         fonts.font_data.insert(name.into(), Arc::new(FontData::from_static(bytes)));
     };
-    add(&mut fonts, "Inter", include_bytes!("../../../assets/fonts/Inter-Regular.ttf"));
-    add(&mut fonts, "InterMedium", include_bytes!("../../../assets/fonts/Inter-Medium.ttf"));
-    add(&mut fonts, "InterSemiBold", include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf"));
+    add(&mut fonts, "Inter", mailcraft_print::INTER_REGULAR);
+    add(&mut fonts, "InterMedium", mailcraft_print::INTER_MEDIUM);
+    add(&mut fonts, "InterSemiBold", mailcraft_print::INTER_SEMIBOLD);
     add(&mut fonts, "SourceSans", include_bytes!("../../../assets/fonts/SourceSans3-Regular.ttf"));
-    add(&mut fonts, "Mono", include_bytes!("../../../assets/fonts/JetBrainsMono-Regular.ttf"));
+    add(&mut fonts, "Mono", mailcraft_print::JETBRAINS_MONO);
     // The system's faces, each under its own name, when there is a regular one to go with them.
     let mut system_face = |name: &str, face: &Option<Arc<FontData>>| -> Option<String> {
         let face = face.as_ref().filter(|_| system.is_present())?;
