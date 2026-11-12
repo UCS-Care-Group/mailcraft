@@ -30,7 +30,7 @@ use std::path::Path;
 
 use cryptoki::context::{CInitializeArgs, CInitializeFlags, Pkcs11};
 use cryptoki::error::{Error, RvError};
-use cryptoki::object::{Attribute, AttributeType, CertificateType, ObjectClass};
+use cryptoki::object::{Attribute, AttributeType, CertificateType, ObjectClass, ObjectHandle};
 use cryptoki::session::Session;
 
 /// Where the distributions put NSS's module of roots: the multiarch places of Debian and its
@@ -214,9 +214,9 @@ fn roots(session: &Session) -> Vec<Root> {
     let template = [Attribute::Class(ObjectClass::CERTIFICATE), Attribute::CertificateType(CertificateType::X_509)];
     let wanted =
         [AttributeType::Issuer, AttributeType::SerialNumber, AttributeType::Value, AttributeType::VendorDefined(CKA_NSS_EMAIL_DISTRUST_AFTER)];
-    let handles = session.find_objects(&template).unwrap_or_default();
+    let handles = handles(session, &template, MAX_OBJECTS).unwrap_or_default();
     let mut out = Vec::new();
-    for handle in handles.into_iter().take(MAX_OBJECTS) {
+    for handle in handles {
         let Ok(attributes) = session.get_attributes(handle, &wanted) else { continue };
         let mut root = Root { issuer: Vec::new(), serial: Vec::new(), der: Vec::new(), email_distrust_after: false };
         for attribute in attributes {
@@ -251,11 +251,12 @@ pub(crate) fn kept(means: Email, found: Option<Vec<Option<Trust>>>) -> Option<Ve
 }
 
 /// The trust objects of class `of` whose attribute `purpose` is `value`, as saying `means` of
-/// mail, as [`kept`] takes them.
+/// mail, as [`kept`] takes them (one past [`MAX_OBJECTS`] at most, to tell that there are more).
 fn search(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, means: Email) -> Option<Vec<Option<Trust>>> {
     let template = [ulong(AttributeType::Class, of), ulong(AttributeType::VendorDefined(purpose), value)];
     let wanted = [AttributeType::Issuer, AttributeType::SerialNumber];
-    let handles = session.find_objects(&template).map_err(|e| log::debug!("a search of NSS's list of roots failed: {e}")).ok()?;
+    let handles =
+        handles(session, &template, MAX_OBJECTS.saturating_add(1)).map_err(|e| log::debug!("a search of NSS's list of roots failed: {e}")).ok()?;
     let read = |handle| {
         let attributes = session.get_attributes(handle, &wanted).ok()?;
         let mut trust = Trust { issuer: Vec::new(), serial: Vec::new(), email: means };
@@ -268,5 +269,11 @@ fn search(session: &Session, of: c_ulong, purpose: c_ulong, value: c_ulong, mean
         }
         (!trust.issuer.is_empty() && !trust.serial.is_empty()).then_some(trust)
     };
-    Some(handles.into_iter().take(MAX_OBJECTS.saturating_add(1)).map(read).collect())
+    Some(handles.into_iter().map(read).collect())
+}
+
+/// The first `most` objects of the session that match `template`: the module is asked for no
+/// more than that, and the search is over before anything of them is read.
+fn handles(session: &Session, template: &[Attribute], most: usize) -> cryptoki::error::Result<Vec<ObjectHandle>> {
+    session.iter_objects(template)?.take(most).collect()
 }
