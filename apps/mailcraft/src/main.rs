@@ -26,6 +26,7 @@ mod alerts;
 mod apple_events;
 #[cfg(test)]
 mod approval_flow;
+mod attachment_render;
 mod block_on;
 mod browser;
 #[cfg(test)]
@@ -77,6 +78,7 @@ mod menubar;
 mod opened_files;
 #[cfg(test)]
 mod opened_flow;
+mod own_keys;
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
@@ -1212,8 +1214,9 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         out.uploaded = Some(uploaded);
     }
     // The wide stretch with the contacts, every quarter of an hour; otherwise the days on screen.
+    // (The window counts the wide stretch from its own clock and says it in `calendar`.)
     let now = mailcraft_time::now();
-    let stretch = if request.directory { Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD)) } else { request.calendar };
+    let stretch = if request.directory { request.calendar.or(Some((now - CALENDAR_BEHIND, now + CALENDAR_AHEAD))) } else { request.calendar };
     // A shared mailbox's calendars (#70): asked for and written at its own address, and only
     // those that are ticked are asked for (the window says which, in the asks); no contacts,
     // categories or settings of it.
@@ -1712,6 +1715,8 @@ fn services(
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
+    let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
@@ -1846,7 +1851,14 @@ fn services(
         // folder and opened with the system's program for its kind (#126).
         open_file: opened_files()
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
+        attachment_preview,
         secrets: secrets::store(),
+        // File › Options › Security (#30 R13): the owner's own certificates and keys listed,
+        // GnuPG's valid keys read, and a key file imported, each on a thread of its own.
+        own_keys: Some(Box::new(move |job| {
+            let store = keys_store.clone();
+            background(&keys_ctx, "own keys", move || own_keys::run(job, store))
+        })),
         // File › Info › Remove MailCraft's data from this computer (#177): the folders this
         // program works in, and no others. Not offered by a run that keeps nothing.
         data_wipe: prefs_enabled().then(|| {

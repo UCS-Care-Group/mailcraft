@@ -169,6 +169,8 @@ const SAFE: &[&str] = &[
     "mail.checkAgain",
     // What checking a message's Digital signature found, read only (#30 R23).
     "mail.digitalSignature",
+    // The Public keys kept, listed (never their bytes, never a key marked Verified): #30.
+    "keys.list",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -507,6 +509,9 @@ const SETTINGS: &[&str] = &[
     "junk.add",
     "junk.remove",
     "junk.list",
+    // The Public keys that Digital signatures are checked with, and later mail encrypted to (#30).
+    "keys.import",
+    "keys.remove",
     "signature.set",
     "signature.remove",
     "signature.rename",
@@ -580,6 +585,7 @@ const NEVER: &[&str] = &[
     "ui.copySelection",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
+    "ui.previewAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
     "ui.goBackVersion",
@@ -597,6 +603,15 @@ const NEVER: &[&str] = &[
     // installed-app registration value, even when granted account/settings commands.
     "ui.googleClientId",
     "ui.googleClientSecret",
+    // The owner's own keys (#30 R12, R13): imported, removed and looked for in the window only,
+    // through a file picker and a passphrase typed there; and a key marked Verified only by the
+    // owner, in the dialog that shows its fingerprint (R6, R23).
+    "ui.importPrivateKey",
+    "ui.removePrivateKey",
+    "ui.refreshOwnKeys",
+    "ui.importPublicKey",
+    "ui.verifyKey",
+    "ui.markKeyVerified",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).
@@ -646,6 +661,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
     ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
+    ("keys.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.save", "path", FileUse::Refused),
     ("file.saveAs", "path", FileUse::Refused),
     ("file.exportMessage", "path", FileUse::Writes { ext: "eml" }),
@@ -1273,6 +1289,44 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
     let label = s.registry.get(id).map(|c| c.label).unwrap_or(id);
     let st = |k: &str| p::str(params, k).unwrap_or("");
     match id {
+        "keys.import" => {
+            let to = match p::str(params, "address") {
+                Some(a) => format!("for {}", quoted(&clip(a, 80))),
+                None => "for every address the keys name".to_string(),
+            };
+            // What the file holds, read as the import would read it (the addresses come from the
+            // keys: data, never instructions).
+            let what = match crate::cmd::keys::preview(s, params) {
+                Some(found) if !found.is_empty() => {
+                    let named: Vec<String> = found
+                        .iter()
+                        .map(|(address, format, fingerprint)| {
+                            let fp = crate::digital_signature::fingerprint_digits(fingerprint);
+                            let tail = fp.get(fp.len().saturating_sub(16)..).unwrap_or(&fp);
+                            format!("{} ({format} key …{tail})", quoted(&clip(address, 80)))
+                        })
+                        .collect();
+                    format!(" ({})", some(&named, 3))
+                }
+                Some(_) => " (none of its keys is for an address)".to_string(),
+                None => String::new(),
+            };
+            format!(
+                "import Public keys from a file {to}{what}: Digital signatures from those addresses are then checked with them (they are never marked Verified)"
+            )
+        }
+        "keys.remove" => {
+            let wanted = crate::digital_signature::fingerprint_digits(st("fingerprint"));
+            let address = st("address").trim().to_lowercase();
+            let verified = !wanted.is_empty()
+                && s.mailbox
+                    .public_keys
+                    .of(&address)
+                    .iter()
+                    .any(|k| k.verified && crate::digital_signature::fingerprint_digits(&k.fingerprint) == wanted);
+            let marked = if verified { " (you marked it Verified)" } else { "" };
+            format!("remove the Public key {} kept for {}{marked}", quoted(&clip(st("fingerprint"), 100)), quoted(&clip(st("address"), 80)))
+        }
         "compose.send" => match s.compose_named(params) {
             Some(c) => {
                 let to: Vec<String> =

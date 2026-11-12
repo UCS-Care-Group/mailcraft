@@ -317,6 +317,11 @@ msgstr ""
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A contact's card keeps at most 32 certificates and keys"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "A copy can't go into this Outbox: the next Send/Receive would send it"
@@ -339,6 +344,11 @@ msgstr "Come sempre, prima viene salvata accanto a essa una copia dell'intera ca
 #, fuzzy
 msgid "A file dialog is already open."
 msgstr "Una finestra di selezione file è già aperta."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "A key is marked Verified only in the dialog that shows its fingerprint, by you"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -434,6 +444,11 @@ msgstr "Una nota per l'organizzatore (facoltativa)"
 #, fuzzy
 msgid "A on top"
 msgstr "A in alto"
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "A part of this key is RSA (a subkey for encryption, perhaps), which MailCraft doesn't use by itself: keep the key in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -809,6 +824,11 @@ msgstr "Aggiungi come account Microsoft"
 msgid "Add filters"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Add from file…"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -853,6 +873,11 @@ msgstr "Aggiunto da una versione più recente di MailCraft: inviare e ricevere c
 #, fuzzy
 msgid "Address"
 msgstr "Indirizzo"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Address:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1067,6 +1092,31 @@ msgid "An Agent Is Asking"
 msgstr "Richiesta di un agente"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "An OpenPGP secret key, protected by a passphrase"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An S/MIME certificate with its private key, in a .p12 or .pfx file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this contact's"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -1098,6 +1148,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "An import is under way"
 msgstr ""
 
 #. interface
@@ -1578,7 +1633,7 @@ msgid "Attachment options for {name}"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Allegati"
@@ -1759,6 +1814,11 @@ msgstr "Indietro"
 #: crates/ui-egui/src/send_receive.rs
 msgid "Back online"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Back to Message"
+msgstr "Torna al messaggio"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2000,7 +2060,12 @@ msgid "Calibri"
 msgstr "Calibri"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/security.rs
+msgid "Can't sign"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annulla"
@@ -2091,6 +2156,11 @@ msgstr "Cc:"
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "Cc: {names}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+msgid "Certificates"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2282,6 +2352,11 @@ msgid "Check the account's settings"
 msgstr "Controllare le impostazioni dell'account"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Checked with its certification authority"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Checking for a new version…"
@@ -2461,6 +2536,11 @@ msgstr "Cancella ricerca"
 msgid "Clear search (Esc)"
 msgstr "Cancella ricerca (Esc)"
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Click to preview {name}; double-click to open it"
+msgstr "Un clic per vedere l’anteprima di {name}, doppio clic per aprirlo"
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2561,6 +2641,26 @@ msgstr ""
 #, fuzzy
 msgid "Company"
 msgstr "Società"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Compare fingerprint…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Compare it with the fingerprint the person gives you another way: in person, by phone, or on their business card. Mark the key as verified only if every character matches."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Compare the key's fingerprint with the person's, and mark it as verified"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Compare the signer's key's fingerprint with theirs, and mark it as verified"
+msgstr ""
 
 #. interface, name, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
@@ -3272,6 +3372,11 @@ msgid "Delete this category"
 msgstr "Elimina questa categoria"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Delete this key from this computer"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Delete this rule"
@@ -3367,6 +3472,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digital signature can't be checked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Digital signatures and encryption"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Digital signatures are checked with these. They are collected from Digitally signed mail you receive, or imported here."
 msgstr ""
 
 #. interface
@@ -4088,6 +4203,11 @@ msgstr "Espandi o comprimi gruppo di calendari"
 msgid "Expand or Collapse Folder"
 msgstr "Espandi o comprimi cartella"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Expired"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4195,7 +4315,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "File"
@@ -4205,6 +4325,11 @@ msgstr "File"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Le finestre di selezione file non sono disponibili qui"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "File:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -4281,6 +4406,11 @@ msgstr "Ricerca delle impostazioni dell'account…"
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Fingerprint (SHA-256):"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/security.rs
+msgid "Fingerprint:"
 msgstr ""
 
 #. interface
@@ -4799,6 +4929,21 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG is installed but didn't answer ({why}): OpenPGP signing will work only with a key imported here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG isn't installed: OpenPGP signing will work only with a key imported here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Go"
@@ -5253,7 +5398,7 @@ msgid "Illustrations"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Import"
 msgstr "Importa"
@@ -5268,14 +5413,54 @@ msgstr ""
 msgid "Import Contacts"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Import Public Keys"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Import Your Certificate or Key"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Import a .pst File"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import a Certificate"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Import a Folder of Mailboxes"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Import a Public Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import a Public key…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import a certificate (.p12)…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import an OpenPGP Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Import an OpenPGP key (.asc)…"
 msgstr ""
 
 #. interface
@@ -5317,6 +5502,11 @@ msgid "Imported from {file}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Imported here"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what}"
@@ -5350,14 +5540,34 @@ msgid "Imported {what}; stopped after {count}: the file has more than one import
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Imported: MailCraft keeps it in the system's credential store, still protected by its passphrase."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Imported: the system keeps it, and it is listed with your certificates."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "Importing a .pst file isn't supported in the browser yet."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Importing…"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "Importing… {messages} of {total}"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "In Junk E-mail, preview an attachment from its menu."
+msgstr "In Posta indesiderata, apri l’anteprima dal menu dell’allegato."
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -5613,6 +5823,11 @@ msgstr "Passa al server non appena MailCraft può modificare le regole del serve
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
 msgstr "È un identificatore, non un segreto. MailCraft lo conserva nelle impostazioni (File › Opzioni)."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "It is held in memory for this import only, and never written down."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -5908,11 +6123,21 @@ msgstr "Mantieni questa versione"
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Continuando ad attendere, il passaggio avviene da solo non appena MailCraft riesce a raggiungere il server. Oppure passare senza di essi, se il server non è più raggiungibile (ad esempio, l'organizzazione ha disattivato IMAP):"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keep {address}"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Keeping a copy of what was sent"
 msgstr "Conservazione di una copia di quanto inviato"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Kept Public key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5937,6 +6162,16 @@ msgstr "Conservata in {path}, salvata man mano."
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Conservato solo su questo computer: inviti ed eventi ricorrenti non vengono ancora inviati al server"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Key made:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Keychain"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6022,6 +6257,11 @@ msgid "Leave it empty to look for the server from your address. It must begin wi
 msgstr "Lascialo vuoto per cercare il server partendo dal tuo indirizzo. Deve iniziare con https://."
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Leave it not verified"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Leave this account out of this Send/Receive"
@@ -6055,7 +6295,7 @@ msgid "Line Spacing"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Link"
 msgstr "Collegamento"
@@ -6146,6 +6386,11 @@ msgstr "Esamina il certificato che il server presenta ora. Mentre decidi non vie
 #, fuzzy
 msgid "Look for This Meeting on the Calendar"
 msgstr "Cerca questa riunione nel calendario"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Look for your certificates and keys again"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -6349,7 +6594,7 @@ msgid "MailCraft doesn't know the settings for this address. The servers below a
 msgstr "MailCraft non conosce le impostazioni di questo indirizzo. I server qui sotto sono solo un'ipotesi fatta in base al suo dominio: verificarli presso il proprio provider o amministratore prima di connettersi."
 
 #. what a command says
-#: crates/model/src/mailbox.rs
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
 msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
 msgstr ""
 
@@ -6387,10 +6632,20 @@ msgid "MailCraft isn't allowed to read other people's calendars yet."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr "MailCraft la conserva in memoria fino alla chiusura dell'app. Non viene mai scritta su disco."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft keeps the file, still protected by its passphrase, in the system's credential store. Only an ECDSA certificate (P-256 or P-384) is kept this way: an RSA one belongs on a smartcard or token (PKCS#11)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6425,6 +6680,11 @@ msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disat
 #, fuzzy
 msgid "MailCraft reaches this account's rules on the server once it switches to Microsoft Graph"
 msgstr "MailCraft raggiunge le regole di questo account sul server non appena passa a Microsoft Graph"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft reads the key without its passphrase and keeps the file, still protected by it, in the system's credential store. The key must have a passphrase and sign with Ed25519 or ECDSA; MailCraft asks for the passphrase when you sign."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -6498,6 +6758,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "MailCraft's data has been removed: nothing is sent or received"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "MailCraft's search for your keys stopped without an answer. Try again."
 msgstr ""
 
 #. interface
@@ -6604,6 +6869,11 @@ msgstr "Segna come completato"
 msgid "Mark Incomplete"
 msgstr "Segna come non completato"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Mark Key Verified"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -6633,6 +6903,11 @@ msgstr "Segna come letto"
 #, fuzzy
 msgid "Mark as unread"
 msgstr "Segna come da leggere"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Mark as verified"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -7381,7 +7656,7 @@ msgid "Newest on top"
 msgstr "Più recenti in alto"
 
 #. interface
-#: crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Next"
 msgstr "Successivo"
@@ -7412,6 +7687,11 @@ msgstr "Messaggio successivo"
 #: crates/ui-egui/src/date_picker.rs
 msgid "Next Month"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Next Page"
+msgstr "Pagina successiva"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7452,6 +7732,16 @@ msgstr "Nessuna data"
 #, fuzzy
 msgid "No Microsoft account is kept in step by IMAP"
 msgstr "Nessun account Microsoft è sincronizzato tramite IMAP"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "No Public key with that fingerprint is kept for that address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "No Public keys are kept yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7511,6 +7801,11 @@ msgstr "Ancora nessuna categoria"
 #, fuzzy
 msgid "No category"
 msgstr "Nessuna categoria"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "No certificates or keys of yours were found on this computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -7605,6 +7900,11 @@ msgid "No information"
 msgstr "Nessuna informazione"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "No key imported here has that fingerprint"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "No mailbox is being opened"
 msgstr ""
@@ -7626,6 +7926,11 @@ msgstr "Lì non si sta leggendo alcun messaggio"
 #, fuzzy
 msgid "No new version is ready to install."
 msgstr "Nessuna nuova versione pronta per l'installazione."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview helper is available for this attachment."
+msgstr "Non è disponibile un programma per l’anteprima di questo allegato."
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -7853,6 +8158,11 @@ msgstr "Non ora: viene installata all'uscita da MailCraft."
 #, fuzzy
 msgid "Not saved"
 msgstr "Non salvato"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Not verified"
+msgstr ""
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
@@ -8148,6 +8458,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 msgid "Only confirm if you know these servers."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
 msgstr ""
 
 #. interface
@@ -8455,7 +8770,7 @@ msgid "Optional"
 msgstr "Facoltativo"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Opzioni"
@@ -8485,7 +8800,7 @@ msgid "Organizer: {name}"
 msgstr "Organizzatore: {name}"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Other"
 msgstr "Altro"
@@ -8622,7 +8937,7 @@ msgid "Page Up"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Page {page} of {pages}"
 msgstr "Pagina {page} di {pages}"
@@ -8901,6 +9216,11 @@ msgid "Preferences"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preparing attachment preview…"
+msgstr "Preparazione dell’anteprima…"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Press Send/Receive to download your mail."
@@ -8912,6 +9232,26 @@ msgstr "Premere Invia/Ricevi per scaricare la posta."
 msgid "Preview"
 msgstr "Anteprima"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+msgid "Preview Attachment"
+msgstr "Anteprima allegato"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft"
+msgstr "Visualizza gli allegati in anteprima con PdfCraft locale"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PdfCraft and PhotoCraft"
+msgstr "Visualizza gli allegati in anteprima con PdfCraft e PhotoCraft locali"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview attachments with local PhotoCraft"
+msgstr "Visualizza gli allegati in anteprima con PhotoCraft locale"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -8919,7 +9259,7 @@ msgid "Preview lines in the message list"
 msgstr "Righe di anteprima nell'elenco messaggi"
 
 #. interface
-#: crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Previous"
 msgstr "Precedente"
@@ -8934,6 +9274,11 @@ msgstr "Messaggio precedente"
 #: crates/ui-egui/src/date_picker.rs
 msgid "Previous Month"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Previous Page"
+msgstr "Pagina precedente"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -9027,6 +9372,21 @@ msgstr "Inizio proposto"
 #, fuzzy
 msgid "Proposed time"
 msgstr "Orario proposto"
+
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Public Keys"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Public keys kept ({n}):"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Public keys of other people"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -9234,6 +9594,16 @@ msgstr "Ripeti digitazione"
 msgid "Redo {what}"
 msgstr "Ripeti {what}"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Refresh"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Refresh Your Certificates and Keys"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -9299,7 +9669,7 @@ msgid "Reminders Window"
 msgstr "Finestra Promemoria"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Rimuovi"
@@ -9354,6 +9724,11 @@ msgstr "Rimuovi posta meno recente da questo computer"
 msgid "Remove Picture"
 msgstr "Rimuovi immagine"
 
+#. command label
+#: crates/engine/src/cmd/keys.rs
+msgid "Remove Public Key"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9370,6 +9745,16 @@ msgstr ""
 #, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "Rimuovi cassetta postale condivisa"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Remove Your Imported Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Remove Your Key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9421,6 +9806,11 @@ msgstr "Rimuovi questa azione"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "Rimuovi questa condizione"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10272,6 +10662,11 @@ msgstr "Ricerca sul server…"
 msgid "Second time zone"
 msgstr "Secondo fuso orario"
 
+#. interface, ribbon location
+#: crates/engine/src/cmd/keys.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Security"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -10349,6 +10744,11 @@ msgstr "Selezionare un elemento da leggere"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Selezionare prima del testo"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Select the message before previewing its attachment."
+msgstr "Seleziona il messaggio prima di aprire l’anteprima dell’allegato."
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -11376,6 +11776,11 @@ msgid "Smallest on top"
 msgstr "Più piccoli in alto"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Smartcard {label}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Snooze"
@@ -11545,6 +11950,11 @@ msgstr "Indicizzazione ancora in corso: la ricerca in alcuni messaggi meno recen
 #, fuzzy
 msgid "Stop"
 msgstr "Interrompi"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Stop keeping this Public key"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -11734,6 +12144,11 @@ msgid "Tags"
 msgstr "Tag"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Take back that you verified it"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Take everything MailCraft keeps here with you when you are done: for a shared or work computer, or before deleting a portable copy."
 msgstr ""
@@ -11743,6 +12158,11 @@ msgstr ""
 #, fuzzy
 msgid "Take the meeting that was called off out of your calendar. Nobody is written to."
 msgstr "Toglie dal calendario la riunione annullata. Non viene scritto a nessuno."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Take this key off the card"
+msgstr ""
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -11936,6 +12356,16 @@ msgid "That can't be opened in a window of its own"
 msgstr "Non può essere aperto in una finestra separata"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "That file is larger than a key file can be."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "That file isn't a key file: it is empty, or larger than one is."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "That is not a domain"
@@ -11980,6 +12410,11 @@ msgid "That isn't the password of this file."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "That key is on the card already"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
 msgstr ""
@@ -11998,6 +12433,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The Digital signature can't be read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The Digital signature has expired."
 msgstr ""
 
 #. interface
@@ -12088,6 +12528,21 @@ msgstr "Il server dell'account la crea quando la riunione viene inviata; il coll
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "L'approvazione non è andata a buon fine."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview could not be opened."
+msgstr "Impossibile aprire l’anteprima dell’allegato."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The attachment preview timed out."
+msgstr "Tempo scaduto durante la preparazione dell’anteprima."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "The browser can't read files by path"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -12269,6 +12724,11 @@ msgid "The contact {id} is named twice."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "The contact's form was closed: open it again to add the key"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
@@ -12329,6 +12789,31 @@ msgid "The e-mail address of the person whose calendar you want to open"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The file couldn't be read ({why})"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The file holds more than one key, or something besides the key: export only the one secret key to import (gpg --armor --export-secret-keys <key>)."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The file holds no OpenPGP secret key that can be read."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The file is larger than an OpenPGP key can be."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The file's passphrase:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The folder \"{folder}\" and everything in it will be deleted."
@@ -12358,8 +12843,18 @@ msgid "The full report is in:"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "The import gave back something that isn't a key's name in the credential store."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "The import stopped unexpectedly. What came in stays; import the file again for the rest."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The import stopped without an answer. Try again."
 msgstr ""
 
 #. interface
@@ -12386,6 +12881,31 @@ msgid "The kept contact is always merged"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key couldn't be removed from the system's credential store."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key is marked as verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key is not marked as verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The key that made it isn't one that may sign."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "The key was removed from this computer."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
@@ -12408,6 +12928,11 @@ msgstr "L'elenco dei domini è pieno: rimuoverne alcuni in File › Opzioni"
 #, fuzzy
 msgid "The list of senders is full: remove some in File › Options"
 msgstr "L'elenco dei mittenti è pieno: rimuoverne alcuni in File › Opzioni"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "The local program receives the selected attachment and runs with your permissions."
+msgstr "Il programma locale riceve l’allegato selezionato e viene eseguito con i tuoi permessi."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -12560,6 +13085,11 @@ msgstr "L'immagine era troppo grande ed è stata ridotta ({w} px di larghezza)."
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
 msgstr "La porta; lasciare vuoto per quella abituale"
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "The private key in this file isn't encrypted, so MailCraft doesn't keep it: export it again with its key encrypted (AES), protected by a passphrase."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -12875,12 +13405,22 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
-msgid "The signer's certificate isn't in the message."
+msgid "The signer's Public key (certificate) isn't in the message or kept on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key had expired when the message was signed."
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The signer's key hasn't been marked verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "The signer's key was revoked by its owner."
 msgstr ""
 
 #. interface
@@ -13200,6 +13740,16 @@ msgid "This account's server keeps this contact. Changes made here aren't sent b
 msgstr "Il server di questo account conserva questo contatto. Le modifiche fatte qui non vengono ancora inviate indietro, quindi qui non può essere modificato né eliminato. Preferito e categorie sono conservati su questo computer."
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment could not be previewed."
+msgstr "Impossibile visualizzare questo allegato in anteprima."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "This attachment is too large to preview."
+msgstr "Questo allegato è troppo grande per l’anteprima."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
@@ -13305,6 +13855,11 @@ msgstr "Questo calendario è di sola lettura: non può ricevere nuovi elementi"
 #, fuzzy
 msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
 msgstr "Questo calendario non è ancora collegato all'account. Ciò che cambia altrove non compare qui, e ciò che si modifica qui resta su questo computer."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -13464,6 +14019,16 @@ msgid "This is about the occurrence on {day} only."
 msgstr "Riguarda solo l'occorrenza del {day}."
 
 #. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This is an RSA certificate, which MailCraft doesn't use by itself on this system: put it on a smartcard or token (PKCS#11), where MailCraft finds it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This is an RSA key, which MailCraft doesn't use by itself: keep it in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This is not somebody else's meeting: a message can't call it off."
@@ -13504,6 +14069,21 @@ msgstr "Questo elemento non ha ancora raggiunto il server di {who}. Inoltrarlo q
 #, fuzzy
 msgid "This item is still on its way to the account's server. Move it once it is there (in a moment)."
 msgstr "Questo elemento è ancora in viaggio verso il server dell'account. Spostarlo quando sarà arrivato (tra un momento)."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This key can't make Digital signatures: none of its keys may sign, or its secret parts aren't in the file."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This key has no passphrase, so MailCraft doesn't keep it. Add one in GnuPG (gpg --edit-key <key>, then passwd) and import it again."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+msgid "This key signs with an algorithm MailCraft doesn't use: only Ed25519 and ECDSA keys are imported here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -13780,6 +14360,11 @@ msgstr "L'account di questa cassetta postale condivisa non c'è più"
 #, fuzzy
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "L'account di questa cassetta postale condivisa non c'è più: rimuovere la cassetta postale condivisa e aggiungerla di nuovo"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -14128,6 +14713,11 @@ msgid "Tuesday"
 msgstr "martedì"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Turn on attachment previews in File › Options."
+msgstr "Attiva le anteprime degli allegati in File › Opzioni."
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Turned off by your organisation"
@@ -14411,6 +15001,11 @@ msgid "Valid"
 msgstr "Validità"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Valid until {date}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Valid:"
 msgstr ""
@@ -14420,6 +15015,21 @@ msgstr ""
 #, fuzzy
 msgid "Verdana"
 msgstr "Verdana"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Verified"
+msgstr ""
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/security.rs
+msgid "Verify a Public Key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+msgid "Verify…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -14466,6 +15076,11 @@ msgstr ""
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
 msgid "Violet"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Wait for the other attachment preview to finish."
+msgstr "Attendi il completamento dell’altra anteprima."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -14647,6 +15262,11 @@ msgid "Where"
 msgstr "Dove"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Where the card says the key is: MailCraft doesn't fetch it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Where they differ, the kept contact has:"
 msgstr ""
@@ -14656,6 +15276,11 @@ msgstr ""
 #, fuzzy
 msgid "Whether it is held online is for its organizer to say."
 msgstr "Se si tiene online lo decide l'organizzatore."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14684,6 +15309,16 @@ msgstr "Larghezza"
 #, fuzzy
 msgid "Window"
 msgstr "Finestra"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Windows certificate store"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Windows keeps the certificate and its private key in your certificate store, and asks you before MailCraft uses it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14899,6 +15534,11 @@ msgid "You haven't answered this invitation yet."
 msgstr "Non si è ancora risposto a questo invito."
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "You marked this key as verified."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "You may be asked to sign in with Microsoft again, to let MailCraft read and change your mail there."
@@ -14971,6 +15611,16 @@ msgstr ""
 #, fuzzy
 msgid "Your calendar: {day}"
 msgstr "Il proprio calendario: {day}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your certificates and keys"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your keychain keeps the certificate and its private key, and macOS asks you before MailCraft uses it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15134,6 +15784,16 @@ msgid "Your organisation's administrator has to approve this once"
 msgstr "L'amministratore della propria organizzazione deve approvarlo una volta"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "Your own key is removed only by you, in the window"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Your own name."
 msgstr ""
@@ -15145,7 +15805,7 @@ msgid "Z on top"
 msgstr "Z in alto"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
 msgstr "Ridimensiona"
 
@@ -15189,6 +15849,11 @@ msgid "`answer.outcome` is read, missing, notPermitted, refused, approval or fai
 msgstr "`answer.outcome` è read, missing, notPermitted, refused, approval o failed"
 
 #. interface
+#: crates/ui-egui/src/security.rs
+msgid "`format` is \"smime\" or \"openpgp\""
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "`keepOffline` is 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y or all"
@@ -15217,6 +15882,11 @@ msgstr "`notice` è installsItself o didntStart"
 #, fuzzy
 msgid "`value` is true or false"
 msgstr "`value` è true o false"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "`verified` is true or false"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -15267,6 +15937,11 @@ msgstr "un colore si scrive #rrggbb"
 #, fuzzy
 msgid "a contact needs a name, a company or an e-mail address"
 msgstr "un contatto richiede un nome, una società o un indirizzo di posta elettronica"
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "a contact's card keeps at most 32 keys"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -15450,6 +16125,11 @@ msgid "an HTML signature shows pictures from their web address: switch it to ric
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/digital_signature.rs
+msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr ""
@@ -15515,6 +16195,11 @@ msgstr "calendario"
 msgid "can't be done in the browser"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "can't be read"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
@@ -15525,6 +16210,11 @@ msgstr ""
 #, fuzzy
 msgid "close a conversation first: each of the 1,000 open has a message selected"
 msgstr "chiudere prima una conversazione: ognuna delle 1.000 aperte ha un messaggio selezionato"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "collected from mail"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -15670,6 +16360,11 @@ msgstr "iCloud"
 msgid "icloud.com, me.com and mac.com"
 msgstr "icloud.com, me.com e mac.com"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "imported"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "importing a .pst file isn't supported in the browser yet"
@@ -15715,6 +16410,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "isn't a folder: left alone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "issued by {issuer}"
 msgstr ""
 
 #. what a command says
@@ -15905,6 +16605,11 @@ msgstr "nessun account Microsoft è sincronizzato tramite IMAP"
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
 msgid "no Microsoft or Exchange server account keeps mail offline"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
+msgid "no Public key with that fingerprint is kept for that address"
 msgstr ""
 
 #. what a command says
@@ -16448,6 +17153,11 @@ msgstr ""
 msgid "the Inbox of this account hasn't been read yet"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the OpenPGP key is larger than a Public key is kept"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -16522,6 +17232,21 @@ msgstr "il calendario non c'è più"
 msgid "the calendar the .pst file was being imported into was removed: the import stopped"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the certificate can't be read"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the certificate is a certification authority's, not a person's Public key"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the certificate isn't for mail: its key usage or extended key usage is for something else"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -16587,6 +17312,26 @@ msgstr ""
 msgid "the event is gone"
 msgstr "l'evento non c'è più"
 
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file holds no Public key that can be read: an X.509 certificate (DER or PEM) or OpenPGP Public keys"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file holds no Public key that can be read: an X.509 certificate (DER or PEM) or an OpenPGP Public key"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file is empty"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the file is larger than a file of Public keys can be (1 MB)"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -16640,6 +17385,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import was stopped"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "the key is larger than a contact's card keeps one"
 msgstr ""
 
 #. what a command says
@@ -16798,6 +17548,11 @@ msgid "the server accepted a password that was not sent"
 msgstr "il server ha accettato una password che non è stata inviata"
 
 #. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
@@ -16923,7 +17678,7 @@ msgstr "il server ha terminato la sessione: {reason}"
 msgid "the server greeted with a refusal: {reason}"
 msgstr "il server ha salutato con un rifiuto: {reason}"
 
-#. why a command can't run
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
@@ -16940,6 +17695,11 @@ msgstr "il server non offre alcun modo di accedere con una password"
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "il server non offre alcun modo di accedere con un token di accesso"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -17311,6 +18071,11 @@ msgid "this draft isn't downloaded yet: open it once you're online, then edit it
 msgstr "questa bozza non è ancora stata scaricata: aprirla quando si è online, poi modificarla"
 
 #. what a command says
+#: crates/engine/src/cmd/keys.rs
+msgid "this file holds a private key, which isn't imported as a Public key: import your own keys in File › Options › Security"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "this isn't a .pst file"
 msgstr ""
@@ -17404,6 +18169,11 @@ msgstr ""
 #, fuzzy
 msgid "unexpected server response: {reason}"
 msgstr "risposta inattesa del server: {reason}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "valid until {date}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17865,6 +18635,11 @@ msgstr "{name} ha risposto a questo invito."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+msgid "{name} couldn't be read"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
 msgid "{name} couldn't be read ({why})"
 msgstr ""
 
@@ -18102,6 +18877,13 @@ msgstr "{not_sending_yet}: inviare questo messaggio da un altro account, oppure 
 #, fuzzy
 msgid "{n} KB"
 msgstr "{n} KB"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "{n} Public key was imported."
+msgid_plural "{n} Public keys were imported."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs

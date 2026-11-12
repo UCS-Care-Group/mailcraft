@@ -1395,7 +1395,20 @@ pub enum ChangeOutcome {
     /// folder or under it that weren't there when the owner deleted it (mail that arrived since,
     /// a folder made elsewhere). The folder comes back as with a refusal.
     NotShown { items: u32 },
+    /// The server won't because the folder is one of its own (#1069): a default folder it keeps,
+    /// such as RSS Feeds, that no well-known name it answers to tells apart beforehand (Graph's
+    /// list of well-known folder names, learn.microsoft.com/graph/api/resources/mailfolder, has
+    /// no `rssfeeds`). It is put back as with a refusal, and marked as the server's own
+    /// ([`crate::ServerFolder::well_known`]) so it isn't offered for renaming, moving or deleting
+    /// again; this says why, in plain words.
+    OwnFolder { why: String },
 }
+
+/// The codes a Microsoft server answers a move or deletion of one of its own folders with (EWS's
+/// `ResponseCode` list, learn.microsoft.com/exchange/client-developer/web-service-reference/responsecode:
+/// `ErrorDeleteDistinguishedFolder`, `ErrorMoveDistinguishedFolder`), read in an EWS answer and
+/// in Graph's `error.code` alike, Graph's codes being Exchange's (#1069).
+pub const OWN_FOLDER_CODES: [&str; 2] = ["ErrorDeleteDistinguishedFolder", "ErrorMoveDistinguishedFolder"];
 
 /// A change and what became of it. A change that isn't answered (the server was busy, the
 /// connection went) is not here: it is worked out again for the next run.

@@ -37,6 +37,8 @@ mod favorites_tests;
 pub mod file;
 pub mod folder;
 #[cfg(test)]
+mod folder_empty_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
@@ -74,6 +76,9 @@ pub mod junk;
 mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
+pub mod keys;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod leave_compose_tests;
 pub mod mail;
@@ -177,6 +182,7 @@ pub fn registry() -> Registry {
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
