@@ -856,6 +856,11 @@ impl AccountSetup {
     // ---- moving between pages ----
 
     fn go(&mut self, page: Page) {
+        // A Search again still out is the Exchange page's: leaving the page drops it, so that its
+        // answer never lands on another address, nor keeps frames coming.
+        if self.page == Page::Exchange && page != Page::Exchange {
+            self.autodiscover = None;
+        }
         self.page = page;
         // A password shown on one page is dots on the next.
         self.reveal = false;

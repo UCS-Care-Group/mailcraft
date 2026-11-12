@@ -734,7 +734,8 @@ impl Autodiscover {
         let mut aliased: Vec<String> = Vec::new();
         for host in aliases {
             let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
-            if is_name(&host) && !named.iter().any(|(h, _)| *h == host) && !aliased.contains(&host) && aliased.len() < MAX_ALIAS_HOSTS {
+            // (Asked at 443: an SRV target of the same host at another port is another place.)
+            if is_name(&host) && !named.iter().any(|(h, p)| *h == host && *p == 443) && !aliased.contains(&host) && aliased.len() < MAX_ALIAS_HOSTS {
                 aliased.push(host);
             }
         }

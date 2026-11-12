@@ -240,4 +240,44 @@ fn search_again_that_finds_microsoft_says_it_is_a_microsoft_account() {
     h.run_steps(3);
     assert_eq!(page(&h), Some(Page::ExchangeOnline));
     assert!(wizard(&h).is_some_and(|w| w.password.0.is_empty()));
+    // Back: the Exchange page no longer says what the first look found.
+    click(&mut h, "Back");
+    assert_eq!(page(&h), Some(Page::Exchange));
+    assert!(wizard(&h).is_some_and(|w| !w.exchange.found));
+    assert!(!says(&h, "so this looks like an Exchange server account"));
+}
+
+#[test]
+fn a_search_again_still_out_is_dropped_when_the_exchange_page_is_left() {
+    let mut a = app(false);
+    checks(&mut a, None);
+    lookups(&mut a, Some(Ok(vec![HOSTED_MX])));
+    // The first look answers at once; the second never does while the page is open.
+    let held: Log<mpsc::Sender<Result<Vec<String>, String>>> = Default::default();
+    let (keep, looks) = (held.clone(), Arc::new(Mutex::new(0)));
+    a.services.lookup_autodiscover = Some(Box::new(move |_| {
+        let (tx, rx) = mpsc::channel();
+        let mut n = looks.lock().unwrap();
+        *n += 1;
+        if *n == 1 {
+            tx.send(Ok(vec![HOSTED_AUTODISCOVER.to_string()])).unwrap();
+        }
+        keep.lock().unwrap().push(tx);
+        rx
+    }));
+    let mut h = open(a, json!({}));
+    connect(&mut h, "noor@lumen.example");
+    assert_eq!(page(&h), Some(Page::Exchange));
+    click(&mut h, "Server settings");
+    click(&mut h, "Search again");
+    assert!(wizard(&h).is_some_and(|w| w.autodiscover.is_some()));
+    click(&mut h, "Back");
+    assert_eq!(page(&h), Some(Page::Address));
+    assert!(wizard(&h).is_some_and(|w| w.autodiscover.is_none() && !w.busy()), "nothing left waiting");
+    // Its answer, coming late, has nowhere to go.
+    for tx in held.lock().unwrap().iter() {
+        let _ = tx.send(Ok(vec!["autodiscover.outlook.com".to_string()]));
+    }
+    h.run_steps(3);
+    assert_eq!(page(&h), Some(Page::Address));
 }

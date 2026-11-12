@@ -219,8 +219,9 @@ impl AccountSetup {
         self.exchange.looked = true;
         match provider::by_autodiscover(&hosts) {
             // Microsoft's: nothing is sent, and the page that says it is a Microsoft account.
+            // What was found before is no longer said, should the owner come back to this page.
             provider::Autodiscover::Microsoft => {
-                self.exchange.hosts = hosts;
+                (self.exchange.hosts, self.exchange.found) = (hosts, false);
                 self.forget_password();
                 self.go(Page::ExchangeOnline);
             }

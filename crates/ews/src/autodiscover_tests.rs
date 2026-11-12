@@ -1082,6 +1082,12 @@ fn the_answer_of_grommunio_is_read_for_its_ews_address_and_a_server_name() {
 /// A whole search with the SRV record's targets and the alias's hosts, where every question
 /// counts among `yes` (then no): what came of it, and what the owner was asked.
 fn aliased(standin: &AutodiscoverStandIn, srv: &[&str], aliases: &[&str], yes: &[bool]) -> (Outcome, Vec<(String, ConsentReason)>) {
+    let srv: Vec<(&str, u16)> = srv.iter().map(|host| (*host, 443)).collect();
+    aliased_at(standin, &srv, aliases, yes)
+}
+
+/// [`aliased`], with the port the SRV record gives each target.
+fn aliased_at(standin: &AutodiscoverStandIn, srv: &[(&str, u16)], aliases: &[&str], yes: &[bool]) -> (Outcome, Vec<(String, ConsentReason)>) {
     let mut machine = search("ada@example.org");
     let mut asked = Vec::new();
     for _ in 0..400 {
@@ -1091,7 +1097,7 @@ fn aliased(standin: &AutodiscoverStandIn, srv: &[&str], aliases: &[&str], yes: &
                 machine.response(result);
             }
             Step::LookupSrv(_) => machine.srv_and_aliases(
-                Some(srv.iter().map(|host| ((*host).to_owned(), 443)).collect()),
+                Some(srv.iter().map(|(host, port)| ((*host).to_owned(), *port)).collect()),
                 aliases.iter().map(|host| (*host).to_owned()).collect(),
             ),
             Step::NeedsYes(consent) => {
@@ -1130,6 +1136,26 @@ fn an_alias_s_host_in_the_domain_has_the_sign_in_only_after_a_yes_unlike_an_srv_
     let both = standin();
     let (outcome, asked) = aliased(&both, &["autodiscover.web.example.org"], &["autodiscover.web.example.org"], &[]);
     assert!(matches!(outcome, Outcome::Found(_)) && asked.is_empty(), "{outcome:?} {asked:?}");
+}
+
+#[test]
+fn an_alias_s_host_that_the_srv_record_names_at_another_port_is_asked_at_443_too() {
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("autodiscover.hoster.example", Route::Unreachable);
+    let _ = aliased_at(&standin, &[("autodiscover.hoster.example", 8443)], &["autodiscover.hoster.example"], &[true, true]);
+    let urls: Vec<String> = standin.state().seen.iter().map(|seen| seen.url.clone()).collect();
+    assert!(urls.iter().any(|u| u == "https://autodiscover.hoster.example:8443/autodiscover/autodiscover.xml"), "{urls:?}");
+    assert!(urls.iter().any(|u| u == "https://autodiscover.hoster.example/autodiscover/autodiscover.xml"), "{urls:?}");
+    // At 443 in the SRV record too: one place, asked once.
+    let once = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("autodiscover.hoster.example", Route::Unreachable);
+    let _ = aliased_at(&once, &[("autodiscover.hoster.example", 443)], &["autodiscover.hoster.example"], &[true, true]);
+    let asked = once.state().seen.iter().filter(|seen| seen.url == "https://autodiscover.hoster.example/autodiscover/autodiscover.xml").count();
+    assert_eq!(asked, 1);
 }
 
 #[test]
