@@ -88,7 +88,7 @@ fn a_reminder_is_dismissed_while_the_main_window_has_no_passes() {
     click(&ctx, paint.as_ref(), &mut time, pos2(row.max.x - 20.0, row.center().y));
     assert_eq!(lock(&app.reminders.shared).actions, [Action::Dismiss(first.event, first.start.iso())]);
     assert!(logic_only(&ctx, &mut app).is_empty());
-    assert!(app.ui.dismissed_reminders.contains(&key_of(&first)));
+    assert!(app.ui.dismissed_reminders.contains(&key_of(&app, &first)));
     assert!(!app.reminders.showing.contains(&first));
     // What the window shows follows at once, for its next pass.
     assert_eq!(lock(&app.reminders.shared).rows.len(), before.len() - 1);

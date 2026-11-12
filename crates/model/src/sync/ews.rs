@@ -52,6 +52,8 @@ use super::{
     MessageChangeDone, PlaceDone, PlaceUp, ReadState, SendDone, SendUp, ThreadOf, Timings, is_false,
 };
 use crate::Id;
+use crate::remote::{CalendarsDownload, ContactsDownload, ContactsUpload, ContactsUploaded, EventsUpload, EventsUploaded};
+use crate::remote_tasks::{TasksDownload, TasksUpload, TasksUploaded};
 
 /// Longest server id of a folder or an item, in bytes ([`crate::AccountKind::Exchange`]'s ids hold
 /// an id and a change key in one opaque string).
@@ -115,6 +117,209 @@ pub struct EwsFolderState {
     pub state: String,
 }
 
+/// Another mailbox whose calendar or address book an Exchange server account reads with its own
+/// sign-in (a person's calendar opened by address, an address book opened by address, or a
+/// shared mailbox's): what the owner asked for, and which of its folders are read.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EwsSharedMailbox {
+    /// The mailbox's address.
+    pub address: String,
+    /// Read its calendars.
+    #[serde(skip_serializing_if = "is_false")]
+    pub calendar: bool,
+    /// Read its address books.
+    #[serde(skip_serializing_if = "is_false")]
+    pub contacts: bool,
+    /// It is a shared mailbox open here as an account of its own: its tasks are read too.
+    #[serde(skip_serializing_if = "is_false")]
+    pub tasks: bool,
+}
+
+/// Where an Exchange server run reads its calendar, contacts and to-dos ([`EwsMailRequest::directory`]).
+///
+/// The calendar is read for a stretch of time; the contacts and to-dos are read whole. What was
+/// changed here goes up first, as mail does, and what the server says of each change comes back
+/// in [`EwsDirectoryResult`].
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EwsDirectoryRequest {
+    /// The account whose directory it is.
+    pub account: Id,
+    /// The account's address, as a run's is.
+    pub email: String,
+    /// The address of the Exchange Web Services endpoint. Never logged.
+    pub url: String,
+    /// The name the password is sent with; empty means `email`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub username: String,
+    /// The mailbox the folders are in, when it is not the account's own (a shared mailbox opened
+    /// under this account). Empty for the account's own mailbox.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub mailbox: String,
+    /// The fingerprint of the one certificate the owner trusts; empty when none.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub trusted: String,
+    /// Read the account's calendars and address books (their lists, and what is in them).
+    #[serde(skip_serializing_if = "is_false")]
+    pub calendars: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    pub contacts: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    pub tasks: bool,
+    /// The stretch of the calendar to read (Unix seconds, UTC): from, and up to.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub from: i64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub to: i64,
+    /// Other mailboxes whose calendar or address book is read with the same sign-in.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub shared: Vec<EwsSharedMailbox>,
+    /// The calendar changes made here, first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changes: Option<EventsUpload>,
+    /// The contact changes made here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_changes: Option<ContactsUpload>,
+    /// The to-do changes made here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_changes: Option<TasksUpload>,
+    /// Nobody is waiting: it gets the share of requests background work has.
+    #[serde(skip_serializing_if = "is_false")]
+    pub background: bool,
+}
+
+fn is_zero(value: &i64) -> bool {
+    *value == 0
+}
+
+/// What an Exchange server run brought for its calendar, contacts and to-dos.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EwsDirectoryResult {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub url: String,
+    /// The account's calendars, when they were listed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub calendars: Option<CalendarsDownload>,
+    /// The events of each calendar read: the main one (no calendar name), then the others.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<crate::remote::EventsDownload>,
+    /// The contacts and the address books, when read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts: Option<ContactsDownload>,
+    /// The to-dos, when read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tasks: Option<TasksDownload>,
+    /// What became of the calendar changes sent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uploaded: Option<EventsUploaded>,
+    /// What became of the contact changes sent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts_uploaded: Option<ContactsUploaded>,
+    /// What became of the to-do changes sent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tasks_uploaded: Option<TasksUploaded>,
+    /// Problems worth telling the owner; empty when all went well.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
+    /// The server said it was busy and to stay away this many seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub busy_for: Option<u32>,
+    /// The server turned the password down (a 401).
+    #[serde(skip_serializing_if = "is_false")]
+    pub auth_refused: bool,
+    /// A certificate the system doesn't trust and the account doesn't either.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub untrusted: String,
+    /// How the run signed in, `basic` or `ntlm`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub signed_in_with: String,
+}
+
+impl EwsDirectoryResult {
+    /// Whether this answer is within what is taken in, or why not.
+    pub fn check(&self) -> Result<(), &'static str> {
+        const TOO_MANY: &str = "has more in it than is taken in";
+        if self.email.len() > crate::EwsServer::MAX_USERNAME || self.url.len() > crate::EwsServer::MAX_URL {
+            return Err("names an account or a server that is too long");
+        }
+        if self.errors.len() > MAX_EWS_ERRORS || self.errors.iter().any(|e| e.chars().take(MAX_EWS_ERROR + 1).count() > MAX_EWS_ERROR) {
+            return Err("has a problem told at too great a length");
+        }
+        if crate::EwsServer::check_fingerprint(&self.untrusted).is_err() {
+            return Err("has a certificate fingerprint that can't be one");
+        }
+        if !matches!(self.signed_in_with.as_str(), "" | "basic" | "ntlm") {
+            return Err("has a way of signing in that MailCraft doesn't speak");
+        }
+        if self.events.len() > crate::remote::MAX_REMOTE_CALENDARS {
+            return Err(TOO_MANY);
+        }
+        for download in &self.events {
+            if download.events.len() > crate::remote::MAX_EVENTS {
+                return Err(TOO_MANY);
+            }
+        }
+        if self.contacts.as_ref().is_some_and(|c| c.contacts.len() > crate::remote::MAX_CONTACTS) {
+            return Err(TOO_MANY);
+        }
+        if self.tasks.as_ref().is_some_and(|t| t.tasks.len() > crate::remote_tasks::MAX_TASKS) {
+            return Err(TOO_MANY);
+        }
+        Ok(())
+    }
+
+    /// Nothing went wrong in this part of the run.
+    pub fn whole(&self) -> bool {
+        self.errors.is_empty() && !self.auth_refused && self.busy_for.is_none() && self.untrusted.is_empty()
+    }
+}
+
+impl std::fmt::Debug for EwsDirectoryRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsDirectoryRequest")
+            .field("account", &self.account)
+            .field("calendars", &self.calendars)
+            .field("contacts", &self.contacts)
+            .field("tasks", &self.tasks)
+            .field("shared", &self.shared.len())
+            .field("changes", &self.changes.as_ref().map(|upload| upload.ops.len()))
+            .field("contact_changes", &self.contact_changes.as_ref().map(|upload| upload.ops.len()))
+            .field("task_changes", &self.task_changes.as_ref().map(|upload| upload.ops.len()))
+            .field("background", &self.background)
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for EwsDirectoryResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsDirectoryResult")
+            .field("account", &self.account)
+            .field("calendars", &self.calendars.as_ref().map(|list| list.calendars.len()))
+            .field("events", &self.events.len())
+            .field("contacts", &self.contacts.as_ref().map(|list| list.contacts.len()))
+            .field("tasks", &self.tasks.as_ref().map(|list| list.tasks.len()))
+            .field("uploaded", &self.uploaded.as_ref().map(|upload| upload.outcomes.len()))
+            .field("contacts_uploaded", &self.contacts_uploaded.as_ref().map(|upload| upload.outcomes.len()))
+            .field("tasks_uploaded", &self.tasks_uploaded.as_ref().map(|upload| upload.outcomes.len()))
+            .field("errors", &self.errors.len())
+            .field("busy_for", &self.busy_for)
+            .field("auth_refused", &self.auth_refused)
+            .field("untrusted", &!self.untrusted.is_empty())
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for EwsSharedMailbox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsSharedMailbox").field("calendar", &self.calendar).field("contacts", &self.contacts).field("tasks", &self.tasks).finish()
+    }
+}
+
 /// What a run for a [`crate::AccountKind::Exchange`] account is asked to do: the changes made here
 /// go up, what waits in the Outbox is sent, the server's folders are listed if they should be, and
 /// the folders in `scope` are read from their sync states.
@@ -173,6 +378,10 @@ pub struct EwsMailRequest {
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+    /// The calendar, contacts and to-dos to keep in step after the mail: none in a light run or
+    /// an Inbox pass, and none when the account has no such work waiting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub directory: Option<Box<EwsDirectoryRequest>>,
     /// Messages listed before their conversation ids were asked for, by server id: the server is
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -354,6 +563,9 @@ pub struct EwsMailResult {
     /// measured by the host, which makes the requests.
     #[serde(skip_serializing_if = "Timings::is_empty")]
     pub timings: Timings,
+    /// What the calendar, contacts and to-dos came to, when the run was asked for them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub directory: Option<Box<EwsDirectoryResult>>,
 }
 
 /// Whether `id` may be a server id of a folder or an item: not empty, at most [`MAX_EWS_ID`] bytes,
@@ -447,6 +659,9 @@ impl EwsMailResult {
         if self.pages.iter().any(|p| !state_ok(&p.state) || !state_ok(&p.from)) {
             return Err("has a sync state that can't be one");
         }
+        if let Some(directory) = &self.directory {
+            directory.check()?;
+        }
         if let Some(folders) = &self.folders {
             if folders.changed.len() > MAX_LISTED_FOLDERS
                 || folders.deleted.len() > MAX_LISTED_FOLDERS
@@ -516,6 +731,9 @@ impl EwsMailResult {
         if !piece.untrusted.is_empty() {
             self.untrusted = piece.untrusted;
         }
+        if piece.directory.is_some() {
+            self.directory = piece.directory;
+        }
     }
 }
 
@@ -557,6 +775,7 @@ impl std::fmt::Debug for EwsMailRequest {
             .field("inbox_pass", &self.inbox_pass)
             .field("full", &self.full)
             .field("background", &self.background)
+            .field("directory", &self.directory.is_some())
             .finish()
     }
 }
@@ -598,6 +817,7 @@ impl std::fmt::Debug for EwsMailResult {
             .field("untrusted", &!self.untrusted.is_empty())
             .field("signed_in_with", &self.signed_in_with)
             .field("timings", &self.timings)
+            .field("directory", &self.directory.is_some())
             .finish()
     }
 }

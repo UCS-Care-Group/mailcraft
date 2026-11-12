@@ -70,6 +70,17 @@ impl MailApp {
         Ok(())
     }
 
+    /// The owner asked for the address book of `address` under an Exchange server account (the
+    /// dialog's Open): the address is put on the list, and the next Send/Receive reads it.
+    pub(crate) fn begin_open_address_book(&mut self, account: Id, address: &str) -> Result<(), String> {
+        self.execute("contacts.openShared", json!({"account": account, "address": address}))?;
+        self.status(crate::i18n::fmt(
+            tl!("Opened the address book of {address}. It is read at the next Send/Receive, and kept on this computer only."),
+            &[("address", address)],
+        ));
+        Ok(())
+    }
+
     /// Have the account's calendar job read what was opened by address without waiting for the
     /// next quarter of an hour (the wide stretch is what lists the calendars).
     pub(crate) fn read_opened_now(&mut self, account: Id) {

@@ -62,6 +62,8 @@ pub enum Dialog {
         error: String,
         /// The address that was asked for and is being read.
         reading: Option<String>,
+        /// An address book rather than a calendar (an Exchange server account's shared contacts).
+        address_book: bool,
     },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
@@ -232,6 +234,7 @@ impl Dialog {
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
+            Dialog::OpenCalendar { address_book: true, .. } => "openAddressBook",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
             Dialog::DateTime { .. } => "dateTime",
@@ -321,7 +324,18 @@ impl Dialog {
                     None => mailbox.accounts.iter().find(can)?.id,
                 };
                 let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
-                Dialog::OpenCalendar { account, address, error: String::new(), reading: None }
+                Dialog::OpenCalendar { account, address, error: String::new(), reading: None, address_book: false }
+            }
+            "openAddressBook" => {
+                // Under the account named, else the first Exchange server account that can open one.
+                let can = |a: &&mailcraft_model::Account| a.kind == mailcraft_model::AccountKind::Exchange && !a.is_shared();
+                let mailbox = &app.session.mailbox;
+                let account = match id("account") {
+                    Some(id) => mailbox.account(id).filter(can)?.id,
+                    None => mailbox.accounts.iter().find(can)?.id,
+                };
+                let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
+                Dialog::OpenCalendar { account, address, error: String::new(), reading: None, address_book: true }
             }
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
@@ -498,11 +512,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
             Some(Question::new(tl!("Delete Permanently"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
-        // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
-        // account's server keeps can't be deleted here, and the command says so without asking.
+        // A contact has no Deleted Items to go to: deleting one is for good (#186), whether it
+        // lives here or in one of the account's address books.
         "people.delete" => {
             let c = mb.contact(mailcraft_engine::p::id_strict(params, "id").ok()?.or(app.session.sel.contact)?)?;
-            if mailcraft_engine::cmd::remote::keeper(mb, &c.origin).is_some() {
+            // A read-only book keeps its contacts: the command says so without asking.
+            if !crate::people_view::contact_writable(app, c) {
                 return None;
             }
             let name = c.name();
@@ -1256,6 +1271,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "review.wordCount" => Some("wordCount"),
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
+        "contacts.openShared" if !has("address") => Some("openAddressBook"),
         "rules.list" => Some("rules"),
         "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
@@ -1643,11 +1659,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
         }
-        Dialog::OpenCalendar { account, address, error, reading } => {
+        Dialog::OpenCalendar { account, address, error, reading, address_book } => {
             let mut submit = false;
             let owner = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            let on_exchange = app.session.mailbox.account(*account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange);
             // (The answer to what was asked for: the calendar came in, or why not.)
-            if reading.is_some() && app.open_shared.waiting.is_none() {
+            if !*address_book && reading.is_some() && app.open_shared.waiting.is_none() {
                 match app.open_shared.outcome.take() {
                     Some(Ok(_)) => close = true,
                     Some(Err(why)) => *error = why,
@@ -1655,21 +1672,32 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
                 *reading = None;
             }
-            let open = window(ctx, tl!("Open Shared Calendar"), 420.0, |ui| {
-                ui.label(tl!("The e-mail address of the person whose calendar you want to open"));
+            let title = if *address_book { tl!("Open Shared Address Book") } else { tl!("Open Shared Calendar") };
+            let open = window(ctx, title, 420.0, |ui| {
+                ui.label(if *address_book {
+                    tl!("The e-mail address of the person whose address book you want to open")
+                } else {
+                    tl!("The e-mail address of the person whose calendar you want to open")
+                });
                 let field = egui::TextEdit::singleline(address).hint_text("colleague@example.org").desired_width(f32::INFINITY);
                 let resp = crate::text_menu::field(ui.add_enabled(reading.is_none(), field));
                 if reading.is_none() && error.is_empty() {
                     crate::text_menu::hold(&resp);
                 }
-                ui.label(
-                    egui::RichText::new(crate::i18n::fmt(
-                        tl!("Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."),
-                        &[("owner", &owner)],
-                    ))
-                    .color(t.text_dim)
-                    .size(11.0),
-                );
+                let note = if *address_book {
+                    tl!(
+                        "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their address book with you. It is kept on this computer only, and read at the next Send/Receive."
+                    )
+                } else if on_exchange {
+                    tl!(
+                        "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only, and read at the next Send/Receive."
+                    )
+                } else {
+                    tl!(
+                        "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
+                    )
+                };
+                ui.label(egui::RichText::new(crate::i18n::fmt(note, &[("owner", &owner)])).color(t.text_dim).size(11.0));
                 if reading.is_some() {
                     ui.label(egui::RichText::new(tl!("Reading the calendar from Microsoft…")).color(t.text_dim));
                 }
@@ -1683,9 +1711,22 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             close |= !open;
             if submit && !close {
                 error.clear();
-                match app.begin_open_shared(*account, address.trim()) {
-                    Ok(()) => *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone()),
-                    Err(e) => *error = e,
+                if *address_book {
+                    match app.begin_open_address_book(*account, address.trim()) {
+                        Ok(()) => close = true,
+                        Err(e) => *error = e,
+                    }
+                } else {
+                    match app.begin_open_shared(*account, address.trim()) {
+                        Ok(()) => {
+                            if on_exchange {
+                                close = true;
+                            } else {
+                                *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone());
+                            }
+                        }
+                        Err(e) => *error = e,
+                    }
                 }
             }
         }
