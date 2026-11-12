@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-06 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -44,6 +44,11 @@ IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against oth
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #815 part 5: `.pst` files: notes, journal entries and HTML kept in rich text; no longer a preview |
+| 2026-11-11 | minor | #815 part 4: `.pst` calendar items and tasks import (preview) |
+| 2026-11-10 | minor | #815: `.pst` mail whose body is rich text alone comes in as its text, the rich text kept as an attachment |
+| 2026-11-09 | minor | #30 part 4: vCard `KEY` (S/MIME certificates, OpenPGP keys) read on import and written on export |
+| 2026-11-07 | minor | #843: `.pst` distribution lists kept in a stream: their members are read |
 | 2026-11-06 | minor | #815 part 3: `.pst` contacts: notes kept only as compressed rich text ([MS-OXRTFCP]) are read as text |
 | 2026-11-05 | minor | #815 part 3 review: `.pst` contacts: Deleted Items, hidden and automatic contact folders left out; notes cut to a vCard line; lists kept in a stream named |
 | 2026-11-05 | minor | #815 part 3: `.pst` contacts are marked as imported from the file (no category); only Deleted Items is left out; a file of contacts alone makes no mail folder |

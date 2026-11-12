@@ -1,6 +1,6 @@
 # Gmail and Google Workspace on the desktop
 
-> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-08 · **Change:** minor
+> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-09 · **Change:** minor
 
 MailCraft offers **Sign in with Google** first for new Google accounts when its Desktop OAuth
 registration is configured. **Use an app password instead** is a separate alternative. An
@@ -312,6 +312,13 @@ sign-in is not public-app approval. See [release readiness](releasing.md#google-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-09 | patch | #911: how a refused request is split, the cap a Send/Receive, and a move Gmail refuses three times given up |
+| 2026-11-09 | patch | #911: named messages move with their copies of the same Gmail message; a move given up once Gmail has refused it three times |
+| 2026-11-08 | minor | #911: Gmail's inbox categories shown as five folders under a Gmail account's Inbox, read with Gmail's own search; the two account settings, the `gmail:` search and what agents see |
+| 2026-11-08 | minor | #911: Gmail's categories as tabs above the Inbox (View › Gmail Categories), how they are chosen with the mouse and the keyboard |
+| 2026-11-08 | minor | #911: moving mail between Gmail's categories (drag, Move to Category, `mail.setGmailCategory`), why an app-password account can't, and that it is switched off until Google has reviewed MailCraft |
+| 2026-11-08 | patch | #911: moves between Gmail's categories go one request for each category; named messages move alone; switched off, Move to Category isn't in command search and a move left waiting gives way to Gmail |
+| 2026-11-08 | patch | #911: an app-password account and Google sign-in described as they will be once moves are switched on; a refused request split to send the rest |
 | 2026-11-08 | minor | #232: Google sign-in is for invited testers while Google reviews MailCraft, with how to join; a new Gmail account starts on an app password |
 | 2026-11-04 | minor | #232: document primary-address identity checks and unsupported Workspace aliases; keep the public client-ID option while taking the matching registration secret only from build or environment configuration, including migration from the former preference |
 | 2026-11-03 | major | Desktop Google sign-in, app-password alternative, explicit conversion, registration overrides, restrictions and verified acceptance scope (#232) |

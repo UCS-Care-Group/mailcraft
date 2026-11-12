@@ -8,6 +8,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::messages::Messages;
+use bulk::Removal;
+
+#[path = "mailbox_bulk.rs"]
+mod bulk;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
@@ -859,25 +863,6 @@ fn kept_written<S: serde::Serializer>(kept: &Option<Box<Message>>, s: S) -> Resu
         m
     });
     written.serialize(s)
-}
-
-/// What deleting messages for good looks up in the queues, found once for a run of them
-/// ([`Mailbox::removing`]) rather than looked for again for each message.
-#[derive(Default)]
-struct Removing {
-    /// The messages going.
-    gone: HashSet<Id>,
-    /// Their copies on their way to a server ([`Queued::PlaceMessage`]) and the account of each,
-    /// by the message each was made of ([`Mailbox::copy_waits_for`]).
-    copies: HashMap<Id, Vec<(Id, Id)>>,
-    /// Their deletes queued for a server, and those queued while they go, by account and the
-    /// server's id ([`Queued::DeleteMessage`]): none is queued twice.
-    deletes: HashSet<(Id, String)>,
-    /// Where in [`Mailbox::pending`] the first move waiting of each of them is.
-    moves: HashMap<Id, usize>,
-    /// Those gone so far: what was to be copied of them, and their moves waiting, go once the
-    /// run is done ([`Mailbox::removed`]). One that couldn't go keeps them.
-    went: HashSet<Id>,
 }
 
 /// The messages a run of the rules deletes for good, which go together once it is done
@@ -2059,12 +2044,11 @@ impl Mailbox {
                     .filter(|(id, elsewhere, out)| *elsewhere || *out || waiting.contains(id))
                     .map(|(id, elsewhere, _)| (id, elsewhere))
                     .collect();
-                let ids: Vec<Id> = moved_in.iter().map(|(id, _)| *id).collect();
-                let mut removing = self.removing(&ids);
+                let mut r = Removal::start(self);
                 for (id, elsewhere) in moved_in {
-                    self.queue_graph_delete(id, elsewhere, &mut removing.deletes);
+                    self.queue_graph_delete_in(id, elsewhere, &mut r);
                 }
-                self.not_copied(&removing.gone);
+                self.end_removal(r);
                 let messages = &self.messages;
                 for p in &mut self.pending {
                     if let Pending::Move { account, message, from, uid, to, .. } = p
@@ -2216,7 +2200,8 @@ impl Mailbox {
     /// something waited for before the first of them was moved: moving one adds nothing for
     /// another, so a big move takes time in proportion to its size rather than to its square.
     pub fn move_messages(&mut self, ids: &[Id], folder: Id) -> Result<Vec<(Id, Id)>, ModelError> {
-        self.move_messages_reading(ids, folder, &HashSet::new())
+        let moves: Vec<(Id, Id)> = ids.iter().map(|id| (*id, folder)).collect();
+        self.move_each(&moves)
     }
 
     /// [`Mailbox::move_messages`], where the caller read whole on this computer the bytes the
@@ -2224,25 +2209,8 @@ impl Mailbox {
     /// was copied from stays on its own server until it is there ([`Mailbox::held_on_its_way`],
     /// #566), may go where no server is given it, which then holds them.
     pub fn move_messages_reading(&mut self, ids: &[Id], folder: Id, here: &HashSet<Id>) -> Result<Vec<(Id, Id)>, ModelError> {
-        let pending = self.pending.iter().filter_map(|p| match p {
-            Pending::Move { message, .. } => Some(*message),
-            Pending::Delete { .. } => None,
-        });
-        let queued = self.queued.iter().filter_map(|q| match q {
-            Queued::PlaceMessage { message, .. } => Some(*message),
-            _ => None,
-        });
-        let waited: HashSet<Id> = pending.chain(queued).collect();
-        let mut moved = Vec::new();
-        for id in ids {
-            let Some(account) = self.message(*id).filter(|m| m.folder != folder).map(|m| m.account) else { continue };
-            if self.folder(folder).is_some() && self.stays_on_server(*id) {
-                return Err(invalid(NOT_MOVING_YET));
-            }
-            self.move_anyway(*id, folder, !waited.contains(id), here.contains(id))?;
-            moved.push((*id, account));
-        }
-        Ok(moved)
+        let moves: Vec<(Id, Id)> = ids.iter().map(|id| (*id, folder)).collect();
+        self.move_each_reading(&moves, here)
     }
 
     /// Whether `id` is a message a JMAP account's server has. It stays where it is until moves and
@@ -2835,72 +2803,6 @@ impl Mailbox {
         Ok(new)
     }
 
-    /// What the server of a Microsoft account is to be told when `id` goes for good here: its
-    /// copy is deleted there (`own`; not when its folder's deletion takes it along), and so is
-    /// the server's copy of one being moved out of the account; but not twice: `queued` are
-    /// those of them queued already ([`Removing::deletes`]). A copy of it not yet made there is
-    /// not made either ([`Mailbox::not_copied`]).
-    fn queue_graph_delete(&mut self, id: Id, own: bool, queued: &mut HashSet<(Id, String)>) {
-        let Some(m) = self.message(id) else { return };
-        let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
-            deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
-        }
-        if let Some(out) = &m.moving_out {
-            deletes.push(Queued::DeleteMessage { account: out.account, id: out.id.clone(), kept: Some(Box::new(kept_for_put_back(m))) });
-        }
-        for delete in deletes {
-            let Queued::DeleteMessage { account, id, .. } = &delete else { continue };
-            if queued.insert((*account, id.clone())) {
-                self.queued.push(delete);
-            }
-        }
-    }
-
-    /// The copies of `ids` waiting to be made on a server aren't made: they went for good here.
-    fn not_copied(&mut self, ids: &HashSet<Id>) {
-        if !self.queued.is_empty() && !ids.is_empty() {
-            self.queued.retain(|q| match q {
-                Queued::CopyMessage { copy, .. } => !ids.contains(copy),
-                Queued::PlaceMessage { message, .. } => !ids.contains(message),
-                _ => true,
-            });
-        }
-    }
-
-    /// What going for good does with `ids` that it looks up in the queues, found in one pass
-    /// over each ([`Removing`]).
-    fn removing(&self, ids: &[Id]) -> Removing {
-        let gone: HashSet<Id> = ids.iter().copied().collect();
-        let mut removing = Removing::default();
-        // The deletes a server could be told of them, of which those queued already.
-        let mut theirs = HashSet::new();
-        for m in ids.iter().filter_map(|id| self.message(*id)) {
-            theirs.extend(m.server.as_ref().map(|s| (m.account, s.id.as_str())));
-            theirs.extend(m.moving_out.as_ref().map(|out| (out.account, out.id.as_str())));
-        }
-        for q in &self.queued {
-            match q {
-                Queued::PlaceMessage { account, message, source: Some(s), .. } if gone.contains(s) => {
-                    removing.copies.entry(*s).or_default().push((*message, *account));
-                }
-                Queued::DeleteMessage { account, id, .. } if theirs.contains(&(*account, id.as_str())) => {
-                    removing.deletes.insert((*account, id.clone()));
-                }
-                _ => {}
-            }
-        }
-        for (at, p) in self.pending.iter().enumerate() {
-            if let Pending::Move { message, .. } = p
-                && gone.contains(message)
-            {
-                removing.moves.entry(*message).or_insert(at);
-            }
-        }
-        removing.gone = gone;
-        removing
-    }
-
     /// Whether a copy of `source` is waiting to be made on another account's server
     /// ([`Queued::PlaceMessage`], also once that copy is moved on into a third account): a delete
     /// for good of `source` on its own server waits for that copy's answer, so that a copy
@@ -2999,112 +2901,23 @@ impl Mailbox {
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
     pub fn remove_message(&mut self, id: Id) -> Result<Message, ModelError> {
-        let mut removing = self.removing(&[id]);
-        let removed = self.remove_one(id, &mut removing);
-        self.removed(&removing);
-        removed
-    }
-
-    /// Remove `ids` for good, each as [`Mailbox::remove_message`] does, looking up what that
-    /// looks up in the queues once for them all: an emptied Deleted Items of tens of thousands
-    /// looked through every change waiting for each one, and took seconds (#566). At the first
-    /// that can't be, the rest stay.
-    pub fn remove_messages(&mut self, ids: &[Id]) -> Result<(), ModelError> {
-        let mut removing = self.removing(ids);
-        let mut done = Ok(());
-        for id in ids {
-            if let Err(e) = self.remove_one(*id, &mut removing) {
-                done = Err(e);
-                break;
-            }
-        }
-        self.removed(&removing);
-        done
-    }
-
-    /// What has to wait until a run of [`Mailbox::remove_one`] is done: what was to be copied of
-    /// what went, and its moves still waiting, go too.
-    fn removed(&mut self, removing: &Removing) {
-        self.not_copied(&removing.went);
-        if !self.pending.is_empty() && !removing.went.is_empty() {
-            self.pending.retain(|p| !matches!(p, Pending::Move { message, .. } if removing.went.contains(message)));
-        }
-    }
-
-    /// [`Mailbox::remove_message`] of `id`, by what `removing` found in the queues.
-    fn remove_one(&mut self, id: Id, removing: &mut Removing) -> Result<Message, ModelError> {
-        // Not one a JMAP account's server has: the next run would bring it back.
-        if self.stays_on_server(id) {
-            return Err(invalid(NOT_MOVING_YET));
-        }
-        let (was_in, account, uid, message_id, seen) = {
-            let m = self.message(id).ok_or(not_found("message", id))?;
-            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
-        };
-        // A copy of it still on its way to another account's server: the server's original waits
-        // for that copy's answer, and comes back here should the copy be refused (#566), with the
-        // copy's content, which the copy names for the mailbox file (what is kept here isn't).
-        // (As `copy_waits_for`: a copy that went for good earlier in the run is no more.)
-        let copies = removing.copies.get(&id).map(Vec::as_slice).unwrap_or_default();
-        let waits = copies.iter().any(|(copy, to)| self.message(*copy).is_some_and(|m| m.account == *to));
-        let kept = waits.then(|| self.message(id).map(|m| Box::new(m.without_content()))).flatten();
-        // The bytes a protected message came as (#30), which a copy made at the mailbox's cap on
-        // them went without: the copies have them now, the same bytes it lets go of.
-        if kept.is_some() {
-            self.originals_to_copies(id, copies);
-        }
-        self.queue_graph_delete(id, true, &mut removing.deletes);
-        match removing.moves.get(&id).and_then(|at| self.pending.get_mut(*at)) {
-            Some(op) => {
-                if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen, kept };
-                    *op = delete;
-                }
-            }
-            None => {
-                let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
-                if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen, kept });
-                }
-            }
-        }
-        let m = self.drop_message(id)?;
-        removing.went.insert(id);
-        Ok(m)
+        let mut r = Removal::start(self);
+        let removed = self.remove_one(id, &mut r);
+        self.end_removal(r);
+        removed.map(Arc::unwrap_or_clone)
     }
 
     /// Remove a message without a word to the server: for a synchronisation taking out what the
     /// server no longer has. A move still waiting for the message is forgotten with it.
     pub fn forget_message(&mut self, id: Id) -> Result<Message, ModelError> {
-        let m = self.drop_message(id)?;
-        if !self.pending.is_empty() {
-            self.pending.retain(|p| !matches!(p, Pending::Move { message, .. } if *message == id));
-        }
-        Ok(m)
-    }
-
-    /// Take message `id` out of the mailbox, and out of the tasks made of it.
-    fn drop_message(&mut self, id: Id) -> Result<Message, ModelError> {
         let m = self.messages.remove(&id).ok_or(not_found("message", id))?;
         for t in self.tasks.values_mut().filter(|t| t.message == Some(id)) {
             Arc::make_mut(t).message = None;
         }
-        Ok(Arc::unwrap_or_clone(m))
-    }
-
-    /// [`Mailbox::delete_message`] of each of `ids`: those it removes for good go together
-    /// ([`Mailbox::remove_messages`]), after those moved to Deleted Items. How many went for good.
-    pub fn delete_messages(&mut self, ids: &[Id]) -> Result<usize, ModelError> {
-        let mut for_good = Vec::new();
-        for id in ids {
-            let m = self.message(*id).ok_or(not_found("message", *id))?;
-            match self.folder_of_kind(m.account, FolderKind::Deleted) {
-                Some(d) if !self.subtree(d).contains(&m.folder) => self.move_message(*id, d)?,
-                _ => for_good.push(*id),
-            }
+        if !self.pending.is_empty() {
+            self.pending.retain(|p| !matches!(p, Pending::Move { message, .. } if *message == id));
         }
-        self.remove_messages(&for_good)?;
-        Ok(for_good.len())
+        Ok(Arc::unwrap_or_clone(m))
     }
 
     /// Delete a message: it moves to Deleted Items, or is removed for good when it already is
@@ -3354,12 +3167,12 @@ impl Mailbox {
         if going.0.is_empty() {
             return;
         }
-        let mut removing = self.removing(&going.0);
+        let mut r = Removal::start(self);
         for id in &going.0 {
             // (A message whose server keeps it isn't noted, `act`.)
-            let _ = self.remove_one(*id, &mut removing);
+            let _ = self.remove_one(*id, &mut r);
         }
-        self.removed(&removing);
+        self.end_removal(r);
     }
 
     fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {

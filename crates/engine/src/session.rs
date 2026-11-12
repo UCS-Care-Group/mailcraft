@@ -2145,12 +2145,33 @@ impl Session {
         beside
     }
 
-    /// Fetch what `r` names from the source.
-    fn fetch(&self, r: &ContentRef) -> Result<Arc<Vec<u8>>, CmdError> {
+    fn content_origin(&self) -> Result<(&std::path::Path, Arc<dyn crate::io::ContentSource>), CmdError> {
         let kept_nowhere = || CmdError::Failed("the mailbox isn't kept in a file, so content outside memory can't be read".into());
         let path = self.path.as_deref().ok_or_else(kept_nowhere)?;
         let source = self.source().ok_or_else(kept_nowhere)?;
+        Ok((path, source))
+    }
+
+    /// Fetch what `r` names from the source.
+    fn fetch(&self, r: &ContentRef) -> Result<Arc<Vec<u8>>, CmdError> {
+        let (path, source) = self.content_origin()?;
         source.fetch(path, r).map_err(CmdError::Failed)
+    }
+
+    /// Prepare an attachment read that the desktop can execute off the UI thread.
+    pub fn attachment_reader(&self, attachment: &Attachment) -> Result<impl Fn() -> Result<Arc<Vec<u8>>, CmdError> + Send + Sync + use<>, CmdError> {
+        let stored = match attachment.kept.filter(|_| attachment.data.is_empty()) {
+            Some(reference) => {
+                let (path, source) = self.content_origin()?;
+                Some((path.to_path_buf(), source, reference))
+            }
+            None => None,
+        };
+        let memory = attachment.data.clone();
+        Ok(move || match &stored {
+            Some((path, source, reference)) => source.fetch(path, reference).map_err(CmdError::Failed),
+            None => Ok(memory.clone()),
+        })
     }
 
     /// The bytes of one part of a message: from memory when they are there, else from where the

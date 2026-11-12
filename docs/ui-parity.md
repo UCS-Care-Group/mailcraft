@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -94,6 +94,11 @@ Outlook's does, and for a Gmail account set to alert for Primary alone, in any c
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #956 part 3: Report a Problem › Send report (to the MailCraft team privately, the reference or why not said, Try again), with an optional GitHub username; Open on GitHub stays |
+| 2026-11-11 | minor | #30 part 4b: File › Options › Security; Verify… on the reading pane's bar; Certificates on a contact's card |
+| 2026-11-10 | patch | #956: Report a Problem opens a GitHub issue only; Send by Email is gone |
+| 2026-11-10 | minor | #973: Composer: lists as you type (`* `, `- `, `1. `, `1) `), with a switch in File › Options › Mail |
+| 2026-11-08 | minor | #893: each account can have a colour (Account Settings › Colour; a new account gets one of the palette's that no other has): a dot after its name in the folder pane, and a stripe down the left edge of its mail's rows in a search of All Mailboxes |
 | 2026-11-05 | minor | #761: Add Account: an address at a domain nobody here knows says its servers are only a guess from its domain, and offers the Microsoft 365 and Exchange server choices on the same page |
 | 2026-11-05 | minor | #600: Reading pane: a message is drawn in the first of its fonts installed on this computer |
 | 2026-11-04 | minor | #785: Reading pane and a message's window: a ▾ at each attachment chip's right end opens the chip's right-click menu (Open, Save As, Save All Attachments, Remove), by a click or by Enter or Space |

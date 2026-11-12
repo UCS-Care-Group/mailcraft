@@ -1032,6 +1032,30 @@ pub(crate) fn week_number(first: Date) -> u8 {
     (0..7).map(|i| first.add_days(i)).find(|day| day.weekday() == Weekday::Mon).unwrap_or(first).iso_week()
 }
 
+/// The width of a place for one digit of a week's number in `font`: that of its widest digit.
+/// The digits of the interface's face are not all as wide as one another, so a number written as
+/// one piece of text starts and ends where its own digits put it, and a column of them wavers
+/// (#1009).
+fn digit_place(p: &egui::Painter, font: &FontId) -> f32 {
+    ('0'..='9').map(|digit| p.layout_no_wrap(digit.to_string(), font.clone(), Color32::WHITE).size().x).fold(0.0, f32::max)
+}
+
+/// Where the digits of a week's number go: each with the middle of its place, `place` wide, the
+/// last one's place ending at `right`. The units of every week are then under one another, and
+/// the tens too.
+fn week_number_places(number: u8, right: f32, place: f32) -> impl Iterator<Item = (char, f32)> {
+    let digits = number.to_string();
+    let count = digits.chars().count();
+    digits.chars().enumerate().map(move |(i, digit)| (digit, right - (count.saturating_sub(i) as f32 - 0.5) * place)).collect::<Vec<_>>().into_iter()
+}
+
+/// Write a week's number in a column of its own: its last digit's place ends at `right`.
+fn paint_week_number(p: &egui::Painter, number: u8, right: f32, y: f32, place: f32, font: &FontId, color: Color32) {
+    for (digit, x) in week_number_places(number, right, place) {
+        p.text(pos2(x, y), Align2::CENTER_CENTER, digit, font.clone(), color);
+    }
+}
+
 /// The date navigator: `months` small months one under the other, from the one the calendar
 /// shows (the arrows over them go a month back and on). Days on which something happens are
 /// bold; the days the calendar shows have a band behind them. A click on a day goes there, a
@@ -1142,8 +1166,9 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
                 p.rect_filled(margin.shrink2(vec2(2.0, 2.0)), 4.0, t.hover);
             }
             if numbers {
-                let number = week_number(day_of(0)).to_string();
-                p.text(pos2(margin.max.x - 5.0, margin.center().y), Align2::RIGHT_CENTER, number, regular(9.5), t.text_dim);
+                let font = regular(9.5);
+                let place = digit_place(&p, &font);
+                paint_week_number(&p, week_number(day_of(0)), margin.max.x - 5.0, margin.center().y, place, &font, t.text_dim);
             }
             if resp.on_hover_text(tl!("Show this week")).clicked() {
                 let _ = app.run("view.goToDate", json!({"date": week_first.iso()}));
@@ -4038,6 +4063,11 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
 
 // ---- month ----
 
+/// The Month view: the weeks from `from` to `to` one under the other (six at most), each day a
+/// cell with its number and what happens on it, items of several days as bars across their
+/// days, and what doesn't fit said as more. With week numbers on, a column left of the weeks
+/// has each week's number, and a click on one shows that week. Side by side, every pane of
+/// `panes` has the weeks for its own calendars.
 fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: Date, items: &[Item], panes: &[PaneView]) {
     let t = Tokens::get(ui.ctx());
     // Coming back to a time grid scrolls it to the working day again.
@@ -4117,8 +4147,10 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
             if resp.hovered() {
                 p.rect_filled(cell, 0.0, t.hover);
             }
-            let at = pos2(cell.center().x, cell.min.y + NUM_H / 2.0 + 1.0);
-            p.text(at, Align2::CENTER_CENTER, week_number(first).to_string(), regular(10.5), t.text_dim);
+            // Two places in the middle of the column, so that a week below ten stands with the units.
+            let font = regular(10.5);
+            let place = digit_place(&p, &font);
+            paint_week_number(&p, week_number(first), cell.center().x + place, cell.min.y + NUM_H / 2.0 + 1.0, place, &font, t.text_dim);
             p.hline(cell.x_range(), cell.max.y - 0.5, Stroke::new(1.0, t.border));
             if resp.on_hover_text(tl!("Show this week")).clicked() {
                 let _ = app.run("view.goToDate", json!({"date": first.iso()}));
@@ -6576,6 +6608,11 @@ mod tests {
         assert_eq!((week_number(day(10, 11)), week_number(day(10, 12)), week_number(day(10, 10))), (42, 42, 42));
         assert_eq!((week_number(day(12, 27)), week_number(d(2027, 1, 3)), week_number(d(2025, 12, 28))), (53, 1, 1));
         let _ = (week_number(d(1, 1, 1)), week_number(d(9999, 12, 31)));
+        // Its digits each have a place of one width, the last ending at the right edge, so that
+        // the numbers of a column line up whatever their digits (#1009).
+        let places = |number| week_number_places(number, 100.0, 6.0).collect::<Vec<_>>();
+        assert_eq!((places(20), places(17)), (vec![('2', 91.0), ('0', 97.0)], vec![('1', 91.0), ('7', 97.0)]));
+        assert_eq!((places(7), places(0), places(255).len()), (vec![('7', 97.0)], vec![('0', 97.0)], 3));
     }
 
     #[test]

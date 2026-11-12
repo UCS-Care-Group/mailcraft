@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-08 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar. Each message is one line of at most
@@ -240,6 +240,15 @@ and keeps it on that account's server when the server can do all of it, unless `
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #30 part 4a: `mail.digitalSignature` checks OpenPGP too (`format`); `keys.list` (safe), `keys.import` and `keys.remove` (settings; a path only from the owner) |
+| 2026-11-11 | minor | #30 part 4b: the window's key commands (`ui.importPrivateKey`, `ui.removePrivateKey`, `ui.refreshOwnKeys`, `ui.importPublicKey`, `ui.verifyKey`, `ui.markKeyVerified`) are never for agents |
+| 2026-11-09 | minor | #30 part 2: `mail.digitalSignature` (and `digitalSignature` in `mail.get`) says what checking an S/MIME Digital signature found, read only |
+| 2026-11-09 | patch | #911: `mail.setGmailCategory` moves the messages named and their copies of the same Gmail message, never the rest of their conversations |
+| 2026-11-08 | minor | #30: `mail.checkAgain` (safe) downloads a signed or encrypted message's own bytes again; those bytes are never in an answer to an agent |
+| 2026-11-08 | minor | #911: a Gmail Inbox's messages carry `gmailCategory`; `gmail:` searches Gmail's categories and `folder.select` takes `gmail` |
+| 2026-11-08 | minor | #911: `view.gmailCategories` shows Gmail's categories as folders or as tabs |
+| 2026-11-08 | minor | #911: `mail.setGmailCategory` moves messages of a Gmail Inbox between Gmail's categories, named as for a move to a folder; switched off until Google's review |
+| 2026-11-08 | patch | #911: `mail.setGmailCategory` moves exactly the messages named |
 | 2026-11-08 | patch | AU3-R1: what is framed as untrusted also covers a message's source, the searches built from a message, an online meeting's link, categories, identifiers and a contact's details |
 | 2026-11-08 | patch | AU3-R2: with `--connect`, a request is sent again only when it never reached the app; a lost answer is an error that says the app may have run it |
 | 2026-11-08 | patch | AU3-R4: a message on stdio is at most 1 MiB; a longer line is answered with an error and the next one served |

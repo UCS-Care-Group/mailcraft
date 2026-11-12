@@ -1,1 +1,0 @@
-- Deleting tens of thousands of messages permanently at once, emptying a large Deleted Items say, no longer holds up the window for seconds ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
