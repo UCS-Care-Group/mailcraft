@@ -50,6 +50,8 @@ pub const TABLE: &[(&str, Class)] = &[
     // OpenPGP checking (#30): rPGP under it, no I/O, builds for the browser.
     ("openpgp", Class::Layer(2)),
     ("smime", Class::Layer(2)),
+    // Printing (#32): display blocks on pages as a PDF; no I/O, builds for the browser.
+    ("print", Class::Layer(2)),
     ("proto", Class::Layer(3)),
     // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
     ("jmap", Class::Layer(3)),

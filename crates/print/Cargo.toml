@@ -1,0 +1,19 @@
+[package]
+name = "mailcraft-print"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft printing: messages laid out on pages and written as PDF, with embedded font subsets"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-html = { workspace = true }
+pdf-writer = { workspace = true }
+subsetter = { workspace = true }
+skrifa = { workspace = true }
+image = { workspace = true }
+flate2 = { workspace = true }
+
+[dev-dependencies]
