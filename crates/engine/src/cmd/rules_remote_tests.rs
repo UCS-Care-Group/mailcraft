@@ -2501,12 +2501,12 @@ fn add_with_exception(s: &mut Session, account: Id) {
     );
 }
 
-/// Review r11 (lens 7): the owner renames a category on a Microsoft account's list. A rule on its
-/// server that puts that category on mail keeps the old name (the server's list isn't written), but
-/// the rule on this computer whose exception names the category is rewritten, so the next mail the
-/// server tagged no longer counts as excepted and is deleted for good.
+/// The owner renames a category on a Microsoft account's list. A rule on its server that puts that
+/// category on mail keeps the old name (the server's list isn't written), and the rule on this
+/// computer whose exception names the category names it by both, so the next mail the server
+/// tagged is still excepted, not deleted for good.
 #[test]
-fn review_r11_a_renamed_category_still_excepts_mail_a_server_rule_tagged() {
+fn a_renamed_category_still_excepts_mail_a_server_rule_tagged() {
     let (mut s, account, _, _) = session();
     // The account's own list, as at the first read of its server's categories.
     s.mailbox.start_account_categories(account, &["Keep".to_string()]);
@@ -2547,10 +2547,10 @@ fn review_r11_a_renamed_category_still_excepts_mail_a_server_rule_tagged() {
     assert!(s.mailbox.message(m).is_some(), "the boss's mail, which the server tagged as the exception names, was deleted for good");
 }
 
-/// Review r11 (lens 7): an agent's rename of a category now rewrites the rules for the same mail
-/// (an exception of a rule here that deletes for good), but the gate still runs it unasked.
+/// An agent's rename of a category that rewrites the rules for the same mail (an exception of a
+/// rule here that deletes for good) is a change to the rules beside that rule: it asks as a delete.
 #[test]
-fn review_r11_an_agents_rename_that_rewrites_a_deleting_rules_exception_asks() {
+fn an_agents_rename_that_rewrites_a_deleting_rules_exception_asks() {
     let (mut s, account, _, _) = session();
     run(&mut s, "category.set", json!({"name": "Keep", "color": "#2E8B57", "account": account}));
     run(
@@ -2565,11 +2565,11 @@ fn review_r11_an_agents_rename_that_rewrites_a_deleting_rules_exception_asks() {
     assert!(matches!(verdict, crate::agent::Verdict::Ask(crate::agent::Class::Delete, _)), "{verdict:?}");
 }
 
-/// Review r11 (lens 7): a rule sent to the server whose answer was lost is the server's or may
-/// be; a rename of a category on the account's list rewrites it all the same, so when the server's
-/// rules are read it isn't known for the one the server made, and goes up a second time.
+/// A rule sent to the server whose answer was lost is the server's or may be: a rename of a
+/// category on the account's list leaves it as it was sent, so that when the server's rules are
+/// read it is known for the one the server made, and doesn't go up a second time.
 #[test]
-fn review_r11_a_rename_while_an_answer_is_lost_doesnt_make_the_rule_twice() {
+fn a_rename_while_an_answer_is_lost_doesnt_make_the_rule_twice() {
     let (mut s, account, _, _) = session();
     run(&mut s, "category.set", json!({"name": "Keep", "color": "#2E8B57", "account": account}));
     let id = add(&mut s, account, "Boss", json!([{"type": "fromContains", "value": "boss"}]), json!([{"type": "categorize", "value": "Keep"}]));
@@ -2632,7 +2632,7 @@ fn run_rules_nows_yes_doesnt_follow_a_time_zone_changed_meanwhile() {
     let tokyo = json!({"zone": "Asia/Tokyo"});
     let v = check(&s, "view.timeZone", &tokyo, &[]);
     let Verdict::Ask(Class::Delete, why) = v else { panic!("asked as a delete: {v:?}") };
-    assert!(why.contains("Purge new reports") && why.contains("time zone"), "{why}");
+    assert!(why.starts_with("show the calendar in the time zone \u{201c}Asia/Tokyo\u{201d}") && why.contains("Purge new reports"), "{why}");
     assert_eq!(check(&s, "view.timeZone", &json!({"zone": "Europe/London"}), &[]), Verdict::Run, "the zone it is already");
     // While the question about the rules is up, the zone changes all the same.
     s.run("view.timeZone", &tokyo).unwrap();

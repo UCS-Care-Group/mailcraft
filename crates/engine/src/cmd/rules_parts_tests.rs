@@ -743,12 +743,12 @@ fn renaming_the_category_an_exception_names_doesnt_let_the_rule_delete_that_mail
     assert_eq!(s.mailbox.rules[0].exceptions, [Condition::Category(vec!["Red category".into()])]);
 }
 
-/// Review r11, lens 4 (#790): "Has the category" takes a name in any case, in any script, so an
-/// exception for "работа" leaves mail with the category "Работа" alone. The owner renames that
-/// category: the mail has the new name, and the rule's exception has to follow it as it follows
-/// "red CATEGORY" (the test above), or the rule deletes that mail for good.
+/// "Has the category" takes a name in any case, in any script (#790), so an exception for "работа"
+/// leaves mail with the category "Работа" alone. The owner renames that category: the mail has the
+/// new name, and the rule's exception follows it as it follows "red CATEGORY" (the test above), so
+/// the rule still leaves that mail alone.
 #[test]
-fn review_r11_a_rename_follows_an_exception_naming_the_category_in_another_scripts_case() {
+fn a_rename_follows_an_exception_naming_the_category_in_another_scripts_case() {
     let (mut s, account, inbox, _) = session();
     s.run("category.set", &json!({"account": account, "name": "Работа", "color": "#336699"})).unwrap();
     let rule = json!({"name": "Newsletters", "account": account,
@@ -775,13 +775,12 @@ fn review_r11_a_rename_follows_an_exception_naming_the_category_in_another_scrip
     assert!(s.mailbox.message(kept).is_some(), "deleted for good after the rename; the rule's exception is now {exceptions:?}");
 }
 
-/// Review r11 (lens 1). The same rename, with the category spelt in another case of a letter
-/// outside A to Z ("BÜRO" for "Büro"), which "has the category" takes as the same (#566). In the
-/// rule (an agent's `rules.add` keeps the name as given) or on the mail (as a server gives it
-/// back): before the rename the exception leaves the mail alone; after it, the rule deletes it
-/// for good.
+/// The same rename, with the category spelt in another case of a letter outside A to Z ("BÜRO"
+/// for "Büro"), which "has the category" takes as the same (#566). In the rule (an agent's
+/// `rules.add` keeps the name as given) or on the mail (as a server gives it back): the exception
+/// leaves the mail alone before the rename and after it.
 #[test]
-fn review_r11_a_rename_keeps_an_exception_spelt_in_another_case_of_a_non_ascii_letter() {
+fn a_rename_keeps_an_exception_spelt_in_another_case_of_a_non_ascii_letter() {
     let mut lost = Vec::new();
     for (in_rule, on_mail) in [("BÜRO", "Büro"), ("Büro", "BÜRO")] {
         let (mut s, account, inbox, _) = session();
@@ -808,12 +807,12 @@ fn review_r11_a_rename_keeps_an_exception_spelt_in_another_case_of_a_non_ascii_l
     assert!(lost.is_empty(), "{lost:#?}");
 }
 
-/// Review r11 (lens 1). A rule for every account (as a mailbox from before rules had accounts
-/// holds) with "except if it has the category Büro", and an account with a list of its own (as a
-/// Microsoft account has): renaming Büro there renames it on that account's mail but not in the
-/// rule, which then deletes that mail for good.
+/// A rule for every account (as a mailbox from before rules had accounts holds) with "except if
+/// it has the category Büro", and an account with a list of its own (as a Microsoft account has):
+/// renaming Büro there renames it on that account's mail, and the rule's exception names it by
+/// both names, so it still leaves that mail alone.
 #[test]
-fn review_r11_a_rename_in_an_accounts_own_list_keeps_an_every_account_rules_exception() {
+fn a_rename_in_an_accounts_own_list_keeps_an_every_account_rules_exception() {
     let (mut s, account, inbox, _) = session();
     s.mailbox.account_categories.insert(account, Vec::new());
     s.run("category.set", &json!({"account": account, "name": "Büro", "color": "#336699"})).unwrap();

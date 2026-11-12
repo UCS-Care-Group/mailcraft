@@ -1967,7 +1967,15 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("delete the category {}{whose}, taking it off everything that has it{shared}", quoted(st("name")))
         }
         "view.timeZone" if zone_changes(s, id, params) && !reads_beside_said(s, 0, reads_days, "").is_empty() => {
-            format!("{}{}", run_text(label, id, params), reads_beside_said(s, 0, reads_days, "the days mail came by the calendar's time zone"))
+            let zone = crate::cmd::zones::rule_zone_after(s, params).map(|z| z.id().to_string()).unwrap_or_default();
+            let beside = reads_beside_said(s, 0, reads_days, "the days mail came by the calendar's time zone");
+            // (And the second zone, which no rule reads, as it is given.)
+            let second = match params.get("second") {
+                Some(Value::String(z)) if !z.trim().is_empty() => format!(", with the second time zone {}", quoted(&clip(z, 60))),
+                Some(_) => ", with no second time zone".to_string(),
+                None => String::new(),
+            };
+            format!("show the calendar in the time zone {}{second}{beside}", quoted(&zone))
         }
         "category.rename" if shared_category(s, id, params) || !rename_beside_said(s, params).is_empty() => {
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };

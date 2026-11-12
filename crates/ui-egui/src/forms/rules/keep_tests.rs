@@ -467,14 +467,13 @@ fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_al
     assert!(mb.message(news).is_some_and(|m| m.read), "the rule shown ran over noor's Inbox");
 }
 
-/// Review r11, lens 4 (separators): Always Move Messages From This Sender, for a sender whose
-/// address isn't one whole address and has a semicolon in it (`Deals <e;x@deals.example>`, which
-/// the header reader keeps whole between the angle brackets). `rules.fromMessage` looks for it as
-/// one text; the builder fills the same text into a field whose semicolons set texts apart, so
-/// the rule it adds looks for "e" or "x@deals.example", and the run that follows Add Rule moves
-/// other people's mail.
+/// Always Move Messages From This Sender, for a sender whose address isn't one whole address and
+/// has a semicolon in it (`Deals <e;x@deals.example>`, which the header reader keeps whole between
+/// the angle brackets). `rules.fromMessage` looks for it as one text, and so does the rule the
+/// builder fills in, though the field's semicolons otherwise set texts apart: the run that follows
+/// Add Rule leaves other people's mail alone.
 #[test]
-fn review_r11_always_move_keeps_a_semicolon_in_the_senders_text() {
+fn always_move_keeps_a_semicolon_in_the_senders_text() {
     use mailcraft_model::{Address, Condition, Message};
     let mut s = session();
     let inbox = s.view.folder;
