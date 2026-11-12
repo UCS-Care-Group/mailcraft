@@ -25,6 +25,7 @@ mailcraft-mime-model = { path = "crates/mime-model" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
+mailcraft-tnef = { path = "crates/tnef" }
 mailcraft-openpgp = { path = "crates/openpgp" }
 mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }

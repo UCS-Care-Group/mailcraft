@@ -13,8 +13,10 @@ mailcraft-time = { workspace = true }
 mailcraft-ber = { workspace = true }
 mailcraft-html = { workspace = true }
 mailcraft-charset = { workspace = true }
+mailcraft-tnef = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 serde_json = { workspace = true }
+mailcraft-tnef = { workspace = true, features = ["test-writer"] }

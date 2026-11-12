@@ -24,6 +24,12 @@ const MAX_OPAQUE: usize = 1;
 /// The most bytes opened from opaque signed parts in one message: past it they stay files.
 const MAX_OPAQUE_BYTES: usize = 64 * 1024 * 1024;
 
+/// How many TNEF streams (`winmail.dat`) of one message are opened: one. One inside another
+/// (an attached message) is never opened, and nor is a second beside the first.
+const MAX_TNEF: usize = 1;
+/// The biggest TNEF stream opened: past it, it stays a file.
+const MAX_TNEF_BYTES: usize = 64 * 1024 * 1024;
+
 /// Most unmodelled header fields kept in [`Message::headers`], and their total size in bytes.
 const MAX_KEPT_HEADERS: usize = 200;
 const MAX_KEPT_BYTES: usize = 64 * 1024;
@@ -60,7 +66,11 @@ const MAX_IDS: usize = 1000;
 /// it is not opened. `inline` is set for `Content-Disposition: inline`, and for a part with a
 /// `Content-ID` inside `multipart/related`. An S/MIME opaque signed part (`application/pkcs7-mime`
 /// signed data, #30) is an attachment, and what it holds is read as if it stood in its place:
-/// its text joins the body and its files the attachments.
+/// its text joins the body and its files the attachments. A TNEF stream (`winmail.dat`,
+/// `application/ms-tnef`, [MS-OXTNEF]) stays an attachment, and the files it holds are added
+/// before it; its text is the body only when the message has none of its own, as the MIME
+/// around it is to be believed before what is inside it (2.1.3.5.2). Its other contents (its
+/// rich text, an attached message, an OLE object) are not opened: they stay in the stream.
 pub fn parse(bytes: &[u8]) -> Message {
     parse_opening(bytes, MAX_OPAQUE_BYTES)
 }
@@ -76,6 +86,13 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
     let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
     message.hidden_text = hidden.unwrap_or_default();
+    // A winmail.dat's text, for a message with no text or HTML of its own.
+    if walk.html.is_none()
+        && walk.text.as_deref().is_none_or(|t| t.trim().is_empty())
+        && let Some(text) = walk.tnef_text.take()
+    {
+        walk.text = Some(text);
+    }
     message.body.text = match (walk.text, html_text) {
         (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
@@ -229,6 +246,9 @@ struct Walk {
     opaque_bytes: usize,
     /// The most bytes opened from opaque signed parts ([`MAX_OPAQUE_BYTES`] but in tests).
     opaque_limit: usize,
+    /// TNEF streams opened so far ([`MAX_TNEF`]), and the text of the first that had one.
+    tnef: usize,
+    tnef_text: Option<String>,
 }
 
 impl Walk {
@@ -294,6 +314,13 @@ impl Walk {
         let name = file_name.unwrap_or_else(|| media::default_name(&mime));
         let inline = disposition.value == "inline" || (!content_id.is_empty() && parent == Parent::Related);
         let data = Arc::new(decode(body, &encoding));
+        // A TNEF stream (`winmail.dat`): the files Outlook wrapped in it come first, then the
+        // stream itself, which keeps what of it isn't read here.
+        let tnef_type = matches!(mime.as_str(), "application/ms-tnef" | "application/vnd.ms-tnef") || name.eq_ignore_ascii_case("winmail.dat");
+        if tnef_type && self.tnef < MAX_TNEF && data.len() <= MAX_TNEF_BYTES && mailcraft_tnef::is_tnef(&data) {
+            self.tnef = self.tnef.saturating_add(1);
+            self.open_tnef(&data);
+        }
         // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
         // the file itself. Not one sent along as a file inside another message, and nothing is
         // checked here. The file is kept beside what it holds (about twice the room): it is the
@@ -316,6 +343,28 @@ impl Walk {
         if let Some(content) = signed {
             let (inner_headers, inner_body) = header::split(&content, false);
             self.part(&inner_headers, inner_body, depth.saturating_add(1), parent);
+        }
+    }
+
+    /// The files of a TNEF stream, as attachments, and its text for later.
+    fn open_tnef(&mut self, data: &[u8]) {
+        let Ok(found) = mailcraft_tnef::read(data, &mailcraft_tnef::Limits::default()) else { return };
+        for file in found.files {
+            if self.parts >= MAX_PARTS {
+                break;
+            }
+            self.parts += 1;
+            let name = file.name.unwrap_or_default();
+            let mime = match file.mime_type.as_deref().map(media::safe_media_type) {
+                Some(t) if t != "application/octet-stream" => t,
+                _ => media::media_type_for(&name).to_string(),
+            };
+            let name = if name.is_empty() { media::default_name(&mime) } else { name };
+            let content_id = file.content_id.unwrap_or_default();
+            self.attachments.push(Attachment { name, mime, content_id, inline: false, data: Arc::new(file.data) });
+        }
+        if self.tnef_text.is_none() {
+            self.tnef_text = found.body.map(|t| charset::unix_lines(&t));
         }
     }
 

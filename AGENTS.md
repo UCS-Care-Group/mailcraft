@@ -37,7 +37,7 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 
 ## Clean room
 - Outlook may be **observed** black-box: run it, use its UI with synthetic mail, note how it behaves. Never commit screenshots of it, never read, disassemble or copy anything inside it, never copy its wording beyond feature names.
-- Formats and protocols come from public specs: RFC 5322 and MIME (2045–2049, 2047, 2231), mbox (RFC 4155), IMAP (RFC 3501, 6154, MOVE 6851, UIDPLUS 4315), SMTP (RFC 5321, 4954, 3207), OAuth 2.0 for native programs (RFC 6749, 7636, 8252), `mailto:` links (RFC 6068), iCalendar (RFC 5545), vCard (RFC 6350, 2426), Outlook data files (.pst): [MS-PST], with [MS-OXCMSG], [MS-OXPROPS], [MS-OXOMSG], [MS-OXOCNTC], [MS-OXOCAL], [MS-OXOTASK], [MS-OXONOTE], [MS-OXOJRNL], [MS-OXRTFCP], [MS-OXRTFEX], [MS-OXOSMIME] (Microsoft Open Specifications). Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, KMail, mutt, davmail…).
+- Formats and protocols come from public specs: RFC 5322 and MIME (2045–2049, 2047, 2231), mbox (RFC 4155), IMAP (RFC 3501, 6154, MOVE 6851, UIDPLUS 4315), SMTP (RFC 5321, 4954, 3207), OAuth 2.0 for native programs (RFC 6749, 7636, 8252), `mailto:` links (RFC 6068), iCalendar (RFC 5545), vCard (RFC 6350, 2426), Outlook data files (.pst): [MS-PST], with [MS-OXCMSG], [MS-OXPROPS], [MS-OXOMSG], [MS-OXOCNTC], [MS-OXOCAL], [MS-OXOTASK], [MS-OXONOTE], [MS-OXOJRNL], [MS-OXRTFCP], [MS-OXRTFEX], [MS-OXOSMIME]; TNEF (`winmail.dat`): [MS-OXTNEF] (Microsoft Open Specifications). Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, KMail, mutt, davmail…).
 - Write everything fresh from the public specs: don't adapt code from other trees or forks, whatever their licence.
 
 ## Architecture (see `docs/architecture.md`)
@@ -45,7 +45,7 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 |---|---|---|
 | L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n`, `ber`, `jmap-types` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; web addresses as they are shown and launched; one list of format characters, and a name coming in and being shown; interface text in other languages (`.po` catalogues, plural rules); bounded BER/DER reading for signed messages; JMAP request and response types (serde only, no I/O) |
 | L1 | `model`, `html` | the mailbox and its edit primitives, recurrence, search, sync data; hostile HTML to display blocks |
-| L2 | `mime`, `mime-model`, `ical`, `vcard`, `pst` | Internet messages and mbox on their own types (no `model`); the mailbox's messages to and from them; iCalendar; vCard; Outlook data files (.pst), read |
+| L2 | `mime`, `mime-model`, `ical`, `vcard`, `pst`, `tnef` | Internet messages and mbox on their own types (no `model`); the mailbox's messages to and from them; iCalendar; vCard; Outlook data files (.pst), read; TNEF streams (`winmail.dat`), read |
 | L3 | `proto`, `net`, `jmap`, `dav` | IMAP and SMTP over any `Read + Write`; TLS sockets, sending, synchronising; JMAP requests and answers, no I/O of its own; bounded DAV documents and XML, no I/O |
 | L4 | `engine` | Session, undo, **command registry**, Outlook feature catalog, sample, I/O dispatch |
 | L5 | `mcp` | MCP server (headless or bridged to the app) |
