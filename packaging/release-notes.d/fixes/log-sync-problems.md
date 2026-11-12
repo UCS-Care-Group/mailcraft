@@ -1,1 +1,0 @@
-- Help › Copy Diagnostics now shows why IMAP and SMTP problems happened (the server's refusal, with names and addresses hidden); problems of other kinds (Microsoft 365, calendar, tasks, rules) are only counted in the log.
