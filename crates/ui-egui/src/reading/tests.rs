@@ -306,7 +306,11 @@ fn check(laid: &Laid, t: &Tokens, what: &str) {
                     section.format.color,
                     if t.dark { "dark" } else { "light" }
                 );
-                assert!((9.0..=33.0).contains(&section.format.font_id.size), "{what}: text of size {}", section.format.font_id.size);
+                assert!(
+                    (9.0..=f32::from(mailcraft_html::MAX_FONT_PX)).contains(&section.format.font_id.size),
+                    "{what}: text of size {}",
+                    section.format.font_id.size
+                );
             }
         }
     }
@@ -705,7 +709,7 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
             for row in &galley.rows {
                 for (i, glyph) in row.row.glyphs.iter().enumerate() {
                     let point = egui::vec2(row.pos.x + glyph.pos.x + glyph.advance_width / 2.0, row.pos.y + row.row.size.y / 2.0);
-                    let wanted = text.links.iter().find(|(range, _)| range.contains(&(index + i))).map(|(_, url)| url.clone());
+                    let wanted = text.links.iter().find(|link| link.range.contains(&(index + i))).map(|link| link.url.clone());
                     assert_eq!(super::view::link_under(text, &galley, point), wanted, "{start}: character {}", index + i);
                 }
                 index += row.row.glyphs.len() + usize::from(row.ends_with_newline);
@@ -716,7 +720,43 @@ fn a_link_is_under_the_pointer_only_where_its_text_is() {
             assert_eq!(super::view::link_under(text, &galley, egui::vec2(galley.rect.center().x, galley.rect.max.y + 40.0)), None);
         }
         let ItemKind::Text(text) = &find(&laid, "Some words").kind else { panic!() };
-        assert_eq!(text.links.iter().map(|(r, url)| (r.clone(), &**url)).collect::<Vec<_>>(), [(20..36, "https://example.org/there")]);
+        assert_eq!(text.links.iter().map(|link| (link.range.clone(), &*link.url)).collect::<Vec<_>>(), [(20..36, "https://example.org/there")]);
+    });
+}
+
+/// Tall HTML line spacing leaves each wrapped link underline next to its own glyphs.
+#[test]
+fn link_underlines_follow_the_baseline_of_each_wrapped_row() {
+    in_frame(false, |ctx| {
+        let html =
+            "<p style='line-height:2.5' align='center'>Préface <a href='https://example.org'>a link that wraps across several lines</a> fin</p>";
+        let m = html_message(0, ("A", "a@example.org"), "Links", html);
+        let laid = lay_out(ctx, &m, 140.0);
+        let ItemKind::Text(text) = &find(&laid, "Préface").kind else { panic!() };
+        let link = text.links.first().unwrap();
+        let galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
+        assert!(text.job.sections.iter().all(|section| section.format.underline.is_empty()));
+        let layer = egui::LayerId::new(egui::Order::Middle, egui::Id::unique("link underlines"));
+        let at = egui::pos2(200.0, 50.0);
+        super::view::paint_link_underlines(&ctx.layer_painter(layer), at, &galley, &text.links);
+        ctx.graphics(|graphics| {
+            let mut lines = graphics.get(layer).unwrap().all_entries();
+            assert!(lines.len() > 1, "the link should wrap");
+            let mut index = 0;
+            for row in &galley.rows {
+                let glyphs: Vec<_> = row.glyphs.iter().enumerate().filter(|(i, _)| link.range.contains(&(index + i))).map(|(_, g)| g).collect();
+                if let (Some(first), Some(last)) = (glyphs.first(), glyphs.last()) {
+                    let egui::Shape::LineSegment { points: [from, to], stroke } = &lines.next().unwrap().shape else { panic!() };
+                    let baseline = at.y + row.pos.y + first.pos.y;
+                    assert!((baseline + 1.0..=baseline + 2.5).contains(&from.y));
+                    assert_eq!((from.x, to.x), (at.x + row.pos.x + first.pos.x, at.x + row.pos.x + last.max_x()));
+                    assert_eq!(from.y, to.y);
+                    assert_eq!(stroke.color, link.ink);
+                }
+                index += row.glyphs.len() + usize::from(row.ends_with_newline);
+            }
+            assert_eq!(lines.len(), 0);
+        });
     });
 }
 
@@ -847,10 +887,10 @@ fn a_link_shows_the_hand_and_opens_when_clicked_and_only_then() {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
         let galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
-        let (range, url) = text.links.first().unwrap();
+        let link = text.links.first().unwrap();
         let (mut index, mut at) = (0, None);
         for row in &galley.rows {
-            if let Some(glyph) = range.start.checked_sub(index).and_then(|i| row.row.glyphs.get(i + 1)) {
+            if let Some(glyph) = link.range.start.checked_sub(index).and_then(|i| row.row.glyphs.get(i + 1)) {
                 at = Some(
                     origin + item.rect.min.to_vec2() + egui::vec2(text.anchor + row.pos.x + glyph.pos.x + 1.0, row.pos.y + row.row.size.y / 2.0),
                 );
@@ -859,7 +899,7 @@ fn a_link_shows_the_hand_and_opens_when_clicked_and_only_then() {
             index += row.row.glyphs.len() + usize::from(row.ends_with_newline);
         }
         let plain = find(laid, "Hi Priya");
-        (at.unwrap(), url.to_string(), origin + plain.rect.min.to_vec2() + egui::vec2(4.0, 6.0))
+        (at.unwrap(), link.url.to_string(), origin + plain.rect.min.to_vec2() + egui::vec2(4.0, 6.0))
     })
     .unwrap();
     assert_eq!(url, "https://docs.juniperlabs.example/migration/plan");
@@ -1708,6 +1748,69 @@ fn a_contacts_pictures_come_by_themselves_once_the_owner_says() {
     harness.state_mut().session.mailbox_changed();
     select(&mut harness, again);
     assert_eq!((from(&host, "e.kite"), shown(&harness, again)), (0, (0, 1, 1)));
+}
+
+/// The switch of File › Options for the contacts' mail asks first, saying what it tells each
+/// sender (#891), as the one for all mail does; off asks nothing.
+#[test]
+fn the_contacts_switch_asks_before_it_turns_on() {
+    let (app, _) = app_with(vec![]);
+    let mut harness = window(app, (1280.0, 800.0));
+    let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesFromContacts");
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail from people in my contacts").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    assert!(says(&harness, "Their servers then learn when you opened the message and from which internet address"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none() && !harness.state().ui.download_pictures_from_contacts);
+    harness.get_by_label("Download pictures in mail from people in my contacts").click();
+    harness.run_steps(3);
+    harness.get_by_label("Download from contacts").click();
+    harness.run_steps(6);
+    assert!(harness.state().dialog.is_none() && harness.state().ui.download_pictures_from_contacts);
+    // Off asks nothing.
+    harness.get_by_label("Download pictures in mail from people in my contacts").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none() && !harness.state().ui.download_pictures_from_contacts);
+}
+
+/// An agent can't widen the switch by adding a sender to the contacts, as the owner can (#891):
+/// what an agent's "Add to Contacts" keeps leaves that sender's pictures blocked until the owner
+/// edits the contact, and the owner's own contact brings them.
+#[test]
+fn a_contact_an_agent_adds_does_not_bring_pictures() {
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "ada@kite.example", "From the agent's contact", &web_pictures("a.kite.example", 1)),
+        web_message(1, "bob@kite.example", "From the owner's contact", &web_pictures("b.kite.example", 1)),
+    ]);
+    let (by_agent, by_owner) = (ids[0], ids[1]);
+    app.ui.download_pictures_from_contacts = true;
+    // The agent's "Add to Contacts" comes in as an agent's does, over the control channel (MCP).
+    let (req, _rx) = crate::control::ControlRequest::new("engine.execute", json!({"command": "people.fromMessage", "params": {"id": by_agent}}));
+    let done = crate::control::handle(&mut app, &egui::Context::default(), &req.from_agent(Vec::new()));
+    assert!(matches!(&done, crate::control::Outcome::Done(v) if v["ok"] == true), "people.fromMessage is safe for an agent");
+    app.execute("people.fromMessage", json!({"id": by_owner})).unwrap();
+    assert!(!super::remote::from_contact(&app, "ada@kite.example"));
+    assert!(super::remote::from_contact(&app, "bob@kite.example"));
+    // (Add to Contacts moves the window to the People list.)
+    app.execute("view.mail", json!({})).unwrap();
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    select(&mut harness, by_agent);
+    assert_eq!(shown(&harness, by_agent), (0, 1, 1));
+    select(&mut harness, by_owner);
+    assert_eq!(shown(&harness, by_owner), (1, 0, 0));
+    assert!(host.asked().iter().all(|url| !url.contains("a.kite")), "{:?}", host.asked());
+
+    // The owner edits it: it is theirs now, and its mail comes without asking.
+    let contact = harness.state().session.mailbox.contacts.values().find(|c| c.has_email("ada@kite.example")).map(|c| c.id).unwrap();
+    harness.state_mut().session.run("people.edit", &json!({"id": contact, "notes": "my colleague"})).unwrap();
+    select(&mut harness, by_owner);
+    select(&mut harness, by_agent);
+    assert_eq!(shown(&harness, by_agent), (1, 0, 0));
 }
 
 /// A contact is that address exactly: not a lookalike of it, nor one of a lookalike.
@@ -3258,8 +3361,8 @@ fn a_selection_copies_tables_lists_quotes_and_links_as_text() {
     let (start, range, url) = super::view::kept(&ctx, gmail, |laid, _| {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
-        let (range, url) = text.links.first().unwrap();
-        (text.job.text.clone(), range.clone(), url.to_string())
+        let link = text.links.first().unwrap();
+        (text.job.text.clone(), link.range.clone(), link.url.to_string())
     })
     .unwrap();
     let (from, to) = (gap(&harness, gmail, &start, range.start), gap(&harness, gmail, &start, range.end));
@@ -3902,8 +4005,8 @@ fn the_menu_of_the_body_copies_selects_all_and_knows_a_links_address() {
     let (start, range, url) = super::view::kept(&ctx, id, |laid, _| {
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if !t.links.is_empty())).unwrap();
         let ItemKind::Text(text) = &item.kind else { panic!() };
-        let (range, url) = text.links.first().unwrap();
-        (text.job.text.clone(), range.clone(), url.to_string())
+        let link = text.links.first().unwrap();
+        (text.job.text.clone(), link.range.clone(), link.url.to_string())
     })
     .unwrap();
     let on_link = gap(&harness, id, &start, range.start + 1) + egui::vec2(1.0, 0.0);
@@ -4258,6 +4361,83 @@ fn small_pictures_in_a_table_in_a_centred_cell_stand_in_the_middle() {
 }
 
 #[test]
+fn an_inner_percentage_table_can_keep_a_centred_wrapper_at_content_width() {
+    let icons: String = (0..5)
+        .map(|i| {
+            let pad = if i < 4 { 32 } else { 0 };
+            format!("<td style='width:20%'><img src='cid:tick-16@quillon.example' width='40' height='40' style='padding-right:{pad}px'></td>")
+        })
+        .collect();
+    let html = format!(
+        "<table align='center'><tr><td style='padding:20px 0'><table width='100%' cellspacing='0'><tr>{icons}</tr></table></td></tr></table>"
+    );
+    let message = html_message(53, ("Digest", "digest@bellweather.example"), "Icons", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &message, 600.0);
+        let icons = shown_pictures(&laid);
+        assert_eq!(icons.len(), 5);
+        for (index, icon) in icons.iter().enumerate() {
+            assert_eq!(icon.rect.size(), egui::vec2(40.0, 40.0));
+            assert_eq!(icon.rect.min, egui::pos2(136.0 + index as f32 * 72.0, 20.0));
+        }
+    });
+}
+
+/// An inner full-width header bar fills its auto-sized wrapper in either alignment.
+#[test]
+fn a_short_header_bar_in_a_nested_table_keeps_its_alignment() {
+    in_frame(false, |ctx| {
+        for align in ["center", "right"] {
+            let html = format!(
+                "<table role='presentation' width='600' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' align='{align}' cellspacing='0'><tr><td style='padding:0'>\
+                 <table role='presentation' width='100%' bgcolor='#d8e6da' cellspacing='0'><tr><td style='padding:0'>Header</td></tr></table>\
+                 </td></tr></table></td></tr></table>"
+            );
+            let message = html_message(56, ("Digest", "digest@bellweather.example"), "Header", &html);
+            let laid = lay_out(ctx, &message, 700.0);
+            let bar = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Fill { .. })).unwrap().rect;
+            assert!((24.0..120.0).contains(&bar.width()), "{align}: {bar:?}");
+            let offset = if align == "center" { bar.center().x - 300.0 } else { bar.max.x - 600.0 };
+            assert!(offset.abs() < 1.0, "{align}: {bar:?}");
+        }
+    });
+}
+
+/// The picture mark fits a narrow reading slot even when its requested padding does not.
+#[test]
+fn a_padded_picture_placeholder_fits_its_slot() {
+    let html = "<img src='https://example.org/icon.png' width='24' height='24' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(54, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    in_frame(false, |ctx| {
+        for (width, left) in [(40.0, 8.0), (200.0, 88.0)] {
+            let laid = lay_out(ctx, &message, width);
+            let placeholder = laid.items.iter().find(|item| matches!(item.kind, ItemKind::Placeholder(_))).unwrap();
+            assert_eq!(placeholder.rect.width(), 24.0);
+            assert_eq!(placeholder.rect.min.x, left);
+            assert!(placeholder.rect.max.x <= laid.width());
+        }
+    });
+}
+
+/// A decoded picture keeps its size until the slot itself is too small, then scales to fit.
+#[test]
+fn a_padded_decoded_picture_keeps_space_for_its_pixels() {
+    let html = "<img src='cid:tick-16@quillon.example' width='80' style='margin:0 auto;padding:0 64px'>";
+    let message = html_message(55, ("Digest", "digest@bellweather.example"), "Padded picture", html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            for (width, size, left) in [(100.0, 80.0, 10.0), (60.0, 60.0, 0.0), (250.0, 80.0, 85.0)] {
+                let laid = lay_out(ctx, &message, width);
+                let picture = shown_pictures(&laid)[0];
+                assert_eq!(picture.rect.size(), egui::Vec2::splat(size));
+                assert_eq!(picture.rect.min.x, left);
+            }
+        });
+    }
+}
+
+#[test]
 fn a_picture_and_text_in_one_line_go_on_lines_of_their_own_when_short_of_room() {
     let html = "<p style='text-align:center'><img src='cid:quillon-mark@quillon.example' width='32' height='32' alt=''> Bellweather Directory, the weekly digest</p>";
     let m = html_message(51, ("Digest", "digest@bellweather.example"), "Logo", html);
@@ -4592,4 +4772,86 @@ fn cellspacing_is_the_gap_between_cells() {
         assert!(apart("cellspacing='0'").abs() < 0.5);
         assert!((apart("cellspacing='10'") - 10.0).abs() < 0.5);
     });
+}
+
+/// "Download pictures in all mail" in the bar above a message (#910): it turns on the switch of
+/// File › Options, but only once the owner has read what that means and said yes; it is not
+/// offered in Junk E-mail, whose mail still never downloads by itself; and it is kept with the
+/// settings. Off from File › Options asks nothing.
+#[test]
+fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "news@shop.example", "First", &web_pictures("a.shop.example", 2)),
+        web_message(1, "other@elsewhere.example", "Second", &web_pictures("b.elsewhere.example", 2)),
+        web_message(2, "news@shop.example", "In the junk", &web_pictures("c.shop.example", 2)),
+    ]);
+    let (first, second, junk) = (ids[0], ids[1], ids[2]);
+    app.execute("mail.junk", json!({"ids": [junk]})).unwrap();
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesAutomatically");
+
+    // Off unless the owner turns it on; the bar offers it, and not in Junk E-mail.
+    assert!(!harness.state().ui.download_pictures);
+    select(&mut harness, junk);
+    assert!(harness.state().hit.rect("downloadPictures", junk).is_some());
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", junk).is_none());
+    select(&mut harness, first);
+    assert!(says(&harness, "Download pictures in all mail"));
+    let all = harness.state().hit.rect("downloadPicturesInAllMail", first).unwrap();
+
+    // It asks first, saying what it means; Cancel leaves it off and asks no server.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    assert!(says(&harness, "Each sender's server then learns when you opened the message and from which internet address"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(6);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    assert_eq!((shown(&harness, first), host.asked().len()), ((0, 2, 2), 0));
+
+    // Yes turns it on: this message's pictures come, and the next one's without a word.
+    click_at(&mut harness, all.center());
+    assert!(asking(&harness));
+    harness.get_by_label("Download in all mail").click();
+    harness.run_steps(8);
+    assert!(harness.state().dialog.is_none());
+    assert!(harness.state().ui.download_pictures);
+    assert_eq!(shown(&harness, first), (2, 0, 0));
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_none());
+    select(&mut harness, second);
+    assert_eq!(shown(&harness, second), (2, 0, 0));
+    // Junk E-mail's still don't.
+    select(&mut harness, junk);
+    assert_eq!(shown(&harness, junk), (0, 2, 2));
+    assert!(host.asked().iter().all(|url| !url.contains("c.shop")), "{:?}", host.asked());
+
+    // It is kept with the settings, and comes back with them.
+    let saved = serde_json::to_value(harness.state().prefs()).unwrap();
+    assert_eq!(saved["downloadPictures"], json!(true));
+    let restored: crate::UiState = serde_json::from_value(saved).unwrap();
+    assert!(restored.download_pictures);
+
+    // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    // On again there asks the same question; Cancel leaves it off.
+    harness.get_by_label("Download pictures in mail automatically").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none());
+    assert!(!harness.state().ui.download_pictures);
+    harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
+    select(&mut harness, second);
+    select(&mut harness, first);
+    assert!(harness.state().hit.rect("downloadPicturesInAllMail", first).is_some());
+    // A script or an agent is never asked: the command does what it is told.
+    assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
+    assert!(harness.state().dialog.is_none());
 }

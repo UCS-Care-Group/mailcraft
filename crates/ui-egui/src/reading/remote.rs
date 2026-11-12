@@ -29,7 +29,7 @@
 //! [`Services::pictures`]: crate::Services::pictures
 //! [`Services::picture_cache`]: crate::Services::picture_cache
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -144,6 +144,9 @@ pub struct RemotePictures {
     retry: Vec<Id>,
     /// The owner cleared what is kept of pictures: what is in memory goes at the next frame.
     forget_all: bool,
+    /// The addresses of the contacts that the switch for the contacts' mail trusts, as of the
+    /// mailbox revision and number of contacts they were read at ([`from_contact`]).
+    contacts: std::cell::RefCell<Option<((u64, usize), HashSet<String>)>>,
 }
 
 impl RemotePictures {
@@ -218,11 +221,22 @@ fn remembered_unvouched(app: &MailApp, m: &Message) -> bool {
 }
 
 /// Whether `address` is one of the contacts' own addresses: that address exactly, letter case
-/// aside, and plain ASCII ([`sender`]), so that a lookalike stands for nobody.
+/// aside, and plain ASCII ([`sender`]), so that a lookalike stands for nobody. Not one of a
+/// contact an agent made or gave the address to, until the owner has edited that contact
+/// ([`mailcraft_model::Contact::by_agent`]).
+///
+/// This is asked at every frame, for the reading pane and for each row of a list, so the contacts
+/// are read once, into a set of the addresses, which is made again when the mailbox changes.
 pub fn from_contact(app: &MailApp, address: &str) -> bool {
-    sender(address).is_some_and(|address| {
-        app.session.mailbox.contacts.values().any(|c| c.emails.iter().any(|e| sender(&e.value).is_some_and(|kept| kept == address)))
-    })
+    let Some(address) = sender(address) else { return false };
+    let key = (app.session.rev(), app.session.mailbox.contacts.len());
+    let mut kept = app.remote_pictures.contacts.borrow_mut();
+    if kept.as_ref().is_none_or(|(of, _)| *of != key) {
+        let all =
+            app.session.mailbox.contacts.values().filter(|c| !c.by_agent).flat_map(|c| c.emails.iter().filter_map(|e| sender(&e.value))).collect();
+        *kept = Some((key, all));
+    }
+    kept.as_ref().is_some_and(|(_, all)| all.contains(&address))
 }
 
 /// Whether the switch for the contacts' mail is on and `m`'s sender is a contact, before the
@@ -476,6 +490,21 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             if download.clicked() {
                 let _ = app.run("ui.downloadPictures", json!({"message": m.id}));
             }
+            // The switch of File › Options for all mail, from here (#910): it asks first. It does
+            // nothing for Junk E-mail, so it is not offered there.
+            if !in_junk(app, m) && !app.ui.download_pictures {
+                let all = action(
+                    ui,
+                    tl!("Download pictures in all mail").to_string(),
+                    tl!("Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."),
+                );
+                if place == Place::Pane {
+                    app.hit.add("downloadPicturesInAllMail", m.id, all.rect);
+                }
+                if all.clicked() {
+                    let _ = app.run("ui.downloadPicturesAutomatically", json!({"value": true}));
+                }
+            }
             // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
             // server doesn't vouch for, so it is not offered there.
             let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };
@@ -522,7 +551,7 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     let mut contacts = app.ui.download_pictures_from_contacts;
     let tip = tl!(
-        "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail."
+        "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
     );
     if ui
         .add_enabled(!all, egui::Checkbox::new(&mut contacts, tl!("Download pictures in mail from people in my contacts")))

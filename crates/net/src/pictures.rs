@@ -272,7 +272,7 @@ fn problem(text: &str) -> PictureError {
 }
 
 fn unreachable_host(host: &str, reason: &str) -> PictureError {
-    PictureError::Net(NetError::Connect { host: host.to_string(), reason: reason.to_string() })
+    PictureError::Net(NetError::Connect { host: host.to_string(), reason: reason.into() })
 }
 
 /// What an error of reading an answer comes to here.
@@ -686,7 +686,7 @@ fn handshake_trouble(error: &std::io::Error) -> String {
 
 /// Shake hands over `line` and check the server's certificate against `host`.
 fn secure(mut line: Timed, host: &str) -> Result<Line, PictureError> {
-    let failed = |reason: String| PictureError::Net(NetError::Tls { host: host.to_string(), reason });
+    let failed = |reason: String| PictureError::Net(NetError::Tls { host: host.to_string(), reason: reason.into() });
     let config = tls_config().map_err(failed)?;
     let name = ServerName::try_from(host.to_string()).map_err(|_| failed("its name isn't one a certificate can be checked against".into()))?;
     let mut connection = ClientConnection::new(config, name).map_err(|e| failed(e.to_string()))?;
@@ -1516,7 +1516,7 @@ mod tests {
         // None of them answers: given up on when the last of them has had its time, with a reason.
         let (result, took, tried) = get(&[dead[0], dead[2]]);
         assert!(
-            matches!(&result, Err(PictureError::Net(NetError::Connect { host, reason })) if host == "pictures.example" && reason == "the server didn't answer"),
+            matches!(&result, Err(PictureError::Net(NetError::Connect { host, reason })) if host == "pictures.example" && reason.to_string() == "the server didn't answer"),
             "{result:?}"
         );
         assert_eq!(tried.len(), 2);
@@ -1529,7 +1529,7 @@ mod tests {
         let names = |_: &str, _: u16, _: Duration| many.clone();
         let result = fetch_with("http://pictures.example/a.png", &Reach { lookup: &names, stand_ins: &allowed_many, dial: Some(refused) }, &limits);
         assert!(
-            matches!(&result, Err(PictureError::Net(NetError::Connect { reason, .. })) if reason == "the server refused the connection"),
+            matches!(&result, Err(PictureError::Net(NetError::Connect { reason, .. })) if reason.to_string() == "the server refused the connection"),
             "{result:?}"
         );
 

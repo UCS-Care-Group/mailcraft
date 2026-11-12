@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool} — it is kept on this computer; the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes)} — it is kept on this computer; the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -214,6 +214,9 @@ fn apply(c: &mut Contact, v: &Value) -> Result<(), CmdError> {
     if let Some(f) = p::bool(v, "favorite") {
         c.favorite = f;
     }
+    if let Some(list) = v.get("keys") {
+        c.keys = super::keys::card_keys_param(&c.keys, list)?;
+    }
     Ok(())
 }
 
@@ -245,6 +248,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if p::strings(v, "categories").is_some() {
         c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &had, c.origin.account)?;
     }
+    // The owner's edit confirms a contact an agent made or gave an address (#891); an agent's
+    // edit doesn't, and leaves it as it was.
+    c.by_agent = s.agent.is_some() && c.by_agent;
     *s.mailbox.contact_mut(id)? = c;
     Ok(json!({"id": id}))
 }
@@ -305,7 +311,8 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
-        "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "importedFrom": c.imported_from, "byAgent": c.by_agent, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "keys": c.keys.iter().map(|k| json!({"kind": k.kind.name(), "fingerprint": super::keys::card_key_facts(k).fingerprint, "uri": k.uri})).collect::<Vec<_>>(),
     })
 }
 

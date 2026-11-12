@@ -204,3 +204,68 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
 }
+
+/// The contacts of `s` with an address, by address (lower case).
+fn contact_with(s: &Session, address: &str) -> Contact {
+    s.mailbox.contacts.values().find(|c| c.has_email(address)).map(|c| (**c).clone()).unwrap()
+}
+
+/// A contact an agent made, or gave an address, is the agent's until the owner edits it (#891):
+/// "Download pictures in mail from people in my contacts" doesn't trust it. The owner's own
+/// contacts, and what an agent changes of them besides their addresses, are not marked.
+#[test]
+fn what_an_agent_adds_to_the_contacts_is_marked_until_the_owner_edits_it() {
+    let mut s = sample();
+    // The owner's own.
+    s.run("people.new", &json!({"first": "Owen", "email": "owen@kite.example"})).unwrap();
+    assert!(!contact_with(&s, "owen@kite.example").by_agent);
+    let owen = contact_with(&s, "owen@kite.example").id;
+
+    s.agent = Some(Vec::new());
+    // A new one, by hand and from a message, and an address given to the owner's.
+    s.run("people.new", &json!({"first": "Agnes", "email": "agnes@kite.example"})).unwrap();
+    let stranger = |m: &&std::sync::Arc<mailcraft_model::Message>| !s.mailbox.contacts.values().any(|c| c.has_email(&m.from.email));
+    let message = s.mailbox.messages.values().find(stranger).map(|m| (m.id, m.from.email.clone())).unwrap();
+    s.run("people.fromMessage", &json!({"id": message.0})).unwrap();
+    s.run("people.edit", &json!({"id": owen, "notes": "met at a fair"})).unwrap();
+    assert!(!contact_with(&s, "owen@kite.example").by_agent, "a change that gives no address isn't marked");
+    s.run(
+        "people.edit",
+        &json!({"id": owen, "emails": [{"label": "work", "value": "owen@kite.example"}, {"label": "home", "value": "owen@home.example"}]}),
+    )
+    .unwrap();
+    assert!(contact_with(&s, "owen@kite.example").by_agent);
+    assert!(contact_with(&s, "agnes@kite.example").by_agent);
+    assert!(contact_with(&s, &message.1).by_agent);
+
+    // A card imported by an agent.
+    let card = "BEGIN:VCARD
+
+VERSION:3.0
+
+FN:Vera
+
+EMAIL:vera@kite.example
+
+END:VCARD
+
+";
+    s.run("file.import", &json!({"name": "vera.vcf", "data": mailcraft_charset::base64::STANDARD.encode(card)})).unwrap();
+    assert!(contact_with(&s, "vera@kite.example").by_agent);
+
+    // The owner can see which they are.
+    assert_eq!(s.run("people.get", &json!({"id": contact_with(&s, "vera@kite.example").id})).unwrap()["byAgent"], true);
+    assert_eq!(s.run("people.get", &json!({"id": contact_with(&s, "owen@kite.example").id})).unwrap()["byAgent"], true);
+    // The agent can't confirm it, by editing or by naming the field.
+    let agnes = contact_with(&s, "agnes@kite.example").id;
+    s.run("people.edit", &json!({"id": agnes, "notes": "trusted", "byAgent": false})).unwrap();
+    assert!(contact_with(&s, "agnes@kite.example").by_agent);
+
+    // The owner's edit does.
+    s.agent = None;
+    s.run("people.edit", &json!({"id": agnes, "notes": "I know her"})).unwrap();
+    assert!(!contact_with(&s, "agnes@kite.example").by_agent);
+    assert!(contact_with(&s, "owen@kite.example").by_agent, "the other stays the agent's");
+    s.run("people.edit", &json!({"id": owen, "notes": "mine again"})).unwrap();
+    assert!(!contact_with(&s, "owen@kite.example").by_agent);
+}

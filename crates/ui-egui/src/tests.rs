@@ -17,6 +17,32 @@ fn app() -> MailApp {
     app
 }
 
+/// English on a British system writes dates the day first, on a 24-hour clock from Monday, in
+/// the window and in the engine; a clock the owner chose stays theirs (#978).
+#[test]
+fn english_dates_follow_the_system_s_region() {
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let mut a = app();
+    a.services.system_time_locale = Some("en-GB".into());
+    a.execute("ui.language", json!({"language": "auto"})).unwrap();
+    assert_eq!(a.session.date_region.as_deref(), Some("GB"));
+    assert_eq!((a.session.prefs.twelve_hour, a.session.prefs.week_start), (false, mailcraft_time::Weekday::Mon));
+    let old = NOW - 380 * 86_400;
+    assert_eq!(crate::dates::list_label(old, NOW, 0, false), "29/09/2025");
+    assert_eq!(crate::dates::header_label(NOW, 0, false), "Wed 14/10/2026 16:00");
+    assert_eq!(crate::dates::medium(mailcraft_time::Date::new(2026, 10, 3).unwrap()), "3 Oct 2026");
+    assert_eq!(a.session.date_time_said(a.session.local(NOW)), "Wednesday 14 October 2026 16:00");
+    // The owner's own clock wins.
+    a.session.run("file.options", &json!({"twelveHour": true})).unwrap();
+    a.execute("ui.language", json!({"language": "en"})).unwrap();
+    assert!(a.session.prefs.twelve_hour);
+    // A system that names no region: the US's way.
+    a.services.system_time_locale = Some("C".into());
+    a.execute("ui.language", json!({"language": "en"})).unwrap();
+    assert_eq!(a.session.date_region, None);
+    assert_eq!(crate::dates::header_label(NOW, 0, true), "Wed 10/14/2026 4:00 PM");
+}
+
 fn first_message(app: &mut MailApp) -> u64 {
     app.session.rows().first().map(|r| r.id).unwrap()
 }
@@ -124,6 +150,11 @@ fn window_commands_validate() {
     a.services.system_locale = Some("nl-NL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "nl");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Dutch);
+    // Romanian too, and Automatic in Romania follows it.
+    assert_eq!(a.execute("ui.language", json!({"language": "ro"})).unwrap()["inForce"], "ro");
+    a.services.system_locale = Some("ro-RO".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ro");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Romanian);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());

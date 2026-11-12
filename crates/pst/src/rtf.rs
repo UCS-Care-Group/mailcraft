@@ -210,6 +210,16 @@ struct Group {
     defining: i64,
     /// The font text is in (`\fN`), if one was chosen.
     font: Option<i64>,
+    /// Encapsulated HTML: under `\htmlrtf`, what isn't part of the HTML.
+    suppressed: bool,
+    /// Encapsulated HTML: inside an `\htmltag` group.
+    in_tag: bool,
+}
+
+impl Group {
+    fn hidden(&self) -> bool {
+        self.skip || self.suppressed
+    }
 }
 
 /// Most fonts whose character set is kept.
@@ -231,6 +241,8 @@ struct Out {
     deff: Option<i64>,
     /// `\fcharset` of each font in the font table.
     fonts: HashMap<i64, i64>,
+    /// Reading encapsulated HTML rather than the text a document shows.
+    html: bool,
 }
 
 /// The code page a font character set stands for ([MSFT-RTF] `\fcharsetN`): `None` for the
@@ -280,6 +292,7 @@ impl Out {
             mac: false,
             deff: None,
             fonts: HashMap::new(),
+            html: false,
         }
     }
 
@@ -395,13 +408,68 @@ impl Out {
 /// was cut is the second part of the answer. Groups nest at most [`MAX_RTF_DEPTH`] deep, else
 /// an error; unbalanced braces are read as they come.
 pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
+    read(rtf, max, false).map(|(text, cut)| (tidy(&text), cut))
+}
+
+/// The HTML a document keeps when it is encapsulated HTML ([MS-OXRTFEX] 2.2.3): what its
+/// `\htmltag` groups hold and the text no `\htmlrtf` suppresses, under the same caps as
+/// [`rtf_text`]. `None` for any other document. The HTML is as hostile as the file: whoever
+/// shows it reads it as any other message's.
+pub fn rtf_html(rtf: &[u8], max: usize) -> Result<Option<(String, bool)>> {
+    if !encapsulates_html(rtf) {
+        return Ok(None);
+    }
+    read(rtf, max, true).map(Some)
+}
+
+/// Whether one of the document's first ten tokens says it was HTML (2.2.3.1).
+fn encapsulates_html(rtf: &[u8]) -> bool {
+    let mut i = rtf.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(rtf.len());
+    if rtf.get(i..i.saturating_add(5)) != Some(b"{\\rtf") {
+        return false;
+    }
+    for _ in 0..10 {
+        match rtf.get(i) {
+            Some(b'{') => i = i.saturating_add(1),
+            Some(b'\\') => {
+                let from = i.saturating_add(1);
+                i = from;
+                while rtf.get(i).is_some_and(u8::is_ascii_alphabetic) {
+                    i = i.saturating_add(1);
+                }
+                let word = rtf.get(from..i).unwrap_or_default();
+                if word.is_empty() {
+                    return false;
+                }
+                let digits = i;
+                while rtf.get(i).is_some_and(u8::is_ascii_digit) {
+                    i = i.saturating_add(1);
+                }
+                match word {
+                    b"fromhtml" => return rtf.get(digits..i) != Some(b"0"),
+                    b"fromtext" => return false,
+                    _ => {}
+                }
+                if rtf.get(i) == Some(&b' ') {
+                    i = i.saturating_add(1);
+                }
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+fn read(rtf: &[u8], max: usize, html: bool) -> Result<(String, bool)> {
     let start = rtf.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(rtf.len());
     if rtf.get(start..start.saturating_add(5)) != Some(b"{\\rtf") {
         return Err(Error::Corrupt("not rich text"));
     }
     let mut out = Out::new(max);
+    out.html = html;
     let mut stack: Vec<Group> = Vec::new();
-    let mut cur = Group { uc: 1, skip: false, fonttbl: false, defining: 0, font: None };
+    let mut cur = Group { uc: 1, skip: false, fonttbl: false, defining: 0, font: None, suppressed: false, in_tag: false };
+    let mut star = false;
     let mut first = false;
     let mut skip_chars = 0u32;
     let mut i = start;
@@ -432,14 +500,14 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
                 match n {
                     b'\\' | b'{' | b'}' => {
                         first = false;
-                        if !cur.skip && !take(&mut skip_chars) {
+                        if !cur.hidden() && !take(&mut skip_chars) {
                             out.char(char::from(n));
                         }
                     }
                     // A backslash before a line end is a paragraph end.
                     b'\r' | b'\n' => {
                         first = false;
-                        if !cur.skip {
+                        if !cur.hidden() {
                             out.char('\n');
                         }
                     }
@@ -449,7 +517,7 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
                             rtf.get(i..i.saturating_add(2)).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
                         if let Some(v) = hex {
                             i = i.saturating_add(2);
-                            if !cur.skip && !take(&mut skip_chars) {
+                            if !cur.hidden() && !take(&mut skip_chars) {
                                 let cp = out.code_page(cur.font);
                                 out.byte(v, cp);
                             }
@@ -458,9 +526,13 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
                     b'*' => {
                         cur.skip = true;
                         first = false;
+                        star = true;
                     }
                     b'~' => symbol(&mut out, &cur, '\u{A0}', &mut first),
-                    b'_' => symbol(&mut out, &cur, '\u{2011}', &mut first),
+                    b'_' => {
+                        let hyphen = if out.html { '\u{AD}' } else { '\u{2011}' };
+                        symbol(&mut out, &cur, hyphen, &mut first);
+                    }
                     b'-' | b'|' | b':' => first = false,
                     n if n.is_ascii_alphabetic() => {
                         let from = i.saturating_sub(1);
@@ -485,6 +557,14 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
                             i = i.saturating_add(1);
                         }
                         let was_first = std::mem::replace(&mut first, false);
+                        // The HTML of a tag is read whatever suppresses what is round it, by the
+                        // document's own code page (2.2.3.2).
+                        if html && std::mem::take(&mut star) && word == "htmltag" && !stack.last().is_some_and(|g| g.skip) {
+                            cur.skip = false;
+                            cur.in_tag = true;
+                            cur.suppressed = false;
+                            cur.font = None;
+                        }
                         if was_first && SKIPPED.contains(&word.to_ascii_lowercase().as_str()) {
                             cur.skip = true;
                             cur.fonttbl = word.eq_ignore_ascii_case("fonttbl");
@@ -497,14 +577,14 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
             }
             b'\t' => {
                 first = false;
-                if !cur.skip && !take(&mut skip_chars) {
+                if !cur.hidden() && !take(&mut skip_chars) {
                     out.char('\t');
                 }
             }
             0x00..=0x1F => {}
             _ => {
                 first = false;
-                if cur.skip || take(&mut skip_chars) {
+                if cur.hidden() || take(&mut skip_chars) {
                     continue;
                 }
                 if b.is_ascii() {
@@ -519,7 +599,7 @@ pub fn rtf_text(rtf: &[u8], max: usize) -> Result<(String, bool)> {
     out.flush();
     out.flush_high();
     let cut = out.cut;
-    Ok((tidy(&out.text), cut))
+    Ok((out.text, cut))
 }
 
 fn take(skip: &mut u32) -> bool {
@@ -533,7 +613,7 @@ fn take(skip: &mut u32) -> bool {
 
 fn symbol(out: &mut Out, cur: &Group, c: char, first: &mut bool) {
     *first = false;
-    if !cur.skip {
+    if !cur.hidden() {
         out.char(c);
     }
 }
@@ -555,7 +635,8 @@ fn control(word: &str, num: Option<i64>, cur: &mut Group, out: &mut Out, skip_ch
         "deff" => out.deff = num,
         "plain" if !cur.skip => cur.font = None,
         "uc" => cur.uc = num.and_then(|n| u32::try_from(n).ok()).unwrap_or(1).min(16),
-        "u" if !cur.skip => {
+        "htmlrtf" if out.html && !cur.in_tag => cur.suppressed = num != Some(0),
+        "u" if !cur.hidden() => {
             if let Some(n) = num {
                 // A negative number is the unit minus 65536; the fallback after it is skipped.
                 let unit = if n < 0 { n.saturating_add(65536) } else { n };
@@ -567,16 +648,18 @@ fn control(word: &str, num: Option<i64>, cur: &mut Group, out: &mut Out, skip_ch
             let n = num.and_then(|n| usize::try_from(n).ok()).unwrap_or(0);
             *i = i.saturating_add(n).min(rtf.len());
         }
-        "par" | "line" | "sect" | "page" | "row" if !cur.skip => out.char('\n'),
-        "tab" | "cell" if !cur.skip => out.char('\t'),
-        "emdash" if !cur.skip => out.char('\u{2014}'),
-        "endash" if !cur.skip => out.char('\u{2013}'),
-        "lquote" if !cur.skip => out.char('\u{2018}'),
-        "rquote" if !cur.skip => out.char('\u{2019}'),
-        "ldblquote" if !cur.skip => out.char('\u{201C}'),
-        "rdblquote" if !cur.skip => out.char('\u{201D}'),
-        "bullet" if !cur.skip => out.char('\u{2022}'),
-        "emspace" | "enspace" | "qmspace" if !cur.skip => out.char(' '),
+        "par" | "line" if !cur.hidden() => out.char('\n'),
+        "sect" | "page" | "row" if !cur.hidden() && !out.html => out.char('\n'),
+        "tab" if !cur.hidden() => out.char('\t'),
+        "cell" if !cur.hidden() && !out.html => out.char('\t'),
+        "emdash" if !cur.hidden() => out.char('\u{2014}'),
+        "endash" if !cur.hidden() => out.char('\u{2013}'),
+        "lquote" if !cur.hidden() => out.char('\u{2018}'),
+        "rquote" if !cur.hidden() => out.char('\u{2019}'),
+        "ldblquote" if !cur.hidden() => out.char('\u{201C}'),
+        "rdblquote" if !cur.hidden() => out.char('\u{201D}'),
+        "bullet" if !cur.hidden() => out.char('\u{2022}'),
+        "emspace" | "enspace" | "qmspace" if !cur.hidden() => out.char(' '),
         _ => {}
     }
 }
