@@ -2163,7 +2163,16 @@ impl Mailbox {
     /// ([`Mailbox::stays_out_of`]) and of what a move goes up as, so that no folder takes a
     /// message whose move the server would never hear of.
     pub fn jmap_mailbox(&self, account: Id, folder: Id) -> Option<&str> {
-        let f = self.folder(folder).filter(|f| f.account == account)?;
+        self.folder(folder).and_then(|f| Mailbox::jmap_mailbox_of(f, account))
+    }
+
+    /// [`Mailbox::jmap_mailbox`] of a folder in hand, for telling it of every folder in one pass.
+    /// Never the Outbox, whatever a mailbox file says its server id is: what lies there is mail
+    /// to send and no change of a message, so a move into it would never go up.
+    pub fn jmap_mailbox_of(f: &Folder, account: Id) -> Option<&str> {
+        if f.account != account || f.kind == FolderKind::Outbox {
+            return None;
+        }
         f.server.as_ref().map(|server| server.id.as_str()).filter(|id| crate::is_jmap_id(id))
     }
 
