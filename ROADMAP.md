@@ -16,10 +16,10 @@ and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 
 | Number | Value | Kind |
 |---|---|---|
-| Ribbon/menu catalog coverage | **227 / 328 (69.2%)** | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
+| Ribbon/menu catalog coverage | **246 / 314 in scope (78.3%) have a command; 0 are Complete (0%)**; 17 rows out of scope | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
 | Ready for real work with a real account | **~25%** | estimated ([how](#methodology)); in daily use on one Microsoft 365 mailbox, the author's; the beta run is under way (#11) and no tester has reported a figure yet. Whether MailCraft is ready for beta is decided by [the beta checklist](#the-beta-checklist), not by this estimate |
 | Ready as a local viewer and organiser of exported mail | **~55%** | estimated ([how](#methodology)) |
-| Commands / crates | 295 commands · 19 crates, 3 apps, `xtask` | measured (source) |
+| Commands / crates | 338 commands · 19 crates, 3 apps, `xtask` | measured (source) |
 | Tests | 5,401 `#[test]`s (`cargo xtask stats`); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
 | Builds verified | Windows, macOS and Linux (CI on each), FreeBSD and Windows ARM64 (scheduled), the browser build (wasm) | measured |
 | 200,000 messages (R6.4, 2026-10-18) | open **1.5 s** cold (1.1 s warm), a save after a change **8 ms**, **770 MB** held after opening (peak 840 MB); a search everywhere answers from the word index in **0.16 s**, the process at most **849 MB** (R6.2) | measured (`mailbox_bench`, see the progress log) |
@@ -34,12 +34,16 @@ not yet run against any other server.
 
 ### Methodology
 
-- **Measured.** `crates/engine/src/catalog.rs` lists 328 ribbon and menu features of Outlook by
+- **Measured.** `crates/engine/src/catalog.rs` lists 331 ribbon and menu features of Outlook by
   name, each mapped to a command id; `cargo xtask parity` counts how many of those ids the command
-  registry has and writes [`docs/parity-checklist.md`](docs/parity-checklist.md). A command
-  existing means the behaviour is reachable by id (ribbon, shortcut, CLI, control channel, MCP);
-  it says nothing about how complete it is, which is what [`docs/gaps.md`](docs/gaps.md) and the
-  other parity checklists are for. Tests are counted by `cargo xtask stats`; the 200,000-message
+  registry has and writes [`docs/parity-checklist.md`](docs/parity-checklist.md). Parity is two
+  counts. **Has a command**: the behaviour is reachable by id (ribbon, shortcut, CLI, control
+  channel, MCP); it says nothing about how closely it behaves as Outlook's does. **Complete**: the
+  behaviour matches Outlook's as far as MailCraft's rules allow, a test shows it, and
+  [`docs/gaps.md`](docs/gaps.md) has no open row for it; a feature is marked Complete by the change
+  that closes its last gap, and none is marked yet. Features MailCraft will not build (Outlook's
+  drawing items in Insert, Recall, Reply with IM and a few that need what the servers don't
+  offer) are marked **Out of scope** with a reason, and left out of both percentages. Tests are counted by `cargo xtask stats`; the 200,000-message
   figures come from `mailbox_bench`, and the progress log says how to repeat them.
 - **Estimated.** "Ready for real work" weighs what a person does in a week (reading and filing
   mail, answering, scheduling, finding things) by how completely MailCraft does it, then discounts
@@ -48,6 +52,29 @@ not yet run against any other server.
   local viewer" weighs the same for mail exported to files (`.mbox`, `.eml`, `.ics`, `.vcf`). Both
   are the authors' judgement: no tester has reported figures yet. MailCraft is in public beta from 0.8.0; it
   leaves beta not by an estimate but by passing every item of [the beta checklist](#the-beta-checklist).
+
+## Parity themes
+
+The themes that close the gap to Outlook's own features, in the order they are taken. Each is
+finished, with a pass/fail checklist, before the next gets its time; the shortfalls behind them are
+in [`docs/gaps.md`](docs/gaps.md).
+
+1. Printing
+2. Paragraph alignment
+3. Message list columns
+4. The To-Do Bar
+5. The calendar's List view
+6. Rules
+7. JMAP and DAV accounts
+8. Sending later and Undo Send
+9. Follow-up reminders
+10. Tables, horizontal lines and emoji in the composer
+11. Spelling
+12. Calendar overlay and the Schedule view
+13. Contact groups
+14. Search Folders
+15. `.msg` import
+16. Clean-up commands (Ignore, Clean Up Conversation, Recover Deleted)
 
 ## Where it stands, by area (2026-10-31)
 
