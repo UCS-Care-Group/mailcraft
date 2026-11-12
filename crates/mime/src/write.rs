@@ -287,10 +287,14 @@ fn calendar_form(message: &Message) -> Option<(usize, String)> {
 /// That last line end is the entity's: the boundary's own comes after it (RFC 2046 §5.1.1).
 /// Microsoft 365 writes a message sent through it again, and gives a part of a
 /// `multipart/signed` that doesn't end with a line end one, which changed an entity ending
-/// `--boundary--` without one under its signature (#30: every such signature checked BAD).
+/// `--boundary--` without one under its signature (#30: every such signature checked BAD). It
+/// is added only when the entity doesn't end with one already (text that ends with a line end),
+/// so that a server that trims a part's line ends at its end to one changes nothing either.
 pub fn signable(message: &Message) -> Vec<u8> {
     let mut entity = body(message, true).bytes();
-    entity.extend_from_slice(b"\r\n");
+    if !entity.ends_with(b"\r\n") {
+        entity.extend_from_slice(b"\r\n");
+    }
     entity
 }
 

@@ -33,10 +33,29 @@ const NOW: i64 = 1_794_441_600;
 /// The messageDigest attribute (RFC 5652 §11.2).
 const MESSAGE_DIGEST: der::oid::ObjectIdentifier = der::oid::ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.4");
 
-/// A message of the kinds the owner's was: text and HTML, which go as `multipart/alternative`;
-/// with `file`, a file besides (`multipart/mixed`).
-fn message(format: SignatureFormat, fingerprint: &str, file: bool) -> Message {
-    let attachments = if file {
+/// The forms of message signed: text and HTML, as the owner's was (`multipart/alternative`);
+/// with a file besides (`multipart/mixed`); and text alone (`text/plain` is the signed part),
+/// ending with a line end and without one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shape {
+    Alternative,
+    Mixed,
+    TextEndingWithALineEnd,
+    TextWithout,
+}
+
+impl Shape {
+    const ALL: [Shape; 4] = [Shape::Alternative, Shape::Mixed, Shape::TextEndingWithALineEnd, Shape::TextWithout];
+}
+
+fn message(format: SignatureFormat, fingerprint: &str, shape: Shape) -> Message {
+    let text = "\n\nRegards,\nOwner\nMobile: +44 0000 000 000\n\nNot always at my desk.";
+    let (text, html) = match shape {
+        Shape::Alternative | Shape::Mixed => (text.to_string(), Some("<div><br></div><div>Regards,</div><div>Owner</div>".to_string())),
+        Shape::TextEndingWithALineEnd => (format!("{text}\n"), None),
+        Shape::TextWithout => (text.to_string(), None),
+    };
+    let attachments = if shape == Shape::Mixed {
         vec![Attachment {
             name: "rota.txt".into(),
             mime: "text/plain".into(),
@@ -53,10 +72,7 @@ fn message(format: SignatureFormat, fingerprint: &str, file: bool) -> Message {
         subject: "Rota".into(),
         date: NOW,
         message_id: "rota.9@example.org".into(),
-        body: Body {
-            text: "\n\nRegards,\nOwner\nMobile: +44 0000 000 000\n\nNot always at my desk.".into(),
-            html: Some("<div><br></div><div>Regards,</div><div>Owner</div>".into()),
-        },
+        body: Body { text, html },
         attachments,
         sign_with: SigningKey::new(format, fingerprint, "owner@example.org"),
         ..Message::default()
@@ -106,15 +122,34 @@ fn parts(wire: &[u8]) -> (Vec<u8>, Vec<Vec<u8>>, String) {
 /// doesn't end with one. The header is left as it was (Microsoft folds it again too, which no
 /// signature covers).
 fn as_microsoft_writes_it(wire: &[u8]) -> Vec<u8> {
+    written_again(wire, |part| {
+        if !part.ends_with(b"\r\n") {
+            part.extend_from_slice(b"\r\n");
+        }
+    })
+}
+
+/// `wire` as a server might write it again that trims the line ends at a part's end to one (a
+/// model, not seen: it is what a part with one line end at its end is safe from).
+fn as_a_trimming_server_writes_it(wire: &[u8]) -> Vec<u8> {
+    written_again(wire, |part| {
+        while part.ends_with(b"\r\n") {
+            part.truncate(part.len() - 2);
+        }
+        part.extend_from_slice(b"\r\n");
+    })
+}
+
+/// `wire` with its preamble left out and each part of its top `multipart/signed` as `each`
+/// makes it.
+fn written_again(wire: &[u8], each: impl Fn(&mut Vec<u8>)) -> Vec<u8> {
     let (header, parts, boundary) = parts(wire);
     let mut out = header;
     out.extend_from_slice(b"\r\n");
-    for part in parts {
+    for mut part in parts {
+        each(&mut part);
         out.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
         out.extend_from_slice(&part);
-        if !part.ends_with(b"\r\n") {
-            out.extend_from_slice(b"\r\n");
-        }
         out.extend_from_slice(b"\r\n");
     }
     out.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
@@ -139,9 +174,10 @@ fn what_goes(m: &Message) -> Vec<Vec<u8>> {
     vec![smtp, graph]
 }
 
-/// Every form `m` may arrive in: as each path sends it, and that as Microsoft 365 writes it.
+/// Every form `m` may arrive in: as each path sends it, that as Microsoft 365 writes it, and
+/// that as a server that trims line ends would.
 fn as_it_arrives(m: &Message) -> Vec<Vec<u8>> {
-    what_goes(m).into_iter().flat_map(|w| [as_microsoft_writes_it(&w), w]).collect()
+    what_goes(m).into_iter().flat_map(|w| [as_microsoft_writes_it(&w), as_a_trimming_server_writes_it(&w), w]).collect()
 }
 
 // ---- OpenPGP, checked by rPGP ----
@@ -154,7 +190,7 @@ fn pgp_key() -> SignedSecretKey {
 
 /// Signs as Send does with `secret` in place of gpg-agent: the holder is handed the digest and
 /// gives back what `PKSIGN` would.
-fn pgp_signed(secret: &SignedSecretKey, file: bool) -> Message {
+fn pgp_signed(secret: &SignedSecretKey, file: Shape) -> Message {
     let public = SignedPublicKey::from(secret.clone());
     let keys = mailcraft_openpgp::signing_keys(&public.to_bytes().unwrap(), 4_102_444_800);
     let key = keys.first().unwrap_or_else(|| panic!("the key signs"));
@@ -178,7 +214,7 @@ fn pgp_signed(secret: &SignedSecretKey, file: bool) -> Message {
 fn an_openpgp_signature_checks_in_rpgp_on_what_goes_and_what_arrives() {
     let secret = pgp_key();
     let public = SignedPublicKey::from(secret.clone());
-    for file in [false, true] {
+    for file in Shape::ALL {
         let m = pgp_signed(&secret, file);
         for wire in as_it_arrives(&m) {
             assert_eq!(top_param(&wire, "protocol"), "application/pgp-signature");
@@ -240,7 +276,7 @@ fn certificate(key: &p256::ecdsa::SigningKey) -> Vec<u8> {
     p.signed_by(&public, &rcgen::Issuer::new(ca, &ca_key)).unwrap().der().to_vec()
 }
 
-fn smime_signed(key: &p256::ecdsa::SigningKey, file: bool) -> Message {
+fn smime_signed(key: &p256::ecdsa::SigningKey, file: Shape) -> Message {
     let cert = certificate(key);
     let mut m = message(SignatureFormat::Smime, &"AB".repeat(32), file);
     sign_by(&mut m, &|_, entity| {
@@ -282,7 +318,7 @@ fn smime_checks(cms: &[u8], content: &[u8], key: &p256::ecdsa::VerifyingKey) -> 
 #[test]
 fn an_smime_signature_checks_in_rustcrypto_on_what_goes_and_what_arrives() {
     let key = p256_key();
-    for file in [false, true] {
+    for file in Shape::ALL {
         let m = smime_signed(&key, file);
         for wire in as_it_arrives(&m) {
             assert_eq!(top_param(&wire, "protocol"), "application/pkcs7-signature");
@@ -316,14 +352,29 @@ fn base64_decoded(text: &str) -> Vec<u8> {
 
 // ---- GnuPG and OpenSSL themselves ----
 
-/// A directory of the test's own, for the files GnuPG and OpenSSL read.
-fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcraft-sign-{name}-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+/// A directory of the test's own, for the files GnuPG and OpenSSL read: taken away when the test
+/// ends, a failed one too.
+struct Scratch(std::path::PathBuf);
+
+impl Scratch {
+    fn join(&self, name: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+        self.0.join(name)
+    }
 }
 
-/// GnuPG checks a message signed at Send by gpg-agent, as it went and as Microsoft 365 writes it.
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn scratch(name: &str) -> Scratch {
+    let dir = std::env::temp_dir().join(format!("mailcraft-sign-{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    Scratch(dir)
+}
+
+/// GnuPG checks a message signed at Send by gpg-agent, as it went, as Microsoft 365 writes it and as a server that trims line ends would.
 /// Run with `GNUPGHOME` a throwaway keyring whose agent can sign without asking (a key without a
 /// passphrase, or one preset) and `MAILCRAFT_GNUPG_TEST_KEY` its primary key's fingerprint:
 /// `cargo test -p mailcraft gnupg -- --ignored`.
@@ -333,13 +384,13 @@ fn gnupg_checks_what_gpg_agent_signed_at_send() {
     let fingerprint = std::env::var("MAILCRAFT_GNUPG_TEST_KEY").expect("MAILCRAFT_GNUPG_TEST_KEY");
     assert!(std::env::var_os("GNUPGHOME").is_some(), "a throwaway GNUPGHOME, never the owner's own");
     let dir = scratch("gnupg");
-    for file in [false, true] {
+    for file in Shape::ALL {
         let mut m = message(SignatureFormat::OpenPgp, &fingerprint, file);
         sign(&Host::default(), &mut m, mailcraft_time::now()).unwrap();
         for (i, wire) in as_it_arrives(&m).into_iter().enumerate() {
             let (_, parts, _) = parts(&wire);
             let [signed, signature] = parts.as_slice() else { panic!("two parts") };
-            let (part, sig) = (dir.join(format!("part-{file}-{i}")), dir.join(format!("sig-{file}-{i}.asc")));
+            let (part, sig) = (dir.join(format!("part-{file:?}-{i}")), dir.join(format!("sig-{file:?}-{i}.asc")));
             std::fs::write(&part, signed).unwrap();
             std::fs::write(&sig, body_of(signature)).unwrap();
             let out = std::process::Command::new("gpg").args(["--batch", "--status-fd", "1", "--verify"]).arg(&sig).arg(&part).output().unwrap();
@@ -347,7 +398,6 @@ fn gnupg_checks_what_gpg_agent_signed_at_send() {
             assert!(out.status.success() && status.contains("[GNUPG:] GOODSIG"), "{status}{}", String::from_utf8_lossy(&out.stderr));
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// OpenSSL reads a message signed at Send whole (its own MIME reader) and checks it, as it went
@@ -357,10 +407,10 @@ fn gnupg_checks_what_gpg_agent_signed_at_send() {
 fn openssl_checks_an_smime_signature_made_at_send() {
     let key = p256_key();
     let dir = scratch("openssl");
-    for file in [false, true] {
+    for file in Shape::ALL {
         let m = smime_signed(&key, file);
         for (i, wire) in as_it_arrives(&m).into_iter().enumerate() {
-            let path = dir.join(format!("m-{file}-{i}.eml"));
+            let path = dir.join(format!("m-{file:?}-{i}.eml"));
             std::fs::write(&path, &wire).unwrap();
             let out = std::process::Command::new("openssl")
                 .args(["cms", "-verify", "-noverify", "-inform", "SMIME", "-out"])
@@ -372,5 +422,4 @@ fn openssl_checks_an_smime_signature_made_at_send() {
             assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

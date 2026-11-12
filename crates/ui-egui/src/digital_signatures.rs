@@ -98,7 +98,12 @@ impl DigitalSignatures {
             tl!("A Digital signature shows that a message from {account} came from you and wasn't changed on the way."),
             &[("account", &email)],
         ));
-        ui.checkbox(&mut self.always, tl!("Always add a Digital signature to messages from this account"));
+        // How the account signs is the owner's own choice (`account.setSigning` is never an
+        // agent's): input the control channel injected (`MailApp::driven`) changes nothing here.
+        let mut always = self.always;
+        if ui.checkbox(&mut always, tl!("Always add a Digital signature to messages from this account")).changed() && !app.driven {
+            self.always = always;
+        }
         ui.label(egui::RichText::new(tl!("Sign with")).strong());
         match &self.keys {
             None => {
@@ -124,7 +129,7 @@ impl DigitalSignatures {
                             SignatureFormat::OpenPgp => tl!("OpenPGP key"),
                         };
                         let name = if choice.key.label.is_empty() { choice.addresses.join(", ") } else { choice.key.label.clone() };
-                        if ui.radio(picked, format!("{name} — {kind}")).clicked() {
+                        if ui.radio(picked, format!("{name} — {kind}")).clicked() && !app.driven {
                             self.chosen = Some(choice.key.clone());
                         }
                         let mut details = vec![crate::security::place_name(&choice.place)];
@@ -185,6 +190,11 @@ impl DigitalSignatures {
         }
         let (ok, cancel) = crate::dialogs::buttons(ui, tl!("OK"), !self.always || self.chosen.is_some());
         if ok || (enter && (!self.always || self.chosen.is_some())) {
+            // The owner's own OK: never input the control channel injected.
+            if app.driven {
+                self.error = tl!("Only you choose how this account signs, in the window").to_string();
+                return false;
+            }
             let key = self.chosen.as_ref().map(|k| json!({"format": k.format.as_str(), "fingerprint": k.fingerprint, "label": k.label}));
             match app.execute("account.setSigning", json!({"account": self.account, "key": key, "always": self.always})) {
                 Ok(_) => return true,
@@ -252,3 +262,7 @@ impl MailApp {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "digital_signatures_tests.rs"]
+mod digital_signatures_tests;

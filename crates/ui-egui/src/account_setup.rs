@@ -1467,13 +1467,17 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
-    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
-    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
-    /// until this holds.
+    /// Whether Account Settings has nothing unsaved: everything [`AccountSetup::save`] writes as
+    /// it was (its fields, a new password, the colour, asking before deleting a conversation, the
+    /// mail kept offline and Gmail's switches). A Google switch or reconnect, and Digital
+    /// Signatures, close the dialog without saving, so they wait until this holds.
     fn unchanged(&self) -> bool {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
+            && self.ask_conversation.is_none_or(|(was, ask)| was == ask)
+            && self.keep_offline.is_none_or(|(was, keep)| was == keep)
+            && self.gmail.is_none_or(|g| !g.changed())
     }
 
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
@@ -3675,6 +3679,42 @@ mod tests {
 
     /// Account Settings in the window: the servers at once, a password field only for an account
     /// that has one, and Save.
+    /// Digital Signatures… closes Account Settings without saving, so it waits while anything
+    /// Save would write is changed: the switches below the servers too (#30).
+    #[test]
+    fn digital_signatures_waits_for_every_unsaved_change() {
+        let mut a = app(true);
+        let imap = json!({"email": "noor@lumen.example", "incoming": {"host": "imap.lumen.example"}, "outgoing": {"host": "smtp.lumen.example"}});
+        let imap = a.execute("account.add", imap).unwrap()["id"].as_u64().unwrap();
+        let gmail = json!({"email": "noor@gmail.example", "incoming": {"host": "imap.gmail.com"}, "outgoing": {"host": "smtp.gmail.com"}});
+        let gmail = a.execute("account.add", gmail).unwrap()["id"].as_u64().unwrap();
+        let graph = a.execute("account.add", json!({"email": "ada@lumen.example", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let button = |h: &Harness<'static, MailApp>| {
+            !egui_kittest::kittest::NodeT::accesskit_node(&h.get_by_role_and_label(Role::Button, "Digital Signatures…")).is_disabled()
+        };
+        let waits = |h: &Harness<'static, MailApp>| says(h, "Save or discard changes here before choosing how this account signs.");
+        type Change = fn(&mut AccountSetup);
+        let changes: [(u64, Change); 4] = [
+            (imap, |w| w.ask_conversation = w.ask_conversation.map(|(was, ask)| (was, !ask))),
+            (gmail, |w| w.gmail = w.gmail.map(|g| GmailSwitches { show: (g.show.0, !g.show.1), ..g })),
+            (gmail, |w| w.gmail = w.gmail.map(|g| GmailSwitches { primary_only: (g.primary_only.0, !g.primary_only.1), ..g })),
+            (graph, |w| {
+                w.keep_offline =
+                    w.keep_offline.map(|(was, _)| (was, if was == KeepOffline::Months3 { KeepOffline::All } else { KeepOffline::Months3 }))
+            }),
+        ];
+        let mut a = Some(a);
+        for (id, change) in changes {
+            let mut h = open(a.take().unwrap(), json!({"id": id}));
+            assert!(button(&h) && !waits(&h), "nothing changed: it opens");
+            change(wizard_mut(&mut h));
+            h.run_steps(3);
+            assert!(!button(&h) && waits(&h), "a change Save would write: it waits");
+            click(&mut h, "Cancel");
+            a = Some(std::mem::replace(h.state_mut(), app(false)));
+        }
+    }
+
     #[test]
     fn account_settings_open_on_the_servers() {
         let mut a = app(true);
