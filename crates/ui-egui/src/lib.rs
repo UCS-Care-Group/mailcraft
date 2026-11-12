@@ -150,6 +150,7 @@ pub mod opening;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
+pub mod paste_keys;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
@@ -465,6 +466,10 @@ pub struct Services {
     /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
     /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
+    /// Desktop, under Wayland: the window layer's clipboard shortcuts are off, so Ctrl+X, Ctrl+C
+    /// and Ctrl+V arrive as key presses and are turned into cut, copy and paste here
+    /// ([`paste_keys`]), in the main window and in the windows of their own alike (#1217).
+    pub clipboard_keys: bool,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
@@ -537,6 +542,10 @@ pub trait RichClipboard {
     /// The picture on the clipboard as PNG, when what is on it is a picture.
     fn image(&self) -> Option<Vec<u8>> {
         None
+    }
+    /// Whether the clipboard holds a picture, without reading it where that is cheaper.
+    fn has_image(&self) -> bool {
+        self.image().is_some()
     }
     /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
     /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V

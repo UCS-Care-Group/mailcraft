@@ -1164,6 +1164,9 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
     let mut close = false;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
+        // eframe gives `raw_input_hook` no say over a window shown like this: where the window
+        // layer's clipboard keys are off, they become cut, copy and paste here (#1217).
+        clipboard_keys(app, &ctx);
         // What was chosen in a text's menu here, before anything reads the input.
         let menus = crate::text_menu::deliver(&ctx);
         let t = Tokens::get(&ctx);
@@ -1187,6 +1190,15 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         crate::text_menu::finish(&ctx, menus);
     });
     close
+}
+
+/// Where the window layer's clipboard keys are off (`Services::clipboard_keys`), the key presses
+/// of this pass become cut, copy and paste.
+pub(crate) fn clipboard_keys(app: &MailApp, ctx: &egui::Context) {
+    if app.services.clipboard_keys {
+        let board = app.services.clipboard.as_deref();
+        ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board));
+    }
 }
 
 /// A movable window inside the main one; `behind`: another of them is the active one (or a

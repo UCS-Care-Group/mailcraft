@@ -84,7 +84,6 @@ mod opened_files;
 mod opened_flow;
 mod own_keys;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-mod paste_keys;
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
@@ -220,10 +219,10 @@ impl eframe::App for App {
             desktop.apply(raw);
         }
         // Under Wayland the clipboard keys come as key events, to be turned into cut, copy and
-        // paste here, where a picture on the clipboard can be seen (`paste_keys`, #1217).
+        // paste here, where a picture on the clipboard can be seen (`mailcraft_ui_egui::paste_keys`, #1217).
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if paste_keys::enabled() {
-            paste_keys::translate(&mut raw.events, self.0.services.clipboard.as_deref());
+        if self.0.services.clipboard_keys {
+            mailcraft_ui_egui::paste_keys::translate(&mut raw.events, self.0.services.clipboard.as_deref());
         }
         self.0.raw_input_hook(raw);
     }
@@ -2164,11 +2163,16 @@ fn main() -> eframe::Result {
         options.viewport = options.viewport.with_icon(icon);
     }
     // Under Wayland the window layer's clipboard can't see a picture or HTML (in the Flatpak it
-    // has no clipboard of its own at all): the clipboard keys are handled by `paste_keys` (#1217).
+    // has no clipboard of its own at all): the clipboard keys are handled by `mailcraft_ui_egui::paste_keys` (#1217).
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    if paste_keys::wayland_session(std::env::var("WAYLAND_DISPLAY").ok().as_deref(), std::env::var("WINIT_UNIX_BACKEND").ok().as_deref()) {
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    let clipboard_keys = mailcraft_ui_egui::paste_keys::wayland_session(
+        std::env::var("WAYLAND_SOCKET").ok().as_deref(),
+        std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
+    );
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    if clipboard_keys {
         options.clipboard_shortcuts = false;
-        paste_keys::enable();
     }
     // Before eframe creates the wgpu instance: default Windows to DirectX 12 only, or OpenGL when
     // DirectX 12 has no GPU driver (see graphics.rs).
@@ -2230,6 +2234,7 @@ fn main() -> eframe::Result {
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 {
                     services.clipboard = clipboard::board(wayland_display);
+                    services.clipboard_keys = clipboard_keys;
                 }
                 services.update_start = update_start;
                 services.claim_mailbox =

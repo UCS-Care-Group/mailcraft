@@ -10,31 +10,20 @@
 //!
 //! So under Wayland the window layer's shortcuts are off (`NativeOptions::clipboard_shortcuts`)
 //! and the keys come through as ordinary key events, which [`translate`] turns into the same three
-//! events: a paste reads the text from the system clipboard (winit's data device) and, when there
+//! events (`Services::clipboard_keys`; the main window does it in `raw_input_hook`, which eframe
+//! doesn't call for a window of its own that is shown immediately, so those do it in
+//! `windows`): a paste reads the text from the system clipboard (winit's data device) and, when there
 //! is none but there is a picture, sends an empty paste, which a message being written answers by
 //! asking the clipboard for the picture (`RichClipboard::image`). Nothing else changes.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use egui::{Event, Key};
-use mailcraft_ui_egui::RichClipboard;
 
-static ON: AtomicBool = AtomicBool::new(false);
+use crate::RichClipboard;
 
-/// Turn the translation on (done once, before the window opens, when the shortcuts are off).
-pub fn enable() {
-    ON.store(true, Ordering::Relaxed);
-}
-
-/// Whether the shortcuts are translated here.
-pub fn enabled() -> bool {
-    ON.load(Ordering::Relaxed)
-}
-
-/// Whether this session is Wayland, as winit decides it: a Wayland display is named and the
-/// backend isn't forced to X11.
-pub fn wayland_session(wayland_display: Option<&str>, forced_backend: Option<&str>) -> bool {
-    wayland_display.is_some_and(|d| !d.is_empty()) && !forced_backend.is_some_and(|b| b.eq_ignore_ascii_case("x11"))
+/// Whether this session is Wayland, as winit decides it (`WAYLAND_SOCKET` or `WAYLAND_DISPLAY`
+/// set and not empty).
+pub fn wayland_session(wayland_socket: Option<&str>, wayland_display: Option<&str>) -> bool {
+    [wayland_socket, wayland_display].iter().any(|v| v.is_some_and(|v| !v.is_empty()))
 }
 
 enum Shortcut {
@@ -73,7 +62,7 @@ pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
                 let text = board.and_then(|b| b.text()).map(|t| t.replace("\r\n", "\n")).unwrap_or_default();
                 if !text.is_empty() {
                     out.push(Event::Paste(text));
-                } else if board.is_some_and(|b| b.image().is_some()) {
+                } else if board.is_some_and(|b| b.has_image()) {
                     out.push(Event::Paste(String::new()));
                 }
             }

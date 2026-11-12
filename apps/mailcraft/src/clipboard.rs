@@ -88,8 +88,8 @@ impl RichClipboard for Board {
         if let Some(wayland) = &self.wayland {
             match wayland.load_mime(&HTML_MIMES, MAX_HTML_BYTES) {
                 Ok((_, bytes)) => return html_of(&decode_html(&bytes)),
-                // Nothing of that kind on it: no HTML to paste, and nothing to ask `arboard` for.
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+                // Nothing of that kind offered: `arboard` may still have some.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
             }
         }
@@ -112,12 +112,23 @@ impl RichClipboard for Board {
         if let Some(wayland) = &self.wayland {
             match wayland.load_mime(&IMAGE_MIMES, MAX_PICTURE_BYTES) {
                 Ok((_, bytes)) => return png_fits(&bytes).then_some(bytes),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => log::debug!("the Wayland clipboard gave no picture: {e}"),
             }
         }
         let image = self.with(|b| b.get_image()).ok()?;
         png(image.width, image.height, &image.bytes)
+    }
+
+    fn has_image(&self) -> bool {
+        // Winit says from the types on offer, without a read; when it can't, read as before.
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if let Some(wayland) = &self.wayland
+            && wayland.offers(&IMAGE_MIMES)
+        {
+            return true;
+        }
+        self.image().is_some()
     }
 }
 

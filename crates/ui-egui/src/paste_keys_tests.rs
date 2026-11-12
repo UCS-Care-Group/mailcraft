@@ -34,11 +34,10 @@ fn run(events: Vec<Event>, board: &Board) -> Vec<Event> {
 }
 
 #[test]
-fn a_session_is_wayland_when_a_display_is_named_and_x11_is_not_forced() {
-    assert!(wayland_session(Some("wayland-0"), None));
-    assert!(wayland_session(Some("wayland-0"), Some("wayland")));
-    assert!(!wayland_session(Some("wayland-0"), Some("X11")));
-    assert!(!wayland_session(Some(""), None));
+fn a_session_is_wayland_when_a_socket_or_display_is_named() {
+    assert!(wayland_session(None, Some("wayland-0")));
+    assert!(wayland_session(Some("7"), None));
+    assert!(!wayland_session(Some(""), Some("")));
     assert!(!wayland_session(None, None));
 }
 
@@ -83,4 +82,52 @@ fn other_keys_and_other_modifiers_pass_through() {
     assert!(out.iter().all(|e| !matches!(e, Event::Paste(_))));
     let release = Event::Key { key: Key::V, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::COMMAND };
     assert!(matches!(run(vec![release], &board).as_slice(), [Event::Key { pressed: false, .. }]));
+}
+
+#[test]
+fn a_window_of_its_own_turns_the_keys_into_a_paste_when_the_window_layer_does_not() {
+    use crate::{MailApp, Services};
+    use mailcraft_engine::Session;
+    let paste = |on: bool| {
+        let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0), Services::default());
+        app.services.clipboard = Some(Box::new(Board { text: Some("hello"), picture: false }));
+        app.services.clipboard_keys = on;
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput { events: vec![press(Key::V, Modifiers::COMMAND)], ..Default::default() };
+        let mut seen = Vec::new();
+        let mut out = ctx.run_ui(raw, |ui| {
+            let ctx = ui.ctx();
+            crate::windows::clipboard_keys(&app, ctx);
+            seen = ctx.input(|i| i.events.clone());
+        });
+        out.textures_delta.clear();
+        seen
+    };
+    assert!(matches!(paste(true).as_slice(), [Event::Paste(t)] if t == "hello"));
+    assert!(matches!(paste(false).as_slice(), [Event::Key { key: Key::V, .. }]));
+}
+
+#[test]
+fn an_empty_paste_asks_whether_a_picture_is_offered_and_does_not_read_it() {
+    struct Offer(std::cell::Cell<u32>);
+    impl RichClipboard for Offer {
+        fn put(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn html(&self) -> Option<String> {
+            None
+        }
+        fn image(&self) -> Option<Vec<u8>> {
+            self.0.set(self.0.get() + 1);
+            None
+        }
+        fn has_image(&self) -> bool {
+            true
+        }
+    }
+    let board = Offer(Default::default());
+    let mut events = vec![press(Key::V, Modifiers::COMMAND)];
+    translate(&mut events, Some(&board));
+    assert!(matches!(events.as_slice(), [Event::Paste(t)] if t.is_empty()));
+    assert_eq!(board.0.get(), 0);
 }
