@@ -98,7 +98,7 @@ impl MailApp {
             JobKind::Rules => self.rules.busy(),
             JobKind::AutoReplies => self.auto_replies.busy(),
             JobKind::SignIn => self.signing_in.is_some(),
-            JobKind::AccountSetup => matches!(self.dialog, Some(Dialog::Form(Form::Account(..)))),
+            JobKind::AccountSetup => matches!(self.dialog, Some(Dialog::Form(Form::Account(..) | Form::GnomeAccounts(..)))),
             JobKind::AdminConsent => self.admin_consent_busy(),
         }
     }
@@ -127,6 +127,7 @@ impl MailApp {
                 // what it asked of the host and keeping nothing that was typed.
                 JobKind::AccountSetup => match self.dialog.take() {
                     Some(Dialog::Form(Form::Account(mut setup))) => setup.give_up(self),
+                    Some(Dialog::Form(Form::GnomeAccounts(_))) => {}
                     other => self.dialog = other,
                 },
                 JobKind::AdminConsent => self.forget_admin_consent(),
