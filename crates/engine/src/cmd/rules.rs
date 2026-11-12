@@ -618,7 +618,7 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
 /// (shared by the command and the agent's question).
 pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), CmdError> {
     // (A misspelt `server` would keep on the server a rule meant for this computer.)
-    p::only(v, &["folder", "id", "server"])?;
+    p::only(v, &["folder", "id", "ids", "server"])?;
     let folder = p::req_id(v, "folder")?;
     let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
     refuse_send_queue(s, folder)?;

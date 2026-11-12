@@ -868,3 +868,14 @@ fn rules_from_message_refuses_a_key_it_doesnt_take() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// `rules.fromMessage` is a one-message command, and those take `id`, or `ids` naming one
+/// (docs/control-protocol.md): the keys it refuses leave `ids` alone.
+#[test]
+fn rules_from_message_takes_ids_naming_one() {
+    let (mut s, _, inbox, kept) = session();
+    let m = arriving(&mut s, inbox, "news@example.org", "Weekly");
+    let r = s.run("rules.fromMessage", &json!({"folder": kept, "ids": [m]}));
+    assert!(r.is_ok(), "{r:?}");
+    assert_eq!(s.mailbox.rules.len(), 1);
+}
