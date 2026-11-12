@@ -3134,7 +3134,8 @@ impl Session {
     /// deleted there while the event there may have it: a change of it that waited before the
     /// step, which the undo puts back, sends the categories again, and without one a change is
     /// noted again. (That sends the server what it has when the step's change never went, and
-    /// the answer to the step's change is taken in against it.) Only the categories go, which
+    /// the answer to the step's change is taken in against it; should the server refuse the
+    /// step's change, the event keeps the categories put back here.) Only the categories go, which
     /// writes to nobody, and only to a calendar that may be changed by what its server last said
     /// (the calendars put back are as they were). A change is this event's by its id here and its
     /// server's id for it both: another account's server may use the same id.

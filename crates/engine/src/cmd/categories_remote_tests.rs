@@ -2192,6 +2192,42 @@ fn an_undo_of_a_rename_whose_own_event_change_was_on_its_way_tells_the_old_name_
     }
 }
 
+/// The same, and the server refuses the rename's change that was on its way (or denies it twice):
+/// it hasn't the new name, so the event here keeps the old one the undo gave it, nothing waits,
+/// and the new name may go in Outlook. With an older change of the event put back, the rest of it
+/// is put back as the server has it, as for any change refused.
+#[test]
+fn an_undo_of_a_rename_whose_event_change_on_its_way_is_refused_keeps_the_old_name() {
+    for (older, result) in [(false, EventResult::Refused), (false, EventResult::Denied), (true, EventResult::Refused)] {
+        let (mut s, a) = rig(vec![tag("Red category", RED), tag("Old", GREEN)], true);
+        let e = server_event(&mut s, a, &["Old"]);
+        if older {
+            s.run("calendar.edit", &json!({"id": e, "title": "Moved"})).unwrap();
+        }
+        s.run("category.rename", &json!({"account": a, "from": "Old", "to": "New"})).unwrap();
+        let sent = changes(&mut s, a);
+        took(&mut s, a, &sent);
+        let upload = remote::event_upload(&s, a).unwrap();
+        s.run("edit.undo", &json!({})).unwrap();
+        let [op] = upload.ops.as_slice() else { panic!("{:?}", upload.ops) };
+        let answer = |s: &mut Session| {
+            let outcome = EventOutcome { op: op.clone(), result, error: "not taken".into(), ..Default::default() };
+            let uploaded = EventsUploaded { account: a, email: "a@example.org".into(), outcomes: vec![outcome], ..Default::default() };
+            remote::apply_event_outcomes(s, &uploaded).unwrap();
+        };
+        answer(&mut s);
+        if result == EventResult::Denied {
+            assert_eq!(s.mailbox.event_changes.len(), 1, "tried again once the permission is asked for");
+            answer(&mut s);
+        }
+        let event = s.mailbox.event(e).unwrap();
+        assert_eq!(event.categories, ["Old"], "older {older}, {result:?}");
+        assert_eq!(event.title, "Meeting", "older {older}, {result:?}");
+        assert!(s.mailbox.event_changes.is_empty(), "older {older}, {result:?}: {:?}", s.mailbox.event_changes);
+        assert_eq!(deletes(&mut s, a), ["New"], "older {older}, {result:?}");
+    }
+}
+
 /// An undo of a change of an event's categories in a shared mailbox's calendar, which went to its
 /// server, tells it again the other way, as for the owner's own calendar; a rename on the list
 /// the rest share, which changed it here only, tells nothing (#661).
