@@ -26,8 +26,9 @@ pub enum SecretError {
     Refused,
     /// The secret is longer than the store can keep.
     TooLong,
-    /// Some other reason, in our own words; shown as it is.
-    Other(String),
+    /// Some other reason, in our own words (a fixed phrase written here, never text the system
+    /// returned, which may echo a secret); shown as it is.
+    Other(&'static str),
 }
 
 impl fmt::Display for SecretError {
@@ -51,18 +52,6 @@ impl fmt::Debug for SecretError {
 }
 
 impl std::error::Error for SecretError {}
-
-impl From<&str> for SecretError {
-    fn from(why: &str) -> Self {
-        SecretError::Other(why.to_string())
-    }
-}
-
-impl From<String> for SecretError {
-    fn from(why: String) -> Self {
-        SecretError::Other(why)
-    }
-}
 
 /// Why the system's credential store couldn't keep or give back a sign-in
 /// ([`SecretStore::take_trouble`]). Then nothing is remembered between runs: the owner is asked
