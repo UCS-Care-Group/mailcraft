@@ -1,1 +1,1 @@
-| 2026-11-12 | software-render: on Linux and FreeBSD, Vulkan and OpenGL adapters are probed at start and OpenGL alone is used when Vulkan offers only a software rasteriser and OpenGL has a card; drawing on the processor is said once and the window's own repaints are held to about four a second |
+| 2026-11-12 | When the window is drawn by a software renderer (an adapter that is a processor, on any system), MailCraft says so once above the status bar and holds its own animation, progress and spinner repaints to about four a second; the graphics choice itself is unchanged |

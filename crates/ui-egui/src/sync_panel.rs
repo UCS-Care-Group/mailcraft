@@ -449,7 +449,7 @@ fn account_row(ui: &mut Ui, t: &Tokens, row: &Row) -> Option<egui::Response> {
     let mut x = r.min.x;
     if row.running() && row.fraction().is_none() {
         let spin = Rect::from_center_size(pos2(x + 7.0, r.center().y), vec2(12.0, 12.0));
-        egui::Spinner::new().size(12.0).color(t.accent).paint_at(ui, spin);
+        crate::software::spinner_at(ui, spin, Some(t.accent));
         x += 20.0;
     }
     crate::theme::paint_clipped(ui.painter(), pos2(x, r.center().y), (r.max.x - x - 90.0).max(40.0), &line, regular(12.5), color);

@@ -63,7 +63,7 @@ mod gpg_agent_tests;
 mod graph_folders_flow;
 #[cfg(test)]
 mod graph_mail_flow;
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd", test))]
+#[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod install;
 #[cfg(test)]
@@ -2152,9 +2152,8 @@ fn main() -> eframe::Result {
         options.viewport = options.viewport.with_icon(icon);
     }
     // Before eframe creates the wgpu instance: default Windows to DirectX 12 only, or OpenGL when
-    // DirectX 12 has no GPU driver; on Linux and FreeBSD, hardware OpenGL when Vulkan is software only
-    // (see graphics.rs).
-    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
+    // DirectX 12 has no GPU driver (see graphics.rs).
+    #[cfg(target_os = "windows")]
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
     let (prefs, settings_unread) = load_prefs();
     let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);
@@ -2184,7 +2183,7 @@ fn main() -> eframe::Result {
             // the mailbox is there (`build`).
             // Drawing by the processor (a software rasteriser) is said once and slows the window's
             // own repaints down (#software-render); the adapter is known now.
-            let software = cc.wgpu_render_state.as_ref().is_some_and(|s| graphics::is_software_adapter(s.adapter.get_info().device_type));
+            let software = cc.wgpu_render_state.as_ref().is_some_and(|s| s.adapter.get_info().device_type == eframe::wgpu::DeviceType::Cpu);
             if software {
                 log::warn!("graphics: drawing with a software rasteriser, expect high processor use");
             }

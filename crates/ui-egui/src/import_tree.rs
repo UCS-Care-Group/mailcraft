@@ -185,7 +185,7 @@ impl ImportTree {
             // Working off the window's thread: say how far it is, and let the owner stop it.
             crate::software::repaint_after(ui.ctx(), std::time::Duration::from_millis(100));
             ui.horizontal(|ui| {
-                ui.add(egui::Spinner::new());
+                crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                 ui.label(self.progress_text(importing));
             });
             if importing {

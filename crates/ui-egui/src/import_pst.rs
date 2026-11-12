@@ -389,7 +389,7 @@ impl ImportPst {
         let p = &self.progress;
         let (done, total) = (p.done.load(Relaxed), p.total.load(Relaxed));
         ui.horizontal(|ui| {
-            ui.add(egui::Spinner::new());
+            crate::software::spinner(ui, ui.spacing().interact_size.y, None);
             let folder = p.folder();
             ui.add(
                 egui::Label::new(crate::i18n::fmt(

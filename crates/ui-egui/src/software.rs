@@ -41,6 +41,25 @@ pub fn repaint_after(ctx: &Context, wanted: Duration) {
     ctx.request_repaint_after(capped(wanted, is_software()));
 }
 
+/// A busy indicator: egui's spinner, which asks for a repaint every frame, or while drawing in
+/// software a still ring of the same size (the line it sits in repaints a few times a second
+/// anyway).
+pub fn spinner(ui: &mut Ui, size: f32, color: Option<egui::Color32>) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
+    spinner_at(ui, rect, color);
+}
+
+/// [`spinner`] in a rectangle already given.
+pub fn spinner_at(ui: &Ui, rect: egui::Rect, color: Option<egui::Color32>) {
+    let color = color.unwrap_or_else(|| ui.visuals().strong_text_color());
+    if is_software() {
+        let r = rect.width().min(rect.height()) * 0.35;
+        ui.painter().circle_stroke(rect.center(), r, egui::Stroke::new(1.5, color));
+    } else {
+        egui::Spinner::new().size(rect.width().min(rect.height())).color(color).paint_at(ui, rect);
+    }
+}
+
 /// Whether the line should be on screen.
 pub(crate) fn notice_due(software: bool, told: bool) -> bool {
     software && !told

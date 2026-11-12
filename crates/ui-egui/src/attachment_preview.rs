@@ -476,7 +476,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
                 ui.colored_label(tokens.red, error.text());
             } else {
                 ui.horizontal(|ui| {
-                    ui.spinner();
+                    crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                     ui.label(tl!("Preparing attachment preview…"));
                 });
             }
