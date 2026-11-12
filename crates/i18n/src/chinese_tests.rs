@@ -17,7 +17,7 @@ fn simplified_chinese_is_available_and_selected_for_matching_locales() {
     assert_eq!(Lang::from_pref("zh_CN", None), expected);
     assert!(chinese.supported_on(false));
     assert!(!chinese.supported_on(true));
-    for lang in [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Pseudo] {
+    for lang in [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Pseudo] {
         assert_eq!(lang.supported_on(true), lang.supported_on(false), "{lang:?}");
     }
 }
