@@ -427,8 +427,7 @@ pub struct Message {
     /// whole and the mailbox file holding it is saved. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub moving_out: Option<MovingOut>,
-    /// Put back as its server's message when a copy of it in another account was refused (#451),
-    /// or a copy in another folder of its own while it was deleted for good here (#566):
+    /// Put back as its server's message when a copy of it in another account was refused (#451):
     /// how many more times that server is to list its folder with it still there before it is
     /// the server's message as any other ([`RETURNED_LISTINGS`] at first, since the first listing
     /// may have been asked for before it was put back). Should the server say meanwhile that it
@@ -630,34 +629,6 @@ impl Message {
         }
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();
-    }
-
-    /// The message without its content (its text, HTML, the words its sender hid, its files and
-    /// the bytes it came as (#30), in memory or kept on disk): where and how it lies, for a copy
-    /// that gives it its content back (#566).
-    pub fn without_content(&self) -> Message {
-        Message { body: Body::default(), hidden_text: String::new(), attachments: Vec::new(), kept: None, original: None, ..self.clone() }
-    }
-
-    /// The content of `other` (its text, HTML, the words its sender hid, its files and the bytes
-    /// it came as, in memory or as `other` names them on disk) in place of this one's.
-    pub fn take_content_of(&mut self, other: &Message) {
-        self.body = other.body.clone();
-        self.hidden_text = other.hidden_text.clone();
-        self.attachments = other.attachments.clone();
-        self.kept = other.kept.clone();
-        self.original = other.original.clone();
-    }
-
-    /// A message put back with what it kept of itself, given `other`'s content ([`Message::take_content_of`])
-    /// only when it is to be fetched again (what it had was let go of) and `other` is whole. One
-    /// whole here keeps its own: `other` (a copy made earlier) may hold only a preview, or a
-    /// version older than one fetched since. Whether it is to be fetched again stays as it was:
-    /// it may be so because its server has a newer version, which `other` doesn't have either.
-    pub fn fill_content_from(&mut self, other: &Message) {
-        if self.unfetched && !other.unfetched {
-            self.take_content_of(other);
-        }
     }
 
     /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting

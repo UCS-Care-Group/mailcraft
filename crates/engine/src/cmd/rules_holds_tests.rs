@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! What a rule's changes and deletes wait for, and what an agent is asked before one (#566): a
-//! delete of a rule on its server beside a rule filing onto another server is still a delete; a
-//! delete for good of an original whose copy is kept on this computer waits for the save, on a
-//! Microsoft account too; a delete from Deleted Items after a rule that can't tell yet waits.
+//! What an agent is asked before a rule's change, and what a rule that can't tell leaves alone
+//! (#566): a delete of a rule on its server beside a rule filing onto another server is still a
+//! delete; a rule whose exception a Microsoft account's listing cut short doesn't act.
 
 use mailcraft_model::remote_rules::{RemoteRule, RulesDownload};
 use mailcraft_model::{Action, Condition, FolderKind, Id, ServerFolder};
@@ -88,125 +87,6 @@ fn a_new_server_rule_that_deletes_beside_a_rule_filing_onto_another_server_still
     assert_eq!(asked(&s, "rules.add", &params, &[Class::Send]), Some(Class::Delete), "a yes to send alone puts a deleting rule on the server");
 }
 
-// ---- A Microsoft account's delete for good after a copy kept on this computer only ----
-
-use mailcraft_model::sync::{GraphFetchResult, GraphFetched, GraphMailResult, GraphMessage, MessageChange, MessagePage, ServerMessage};
-use mailcraft_model::{Address, Message};
-
-const ME: &str = "ada@example.org";
-
-/// A new message as a Microsoft account's list gives it: no text, and no size.
-fn listed(id: &str, folder: &str, subject: &str) -> GraphMessage {
-    GraphMessage {
-        server: ServerMessage { id: id.into(), folder: folder.into(), change_key: "CK1".into(), ..Default::default() },
-        message_id: format!("{id}@example.org"),
-        subject: subject.into(),
-        from: Address::new("Zoe Park", "zoe@example.org"),
-        to: vec![Address::new("Ada", ME)],
-        sent: 1_000,
-        received: 1_060,
-        preview: format!("About {subject}"),
-        ..Default::default()
-    }
-}
-
-fn whole(id: &str, subject: &str, text: &str) -> GraphFetched {
-    let mime = format!(
-        "From: Zoe Park <zoe@example.org>\r\nTo: Ada <{ME}>\r\nSubject: {subject}\r\nMessage-ID: <{id}@example.org>\r\nContent-Type: text/plain\r\n\r\n{text}\r\n"
-    );
-    GraphFetched { id: id.into(), mime: mime.into_bytes() }
-}
-
-/// A Microsoft account whose Inbox ("F-in") has had its first round, and a folder of an account on
-/// this computer: the session, the account and that folder.
-fn microsoft_and_here() -> (Session, Id, Id) {
-    let mut s = Session::empty();
-    let account = run(&mut s, "account.add", json!({"email": ME, "kind": "microsoft"}))["id"].as_u64().unwrap();
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
-    let local = run(&mut s, "account.add", json!({"email": "me@example.org"}))["id"].as_u64().unwrap();
-    assert_eq!(s.mailbox.account(local).unwrap().kind, mailcraft_model::AccountKind::Local);
-    let kept = s.mailbox.add_folder(local, None, "Kept").unwrap();
-    (s, account, kept)
-}
-
-fn graph_deletes(s: &Session, account: Id) -> Vec<MessageChange> {
-    super::graph_mail::graph_mail_request(s, account).unwrap().messages.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect()
-}
-
-fn copies_here(s: &Session, kept: Id, subject: &str) -> usize {
-    s.mailbox.messages.values().filter(|m: &&std::sync::Arc<Message>| m.folder == kept && m.subject == subject).count()
-}
-
-/// New mail of a Microsoft account: a rule that can't tell yet (it reads the text) comes first, so
-/// the rule that copies onto this computer and deletes for good waits for the download (#566), and
-/// then copies and deletes. The copy is on this computer only, in no file yet; the server's
-/// original must wait for the save, as an IMAP account's does (cf0d93d74), or a quit or a crash
-/// within the autosave's 3 s loses the message everywhere.
-#[test]
-fn a_microsoft_rule_that_copies_onto_this_computer_and_deletes_for_good_waits_for_the_save() {
-    let (mut s, account, kept) = microsoft_and_here();
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Read it", "account": account, "server": false, "conditions": [{"type": "bodyContains", "value": "budget"}],
-            "actions": [{"type": "markRead"}]}),
-    );
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]}),
-    );
-    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
-    super::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
-    )
-    .unwrap();
-    assert_eq!(copies_here(&s, kept, "Plan"), 0, "nothing copied before the download");
-    assert!(s.mailbox.messages.values().any(|m| m.subject == "Plan" && m.rules_waiting.is_some()), "the rules wait for the download");
-    super::graph_mail::apply_graph_fetch(
-        &mut s,
-        GraphFetchResult { account, email: ME.into(), fetched: vec![whole("N1", "Plan", "The budget.")], ..Default::default() },
-    )
-    .unwrap();
-    assert_eq!(copies_here(&s, kept, "Plan"), 1, "the rule copied it onto this computer");
-    assert!(!s.file_is_current());
-    assert_eq!(graph_deletes(&s, account), [], "the server keeps the original while the copy is in no file");
-    // Saved: it goes.
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert_eq!(graph_deletes(&s, account).len(), 1);
-}
-
-/// The same by Run Rules Now over the Microsoft account's Inbox, its mail downloaded.
-#[test]
-fn run_rules_now_copying_a_microsoft_message_onto_this_computer_and_deleting_it_for_good_waits_for_the_save() {
-    let (mut s, account, kept) = microsoft_and_here();
-    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
-    super::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
-    )
-    .unwrap();
-    super::graph_mail::apply_graph_fetch(
-        &mut s,
-        GraphFetchResult { account, email: ME.into(), fetched: vec![whole("N1", "Plan", "The plan.")], ..Default::default() },
-    )
-    .unwrap();
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]}),
-    );
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let matched = run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64().unwrap();
-    assert_eq!((matched, copies_here(&s, kept, "Plan")), (1, 1));
-    assert!(!s.file_is_current());
-    assert_eq!(graph_deletes(&s, account), [], "the server keeps the original while the copy is in no file");
-}
-
 /// The siblings of the two above, by the same cause: switching on a server rule with parts not
 /// known here, moving a server rule that deletes, and keeping on the server a rule that deletes,
 /// each beside "Away", are let through on `--allow send` alone.
@@ -252,215 +132,56 @@ fn the_other_server_rule_deletes_beside_a_rule_filing_onto_another_server_still_
     assert!(let_through.is_empty(), "{let_through:#?}");
 }
 
-/// Run Rules Now over a Microsoft account's Deleted Items, whose mail isn't downloaded: the first
-/// rule copies what holds "invoice" in its text, which can't be told yet; the second deletes what is
-/// about "Plan", which in Deleted Items is for good. The rules after one that can't tell "delete
-/// nothing for good" (#566, `rules_on`), but a Delete there goes for good all the same, before the
-/// copy the first rule may have made.
-#[test]
-fn a_delete_in_deleted_items_after_a_rule_that_cant_tell_yet_is_held_as_a_delete_for_good() {
-    let (mut s, account, _) = microsoft_and_here();
-    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
-    s.mailbox.folder_mut(deleted).unwrap().server = Some(ServerFolder { id: "F-del".into(), caught_up: true, ..Default::default() });
-    let kept = s.mailbox.add_folder(account, None, "Invoices").unwrap();
-    s.mailbox.folder_mut(kept).unwrap().server = Some(ServerFolder { id: "F-inv".into(), ..Default::default() });
-    let page = MessagePage { folder: "F-del".into(), messages: vec![listed("D1", "F-del", "Plan")], ..Default::default() };
-    super::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
-    )
-    .unwrap();
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Invoices", "account": account, "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}],
-            "actions": [{"type": "copyTo", "value": kept}]}),
-    );
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Bin", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "delete"}]}),
-    );
-    run(&mut s, "rules.run", json!({"folder": deleted}));
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert_eq!(graph_deletes(&s, account), [], "deleted for good while the rule before it couldn't tell");
-}
+// ---- A rule that can't tell from a Microsoft account's listing ----
 
-// ---- An undo of Run Rules Now that copied mail and deleted it for good ----
+use mailcraft_model::Address;
+use mailcraft_model::sync::{GraphMailResult, GraphMessage, MessagePage, ServerMessage};
 
-/// A Microsoft account's message, all here.
-fn microsoft_message(s: &mut Session, account: Id, subject: &str) {
-    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", subject)], ..Default::default() };
-    super::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
-        .unwrap();
-    let fetched = vec![whole("N1", subject, "The plan.")];
-    super::graph_mail::apply_graph_fetch(s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-}
+const ME: &str = "ada@example.org";
 
-/// Run Rules Now with "copy, then delete permanently" on a Microsoft account, then one Undo: the
-/// server's original can't come back (its delete only waits for the copy), so the copy stays,
-/// on this computer or on its way to the server, and the undo says so. Before, the undo took the
-/// copy away and the delete then went: the message was nowhere (#566).
-#[test]
-fn an_undo_of_run_rules_now_that_copied_and_deleted_for_good_keeps_the_copy() {
-    for within in [false, true] {
-        let (mut s, account, kept) = microsoft_and_here();
-        let saved = s.mailbox.add_folder(account, None, "Saved").unwrap();
-        s.mailbox.folder_mut(saved).unwrap().server = Some(ServerFolder { id: "F-saved".into(), caught_up: true, ..Default::default() });
-        let to = if within { saved } else { kept };
-        microsoft_message(&mut s, account, "Plan");
-        let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "copyTo", "value": to}, {"type": "deleteForGood"}]});
-        run(&mut s, "rules.add", rule);
-        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-        assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
-        let undone = run(&mut s, "edit.undo", json!({}));
-        assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
-        assert_eq!(copies_here(&s, to, "Plan"), 1, "the copy is all there is of it");
-        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-        let request = super::graph_mail::graph_mail_request(&s, account).unwrap().messages;
-        let copies = request.iter().filter(|c| matches!(c, MessageChange::Copy { .. })).count();
-        let deletes = request.iter().filter(|c| matches!(c, MessageChange::Delete { .. })).count();
-        assert_eq!(
-            (copies, deletes),
-            (usize::from(to == saved), usize::from(to == kept)),
-            "the server's copy is still made, and the delete waits for it"
-        );
-    }
-    // Into another account's server: the copy still goes there, and the delete waits for it.
-    let (mut s, account, _) = microsoft_and_here();
-    let imap = run(&mut s, "account.add", json!({"email": "bo@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
-    let there = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
-    s.mailbox.folder_mut(there).unwrap().remote = "INBOX".into();
-    microsoft_message(&mut s, account, "Plan");
-    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}]});
-    run(&mut s, "rules.add", rule);
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    run(&mut s, "rules.run", json!({"folder": inbox}));
-    let undone = run(&mut s, "edit.undo", json!({}));
-    assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    let placing = super::account::sync_request(&s, imap).unwrap().places.len();
-    assert_eq!((placing, graph_deletes(&s, account).len()), (1, 0), "on its way there, the original's delete waiting for it");
-}
-
-/// The same undo once Send/Receive has made the copy on the server, the delete waiting a run more:
-/// the copy, all there is of the message, stays where the rule put it and isn't moved to Deleted
-/// Items (#566).
-#[test]
-fn an_undo_after_the_server_made_the_copy_leaves_it_where_the_rule_put_it() {
-    use mailcraft_model::sync::{MessageChangeDone, MessageOutcome};
-    let (mut s, account, _) = microsoft_and_here();
-    let saved = s.mailbox.add_folder(account, None, "Saved").unwrap();
-    s.mailbox.folder_mut(saved).unwrap().server = Some(ServerFolder { id: "F-saved".into(), caught_up: true, ..Default::default() });
-    let bin = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
-    s.mailbox.folder_mut(bin).unwrap().server = Some(ServerFolder { id: "F-bin".into(), caught_up: true, ..Default::default() });
-    microsoft_message(&mut s, account, "Plan");
-    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": saved}, {"type": "deleteForGood"}]});
-    run(&mut s, "rules.add", rule);
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    let request = super::graph_mail::graph_mail_request(&s, account).unwrap().messages;
-    assert_eq!(graph_deletes(&s, account), [], "the delete waits for the copy");
-    let copy = request.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).expect("the copy goes");
-    let outcome = MessageOutcome::Done { categories: None, flag: None, folder: "F-saved".into(), id: "C1".into() };
-    let done = vec![MessageChangeDone { change: copy, outcome, there: None }];
-    super::graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: done, ..Default::default() }).unwrap();
-    assert_eq!(copies_here(&s, saved, "Plan"), 1, "the copy, made on the server");
-    let undone = run(&mut s, "edit.undo", json!({}));
-    assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
-    let at: Vec<(Id, Option<String>)> =
-        s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| (m.folder, m.server.as_ref().map(|x| x.id.clone()))).collect();
-    assert_eq!(at, [(saved, Some("C1".to_string()))], "the only copy left of the message");
-    let moves = super::graph_mail::graph_mail_request(&s, account).unwrap().messages;
-    assert!(!moves.iter().any(|c| matches!(c, MessageChange::Move { .. })), "nothing moved on the server: {moves:?}");
-    assert_eq!(graph_deletes(&s, account).len(), 1, "the original's delete still goes");
-}
-
-/// Run Rules Now over a Microsoft account's Inbox whose mail isn't downloaded: the first rule
-/// copies what holds "invoice" in its text, which can't be told yet; the second deletes what is
-/// about "Plan" for good. The delete for good is held, as a Delete in Deleted Items is above.
-#[test]
-fn run_rules_now_holds_a_delete_for_good_after_a_rule_that_cant_tell_yet() {
-    let (mut s, account, _) = microsoft_and_here();
-    let kept = s.mailbox.add_folder(account, None, "Invoices").unwrap();
-    s.mailbox.folder_mut(kept).unwrap().server = Some(ServerFolder { id: "F-inv".into(), ..Default::default() });
-    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
-    super::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
-    )
-    .unwrap();
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Invoices", "account": account, "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}],
-            "actions": [{"type": "copyTo", "value": kept}]}),
-    );
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Purge", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "deleteForGood"}]}),
-    );
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    run(&mut s, "rules.run", json!({"folder": inbox}));
-    assert!(s.mailbox.messages_in(inbox).any(|m| m.subject == "Plan"), "deleted for good while the rule before it couldn't tell");
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert_eq!(graph_deletes(&s, account), []);
-}
-
-/// The same as new mail arrives on an IMAP account, for a message too large to download (its
-/// headers alone are here): the rule before can't read its text, so the delete for good is held.
-#[test]
-fn a_too_large_imap_message_isnt_deleted_for_good_after_a_rule_that_cant_tell_yet() {
-    let mut s = Session::empty();
-    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
-    let imap = run(&mut s, "account.add", servers)["id"].as_u64().unwrap();
-    let inbox = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
-    let kept = s.mailbox.add_folder(imap, None, "Invoices").unwrap();
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Invoices", "account": imap, "conditions": [{"type": "bodyContains", "value": "invoice"}],
-            "actions": [{"type": "copyTo", "value": kept}]}),
-    );
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Purge", "account": imap, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "deleteForGood"}]}),
-    );
-    let m = Message {
-        folder: inbox,
-        uid: 7,
-        from: Address::new("Zoe", "zoe@example.org"),
-        subject: "Plan".into(),
-        not_downloaded: 30_000_000,
+/// A new message as a Microsoft account's list gives it: no text, and no size.
+fn listed(id: &str, folder: &str, subject: &str) -> GraphMessage {
+    GraphMessage {
+        server: ServerMessage { id: id.into(), folder: folder.into(), change_key: "CK1".into(), ..Default::default() },
+        message_id: format!("{id}@example.org"),
+        subject: subject.into(),
+        from: Address::new("Zoe Park", "zoe@example.org"),
+        to: vec![Address::new("Ada", ME)],
+        sent: 1_000,
+        received: 1_060,
+        preview: format!("About {subject}"),
         ..Default::default()
-    };
-    let m = s.mailbox.add_message(m).unwrap();
-    s.mailbox.apply_rules(m, &s.rule_clock());
-    assert!(s.mailbox.message(m).is_some(), "deleted for good while the rule before it couldn't tell");
+    }
+}
+
+/// A Microsoft account whose Inbox ("F-in") has had its first round: the session and the account.
+fn microsoft() -> (Session, Id) {
+    let mut s = Session::empty();
+    let account = run(&mut s, "account.add", json!({"email": ME, "kind": "microsoft"}))["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    (s, account)
+}
+
+/// Whether the message `subject` lies in Deleted Items.
+fn binned(s: &Session, account: Id, subject: &str) -> bool {
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.messages.values().any(|m| m.subject == subject && m.folder == deleted)
 }
 
 /// A Microsoft account's listing keeps at most 500 recipients of To and Cc and 25 categories, and
 /// says when it left some out (`GraphMessage::cut`). A message to 600 people, the owner past the
 /// first 500: "except if my address is in To or Cc" can't tell from the listing, so the rule
-/// that deletes permanently doesn't act. The same message with the owner among those kept is
-/// left alone by the exception.
+/// that deletes doesn't act. The same message with the owner among those kept is left alone by
+/// the exception.
 #[test]
-fn a_listing_that_cut_its_recipients_isnt_deleted_for_good_past_an_exception_about_me() {
-    let (mut s, account, _) = microsoft_and_here();
+fn a_listing_that_cut_its_recipients_isnt_deleted_past_an_exception_about_me() {
+    let (mut s, account) = microsoft();
     run(
         &mut s,
         "rules.add",
         json!({"name": "Purge news", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
-            "exceptions": [{"type": "toOrCcMe"}], "actions": [{"type": "deleteForGood"}]}),
+            "exceptions": [{"type": "toOrCcMe"}], "actions": [{"type": "delete"}]}),
     );
     let mut m = listed("N1", "F-in", "To all 600 of us");
     m.to = (0..500).map(|i| Address::new("", format!("p{i}@example.org"))).collect();
@@ -476,86 +197,17 @@ fn a_listing_that_cut_its_recipients_isnt_deleted_for_good_past_an_exception_abo
     .unwrap();
     assert!(s.mailbox.messages.values().any(|m| m.subject == "To 500 of us"), "the exception leaves it alone");
     let cut = s.mailbox.messages.values().find(|m| m.subject == "To all 600 of us").map(|m| m.headers_cut);
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert!(graph_deletes(&s, account).is_empty(), "a delete for good queued for the server");
+    assert!(!binned(&s, account, "To all 600 of us"), "deleted past an exception it can't tell");
+    assert!(!binned(&s, account, "To 500 of us"), "the exception leaves it alone");
     assert_eq!(cut, Some(true), "the message past the 500 kept is here, and said to be cut");
 }
 
-/// The undo of Run Rules Now with a rule that copies and then deletes permanently says both its
-/// lines about the one message in the window's language: that it was deleted for good, and that
-/// its copy stays.
-#[test]
-fn the_undo_of_a_copy_then_a_delete_for_good_says_both_lines_in_the_windows_language() {
-    let (mut s, account, _) = microsoft_and_here();
-    s.interface_language = mailcraft_i18n::Lang::German;
-    let imap = run(&mut s, "account.add", json!({"email": "bo@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
-    let there = s.mailbox.folder_of_kind(imap, FolderKind::Inbox).unwrap();
-    s.mailbox.folder_mut(there).unwrap().remote = "INBOX".into();
-    microsoft_message(&mut s, account, "Plan");
-    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}]});
-    run(&mut s, "rules.add", rule);
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    run(&mut s, "rules.run", json!({"folder": inbox}));
-    let undone = run(&mut s, "edit.undo", json!({})).to_string();
-    assert!(undone.contains("Die Kopie von 'Plan' bleibt"), "{undone}");
-    assert!(undone.contains("'Plan' wurde endgültig gelöscht"), "{undone}");
-}
-
-/// New mail of a Microsoft account, listed and not downloaded yet, that a rule copies into another
-/// folder of the account (a copy its server makes) and deletes for good: the delete waits for that
-/// copy. Moved onto this computer before the server has made it, the copy would be only the
-/// headers and preview for good, and the original's delete would go: the move is refused, and
-/// the original stays until the copy is made (#566).
-#[test]
-fn a_rules_copy_its_server_is_still_to_make_isnt_moved_onto_this_computer() {
-    let (mut s, account, kept) = microsoft_and_here();
-    let saved = s.mailbox.add_folder(account, None, "Saved").unwrap();
-    s.mailbox.folder_mut(saved).unwrap().server = Some(ServerFolder { id: "F-saved".into(), caught_up: true, ..Default::default() });
-    run(
-        &mut s,
-        "rules.add",
-        json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "copyTo", "value": saved}, {"type": "deleteForGood"}]}),
-    );
-    let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
-    super::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
-    )
-    .unwrap();
-    let copy = s.mailbox.messages.values().find(|m| m.subject == "Plan" && m.folder == saved).map(|m| m.id).expect("the rule copied it");
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert_eq!(graph_deletes(&s, account), [], "the delete waits for the server's copy");
-    let refused = s.run("mail.move", &json!({"ids": [copy], "folder": kept})).expect_err("refused until the server has made it");
-    assert!(refused.to_string().contains("still to make"), "{refused}");
-    // The model refuses it too, whoever moves it (a rule, an agent's script).
-    assert!(s.mailbox.move_message(copy, kept).is_err());
-    assert_eq!(s.mailbox.message(copy).map(|m| m.folder), Some(saved));
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert_eq!(graph_deletes(&s, account), [], "the original stays on its server until the copy is made");
-    // Within its own mailbox it moves: the server makes the copy where it lies then.
-    let other = s.mailbox.add_folder(account, None, "Other").unwrap();
-    s.mailbox.folder_mut(other).unwrap().server = Some(ServerFolder { id: "F-other".into(), caught_up: true, ..Default::default() });
-    run(&mut s, "mail.move", json!({"ids": [copy], "folder": other}));
-    let copies: Vec<String> = super::graph_mail::graph_mail_request(&s, account)
-        .unwrap()
-        .messages
-        .iter()
-        .filter_map(|c| match c {
-            MessageChange::Copy { to, .. } => Some(to.clone()),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(copies, ["F-other"]);
-}
-
 /// A message already listed whose next listing cuts its categories (over 25 on a Microsoft
-/// account) is said to be cut as well, as a new one is: Run Rules Now with "delete permanently,
-/// except if it has the category Keep" leaves it alone, since Keep may be among those left out.
+/// account) is said to be cut as well, as a new one is: Run Rules Now with "delete it, except if
+/// it has the category Keep" leaves it alone, since Keep may be among those left out.
 #[test]
 fn a_later_listing_that_cut_the_categories_keeps_a_rule_from_deleting_past_a_category_exception() {
-    let (mut s, account, _) = microsoft_and_here();
+    let (mut s, account) = microsoft();
     let apply = |s: &mut Session, m: GraphMessage| {
         let page = MessagePage { folder: "F-in".into(), messages: vec![m], ..Default::default() };
         super::graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
@@ -575,38 +227,9 @@ fn a_later_listing_that_cut_the_categories_keeps_a_rule_from_deleting_past_a_cat
         &mut s,
         "rules.add",
         json!({"name": "Purge", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
-            "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "deleteForGood"}]}),
+            "exceptions": [{"type": "category", "value": "Keep"}], "actions": [{"type": "delete"}]}),
     );
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     run(&mut s, "rules.run", json!({"folder": inbox}));
-    assert!(s.mailbox.message(id).is_some(), "deleted permanently, though Keep may be among the categories left out");
-}
-
-/// The same undo when the message has no Message-ID (RFC 5322 makes it a SHOULD): the copy onto
-/// this computer is still known as the copy of the message deleted for good, and stays (#566).
-#[test]
-fn an_undo_keeps_the_copy_of_a_message_without_a_message_id() {
-    let (mut s, account, kept) = microsoft_and_here();
-    let mut bare = listed("N1", "F-in", "Plan");
-    bare.message_id = String::new();
-    let page = MessagePage { folder: "F-in".into(), messages: vec![bare], ..Default::default() };
-    super::graph_mail::apply_graph_mail(
-        &mut s,
-        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
-    )
-    .unwrap();
-    let mime = format!("From: Zoe Park <zoe@example.org>\r\nTo: Ada <{ME}>\r\nSubject: Plan\r\nContent-Type: text/plain\r\n\r\nThe plan.\r\n");
-    let fetched = vec![GraphFetched { id: "N1".into(), mime: mime.into_bytes() }];
-    super::graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let rule = json!({"name": "Keep", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]});
-    run(&mut s, "rules.add", rule);
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    assert_eq!(run(&mut s, "rules.run", json!({"folder": inbox}))["matched"].as_u64(), Some(1));
-    assert_eq!(copies_here(&s, kept, "Plan"), 1, "the rule made the copy");
-    let undone = run(&mut s, "edit.undo", json!({}));
-    (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
-    assert_eq!(graph_deletes(&s, account).len(), 1, "the original's delete for good still goes");
-    assert!(undone.to_string().contains("The copy made of 'Plan' stays"), "{undone}");
-    assert_eq!(copies_here(&s, kept, "Plan"), 1, "the copy is all there is of it");
+    assert!(!binned(&s, account, "Contract"), "deleted, though Keep may be among the categories left out");
 }

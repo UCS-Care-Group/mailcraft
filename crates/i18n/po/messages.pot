@@ -98,11 +98,6 @@ msgstr ""
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/undo.rs
-msgid "'{subject}' was permanently deleted: that can't be undone here."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "(No title)"
@@ -2988,11 +2983,6 @@ msgstr ""
 msgid "Delete on a conversation's row that takes more than one message asks first."
 msgstr ""
 
-#. name
-#: crates/ui-egui/src/forms.rs
-msgid "Delete permanently"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Delete this category"
@@ -5246,11 +5236,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-msgid "It skips Deleted Items"
 msgstr ""
 
 #. interface
@@ -11340,18 +11325,6 @@ msgstr ""
 msgid "The conversations' messages in other folders stay where they are."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/undo.rs
-msgid "The copy made of '{subject}' stays: it is all there is of the message now."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/undo.rs
-msgid "The copy made of {n} message stays: it is all there is of it now."
-msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
-msgstr[0] ""
-msgstr[1] ""
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "The day after"
@@ -14650,11 +14623,6 @@ msgstr ""
 msgid "it deletes for good"
 msgstr ""
 
-#. name
-#: crates/engine/src/cmd/rules.rs
-msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 msgid "it goes to the server at the next connection"
@@ -17152,13 +17120,6 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] ""
 msgstr[1] ""
 
-#. what a command says
-#: crates/engine/src/undo.rs
-msgid "{n} message was permanently deleted: that can't be undone here."
-msgid_plural "{n} messages were permanently deleted: that can't be undone here."
-msgstr[0] ""
-msgstr[1] ""
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "{n} message will be permanently deleted."
@@ -17584,16 +17545,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/mail.rs
-msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/mail.rs
-msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
 msgstr ""
 
 #. what a command says

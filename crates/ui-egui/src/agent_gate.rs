@@ -52,10 +52,6 @@ pub struct Asking {
     /// The messages a Delete or Move names, with the folder each was in when the owner was asked
     /// (#503).
     counted: Vec<(u64, u64)>,
-    /// For `rules.fromMessage`, whether the rule it makes deletes mail, when the owner was asked
-    /// ([`agent::rule_from_message_deletes`]); for an undo or a redo, whether it takes something
-    /// away itself, not only puts back a rule that deletes mail: the buttons say Delete only then.
-    pub(crate) deletes: bool,
     /// What the question showed, kept here and never in the agent's params: the yes reaches that
     /// alone ([`agent::bind`], AU3-24).
     shown: agent::bind::Shown,
@@ -129,18 +125,12 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 Ok(counted) => counted,
                 Err(why) => return err(why),
             };
-            let (taken, items) = undo_takes(app, id);
-            let deletes = match id {
-                "rules.fromMessage" => agent::rule_from_message_deletes(&app.session, &params),
-                "edit.undo" | "edit.redo" => !taken.is_empty() || !items.is_empty() || !app.session.undo_drafts(id == "edit.redo").is_empty(),
-                _ => false,
-            };
             let also = agent::also(&app.session, id, &params, class);
+            let (taken, items) = undo_takes(app, id);
             let steps = app.session.undo_steps_moved();
             app.asking.push_back(Asking {
                 id: id.to_string(),
                 counted,
-                deletes,
                 params,
                 class,
                 also,
@@ -418,33 +408,11 @@ pub fn expire(app: &mut MailApp, now: f64) {
 
 /// The buttons: going ahead, and not (the default). A rule made or switched on asks as a delete
 /// does, and answering it deletes nothing yet: Delete would read as getting rid of that rule
-/// (#566), and so does a change to the Safe or Blocked Senders, an account's address, a
-/// category's name or the calendar's time zone beside such a rule. One made from a
-/// message that deletes mail (`deletes`) does: it runs at once on the mail from that sender. So
-/// does an undo or a redo that takes something away; one that only puts back a rule that deletes
-/// mail doesn't.
-pub(crate) fn verbs(class: Class, id: &str, deletes: bool) -> (&'static str, &'static str) {
+/// (#566). One made from a message does: it runs at once on the mail from that sender.
+pub(crate) fn verbs(class: Class, id: &str) -> (&'static str, &'static str) {
     match class {
         Class::Send => (tl!("Send"), tl!("Don't Send")),
-        Class::Delete
-            if matches!(
-                id,
-                "rules.add"
-                    | "rules.keepOnServer"
-                    | "rules.enable"
-                    | "rules.move"
-                    | "junk.add"
-                    | "junk.remove"
-                    | "junk.neverBlockSender"
-                    | "junk.neverBlockDomain"
-                    | "account.edit"
-                    | "category.rename"
-                    | "view.timeZone"
-            ) =>
-        {
-            (tl!("Allow"), tl!("Don't Allow"))
-        }
-        Class::Delete if matches!(id, "rules.fromMessage" | "edit.undo" | "edit.redo") && !deletes => (tl!("Allow"), tl!("Don't Allow")),
+        Class::Delete if matches!(id, "rules.add" | "rules.keepOnServer" | "rules.enable" | "rules.move") => (tl!("Allow"), tl!("Don't Allow")),
         Class::Delete => (tl!("Delete"), tl!("Don't Delete")),
         _ => (tl!("Allow"), tl!("Don't Allow")),
     }
@@ -482,7 +450,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
-    let (yes_label, no_label) = verbs(a.class, &a.id, a.deletes);
+    let (yes_label, no_label) = verbs(a.class, &a.id);
     let waiting = app.asking.len();
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));

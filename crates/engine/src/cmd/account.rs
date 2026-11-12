@@ -997,26 +997,13 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
     let folders: HashMap<Id, &Folder> = mb.folders.iter().filter(|f| f.account == account).map(|f| (f.id, f)).collect();
     let followed = |f: &&Folder| !f.remote.is_empty() && f.uid_validity != 0;
     let mailboxes: HashSet<&str> = folders.values().copied().filter(followed).map(|f| f.remote.as_str()).collect();
-    let copied_from = mb.copies_wait_for();
-    // The copies on this computer only, while the mailbox file doesn't hold them yet (`saved`): a
-    // delete for good of what one was copied from waits for the save, as the original of a message
-    // moved here does (#566: a rule that copies within the account, or into an account whose server
-    // is given no copy, and deletes for good; `Mailbox::copies_here_only`). Found when there is a
-    // delete to hold.
-    let deletes = mb.pending.iter().any(|p| p.account() == account && matches!(p, Pending::Delete { .. }));
-    let here_only: HashSet<&str> = if saved || !deletes { HashSet::new() } else { mb.copies_here_only() };
     for pending in mb.pending.iter().filter(|p| p.account() == account) {
         let (from, uid) = pending.source();
         if uid == 0 || !mailboxes.contains(from) {
             continue;
         }
         match pending {
-            // (Not while a copy of the message is still on its way to another account's server: a
-            // refused one puts the original back, which the server must still have, #566.)
-            Pending::Delete { kept, message_id, .. } => {
-                let held = kept.as_ref().is_some_and(|m| copied_from.contains(&m.id)) || here_only.contains(message_id.as_str());
-                note(&|| (!held).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
-            }
+            Pending::Delete { .. } => note(&|| Some(RemoteOp::Delete { from: from.to_string(), uid })),
             Pending::Move { message, synced, to, .. } => {
                 let Some(m) = mb.message(*message) else { continue };
                 if m.account != account {
@@ -1272,7 +1259,6 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     if !partial {
         // What nothing will answer any more is let go of (#30).
         super::mail::check_again::settle(&mut s.mailbox);
-        end_run(&mut s.mailbox, account, false);
         let held = super::graph_place::held_for_this_computer(s, account);
         for said in super::graph_place::unreadable_waiting(s, account).into_iter().chain(held) {
             if !run.errors.contains(&said) {
@@ -1316,8 +1302,8 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
-    let clock = s.rule_clock();
     let gmail_moves = gmail_moves_go(s, account);
+    let clock = s.rule_clock();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
@@ -1351,8 +1337,6 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     for delta in std::mem::take(&mut result.folders) {
         take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, &clock);
     }
-    // What left the server's folders is known for the next run too ([`mailcraft_model::LeftServer`]).
-    mb.left_server.entry(account).or_default().note(std::mem::take(&mut on_server.left));
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
     if told {
@@ -1361,22 +1345,6 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Not through `run` when the host calls this, so say it here: the lists are out of date.
     s.mailbox_changed();
     (counts, sent)
-}
-
-/// A run of `account` ended, having read every folder (`whole`: a Microsoft account's sweep) or
-/// as far as it said ([`mailcraft_model::LeftServer`]).
-pub(crate) fn end_run(mb: &mut Mailbox, account: Id, whole: bool) {
-    let junk = mb.folder_of_kind(account, FolderKind::Junk).and_then(|f| mb.folder(f)).is_some_and(|f| !f.remote.is_empty());
-    if let Some(left) = mb.left_server.get_mut(&account) {
-        if left.inbox_read && junk && !left.junk_read {
-            left.junk_missed = left.junk_missed.saturating_add(1);
-        }
-        let read = whole || (left.inbox_read && (left.junk_read || !junk || left.junk_missed >= mailcraft_model::JUNK_MISSES));
-        left.end_run(read);
-        if left.is_empty() {
-            mb.left_server.remove(&account);
-        }
-    }
 }
 
 /// What taking in a result changed.
@@ -1408,9 +1376,6 @@ struct OnServer {
     /// The Message-IDs of the account's mail in its folders, as the run first needs them
     /// ([`OnServer::had`]); none of what the owner sent or is writing.
     had: Option<HashSet<String>>,
-    /// The Message-IDs of what the server no longer has in a folder, taken out as this result
-    /// is taken in: had too, should it turn up in the Inbox.
-    left: HashSet<String>,
 }
 
 impl OnServer {
@@ -1418,32 +1383,16 @@ impl OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
         let returned = mb.messages.values().filter(|m| m.account == account && m.returned > 0).map(|m| m.id).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned, had: None, left: HashSet::new() }
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned, had: None }
     }
 
     /// Whether the account had a message by the Message-ID `id` in one of its folders: mail new
     /// to a folder that it had is mail moved there on another device (a filed message moved back
     /// into the Inbox, say), which the server gives a new UID. The run reads the Inbox before the
-    /// folder it left (`mailcraft_net::sync`), so it is still where it was, or this run or the one
-    /// before said it left that folder ([`mailcraft_model::LeftServer`]: moved while the run before
-    /// read the folders after the Inbox). Not the owner's own sent mail, or a draft, which a
-    /// message to themselves comes back as.
-    /// One with no Message-ID can't be told from one it had, so it is taken as one it may have:
-    /// nothing is copied or deleted for good of it, and no alert shown.
+    /// folder it left (`mailcraft_net::sync`), so it is still where it was. Not the owner's own
+    /// sent mail, or a draft, which a message to themselves comes back as (#566).
     fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
-        if id.is_empty() {
-            return true;
-        }
-        let left = mb.left_server.get(&account);
-        if left.is_some_and(|l| l.cut()) {
-            return true;
-        }
-        let had = self.had.get_or_insert_with(|| {
-            let mut had = message_ids(mb, account);
-            had.extend(left.into_iter().flat_map(|l| l.ids()).cloned());
-            had
-        });
-        had.contains(id) || self.left.contains(id)
+        !id.is_empty() && self.had.get_or_insert_with(|| message_ids(mb, account)).contains(id)
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
@@ -1572,8 +1521,8 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
             mb.pending.push(Pending::Move { account, message, from, uid, synced: synced.map(|flags| flags.at(uid)), to });
         }
         // Deleted for good meanwhile: the next run deletes it where the server has it now.
-        (Some(Pending::Delete { message_id, seen, kept, .. }), Some((from, uid))) => {
-            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen, kept })
+        (Some(Pending::Delete { message_id, seen, .. }), Some((from, uid))) => {
+            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen })
         }
         // Put back meanwhile: the next run moves it back on the server too.
         (None, Some((from, uid))) => {
@@ -1690,31 +1639,19 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
             // Called off meanwhile: the copy goes again.
             None => {
                 if let Some((from, uid)) = there {
-                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None, kept: None });
+                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None });
                 }
             }
         }
     }
     for id in unplaced {
         let Some(at) = waiting(mb, *id).filter(|at| *at < mb.queued.len()) else { continue };
-        let (copy, source, from) = match mb.queued.remove(at) {
-            Queued::PlaceMessage { copy, source, from, .. } => (copy, source, from),
-            _ => (false, None, None),
+        let (copy, from) = match mb.queued.remove(at) {
+            Queued::PlaceMessage { copy, from, .. } => (copy, from),
+            _ => (false, None),
         };
-        let taken_away = super::graph_place::original_back(mb, *id, copy, source);
-        super::graph_place::put_back(mb, *id, taken_away, from);
+        super::graph_place::put_back(mb, *id, copy, from);
     }
-}
-
-/// The `Message-ID`s of `account`'s mail outside Sent Items, Drafts and the Outbox: what it had,
-/// should one of them turn up in the Inbox as new, moved there on another device (#566).
-pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
-    let theirs = |f: Id| mb.folder(f).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
-    mb.messages
-        .values()
-        .filter(|m| m.account == account && !m.draft && !m.message_id.is_empty() && theirs(m.folder))
-        .map(|m| m.message_id.clone())
-        .collect()
 }
 
 /// Messages moved into the account out of another IMAP account that are this server's messages
@@ -1735,6 +1672,17 @@ fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
     }
 }
 
+/// The `Message-ID`s of `account`'s mail outside Sent Items, Drafts and the Outbox: what it had,
+/// should one of them turn up in the Inbox as new, moved there on another device (#566).
+pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
+    let theirs = |f: Id| mb.folder(f).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    mb.messages
+        .values()
+        .filter(|m| m.account == account && !m.draft && !m.message_id.is_empty() && theirs(m.folder))
+        .map(|m| m.message_id.clone())
+        .collect()
+}
+
 /// The move out of another account that waits for `id`, by which its original goes once the
 /// message is safe where it is now, becomes a deletion of that original: it is. Only through the
 /// gate every release of a copy something was moved out of goes through (#30,
@@ -1752,14 +1700,8 @@ pub(crate) fn original_goes(mb: &mut Mailbox, id: Id, read: bool) {
             && *message == id
             && *owner != account
         {
-            let delete = Pending::Delete {
-                account: *owner,
-                from: std::mem::take(from),
-                uid: *uid,
-                message_id: message_id.clone(),
-                seen: seen.clone(),
-                kept: None,
-            };
+            let delete =
+                Pending::Delete { account: *owner, from: std::mem::take(from), uid: *uid, message_id: message_id.clone(), seen: seen.clone() };
             *p = delete;
         }
     }
@@ -2142,19 +2084,12 @@ fn take_in(
     }
     if !reset && !delta.removed.is_empty() {
         // Moved out of the account, its original gone from the server meanwhile (deleted on
-        // another device): there is nothing left there to delete, or to go back to (#451). So
-        // for one deleted for good here whose delete waited for a copy of it (#566): the copy
-        // goes made of its parts, as one whose original nothing else can hold does.
+        // another device): there is nothing left there to delete, or to go back to (#451).
         let removed: HashSet<u32> = delta.removed.iter().copied().collect();
         let messages = &mb.messages;
-        mb.pending.retain(|p| match p {
-            Pending::Move { account: owner, message, from, uid, .. } => {
-                !(*owner == account && *from == delta.remote && removed.contains(uid) && messages.get(message).is_some_and(|m| m.account != account))
-            }
-            Pending::Delete { account: owner, from, uid, kept: Some(_), .. } => {
-                !(*owner == account && *from == delta.remote && removed.contains(uid))
-            }
-            Pending::Delete { .. } => true,
+        mb.pending.retain(|p| {
+            !matches!(p, Pending::Move { account: owner, message, from, uid, .. }
+                if *owner == account && *from == delta.remote && removed.contains(uid) && messages.get(message).is_some_and(|m| m.account != account))
         });
     }
     let gone: Vec<Id> = if reset {
@@ -2173,9 +2108,6 @@ fn take_in(
         if let Ok(m) = mb.forget_message(id) {
             on_server.by_uid.remove(&(folder, m.uid));
             counts.removed += 1;
-            if !m.draft && !m.message_id.is_empty() && !matches!(delta.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox) {
-                on_server.left.insert(m.message_id);
-            }
         }
     }
     // What was put back here after a refused copy and is listed as still there (the first piece
@@ -2208,13 +2140,6 @@ fn take_in(
     }
     let inbox = delta.kind == FolderKind::Inbox;
     let junk = delta.kind == FolderKind::Junk;
-    // What was moved there while the run before read the folders after them is seen now.
-    if delta.complete
-        && let Some(left) = mb.left_server.get_mut(&account)
-    {
-        left.inbox_read |= inbox;
-        left.junk_read |= junk;
-    }
     // The lists sort what arrives once the folder has been read whole, above how far it was
     // read: never a first download (in however many pieces, over however many runs), a mailbox
     // numbered anew, or older mail a raised limit brings down. What was there stays where the
@@ -2262,8 +2187,8 @@ fn take_in(
             let fresh = new && !moved_in;
             let sorted = new && mb.sort_junk(id);
             // The rules file what was there before too (a first download, a mailbox numbered anew,
-            // older mail, mail moved in on another device), but don't delete it for good, copy it
-            // or show an alert for it (#566).
+            // older mail, mail moved in on another device), but don't copy it or show an alert for
+            // it (#566).
             if inbox != sorted {
                 if fresh {
                     mb.apply_rules(id, clock);

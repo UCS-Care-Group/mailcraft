@@ -117,7 +117,7 @@ impl RemoteRule {
                 Action::MoveTo(_) | Action::CopyTo(_) => {}
                 // What no server's rule does (a server's list that says so is not believed): such a
                 // rule would do it here, at Run Rules Now (#566).
-                Action::DeleteForGood | Action::FlagFor(_) | Action::ClearFlag | Action::ClearCategories => note(CUT_NOT_SERVERS),
+                Action::FlagFor(_) | Action::ClearFlag | Action::ClearCategories => note(CUT_NOT_SERVERS),
                 Action::Categorize(c) => match clean_name(&c) {
                     Some(name) if c.trim().chars().count() <= MAX_NAME => actions.push(Action::Categorize(name)),
                     _ => note(CUT_CATEGORY),

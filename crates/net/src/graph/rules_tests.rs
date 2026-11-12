@@ -279,7 +279,6 @@ fn two_exceptions_of_a_kind_go_up_as_one_and_two_conditions_never_do() {
         (vec![Condition::ToMe], vec![Action::FlagFor(mailcraft_model::FollowUp::Today)]),
         (vec![Condition::ToMe], vec![Action::ClearFlag]),
         (vec![Condition::ToMe], vec![Action::ClearCategories]),
-        (vec![Condition::ToMe], vec![Action::DeleteForGood]),
     ] {
         let rule = RemoteRule { name: "x".into(), conditions, actions, ..Default::default() };
         assert!(rule_body(&rule).is_err(), "{rule:?}");

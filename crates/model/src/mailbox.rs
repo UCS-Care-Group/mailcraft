@@ -822,12 +822,6 @@ pub enum Queued {
     /// account for an IMAP account's). `copy`: it was copied, and the message it was copied from
     /// is still where it was (a copy refused is taken away here again). `from`: the folder a
     /// moved message lay in when no server had it, where it goes back to when it is refused.
-    /// `source`: the message a copy was made from (also once the copy is moved on into a third
-    /// account). Should that be deleted for good meanwhile (by its owner or by a rule that copies
-    /// and then deletes, #566), its delete on its own server waits for this copy's answer
-    /// ([`Mailbox::copy_waits_for`]), and a refused copy brings it back. One that can't be brought
-    /// back (it was on this computer) leaves the copy all there is of it, and a refused one is
-    /// kept on this computer, as a move whose original is gone is.
     #[serde(rename_all = "camelCase")]
     PlaceMessage {
         account: Id,
@@ -837,8 +831,6 @@ pub enum Queued {
         copy: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<Id>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        source: Option<Id>,
     },
 }
 
@@ -863,32 +855,6 @@ fn kept_written<S: serde::Serializer>(kept: &Option<Box<Message>>, s: S) -> Resu
         m
     });
     written.serialize(s)
-}
-
-/// The messages a run of the rules deletes for good, which go together once it is done
-/// ([`Mailbox::rules_done`]), as [`Mailbox::remove_messages`] removes them: one at a time, each
-/// looked through every change waiting, to which each delete adds one, and Run Rules Now over
-/// tens of thousands of a Microsoft account's took seconds (#566). One of them is gone to the
-/// rules meanwhile: none acts on it after the one that deletes it.
-#[derive(Debug, Default)]
-pub struct Going(Vec<Id>);
-
-impl Going {
-    /// Whether the rules delete nothing for good.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Whether `id` goes: the rules run over one message at a time, so it is the last noted.
-    fn has(&self, id: Id) -> bool {
-        self.0.last() == Some(&id)
-    }
-
-    fn add(&mut self, id: Id) {
-        if !self.has(id) {
-            self.0.push(id);
-        }
-    }
 }
 
 /// What a message deleted for good keeps of itself while its server is asked to delete it
@@ -964,12 +930,6 @@ pub enum Pending {
         /// carried over a renumbering.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         seen: Option<MailIdentity>,
-        /// Where and how the message lay here, when a copy of it was waiting to be made on another
-        /// account's server ([`Mailbox::copy_waits_for`]): the delete waits for that copy's answer,
-        /// and a refused copy puts the message back from this, with the copy's content (its text
-        /// and files, which the copy names and this doesn't keep), #566.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        kept: Option<Box<Message>>,
     },
 }
 
@@ -1106,97 +1066,6 @@ fn default_categories() -> Vec<Category> {
     .collect()
 }
 
-/// The `Message-ID`s of mail an account's server said it no longer has in a folder (moved on
-/// another device, or deleted there), since the last run that read the Inbox and Junk E-mail
-/// whole and in the one before (#566). A run reads the Inbox first (`mailcraft_net::sync`), so
-/// mail filed away and moved back into the Inbox on a phone while a run reads the folders after
-/// it is said to have left the folder it was in, and is new to the Inbox in the next run that
-/// reads it, which gives it a new number there: by these, that run knows it as mail the account
-/// had, and its rules don't delete it for good. A run that reads no folder (one that only tells
-/// the server what changed here, or couldn't connect) keeps them as they are. At most
-/// [`MAX_LEFT`] of a run; past that, all mail new in that run and the next is taken as mail the
-/// account had.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct LeftServer {
-    /// Said in the run before.
-    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
-    pub before: Vec<String>,
-    /// Said since.
-    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
-    pub now: Vec<String>,
-    /// The run under way has read the Inbox whole.
-    #[serde(skip_serializing_if = "is_false")]
-    pub inbox_read: bool,
-    /// And Junk E-mail.
-    #[serde(skip_serializing_if = "is_false")]
-    pub junk_read: bool,
-    /// The run before said more than is kept.
-    #[serde(skip_serializing_if = "is_false")]
-    pub cut_before: bool,
-    /// The run under way did.
-    #[serde(skip_serializing_if = "is_false")]
-    pub cut_now: bool,
-    /// Runs in a row that read the Inbox whole and not Junk E-mail (a Junk folder its server no
-    /// longer has, or never hands over whole): the [`JUNK_MISSES`]th ends as if it had, so that
-    /// what is kept doesn't grow to the cap and stay there.
-    #[serde(skip_serializing_if = "is_zero_u8")]
-    pub junk_missed: u8,
-}
-
-fn is_zero_u8(n: &u8) -> bool {
-    *n == 0
-}
-
-/// How many runs in a row may read the Inbox whole and not Junk E-mail before one ends as if it
-/// had read both ([`LeftServer::junk_missed`]).
-pub const JUNK_MISSES: u8 = 3;
-
-/// The most of [`LeftServer`] a run keeps: Message-IDs, and the bytes of them.
-pub const MAX_LEFT: usize = 20_000;
-const MAX_LEFT_BYTES: usize = 4 << 20;
-
-impl LeftServer {
-    /// Whether all mail new in the run under way is to be taken as mail the account had.
-    pub fn cut(&self) -> bool {
-        self.cut_before || self.cut_now
-    }
-
-    /// The `Message-ID`s the server said, in this run and the one before, it no longer has.
-    pub fn ids(&self) -> impl Iterator<Item = &String> {
-        self.before.iter().chain(&self.now)
-    }
-
-    /// `left` said in the run under way.
-    pub fn note(&mut self, left: impl IntoIterator<Item = String>) {
-        let mut bytes: usize = self.now.iter().map(String::len).sum();
-        for id in left {
-            bytes = bytes.saturating_add(id.len());
-            if self.now.len() >= MAX_LEFT || bytes > MAX_LEFT_BYTES {
-                self.cut_now = true;
-                return;
-            }
-            self.now.push(id);
-        }
-    }
-
-    /// The run under way ended. When it read the Inbox and Junk E-mail whole (`read`), it has
-    /// seen what was moved there before: what was said since the run before that is what the
-    /// run before said.
-    pub fn end_run(&mut self, read: bool) {
-        if read {
-            self.before = std::mem::take(&mut self.now);
-            self.cut_before = std::mem::take(&mut self.cut_now);
-            self.junk_missed = 0;
-        }
-        (self.inbox_read, self.junk_read) = (false, false);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.before.is_empty() && self.now.is_empty() && !self.cut()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Mailbox {
@@ -1242,10 +1111,6 @@ pub struct Mailbox {
     /// of the account (a shared mailbox has its owner's, [`Mailbox::junk_owner`]).
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
     pub junk_accounts: BTreeMap<Id, crate::JunkLists>,
-    /// The mail each account's server said in its last runs it no longer has in a folder, by the
-    /// id of the account ([`LeftServer`], #566).
-    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
-    pub left_server: BTreeMap<Id, LeftServer>,
     pub signatures: Vec<Signature>,
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -1351,7 +1216,6 @@ impl Default for Mailbox {
             rules: Vec::new(),
             junk: crate::JunkLists::default(),
             junk_accounts: BTreeMap::new(),
-            left_server: BTreeMap::new(),
             signatures: Vec::new(),
             pending: Vec::new(),
             event_changes: Vec::new(),
@@ -1380,14 +1244,6 @@ impl Default for Mailbox {
 /// the same owner's, whose sign-in reaches both.
 pub const BETWEEN_MAILBOXES: &str =
     "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer";
-
-/// Why a copy of a protected message deleted for good, on its way to its server, stays in its
-/// mailbox until it is there (#566, [`Mailbox::held_for_copy`]).
-fn on_its_way(subject: &str) -> String {
-    format!(
-        "\"{subject}\" is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
-    )
-}
 
 /// Why mail from another mailbox doesn't go into an Outbox that sends what lies in it, as a
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
@@ -1446,12 +1302,6 @@ fn invalid(msg: impl Into<String>) -> ModelError {
 /// A message's subject as a refusal names it: no control characters, not too long.
 fn subject_said(m: &Message) -> String {
     m.subject.chars().filter(|c| !c.is_control()).take(80).collect()
-}
-
-/// Why a copy its server is still to make, not here whole, stays in its mailbox until it is made
-/// ([`Mailbox::copy_not_made_yet`], #566).
-fn not_made_yet(subject: &str) -> String {
-    format!("\"{subject}\" is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made")
 }
 
 /// Why a message can't go elsewhere before it is fetched whole.
@@ -1566,7 +1416,6 @@ impl Mailbox {
         self.rules.retain(|r| !going.contains(&r.account));
         self.shared_task_lists.retain(|account, _| !going.contains(account));
         self.junk_accounts.retain(|account, _| !going.contains(account));
-        self.left_server.retain(|account, _| !going.contains(account));
         self.account_categories.retain(|account, _| !going.contains(account));
         self.server_categories.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
@@ -2154,7 +2003,7 @@ impl Mailbox {
                         let m = messages.get(message);
                         let message_id = m.map(|m| m.message_id.clone()).unwrap_or_default();
                         let seen = m.filter(|m| !m.message_id.is_empty()).map(|m| MailIdentity::of(m));
-                        *p = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen, kept: None };
+                        *p = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
                     }
                 }
                 self.folders.retain(|f| !gone.contains(&f.id));
@@ -2301,15 +2150,6 @@ impl Mailbox {
         self.move_each(&moves)
     }
 
-    /// [`Mailbox::move_messages`], where the caller read whole on this computer the bytes the
-    /// messages `here` came as (#30): such a copy, on its way to its server while the message it
-    /// was copied from stays on its own server until it is there ([`Mailbox::held_on_its_way`],
-    /// #566), may go where no server is given it, which then holds them.
-    pub fn move_messages_reading(&mut self, ids: &[Id], folder: Id, here: &HashSet<Id>) -> Result<Vec<(Id, Id)>, ModelError> {
-        let moves: Vec<(Id, Id)> = ids.iter().map(|id| (*id, folder)).collect();
-        self.move_each_reading(&moves, here)
-    }
-
     /// Whether `id` is a message a JMAP account's server has. It stays where it is until moves and
     /// deletions go up to the server ([`NOT_MOVING_YET`]); mail only this computer has in such an
     /// account's folders (a draft saved here, mail imported there) moves and goes as any other.
@@ -2360,13 +2200,12 @@ impl Mailbox {
     /// that account keeps it ([`Mailbox::takes_over`]): then the original goes from its own
     /// server once the message is safe there (#451).
     fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
-        self.move_anyway(id, folder, false, false)
+        self.move_anyway(id, folder, false)
     }
 
     /// [`Mailbox::move_message_anyway`]; `fresh`: nothing waited for `id` when the command that
-    /// moves it started ([`Mailbox::move_messages`]); `here`: the bytes it came as were read whole
-    /// on this computer ([`Mailbox::move_messages_reading`]).
-    fn move_anyway(&mut self, id: Id, folder: Id, fresh: bool, here: bool) -> Result<(), ModelError> {
+    /// moves it started ([`Mailbox::move_messages`]).
+    fn move_anyway(&mut self, id: Id, folder: Id, fresh: bool) -> Result<(), ModelError> {
         let (account, remote) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
             (f.account, f.remote.clone())
@@ -2393,7 +2232,7 @@ impl Mailbox {
             self.message_mut(id)?.rules_waiting = None;
         }
         let into_outbox = self.is_imap_outbox(folder);
-        if self.move_between_accounts(id, folder, account, &remote, fresh, here)? {
+        if self.move_between_accounts(id, folder, account, &remote, fresh)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
         }
@@ -2603,7 +2442,7 @@ impl Mailbox {
             return;
         }
         let marker = self.place_marker(id, "");
-        self.queued.push(Queued::PlaceMessage { account, message: id, marker, copy: false, from: None, source: None });
+        self.queued.push(Queued::PlaceMessage { account, message: id, marker, copy: false, from: None });
     }
 
     /// A marker for a copy made in another mailbox: a value used once in this mailbox's life, and
@@ -2678,25 +2517,11 @@ impl Mailbox {
     ///   account's server wouldn't send ([`Mailbox::not_whole`]).
     /// - Back into the account it is being moved out of: it is that server message again.
     /// - Between a shared mailbox and a mailbox of another sign-in's: refused, with the reason.
-    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, fresh: bool, here: bool) -> Result<bool, ModelError> {
+    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, fresh: bool) -> Result<bool, ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
         if from_account == to_account {
             return Ok(false);
-        }
-        // A copy of a Digitally signed or Encrypted message deleted for good, on its way to its
-        // server (#566): the server the message was copied from keeps it until the copy is there,
-        // in case the bytes it came as (#30) are lost here. Nothing would hold it once the copy
-        // was in a mailbox no server is given, unless they were read whole here (`here`); it goes
-        // elsewhere once it is on its own.
-        if !fresh && !here && self.held_on_its_way(id, to_account) {
-            return Err(invalid(on_its_way(&subject_said(m))));
-        }
-        // A copy that its server is still to make, of which only a part is here: moved out of its
-        // mailbox, it would be made nowhere, and what is here would be all that is left of it
-        // once the message it was copied from goes (#566).
-        if self.copy_not_made_yet(id) {
-            return Err(invalid(not_made_yet(&subject_said(m))));
         }
         // Not into an Outbox that would send it, the account it came from's included; an IMAP
         // account's holds it (#607).
@@ -2755,12 +2580,10 @@ impl Mailbox {
             }
             // Where it lay when no server had it: a refused one goes back there (to a folder on
             // this computer also while its first original's deletion is still on its way).
-            // A copy moved on still names its source, whose delete for good waits for it (#566).
             let waited = self.queued.iter().filter(|_| !fresh).find_map(|q| match q {
-                Queued::PlaceMessage { message, from, source, .. } if *message == id => Some((*from, *source)),
+                Queued::PlaceMessage { message, from, .. } if *message == id => Some(*from),
                 _ => None,
             });
-            let (waited, copy_of) = (waited.map(|(from, _)| from), waited.and_then(|(_, source)| source));
             let here_only = source.is_none() && m.uid == 0 && (!first || !self.puts_on_server(from_account));
             let from = waited.unwrap_or(here_only.then_some(m.folder));
             self.place_called_off(id, to_account, fresh);
@@ -2774,7 +2597,7 @@ impl Mailbox {
             m.server = None;
             crate::auth_results::forget_stamps(m);
             m.lies_in(folder, to_account, uid, synced);
-            self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from, source: copy_of });
+            self.queued.push(Queued::PlaceMessage { account: to_account, message: id, marker, copy: false, from });
             return Ok(true);
         }
         if !self.is_graph(from_account) {
@@ -2862,8 +2685,7 @@ impl Mailbox {
             hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
-            self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None, source: Some(id) });
-            self.copied_while_waiting(id);
+            self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None });
             return Ok(new);
         }
         if from_account != to_account && self.puts_on_server(to_account) {
@@ -2898,113 +2720,7 @@ impl Mailbox {
             let marker = format!("mailcraft-{stamp:x}-{new:x}-{source:016x}");
             self.queued.push(Queued::CopyMessage { account: from_account, id: server.id, to, copy: new, marker });
         }
-        self.copied_while_waiting(id);
         Ok(new)
-    }
-
-    /// A copy of `id` made while rules wait for it to be here whole (Run Rules Now's, the owner's):
-    /// that copy may be refused before they have their say, so none of them deletes it for good,
-    /// as after a copy made as it arrived ([`crate::RulesWaiting::copied`], #566).
-    fn copied_while_waiting(&mut self, id: Id) {
-        if self.message(id).is_some_and(|m| m.rules_waiting.as_ref().is_some_and(|w| !w.copied))
-            && let Some(waiting) = self.messages.get_mut(&id).and_then(|m| Arc::make_mut(m).rules_waiting.as_mut())
-        {
-            waiting.copied = true;
-        }
-    }
-
-    /// Whether a copy of `source` is waiting to be made on another account's server
-    /// ([`Queued::PlaceMessage`], also once that copy is moved on into a third account): a delete
-    /// for good of `source` on its own server waits for that copy's answer, so that a copy
-    /// refused, or called off, leaves the original where it was (#566).
-    pub fn copy_waits_for(&self, source: Id) -> bool {
-        self.queued.iter().any(|q| self.copy_waiting_of(q) == Some(source))
-    }
-
-    /// Every message [`Mailbox::copy_waits_for`] says yes of, found in one pass: for a run that
-    /// looks at each delete waiting to go, of which an emptied Deleted Items queues thousands.
-    pub fn copies_wait_for(&self) -> HashSet<Id> {
-        self.queued.iter().filter_map(|q| self.copy_waiting_of(q)).collect()
-    }
-
-    /// The Message-IDs of the messages made on this computer that no server has yet, nor was told
-    /// to make (`placed`): copies kept here, among them. A delete for good of what one was copied
-    /// from waits until the mailbox file holds it, so that a quit before then loses nothing (#566:
-    /// a rule that copies onto this computer and deletes for good). A message with no Message-ID
-    /// can't be told apart, so one such copy holds back every delete of one without (until the
-    /// next autosave). In one pass, for a run that looks at each delete waiting to go.
-    pub fn copies_here_only(&self) -> HashSet<&str> {
-        self.messages.values().filter(|m| m.uid == 0 && m.server.is_none() && m.placed.is_empty()).map(|m| m.message_id.as_str()).collect()
-    }
-
-    /// The message `q` is a copy of, when it is one waiting to be made on its account's server
-    /// (not once that account has no server to put it on: its servers taken out in its settings).
-    fn copy_waiting_of(&self, q: &Queued) -> Option<Id> {
-        match q {
-            Queued::PlaceMessage { account, message, source: Some(s), .. }
-                if self.puts_on_server(*account) && self.message(*message).is_some_and(|m| m.account == *account) =>
-            {
-                Some(*s)
-            }
-            _ => None,
-        }
-    }
-
-    /// Whether `id`, moved into the account `to`, is a copy of a Digitally signed or Encrypted
-    /// message deleted for good, on its way to its server ([`Mailbox::held_for_copy`], #566), into
-    /// a mailbox no server is given: the server the message was copied from keeps it until the copy
-    /// is there, in case the bytes it came as (#30) are lost here, and nothing would hold it then.
-    pub fn held_on_its_way(&self, id: Id, to: Id) -> bool {
-        self.message(id).is_some_and(|m| m.account != to && !self.puts_on_server(to) && m.original.is_some() && !m.original_asked)
-            && self.held_for_copy(id).is_some()
-    }
-
-    /// Whether `id` is a copy a Microsoft or an Exchange server account's server is still to make
-    /// of a message there ([`Queued::CopyMessage`]), of which only a part is here (its headers
-    /// and preview, say): nothing but that server's copy can bring the rest (#566).
-    pub fn copy_not_made_yet(&self, id: Id) -> bool {
-        self.message(id).is_some_and(|m| m.server.is_none() && m.partly_here() && self.keeps_changes_for_server(m.account))
-            && self.queued.iter().any(|q| matches!(q, Queued::CopyMessage { copy, .. } if *copy == id))
-    }
-
-    /// The account whose server still has the message `copy` was copied from, which was deleted
-    /// for good here and goes from that server once `copy` is on its own ([`Mailbox::copy_waits_for`],
-    /// #566), and whether that is a [`Pending::Delete`] of an IMAP account's (else a
-    /// [`Queued::DeleteMessage`]): where the bytes a protected message came as (#30) may be still.
-    pub fn held_for_copy(&self, copy: Id) -> Option<(Id, bool)> {
-        let m = self.message(copy)?;
-        let source = self.queued.iter().find_map(|q| match q {
-            Queued::PlaceMessage { account, message, source: Some(s), .. } if *message == copy && *account == m.account => Some(*s),
-            _ => None,
-        })?;
-        let held = |kept: &Option<Box<Message>>| kept.as_ref().is_some_and(|k| k.id == source);
-        self.pending
-            .iter()
-            .find_map(|p| match p {
-                Pending::Delete { account, kept, .. } if held(kept) => Some((*account, true)),
-                _ => None,
-            })
-            .or_else(|| {
-                self.queued.iter().find_map(|q| match q {
-                    Queued::DeleteMessage { account, kept, .. } if held(kept) => Some((*account, false)),
-                    _ => None,
-                })
-            })
-    }
-
-    /// The copies of `source` on their way to another account's server ([`Mailbox::copy_waits_for`])
-    /// that were made without the bytes it came as (#30), at the mailbox's cap on them
-    /// ([`Mailbox::add_message`]): given them, as `source` goes for good here (#566).
-    fn originals_to_copies(&mut self, source: Id, copies: &[(Id, Id)]) {
-        let Some(original) = self.message(source).and_then(|m| m.original.clone()) else { return };
-        for (copy, _) in copies {
-            if let Ok(m) = self.message_mut(*copy)
-                && m.original.is_none()
-                && !m.parts_removed
-            {
-                m.original = Some(original.clone());
-            }
-        }
     }
 
     /// Remove a message for good, as its owner asks. When the server has it, a
@@ -3243,90 +2959,48 @@ impl Mailbox {
 
     /// Run the enabled rules on a message (new mail), by `clock`. Returns the names of the rules
     /// that ran. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]).
-    ///
-    /// A rule its account's server has doesn't act: the server ran it before the mail came here.
-    /// It is still matched, so that one that stops later rules stops those of this computer too.
     pub fn apply_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
-        let mut going = Going::default();
-        let ran = self.apply_rules_batched(id, clock, &mut going);
-        self.rules_done(going);
-        ran
-    }
-
-    /// [`Mailbox::apply_rules`] of one of many messages arriving together: what the rules delete
-    /// for good goes once they are all in ([`Going`], [`Mailbox::rules_done`]).
-    pub fn apply_rules_batched(&mut self, id: Id, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
-        self.rules_on(id, Ruling::Arriving, clock, going)
+        self.rules_on(id, Ruling::Arriving, clock)
     }
 
     /// [`Mailbox::apply_rules`] for mail its server had before it was read here: an account's
     /// first download, a mailbox the server numbered anew, older mail a raised limit brings down.
-    /// It is filed as new mail is, but none of it is copied or deleted for good and no alert is
-    /// shown for it (#566).
+    /// It is filed as new mail is, but none of it is copied and no alert is shown for it (#566).
     pub fn apply_rules_found(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
-        // (Nothing goes for good.)
-        self.rules_on(id, Ruling::Found, clock, &mut Going::default())
+        self.rules_on(id, Ruling::Found, clock)
     }
 
     /// [`Mailbox::apply_rules_found`] for the mail of a mailbox its server numbered anew, which
     /// was here as other mail before: the rules copied it as it first arrived, and a copy now would
     /// be a second one (#566).
     pub fn apply_rules_renumbered(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
-        self.rules_on(id, Ruling::Renumbered, clock, &mut Going::default())
+        self.rules_on(id, Ruling::Renumbered, clock)
     }
 
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
     /// the server has here too, as Outlook does), and none shows an alert: the mail isn't
     /// arriving.
     pub fn run_rules(&mut self, id: Id, now: bool, clock: &crate::RuleClock) -> Vec<String> {
-        let mut going = Going::default();
-        let ran = self.rules_on(id, if now { Ruling::Now } else { Ruling::Arriving }, clock, &mut going);
-        self.rules_done(going);
-        ran
+        self.rules_on(id, if now { Ruling::Now } else { Ruling::Arriving }, clock)
     }
 
-    /// [`Mailbox::run_rules`] now, over one of the messages of a folder: what the rules delete for
-    /// good goes once they have run over them all ([`Going`], [`Mailbox::rules_done`]).
-    pub fn run_rules_batched(&mut self, id: Id, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
-        self.rules_on(id, Ruling::Now, clock, going)
-    }
-
-    /// Remove for good what a run of the rules deleted for good ([`Going`]), together.
-    pub fn rules_done(&mut self, going: Going) {
-        if going.0.is_empty() {
-            return;
-        }
-        let mut r = Removal::start(self);
-        for id in &going.0 {
-            // (A message whose server keeps it isn't noted, `act`.)
-            let _ = self.remove_one(*id, &mut r);
-        }
-        self.end_removal(r);
-    }
-
-    fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
+    fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock) -> Vec<String> {
         let now = ruling == Ruling::Now;
-        // Run Rules Now over Deleted Items, where a Delete is a delete for good ([`Mailbox::act`]).
-        let from_bin = now && self.in_deleted_items(id);
         let mut ran = Vec::new();
         let Some((account, listed)) = self.message(id).map(|m| (m.account, m.unfetched)) else { return ran };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
         let mut alert = false;
-        // A rule that can't tell yet, which may apply after all (and stop the rest, or copy the
-        // message first), or one that waits to copy it out of its account: the rules after it run
-        // as they would if it didn't apply, but delete nothing for good, which can't be taken back
-        // (#566).
+        // A rule that can't tell yet, which may apply after all (and stop the rest), or one that
+        // waits to copy it out of its account: the rules after it run as they would if it didn't
+        // apply, but copy or move nothing into another account, where it would be past that rule's
+        // reach (#566).
         let mut unsure = false;
         // New mail its server listed before it is fetched: what couldn't be told waits for it
         // to be here whole (#566).
         let waits = ruling == Ruling::Arriving && listed;
         let mut waiting = Vec::new();
-        // A copy made as it arrived: a delete for good that waited could no longer be held behind
-        // it once it may have been answered (refused, say), so none waits after one, and none of
-        // the rules that wait for the download deletes it for good ([`RulesWaiting::copied`], #566).
-        let mut copied = false;
         for mut rule in order {
-            let Some(m) = self.message(id).filter(|_| !going.has(id)) else { break };
+            let Some(m) = self.message(id) else { break };
             // New mail: a rule its server has ran there as the server last had it, which is what
             // says whether the rules after it run, whatever was switched here and not sent yet.
             if let Some(server) = rule.server.as_ref().filter(|s| !now && !s.id.is_empty()) {
@@ -3345,18 +3019,14 @@ impl Mailbox {
                 // One that copies mail out of its account waits whole for the message: a copy in
                 // another mailbox is made of the whole message, which isn't here yet. It copies once
                 // the message is here, as Outlook's rule on the computer copies new mail into another
-                // account's folder; the deletes for good after it wait with it, as behind a rule
-                // that can't tell yet (#566).
+                // account's folder (#566).
                 let other = |f: &Id| self.folder(*f).is_some_and(|f| f.account != account);
                 let copies_out = waits && rule.actions.iter().any(|a| matches!(a, Action::CopyTo(f) if other(f)));
                 // One that moves it out of its account while a rule before it can't tell yet
                 // waits too: in another account, on another server, it would be past that rule's
                 // reach, which may have stopped the rest.
                 let moves_out = waits && unsure && rule.actions.iter().any(|a| matches!(a, Action::MoveTo(f) if other(f)));
-                // One that deletes for good while a rule before it can't tell yet waits whole, and
-                // acts once the message is here and that rule has had its say: its copy and its
-                // delete then go together, the delete held behind the copy until it is answered.
-                if copies_out || moves_out || (waits && unsure && !copied && rule.actions.contains(&Action::DeleteForGood)) {
+                if copies_out || moves_out {
                     waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
                     unsure |= copies_out;
                 } else {
@@ -3375,9 +3045,7 @@ impl Mailbox {
                     } else {
                         std::borrow::Cow::Borrowed(&rule.actions)
                     };
-                    let for_good = matches!(ruling, Ruling::Arriving | Ruling::Now) && !unsure;
-                    copied |= actions.iter().any(|a| matches!(a, Action::CopyTo(_)));
-                    if self.act(id, &actions, clock, for_good, from_bin, going) {
+                    if self.act(id, &actions, clock) {
                         ran.push(rule.name.clone());
                     }
                 }
@@ -3386,15 +3054,14 @@ impl Mailbox {
                 break;
             }
         }
-        // Moved out of the account, it didn't arrive where it is now; deleted for good, it is gone.
-        if !going.has(id)
-            && let Ok(m) = self.message_mut(id)
+        // Moved out of the account, it didn't arrive where it is now.
+        if let Ok(m) = self.message_mut(id)
             && m.account == account
         {
             m.rule_alert |= alert;
             if !waiting.is_empty() && m.unfetched {
                 let marked = Some(crate::Marks::of(m));
-                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, copied, marked }));
+                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, marked }));
             }
         }
         ran
@@ -3404,20 +3071,11 @@ impl Mailbox {
     /// say ([`Message::rules_waiting`], #566), in the order they ran then, and only where they
     /// left it: one moved since (by the owner, say), even back, is let alone, as a move takes
     /// what waits for it away ([`Mailbox::move_message`]). A rule that acted then isn't run
-    /// again; one that deletes for good and waited on a rule before it acts now, unless that rule
-    /// applies after all and stops the rules after it. Returns the names of the rules that
-    /// acted. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]), as
-    /// it would have as the message arrived.
+    /// again; one that copies or moves it into another account and waited acts now, unless a rule
+    /// before it applies after all and stops the rules after it. Returns the names of the rules
+    /// that acted. One that shows a desktop alert marks the message for it
+    /// ([`Message::rule_alert`]), as it would have as the message arrived.
     pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
-        let mut going = Going::default();
-        let ran = self.run_waiting_rules_batched(id, clock, &mut going);
-        self.rules_done(going);
-        ran
-    }
-
-    /// [`Mailbox::run_waiting_rules`] of one of many messages fetched together: what the rules
-    /// delete for good goes once they have had their say of them all ([`Mailbox::rules_done`]).
-    pub fn run_waiting_rules_batched(&mut self, id: Id, clock: &crate::RuleClock, going: &mut Going) -> Vec<String> {
         let mut ran = Vec::new();
         if !self.message(id).is_some_and(|m| m.rules_waiting.is_some() && !m.partly_here()) {
             return ran;
@@ -3425,35 +3083,31 @@ impl Mailbox {
         let Ok(m) = self.message_mut(id) else { return ran };
         let Some(waiting) = m.rules_waiting.take() else { return ran };
         let account = m.account;
-        // (After a copy made as it arrived, as before the rules that couldn't tell have had their
-        // say, nothing goes for good; nor once its categories, flag or importance were changed
-        // meanwhile, which the rules that acted then may have read: then nothing goes onto
-        // another account's server either, by a copy or a move.)
+        // (Once its categories, flag or importance were changed meanwhile, which the rules that
+        // acted then may have read, nothing goes onto another account's server, by a copy or a
+        // move.)
         let changed = waiting.marked.as_ref().is_some_and(|then| *then != crate::Marks::of(m));
         if m.folder != waiting.folder || !self.rules_reach(account) {
             return ran;
         }
-        let mut unsure = waiting.copied || changed;
         // A rule that still can't tell, now the message is here (a header past what is kept):
         // nothing after it goes into another account either, where it would be past that rule's
         // reach, as at Run Rules Now ([`Mailbox::rules_on`]).
         let mut cant_tell = false;
         let mut alert = false;
         for wait in waiting.rules.iter().take(MAX_RULES) {
-            let Some(m) = self.message(id).filter(|m| m.account == account && !going.has(id)) else { break };
+            let Some(m) = self.message(id).filter(|m| m.account == account) else { break };
             let Some(mut rule) = self.rules.iter().find(|r| r.id == wait.rule && r.is_for(account)).cloned() else { continue };
             if let Some(server) = rule.server.as_ref().filter(|s| !s.id.is_empty()) {
                 rule.enabled = server.synced_enabled;
             }
             let how = self.rule_matching(&rule, account, clock.zone);
             if !rule.matches_in(m, &how) {
-                let undecided = rule.undecided_in(m, &how);
-                (unsure, cant_tell) = (unsure || undecided, cant_tell || undecided);
+                cant_tell |= rule.undecided_in(m, &how);
                 continue;
             }
-            // (A delete for good that waited on its own, which an earlier build of #566 kept in the
-            // file, doesn't go: the copy its rule made as the message arrived may have been
-            // refused since, and nothing holds the delete behind it.)
+            // (One that acted as the message arrived but for a delete that waited on its own, which
+            // an earlier build of #566 kept in the file, isn't run again.)
             if !rule.on_server() && !wait.delete_only {
                 alert |= rule.alert;
                 let out = |a: &Action| matches!(a, Action::CopyTo(f) | Action::MoveTo(f) if self.folder(*f).is_some_and(|f| f.account != account));
@@ -3462,7 +3116,7 @@ impl Mailbox {
                 } else {
                     std::borrow::Cow::Borrowed(&rule.actions)
                 };
-                if self.act(id, &actions, clock, !unsure, false, going) {
+                if self.act(id, &actions, clock) {
                     ran.push(rule.name.clone());
                 }
             }
@@ -3470,9 +3124,8 @@ impl Mailbox {
                 break;
             }
         }
-        // Moved out of the account, it didn't arrive where it is now; deleted for good, it is gone.
-        if !going.has(id)
-            && let Ok(m) = self.message_mut(id)
+        // Moved out of the account, it didn't arrive where it is now.
+        if let Ok(m) = self.message_mut(id)
             && m.account == account
         {
             m.rule_alert |= alert;
@@ -3483,15 +3136,6 @@ impl Mailbox {
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
     /// folder, as Outlook offers): whether it acted. A rule for another account's mail doesn't.
     pub fn run_rule(&mut self, id: Id, rule: Id, clock: &crate::RuleClock) -> bool {
-        let mut going = Going::default();
-        let acted = self.run_rule_batched(id, rule, clock, &mut going);
-        self.rules_done(going);
-        acted
-    }
-
-    /// [`Mailbox::run_rule`] over one of the messages of a folder: what it deletes for good goes
-    /// once it has run over them all ([`Going`], [`Mailbox::rules_done`]).
-    pub fn run_rule_batched(&mut self, id: Id, rule: Id, clock: &crate::RuleClock, going: &mut Going) -> bool {
         let Some(m) = self.message(id) else { return false };
         let account = m.account;
         if !self.rules_reach(account) {
@@ -3501,8 +3145,7 @@ impl Mailbox {
         if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
             return false;
         }
-        let from_bin = self.in_deleted_items(id);
-        self.act(id, &rule.actions, clock, true, from_bin, going)
+        self.act(id, &rule.actions, clock)
     }
 
     /// Whether message `id` lies in its account's Deleted Items, or a folder under it: looked for
@@ -3526,34 +3169,21 @@ impl Mailbox {
         false
     }
 
-    /// Do what a rule says to a message: change it first, then copy it, then move it, and delete
-    /// it for good last ([`Action::stage`]), unless not `for_good`; one deleted for good is noted
-    /// in `going`, and goes when the run is done ([`Mailbox::rules_done`]). Whether the rule did
-    /// anything: not when what it does was refused (a folder gone, a server that keeps the
-    /// message) or changes nothing (a mark the message has already, a move into the folder it is
-    /// in), so that Run Rules Now doesn't count it.
-    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock, for_good: bool, from_bin: bool, going: &mut Going) -> bool {
+    /// Do what a rule says to a message: change it first, then copy it, then move it
+    /// ([`Action::stage`]). Whether the rule did anything: not when what it does was refused (a
+    /// folder gone) or changes nothing (a mark the message has already, a move into the folder it
+    /// is in, a delete of mail in Deleted Items), so that Run Rules Now doesn't count it.
+    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock) -> bool {
         let mut ordered: Vec<&Action> = actions.iter().collect();
         ordered.sort_by_key(|a| a.stage());
-        // A copy that couldn't be made: the message is then the only one, and isn't deleted.
-        let mut no_copy = false;
         let mut did = false;
         // The categories it was given, for the list of the account it ends up in: a move into
         // another account's folder comes after them ([`Action::stage`]), and so does a copy, for
         // the list of the account the copy is in.
         let mut categorized: Vec<String> = Vec::new();
         let mut copied_into: Vec<Id> = Vec::new();
-        // Deleted for good, unless its server keeps it (a JMAP account's: the next run would bring
-        // it back).
-        let gone = |mb: &Mailbox, going: &mut Going| {
-            let goes = !mb.stays_on_server(id);
-            if goes {
-                going.add(id);
-            }
-            goes
-        };
         for action in ordered {
-            if self.message(id).is_none() || going.has(id) {
+            if self.message(id).is_none() {
                 break;
             }
             match action {
@@ -3566,36 +3196,23 @@ impl Mailbox {
                 Action::CopyTo(folder) => {
                     let at = u64::try_from(clock.now).unwrap_or_default();
                     let copy = if self.is_send_queue(*folder) { None } else { self.copy_message_marked(id, *folder, at).ok() };
-                    let copied = copy.is_some();
                     if let Some(account) = copy.and_then(|c| self.message(c)).map(|m| m.account)
                         && !copied_into.contains(&account)
                     {
                         copied_into.push(account);
                     }
-                    did |= copied;
-                    // A copy of the headers here isn't a copy of the message on the server.
-                    no_copy |= !copied || self.message(id).is_some_and(|m| m.partly_here() && !m.unfetched);
+                    did |= copy.is_some();
                 }
-                Action::Delete | Action::DeleteForGood if no_copy => {}
-                // Held back, to be done once the message is here whole: nothing done yet, so not
-                // counted as done.
-                Action::DeleteForGood if !for_good => {}
-                // To Deleted Items, as Outlook's "delete it" does; for good where an account has
-                // none, and from Deleted Items when the rules are run over it (`from_bin`), as
-                // [`Mailbox::delete_message`] does. Mail a rule moved there as it arrived is
-                // deleted already: a delete for good is only ever a rule's "delete permanently"
-                // or the owner's run over Deleted Items (#566).
+                // To Deleted Items, as Outlook's "delete it" does, and never for good: mail in
+                // Deleted Items already (Run Rules Now over it), or in an account with none, stays
+                // where it is (#566).
                 Action::Delete => {
-                    let Some((account, at)) = self.message(id).map(|m| (m.account, m.folder)) else { break };
+                    let Some(account) = self.message(id).map(|m| m.account) else { break };
                     did |= match self.folder_of_kind(account, FolderKind::Deleted) {
-                        Some(d) if !self.subtree(d).contains(&at) => self.move_message(id, d).is_ok(),
-                        Some(_) if !from_bin => false,
-                        // A delete for good, held back as one (#566).
-                        _ if !for_good => false,
-                        _ => gone(self, going),
+                        Some(d) if !self.in_deleted_items(id) => self.move_message(id, d).is_ok(),
+                        _ => false,
                     };
                 }
-                Action::DeleteForGood => did |= gone(self, going),
                 change => {
                     let Ok(m) = self.message_mut(id) else { break };
                     // Only what it changes counts: a mark it has already is no change.
@@ -3623,8 +3240,7 @@ impl Mailbox {
                 }
             }
         }
-        // (Not for one deleted for good: nothing of it carries them; its copies do.)
-        let kept = self.message(id).filter(|_| !going.has(id)).map(|m| m.account);
+        let kept = self.message(id).map(|m| m.account);
         for account in kept.into_iter().chain(copied_into) {
             for c in &categorized {
                 self.adopt_category(account, c);

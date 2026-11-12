@@ -280,28 +280,21 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     let clock = s.rule_clock();
     let alerted = |s: &Session, id: Id| s.mailbox.message(id).is_some_and(|m| m.rule_alert);
     let mut alerts = Vec::new();
-    // What they delete for good goes together once they have had their say (#566).
-    let mut going = mailcraft_model::Going::default();
     for id in &taken {
         let before = alerted(s, *id);
-        s.mailbox.run_waiting_rules_batched(*id, &clock, &mut going);
+        s.mailbox.run_waiting_rules(*id, &clock);
         if !before && alerted(s, *id) {
             alerts.push(*id);
         }
     }
-    s.mailbox.rules_done(going);
     // Older than its mail to keep offline (the owner opened it): whole until the mailbox is
     // opened again (#143).
     let window = mailcraft_model::OfflineWindow::of(&s.mailbox, s.now());
     let outside: Vec<Id> = taken.iter().copied().filter(|id| s.mailbox.message(*id).is_some_and(|m| !window.within(m))).collect();
     s.kept_for_now.extend(outside);
     let taken = taken.len();
-    // Gone before it could be fetched: a message being moved out of the account stays as it is,
-    // and a copy that waited for the bytes it came as from there waits no more (#566).
+    // Gone before it could be fetched: a message being moved out of the account stays as it is.
     let incomplete = graph_up::missing(&mut s.mailbox, account, &result.missing);
-    if incomplete > 0 {
-        super::mail::check_again::settle(&mut s.mailbox);
-    }
     // Refused although there: not asked for again in the background this session.
     s.graph_unfetchable.extend(result.failed.iter().take(1_000).map(|id| (account, id.clone())));
     if taken + incomplete > 0 {
@@ -394,8 +387,8 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
                 MessageOutcome::Done { .. } => taken.pushed += 1,
                 _ => taken.updated += 1,
             }
-            // A message's server id is new or gone, or a message is put back as its server's: where
-            // each message is, is looked at afresh, as for an Exchange server account.
+            // A message's server id is new or gone (a copy's, say): where each message is, is
+            // looked at afresh, as for an Exchange server account (#566).
             s.graph_index = Default::default();
         }
     }

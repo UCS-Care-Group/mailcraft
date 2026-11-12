@@ -26,10 +26,6 @@ pub(super) struct Removal {
     /// The deletions already queued for a Microsoft server, by account and the server's id of the
     /// message: worked out at the first one to be added.
     deletes: Option<HashSet<(Id, String)>>,
-    /// The copies on their way to a server ([`Queued::PlaceMessage`]) and the account of each, by
-    /// the message each was made of ([`Mailbox::copy_waits_for`]): a delete for good of that
-    /// message on its own server waits for them (#566).
-    copies: HashMap<Id, Vec<(Id, Id)>>,
     /// Messages whose copy waiting to be made on a server (or copied there) is no longer to be.
     unplaced: HashSet<Id>,
     /// The messages removed.
@@ -44,13 +40,7 @@ impl Removal {
                 moves.entry(*message).or_insert(at);
             }
         }
-        let mut copies: HashMap<Id, Vec<(Id, Id)>> = HashMap::new();
-        for q in &mb.queued {
-            if let Queued::PlaceMessage { account, message, source: Some(s), .. } = q {
-                copies.entry(*s).or_default().push((*message, *account));
-            }
-        }
-        Removal { moves, deletes: None, copies, unplaced: HashSet::new(), gone: HashSet::new() }
+        Removal { moves, deletes: None, unplaced: HashSet::new(), gone: HashSet::new() }
     }
 }
 
@@ -107,14 +97,6 @@ impl Mailbox {
     /// messages something waited for before the first of them was moved: moving one adds nothing
     /// for another, so a big move takes time in proportion to its size rather than to its square.
     pub fn move_each(&mut self, moves: &[(Id, Id)]) -> Result<Vec<(Id, Id)>, ModelError> {
-        self.move_each_reading(moves, &HashSet::new())
-    }
-
-    /// [`Mailbox::move_each`], where the caller read whole on this computer the bytes the messages
-    /// `here` came as (#30): such a copy, on its way to its server while the message it was copied
-    /// from stays on its own server until it is there ([`Mailbox::held_on_its_way`], #566), may go
-    /// where no server is given it, which then holds them.
-    pub fn move_each_reading(&mut self, moves: &[(Id, Id)], here: &HashSet<Id>) -> Result<Vec<(Id, Id)>, ModelError> {
         let pending = self.pending.iter().filter_map(|p| match p {
             Pending::Move { message, .. } => Some(*message),
             Pending::Delete { .. } => None,
@@ -130,7 +112,7 @@ impl Mailbox {
             if self.folder(*folder).is_some() && self.stays_on_server(*id) {
                 return Err(invalid(NOT_MOVING_YET));
             }
-            self.move_anyway(*id, *folder, !waited.contains(id), here.contains(id))?;
+            self.move_anyway(*id, *folder, !waited.contains(id))?;
             moved.push((*id, account));
         }
         Ok(moved)
@@ -147,18 +129,6 @@ impl Mailbox {
             let m = self.message(id).ok_or(not_found("message", id))?;
             (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
         };
-        // A copy of it still on its way to another account's server: the server's original waits
-        // for that copy's answer, and comes back here should the copy be refused (#566), with the
-        // copy's content, which the copy names for the mailbox file (what is kept here isn't).
-        // (As `copy_waits_for`: a copy that went for good earlier in the removal is no more.)
-        let copies = r.copies.remove(&id).unwrap_or_default();
-        let waits = copies.iter().any(|(copy, to)| self.message(*copy).is_some_and(|m| m.account == *to));
-        let kept = waits.then(|| self.message(id).map(|m| Box::new(m.without_content()))).flatten();
-        // The bytes a protected message came as (#30), which a copy made at the mailbox's cap on
-        // them went without: the copies have them now, the same bytes it lets go of.
-        if kept.is_some() {
-            self.originals_to_copies(id, &copies);
-        }
         self.queue_graph_delete_in(id, true, r);
         // (Where the removal found it; should it not be there, it is looked for.)
         let waiting = match r.moves.get(&id) {
@@ -169,14 +139,14 @@ impl Mailbox {
         match waiting.and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
                 if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen, kept };
+                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
                     *op = delete;
                 }
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
                 if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen, kept });
+                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen });
                 }
             }
         }

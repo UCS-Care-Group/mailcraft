@@ -2317,15 +2317,7 @@ impl Session {
     pub(crate) fn placeable(&self, m: &Message) -> Result<Option<Arc<Message>>, CmdError> {
         let whole = self.loaded_message(m.id)?;
         let fell_back = m.original.is_some() && whole.original.is_none();
-        let may_hold = crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id);
-        // A copy of one deleted for good here, which goes from its server once the copy is on its
-        // own (#566), goes only once the bytes it came as are whole on the disk here, as a copy
-        // something was moved out of is let go of ([`crate::cmd::graph_place::safe_here`]): then
-        // nothing can be lost with that one, wherever the copy is put and whatever of it.
-        if may_hold && m.original.is_some() && self.mailbox.held_for_copy(m.id).is_some() && !self.original_readable(m, true) {
-            return Ok(None);
-        }
-        Ok((!fell_back || !may_hold).then_some(whole))
+        Ok((!fell_back || !crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id)).then_some(whole))
     }
 
     /// Why message `m`, moved elsewhere, waits for the bytes it came as (#30), when it does
@@ -3244,20 +3236,6 @@ impl Session {
             .collect()
     }
 
-    /// Whether undoing (`redo`: redoing) changes the rules and leaves one switched on that deletes
-    /// mail for good here (#566).
-    pub fn undo_rules_delete_for_good(&self, redo: bool) -> bool {
-        let step = if redo { self.redo.last() } else { self.history.last() };
-        step.is_some_and(|step| crate::agent::undo_rules_delete_for_good(&self.mailbox, &step.mailbox))
-    }
-
-    /// The names of the rules [`Session::undo_rules_delete_for_good`] finds, for the owner's
-    /// question.
-    pub fn undo_rules_deleting(&self, redo: bool) -> Vec<String> {
-        let step = if redo { self.redo.last() } else { self.history.last() };
-        step.map(|step| crate::agent::undo_rules_deleting(&self.mailbox, &step.mailbox)).unwrap_or_default()
-    }
-
     /// Whether undoing the last step (or redoing, `redo`) would take a message away: a copy or an
     /// import undone, a permanent delete redone (#473), as `mail.delete` asks for the ones it
     /// deletes for good. It runs the merge the undo itself runs, on a copy of the mailbox (O(n)),
@@ -3363,7 +3341,7 @@ impl Session {
 
     /// The accounts on whose servers rules file mail, when undoing the last step (or redoing,
     /// `redo`) changes the rules and leaves such rules switched on (#566), as
-    /// [`Session::undo_rules_delete_for_good`] reads a rule that deletes.
+    /// [`Session::undo_places`] reads a message.
     pub fn undo_rules_onto_server(&self, redo: bool) -> Vec<Id> {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
         crate::agent::undo_rules_onto_another_server(self, &step.mailbox)
@@ -3391,10 +3369,9 @@ impl Session {
     }
 
     /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
-    /// the like, a draft (or puts back an earlier version of one), or another message, or it
-    /// changes the rules and leaves one switched on that deletes mail for good (#566).
+    /// the like, a draft (or puts back an earlier version of one), or another message.
     pub fn undo_deletes(&self, redo: bool) -> bool {
-        if !self.undo_drafts(redo).is_empty() || self.undo_rules_delete_for_good(redo) {
+        if !self.undo_drafts(redo).is_empty() {
             return true;
         }
         let (taken, items) = self.undo_takes(redo);

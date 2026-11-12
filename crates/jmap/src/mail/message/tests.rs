@@ -363,3 +363,19 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
         GraphMessage { server: ServerMessage { id: "E2".into(), folder: "M3".into(), read: true, ..Default::default() }, ..Default::default() }
     );
 }
+
+/// Recipients dropped before the MIME reader sees them (past the 500 fields a block takes, or past
+/// the room a To list has) mark the message cut, so that a rule about "me" can't tell of it instead
+/// of reading a short To (#566).
+#[test]
+fn recipients_dropped_before_the_reader_still_mark_a_cut() {
+    let mut junk: Vec<(String, String)> = (0..MAX_FIELDS).map(|i| ("X-Junk".to_string(), format!("{i}"))).collect();
+    junk.push(("To".into(), "me@example.org".into()));
+    let late: Vec<(&str, &str)> = junk.iter().map(|(n, v)| (n.as_str(), v.as_str())).collect();
+    let past_the_fields = read(&late);
+    let long: String = (0..600).map(|i| format!("someone.with.a.longer.name.{i:04}@department.example.org, ")).collect::<String>() + "me@example.org";
+    let past_the_room = read(&[("To", long.as_str())]);
+    let found =
+        [(past_the_fields.to.is_empty(), past_the_fields.cut), (past_the_room.to.iter().all(|a| a.email != "me@example.org"), past_the_room.cut)];
+    assert_eq!(found, [(true, true), (true, true)], "(dropped, marked cut) for: To past 500 fields; a To over its room");
+}

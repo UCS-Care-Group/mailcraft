@@ -298,21 +298,22 @@ fn run_rules_now_reads_an_invitation_but_not_a_calendar_part_too_large_to_be_sho
         enabled: true,
         conditions: vec![Condition::FromContains(vec!["ada".into()])],
         exceptions: vec![Condition::MeetingRequest],
-        actions: vec![Action::DeleteForGood],
+        actions: vec![Action::Delete],
         stop: false,
         ..Default::default()
     });
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     // The invitation is read, flagged and kept; mail that isn't one is deleted.
-    assert_eq!(s.mailbox.message(asks).unwrap().flag, mailcraft_model::FlagStatus::Flagged);
-    assert!(s.mailbox.message(plain).is_none());
+    assert_eq!(s.mailbox.message(asks).map(|m| (m.flag, m.folder)), Some((mailcraft_model::FlagStatus::Flagged, inbox)));
+    let deleted = s.mailbox.folder_of_kind(s.mailbox.message(plain).unwrap().account, mailcraft_model::FolderKind::Deleted);
+    assert_eq!(s.mailbox.message(plain).map(|m| m.folder), deleted);
     // The part too large to be shown isn't asked for, and what it is can't be told: neither rule
     // acts on it, and it isn't deleted for not being an invitation.
     let large = (crate::session::MAX_CALENDAR_PART + 1) as u64;
     assert!(!noting.asked.lock().unwrap().contains(&large));
     let huge = s.mailbox.message(huge).unwrap();
     assert!(!huge.attachments[0].is_loaded());
-    assert_eq!(huge.flag, mailcraft_model::FlagStatus::None);
+    assert_eq!((huge.flag, huge.folder), (mailcraft_model::FlagStatus::None, inbox));
 }
 
 #[test]
@@ -493,13 +494,13 @@ fn an_agents_move_to_the_outbox_in_a_search_is_asked_about_what_it_sends() {
     );
 }
 
-/// Run Rules Now with "body contains" and "delete permanently" while a message's text kept on
+/// Run Rules Now with "body contains" and "delete it" while a message's text kept on
 /// disk can't be read just now (a file another program holds, a damaged file): the rule doesn't
 /// read MailCraft's own note in its place ("This message's text is unavailable…") as the
 /// message's text, as it doesn't the note of a message too large to download, and deletes nothing
-/// for good on it (#566).
+/// on it (#566).
 #[test]
-fn run_rules_now_doesnt_delete_for_good_on_the_note_of_a_text_that_couldnt_be_read() {
+fn run_rules_now_doesnt_delete_on_the_note_of_a_text_that_couldnt_be_read() {
     let tmp = Temp::new("rule-unreadable");
     let path = tmp.file();
     let mb = mailbox(24);
@@ -516,32 +517,16 @@ fn run_rules_now_doesnt_delete_for_good_on_the_note_of_a_text_that_couldnt_be_re
         name: "Gone".into(),
         enabled: true,
         conditions: vec![Condition::BodyContains(vec!["unavailable".into()])],
-        actions: vec![Action::DeleteForGood],
+        actions: vec![Action::Delete],
         stop: false,
         ..Default::default()
     });
     s.content_source = Some(Arc::new(Unreadable));
     let kept_outside = s.mailbox.messages.values().filter(|m| m.body_is_kept()).count();
     let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].as_u64();
-    let left = s.mailbox.messages.len();
+    let left = s.mailbox.messages_in(inbox).count();
     assert!(
-        s.mailbox.message(victim).is_some(),
-        "deleted for good on MailCraft's note in place of its text: matched {matched:?} of {kept_outside} kept on disk, {left} of 24 left"
+        s.mailbox.message(victim).is_some_and(|m| m.folder == inbox),
+        "deleted on MailCraft's note in place of its text: matched {matched:?} of {kept_outside} kept on disk, {left} of 24 left in the Inbox"
     );
-}
-
-/// What a server said left its folders survives a quit (#566).
-#[test]
-fn what_left_the_server_survives_a_save_and_an_open() {
-    let tmp = Temp::new("left-server");
-    let path = tmp.file();
-    let mut mb = mailbox(4);
-    let account = mb.accounts[0].id;
-    mb.left_server.entry(account).or_default().note(["filed-news@mail.example".to_string()]);
-    mb.left_server.entry(account).or_default().end_run(true);
-    mb.left_server.entry(account).or_default().note(["other@mail.example".to_string()]);
-    save(&path, &mb).unwrap();
-    clear_cache();
-    let back = open(&path).unwrap().mailbox;
-    assert_eq!(back.left_server, mb.left_server);
 }

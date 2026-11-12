@@ -4655,11 +4655,10 @@ pub(crate) mod rules {
         MarkRead,
         SetImportance,
         Delete,
-        DeleteForGood,
     }
 
     impl Do {
-        const ALL: [Do; 10] = [
+        const ALL: [Do; 9] = [
             Do::Move,
             Do::Copy,
             Do::Categorize,
@@ -4669,7 +4668,6 @@ pub(crate) mod rules {
             Do::MarkRead,
             Do::SetImportance,
             Do::Delete,
-            Do::DeleteForGood,
         ];
 
         fn label(self) -> &'static str {
@@ -4683,7 +4681,6 @@ pub(crate) mod rules {
                 Do::MarkRead => "Mark as read",
                 Do::SetImportance => "Set importance",
                 Do::Delete => "Delete",
-                Do::DeleteForGood => "Delete permanently",
             }
         }
 
@@ -4721,7 +4718,6 @@ pub(crate) mod rules {
                 Do::MarkRead => json!({"type": "markRead"}),
                 Do::SetImportance => json!({"type": "setImportance", "value": self.importance.code()}),
                 Do::Delete => json!({"type": "delete"}),
-                Do::DeleteForGood => json!({"type": "deleteForGood"}),
             }
         }
     }
@@ -5542,9 +5538,6 @@ pub(crate) mod rules {
                             choice(ui, ("do_due", i), 110.0, &mut a.due, &dues, |d| due_label(d).to_string());
                         }
                         Do::ClearCategories | Do::ClearFlag | Do::MarkRead | Do::Delete => {}
-                        Do::DeleteForGood => {
-                            ui.label(egui::RichText::new(tl!("It skips Deleted Items")).color(t.orange).size(11.5));
-                        }
                     }
                     if many && remove_button(ui, tl!("Remove this action")) {
                         drop_act = Some(i);

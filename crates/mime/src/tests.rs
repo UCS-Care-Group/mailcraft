@@ -747,10 +747,10 @@ fn a_field_past_the_split_cap_is_said_cut() {
         enabled: true,
         conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
         exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])],
-        actions: vec![Action::DeleteForGood],
+        actions: vec![Action::Delete],
         ..Default::default()
     };
-    assert!(!rule.matches(&m), "the rule deletes for good a message its exception was to leave alone");
+    assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
     assert!(m.headers_cut || m.header_contains("keep-this"), "a field left out, and nothing says so");
 }
 
@@ -889,7 +889,7 @@ fn a_header_rule_cant_tell_of_a_message_without_its_lines_read_into_it() {
 }
 
 /// "Except if the header contains X-Priority: 1" leaves such a message alone: a rule that deletes
-/// permanently doesn't act on it.
+/// doesn't act on it.
 #[test]
 fn a_header_exception_on_a_line_not_kept_leaves_the_message_alone() {
     let raw = b"From: ann@example.org\r\nTo: bo@example.org\r\nSubject: hello\r\nX-Priority: 1 (Highest)\r\n\r\nbody\r\n";
@@ -898,7 +898,7 @@ fn a_header_exception_on_a_line_not_kept_leaves_the_message_alone() {
         enabled: true,
         conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["hello".into()])],
         exceptions: vec![mailcraft_model::Condition::HeaderContains(vec!["x-priority: 1".into()])],
-        actions: vec![mailcraft_model::Action::DeleteForGood],
+        actions: vec![mailcraft_model::Action::Delete],
         ..Default::default()
     };
     assert!(!rule.matches(&m), "the rule acts on a message its exception was to leave alone");
@@ -918,7 +918,7 @@ fn a_header_rule_reads_the_lines_read_into_the_message_as_they_came() {
     assert!(missed.is_empty(), "a header rule decides these words aren't in the header as it came: {missed:?}");
 }
 
-/// "Delete permanently, except if the header contains undisclosed-recipients" leaves alone a
+/// "Delete it, except if the header contains undisclosed-recipients" leaves alone a
 /// message whose To line as it came is `undisclosed-recipients:;` (#566).
 #[test]
 fn a_header_exception_on_the_to_line_as_it_came_leaves_the_message_alone() {
@@ -928,8 +928,8 @@ fn a_header_exception_on_the_to_line_as_it_came_leaves_the_message_alone() {
         enabled: true,
         conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["hello".into()])],
         exceptions: vec![mailcraft_model::Condition::HeaderContains(vec!["undisclosed-recipients".into()])],
-        actions: vec![mailcraft_model::Action::DeleteForGood],
+        actions: vec![mailcraft_model::Action::Delete],
         ..Default::default()
     };
-    assert!(!rule.matches(&m), "the rule deletes for good a message its exception was to leave alone");
+    assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
 }

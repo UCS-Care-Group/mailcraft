@@ -433,22 +433,6 @@ fn mail_moves_and_copies_between_a_shared_mailbox_and_its_owners_once_it_is_whol
     apply_graph_mail(&mut s, result).unwrap();
     assert!(s.mailbox.message(copy).is_none() && s.mailbox.message(mine).is_some());
     assert!(s.sync_status.contains("Couldn't copy"), "{}", s.sync_status);
-    // Copied there again and then deleted for good here (#566): its delete waits for the copy,
-    // and the copy refused brings it back.
-    let server = s.mailbox.message(mine).and_then(|m| m.server.clone()).unwrap();
-    let copy = s.run("mail.copy", &json!({"ids": [mine], "folder": their_inbox})).unwrap()["copies"][0].as_u64().unwrap();
-    s.run("mail.deletePermanently", &json!({"ids": [mine]})).unwrap();
-    assert!(!graph_mail_request(&s, owner).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { .. })));
-    let theirs_asked = graph_mail_request(&s, shared).unwrap();
-    assert!(matches!(theirs_asked.places.as_slice(), [p] if p.message == copy), "{:?}", theirs_asked.places);
-    let mut result = GraphMailResult { account: shared, email: SHARED.into(), ..Default::default() };
-    result.placed =
-        vec![mailcraft_model::sync::PlaceDone { change: theirs_asked.places[0].without_data(), outcome: MessageOutcome::Refused { status: 400 } }];
-    apply_graph_mail(&mut s, result).unwrap();
-    assert!(s.mailbox.message(copy).is_none());
-    let back = s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|x| x.id == server.id)).map(|m| (m.id, m.account));
-    assert_eq!(back, Some((mine, owner)));
-    assert!(!graph_mail_request(&s, owner).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { .. })));
 
     // Between two shared mailboxes of the owner's too; a draft stays in its own mailbox.
     let other = add(&mut s, json!({"address": "sales@example.org"})).unwrap();
@@ -783,15 +767,14 @@ fn a_reply_in_a_shared_mailbox_starts_with_its_own_reply_signature_and_the_owner
 /// The owner's rules leave a shared mailbox's mail alone however they are run, as arriving mail
 /// is left alone and `rules.fromMessage` refuses one of its messages: Run Rules Now over its
 /// Inbox is refused, and a rule for every account (as a mailbox from before rules had accounts
-/// holds) that deletes for good deletes nothing on the shared mailbox's server.
+/// holds) that deletes moves nothing on the shared mailbox's server.
 #[test]
 fn run_rules_now_over_a_shared_mailbox_leaves_its_mail_alone() {
     let (mut s, owner, shared) = both();
     let their_inbox = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
     let before = theirs(&s, shared);
     assert_eq!(before.len(), 2);
-    let gone =
-        json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "support@example.org"}], "actions": [{"type": "deleteForGood"}]});
+    let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "support@example.org"}], "actions": [{"type": "delete"}]});
     let every = s.run("rules.add", &gone).unwrap()["id"].as_u64().unwrap();
     s.mailbox.rules.iter_mut().find(|r| r.id == every).unwrap().account = 0;
     let mut mine = gone.clone();
@@ -806,7 +789,7 @@ fn run_rules_now_over_a_shared_mailbox_leaves_its_mail_alone() {
         assert!(s.mailbox.run_rules(id, true, &clock).is_empty());
     }
     let asked = graph_mail_request(&s, shared).unwrap();
-    assert!(!asked.messages.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "{:?}", asked.messages);
+    assert!(!asked.messages.iter().any(|c| matches!(c, MessageChange::Delete { .. } | MessageChange::Move { .. })), "{:?}", asked.messages);
     assert_eq!(theirs(&s, shared), before);
     // The agent is asked as for any run of the rules, not as for a delete: the command refuses.
     let verdict = crate::agent::check(&s, "rules.run", &json!({"folder": their_inbox}), &[]);

@@ -389,8 +389,6 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
             Action::Delete => {
                 actions.insert("delete".into(), json!(true));
             }
-            // Graph's delete past the recoverable items is asked of no server (R3).
-            Action::DeleteForGood => return Err("a rule that deletes mail for good stays on this computer"),
             Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Err("the server's rules can't flag mail"),
             Action::ClearCategories => return Err("the server's rules can't clear categories"),
             Action::MoveTo(_) | Action::CopyTo(_) => return Err("a folder a rule puts mail in is named by the server's id"),

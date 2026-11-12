@@ -253,64 +253,15 @@ fn microsoft_with(s: &mut Session, name: &str) -> (Id, Id, Id) {
     (account, inbox, kept)
 }
 
+/// Whether a message `subject` of `account` lies in its Deleted Items, where a rule's Delete puts it.
+fn binned(s: &Session, account: Id, subject: &str) -> bool {
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.messages.values().any(|m| m.subject == subject && m.folder == deleted)
+}
+
 fn arrives(s: &mut Session, account: Id, subject: &str) {
     let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", subject)], ..Default::default() };
     graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() }).unwrap();
-}
-
-/// A rule copies new mail into a folder of its own Microsoft account and deletes it for good,
-/// after a rule that stops the others and can't tell yet (it reads the text). The rule waits
-/// whole for the download; then its copy and its delete go together, the delete held behind the
-/// copy, and when the server refuses the copy the message is still here and isn't deleted there.
-#[test]
-fn a_rule_that_copies_and_deletes_for_good_after_one_that_cant_tell_keeps_the_message_when_the_copy_is_refused() {
-    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
-    let mut s = Session::empty();
-    let (account, _, kept) = microsoft_with(&mut s, "Kept");
-    let first = json!({"name": "Drafts", "server": false, "stop": true,
-        "conditions": [{"type": "bodyContains", "value": "draft"}], "actions": [{"type": "flag"}]});
-    s.run("rules.add", &first).unwrap();
-    let keep = json!({"name": "Keep", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": kept}, {"type": "deleteForGood"}]});
-    s.run("rules.add", &keep).unwrap();
-    arrives(&mut s, account, "Plan");
-    assert!(super::graph_up::message_changes(&s, account, 100).0.is_empty(), "nothing goes before the download");
-    assert_eq!(here(&s, account, "N1").rules_waiting.as_ref().map(|w| w.rules.len()), Some(2));
-    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let changes = super::graph_up::message_changes(&s, account, 100).0;
-    let [copy @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy goes first, the delete waits behind it: {changes:?}") };
-    let refused = MessageChangeDone { change: copy.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
-    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
-    let left: Vec<Id> = s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| m.folder).collect();
-    assert_eq!(left.len(), 1, "the original is here again: {left:?}");
-    assert_ne!(left[0], kept);
-    let after = super::graph_up::message_changes(&s, account, 100).0;
-    assert!(!after.iter().any(|c| matches!(c, MessageChange::Delete { .. })), "no delete goes: {after:?}");
-}
-
-/// A rule that copies mail whose text says "invoice" can't tell yet as new mail is listed, and
-/// doesn't stop the others; a rule after it deletes that mail for good by its subject. As Outlook
-/// runs them, the invoice is copied and then the original deleted: here the delete waits for the
-/// download, and then goes behind the copy.
-#[test]
-fn a_delete_for_good_waits_for_an_earlier_copy_rule_that_cant_tell_yet() {
-    use mailcraft_model::sync::MessageChange;
-    let mut s = Session::empty();
-    let (account, _, kept) = microsoft_with(&mut s, "Invoices");
-    let copy = json!({"name": "Invoices", "server": false,
-        "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "copyTo", "value": kept}]});
-    s.run("rules.add", &copy).unwrap();
-    let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &gone).unwrap();
-    arrives(&mut s, account, "Plan");
-    assert!(super::graph_up::message_changes(&s, account, 100).0.is_empty(), "nothing is deleted before the copy rule can tell");
-    let fetched = vec![whole("N1", "Plan", "", "The invoice for May.")];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let changes = super::graph_up::message_changes(&s, account, 100).0;
-    assert!(matches!(changes.as_slice(), [MessageChange::Copy { .. }]), "the copy goes, the delete waits behind it: {changes:?}");
-    assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1")));
 }
 
 /// An IMAP account beside the one under test, read once: its Inbox, which a rule of the other
@@ -423,9 +374,8 @@ fn a_jmap_rule_copying_listed_mail_into_another_account_copies_it_once_it_is_fet
 }
 
 /// The download never comes: the server says it has no such message, then lists it as gone (it
-/// was deleted on a phone, say). Nothing was copied or deleted meanwhile, nothing waits in the
-/// queue for it, and a rule after the copy that deletes for good deleted nothing either: the
-/// message goes as the server says, and that is all.
+/// was deleted on a phone, say). Nothing was copied meanwhile, nothing waits in the queue for it:
+/// the message goes as the server says, and that is all.
 #[test]
 fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves_nothing_waiting() {
     use mailcraft_model::Queued;
@@ -435,20 +385,17 @@ fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves
     s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
     let (to, b) = imap_inbox(&mut s);
     copy_out(&mut s, account, to);
-    let gone = json!({"name": "Gone", "account": account, "server": false,
-        "conditions": [{"type": "subjectContains", "value": "Plan"}], "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &gone).unwrap();
     arrives(&mut s, account, "Plan");
     let id = here(&s, account, "N1").id;
     let about = |s: &Session| {
         s.mailbox.queued.iter().any(|q| match q {
-            Queued::PlaceMessage { message, source, .. } => *message == id || *source == Some(id),
+            Queued::PlaceMessage { message, .. } => *message == id,
             Queued::DeleteMessage { account: a, .. } => *a == account,
             _ => false,
         })
     };
-    // The delete for good waits with the copy: nothing is deleted before the download.
-    assert_eq!(here(&s, account, "N1").rules_waiting.as_ref().map(|w| w.rules.len()), Some(2));
+    // The copy waits: nothing goes before the download.
+    assert_eq!(here(&s, account, "N1").rules_waiting.as_ref().map(|w| w.rules.len()), Some(1));
     assert!(!about(&s) && super::graph_up::message_changes(&s, account, 100).0.is_empty());
     assert_eq!(copies(&s, to, b), (0, 0));
     // The fetch says the server has no such message.
@@ -465,122 +412,17 @@ fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves
     assert!(s.mailbox.messages.values().all(|m| m.rules_waiting.is_none()));
 }
 
-/// A rule copies new Microsoft mail into a folder of the account as it arrives (the server makes
-/// the copy); a later rule deletes for good mail whose text says "purge", which can't be told until
-/// the download, so it waits. The next Send/Receive sends the copy before the download (a large
-/// message, say) and the server refuses it. Once the message is downloaded the rule that waited
-/// deletes nothing for good, as after a copy made as it arrived it never does: nothing would hold
-/// the delete, and the message would be gone with no copy (#566).
-#[test]
-fn a_delete_for_good_that_waited_doesnt_go_after_a_copy_made_as_it_arrived() {
-    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
-    let mut s = Session::empty();
-    let (account, _, kept) = microsoft_with(&mut s, "Kept");
-    let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": kept}]});
-    s.run("rules.add", &copy).unwrap();
-    let purge = json!({"name": "Purge", "server": false, "conditions": [{"type": "bodyContains", "value": "purge"}],
-        "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &purge).unwrap();
-    arrives(&mut s, account, "Plan");
-    assert!(here(&s, account, "N1").rules_waiting.is_some(), "Purge waits for the download");
-    let changes = super::graph_up::message_changes(&s, account, 100).0;
-    let [copied @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy made as it arrived goes: {changes:?}") };
-    // The server refuses the copy (the mailbox is full, say).
-    let refused = MessageChangeDone { change: copied.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
-    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
-    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Plan").count(), 1, "the copy is taken away again");
-    // Downloaded later: the rule that waited has its say.
-    let fetched = vec![whole("N1", "Plan", "", "Please purge this after reading.")];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let left = s.mailbox.messages.values().filter(|m| m.subject == "Plan").count();
-    let deletes: Vec<MessageChange> =
-        super::graph_up::message_changes(&s, account, 100).0.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect();
-    assert!(
-        left > 0 || deletes.is_empty(),
-        "after a rule that copied it as it arrived, a later rule deleted it for good: {left} left here, the server told {deletes:?}"
-    );
-}
-
-/// [`a_delete_for_good_that_waited_doesnt_go_after_a_copy_made_as_it_arrived`] the other way
-/// round: the download comes before the copy's answer, and a refused copy leaves the original.
-#[test]
-fn a_delete_for_good_that_waited_doesnt_go_when_the_copy_is_refused_after_the_download() {
-    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
-    let mut s = Session::empty();
-    let (account, _, kept) = microsoft_with(&mut s, "Kept");
-    let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": kept}]});
-    s.run("rules.add", &copy).unwrap();
-    let purge = json!({"name": "Purge", "server": false, "conditions": [{"type": "bodyContains", "value": "purge"}],
-        "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &purge).unwrap();
-    arrives(&mut s, account, "Plan");
-    let fetched = vec![whole("N1", "Plan", "", "Please purge this after reading.")];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let changes = super::graph_up::message_changes(&s, account, 100).0;
-    let [copied @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy goes, and no delete: {changes:?}") };
-    let refused = MessageChangeDone { change: copied.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
-    graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
-    let left = s.mailbox.messages.values().filter(|m| m.subject == "Plan").count();
-    let deletes: Vec<MessageChange> =
-        super::graph_up::message_changes(&s, account, 100).0.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect();
-    assert_eq!((left, deletes), (1, vec![]), "the original stays and no delete is sent");
-}
-
-/// After a rule of this computer that copied new mail as it arrived, a later delete for good
-/// doesn't wait behind a rule that can't tell yet: it deletes nothing for good, and the message
-/// stays where the rules left it with its copy beside it, as the docs say (#566).
-#[test]
-fn a_delete_for_good_after_a_copy_made_as_mail_arrived_deletes_nothing() {
-    let mut s = Session::empty();
-    let (account, _, kept) = microsoft_with(&mut s, "Kept");
-    let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "copyTo", "value": kept}]});
-    s.run("rules.add", &copy).unwrap();
-    let unsure =
-        json!({"name": "Drafts", "server": false, "conditions": [{"type": "bodyContains", "value": "draft"}], "actions": [{"type": "flag"}]});
-    s.run("rules.add", &unsure).unwrap();
-    let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &gone).unwrap();
-    arrives(&mut s, account, "Plan");
-    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
-    graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-    let left: Vec<bool> = s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| m.folder == kept).collect();
-    assert_eq!(left.len(), 2, "the original and its copy: {left:?}");
-    assert!(left.contains(&true) && left.contains(&false), "{left:?}");
-}
-
-/// A rule deletes new mail for good on one page of a run; a later page of the run lists it again
-/// (changed on the server meanwhile): it isn't taken in again while its delete is still to go.
-#[test]
-fn mail_a_rule_deleted_for_good_on_one_page_isnt_taken_in_again_from_the_next() {
-    let mut s = Session::empty();
-    let (account, _, _) = microsoft_with(&mut s, "Kept");
-    let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &gone).unwrap();
-    let first = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], link: "L1".into(), ..Default::default() };
-    let again = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Notes")], link: "L2".into(), ..Default::default() };
-    let result = GraphMailResult { account, email: ME.into(), pages: vec![first, again], partial: true, ..Default::default() };
-    graph_mail::apply_graph_mail(&mut s, result).unwrap();
-    let back = s.mailbox.messages.values().any(|m| m.server.as_ref().is_some_and(|server| server.id == "N1"));
-    assert!(!back, "taken in again");
-    assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1")));
-}
-
-/// A rule deletes new mail for good, except if a header holds a word or the sender marked it
+/// A rule deletes new mail, except if a header holds a word or the sender marked it
 /// private. A message whose header fields run past what is kept of them (a mailing list's long
 /// trace, say) can't be told by the exception: the rule leaves it alone, though the one with the
 /// header near the top is told by it as ever.
 #[test]
-fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete_for_good() {
+fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete() {
     let mut s = Session::empty();
     let (account, _, _) = microsoft_with(&mut s, "Kept");
     let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
         "exceptions": [{"type": "headerContains", "value": "x-keep: yes"}, {"type": "sensitivity", "value": "private"}],
-        "actions": [{"type": "deleteForGood"}]});
+        "actions": [{"type": "delete"}]});
     s.run("rules.add", &gone).unwrap();
     let page = MessagePage {
         folder: "F-in".into(),
@@ -597,10 +439,7 @@ fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete_for_goo
     ];
     graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
     assert!(here(&s, account, "N2").headers_cut && !here(&s, account, "N1").headers_cut);
-    for id in ["N1", "N2", "N3"] {
-        let _ = here(&s, account, id);
-    }
-    assert!(!s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. })));
+    assert!(!binned(&s, account, "Plan"), "deleted past an exception it couldn't tell, or one that holds");
 }
 
 /// A Microsoft delta gives no size (`graph/mail/down.rs`: size 0, "not
@@ -631,16 +470,16 @@ fn a_size_rule_on_microsoft_new_mail_listed_without_a_size_waits_for_the_downloa
 /// The owner files new mail away before it is downloaded, which lets the rule waiting on it
 /// alone. An agent then moves it back into the Inbox (a move within the account, asked about
 /// nothing), or undoes the owner's move: the rule still lets it alone once it is downloaded,
-/// rather than deleting it permanently here and on the server.
+/// rather than deleting it.
 #[test]
-fn mail_moved_back_after_its_owner_filed_it_isnt_deleted_for_good_by_a_rule_that_waited() {
+fn mail_moved_back_after_its_owner_filed_it_isnt_deleted_by_a_rule_that_waited() {
     use crate::agent::{Verdict, check};
     let mut lost = Vec::new();
     for agent in [None, Some("mail.move"), Some("edit.undo")] {
         let mut s = Session::empty();
         let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
         let gone = json!({"name": "Invoices", "server": false,
-            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "deleteForGood"}]});
+            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "delete"}]});
         s.run("rules.add", &gone).unwrap();
         arrives(&mut s, account, "Plan");
         let m = here(&s, account, "N1").id;
@@ -661,12 +500,12 @@ fn mail_moved_back_after_its_owner_filed_it_isnt_deleted_for_good_by_a_rule_that
         let fetched = vec![whole("N1", "Plan", "", "The invoice for May.")];
         graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
         let after = s.mailbox.message(m);
-        let deletes = s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. }));
-        if !(after.is_some_and(|x| !x.unfetched) && !deletes) {
-            lost.push(format!("{agent:?}: here {}, delete for the server queued {deletes}", after.is_some()));
+        let deleted = binned(&s, account, "Plan");
+        if !(after.is_some_and(|x| !x.unfetched) && !deleted) {
+            lost.push(format!("{agent:?}: here {}, in Deleted Items {deleted}", after.is_some()));
         }
     }
-    assert!(lost.is_empty(), "the message the owner filed away is deleted for good after: {lost:?}");
+    assert!(lost.is_empty(), "the message the owner filed away is deleted after: {lost:?}");
 }
 
 /// The same filing away done on another device (a phone) on a Microsoft account, whose ids don't
@@ -674,12 +513,12 @@ fn mail_moved_back_after_its_owner_filed_it_isnt_deleted_for_good_by_a_rule_that
 /// that waited lets it alone once it is downloaded. Downloaded while it is in Kept, it is let
 /// alone too.
 #[test]
-fn mail_filed_away_and_back_on_a_phone_isnt_deleted_for_good_by_a_rule_that_waited() {
+fn mail_filed_away_and_back_on_a_phone_isnt_deleted_by_a_rule_that_waited() {
     for back in [true, false] {
         let mut s = Session::empty();
         let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
         let gone = json!({"name": "Invoices", "server": false,
-            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "deleteForGood"}]});
+            "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [{"type": "delete"}]});
         s.run("rules.add", &gone).unwrap();
         arrives(&mut s, account, "Plan");
         let m = here(&s, account, "N1").id;
@@ -699,121 +538,16 @@ fn mail_filed_away_and_back_on_a_phone_isnt_deleted_for_good_by_a_rule_that_wait
         }
         let fetched = vec![whole("N1", "Plan", "", "The invoice for May.")];
         graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-        let deletes = s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. }));
-        assert!(s.mailbox.message(m).is_some_and(|x| !x.unfetched) && !deletes, "moved back: {back}");
+        assert!(s.mailbox.message(m).is_some_and(|x| !x.unfetched) && !binned(&s, account, "Plan"), "moved back: {back}");
     }
 }
 
-/// The Safe and Blocked Senders sort new mail before the rules: an agent taking a sender off the
-/// Blocked Senders lets their mail reach a rule that deletes for good, as one taking a rule out of
-/// its way would, and is asked as a delete, the question naming the rule; one that blocks more
-/// isn't (#566).
-#[test]
-fn unblocking_a_sender_beside_a_rule_that_deletes_for_good_asks_as_a_delete() {
-    use crate::agent::{Access, Class, classify};
-    let mut s = Session::empty();
-    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
-    let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
-    // The owner's: Zoe is blocked, and a rule deletes her mail for good.
-    let purge = json!({"name": "Purge", "account": account, "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &purge).unwrap();
-    s.run("junk.add", &json!({"list": "blocked", "entry": "zoe@example.org", "account": account})).unwrap();
-    let arrive = |s: &mut Session, id: &str| {
-        let page = MessagePage { folder: "F-in".into(), messages: vec![listed(id, "F-in", "Weekly")], ..Default::default() };
-        graph_mail::apply_graph_mail(s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
-            .unwrap();
-    };
-    let lies = |s: &Session, id: &str| s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|x| x.id == id)).map(|m| m.folder);
-    arrive(&mut s, "N1");
-    assert_eq!(lies(&s, "N1"), Some(junk), "blocked: her mail waits in Junk E-mail, where it can be got back");
-    // Any change to the rules for the same mail asks as a delete while Purge is on (#566)...
-    let other =
-        json!({"name": "Read", "account": account, "server": false, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]});
-    assert_eq!(classify(&s, "rules.add", &other), Access::Owner(Class::Delete));
-    // ...but taking her off Blocked Senders, which lets her mail reach Purge, asks as settings.
-    let unblock = json!({"list": "blocked", "entry": "zoe@example.org", "account": account});
-    let class = classify(&s, "junk.remove", &unblock);
-    let asked = crate::agent::describe(&s, "junk.remove", &unblock);
-    s.run("junk.remove", &unblock).unwrap();
-    arrive(&mut s, "N2");
-    assert_eq!(lies(&s, "N2"), None, "unblocked: her next message is deleted for good as it arrives");
-    assert!(s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N2")), "and on the server");
-    assert_eq!(class, Access::Owner(Class::Delete), "junk.remove beside a rule that deletes for good; question: {asked}");
-    assert!(asked.contains("Purge") && asked.contains("deletes mail permanently"), "{asked}");
-    // Putting a sender on the Safe Senders lets mail the server put in Junk E-mail through too;
-    // blocking one, or taking one off the Safe Senders, lets less through.
-    let safe = json!({"list": "safe", "entry": "ann@example.org", "account": account});
-    assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Delete));
-    let block = json!({"list": "blocked", "entry": "bob@example.org", "account": account});
-    assert_eq!(classify(&s, "junk.add", &block), Access::Owner(Class::Settings));
-    assert_eq!(classify(&s, "junk.remove", &safe), Access::Owner(Class::Settings));
-    // With the rule switched off, nothing deletes for good: a change to the lists is settings.
-    let purge = s.mailbox.rules.iter().find(|r| r.name == "Purge").unwrap().id;
-    s.run("rules.enable", &json!({"id": purge, "value": false})).unwrap();
-    assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Settings));
-    // Beside a rule that moves mail onto another account's server, it is asked as a send.
-    let other = s.run("account.add", &json!({"email": "other@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-    let theirs = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
-    s.mailbox.folder_mut(theirs).unwrap().server = Some(ServerFolder { id: "O-in".into(), ..Default::default() });
-    let onto = json!({"name": "Onto", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "ann"}], "actions": [{"type": "moveTo", "value": theirs}]});
-    s.run("rules.add", &onto).unwrap();
-    assert_eq!(classify(&s, "junk.add", &safe), Access::Owner(Class::Send));
-    assert!(crate::agent::describe(&s, "junk.add", &safe).contains("Onto"));
-}
-
-/// The owner's rules: Zoe's mail gets the category Boss; Boss mail whose text says "keep" is
-/// flagged and stops the rules after it (it reads the text, so it waits for the download); mail
-/// about a "Plan" is deleted for good, after it. A Plan from Zoe saying "keep" is kept. An agent's
-/// Clear All Categories on it while it waits for the download (a command asked about nothing)
-/// changes which mail reaches the rule that deletes for good, as a change to the rule before it
-/// would, which is asked as a delete. Once something changed what the rules read of it, those that
-/// waited delete nothing for good.
-#[test]
-fn an_agents_edit_of_mail_waiting_for_its_rules_doesnt_let_a_later_rule_delete_it_for_good() {
-    use crate::agent::{Verdict, check};
-    let mut outcome = Vec::new();
-    for agent in [false, true] {
-        let mut s = Session::empty();
-        let (account, _, _) = microsoft_with(&mut s, "Kept");
-        let boss = json!({"name": "Boss", "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
-            "actions": [{"type": "categorize", "value": "Boss"}]});
-        s.run("rules.add", &boss).unwrap();
-        let keep = json!({"name": "Keep", "server": false, "stop": true,
-            "conditions": [{"type": "category", "value": "Boss"}, {"type": "bodyContains", "value": "keep"}], "actions": [{"type": "flag"}]});
-        s.run("rules.add", &keep).unwrap();
-        let plans = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "deleteForGood"}]});
-        s.run("rules.add", &plans).unwrap();
-        arrives(&mut s, account, "Plan");
-        let m = here(&s, account, "N1").id;
-        assert!(s.mailbox.message(m).is_some_and(|x| x.rules_waiting.is_some() && x.has_category("Boss")));
-        if agent {
-            let params = json!({"ids": [m]});
-            assert_eq!(check(&s, "mail.clearCategories", &params, &[]), Verdict::Run, "asked about nothing");
-            s.agent = Some(Vec::new());
-            s.run("mail.clearCategories", &params).unwrap();
-            s.agent = None;
-        }
-        let fetched = vec![whole("N1", "Plan", "", "Please keep this.")];
-        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-        let deletes = s.mailbox.queued.iter().any(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { id, .. } if id == "N1"));
-        outcome.push(format!("agent {agent}: here {}, deleted on the server {deletes}", s.mailbox.message(m).is_some()));
-    }
-    assert_eq!(
-        outcome,
-        ["agent false: here true, deleted on the server false", "agent true: here true, deleted on the server false"],
-        "an agent's unasked Clear All Categories made the rule delete the message for good"
-    );
-}
-
-/// The same agent edit as the test above, with the last rule copying "Plan" into another
-/// account's folder instead of deleting it for good. The rule "Keep", which stops the others,
+/// An agent's edit of mail waiting for its rules: the last rule copies "Plan" into another
+/// account's folder. The rule "Keep", which stops the others,
 /// would have kept the message off the other server; the agent's unasked Clear All Categories
 /// makes it not apply once the text is here. With the marks changed meanwhile, the rules that
-/// waited copy and move nothing onto another account's server, as they delete nothing for good,
-/// with or without the agent's edit (an agent's own copy there asks `send`).
+/// waited copy and move nothing onto another account's server, with or without the agent's edit
+/// (an agent's own copy there asks `send`).
 #[test]
 fn an_agents_edit_of_mail_waiting_for_its_rules_doesnt_let_a_later_rule_copy_it_onto_another_server() {
     use crate::agent::{Verdict, check};
@@ -899,11 +633,11 @@ fn run_rules_now_doesnt_move_onto_another_server_past_a_stop_rule_that_cant_tell
     assert_eq!(copies(&s, to, b), (0, 0), "moved onto another server past a stop rule that couldn't tell");
 }
 
-/// An agent asks to Run Rules Now over the Inbox while a message there has only its preview: "Purge" (delete
-/// permanently, except if the text says "keep") can't tell, so it leaves the message alone. While
-/// the question is up the message is downloaded (the agent opened it, say): the text doesn't say
-/// "keep". Every condition and exception holds of it as before; only whether the exception can be
-/// told changed. The yes runs nothing (#566).
+/// An agent asks to Run Rules Now over the Inbox while a message there has only its preview: "To
+/// Blake" (move it into another account's Inbox, except if the text says "keep") can't tell, so it
+/// leaves the message alone. While the question is up the message is downloaded (the agent opened
+/// it, say): the text doesn't say "keep". Every condition and exception holds of it as before; only
+/// whether the exception can be told changed. The yes runs nothing (#566).
 #[test]
 fn a_download_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
     use crate::agent::bind::Shown;
@@ -915,22 +649,23 @@ fn a_download_while_run_rules_now_is_asked_doesnt_ride_the_yes() {
     let page = MessagePage { folder: "F-in".into(), messages: vec![listed("N1", "F-in", "Plan")], ..Default::default() };
     graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
         .unwrap();
-    let purge = json!({"name": "Purge", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "exceptions": [{"type": "bodyContains", "value": "keep"}], "actions": [{"type": "deleteForGood"}]});
-    s.run("rules.add", &purge).unwrap();
+    let (to, _) = imap_inbox(&mut s);
+    let away = json!({"name": "To Blake", "account": account, "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
+        "exceptions": [{"type": "bodyContains", "value": "keep"}], "actions": [{"type": "moveTo", "value": to}]});
+    s.run("rules.add", &away).unwrap();
     let m = here(&s, account, "N1").id;
     assert!(s.mailbox.message(m).unwrap().unfetched);
     let params = json!({"folder": inbox});
-    let Verdict::Ask(Class::Delete, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a delete") };
+    let Verdict::Ask(Class::Send, what) = check(&s, "rules.run", &params, &[]) else { panic!("asked as a send") };
     let shown = Shown::new(&s, "rules.run", &params, &what).unwrap();
     let fetched = vec![whole("N1", "Plan", "", "The plan.")];
     graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
     assert!(s.mailbox.message(m).is_some_and(|m| !m.unfetched), "downloaded, and still here");
     let reach = shown.check(&s, "rules.run", &params);
-    // What the yes would do now: Purge takes it.
+    // What the yes would do now: "To Blake" takes it.
     s.run("rules.run", &params).unwrap();
-    assert!(s.mailbox.message(m).is_none(), "Run Rules Now now deletes it for good");
-    assert!(reach.is_err(), "the yes runs, and deletes for good a message the rule left alone when asked: {what}");
+    assert!(s.mailbox.messages.values().any(|m| m.subject == "Plan" && m.folder == to), "Run Rules Now now moves it onto Blake's server");
+    assert!(reach.is_err(), "the yes runs, and puts on another server a message the rule left alone when asked: {what}");
 }
 
 /// The same two rules, and the message is private, but its Sensitivity line comes after 200
@@ -967,58 +702,6 @@ fn a_move_onto_another_server_stays_held_after_the_download_when_the_stop_rule_s
         ],
         "a private message went onto another account's server past a stop rule that still can't tell"
     );
-}
-
-/// [`a_delete_for_good_that_waited_doesnt_go_after_a_copy_made_as_it_arrived`] with the copy made
-/// by Run Rules Now over the same mail, not downloaded yet: a rule made from the message and run
-/// at once over the folder (as the New rule builder does), or one switched on and run with the
-/// others. "Purge" (which reads the text) can't tell yet; the server refuses the copy. Once the
-/// message is downloaded, "Purge" doesn't delete it for good (#566).
-#[test]
-fn a_copy_by_run_rules_now_before_the_download_keeps_a_waiting_rule_from_deleting_for_good() {
-    use mailcraft_model::sync::{MessageChange, MessageChangeDone, MessageOutcome};
-    let mut lost = Vec::new();
-    for alone in [true, false] {
-        let mut s = Session::empty();
-        let (account, inbox, kept) = microsoft_with(&mut s, "Kept");
-        let copy = json!({"name": "Copy", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-            "actions": [{"type": "copyTo", "value": kept}]});
-        let purge = json!({"name": "Purge", "server": false, "conditions": [{"type": "bodyContains", "value": "purge"}],
-            "actions": [{"type": "deleteForGood"}]});
-        let copy_id = if alone {
-            s.run("rules.add", &purge).unwrap();
-            arrives(&mut s, account, "Plan");
-            // Create Rule from the message, run at once over the folder.
-            let id = s.run("rules.add", &copy).unwrap()["id"].as_u64().unwrap();
-            s.run("rules.run", &json!({"folder": inbox, "id": id})).unwrap();
-            id
-        } else {
-            let id = s.run("rules.add", &copy).unwrap()["id"].as_u64().unwrap();
-            s.run("rules.enable", &json!({"id": id, "value": false})).unwrap();
-            s.run("rules.add", &purge).unwrap();
-            arrives(&mut s, account, "Plan");
-            s.run("rules.enable", &json!({"id": id, "value": true})).unwrap();
-            s.run("rules.run", &json!({"folder": inbox})).unwrap();
-            id
-        };
-        let _ = copy_id;
-        let waiting = here(&s, account, "N1").rules_waiting.clone().expect("Purge waits for the download");
-        assert!(waiting.copied, "the waiting rules know of the copy");
-        let changes = super::graph_up::message_changes(&s, account, 100).0;
-        let [copied @ MessageChange::Copy { .. }] = changes.as_slice() else { panic!("the copy goes: {changes:?}") };
-        let refused = MessageChangeDone { change: copied.clone(), outcome: MessageOutcome::Refused { status: 403 }, there: None };
-        graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), messages: vec![refused], ..Default::default() }).unwrap();
-        assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Plan").count(), 1, "the refused copy is taken away");
-        let fetched = vec![whole("N1", "Plan", "", "Please purge this after reading.")];
-        graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
-        let left = s.mailbox.messages.values().filter(|m| m.subject == "Plan").count();
-        let deletes: Vec<MessageChange> =
-            super::graph_up::message_changes(&s, account, 100).0.into_iter().filter(|c| matches!(c, MessageChange::Delete { .. })).collect();
-        if left == 0 && !deletes.is_empty() {
-            lost.push(format!("copy run alone: {alone}: {left} left here, the server told {deletes:?}"));
-        }
-    }
-    assert!(lost.is_empty(), "after a copy made before the download was refused, a waiting rule deleted the message for good: {lost:?}");
 }
 
 /// The move that waited for a rule before it that couldn't tell is made once the message is here
@@ -1073,4 +756,70 @@ fn run_rules_now_copies_nothing_into_another_account_past_a_header_rule_that_can
     s.run("rules.add", &zoe).unwrap();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     assert_eq!(s.mailbox.messages.values().filter(|m| m.folder == theirs).count(), 0, "copied onto Blake's server past a rule that couldn't tell");
+}
+
+/// A rule the Microsoft server has, made in Outlook with a part not known here (it forwards) and
+/// "stop processing more rules", whose condition holds of the new mail: the server ran it and
+/// stopped. A rule of this computer after it that copies or moves that mail into an IMAP account
+/// doesn't put it onto that server past it (#566).
+#[test]
+fn a_server_rule_with_parts_not_known_here_that_stops_holds_a_copy_onto_another_server() {
+    use mailcraft_model::remote_rules::{RemoteRule, RulesDownload};
+    use mailcraft_model::{Action, Condition};
+    let mut failed = Vec::new();
+    for action in ["copyTo", "moveTo"] {
+        let mut s = Session::empty();
+        let (account, _, _) = microsoft_with(&mut s, "Kept");
+        let (to, b) = imap_inbox(&mut s);
+        let mut forward = RemoteRule {
+            id: "r1".into(),
+            name: "Forward plans to legal".into(),
+            sequence: 1,
+            enabled: true,
+            stop: true,
+            conditions: vec![Condition::SubjectContains(vec!["PLAN".into()])],
+            actions: vec![Action::MarkRead],
+            ..Default::default()
+        };
+        forward.unknown = vec!["forwardTo".into()];
+        let download = RulesDownload { account, email: ME.into(), complete: true, rules: vec![forward] };
+        crate::cmd::rules_remote::merge_rules(&mut s.mailbox, &download).unwrap();
+        let zoe = json!({"name": "Zoe to Blake", "account": account, "server": false,
+            "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": action, "value": to}]});
+        s.run("rules.add", &zoe).unwrap();
+        arrives(&mut s, account, "Plan");
+        let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+        let _ = graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() });
+        if copies(&s, to, b) != (0, 0) {
+            failed.push(format!("{action}: {:?} (made, placed on {b}'s server)", copies(&s, to, b)));
+        }
+    }
+    assert!(failed.is_empty(), "onto the other server past a server rule that stopped: {failed:?}");
+}
+
+/// The same server rule with every part known stops the copy too.
+#[test]
+fn a_known_server_rule_that_stops_holds_the_copy() {
+    use mailcraft_model::remote_rules::{RemoteRule, RulesDownload};
+    use mailcraft_model::{Action, Condition};
+    let mut s = Session::empty();
+    let (account, _, _) = microsoft_with(&mut s, "Kept");
+    let (to, b) = imap_inbox(&mut s);
+    let known = RemoteRule {
+        id: "r1".into(),
+        name: "Plans read".into(),
+        sequence: 1,
+        enabled: true,
+        stop: true,
+        conditions: vec![Condition::SubjectContains(vec!["PLAN".into()])],
+        actions: vec![Action::MarkRead],
+        ..Default::default()
+    };
+    let download = RulesDownload { account, email: ME.into(), complete: true, rules: vec![known] };
+    crate::cmd::rules_remote::merge_rules(&mut s.mailbox, &download).unwrap();
+    copy_out(&mut s, account, to);
+    arrives(&mut s, account, "Plan");
+    let fetched = vec![whole("N1", "Plan", "", "The plan.")];
+    let _ = graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() });
+    assert_eq!(copies(&s, to, b), (0, 0));
 }

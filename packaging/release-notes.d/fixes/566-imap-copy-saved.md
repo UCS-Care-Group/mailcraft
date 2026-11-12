@@ -1,1 +1,0 @@
-- A message copied to a folder on this computer (or, on an IMAP account, to another of its folders) and then deleted permanently, by you or by a rule, is deleted from its IMAP, Microsoft or Exchange server only once the mailbox is saved with the copy; before, a crash in between lost it everywhere ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

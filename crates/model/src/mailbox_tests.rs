@@ -380,13 +380,10 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
     assert_eq!(mb.pending, [Pending::Move { account, message: a, from: "INBOX".into(), uid: 44, synced: Some(unread(44)), to: deleted }]);
     // And then for good, before the server heard of the move: deleted where the server has it.
     assert_eq!(mb.delete_message(a), Ok(true));
-    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new(), seen: None, kept: None }]);
+    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, message_id: String::new(), seen: None }]);
     // For good straight away.
     mb.remove_message(b).unwrap();
-    assert_eq!(
-        mb.pending.last(),
-        Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None, kept: None })
-    );
+    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, message_id: String::new(), seen: None }));
     // What a synchronisation takes out because the server no longer has it is not told back.
     mb.forget_message(c).unwrap();
     // A message that was never on the server is nobody's business.
@@ -564,8 +561,8 @@ fn repair_drops_nonsense_about_the_server() {
         mb.pending,
         [
             Pending::Move { account: 1, message: 16, from: "INBOX".into(), uid: 40, synced: None, to: 6 },
-            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, message_id: String::new(), seen: None, kept: None },
-            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, message_id: String::new(), seen: None, kept: None },
+            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, message_id: String::new(), seen: None },
+            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, message_id: String::new(), seen: None },
         ]
     );
     assert!(mb.repair().is_empty(), "{:?}", mb.clone().repair());
@@ -604,12 +601,12 @@ fn a_change_waiting_for_a_mailbox_numbered_anew_is_kept_when_it_can_be_found_aga
     let inbox = mb.inbox().unwrap();
     mb.folder_mut(inbox).unwrap().remote = "INBOX".into();
     let seen = MailIdentity { date: 1_700_000_000, from: "a@mail.example".into(), subject: "Hi".into(), people: vec!["b@mail.example".into()] };
-    let waiting = Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: "gone@mail.example".into(), seen: Some(seen), kept: None };
+    let waiting = Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: "gone@mail.example".into(), seen: Some(seen) };
     let saved = serde_json::to_value(&waiting).unwrap();
     assert_eq!(saved["delete"]["messageId"], "gone@mail.example");
     assert_eq!(serde_json::from_value::<Pending>(saved).unwrap(), waiting);
     // Without a Message-ID it could never be found again: the repair lets it go.
-    mb.pending = vec![waiting.clone(), Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: String::new(), seen: None, kept: None }];
+    mb.pending = vec![waiting.clone(), Pending::Delete { account, from: "INBOX".into(), uid: 0, message_id: String::new(), seen: None }];
     let fixed = mb.repair();
     assert!(fixed.iter().any(|line| line.contains("waiting for the mail server")), "{fixed:?}");
     assert_eq!(mb.pending, [waiting]);
@@ -1182,25 +1179,4 @@ fn exchange_stamps_saved_before_781_vouch_for_nothing() {
     mb.message_mut(a).unwrap().fresh_stamps = true;
     assert!(vouched(&mb));
     assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
-}
-
-/// A run of deletes for good that stops at a message its JMAP account's server keeps: what went
-/// before it is gone, and it keeps what was to be copied of it and its move waiting.
-#[test]
-fn deletes_for_good_that_stop_part_way_leave_the_rest_as_it_was() {
-    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
-    let here = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Inbox).unwrap();
-    let jmap = mb.add_account(Account { name: "Ada".into(), email: "ada@mail.example".into(), kind: AccountKind::Jmap, ..Default::default() });
-    let theirs = mb.folder_of_kind(jmap, FolderKind::Inbox).unwrap();
-    let first = mb.add_message(Message { folder: here, subject: "First".into(), ..Default::default() }).unwrap();
-    let server = Some(crate::sync::ServerMessage { id: "J1".into(), ..Default::default() });
-    let kept = mb.add_message(Message { folder: theirs, subject: "Kept".into(), server, ..Default::default() }).unwrap();
-    let place = Queued::PlaceMessage { account: jmap, message: kept, marker: "m".into(), copy: false, from: None, source: None };
-    mb.queued.push(place.clone());
-    let waiting = Pending::Move { account: jmap, message: kept, from: "INBOX".into(), uid: 3, synced: None, to: theirs };
-    mb.pending.push(waiting.clone());
-    assert!(mb.remove_messages(&[first, kept]).is_err());
-    assert!(mb.message(first).is_none());
-    assert!(mb.message(kept).is_some());
-    assert_eq!((mb.queued.as_slice(), mb.pending.as_slice()), ([place].as_slice(), [waiting].as_slice()));
 }

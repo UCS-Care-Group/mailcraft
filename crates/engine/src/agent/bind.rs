@@ -13,7 +13,7 @@
 //! - a folder emptied or deleted ([`Object::FolderContent`]) reaches only the messages shown: what
 //!   came into it meanwhile stays (an empty takes the shown ones; a delete, which would take the
 //!   folder with what came, does nothing, and so does Run Rules Now over it, which would act on
-//!   what came: deleted for good, or put on another server, #566); nor does Run Rules Now when a
+//!   what came: put it on another server, say, #566); nor does Run Rules Now when a
 //!   message shown was changed meanwhile in what the rules read of it (by an agent, which may
 //!   change a message unasked: its categories or flag, a draft's subject, an undo that puts an
 //!   attachment back), which they may then take, or the rules were (a category they name renamed,

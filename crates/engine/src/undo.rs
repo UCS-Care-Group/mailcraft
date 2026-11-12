@@ -27,7 +27,7 @@
 //! Items, here and there, rather than being deleted for good; what the server hasn't got yet is
 //! taken away here and never made there.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
@@ -179,13 +179,6 @@ struct Said {
     /// Moved on from a mailbox whose copy was let go while the copy it was first moved out of
     /// waits for the bytes it came as (#30).
     held: Vec<String>,
-    /// The messages the change deleted for good, which stay deleted: each one's id, its id on
-    /// its server and its Message-ID, and the message itself when it has none.
-    gone: Vec<(Id, String, String, Option<Message>)>,
-    /// A copy the change made of one of those, which stays ([`copies_kept`]).
-    copies: Vec<String>,
-    /// What the change made that was on its server already, put into Deleted Items by the undo.
-    binned: HashSet<Id>,
     /// What the server is to be told besides (#70): a copy made in another mailbox of the
     /// owner's that goes again, a move back into the mailbox a message came from.
     queued: Vec<Queued>,
@@ -202,17 +195,8 @@ impl Said {
         let mut lines = Vec::new();
         match self.deleted.as_slice() {
             [] => {}
-            [one] => lines
-                .push(mailcraft_i18n::fmt(lang.t("'{subject}' was permanently deleted: that can't be undone here."), &[("subject", &shown(one))])),
-            many => {
-                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
-                let line = lang.tn(
-                    n,
-                    "{n} message was permanently deleted: that can't be undone here.",
-                    "{n} messages were permanently deleted: that can't be undone here.",
-                );
-                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
-            }
+            [one] => lines.push(format!("'{}' was permanently deleted: that can't be undone here.", shown(one))),
+            many => lines.push(format!("{} messages were permanently deleted: that can't be undone here.", many.len())),
         }
         match self.folders.as_slice() {
             [] => {}
@@ -246,22 +230,6 @@ impl Said {
                 lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
             }
         }
-        match self.copies.as_slice() {
-            [] => {}
-            [one] => lines.push(mailcraft_i18n::fmt(
-                lang.t("The copy made of '{subject}' stays: it is all there is of the message now."),
-                &[("subject", &shown(one))],
-            )),
-            many => {
-                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
-                let line = lang.tn(
-                    n,
-                    "The copy made of {n} message stays: it is all there is of it now.",
-                    "The copies made of {n} messages stay: they are all there is of those messages now.",
-                );
-                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
-            }
-        }
         lines
     }
 }
@@ -270,14 +238,6 @@ impl Said {
 /// step with `now`; `touched` is what the change being undone did. Answers the mailbox and what
 /// couldn't be undone, in words.
 pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, lang: mailcraft_i18n::Lang) -> (Mailbox, Vec<String>) {
-    let put_back;
-    let now = match waiting_in_gone(&out, now) {
-        Some(mb) => {
-            put_back = mb;
-            &put_back
-        }
-        None => now,
-    };
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
     // The certificates Digital signatures brought are what was learnt, not what the owner did
@@ -287,13 +247,11 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
     returned(&mut out, now);
-    // What the servers said left their folders is theirs (#566).
-    out.left_server = now.left_server.clone();
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
-        // A message on its way onto another account's server now still is (a rule's copy of mail
-        // that came since the change, whose original's delete waits for it, #566).
+        // A message on its way onto another account's server now still is (a rule's move of mail
+        // that came since the change, #566).
         queue(&mut out, now, &g);
         waiting_as_now(&mut out, touched, now);
         return (out, Vec::new());
@@ -301,7 +259,6 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let mut said = Said::default();
     let dropped = folders(&mut out, touched, now, &g, &mut said);
     messages(&mut out, touched, now, &g, &mut said);
-    copies_kept(&mut out, touched, now, &mut said);
     // A folder the change made, not on the server, that something still lies in stays.
     for f in dropped {
         if out.messages.values().any(|m| m.folder == f.id) || out.folders.iter().any(|o| o.parent == Some(f.id)) {
@@ -322,21 +279,6 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     out.favorites_from_server = now.favorites_from_server.clone();
     waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
-}
-
-/// `now` with the mail that waits to be made in an account the undo takes away (one the change
-/// added) put back where it came from, as removing that account puts it back (#451, #566): a
-/// rule's copy there whose original's delete for good waits for it has the original back and
-/// that delete called off, which would otherwise go to the original's server while the copy goes
-/// with the account. `None` when nothing waits so.
-fn waiting_in_gone(out: &Mailbox, now: &Mailbox) -> Option<Mailbox> {
-    let gone: BTreeSet<Id> = now.accounts.iter().map(|a| a.id).filter(|id| out.account(*id).is_none()).collect();
-    if !now.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { account, .. } if gone.contains(account))) {
-        return None;
-    }
-    let mut now = now.clone();
-    crate::cmd::graph_place::put_back_waiting(&mut now, |_, account, _| gone.contains(&account));
-    Some(now)
 }
 
 /// The rules waiting for the messages the change touched to be here whole are as they are now
@@ -380,32 +322,7 @@ fn server_lists(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
 /// A message the undo puts back into the IMAP account it was being moved out of, while the run
 /// that deletes its original there may be on its way: should that run's answer be lost, it is kept
 /// here rather than forgotten when the server no longer lists it, as when it is moved back (#451).
-/// So for one deleted for good there whose delete the undo calls off (a rule that copies and
-/// then deletes permanently, #566): its copy goes with the undo, and the server may have deleted
-/// the original already.
 fn returned(out: &mut Mailbox, now: &Mailbox) {
-    let deleted: HashSet<(Id, &str, u32)> = now
-        .pending
-        .iter()
-        .filter_map(|p| match p {
-            Pending::Delete { account, from, uid, .. } if *uid != 0 => Some((*account, from.as_str(), *uid)),
-            _ => None,
-        })
-        .collect();
-    if !deleted.is_empty() {
-        let back: Vec<Id> = out
-            .messages
-            .values()
-            .filter(|m| m.uid != 0 && now.message(m.id).is_none())
-            .filter(|m| out.folder(m.folder).is_some_and(|f| f.account == m.account && deleted.contains(&(m.account, f.remote.as_str(), m.uid))))
-            .map(|m| m.id)
-            .collect();
-        for id in back {
-            if let Ok(m) = out.message_mut(id) {
-                m.returned = RETURNED_LISTINGS;
-            }
-        }
-    }
     for p in &now.pending {
         let Pending::Move { account, message, uid, .. } = p else { continue };
         let back = out.message(*message).is_some_and(|m| m.account == *account && m.uid == *uid && *uid != 0);
@@ -626,57 +543,6 @@ fn messages(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id
     }
 }
 
-/// A copy the change made of a message it deleted for good, which the undo can't bring back (a
-/// rule that copies and then deletes permanently, run by Run Rules Now, #566), is all there is of
-/// that message now: it stays as it is, where the rule put it, on its way onto a server too, and
-/// the server's delete of the original, which waits for it, still waits. A copy on its way to a
-/// server is known by what it is made from; one on this computer only, or one its server made
-/// already, by its Message-ID, or with none by its sender, subject, date and recipients. Never a draft, nor anything in an Outbox, which would be sent: a
-/// message sent from a draft has the draft's Message-ID.
-fn copies_kept(out: &mut Mailbox, touched: &Touched, now: &Mailbox, said: &mut Said) {
-    if said.gone.is_empty() {
-        return;
-    }
-    let ids: HashSet<Id> = said.gone.iter().map(|(id, ..)| *id).collect();
-    let on_servers: HashSet<&str> = said.gone.iter().map(|(_, server, ..)| server.as_str()).filter(|id| !id.is_empty()).collect();
-    let message_ids: HashSet<&str> = said.gone.iter().map(|(_, _, m, _)| m.as_str()).filter(|id| !id.is_empty()).collect();
-    // One with no Message-ID, by what a copy keeps of it: keeping a message that only looks like
-    // one is no loss, and letting the copy go is.
-    let bare: Vec<&Message> = said.gone.iter().filter_map(|(.., m)| m.as_ref()).collect();
-    let copy_of = |c: &Message| {
-        if c.message_id.is_empty() {
-            bare.iter().any(|t| t.subject == c.subject && t.from == c.from && t.date == c.date && t.to == c.to)
-        } else {
-            message_ids.contains(c.message_id.as_str())
-        }
-    };
-    let mut made_from: HashMap<Id, bool> = HashMap::new();
-    for q in &now.queued {
-        match q {
-            Queued::PlaceMessage { message, source, copy, .. } => {
-                made_from.entry(*message).or_insert(*copy && source.is_some_and(|s| ids.contains(&s)));
-            }
-            Queued::CopyMessage { copy, id, .. } => {
-                made_from.entry(*copy).or_insert(on_servers.contains(id.as_str()));
-            }
-            _ => {}
-        }
-    }
-    for id in &touched.changed_messages {
-        // Gone with the undo, or put into Deleted Items by it: what the change made.
-        if out.messages.contains_key(id) && !said.binned.contains(id) {
-            continue;
-        }
-        let Some(c) = now.messages.get(id).filter(|c| !c.draft && !now.is_send_queue(c.folder) && out.folder(c.folder).is_some()) else {
-            continue;
-        };
-        if made_from.get(id).copied().unwrap_or_else(|| copy_of(c)) {
-            said.copies.push(c.subject.clone());
-            out.messages.insert(*id, c.clone());
-        }
-    }
-}
-
 /// One message the change touched: as it was before it (`t`), right after it (`a`) and now (`c`).
 fn merge(
     t: Option<&Message>,
@@ -705,8 +571,6 @@ fn merge(
             // Deleted for good by the change: the server's copy is gone, or going.
             if t.server.as_ref().is_some_and(|s| !s.gone) || t.moving_out.is_some() {
                 said.deleted.push(t.subject.clone());
-                let bare = t.message_id.is_empty().then(|| t.clone());
-                said.gone.push((t.id, t.server.as_ref().map(|s| s.id.clone()).unwrap_or_default(), t.message_id.clone(), bare));
                 return None;
             }
             // Never on the server: back, as ever.
@@ -736,7 +600,6 @@ fn merge(
             {
                 m.folder = deleted;
                 m.left_gmail_inbox();
-                said.binned.insert(c.id);
             }
             Some(Arc::new(m))
         }
@@ -779,7 +642,6 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 marker: format!("mailcraft-place-{:x}-u-{source:016x}", c.id),
                 copy: false,
                 from: None,
-                source: None,
             });
             if first {
                 said.queued.push(Queued::DeleteMessage { account: c.account, id: placed.id.clone(), kept: None });
@@ -931,25 +793,18 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         Queued::PlaceMessage { account, message, .. } => out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none()),
         _ => true,
     });
-    // What the queue makes already, each once: looked up, not searched for (tens of thousands
-    // may wait after a big folder was moved onto a server).
-    let mut placed: HashSet<Id> = HashSet::new();
-    let mut copied: HashSet<Id> = HashSet::new();
-    for q in &queued {
-        match q {
-            Queued::PlaceMessage { message, .. } => {
-                placed.insert(*message);
-            }
-            Queued::CopyMessage { copy, .. } => {
-                copied.insert(*copy);
-            }
-            _ => {}
-        }
-    }
     // A message that lies, after the undo, where it waits now to be made on another account's
     // server, still waits to be: one moved out of a Microsoft account before its server had it,
     // which stays where it was moved ([`fields`]), or one put there since the change, in any
-    // mailbox.
+    // mailbox (#566). What the queue makes already is looked up, not searched for: tens of
+    // thousands may wait after a big folder was moved onto a server.
+    let mut placed: HashSet<Id> = queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { message, .. } => Some(*message),
+            _ => None,
+        })
+        .collect();
     for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
         if let Queued::PlaceMessage { account, message, .. } = q
             && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
@@ -962,17 +817,7 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         if let Queued::CopyMessage { copy, .. } = q
             && out.messages.get(copy).is_some_and(|m| m.server.is_none())
             && !now.messages.contains_key(copy)
-            && copied.insert(*copy)
-        {
-            queued.push(q.clone());
-        }
-        // And a message brought back that waited to be made on the server, as a copy brought
-        // back does: deleted for good meanwhile, it waits again (#566: so does the delete of the
-        // message it was copied from).
-        if let Queued::PlaceMessage { account, message, .. } = q
-            && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
-            && !now.messages.contains_key(message)
-            && placed.insert(*message)
+            && !queued.iter().any(|o| matches!(o, Queued::CopyMessage { copy: other, .. } if other == copy))
         {
             queued.push(q.clone());
         }

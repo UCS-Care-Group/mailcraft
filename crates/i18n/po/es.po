@@ -115,12 +115,6 @@ msgstr "Es posible que «{subject}» se haya enviado: compruebe Elementos enviad
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/undo.rs
-#, fuzzy
-msgid "'{subject}' was permanently deleted: that can't be undone here."
-msgstr "'{subject}' se eliminó definitivamente: eso no se puede deshacer aquí."
-
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -3419,12 +3413,6 @@ msgstr "Eliminar las convocatorias de reunión de la Bandeja de entrada después
 msgid "Delete on a conversation's row that takes more than one message asks first."
 msgstr "Al eliminar desde la fila de una conversación, se pregunta primero si la acción afecta a más de un mensaje."
 
-#. name
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Delete permanently"
-msgstr "Eliminar definitivamente"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -5962,12 +5950,6 @@ msgstr "Se ejecuta en este equipo, mientras MailCraft está abierto."
 #, fuzzy
 msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
 msgstr "Se ejecuta allí tanto si MailCraft está abierto como si no, y aparece en Outlook en la web y en su teléfono."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "It skips Deleted Items"
-msgstr "Sin pasar por Elementos eliminados"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -12919,20 +12901,6 @@ msgstr ""
 msgid "The conversations' messages in other folders stay where they are."
 msgstr "Los mensajes de las conversaciones en otras carpetas se quedan donde están."
 
-#. what a command says
-#: crates/engine/src/undo.rs
-#, fuzzy
-msgid "The copy made of '{subject}' stays: it is all there is of the message now."
-msgstr "La copia de '{subject}' se queda: ahora es todo lo que queda del mensaje."
-
-#. what a command says
-#: crates/engine/src/undo.rs
-#, fuzzy
-msgid "The copy made of {n} message stays: it is all there is of it now."
-msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
-msgstr[0] "La copia de {n} mensaje se queda: ahora es todo lo que queda de él."
-msgstr[1] "Las copias de {n} mensajes se quedan: ahora son todo lo que queda de esos mensajes."
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -16620,12 +16588,6 @@ msgstr ""
 msgid "it deletes for good"
 msgstr "elimina de forma definitiva"
 
-#. name
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
-msgstr "elimina el correo definitivamente, y MailCraft no le pide eso a ningún servidor"
-
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -19462,14 +19424,6 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] ""
 msgstr[1] ""
 
-#. what a command says
-#: crates/engine/src/undo.rs
-#, fuzzy
-msgid "{n} message was permanently deleted: that can't be undone here."
-msgid_plural "{n} messages were permanently deleted: that can't be undone here."
-msgstr[0] "Se eliminó definitivamente {n} mensaje: eso no se puede deshacer aquí."
-msgstr[1] "Se eliminaron definitivamente {n} mensajes: eso no se puede deshacer aquí."
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -19948,18 +19902,6 @@ msgid "“{subject}” came from its server but couldn't be kept on this compute
 msgstr "«{subject}» llegó de su servidor, pero no se pudo guardar en este equipo, así que no se puede reenviar como datos adjuntos"
 
 #. what a command says
-#: crates/engine/src/cmd/mail.rs
-#, fuzzy
-msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
-msgstr "«{subject}» es una copia que el servidor de su buzón todavía tiene que hacer, y aún no se ha descargado: muévala cuando esté hecha"
-
-#. what a command says
-#: crates/engine/src/cmd/mail.rs
-#, fuzzy
-msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
-msgstr "«{subject}» todavía va de camino al servidor de su buzón, y el mensaje del que se copió se queda en su propio servidor hasta que llegue: muévalo cuando haya llegado"
-
-#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
@@ -19976,6 +19918,46 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "'{subject}' was permanently deleted: that can't be undone here."
+#~ msgstr "'{subject}' se eliminó definitivamente: eso no se puede deshacer aquí."
+
+#, fuzzy
+#~ msgid "Delete permanently"
+#~ msgstr "Eliminar definitivamente"
+
+#, fuzzy
+#~ msgid "It skips Deleted Items"
+#~ msgstr "Sin pasar por Elementos eliminados"
+
+#, fuzzy
+#~ msgid "The copy made of '{subject}' stays: it is all there is of the message now."
+#~ msgstr "La copia de '{subject}' se queda: ahora es todo lo que queda del mensaje."
+
+#, fuzzy
+#~ msgid "The copy made of {n} message stays: it is all there is of it now."
+#~ msgid_plural "The copies made of {n} messages stay: they are all there is of those messages now."
+#~ msgstr[0] "La copia de {n} mensaje se queda: ahora es todo lo que queda de él."
+#~ msgstr[1] "Las copias de {n} mensajes se quedan: ahora son todo lo que queda de esos mensajes."
+
+#, fuzzy
+#~ msgid "it deletes mail for good, which MailCraft doesn't ask a server to do"
+#~ msgstr "elimina el correo definitivamente, y MailCraft no le pide eso a ningún servidor"
+
+#, fuzzy
+#~ msgid "{n} message was permanently deleted: that can't be undone here."
+#~ msgid_plural "{n} messages were permanently deleted: that can't be undone here."
+#~ msgstr[0] "Se eliminó definitivamente {n} mensaje: eso no se puede deshacer aquí."
+#~ msgstr[1] "Se eliminaron definitivamente {n} mensajes: eso no se puede deshacer aquí."
+
+#, fuzzy
+#~ msgid "“{subject}” is a copy its mailbox's server is still to make, and isn't downloaded yet: move it once it is made"
+#~ msgstr "«{subject}» es una copia que el servidor de su buzón todavía tiene que hacer, y aún no se ha descargado: muévala cuando esté hecha"
+
+#, fuzzy
+#~ msgid "“{subject}” is still on its way to its mailbox's server, and the message it was copied from stays on its own server until it is there: move it once it is"
+#~ msgstr "«{subject}» todavía va de camino al servidor de su buzón, y el mensaje del que se copió se queda en su propio servidor hasta que llegue: muévalo cuando haya llegado"
 
 #, fuzzy
 #~ msgid "A notification for the mail this rule acts on as it arrives, as for new mail, even when notifications for new mail are off"

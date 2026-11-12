@@ -302,12 +302,8 @@ fn exceptions_of_a_kind_are_one_as_a_server_keeps_them() {
 #[test]
 fn an_exception_that_reads_what_isnt_here_yet_leaves_the_mail_alone() {
     let words = |t: &str| vec![t.to_string()];
-    let mut rule = Rule {
-        enabled: true,
-        conditions: vec![Condition::SubjectContains(words("report"))],
-        actions: vec![Action::DeleteForGood],
-        ..Default::default()
-    };
+    let mut rule =
+        Rule { enabled: true, conditions: vec![Condition::SubjectContains(words("report"))], actions: vec![Action::Delete], ..Default::default() };
     let whole = Message { subject: "Report".into(), ..Default::default() };
     let stub = Message { unfetched: true, ..whole.clone() };
     let headers_only = Message { incomplete: true, ..whole.clone() };
@@ -449,7 +445,7 @@ fn words_kept_once_find_the_same_mail() {
         enabled: true,
         conditions: vec![Condition::SubjectContains(vec!["12".into()])],
         exceptions: folded.clone(),
-        actions: vec![Action::DeleteForGood],
+        actions: vec![Action::Delete],
         ..Default::default()
     };
     assert!(!rule.matches(&m), "an exception the owner gave leaves it alone; folded: {folded:?}");

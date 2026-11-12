@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{GraphMessage, GraphProgress, MessagePage, ServerMessage, merge_categories};
 use mailcraft_model::time::Timestamp;
-use mailcraft_model::{Body, FolderKind, Id, Mailbox, Message, OfflineWindow, Queued};
+use mailcraft_model::{Body, FolderKind, Id, Mailbox, Message, OfflineWindow};
 
 /// Where each message a server knows is, by its server id: kept between pages, as finding one
 /// otherwise means a walk through every message of the mailbox.
@@ -82,10 +82,6 @@ pub struct Down {
     /// The clock the rules run by on what arrives ([`Session::rule_clock`](crate::Session::rule_clock));
     /// without one, this computer's.
     pub clock: Option<mailcraft_model::RuleClock>,
-    /// The server ids of an account's messages deleted for good here whose delete is still to go,
-    /// found once for a run's pages ([`take_page`]; thousands wait after an emptied Deleted Items):
-    /// a page adds those its rules delete for good, and nothing in taking pages sends one.
-    deleting: Option<(Id, HashSet<String>)>,
     /// The `Message-ID`s of the mail an account had before a run's new mail
     /// ([`super::account::message_ids`]), found once for the run's pages when new mail comes into
     /// the Inbox or Junk E-mail.
@@ -103,40 +99,14 @@ impl Down {
         self.new + self.changed + self.gone + self.removed + self.left > 0
     }
 
-    /// [`Down::deleting`] of `account`, taken out to be read while a page is taken in, and found in
-    /// `mb`'s queue when there is none of that account's.
-    fn take_deleting(&mut self, mb: &Mailbox, account: Id) -> HashSet<String> {
-        match self.deleting.take() {
-            Some((a, ids)) if a == account => ids,
-            _ => mb
-                .queued
-                .iter()
-                .filter_map(|q| match q {
-                    Queued::DeleteMessage { account: a, id, .. } if *a == account => Some(id.clone()),
-                    _ => None,
-                })
-                .collect(),
-        }
-    }
-
     /// Whether `account` had a message with the `Message-ID` `id` before the run's new mail: one
-    /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566),
-    /// or one the end of a run before took away as gone ([`mailcraft_model::LeftServer`]: moved
-    /// while that run read the folders after the Inbox).
-    /// One with no Message-ID can't be told from one it had, so it is taken as one it may have:
-    /// nothing is copied or deleted for good of it, and no alert shown.
+    /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566).
     fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
         if id.is_empty() {
-            return true;
-        }
-        let left = mb.left_server.get(&account);
-        if left.is_some_and(|l| l.cut()) {
-            return true;
+            return false;
         }
         if self.had.as_ref().is_none_or(|(a, _)| *a != account) {
-            let mut had = super::account::message_ids(mb, account);
-            had.extend(left.into_iter().flat_map(|l| l.ids()).cloned());
-            self.had = Some((account, had));
+            self.had = Some((account, super::account::message_ids(mb, account)));
         }
         self.had.as_ref().is_some_and(|(_, had)| had.contains(id))
     }
@@ -166,10 +136,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
-    // Nor those deleted for good here whose delete is still to go: one waiting for a copy of it
-    // to be made, say, which marks it there and so has it listed again (#566). Found once for
-    // the run's pages.
-    let deleting = down.take_deleting(mb, account);
     if page.afresh {
         for m in mb.messages.values_mut() {
             if m.account == account
@@ -186,18 +152,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 (out.left, out.listing) = (true, true);
             }
         }
-        // So is a message deleted for good here whose delete waits for a copy of it (#566).
-        for q in &mut mb.queued {
-            if let Queued::DeleteMessage { account: a, id, kept: Some(kept) } = q
-                && *a == account
-            {
-                there_still(kept, id, &page.folder, false);
-            }
-        }
     }
-    // The deletes for good waiting whose message the page says left the folder, and those it
-    // lists there still: marked in one pass over the queue, after the page (#566).
-    let (mut held_left, mut held_there) = (HashSet::new(), HashSet::new());
     for id in &page.removed {
         let Some(m) = index.find(mb, account, id) else {
             // Being moved out of the account, and gone from where it was: a refused move has
@@ -208,12 +163,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 && let Some(out) = m.moving_out.as_mut().filter(|out| out.folder == page.folder)
             {
                 (out.left, out.listing) = (true, false);
-            }
-            // Deleted for good here, its delete waiting for a copy of it: a refused copy has
-            // nothing to bring back from there (deleted on a phone, say), unless it turns up in
-            // another folder (#566).
-            if deleting.contains(id) {
-                held_left.insert(id.as_str());
             }
             continue;
         };
@@ -237,8 +186,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
         }
     }
-    // What the rules delete for good goes together, after the page (#566).
-    let mut going = mailcraft_model::Going::default();
     for there in &page.messages {
         if there.server.id.is_empty() {
             continue;
@@ -257,10 +204,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 {
                     (out.folder, out.left, out.listing) = (page.folder.clone(), false, false);
                 }
-            }
-            None if deleting.contains(&there.server.id) => {
-                // Still there, in this folder: what a refused copy brings back (#566).
-                held_there.insert(there.server.id.as_str());
             }
             None => {
                 let mut message = new_message(folder, &page.folder, there);
@@ -288,7 +231,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                         if moved_in {
                             mb.apply_rules_found(m, &down.rule_clock());
                         } else {
-                            mb.apply_rules_batched(m, &down.rule_clock(), &mut going);
+                            mb.apply_rules(m, &down.rule_clock());
                         }
                         // Out of the account: should the page list it again, that is the same
                         // message (#606 review).
@@ -301,13 +244,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
         }
-    }
-    // (What the rules delete for good is still to go too: found again for the next page.)
-    let ruled = !going.is_empty();
-    mb.rules_done(going);
-    held_deletes_seen(mb, account, &page.folder, &held_left, &held_there);
-    if !ruled {
-        down.deleting = Some((account, deleting));
     }
     // A listing afresh that ended without a copy being moved out: it left that folder (#30).
     if page.caught_up {
@@ -329,39 +265,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         s.round_ended = sorting || page.caught_up;
         // The counts the link was got with, or none (#276): a new link never keeps the old one's.
         s.counts = page.counts;
-    }
-}
-
-/// Say of the messages deleted for good here whose delete for good on `account`'s server is
-/// still to go ([`Queued::DeleteMessage`]) that the server's page of `folder` left out those of
-/// `left` and has those of `there` ([`there_still`]), in that order.
-fn held_deletes_seen(mb: &mut Mailbox, account: Id, folder: &str, left: &HashSet<&str>, there: &HashSet<&str>) {
-    if left.is_empty() && there.is_empty() {
-        return;
-    }
-    for q in &mut mb.queued {
-        if let Queued::DeleteMessage { account: a, id, kept: Some(kept) } = q
-            && *a == account
-        {
-            if left.contains(id.as_str()) {
-                there_still(kept, id, folder, false);
-            }
-            if there.contains(id.as_str()) {
-                there_still(kept, id, folder, true);
-            }
-        }
-    }
-}
-
-/// Say of `kept`, deleted for good here while its server still had it as `id`, whether the server
-/// has it in `folder` (`there`) or not: as it lay in this mailbox, or as it was being moved out of
-/// the account. Only what was in that folder is said to be gone; what is there is there now.
-fn there_still(kept: &mut Message, id: &str, folder: &str, there: bool) {
-    if let Some(s) = kept.server.as_mut().filter(|s| s.id == id && (there || s.folder == folder)) {
-        (s.gone, s.folder) = (!there, folder.to_string());
-    }
-    if let Some(out) = kept.moving_out.as_mut().filter(|out| out.id == id && (there || out.folder == folder)) {
-        (out.left, out.folder) = (!there, folder.to_string());
     }
 }
 
@@ -520,18 +423,6 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
     for id in returned {
         super::graph_place::kept_instead(mb, id);
     }
-    // What goes is known as mail the account had through the next two sweeps (#566).
-    let left: Vec<String> = mb
-        .messages
-        .values()
-        .filter(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.gone) && !m.draft && !m.message_id.is_empty())
-        .filter(|m| mb.folder(m.folder).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox)))
-        .map(|m| m.message_id.clone())
-        .collect();
-    super::account::end_run(mb, account, true);
-    if !left.is_empty() {
-        mb.left_server.entry(account).or_default().note(left);
-    }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));
     down.removed += before - mb.messages.len();
@@ -582,7 +473,6 @@ pub fn fetch_queue_passing_over(mb: &Mailbox, account: Id, most: usize, now: Tim
         .values()
         .filter(|m| (still_to_fetch(mb, m) || wants_from_source(m)) && !m.incomplete)
         .filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account && !skip(&out.id)).map(|out| out.id.clone()))
-        .chain(copies_asking(mb, account).filter(|(id, _)| !skip(id)).map(|(id, _)| id.to_string()))
         .take(most)
         .collect();
     out.extend(fetch_queue_of_account(mb, account, most.saturating_sub(out.len()), now, &skip));
@@ -653,14 +543,11 @@ pub fn take_fetched(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: 
 
 /// [`take_fetched`], answering which message it was.
 pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, id: &str, mime: &[u8]) -> Option<Id> {
-    let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id));
-    // (Or the copy of one deleted for good here that asked the server for its bytes, #566.)
-    let held = here.is_none().then(|| copies_asking(mb, account).find(|(at, _)| *at == id).map(|(_, copy)| copy)).flatten();
-    let here = here.or(held)?;
+    let here = index.find(mb, account, id).or_else(|| moving_out(mb, account, id))?;
     // Only while it is still what it was when it was asked for (AU3-16): headers only, no change
     // of the owner's waiting to go up, not queued to be sent. An answer that comes after it was
     // fetched another way, edited or sent is dropped, so that it never undoes what was done here.
-    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m) || held.is_some()) {
+    if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
         return None;
     }
     let mut read = crate::mime::parse_fetched(mime);
@@ -791,27 +678,6 @@ pub(crate) fn gone_with_folders(s: &mut crate::Session, account: Id, listing: &m
 /// all it has here staying as it is.
 pub(crate) fn wants_from_source(m: &Message) -> bool {
     m.original_wanted && !m.unfetched && m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty())
-}
-
-/// The messages deleted for good here whose delete from `account`'s server waits for a copy of
-/// them on its way to another account's server (#566), where that copy asks the server for the
-/// bytes it came as (#30, [`crate::cmd::mail::check_again::ask_source`]): by the server's id, and
-/// the copy, fetched for them alone as one being moved out is ([`wants_from_source`]).
-pub(crate) fn copies_asking(mb: &Mailbox, account: Id) -> impl Iterator<Item = (&str, Id)> + '_ {
-    // The first such copy of each message, found in one pass: every delete of a Microsoft
-    // account's keeps the message, and an emptied Deleted Items queues thousands of them.
-    let mut asking: HashMap<Id, Id> = HashMap::new();
-    for q in &mb.queued {
-        if let Queued::PlaceMessage { account, message, source: Some(s), .. } = q
-            && let Some(m) = mb.message(*message).filter(|m| m.account == *account && m.original_wanted && !m.unfetched)
-        {
-            asking.entry(*s).or_insert(m.id);
-        }
-    }
-    mb.queued.iter().filter_map(move |q| match q {
-        Queued::DeleteMessage { account: a, id, kept: Some(kept) } if *a == account => Some((id.as_str(), *asking.get(&kept.id)?)),
-        _ => None,
-    })
 }
 
 /// Whether `m` is one to fetch whole, and may take what was fetched: it is still only its headers

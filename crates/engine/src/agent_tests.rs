@@ -243,21 +243,21 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
 }
 
 /// Run Rules Now named wrongly (`folder` as text or null, `id` as text) is refused by the command,
-/// and the question says so: it doesn't name the folder in view, nor a rule there that deletes
-/// permanently, as if they would run (#566).
+/// and the question says so: it doesn't name the folder in view, nor a rule there, as if they
+/// would run (#566).
 #[test]
 fn run_rules_named_wrongly_is_said_as_that_not_as_the_folder_in_view() {
     let mut s = sample();
     let view = s.view.folder;
     let path = s.mailbox.folder_path(view);
     let subject = s.mailbox.messages_in(view).map(|m| m.subject.clone()).find(|t| !t.trim().is_empty()).unwrap();
-    let rule = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "deleteForGood"}]});
+    let rule = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "delete"}]});
     let rule = s.run("rules.add", &rule).unwrap()["id"].as_u64().unwrap();
     assert!(describe(&s, "rules.run", &json!({})).contains(&path));
     for bad in [json!({"folder": view.to_string()}), json!({"folder": null}), json!({"id": rule.to_string()})] {
         assert!(s.run("rules.run", &bad).is_err(), "the command refuses {bad}");
         let what = describe(&s, "rules.run", &bad);
-        assert!(!what.contains(&path) && !what.contains("permanently"), "{bad}: {what}");
+        assert!(!what.contains(&path) && !what.contains("Gone"), "{bad}: {what}");
     }
 }
 
@@ -271,7 +271,7 @@ fn a_quote_in_a_word_doesnt_read_as_another_exception() {
     let account = s.mailbox.accounts.first().map(|a| a.id).unwrap();
     let rule = |exceptions: Value| {
         json!({"name": "Clean up", "account": account, "conditions": [{"type": "subjectContains", "value": "invoice"}],
-            "exceptions": exceptions, "actions": [{"type": "deleteForGood"}]})
+            "exceptions": exceptions, "actions": [{"type": "delete"}]})
     };
     let real = rule(json!([{"type": "subjectContains", "value": "x"}, {"type": "fromContains", "value": "boss"}]));
     let forged = rule(json!([{"type": "subjectContains", "value": "x\" or from contains \"boss"}]));
@@ -281,19 +281,23 @@ fn a_quote_in_a_word_doesnt_read_as_another_exception() {
 }
 
 /// An agent's change of an account's address, with two rules switched on here that read that
-/// address and delete mail permanently: the question names both, and its verbs agree with "the
-/// rules".
+/// address and move mail onto another account's server: the question names both, and its verbs
+/// agree with "the rules".
 #[test]
 fn the_account_question_about_two_rules_that_read_its_address_agrees_in_number() {
     let mut s = sample();
     let a = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let other = s.run("account.add", &json!({"email": "elsewhere@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
     for name in ["One", "Two"] {
-        let rule = json!({"name": name, "account": a, "conditions": [{"type": "toMe"}], "actions": [{"type": "deleteForGood"}]});
+        let rule = json!({"name": name, "account": a, "conditions": [{"type": "toMe"}], "actions": [{"type": "moveTo", "value": there}]});
         s.run("rules.add", &rule).unwrap();
     }
     let q = describe(&s, "account.edit", &json!({"id": a, "email": "lovelace@example.org"}));
     assert!(
-        q.contains("the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, delete mail permanently, and the rules for that mail read"),
+        q.contains(
+            "the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, put mail onto another account's server, and the rules for that mail read"
+        ),
         "{q}"
     );
 }

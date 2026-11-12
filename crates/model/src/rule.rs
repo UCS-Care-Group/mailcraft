@@ -424,12 +424,12 @@ pub enum Action {
     Flag,
     MarkRead,
     SetImportance(Importance),
-    /// Move to Deleted Items.
+    /// Move to Deleted Items. (A "delete it permanently" a build of #566 before it went to a later
+    /// change wrote is read as this: never for good.)
+    #[serde(alias = "deleteForGood")]
     Delete,
     /// Put a copy in the folder with this id.
     CopyTo(Id),
-    /// Delete for good, past Deleted Items.
-    DeleteForGood,
     /// Flag it, due then.
     FlagFor(FollowUp),
     ClearFlag,
@@ -453,7 +453,6 @@ impl Action {
             Action::SetImportance(i) => format!("set importance to {}", i.code()),
             Action::Delete => "delete it".into(),
             Action::CopyTo(_) => "copy it to a folder".into(),
-            Action::DeleteForGood => "delete it permanently".into(),
             Action::FlagFor(f) => match f {
                 FollowUp::Today => "flag it for today".into(),
                 FollowUp::Tomorrow => "flag it for tomorrow".into(),
@@ -466,7 +465,7 @@ impl Action {
     }
 
     /// When it runs among a rule's actions: what changes the message first, then a copy, then
-    /// where it goes, and a deletion for good last (nothing is left to act on after it).
+    /// where it goes.
     pub fn stage(&self) -> u8 {
         match self {
             Action::Categorize(_)
@@ -478,7 +477,6 @@ impl Action {
             | Action::ClearCategories => 0,
             Action::CopyTo(_) => 1,
             Action::MoveTo(_) | Action::Delete => 2,
-            Action::DeleteForGood => 3,
         }
     }
 }
@@ -563,15 +561,10 @@ pub struct RulesWaiting {
     /// In the order they ran as it arrived.
     #[serde(deserialize_with = "crate::sync::lenient_list")]
     pub rules: Vec<RuleWaiting>,
-    /// A rule copied it as it arrived, or it was copied since (by Run Rules Now, by the owner):
-    /// that copy may have been refused since, and nothing would hold a delete for good behind it,
-    /// so none of the rules that wait deletes it for good.
-    #[serde(skip_serializing_if = "is_false")]
-    pub copied: bool,
     /// Its categories, flag and importance once the rules had acted on it as it arrived
     /// ([`Marks`]). Changed by the time it is here whole (by an agent, say, or on another device),
-    /// what the rules decided then may no longer hold, so none of the rules that wait deletes it for
-    /// good (#566).
+    /// what the rules decided then may no longer hold, so none of the rules that wait copies or
+    /// moves it into another account (#566).
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub marked: Option<Marks>,
 }
@@ -603,9 +596,9 @@ impl Marks {
 #[serde(default, rename_all = "camelCase")]
 pub struct RuleWaiting {
     pub rule: Id,
-    /// It acted as the message arrived, but for its delete for good, which waited on its own.
-    /// Only an earlier build of #566 wrote this; it is read so that such a file opens, and the
-    /// delete doesn't go ([`crate::Mailbox::run_waiting_rules`]).
+    /// It acted as the message arrived, but for a delete that waited on its own. Only an earlier
+    /// build of #566 wrote this; it is read so that such a file opens, and the rule isn't run again
+    /// ([`crate::Mailbox::run_waiting_rules`]).
     #[serde(skip_serializing_if = "is_false")]
     pub delete_only: bool,
 }
@@ -663,12 +656,20 @@ impl Rule {
     }
 
     /// Whether it may apply to `m`, for what can't be told yet: a condition or an exception that
-    /// reads what isn't here. It doesn't act; should it stop the rules after it, those delete
-    /// nothing for good ([`Mailbox::run_rules`](crate::Mailbox::run_rules)).
+    /// reads what isn't here. It doesn't act; should it stop the rules after it, those copy or move
+    /// nothing into another account ([`Mailbox::run_rules`](crate::Mailbox::run_rules)).
+    /// So is one with parts not known here that stops the rules after it, when its known
+    /// conditions hold or can't be told and no exception known here holds: it may apply, as its
+    /// server ran it, and stop them (#566).
     pub fn undecided_in(&self, m: &Message, how: &Matching<'_>) -> bool {
         let open = |c: &Condition| c.unread_in(m) && !c.holds_in(m, how);
+        if !self.known() {
+            return self.enabled
+                && self.stop
+                && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how))
+                && !self.exceptions.iter().any(|c| !c.unread_in(m) && c.matches_in(m, how));
+        }
         self.enabled
-            && self.known()
             && !self.conditions.is_empty()
             && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how))
             && !self.exceptions.iter().any(|c| !c.unread_in(m) && c.matches_in(m, how))

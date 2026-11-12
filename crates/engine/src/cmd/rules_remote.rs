@@ -39,7 +39,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_model::remote_rules::{
     MAX_RULE_OPS, MAX_SERVER_RULES, RemoteRule, RuleOp, RuleOpKind, RuleOutcome, RuleResult, RulesDownload, RulesUpload, RulesUploaded,
 };
-use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule};
+use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule, same_word};
 use serde_json::{Value, json};
 
 use super::remote::{Merged, owner};
@@ -236,17 +236,16 @@ fn same_parts<T>(here: &[T], there: &[T], same: impl Fn(&T, &T) -> bool) -> bool
         })
 }
 
-/// The words of two conditions are the same but for their letters' case: the server keeps the
-/// text of a condition in capitals.
+/// The words of two conditions are the same but for their letters' case (the server keeps the
+/// text of a condition in capitals), as a rule matches them ([`same_word`]): an address by the A
+/// to Z letters' case alone, so a server's change of another letter in it is a change.
 fn same_words(here: &[Condition], there: &[Condition]) -> bool {
-    let words = |c: &Condition| {
-        c.words().map(|w| {
-            let mut w: Vec<String> = w.iter().map(|t| t.to_lowercase()).collect();
-            w.sort_unstable();
-            w
-        })
+    let alike = |a: &Condition, b: &Condition| match (a.words(), b.words()) {
+        (Some(x), Some(y)) => std::mem::discriminant(a) == std::mem::discriminant(b) && same_parts(x, y, |v, w| same_word(a.takes_addresses(), v, w)),
+        (None, None) => a == b,
+        _ => false,
     };
-    same_parts(here, there, |a, b| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))
+    same_parts(here, there, alike)
 }
 
 /// What is said of a rule deleted on the server while it was switched or moved here.

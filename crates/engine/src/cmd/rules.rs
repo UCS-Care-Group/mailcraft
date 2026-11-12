@@ -22,7 +22,7 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} | {"type": "deleteForGood"}], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account of the folder in view, a shared mailbox's owner's), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} (to Deleted Items; mail there already stays)], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account of the folder in view, a shared mailbox's owner's), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains"|"headerContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -44,9 +44,9 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 /// Why a rule can't be kept on an account's server (#566). Graph's rules know no flag, no
-/// clearing of categories, no day mail came on and no desktop alert, and aren't asked to delete
-/// for good; move and copy mail only to a folder of the same mailbox, and to one at most; and
-/// take several texts of one kind as "any of them", where MailCraft's conditions all have to hold.
+/// clearing of categories, no day mail came on and no desktop alert; move and copy mail only to
+/// a folder of the same mailbox, and to one at most; and take several texts of one kind as "any
+/// of them", where MailCraft's conditions all have to hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotOnServer {
     /// MailCraft keeps no rules on the account's server (an account of this computer, IMAP).
@@ -82,9 +82,6 @@ pub enum NotOnServer {
     /// Two exceptions of one kind that look for other things (two importances, say): the server
     /// takes one of each kind.
     TwoExceptionsOfAKind,
-    /// It deletes mail for good, which MailCraft asks of no server (R3): here, as Shift+Delete
-    /// does, it goes where the server keeps what can still be recovered.
-    DeleteForGood,
 }
 
 impl NotOnServer {
@@ -110,7 +107,6 @@ impl NotOnServer {
             NotOnServer::Days => "the server can't look at the day mail came",
             NotOnServer::Alert => "the server can't show a desktop alert",
             NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
-            NotOnServer::DeleteForGood => "it deletes mail for good, which MailCraft doesn't ask a server to do",
         }
     }
 }
@@ -176,7 +172,6 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
                 }
                 importance = Some(*i);
             }
-            Action::DeleteForGood => return Some(NotOnServer::DeleteForGood),
             Action::Categorize(_) | Action::MarkRead | Action::Delete => {}
         }
     }
@@ -357,7 +352,6 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
             Action::SetImportance(Importance::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("importance is low, normal or high"))?)
         }
         "delete" => alone(v, kind, Action::Delete)?,
-        "deleteForGood" => alone(v, kind, Action::DeleteForGood)?,
         other => return Err(bad(format!("unknown action type \"{other}\""))),
     })
 }
@@ -584,22 +578,17 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     // part too large to be shown isn't brought in for a rule either.
     let reads_bodies = s.mailbox.rules.iter().any(|r| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.reads_body());
     let clock = s.rule_clock();
-    // What the rules delete for good goes together at the end (#566).
-    let mut going = mailcraft_model::Going::default();
-    let matched = ids
-        .into_iter()
+    ids.into_iter()
         .filter(|id| {
             if reads_bodies {
                 let _ = s.load_where(*id, crate::session::is_readable_calendar_part);
             }
             match only {
-                Some(rule) => s.mailbox.run_rule_batched(*id, rule, &clock, &mut going),
-                None => !s.mailbox.run_rules_batched(*id, &clock, &mut going).is_empty(),
+                Some(rule) => s.mailbox.run_rule(*id, rule, &clock),
+                None => !s.mailbox.run_rules(*id, true, &clock).is_empty(),
             }
         })
-        .count();
-    s.mailbox.rules_done(going);
-    matched
+        .count()
 }
 
 fn run(s: &mut Session, v: &Value) -> CmdResult {

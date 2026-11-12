@@ -1,1 +1,1 @@
-- A message on its way into a Microsoft account, then moved on into an IMAP account or deleted permanently, still goes onto its server after Undo; before, Undo left it on this computer only ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
+- A message on its way into a Microsoft account, then moved on into an IMAP account, still goes onto that account's server after Undo; before, Undo left it on this computer only ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

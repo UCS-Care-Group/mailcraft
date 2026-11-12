@@ -337,14 +337,14 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
          size is 0 KB to 512 KB and received on or after 2026-10-01, except if sensitivity is private or category is \"Red category\" \
          or header contains \"X-Spam-Flag: YES\": copy it to Receipts, flag it for tomorrow, clear its categories, show a desktop alert"
     );
-    // The rest: a plain flag, clearing it, deleting for good, and the other conditions that
+    // The rest: a plain flag, clearing it, deleting, and the other conditions that
     // take nothing.
     f.conds = [When::SentOnlyToMe, When::ToMe, When::CcMe, When::NotToMe, When::Meeting]
         .into_iter()
         .map(|kind| Cond { kind, ..Default::default() })
         .collect();
     f.unless = vec![Cond { kind: When::AutomaticReply, ..Default::default() }, Cond { kind: When::Flagged, ..Default::default() }];
-    f.acts = [Do::Flag, Do::ClearFlag, Do::DeleteForGood].into_iter().map(|kind| Act { kind, ..f.fresh_action() }).collect();
+    f.acts = [Do::Flag, Do::ClearFlag, Do::Delete].into_iter().map(|kind| Act { kind, ..f.fresh_action() }).collect();
     f.alert = false;
     let params = f.command().1;
     assert_eq!(
@@ -352,7 +352,7 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
         json!([{"type": "sentOnlyToMe"}, {"type": "toMe"}, {"type": "ccMe"}, {"type": "notToMe"}, {"type": "meetingRequest"}])
     );
     assert_eq!(params["exceptions"], json!([{"type": "automaticReply"}, {"type": "flagged"}]));
-    assert_eq!(params["actions"], json!([{"type": "flag"}, {"type": "clearFlag"}, {"type": "deleteForGood"}]));
+    assert_eq!(params["actions"], json!([{"type": "flag"}, {"type": "clearFlag"}, {"type": "delete"}]));
     assert!(params.get("alert").is_none());
     assert!(s.run("rules.add", &params).is_ok());
     // Every kind the builder offers is one `rules.add` takes.
@@ -406,7 +406,7 @@ fn with_no_account_in_view_the_dialog_opens_on_the_first_added() {
 
 /// With "Rules for" switched to another account, Run Rules Now runs the rules shown, over that
 /// account's Inbox, and not the rules of the account in view, which the dialog doesn't show (one
-/// of them deletes permanently).
+/// of them deletes).
 #[test]
 fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_alone() {
     use crate::forms::Form;
@@ -415,12 +415,12 @@ fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_al
     let here = a.session.mailbox.folder(inbox).unwrap().account;
     let m = a.session.mailbox.messages_in(inbox).next().map(|m| m.id).unwrap();
     let subject = a.session.mailbox.message(m).unwrap().subject.clone();
-    // The account in view: a rule that deletes that message permanently.
+    // The account in view: a rule that deletes that message.
     a.session
         .run(
             "rules.add",
-            &json!({"name": "Gone for good", "account": here, "server": false,
-                "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "deleteForGood"}]}),
+            &json!({"name": "Gone", "account": here, "server": false,
+                "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "delete"}]}),
         )
         .unwrap();
     // Another account, with a rule of its own.
@@ -463,7 +463,7 @@ fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_al
     h.get_by_label("Run Rules Now").click();
     h.run_steps(4);
     let mb = &h.state().session.mailbox;
-    assert!(mb.message(m).is_some(), "a rule the dialog didn't show deleted \"{subject}\" permanently");
+    assert!(mb.message(m).is_some_and(|m| m.folder == inbox), "a rule the dialog didn't show deleted \"{subject}\"");
     assert!(mb.message(news).is_some_and(|m| m.read), "the rule shown ran over noor's Inbox");
 }
 

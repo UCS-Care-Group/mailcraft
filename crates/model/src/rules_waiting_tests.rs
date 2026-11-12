@@ -66,9 +66,8 @@ fn a_rule_that_couldnt_tell_acts_once_the_message_is_whole_and_one_that_acted_is
     assert_eq!(mb.apply_rules(m, &clock()), ["".to_string()], "the copy, which could tell");
     assert_eq!(mb.messages_in(kept).count(), 1);
     let waiting = mb.message(m).unwrap().rules_waiting.clone().unwrap();
-    // (With the copy it made as it arrived noted: nothing that waits deletes it for good.)
     let marked = Some(crate::Marks::of(mb.message(m).unwrap()));
-    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], copied: true, marked });
+    assert_eq!(*waiting, RulesWaiting { folder: inbox, rules: vec![RuleWaiting { rule: 1, delete_only: false }], marked });
     // A copy of it doesn't wait for anything.
     let other = mb.add_folder(mb.accounts[0].id, None, "Other").unwrap();
     let copied = mb.copy_message(m, other).unwrap();
@@ -116,99 +115,14 @@ fn an_exception_that_holds_once_the_text_is_here_leaves_the_message_alone() {
     assert!(got.flag == FlagStatus::None && got.rules_waiting.is_none());
 }
 
+/// A delete that an earlier build kept waiting on its own doesn't go once the message is here: its
+/// rule acted as the message arrived, and isn't run again.
 #[test]
-fn a_delete_for_good_that_waited_on_a_rule_before_it_goes_only_if_that_rule_doesnt_apply() {
-    let rules = |kept| {
-        vec![
-            // Couldn't tell, and stops the rules after it.
-            Rule { conditions: vec![Condition::BodyContains(words("keep"))], actions: vec![Action::MoveTo(kept)], stop: true, ..Default::default() },
-            Rule {
-                conditions: vec![Condition::SubjectContains(words("report"))],
-                actions: vec![Action::MarkRead, Action::DeleteForGood],
-                ..Default::default()
-            },
-        ]
-    };
-    for (text, gone) in [("Nothing to see.", true), ("Please keep this.", false)] {
-        let (mut mb, inbox, kept) = mailbox(vec![]);
-        for (n, mut rule) in rules(kept).into_iter().enumerate() {
-            (rule.id, rule.enabled) = (n as Id + 1, true);
-            mb.rules.push(rule);
-        }
-        let m = listed(&mut mb, inbox);
-        mb.apply_rules(m, &clock());
-        // Untouched as it arrived: the rule before may yet apply, and the one that deletes for
-        // good waits whole, to act once the message is here.
-        let got = mb.message(m).unwrap();
-        assert!(!got.read && got.folder == inbox, "{text}");
-        assert_eq!(
-            got.rules_waiting.as_deref().map(|w| w.rules.clone()),
-            Some(vec![RuleWaiting { rule: 1, delete_only: false }, RuleWaiting { rule: 2, delete_only: false }])
-        );
-        fetched(&mut mb, m, text);
-        mb.run_waiting_rules(m, &clock());
-        match mb.message(m) {
-            None => assert!(gone, "{text}"),
-            Some(got) => assert!(!gone && got.folder == kept && !got.read, "{text}"),
-        }
-    }
-}
-
-/// A rule before it that can't tell yet holds a delete for good back whether it stops the rules
-/// after it or not: one that would copy the message first must have its say before the message
-/// is gone. Once the text is here, the copy and the delete go together.
-#[test]
-fn a_rule_before_that_cant_tell_holds_a_delete_for_good_though_it_doesnt_stop_the_rest() {
-    let (mut mb, inbox, kept) = mailbox(vec![]);
-    let rules = [
-        Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::CopyTo(kept)], ..Default::default() },
-        Rule { conditions: vec![Condition::SubjectContains(words("report"))], actions: vec![Action::DeleteForGood], ..Default::default() },
-    ];
-    for (n, mut rule) in rules.into_iter().enumerate() {
-        (rule.id, rule.enabled) = (n as Id + 1, true);
-        mb.rules.push(rule);
-    }
-    let m = listed(&mut mb, inbox);
-    mb.apply_rules(m, &clock());
-    assert!(mb.message(m).is_some(), "not deleted before the rule before it could tell");
-    fetched(&mut mb, m, "The invoice for May.");
-    assert_eq!(mb.run_waiting_rules(m, &clock()).len(), 2);
-    assert!(mb.message(m).is_none(), "deleted once the copy is made");
-    assert_eq!(mb.messages_in(kept).count(), 1, "and the copy is there");
-}
-
-/// A copy made as the message arrived, then a rule that can't tell yet, then one that deletes it
-/// for good: the delete doesn't wait, as nothing could hold it behind a copy answered meanwhile
-/// (refused, say). The message stays.
-#[test]
-fn a_delete_for_good_doesnt_wait_behind_a_copy_made_as_the_message_arrived() {
-    let (mut mb, inbox, kept) = mailbox(vec![]);
-    let rules = [
-        Rule { conditions: vec![Condition::SubjectContains(words("report"))], actions: vec![Action::CopyTo(kept)], ..Default::default() },
-        Rule { conditions: vec![Condition::BodyContains(words("keep"))], actions: vec![Action::Flag], stop: true, ..Default::default() },
-        Rule { conditions: vec![Condition::SubjectContains(words("report"))], actions: vec![Action::DeleteForGood], ..Default::default() },
-    ];
-    for (n, mut rule) in rules.into_iter().enumerate() {
-        (rule.id, rule.enabled) = (n as Id + 1, true);
-        mb.rules.push(rule);
-    }
-    let m = listed(&mut mb, inbox);
-    mb.apply_rules(m, &clock());
-    assert_eq!(mb.messages_in(kept).count(), 1, "copied as it arrived");
-    assert_eq!(mb.message(m).unwrap().rules_waiting.as_deref().map(|w| w.rules.clone()), Some(vec![RuleWaiting { rule: 2, delete_only: false }]));
-    fetched(&mut mb, m, "Nothing to see.");
-    mb.run_waiting_rules(m, &clock());
-    assert!(mb.message(m).is_some());
-}
-
-/// A delete for good that an earlier build kept waiting on its own doesn't go once the message is
-/// here: the copy its rule made as the message arrived may have been refused since.
-#[test]
-fn a_delete_for_good_kept_waiting_on_its_own_by_an_earlier_build_doesnt_go() {
+fn a_delete_kept_waiting_on_its_own_by_an_earlier_build_doesnt_go() {
     let (mut mb, inbox, kept) = mailbox(vec![]);
     let mut rule = Rule {
         conditions: vec![Condition::SubjectContains(words("report"))],
-        actions: vec![Action::CopyTo(kept), Action::DeleteForGood],
+        actions: vec![Action::CopyTo(kept), Action::Delete],
         ..Default::default()
     };
     (rule.id, rule.enabled) = (1, true);
@@ -224,7 +138,7 @@ fn a_delete_for_good_kept_waiting_on_its_own_by_an_earlier_build_doesnt_go() {
 
 #[test]
 fn the_waiting_rules_let_alone_a_message_moved_before_it_was_fetched() {
-    let rule = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::DeleteForGood], ..Default::default() };
+    let rule = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::Delete], ..Default::default() };
     let (mut mb, inbox, kept) = mailbox(vec![rule]);
     let m = listed(&mut mb, inbox);
     mb.apply_rules(m, &clock());
@@ -276,7 +190,7 @@ fn a_rule_that_shows_a_desktop_alert_marks_the_message_for_it_once_it_acts_after
 
 #[test]
 fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetched() {
-    let rule = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::DeleteForGood], ..Default::default() };
+    let rule = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::Delete], ..Default::default() };
     let (mut mb, inbox, kept) = mailbox(vec![rule]);
     let m = listed(&mut mb, inbox);
     mb.apply_rules(m, &clock());
@@ -288,35 +202,6 @@ fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetch
     assert!(got.folder == inbox && got.rules_waiting.is_none());
 }
 
-/// Once the message is here, a rule that still can't tell (its exception reads a header past the
-/// fields kept) holds a later delete for good, as it would have as the message arrived.
-#[test]
-fn a_rule_that_still_cant_tell_once_the_message_is_here_holds_a_later_delete_for_good() {
-    let unless = Rule {
-        conditions: vec![Condition::BodyContains(words("invoice"))],
-        exceptions: vec![Condition::HeaderContains(words("x-keep"))],
-        actions: vec![Action::Flag],
-        stop: true,
-        ..Default::default()
-    };
-    let purge = Rule { conditions: vec![Condition::BodyContains(words("invoice"))], actions: vec![Action::DeleteForGood], ..Default::default() };
-    let (mut mb, inbox, _) = mailbox(vec![unless, purge]);
-    let m = listed(&mut mb, inbox);
-    mb.apply_rules(m, &clock());
-    assert!(mb.message(m).unwrap().rules_waiting.is_some());
-    let mut whole = mb.clone();
-    fetched(&mut mb, m, "The invoice, in full.");
-    mb.message_mut(m).unwrap().headers_cut = true;
-    assert!(mb.run_waiting_rules(m, &clock()).is_empty());
-    assert!(mb.message(m).is_some(), "deleted for good behind a rule that still can't tell");
-    // With the whole header here, X-Keep among it, the exception holds, the first rule doesn't
-    // apply, and the delete goes: it is the cut that held it.
-    fetched(&mut whole, m, "The invoice, in full.");
-    whole.message_mut(m).unwrap().read_header.push_str("X-Keep: yes\n");
-    whole.run_waiting_rules(m, &clock());
-    assert!(whole.message(m).is_none(), "nothing held it");
-}
-
 /// Mail whose header lines weren't kept as they came (downloaded by 0.12.0 and earlier): an
 /// exception that looks for a word in the header can't be told, and the rule doesn't act (#566).
 #[test]
@@ -325,7 +210,7 @@ fn a_header_exception_on_mail_read_before_the_lines_were_kept_cant_be_told() {
         enabled: true,
         conditions: vec![Condition::SubjectContains(words("report"))],
         exceptions: vec![Condition::HeaderContains(words("x-keep"))],
-        actions: vec![Action::DeleteForGood],
+        actions: vec![Action::Delete],
         ..Default::default()
     };
     let m = Message { subject: "Report".into(), headers: vec![("X-Mailer".into(), "Harbor".into())], ..Default::default() };

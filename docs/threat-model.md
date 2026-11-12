@@ -338,27 +338,15 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - No rule moves or copies mail into an Outbox, or a folder under one, whoever made it: `rules.add`
   and `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or
   an older version), so incoming mail is never relayed by the owner's SMTP account
-  (`Mailbox::is_send_queue`). An agent is asked before a rule that deletes mail for good is made,
-  switched on or run (class `delete`), and no server is given a rule that deletes for good: such
-  a rule stays on this computer, and what it deletes is deleted from the account's server too, as
-  Shift+Delete does. A rule that can't yet tell whether it applies to new mail not downloaded
-  waits until the message is here whole, and so does one that copies it into another account's
-  folder; the rules after it act meanwhile, but one that deletes for good or moves the message
-  into another account waits with it (after a copy made of the message as it arrived, or since
-  while they wait, it deletes nothing for good instead), and nothing is moved or copied into another account after
-  a rule that still can't tell once the message is here, or at Run Rules Now. Nothing
-  is copied or deleted for good of mail its server had before it was read here (a first download,
-  older mail, a mailbox the server numbered anew) or the account had (moved into the Inbox on
-  another device, where an IMAP or Exchange server gives it a new number; new mail with no
-  Message-ID, which can't be told from it, is taken as such), nor deleted for good by
-  Run Rules Now after a rule that can't tell (a Delete in Deleted Items included). An undo of a step that copied a
-  message and deleted it for good brings the original back and takes the copy away, but for a
-  Microsoft or Exchange account's original, which stays deleted: its copy stays then, all there
-  is of it. An IMAP original whose delete was on its way is kept on this computer, in Imported,
-  should the server have deleted it.
-  The rules leave a shared mailbox's mail alone, Run Rules Now too. On an IMAP, Microsoft or
-  Exchange server account, the server's original of a message copied on this computer and
-  deleted for good, by a rule or by hand, goes only once the mailbox file holds the copy.
+  (`Mailbox::is_send_queue`). A rule never deletes mail permanently: its Delete puts mail in
+  Deleted Items, and mail there already, or of an account with none, stays where it is. A rule
+  that can't yet tell whether it applies to new mail not downloaded waits until the message is
+  here whole, and so does one that copies it into another account's folder; the rules after it
+  act meanwhile, but one that moves the message into another account waits with it, and nothing
+  is moved or copied into another account after a rule that still can't tell once the message is
+  here, or at Run Rules Now. Nothing is copied of mail its server had before it was read here (a
+  first download, older mail, a mailbox the server numbered anew). The rules leave a shared
+  mailbox's mail alone, Run Rules Now too.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to
@@ -375,10 +363,9 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
   what it would take away when asked: another step meanwhile, or a message or contact that came
   down since, and the yes is refused.
-  An undo or redo that changes the rules and leaves one switched on that deletes mail
-  permanently asks `delete` too (#566); one that puts a message on its way onto another account's
-  server again, or leaves a rule switched on that copies or moves mail there, asks `send` and
-  names that server.
+  An undo or redo that puts a message on its way onto another account's server again, or
+  changes the rules and leaves a rule switched on that copies or moves mail there, asks `send`
+  and names that server (#566).
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the

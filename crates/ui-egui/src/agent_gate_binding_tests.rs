@@ -120,7 +120,7 @@ enum Setup {
     /// with other people, with a category.
     Shared,
     /// The calendar shown in London's zone, and a rule here that reads the days mail came by it
-    /// and deletes for good.
+    /// and moves that mail onto another account's server.
     Days,
 }
 
@@ -333,8 +333,10 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             a.session.clock.offset = None;
             a.session.clock.zone = mailcraft_time::Zone::named("Europe/London");
             a.execute("view.timeZone", json!({"zone": "Europe/London"})).unwrap();
+            let other = a.execute("account.add", json!({"email": "elsewhere@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+            let there = a.session.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
             let rule = json!({"name": "Old news", "account": i.account, "server": false,
-                "conditions": [{"type": "receivedBetween", "value": {"to": "2026-01-01"}}], "actions": [{"type": "deleteForGood"}]});
+                "conditions": [{"type": "receivedBetween", "value": {"to": "2026-01-01"}}], "actions": [{"type": "moveTo", "value": there}]});
             a.execute("rules.add", rule).unwrap();
         }
         Setup::Step(redo) => {

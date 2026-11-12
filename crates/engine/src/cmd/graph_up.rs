@@ -20,7 +20,7 @@
 //! state; one the server refused is put back to how the server has it and said once per run and
 //! kind of change (S20); one the server no longer has the message for leaves here with it (S17).
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 use mailcraft_model::sync::{CategoriesUp, FlagUp, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, ServerMessage, same_category};
 use mailcraft_model::{FlagStatus, Folder, FolderKind, Id, Mailbox, Message, Queued};
@@ -54,45 +54,19 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
             note(&|| Some(MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder }));
         }
     }
-    // Where a copy waiting to be made goes: where the copy lies here now. A copy that is gone here
-    // (or has left the account) isn't made.
-    let copy_to = |copy: Id, to: &String| -> Option<(String, Option<Id>)> {
-        let here = mb.message(copy)?;
-        destination(mb, account, here.folder).or_else(|| (here.account == account).then(|| (to.clone(), None)))
-    };
-    // The server's messages a copy is still to be made of: one deleted for good here meanwhile is
-    // deleted there once its copies are answered, so that one the server refuses leaves it there
-    // to put back (#566; the run makes copies before it deletes). So is one whose copy has nowhere
-    // to go yet (a folder the server hasn't listed, say): that copy goes once the folder is listed
-    // or made, from the original's server id, which a delete before it would have taken away.
-    let copying: HashSet<&str> = mb
-        .queued
-        .iter()
-        .filter_map(|q| match q {
-            Queued::CopyMessage { account: a, id, to, copy, .. } if *a == account && copy_to(*copy, to).is_some() => Some(id.as_str()),
-            _ => None,
-        })
-        .collect();
-    // (Found once: every delete of a Microsoft account's keeps the message, and an emptied Deleted
-    // Items queues thousands of them.)
-    let copied_from = mb.copies_wait_for();
-    // (Nor while a copy of it kept on this computer only isn't in the mailbox file yet, as on IMAP:
-    // a quit before the save would lose both, #566.)
-    let deletes = mb.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { account: a, .. } if *a == account));
-    let here_only: HashSet<&str> = if s.file_is_current() || !deletes { HashSet::new() } else { mb.copies_here_only() };
     for queued in mb.queued.iter().filter(|q| q.account() == account) {
         match queued {
             Queued::CopyMessage { id, to, copy, marker, .. } => {
-                let Some((to, to_folder)) = copy_to(*copy, to) else { continue };
+                // Where the copy lies here now; a copy that is gone here isn't made.
+                let Some(here) = mb.message(*copy) else { continue };
+                let (to, to_folder) = match destination(mb, account, here.folder) {
+                    Some(dest) => dest,
+                    None if here.account == account => (to.clone(), None),
+                    None => continue,
+                };
                 note(&|| Some(MessageChange::Copy { copy: *copy, id: id.clone(), to: to.clone(), to_folder, marker: marker.clone() }));
             }
-            // (Nor while a copy of the message here is still on its way to another account's
-            // server, from the whole message here: a refused one puts the original back, #566.)
-            Queued::DeleteMessage { id, kept, .. } => {
-                let held = copying.contains(id.as_str())
-                    || kept.as_ref().is_some_and(|m| copied_from.contains(&m.id) || here_only.contains(m.message_id.as_str()));
-                note(&|| (!held).then(|| MessageChange::Delete { id: id.clone() }));
-            }
+            Queued::DeleteMessage { id, .. } => note(&|| Some(MessageChange::Delete { id: id.clone() })),
             // (Made by the run with the whole message: `graph_place`.)
             Queued::DeleteFolder { .. } | Queued::PlaceMessage { .. } => {}
         }
@@ -414,59 +388,10 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                 MessageOutcome::Done { .. } => {}
                 outcome => {
                     let subject = mb.message(*copy).map(|m| m.subject.clone()).unwrap_or_default();
-                    // The copy is still this account's: the owner may have moved it on meanwhile
-                    // (onto this computer, into another account), and then it is theirs where
-                    // they put it, and nothing here takes it away or moves it again.
-                    let here = matches!(mb.message(*copy), Some(m) if m.account == account);
-                    // Refused: the server has no copy, and the copy here (unless the owner moved it
-                    // on) is taken away. A source that is gone leaves the copy here, which is all
-                    // there is of it.
+                    // Refused: the server has no copy, and neither has this mailbox. A source that
+                    // is gone leaves the copy here, which is all there is of it.
                     if matches!(outcome, MessageOutcome::Refused { .. }) {
-                        // Its original deleted for good here meanwhile, by the owner or by a rule
-                        // that copies and then deletes: it is still on the server (its delete
-                        // waited for this answer), and comes back rather than being lost (#566),
-                        // with what the delete kept of it, or, when that is to be fetched again
-                        // (read back from the mailbox file without its content, say), with the
-                        // copy's content, which the copy names for the mailbox file.
-                        // (Not a delete of another kind, of a message moved out of the account
-                        // say, which has nothing here to put back.)
-                        match take_delete(mb, account, id, true).flatten() {
-                            // Unless the server said it is gone since (deleted on a phone, say):
-                            // then the copy is all there is of it, and is kept on this computer,
-                            // in Imported, as a copy into another account is.
-                            Some(kept) if kept.server.as_ref().is_some_and(|s| s.gone) => {
-                                if here && !super::graph_place::kept_in_imported(mb, *copy) {
-                                    let _ = mb.forget_message(*copy);
-                                }
-                            }
-                            Some(mut kept) => {
-                                let copied = if here { mb.forget_message(*copy).ok() } else { mb.message(*copy).cloned() };
-                                if let Some(copied) = &copied {
-                                    kept.fill_content_from(copied);
-                                }
-                                put_back(mb, account, id, Some(kept), None);
-                                // Should the server say it is gone since, it is kept here instead.
-                                if let Some(m) =
-                                    mb.messages.values_mut().find(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == *id))
-                                {
-                                    std::sync::Arc::make_mut(m).returned = mailcraft_model::RETURNED_LISTINGS;
-                                }
-                            }
-                            None if here => {
-                                let _ = mb.forget_message(*copy);
-                            }
-                            None => {}
-                        }
-                    } else if matches!(outcome, MessageOutcome::Gone) && take_delete(mb, account, id, true).flatten().is_some() && here {
-                        // No such message on the server while it is deleted for good here, its
-                        // delete waiting for this answer: deleted there meanwhile (on a phone, say),
-                        // or the copy's folder there gone with the message still in place. Nothing
-                        // confirms a copy anywhere, so the delete is called off, and the copy, never
-                        // made there and perhaps all there is of it, is kept on this computer, in
-                        // Imported (as much of it as was fetched), as on a refusal (#566). A message
-                        // the server still has stays there, and is shown here again once its folder
-                        // is read afresh. A copy the owner moved on stays where they put it.
-                        let _ = super::graph_place::kept_in_imported(mb, *copy);
+                        let _ = mb.forget_message(*copy);
                     }
                     if let Some(why) = why {
                         refusals.note(Kind::Copy, why, &subject, to_name);
@@ -476,7 +401,14 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
             true
         }
         MessageChange::Delete { id } => {
-            let kept = take_delete(mb, account, id, false).flatten();
+            let mut kept = None;
+            mb.queued.retain(|q| match q {
+                Queued::DeleteMessage { account: a, id: queued, kept: was } if *a == account && queued == id => {
+                    kept = kept.take().or_else(|| was.clone());
+                    false
+                }
+                _ => true,
+            });
             if let (Some(why), MessageOutcome::Refused { .. }) = (why, &done.outcome) {
                 let subject = put_back(mb, account, id, kept, done.there.as_deref());
                 refusals.note(Kind::Delete, why, &subject, None);
@@ -507,22 +439,6 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
     }
 }
 
-/// Take the deletes for good of the server's message `id` of `account` off the queue (with
-/// `kept_only`, only those that kept the message here): `None` when none was queued, else what was kept of
-/// the message here.
-fn take_delete(mb: &mut Mailbox, account: Id, id: &str, kept_only: bool) -> Option<Option<Box<Message>>> {
-    let mut taken: Option<Option<Box<Message>>> = None;
-    mb.queued.retain(|q| match q {
-        Queued::DeleteMessage { account: a, id: queued, kept } if *a == account && queued == id && (!kept_only || kept.is_some()) => {
-            let first = taken.take().flatten();
-            taken = Some(first.or_else(|| kept.clone()));
-            false
-        }
-        _ => true,
-    });
-    taken
-}
-
 /// A message deleted for good here whose delete the server refused, put back as the server has it
 /// (S20): in its server folder, from what was kept of it here (all that was fetched), with the
 /// server's state as it was read after the refusal or, failing that, the last synced one; from
@@ -530,7 +446,7 @@ fn take_delete(mb: &mut Mailbox, account: Id, id: &str, kept_only: bool) -> Opti
 /// as new mail is). Kept but with nowhere on the server known (being moved out of the account, and
 /// not to be read), it goes back where it was here. A folder the server has it in that isn't here
 /// yet brings it down with its first listing. The subject, for saying so.
-pub(crate) fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>, there: Option<&GraphMessage>) -> String {
+fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>, there: Option<&GraphMessage>) -> String {
     let subject = kept.as_ref().map(|m| m.subject.clone()).or_else(|| there.map(|t| t.subject.clone())).unwrap_or_default();
     // Back already (it came down again meanwhile): nothing to do.
     if mb.messages.values().any(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == id)) {
@@ -564,19 +480,9 @@ pub(crate) fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box
 }
 
 /// Messages the server said were gone before they could be fetched: one being moved out of the
-/// account is kept as it is (its headers and preview), marked incomplete (S19). One deleted for
-/// good here whose delete waited for a copy of it, which asked the server for the bytes it came
-/// as (#566, #30), is gone from there (deleted on a phone, say): there is nothing left to delete
-/// or to put back, and the copy goes made of its parts, as one whose original nothing else can
-/// hold does.
+/// account is kept as it is (its headers and preview), marked incomplete (S19).
 pub fn missing(mb: &mut Mailbox, account: Id, ids: &[String]) -> usize {
     let mut marked = 0;
-    if !ids.is_empty() {
-        let gone: HashSet<&str> = ids.iter().map(String::as_str).collect();
-        let before = mb.queued.len();
-        mb.queued.retain(|q| !matches!(q, Queued::DeleteMessage { account: a, id, kept: Some(_) } if *a == account && gone.contains(id.as_str())));
-        marked += before.saturating_sub(mb.queued.len());
-    }
     for id in ids {
         let Some(found) = super::graph_down::moving_out(mb, account, id) else { continue };
         if let Ok(m) = mb.message_mut(found)

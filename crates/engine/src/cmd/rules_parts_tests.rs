@@ -29,6 +29,11 @@ fn arriving(s: &mut Session, inbox: Id, from: &str, subject: &str) -> Id {
     s.mailbox.add_message(m).unwrap()
 }
 
+/// Whether message `m` is here and out of Deleted Items, where a rule's Delete puts it.
+fn here(s: &Session, m: Id) -> bool {
+    s.mailbox.message(m).is_some_and(|x| s.mailbox.folder(x.folder).is_some_and(|f| f.kind != FolderKind::Deleted))
+}
+
 #[test]
 fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
     let (mut s, account, _, kept) = session();
@@ -53,7 +58,7 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
     ]);
     let actions = json!([
         {"type": "copyTo", "value": kept}, {"type": "flagFor", "value": "nextWeek"}, {"type": "clearFlag"},
-        {"type": "clearCategories"}, {"type": "deleteForGood"},
+        {"type": "clearCategories"}, {"type": "delete"},
     ]);
     let id = s.run("rules.add", &rule(conditions.clone(), exceptions, actions.clone())).unwrap()["id"].as_u64().unwrap();
     let r = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
@@ -65,10 +70,7 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
         r.exceptions,
         [Condition::SubjectContains(vec!["opt out".into(), "Unsubscribe".into()]), Condition::HasAttachment, Condition::Importance(Importance::Low)]
     );
-    assert_eq!(
-        r.actions,
-        [Action::CopyTo(kept), Action::FlagFor(FollowUp::NextWeek), Action::ClearFlag, Action::ClearCategories, Action::DeleteForGood]
-    );
+    assert_eq!(r.actions, [Action::CopyTo(kept), Action::FlagFor(FollowUp::NextWeek), Action::ClearFlag, Action::ClearCategories, Action::Delete]);
     // A desktop alert is something to do by itself; nothing at all is not.
     let alert = json!({"name": "Boss", "conditions": [{"type": "from", "value": "boss@example.org"}], "actions": [], "alert": true});
     let boss = s.run("rules.add", &alert).unwrap()["id"].as_u64().unwrap();
@@ -108,6 +110,8 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
         rule(conditions.clone(), json!([]), json!([{"type": "copyTo", "value": outbox}])),
         rule(conditions.clone(), json!([]), json!([{"type": "copyTo", "value": 999_999}])),
         rule(conditions.clone(), json!([]), json!([])),
+        // Deleting permanently is no action of a rule (#566).
+        rule(conditions.clone(), json!([]), json!([{"type": "deleteForGood"}])),
         json!({"name": "Boss", "conditions": [{"type": "flagged"}], "actions": [], "alert": "yes"}),
         json!({"name": "Boss", "conditions": [{"type": "flagged"}], "actions": [], "alert": false}),
     ]);
@@ -124,7 +128,7 @@ fn every_new_part_is_taken_and_one_of_the_wrong_type_is_refused() {
 fn more_words_or_exceptions_than_a_rule_keeps_are_refused_not_cut() {
     let (mut s, account, _, _) = session();
     let many = |n: usize| (0..n).map(|i| format!("w{i}@example.org")).collect::<Vec<_>>();
-    let rule = |conditions: Value, exceptions: Value| json!({"name": "Club", "account": account, "conditions": conditions, "exceptions": exceptions, "actions": [{"type": "deleteForGood"}]});
+    let rule = |conditions: Value, exceptions: Value| json!({"name": "Club", "account": account, "conditions": conditions, "exceptions": exceptions, "actions": [{"type": "delete"}]});
     let plain = json!([{"type": "toMe"}]);
     let tried = [
         rule(json!([{"type": "from", "value": many(21)}]), json!([])),
@@ -216,24 +220,23 @@ fn the_new_parts_act_on_arriving_mail_and_on_mail_already_there() {
         .unwrap();
     assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], 2);
     assert_eq!(s.mailbox.message(later).unwrap().flag_due, Some(due));
-    // Clearing the flag, and deleting for good.
+    // Clearing the flag, and deleting.
     let clear = json!({"name": "Unflag", "conditions": [{"type": "subjectContains", "value": "later"}], "actions": [{"type": "clearFlag"}]});
     s.run("rules.add", &clear).unwrap();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     let got = s.mailbox.message(later).unwrap();
     assert_eq!((got.flag, got.flag_due), (FlagStatus::None, None));
-    let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "opt out"}], "actions": [{"type": "deleteForGood"}]});
+    let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "opt out"}], "actions": [{"type": "delete"}]});
     s.run("rules.add", &gone).unwrap();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    // Gone, not in Deleted Items.
-    assert!(s.mailbox.message(unsubscribe).is_none());
+    // Into Deleted Items, never for good.
     let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
-    assert!(!s.mailbox.messages_in(deleted).any(|m| m.subject.starts_with("Opt out")));
+    assert_eq!(s.mailbox.message(unsubscribe).map(|m| m.folder), Some(deleted));
 }
 
 /// "Has the category" reads a category's name as category names are read everywhere (in any
 /// script's case): an exception for "Büro" leaves alone a message whose category the server
-/// wrote "BÜRO", and a rule that deletes for good doesn't take it.
+/// wrote "BÜRO", and a rule that deletes doesn't take it.
 #[test]
 fn a_category_exception_holds_for_the_name_in_any_scripts_case() {
     let (mut s, _, inbox, _) = session();
@@ -241,7 +244,7 @@ fn a_category_exception_holds_for_the_name_in_any_scripts_case() {
         "name": "Clean up",
         "conditions": [{"type": "subjectContains", "value": "report"}],
         "exceptions": [{"type": "category", "value": "Büro"}],
-        "actions": [{"type": "deleteForGood"}],
+        "actions": [{"type": "delete"}],
     });
     s.run("rules.add", &rule).unwrap();
     let same = arriving(&mut s, inbox, "ada@example.org", "Report one");
@@ -250,9 +253,9 @@ fn a_category_exception_holds_for_the_name_in_any_scripts_case() {
     s.mailbox.message_mut(capitals).unwrap().categories = vec!["BÜRO".into()];
     let other = arriving(&mut s, inbox, "ada@example.org", "Report three");
     s.run("rules.run", &serde_json::json!({"folder": inbox})).unwrap();
-    assert!(s.mailbox.message(same).is_some(), "the exception holds for the same spelling");
-    assert!(s.mailbox.message(capitals).is_some(), "and for the name in capitals");
-    assert!(s.mailbox.message(other).is_none(), "the rule still acts on the rest");
+    assert!(here(&s, same), "the exception holds for the same spelling");
+    assert!(here(&s, capitals), "and for the name in capitals");
+    assert!(!here(&s, other), "the rule still acts on the rest");
 }
 
 #[test]
@@ -338,8 +341,8 @@ fn report(kind: &str, size: usize) -> Vec<u8> {
 /// To a size condition, a message is as big as the message list shows it: one signed beside its
 /// text (#30), or carrying a `.p7m` file (signed or encrypted data sent as a file, which isn't
 /// opened), measures as an ordinary one with the same text and a file of that size. A rule for
-/// smaller mail, and one that a size exception keeps off it, both deleting for good, leave them
-/// alone, and one for that size finds them.
+/// smaller mail, and one that a size exception keeps off it, both deleting, leave them alone, and
+/// one for that size finds them (first, so that a delete after it would take it out of Kept).
 #[test]
 fn a_size_rule_measures_a_message_as_the_list_shows_it() {
     let (mut s, _, inbox, kept) = session();
@@ -354,11 +357,11 @@ fn a_size_rule_measures_a_message_as_the_list_shows_it() {
     let kb = s.mailbox.message(ids[0].1).unwrap().list_size().unwrap() / 1024;
     let size = |min: u64, max: u64| json!([{"type": "sizeBetween", "value": {"min": min, "max": max}}]);
     let from_ann = json!([{"type": "from", "value": ["ann@example.org"]}]);
-    let gone = json!([{"type": "deleteForGood"}]);
+    let gone = json!([{"type": "delete"}]);
     let but_big = json!({"name": "Ann's, but big", "conditions": from_ann, "exceptions": size(kb, 1_000_000), "actions": gone});
     let smaller = json!({"name": "Smaller", "conditions": size(0, kb - 1), "actions": gone});
     let that_size = json!({"name": "That size", "conditions": size(kb, kb), "actions": [{"type": "moveTo", "value": kept}]});
-    for rule in [but_big, smaller, that_size] {
+    for rule in [that_size, but_big, smaller] {
         s.run("rules.add", &rule).unwrap();
     }
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
@@ -368,42 +371,15 @@ fn a_size_rule_measures_a_message_as_the_list_shows_it() {
     }
 }
 
-/// A rule for `account`'s mail with "news" in the subject that deletes it for good.
+/// A rule for `account`'s mail with "news" in the subject that deletes it.
 fn purge(s: &mut Session, account: Id) {
-    let purge = json!({"name": "Purge", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "deleteForGood"}]});
+    let purge =
+        json!({"name": "Purge", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "delete"}]});
     s.run("rules.add", &purge).unwrap();
 }
 
-/// Run Rules Now over a big Inbox of a Microsoft account with a rule that deletes for good, which
-/// queues a delete for its server of each: in proportion to the messages, as
-/// `mail.deletePermanently` of them is (#566).
-#[test]
-fn run_rules_now_deleting_for_good_on_microsoft_takes_time_in_proportion() {
-    use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult, ServerMessage};
-    let n = 20_000u64;
-    let mut s = Session::at(Default::default(), NOW, 0);
-    let ms = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
-    let folders = vec![GraphFolder { id: "in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
-    let listing = GraphMailResult { account: ms, email: ME.into(), listing: Some(FolderListing { folders, complete: true }), ..Default::default() };
-    crate::cmd::graph_mail::apply_graph_mail(&mut s, listing).unwrap();
-    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
-    for i in 0..n {
-        let server = Some(ServerMessage { id: format!("M{i}"), folder: "in".into(), ..Default::default() });
-        s.mailbox.add_message(Message { folder: inbox, account: ms, subject: format!("news {i}"), server, ..Default::default() }).unwrap();
-    }
-    purge(&mut s, ms);
-    let started = std::time::Instant::now();
-    let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].as_u64().unwrap();
-    let took = started.elapsed();
-    assert_eq!(matched, n);
-    assert_eq!(s.mailbox.messages_in(inbox).count(), 0);
-    let deletes = s.mailbox.queued.iter().filter(|q| matches!(q, mailcraft_model::Queued::DeleteMessage { .. })).count();
-    assert_eq!(deletes, n as usize, "one delete for the server of each");
-    assert!(took.as_millis() < 1_500, "{took:?}");
-}
-
-/// A JMAP account: mail its server has isn't deleted here yet, so a rule that deletes it for good
-/// does nothing, and Run Rules Now doesn't count it as changed.
+/// A JMAP account: mail its server has isn't deleted here yet, so a rule that deletes it does
+/// nothing, and Run Rules Now doesn't count it as changed.
 #[test]
 fn run_rules_now_doesnt_count_what_a_rule_couldnt_do() {
     let mut s = Session::at(Default::default(), NOW, 0);
@@ -414,7 +390,7 @@ fn run_rules_now_doesnt_count_what_a_rule_couldnt_do() {
     let m = s.mailbox.add_message(Message { folder: inbox, account: a, subject: "news".into(), server, ..Default::default() }).unwrap();
     purge(&mut s, a);
     let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].clone();
-    assert!(s.mailbox.message(m).is_some(), "stays: the server has it");
+    assert!(here(&s, m), "stays: the server has it");
     assert_eq!(matched, 0, "nothing was done to it");
 }
 
@@ -445,7 +421,7 @@ fn an_exception_for_an_address_in_two_cases_leaves_both_alone() {
             "name": "Clean up",
             "conditions": [{"type": "subjectContains", "value": "report"}],
             "exceptions": exceptions,
-            "actions": [{"type": "deleteForGood"}],
+            "actions": [{"type": "delete"}],
         });
         s.run("rules.add", &rule).unwrap();
         let upper = arriving(&mut s, inbox, "Ünal@example.org", "Report one");
@@ -453,9 +429,9 @@ fn an_exception_for_an_address_in_two_cases_leaves_both_alone() {
         let same = arriving(&mut s, inbox, "üNAL@EXAMPLE.ORG", "Report three");
         let other = arriving(&mut s, inbox, "ada@example.org", "Report four");
         s.run("rules.run", &json!({"folder": inbox})).unwrap();
-        assert!(s.mailbox.message(other).is_none(), "the rule acts on the rest");
-        assert!(s.mailbox.message(upper).is_some() && s.mailbox.message(lower).is_some(), "{exceptions}");
-        assert!(s.mailbox.message(same).is_some(), "the second, in other capitals A to Z");
+        assert!(!here(&s, other), "the rule acts on the rest");
+        assert!(here(&s, upper) && here(&s, lower), "{exceptions}");
+        assert!(here(&s, same), "the second, in other capitals A to Z");
         assert_eq!(s.mailbox.rules[0].exceptions, [Condition::From(vec!["Ünal@example.org".into(), "ünal@example.org".into()])]);
     }
 }
@@ -482,7 +458,7 @@ fn more_than_twenty_exceptions_are_refused() {
     exceptions.extend(["normal", "personal", "private", "confidential"].iter().map(|v| json!({"type": "sensitivity", "value": v})));
     exceptions.extend((0..14).map(|n| json!({"type": "sizeBetween", "value": {"min": n * 10, "max": n * 10 + 5}})));
     assert_eq!(exceptions.len(), 21);
-    let rule = |exceptions: &[serde_json::Value]| json!({"name": "Many", "conditions": [{"type": "subjectContains", "value": "x"}], "exceptions": exceptions, "actions": [{"type": "deleteForGood"}]});
+    let rule = |exceptions: &[serde_json::Value]| json!({"name": "Many", "conditions": [{"type": "subjectContains", "value": "x"}], "exceptions": exceptions, "actions": [{"type": "delete"}]});
     let refused = s.run("rules.add", &rule(&exceptions)).unwrap_err();
     assert!(refused.to_string().contains("`exceptions` has more than 20"), "{refused}");
     assert!(s.mailbox.rules.is_empty());
@@ -547,7 +523,7 @@ fn run_rules_now_stays_quick_with_folders_under_deleted_items() {
 fn a_rule_with_a_part_named_wrongly_is_refused_not_made_without_it() {
     let (mut s, account, _, _) = session();
     let rule = |extra: Value| {
-        let mut v = json!({"name": "Odd", "account": account, "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "deleteForGood"}]});
+        let mut v = json!({"name": "Odd", "account": account, "conditions": [{"type": "subjectContains", "value": "offer"}], "actions": [{"type": "delete"}]});
         if let (Some(v), Some(extra)) = (v.as_object_mut(), extra.as_object()) {
             v.extend(extra.clone());
         }
@@ -557,7 +533,7 @@ fn a_rule_with_a_part_named_wrongly_is_refused_not_made_without_it() {
         rule(json!({"exception": [{"type": "fromContains", "value": "boss"}]})),
         rule(json!({"conditions": [{"type": "receivedBetween", "value": {"form": "2026-01-01", "to": "2026-02-01"}}]})),
         rule(json!({"conditions": [{"type": "subjectContains", "value": "offer", "except": true}]})),
-        rule(json!({"actions": [{"type": "deleteForGood", "folder": 1}]})),
+        rule(json!({"actions": [{"type": "delete", "folder": 1}]})),
     ];
     for v in wrong {
         let before = s.mailbox.rules.len();
@@ -570,12 +546,12 @@ fn a_rule_with_a_part_named_wrongly_is_refused_not_made_without_it() {
 /// A key a condition doesn't take (a `min` beside words, a unit in a size, a second `max` beside
 /// the value) and a `value` given to a part that is a yes or no (`false` on Flagged would be read
 /// as Flagged; a day on Flag isn't kept) are refused, not left out: the rule would act on other
-/// mail than was asked, and delete it for good (#566).
+/// mail than was asked, and delete it (#566).
 #[test]
 fn a_key_or_a_value_a_part_doesnt_take_is_refused() {
     let (mut s, account, _, kept) = session();
     let with = |condition: Value, action: Value| json!({"name": "Odd", "account": account, "conditions": [condition], "actions": [action]});
-    let delete = json!({"type": "deleteForGood"});
+    let delete = json!({"type": "delete"});
     let wrong = [
         with(json!({"type": "subjectContains", "value": "invoice", "min": 500}), json!({"type": "moveTo", "value": kept})),
         with(json!({"type": "sizeBetween", "value": {"min": 10, "max": 20, "unit": "MB"}}), delete.clone()),
@@ -586,7 +562,7 @@ fn a_key_or_a_value_a_part_doesnt_take_is_refused() {
         with(json!({"type": "toMe", "value": false}), delete.clone()),
         with(json!({"type": "hasAttachment", "value": false}), delete.clone()),
         with(json!({"type": "subjectContains", "value": "offer"}), json!({"type": "flag", "value": "tomorrow"})),
-        with(json!({"type": "subjectContains", "value": "offer"}), json!({"type": "deleteForGood", "value": true})),
+        with(json!({"type": "subjectContains", "value": "offer"}), json!({"type": "delete", "value": true})),
     ];
     let mut taken = Vec::new();
     for v in wrong {
@@ -608,7 +584,7 @@ fn a_key_or_a_value_a_part_doesnt_take_is_refused() {
 
 /// A category name longer than a category keeps (120 characters; a Microsoft account's mail
 /// carries up to 255) is refused, not cut: an exception for it would never hold, and a rule that
-/// deletes for good would take the message it was to leave alone (#566).
+/// deletes would take the message it was to leave alone (#566).
 #[test]
 fn a_long_category_exception_is_refused_not_cut() {
     let (mut s, account, inbox, _) = session();
@@ -617,7 +593,7 @@ fn a_long_category_exception_is_refused_not_cut() {
         "name": "Clean up", "account": account,
         "conditions": [{"type": "subjectContains", "value": "report"}],
         "exceptions": [{"type": "category", "value": long}],
-        "actions": [{"type": "deleteForGood"}],
+        "actions": [{"type": "delete"}],
     });
     let made = s.run("rules.add", &rule);
     let m = arriving(&mut s, inbox, "ada@example.org", "Report");
@@ -625,7 +601,7 @@ fn a_long_category_exception_is_refused_not_cut() {
     if made.is_ok() {
         let kept = s.mailbox.rules.last().map(|r| r.exceptions.clone());
         s.run("rules.run", &json!({"folder": inbox})).unwrap();
-        assert!(s.mailbox.message(m).is_some(), "deleted for good past its exception; the rule kept {kept:?}");
+        assert!(here(&s, m), "deleted past its exception; the rule kept {kept:?}");
     }
     assert!(made.is_err());
     // Nor is a category a rule gives cut to another name; one of 120 characters is taken.
@@ -634,7 +610,7 @@ fn a_long_category_exception_is_refused_not_cut() {
     assert!(s.run("rules.add", &categorize(&"y".repeat(120))).is_ok());
 }
 
-/// A rule deletes Ann's mail for good, except if its header holds "multipart/signed" (her signed
+/// A rule deletes Ann's mail, except if its header holds "multipart/signed" (her signed
 /// mail) or "Highest" (`X-Priority: 1 (Highest)`): both words are in lines MailCraft reads into the
 /// message (the Content-Type, X-Priority), and neither message is deleted (#566).
 #[test]
@@ -644,7 +620,7 @@ fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alon
         "name": "Ann's, but signed or urgent", "account": account,
         "conditions": [{"type": "from", "value": "ann@example.org"}],
         "exceptions": [{"type": "headerContains", "value": ["multipart/signed", "Highest"]}],
-        "actions": [{"type": "deleteForGood"}],
+        "actions": [{"type": "delete"}],
     });
     s.run("rules.add", &rule).unwrap();
     let mut add = |bytes: Vec<u8>| {
@@ -658,14 +634,12 @@ fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alon
             .into_bytes(),
     );
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    let gone: Vec<&str> =
-        [("signed", signed), ("urgent", urgent)].into_iter().filter(|(_, id)| s.mailbox.message(*id).is_none()).map(|(k, _)| k).collect();
-    assert!(gone.is_empty(), "deleted for good past their exception: {gone:?}");
+    let gone: Vec<&str> = [("signed", signed), ("urgent", urgent)].into_iter().filter(|(_, id)| !here(&s, *id)).map(|(k, _)| k).collect();
+    assert!(gone.is_empty(), "deleted past their exception: {gone:?}");
 }
 
 /// A word longer than a rule keeps is refused, not cut, as a long address or category is: cut, the
-/// condition looks for less of it, and a rule that deletes for good takes mail it was to leave
-/// alone.
+/// condition looks for less of it, and a rule that deletes takes mail it was to leave alone.
 #[test]
 fn a_long_word_is_refused_not_cut() {
     assert_eq!(mailcraft_model::MAX_WORD, 200, "the Rules dialog's reason says 200");
@@ -673,12 +647,12 @@ fn a_long_word_is_refused_not_cut() {
     let asked = format!("{word}-2026");
     for kind in ["subjectOrBodyContains", "subjectContains", "headerContains", "fromContains"] {
         let (mut s, account, inbox, _) = session();
-        let rule = |value: &str| json!({"name": "Old reports", "account": account, "conditions": [{"type": kind, "value": value}], "actions": [{"type": "deleteForGood"}]});
+        let rule = |value: &str| json!({"name": "Old reports", "account": account, "conditions": [{"type": kind, "value": value}], "actions": [{"type": "delete"}]});
         let made = s.run("rules.add", &rule(&asked));
         let other = arriving(&mut s, inbox, "ada@example.org", &format!("{word}-2025"));
         if made.is_ok() {
             s.run("rules.run", &json!({"folder": inbox})).unwrap();
-            assert!(s.mailbox.message(other).is_some(), "{kind}: deleted for good by a word cut short");
+            assert!(here(&s, other), "{kind}: deleted by a word cut short");
         }
         assert!(made.is_err(), "{kind}: a word of {} characters was taken", asked.chars().count());
         assert!(s.run("rules.add", &rule(&word)).is_ok(), "{kind}: 200 characters are taken");
@@ -696,28 +670,28 @@ fn a_long_word_is_refused_not_cut() {
     assert!(s.run("rules.add", &rule).is_err());
 }
 
-/// A rule deletes newsletters permanently, except those the owner put a category on to keep
+/// A rule deletes newsletters, except those the owner put a category on to keep
 /// them. The owner renames that category (Categorize › All Categories › Rename): the mail has the
 /// new name, and the rule's exception names both, so that it still leaves that mail alone and the
 /// mail that comes with the old name too. A condition names both as well, a Categorize takes the
 /// new name, Undo takes the rename back from the rules as well, and a rule its account's server
 /// has keeps the name the server gave it.
 #[test]
-fn renaming_the_category_an_exception_names_doesnt_let_the_rule_delete_that_mail_for_good() {
+fn renaming_the_category_an_exception_names_doesnt_let_the_rule_delete_that_mail() {
     let (mut s, account, inbox, _) = session();
     let rule = json!({"name": "Newsletters", "account": account,
         "conditions": [{"type": "fromContains", "value": "newsletter"}],
         "exceptions": [{"type": "category", "value": ["Red category"]}],
-        "actions": [{"type": "deleteForGood"}]});
+        "actions": [{"type": "delete"}]});
     s.run("rules.add", &rule).unwrap();
     let kept = arriving(&mut s, inbox, "newsletter@example.org", "Issue 12, keep this one");
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    assert!(s.mailbox.message(kept).is_some(), "the exception keeps it");
+    assert!(here(&s, kept), "the exception keeps it");
     s.run("category.rename", &json!({"account": account, "from": "Red category", "to": "Keep"})).unwrap();
     assert_eq!(s.mailbox.message(kept).unwrap().categories, ["Keep"]);
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     let exceptions = &s.mailbox.rules[0].exceptions;
-    assert!(s.mailbox.message(kept).is_some(), "deleted for good after the rename; the rule's exception is now {exceptions:?}");
+    assert!(here(&s, kept), "deleted after the rename; the rule's exception is now {exceptions:?}");
     assert_eq!(s.mailbox.rules[0].exceptions, [Condition::Category(vec!["Red category".into(), "Keep".into()])]);
     // A condition follows the rename by both names, a Categorize by the new one, each name once.
     s.run("category.add", &json!({"account": account, "name": "Blue category"})).ok();
@@ -754,7 +728,7 @@ fn a_rename_follows_an_exception_naming_the_category_in_another_scripts_case() {
     let rule = json!({"name": "Newsletters", "account": account,
         "conditions": [{"type": "fromContains", "value": "newsletter"}],
         "exceptions": [{"type": "category", "value": "работа"}],
-        "actions": [{"type": "deleteForGood"}]});
+        "actions": [{"type": "delete"}]});
     s.run("rules.add", &rule).unwrap();
     let to = vec![Address::new("Me", ME)];
     let m = Message {
@@ -767,12 +741,12 @@ fn a_rename_follows_an_exception_naming_the_category_in_another_scripts_case() {
     };
     let kept = s.mailbox.add_message(m).unwrap();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    assert!(s.mailbox.message(kept).is_some(), "the exception keeps it");
+    assert!(here(&s, kept), "the exception keeps it");
     s.run("category.rename", &json!({"account": account, "from": "Работа", "to": "Keep"})).unwrap();
     assert_eq!(s.mailbox.message(kept).unwrap().categories, ["Keep"]);
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
     let exceptions = &s.mailbox.rules[0].exceptions;
-    assert!(s.mailbox.message(kept).is_some(), "deleted for good after the rename; the rule's exception is now {exceptions:?}");
+    assert!(here(&s, kept), "deleted after the rename; the rule's exception is now {exceptions:?}");
 }
 
 /// The same rename, with the category spelt in another case of a letter outside A to Z ("BÜRO"
@@ -788,19 +762,19 @@ fn a_rename_keeps_an_exception_spelt_in_another_case_of_a_non_ascii_letter() {
         let rule = json!({"name": "Newsletters", "account": account,
             "conditions": [{"type": "fromContains", "value": "newsletter"}],
             "exceptions": [{"type": "category", "value": [in_rule]}],
-            "actions": [{"type": "deleteForGood"}]});
+            "actions": [{"type": "delete"}]});
         s.run("rules.add", &rule).unwrap();
         let kept = arriving(&mut s, inbox, "newsletter@example.org", "Issue 12, keep this one");
         s.mailbox.message_mut(kept).unwrap().categories = vec![on_mail.to_string()];
         s.run("rules.run", &json!({"folder": inbox})).unwrap();
-        assert!(s.mailbox.message(kept).is_some(), "rule {in_rule}, mail {on_mail}: the exception keeps it");
+        assert!(here(&s, kept), "rule {in_rule}, mail {on_mail}: the exception keeps it");
         s.run("category.rename", &json!({"account": account, "from": "Büro", "to": "Archiv"})).unwrap();
         let mail = s.mailbox.message(kept).unwrap().categories.clone();
         let exceptions = s.mailbox.rules[0].exceptions.clone();
         s.run("rules.run", &json!({"folder": inbox})).unwrap();
-        if s.mailbox.message(kept).is_none() {
+        if !here(&s, kept) {
             lost.push(format!(
-                "rule {in_rule}, mail {on_mail}: deleted for good after the rename; the mail had {mail:?}, the rule's exception {exceptions:?}"
+                "rule {in_rule}, mail {on_mail}: deleted after the rename; the mail had {mail:?}, the rule's exception {exceptions:?}"
             ));
         }
     }
@@ -819,18 +793,18 @@ fn a_rename_in_an_accounts_own_list_keeps_an_every_account_rules_exception() {
     let rule = json!({"name": "Newsletters", "account": account,
         "conditions": [{"type": "fromContains", "value": "newsletter"}],
         "exceptions": [{"type": "category", "value": ["Büro"]}],
-        "actions": [{"type": "deleteForGood"}]});
+        "actions": [{"type": "delete"}]});
     s.run("rules.add", &rule).unwrap();
     s.mailbox.rules[0].account = 0;
     let kept = arriving(&mut s, inbox, "newsletter@example.org", "Issue 12, keep this one");
     s.mailbox.message_mut(kept).unwrap().categories = vec!["Büro".to_string()];
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    assert!(s.mailbox.message(kept).is_some(), "the exception keeps it");
+    assert!(here(&s, kept), "the exception keeps it");
     s.run("category.rename", &json!({"account": account, "from": "Büro", "to": "Archiv"})).unwrap();
     let mail = s.mailbox.message(kept).unwrap().categories.clone();
     let exceptions = s.mailbox.rules[0].exceptions.clone();
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    assert!(s.mailbox.message(kept).is_some(), "deleted for good after the rename; the mail had {mail:?}, the rule's exception {exceptions:?}");
+    assert!(here(&s, kept), "deleted after the rename; the mail had {mail:?}, the rule's exception {exceptions:?}");
 }
 
 /// A rename that would have an exception name more categories than a rule looks for (it names the
@@ -846,7 +820,7 @@ fn a_rename_that_would_overfill_an_exception_is_refused_and_changes_nothing() {
     let rule = json!({"name": "Newsletters", "account": account,
         "conditions": [{"type": "fromContains", "value": "newsletter"}],
         "exceptions": [{"type": "category", "value": names}],
-        "actions": [{"type": "deleteForGood"}]});
+        "actions": [{"type": "delete"}]});
     s.run("rules.add", &rule).unwrap();
     let kept = arriving(&mut s, inbox, "newsletter@example.org", "Issue 12, keep this one");
     s.mailbox.message_mut(kept).unwrap().categories = vec!["Kept 3".into()];
@@ -867,11 +841,11 @@ fn an_exception_word_kept_once_still_leaves_its_mail_alone() {
         "name": "Clean up",
         "conditions": [{"type": "subjectContains", "value": "report"}],
         "exceptions": [{"type": "subjectContains", "value": ["οδοσ", "ΟΔΟΣ"]}],
-        "actions": [{"type": "deleteForGood"}],
+        "actions": [{"type": "delete"}],
     });
     s.run("rules.add", &rule).unwrap();
     let kept = format!("{:?}", s.mailbox.rules.last().unwrap().exceptions);
     let m = arriving(&mut s, inbox, "ada@example.org", "Report ΟΔΟΣ Αθηνάς");
     s.run("rules.run", &json!({"folder": inbox})).unwrap();
-    assert!(s.mailbox.message(m).is_some(), "the exception for ΟΔΟΣ leaves it alone; kept: {kept}");
+    assert!(here(&s, m), "the exception for ΟΔΟΣ leaves it alone; kept: {kept}");
 }

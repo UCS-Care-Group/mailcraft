@@ -404,36 +404,37 @@ fn an_undo_that_reverts_the_accounts_and_takes_mail_names_both_grants_headless()
     assert_eq!(h.session.mailbox.messages.len(), n - 1);
 }
 
-/// A session with two Microsoft accounts, and the params of a rule of the first's that copies its
-/// mail onto the second's server and deletes it for good (#566).
-fn onto_another_server_and_for_good() -> (Session, Value) {
+/// A session with two Microsoft accounts, the first's rule kept here moving its mail onto the
+/// second's server, and the params of a new rule of the first's, kept on its server, that deletes
+/// mail (#566).
+fn server_delete_beside_a_rule_onto_another_server() -> (Session, Value) {
     let mut s = Session::empty();
     let a = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let b = s.run("account.add", &json!({"email": "other@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let there = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
-    let params = json!({
-        "name": "Both", "account": a, "conditions": [{"type": "toMe"}],
-        "actions": [{"type": "copyTo", "value": there}, {"type": "deleteForGood"}],
-    });
+    let away = json!({"name": "Away", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+        "actions": [{"type": "moveTo", "value": there}]});
+    s.run("rules.add", &away).unwrap();
+    let params = json!({"name": "Gone", "account": a, "conditions": [{"type": "toMe"}], "actions": [{"type": "delete"}]});
     (s, params)
 }
 
 #[test]
-fn a_rule_onto_another_server_that_deletes_for_good_names_both_grants_headless() {
+fn a_server_rule_that_deletes_beside_a_rule_onto_another_server_names_both_grants_headless() {
     // It needs Send and Delete: whichever is missing, the refusal names both, so that following
-    // it makes the rule; before, it named Send alone, again with Send allowed.
+    // it makes the rule.
     let pol = Policy::default();
     for allow in [vec![], vec![Class::Send], vec![Class::Delete]] {
-        let (s, params) = onto_another_server_and_for_good();
+        let (s, params) = server_delete_beside_a_rule_onto_another_server();
         let mut h = Headless::new(s, allow.clone());
         let e = err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params}));
         assert!(e.as_deref().is_some_and(|e| e.contains("--allow send,delete")), "{allow:?}: {e:?}");
-        assert!(h.session.mailbox.rules.is_empty(), "{allow:?}: nothing was made");
+        assert_eq!(h.session.mailbox.rules.len(), 1, "{allow:?}: nothing was made");
     }
-    let (s, params) = onto_another_server_and_for_good();
+    let (s, params) = server_delete_beside_a_rule_onto_another_server();
     let mut h = Headless::new(s, vec![Class::Send, Class::Delete]);
     assert_eq!(err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params})), None);
-    assert_eq!(h.session.mailbox.rules.len(), 1);
+    assert_eq!(h.session.mailbox.rules.len(), 2);
 }
 
 /// A Microsoft account and an account of this computer whose rule files its mail into the
