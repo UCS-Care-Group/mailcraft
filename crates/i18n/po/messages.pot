@@ -747,7 +747,7 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 msgid "Address"
 msgstr ""
 
@@ -782,7 +782,7 @@ msgid "After you accept, tentatively accept or decline a meeting request in the 
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
+#: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs crates/ui-egui/src/printing.rs
 msgid "All"
 msgstr ""
 
@@ -812,7 +812,7 @@ msgid "All accounts"
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 msgid "All day"
 msgstr ""
 
@@ -1430,6 +1430,11 @@ msgid "Attachments can't be opened here: save it with Save As instead."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Attachments:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Attendance"
 msgstr ""
@@ -1635,7 +1640,7 @@ msgid "Before anything changes, a copy of your whole mailbox is saved next to it
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs
 msgid "Birthday"
 msgstr ""
 
@@ -1730,7 +1735,7 @@ msgid "By Subject"
 msgstr ""
 
 #. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 msgid "Calendar"
 msgstr ""
 
@@ -1815,7 +1820,7 @@ msgid "Can't sign"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 msgid "Cancel"
 msgstr ""
 
@@ -1867,7 +1872,7 @@ msgid "Cancelled"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 msgid "Categories"
 msgstr ""
 
@@ -1886,8 +1891,8 @@ msgstr ""
 msgid "Cc"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 msgid "Cc:"
 msgstr ""
 
@@ -2341,7 +2346,7 @@ msgid "Compare the signer's key's fingerprint with theirs, and mark it as verifi
 msgstr ""
 
 #. interface, name, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 msgid "Completed"
 msgstr ""
 
@@ -2423,6 +2428,11 @@ msgid "Contact Card"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Contacts don't go to Deleted Items."
 msgstr ""
@@ -2445,6 +2455,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "Contributors choose their own names; see docs/contributors.md."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Copies"
 msgstr ""
 
 #. name
@@ -2789,6 +2804,11 @@ msgstr ""
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 msgid "Day"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Day by day"
 msgstr ""
 
 #. date and time
@@ -3274,6 +3294,11 @@ msgid "Downloaded {name}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Downloaded {name}: open it to print"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/files.rs
 msgid "Downloaded {n} attachment"
 msgid_plural "Downloaded {n} attachments"
@@ -3336,7 +3361,7 @@ msgid "Drop Cap"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 msgid "Due"
 msgstr ""
 
@@ -3460,7 +3485,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 msgid "Email"
 msgstr ""
 
@@ -4156,8 +4181,8 @@ msgstr ""
 msgid "From {name}"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 msgid "From:"
 msgstr ""
 
@@ -4584,7 +4609,7 @@ msgid "Hide this message's warning again"
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 msgid "High"
 msgstr ""
 
@@ -4789,7 +4814,7 @@ msgid "Import the contacts in {name} into Contacts?"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 msgid "Importance"
 msgstr ""
 
@@ -5500,6 +5525,11 @@ msgstr ""
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Letter"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/theme.rs
 msgid "Light"
@@ -5626,7 +5656,7 @@ msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 msgid "Low"
 msgstr ""
 
@@ -6292,8 +6322,8 @@ msgstr ""
 msgid "Monday"
 msgstr ""
 
-#. command label, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/ribbon.rs
 msgid "Month"
 msgstr ""
 
@@ -7031,7 +7061,7 @@ msgid "None yet."
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/printing.rs
 msgid "Normal"
 msgstr ""
 
@@ -7073,6 +7103,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/widgets.rs
 msgid "Not available: {reason}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Not completed"
 msgstr ""
 
 #. interface
@@ -7121,7 +7156,7 @@ msgid "Not verified"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/tasks_view.rs
 msgid "Notes"
 msgstr ""
 
@@ -7183,6 +7218,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 msgid "Nothing more was found on the server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Nothing planned"
 msgstr ""
 
 #. interface
@@ -7608,6 +7648,11 @@ msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Opened {name} to print"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Opening Mail Attachment"
 msgstr ""
@@ -7640,6 +7685,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Opens GitHub's page in your browser, filled in: you check it and submit it there."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Opens in your PDF viewer, to print from there"
 msgstr ""
 
 #. interface
@@ -7798,13 +7848,33 @@ msgid "Page Up"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Page {n} of {m}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 msgid "Page {page} of {pages}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Pages"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Pages:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Paper"
 msgstr ""
 
 #. ribbon
@@ -7883,7 +7953,7 @@ msgid "Permissions"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/printing.rs
 msgid "Phone"
 msgstr ""
 
@@ -8114,6 +8184,43 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
+msgstr ""
+
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+msgid "Print"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Print in colour"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Print on both sides"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printing isn't available here: use Save as PDF instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printing {n} page on {printer}"
+msgid_plural "Printing {n} pages on {printer}"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Print…"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -9057,6 +9164,16 @@ msgstr ""
 msgid "Save Signature"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+msgid "Save as PDF"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Save as PDF…"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Save as iCalendar…"
@@ -9671,8 +9788,8 @@ msgstr ""
 msgid "Sent, reference R-{reference}."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 msgid "Sent:"
 msgstr ""
 
@@ -10399,6 +10516,11 @@ msgstr ""
 msgid "State or region"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Status"
+msgstr ""
+
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 msgid "Status bar"
@@ -10489,6 +10611,11 @@ msgstr ""
 msgid "Stronger text and edges, in the light or the dark theme."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Style"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Styles"
@@ -10500,7 +10627,7 @@ msgid "Subfolders"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/printing.rs
 msgid "Subject"
 msgstr ""
 
@@ -10629,8 +10756,8 @@ msgstr ""
 msgid "Task:"
 msgstr ""
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/printing.rs
 msgid "Tasks"
 msgstr ""
 
@@ -11535,6 +11662,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "The selected message, as .eml"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected messages as they print, as .pdf"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected messages, on a printer"
 msgstr ""
 
 #. interface
@@ -12779,8 +12916,8 @@ msgstr ""
 msgid "To-do Changes to Send"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 msgid "To:"
 msgstr ""
 
@@ -14629,7 +14766,7 @@ msgid "no calendar with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/print_views.rs
 msgid "no contact with id {id}"
 msgstr ""
 
@@ -14679,7 +14816,7 @@ msgid "no message is being written"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/print.rs crates/engine/src/session.rs
 msgid "no message with id {id}"
 msgstr ""
 
@@ -14749,7 +14886,7 @@ msgid "no such paragraph"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs crates/engine/src/print_views.rs
 msgid "no task with id {id}"
 msgstr ""
 
@@ -14924,7 +15061,7 @@ msgid "select a conversation in conversation view first"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/print.rs
 msgid "select a message first"
 msgstr ""
 
@@ -15236,6 +15373,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
 msgid "the folder this message is in isn't on this computer any more"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "the font to print in can't be read"
 msgstr ""
 
 #. what a command says
@@ -15686,6 +15828,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 msgid "there are no contacts to export"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no contacts to print"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/print_views.rs
+msgid "there are no tasks to print"
 msgstr ""
 
 #. what a command says
@@ -16982,6 +17134,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/chrome.rs
 msgid "{n} open task"
 msgid_plural "{n} open tasks"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "{n} page"
+msgid_plural "{n} pages"
 msgstr[0] ""
 msgstr[1] ""
 

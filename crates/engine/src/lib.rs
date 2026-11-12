@@ -52,6 +52,8 @@ mod opening_tests;
 #[cfg(test)]
 mod openpgp_signature_tests;
 mod picture_fit;
+pub mod print;
+pub mod print_views;
 pub mod private_keys;
 #[cfg(test)]
 #[allow(dead_code)]
@@ -448,6 +450,8 @@ mod list_sort_tests;
 mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod print_tests;
 #[cfg(test)]
 mod sender_trust_tests;
 #[cfg(test)]

@@ -19,6 +19,7 @@ mailcraft-names = { path = "crates/names" }
 mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }
+mailcraft-print = { path = "crates/print" }
 mailcraft-mime = { path = "crates/mime" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
@@ -144,6 +145,8 @@ egui_kittest = "0.37"
 # The font reader egui uses, at egui's version: a system font is opened with it before egui is
 # given it, so that egui never meets one it cannot open (#217). Already in the tree through epaint.
 skrifa = "0.49"
+pdf-writer = "0.15"
+subsetter = { version = "0.2.6", default-features = false }
 rfd = "0.17"
 arboard = { version = "3.7", default-features = false }
 

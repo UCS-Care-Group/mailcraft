@@ -80,6 +80,7 @@ mod opened_files;
 mod opened_flow;
 mod own_keys;
 mod picture_cache;
+mod printers;
 mod quit;
 #[cfg(target_os = "macos")]
 mod quit_macos;
@@ -1851,6 +1852,8 @@ fn services(
         open_file: opened_files()
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
         attachment_preview,
+        // File › Print (#32): the system's printers, and a PDF sent to one.
+        print: opened_files().and_then(printers::host),
         secrets: secrets::store(),
         // File › Options › Security (#30 R13): the owner's own certificates and keys listed,
         // GnuPG's valid keys read, and a key file imported, each on a thread of its own.

@@ -24,6 +24,8 @@ pub enum FolderMode {
 }
 
 pub enum Dialog {
+    /// File › Print (#32): the printer and how to print, then the messages go to it.
+    Print(Box<crate::printing::PrintDialog>),
     /// Search every command by name and run one.
     Commands {
         query: String,
@@ -260,6 +262,7 @@ impl Dialog {
             Dialog::ViewSource(_) => "viewSource",
             Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
+            Dialog::Print(_) => "print",
             Dialog::FindReplace(d) => {
                 if d.replace {
                     "replace"
@@ -382,6 +385,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         let named = params.get("id").map_or_else(|| json!({}), |id| json!({"id": id}));
         let answer = app.session.run("mail.viewSource", &named).ok()?;
         return crate::view_source::Source::from_answer(&answer).map(|s| Dialog::ViewSource(Box::new(s)));
+    }
+    if name == "print" {
+        return crate::printing::PrintDialog::open(app, params).map(|d| Dialog::Print(Box::new(d)));
     }
     if name == "symbol" {
         app.session.doc()?;
@@ -1243,6 +1249,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        // The printer and how to print are asked first; with a path it writes the PDF.
+        "file.print" if !has("path") => Some("print"),
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
@@ -2070,6 +2078,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::MergeContacts(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::Print(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Print"), crate::printing::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::Symbol(dialog) => {
