@@ -178,3 +178,37 @@ fn more_than_a_page_of_lists_comes_with_a_next_link() {
     assert_eq!(second["value"].as_array().map(Vec::len), Some(4));
     assert!(second.get("@odata.nextLink").is_none());
 }
+
+#[test]
+fn dropping_it_is_bounded_with_a_trickling_client_and_one_that_never_reads() {
+    let server = StandIn::start().unwrap();
+    let port = server.port;
+    // One that trickles a byte every 100 ms and never finishes its request.
+    let mut slow = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    let trickler = std::thread::spawn(move || {
+        for byte in b"GET /v1.0/me/todo/lists HTTP/1.1\r\nX-Slow: yes".iter().cycle().take(200) {
+            if slow.write_all(&[*byte]).is_err() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    });
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    drop(server);
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "drop took {:?}", started.elapsed());
+    let _ = trickler.join();
+    // The port is free again.
+    drop(StandIn::start_on(port).unwrap());
+
+    // One that asks and never reads the answer.
+    let server = StandIn::start().unwrap();
+    let port = server.port;
+    let mut silent = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    silent.write_all(format!("GET /v1.0/me/todo/lists HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\n\r\n").as_bytes()).unwrap();
+    let started = std::time::Instant::now();
+    drop(server);
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "drop took {:?}", started.elapsed());
+    drop(StandIn::start_on(port).unwrap());
+    drop(silent);
+}

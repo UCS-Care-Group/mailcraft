@@ -2557,9 +2557,37 @@ fn parse_target(method: &str, target: &str, headers: Vec<(String, String)>, body
     }
 }
 
+/// How long one connection may take to send its whole request, and to take the answer.
+const REQUEST_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
+const WRITE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// A stream that gives up at a deadline for the whole request, or when told to stop, however
+/// slowly its client trickles bytes in.
+struct Bounded<'a> {
+    stream: TcpStream,
+    until: std::time::Instant,
+    stop: &'a std::sync::atomic::AtomicBool,
+}
+
+impl Read for Bounded<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if self.stop.load(std::sync::atomic::Ordering::SeqCst) || std::time::Instant::now() >= self.until {
+                return Err(std::io::ErrorKind::TimedOut.into());
+            }
+            match self.stream.read(buf) {
+                Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => continue,
+                other => return other,
+            }
+        }
+    }
+}
+
 /// Read one request from `stream`: the request line, the headers, and as much body as it says.
-fn read_request(stream: &TcpStream) -> Option<Asked> {
-    let mut reader = BufReader::new(stream.try_clone().ok()?);
+fn read_request(stream: &TcpStream, stop: &std::sync::atomic::AtomicBool) -> Option<Asked> {
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(100)));
+    let until = std::time::Instant::now() + REQUEST_DEADLINE;
+    let mut reader = BufReader::new(Bounded { stream: stream.try_clone().ok()?, until, stop });
     let mut line = String::new();
     reader.read_line(&mut line).ok().filter(|n| *n > 0)?;
     let mut words = line.split_whitespace();
@@ -2657,9 +2685,9 @@ impl StandIn {
                 if stopped.load(std::sync::atomic::Ordering::SeqCst) {
                     break;
                 }
-                // A client that says nothing must not keep the thread, and so the port, for good.
-                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
-                let Some(mut asked) = read_request(&stream) else { continue };
+                // A client that says nothing, or trickles, or never reads must not keep the thread, and so the port, for good.
+                let _ = stream.set_write_timeout(Some(WRITE_DEADLINE));
+                let Some(mut asked) = read_request(&stream, &stopped) else { continue };
                 let mut state = shared.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                 let (status, body) = match state.answer(&asked) {
                     Ok(answer) => answer,
