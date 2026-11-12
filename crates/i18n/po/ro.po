@@ -2321,7 +2321,7 @@ msgstr "Categorii de pe serverul lui {address}. Nu există permisiunea de a le m
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
-msgstr "Categorii de pe serverul lui {address}. Doar în citire aici până când MailCraft poate verifica dacă are voie să le modifice"
+msgstr "Categorii de pe serverul lui {address}. Doar citire aici până când MailCraft poate verifica dacă are voie să le modifice"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -2357,19 +2357,19 @@ msgstr "Categorii: sincronizate cu Outlook"
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "Categories: read-only here (MailCraft may not change them)"
-msgstr "Categorii: doar în citire aici (MailCraft nu are voie să le modifice)"
+msgstr "Categorii: doar citire aici (MailCraft nu are voie să le modifice)"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "Categories: read-only here ({why})"
-msgstr "Categorii: doar în citire aici ({why})"
+msgstr "Categorii: doar citire aici ({why})"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "Categories: read-only here until MailCraft can check whether it may change them"
-msgstr "Categorii: doar în citire aici până când MailCraft poate verifica dacă are voie să le modifice"
+msgstr "Categorii: doar citire aici până când MailCraft poate verifica dacă are voie să le modifice"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -13580,7 +13580,7 @@ msgstr "Categoriile nu au putut fi preluate: {error}"
 #: crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "The categories sent couldn't be noted: {error}"
-msgstr "Categoriile trimise nu au putut fi notate: {error}"
+msgstr "Categoriile trimise nu au putut fi înregistrate: {error}"
 
 #. what a command says
 #: crates/engine/src/undo.rs
