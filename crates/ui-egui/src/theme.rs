@@ -656,6 +656,8 @@ pub struct SystemFont {
     semibold: Option<Arc<FontData>>,
     bold: Option<Arc<FontData>>,
     fallbacks: Vec<Arc<FontData>>,
+    /// The files the fallback faces were read from, for printing (#32).
+    fallback_paths: Vec<std::path::PathBuf>,
     /// The system's colour emoji face ([`EMOJI_FACES`]), when there is one.
     emoji: Option<Arc<FontData>>,
     /// The installed face of each font a message can be written in (#582), by font and whether
@@ -765,6 +767,7 @@ impl SystemFont {
                 let Some(bytes) = read_font(path, cap.min(FALLBACK_FONTS_CAP.saturating_sub(total))) else { continue };
                 total = total.saturating_add(bytes.len() as u64);
                 used.push(path);
+                self.fallback_paths.push(path.clone());
                 // The first face of a collection: `FontData::from_owned` takes face 0.
                 self.fallbacks.push(Arc::new(FontData::from_owned(bytes)));
                 break;
@@ -784,6 +787,11 @@ impl SystemFont {
             .find_map(|path| read_font(path, FALLBACK_FONT_CAP))
             .map(|bytes| Arc::new(FontData::from_owned(bytes)));
         self
+    }
+
+    /// The files of the fallback faces, best first: what a print draws other scripts in (#32).
+    pub fn fallback_paths(&self) -> Vec<std::path::PathBuf> {
+        self.fallback_paths.clone()
     }
 
     /// Whether a colour emoji face was found and read.
@@ -834,6 +842,7 @@ impl SystemFont {
                 semibold: face("seguisb.ttf"),
                 bold: face("segoeuib.ttf"),
                 fallbacks: Vec::new(),
+                fallback_paths: Vec::new(),
                 emoji: None,
                 document: Vec::new(),
             },

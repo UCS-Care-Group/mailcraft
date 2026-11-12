@@ -121,6 +121,9 @@ const SAFE: &[&str] = &[
     "file.exportFolder",
     "file.exportCalendar",
     "file.exportContacts",
+    // A print laid out as a PDF and answered as `data`: nothing goes to a printer from here.
+    "file.print",
+    "file.saveAsPdf",
     "file.info",
     // Reads what is known of the automatic replies (and has the window read them again).
     "account.automaticReplies",
@@ -668,6 +671,8 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.exportFolder", "path", FileUse::Writes { ext: "mbox" }),
     ("file.exportCalendar", "path", FileUse::Writes { ext: "ics" }),
     ("file.exportContacts", "path", FileUse::Writes { ext: "vcf" }),
+    ("file.print", "path", FileUse::Writes { ext: "pdf" }),
+    ("file.saveAsPdf", "path", FileUse::Writes { ext: "pdf" }),
     ("mail.saveAttachment", "path", FileUse::Writes { ext: "" }),
     ("mail.saveAllAttachments", "path", FileUse::Folder),
     ("ui.reportProblem", "path", FileUse::Writes { ext: "txt" }),

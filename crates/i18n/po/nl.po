@@ -938,7 +938,7 @@ msgid "After you accept, tentatively accept or decline a meeting request in the 
 msgstr "Nadat u een vergaderverzoek in de e-mail hebt geaccepteerd, voorlopig hebt geaccepteerd of hebt afgewezen, of een geannuleerde vergadering uit uw agenda hebt gehaald, gaat het bericht naar Verwijderde items. Als dit is uitgeschakeld, blijft het waar het is en geeft het weer wat u hebt geantwoord."
 
 #. interface, name
-#: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
+#: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "All"
 msgstr "Alle"
@@ -1711,6 +1711,11 @@ msgid "Attachments can't be opened here: save it with Save As instead."
 msgstr "Bijlagen kunnen hier niet worden geopend: sla de bijlage in plaats daarvan op met Opslaan als."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Attachments:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Attendance"
@@ -2170,7 +2175,7 @@ msgid "Can't sign"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuleren"
@@ -2257,8 +2262,8 @@ msgstr "Categoriseren"
 msgid "Cc"
 msgstr "CC"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Cc:"
 msgstr "CC:"
@@ -2927,6 +2932,11 @@ msgstr "Bijdragers"
 #, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Bijdragers kiezen zelf hun namen; zie docs/contributors.md."
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Copies"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
@@ -3919,6 +3929,11 @@ msgstr "Gedownloade afbeeldingen en geopende bijlagen kunnen niet per account ui
 #, fuzzy
 msgid "Downloaded {name}"
 msgstr "{name} gedownload"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Downloaded {name}: open it to print"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -4989,8 +5004,8 @@ msgstr "Van buiten uw organisatie."
 msgid "From {name}"
 msgstr "Van {name}"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "From:"
 msgstr "Van:"
@@ -6575,6 +6590,11 @@ msgstr "Mijn account handmatig instellen"
 #, fuzzy
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
 msgstr "Laat weten dat u afwezig bent of een tijd niet kunt antwoorden: uw postvak antwoordt vanzelf"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Letter"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -9107,6 +9127,11 @@ msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which
 msgstr "Geopend met de aanmelding van {owner}. Er is Volledige toegang tot het postvak nodig, die de beheerder van uw organisatie verleent. Microsoft vraagt u één keer om MailCraft gedeelde postvakken te laten lezen en wijzigen. Wat u erin wijzigt, gaat ernaartoe. E-mail die u erin schrijft, is afkomstig van het adres ervan, en verzenden als dat postvak vereist de machtiging Verzenden als of Verzenden namens: Microsoft vraagt het u nog een keer bij uw eerste verzending."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Opened {name} to print"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Opening Mail Attachment"
@@ -9147,6 +9172,11 @@ msgstr "Openen…"
 #, fuzzy
 msgid "Opens GitHub's page in your browser, filled in: you check it and submit it there."
 msgstr "Opent de pagina van GitHub in uw browser, al ingevuld: u controleert die en dient hem daar in."
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Opens in your PDF viewer, to print from there"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -9335,16 +9365,36 @@ msgid "Page Up"
 msgstr "Page Up"
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Page {n} of {m}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Page {page} of {pages}"
 msgstr "Pagina {page} van {pages}"
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Pages"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Pagina's zoals deze openen in de browser, waarin scripts worden uitgevoerd. Open die alleen als u weet wie die heeft verzonden en u die verwacht."
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Pages:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Paper"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9713,6 +9763,43 @@ msgstr "Primair"
 #, fuzzy
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
 msgstr "Primair, Social, Promoties, Updates en Forums, zoals Gmail uw Postvak IN sorteert. Uw e-mail blijft in het Postvak IN."
+
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+msgid "Print"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Print in colour"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Print on both sides"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printing isn't available here: use Save as PDF instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printing {n} page on {printer}"
+msgid_plural "Printing {n} pages on {printer}"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Print…"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -10852,6 +10939,16 @@ msgstr "Berichtbestand opslaan als"
 msgid "Save Signature"
 msgstr "Handtekening opslaan"
 
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+msgid "Save as PDF"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Save as PDF…"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -11584,8 +11681,8 @@ msgstr "{done} van {total} verzonden"
 msgid "Sent, reference R-{reference}."
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Sent:"
 msgstr "Verzonden:"
@@ -13796,6 +13893,16 @@ msgid "The selected message, as .eml"
 msgstr "Het geselecteerde bericht, als .eml"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected messages as they print, as .pdf"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected messages, on a printer"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
@@ -15285,8 +15392,8 @@ msgstr "Om een andere server of gebruikersnaam te gebruiken, verwijdert u het ac
 msgid "To-do Changes to Send"
 msgstr "To-dowijzigingen om te verzenden"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "To:"
 msgstr "Aan:"
@@ -17540,7 +17647,7 @@ msgid "no message is being written"
 msgstr "er wordt geen bericht geschreven"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/print.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
@@ -17833,7 +17940,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selecteer eerst een gesprek in de gespreksweergave"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/print.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
@@ -18200,6 +18307,11 @@ msgstr "de map waar het .pst-bestand in werd geïmporteerd, werd verplaatst naar
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "the font to print in can't be read"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -20255,6 +20367,13 @@ msgid "{n} open task"
 msgid_plural "{n} open tasks"
 msgstr[0] "{n} openstaande taak"
 msgstr[1] "{n} openstaande taken"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "{n} page"
+msgid_plural "{n} pages"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs

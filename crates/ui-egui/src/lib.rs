@@ -154,6 +154,9 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+pub mod printing;
+#[cfg(test)]
+mod printing_tests;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -277,6 +280,10 @@ pub struct Services {
     /// the browser (the file is downloaded instead) and the tests.
     pub open_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
     pub attachment_preview: Option<attachment_preview::Host>,
+    /// Desktop: list the system's printers and send a PDF to one (File › Print, #32). Absent in
+    /// the browser and where the host can't print: the PDF then opens in the system's viewer, or
+    /// downloads.
+    pub print: Option<printing::Host>,
     /// Web: hand bytes to the browser as a download. An error means no download started.
     pub download: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
     /// Web: told whether there are unsaved changes after each pass, for the leave-page guard.
@@ -2161,6 +2168,11 @@ impl MailApp {
         }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
+        // A print's header in the interface language, and the system's faces for other scripts.
+        let params = printing::with_labels(id, params);
+        if matches!(id, "file.print" | "file.saveAsPdf") {
+            self.session.print_fallbacks = theme::SystemFont::load().fallback_paths();
+        }
         // A message being written isn't let go of without a word (#442).
         if dialogs::leaves_message(self, id, &params) {
             self.dialog = Some(dialogs::leaving(id, params));
@@ -2187,7 +2199,7 @@ impl MailApp {
             self.dialog = dialogs::open_dialog(self, name, &asked);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
-            if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
+            if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount" | "print") {
                 return Ok(json!({"pending": name}));
             }
         }
