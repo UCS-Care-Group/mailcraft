@@ -299,6 +299,8 @@ impl MailApp {
     /// let the account wait for the rest of its run. Whatever went wrong is the run's to meet
     /// again, and to ask about.
     pub(crate) fn finish_inbox_pass(&mut self, account: Id, result: GraphResult) {
+        // (Its last piece let go of what the account had, unless the job ended without it.)
+        self.session.end_run_unfinished(account);
         let check = self.inbox_check.running.take() == Some(account);
         self.inbox_check.cancel = None;
         self.keep_inbox_tokens(account, &result);

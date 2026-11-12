@@ -1080,7 +1080,8 @@ pub struct Session {
     /// The `Message-ID`s each account had before its run now under way brought new mail into its
     /// Inbox or Junk E-mail ([`crate::cmd::account::message_ids`]), as the run first needed them:
     /// kept for the run's later pieces, so that a second copy of one message in a later piece is
-    /// as new as the first (#566). Let go of with the run's last piece, an undo, or another mailbox.
+    /// as new as the first (#566). Let go of with the run's last piece (an Inbox pass's: its own),
+    /// a run that ends without it ([`Session::end_run_unfinished`]), an undo, or another mailbox.
     pub(crate) run_had: std::collections::HashMap<Id, std::collections::HashSet<String>>,
     /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
     /// JMAP, said it no longer has), by account and server id: the background passes them over
@@ -3136,7 +3137,7 @@ impl Session {
     }
 
     /// A run of `account` that ends without its last piece (an Inbox check that gave way to a run
-    /// the owner asked for): what the account had before the run's new mail is let go of, so that
+    /// the owner asked for, a job whose thread ended early): what the account had before the run's new mail is let go of, so that
     /// its next run starts from what it has then (#566).
     pub fn end_run_unfinished(&mut self, account: Id) {
         self.run_had.remove(&account);

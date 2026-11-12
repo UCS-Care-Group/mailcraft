@@ -121,6 +121,7 @@ impl MailApp {
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("ews mail: the run stopped without its last piece (its thread ended early)");
+                    self.session.end_run_unfinished(account);
                     (self.sync_rx, self.sync_refused, self.sync_password) = (None, false, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;

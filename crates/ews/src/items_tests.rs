@@ -143,3 +143,17 @@ fn a_subject_over_the_xml_readers_room_says_it_was_cut() {
     let m = page(&item, 10).unwrap().messages.remove(0);
     assert_eq!((m.subject.chars().count(), m.cut), (0, true), "(kept, cut)");
 }
+
+/// A Subject of exactly the 8,192 bytes the XML reader keeps is whole; one byte more is cut (#566).
+#[test]
+fn a_subject_that_exactly_fills_the_xml_readers_room_is_whole() {
+    let read = |subject: &str| {
+        let item = format!("<t:Create><t:Message><t:ItemId Id=\"ID1\" ChangeKey=\"CK\"/><t:Subject>{subject}</t:Subject></t:Message></t:Create>");
+        let m = page(&item, 10).unwrap().messages.remove(0);
+        (m.subject, m.cut)
+    };
+    let fits = format!("a{}b", " ".repeat(8_190));
+    assert_eq!(fits.len(), 8_192);
+    assert_eq!(read(&fits), ("a b".to_string(), false), "exact");
+    assert_eq!(read(&format!("{fits}c")), (String::new(), true), "one byte more");
+}

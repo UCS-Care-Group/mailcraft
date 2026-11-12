@@ -3887,6 +3887,7 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::warn!("graph, account {account}: the job ended without an answer (its thread ended early)");
+                self.session.end_run_unfinished(account);
                 (GraphResult { account, ..Default::default() }, false)
             }
         };
@@ -4488,6 +4489,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
                     self.logged_problems.end_run(*whose, "mail");
+                    self.session.end_run_unfinished(*whose);
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;

@@ -408,3 +408,29 @@ fn an_encoded_subject_past_the_fields_room_marks_the_message_cut() {
     assert!(!m.subject.contains("confidential"));
     assert!(m.cut, "the end of the subject was left out, unsaid: kept {} characters", m.subject.chars().count());
 }
+
+/// A Subject field of exactly the 8,192 bytes the reader keeps, blanks after it or not, is whole;
+/// one word more is cut (#566).
+#[test]
+fn an_encoded_subject_that_exactly_fills_the_fields_room_is_whole() {
+    let word = format!("=?UTF-8?Q?{}?=", "=E4=B8=AD".repeat(7));
+    let last = format!("=?UTF-8?Q?{}aaa?=", "=E4=B8=AD".repeat(5));
+    let fits = format!("{} {last}", vec![word; 107].join(" "));
+    assert_eq!(fits.len(), 8_192);
+    let cut = |subject: &str| {
+        let m = read(&[("Subject", subject)]);
+        (m.subject.chars().count(), m.cut)
+    };
+    let found = [cut(&format!(" {fits}")), cut(&format!(" {fits}   ")), cut(&format!(" {fits} b")), cut(&format!(" {fits}\r\n b"))];
+    assert_eq!(found, [(757, false), (757, false), (757, true), (757, true)], "(kept, cut): exact; blanks after; a word more; a folded word more");
+}
+
+/// A Subject past the 500 fields looked at is left out, and the message says it was cut, as for a
+/// To or a Cc there (#566).
+#[test]
+fn a_subject_past_the_fields_looked_at_marks_the_message_cut() {
+    let mut headers: Vec<(&str, &str)> = vec![("Received", " from relay.example"); 500];
+    headers.push(("Subject", " Weekly news"));
+    let m = read(&headers);
+    assert_eq!((m.subject.as_str(), m.cut), ("", true), "(kept, cut)");
+}

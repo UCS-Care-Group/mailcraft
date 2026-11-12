@@ -232,13 +232,14 @@ pub(super) fn line(text: &str, most: usize) -> String {
 /// under a name of ours. The first of a field that is only once in a message; all of a `To` or a `Cc`, to
 /// the room a field has. At most 500 fields are looked at, and at most 64 KB are kept. Says too
 /// whether recipients were left out of it, past the fields looked at or the room a `To` or a `Cc`
-/// has, or the end of a subject, past the room it has before it is decoded (#566): a rule that
-/// reads them can't tell then.
+/// has, or a subject, past the fields looked at or the room it has before it is decoded (#566): a
+/// rule that reads them can't tell then.
 fn block(headers: Option<&Value>) -> (String, bool) {
     let mut out = String::new();
     let Some(list) = headers.and_then(Value::as_array) else { return (out, false) };
     let recipients = |name: &str| name.eq_ignore_ascii_case("to") || name.eq_ignore_ascii_case("cc");
-    let mut dropped = list.iter().skip(MAX_FIELDS).any(|f| f.get("name").and_then(Value::as_str).is_some_and(recipients));
+    let read = |name: &str| recipients(name) || name.eq_ignore_ascii_case("subject");
+    let mut dropped = list.iter().skip(MAX_FIELDS).any(|f| f.get("name").and_then(Value::as_str).is_some_and(read));
     let mut used = [0usize; FIELDS.len()];
     for field in list.iter().take(MAX_FIELDS) {
         let (Some(name), Some(value)) = (field.get("name").and_then(Value::as_str), field.get("value").and_then(Value::as_str)) else {
@@ -250,7 +251,7 @@ fn block(headers: Option<&Value>) -> (String, bool) {
             continue;
         }
         let (text, cut) = folded(value, room.saturating_sub(*spent), *repeats);
-        dropped |= cut && (recipients(name) || name.eq_ignore_ascii_case("subject"));
+        dropped |= cut && read(name);
         if text.is_empty() {
             continue;
         }
