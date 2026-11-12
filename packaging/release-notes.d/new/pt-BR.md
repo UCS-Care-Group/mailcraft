@@ -1,0 +1,1 @@
+- **Português (Brasil).** MailCraft's window now comes in Brazilian Portuguese as a preview language: every text is translated, not yet reviewed line by line by a native speaker, and File › Options names it "Português (Brasil) (prévia)". Dates read day first with a 24-hour clock and weeks from Monday, and incoming `RES:` and `ENC:` subjects thread as replies and forwards.

@@ -1,0 +1,1 @@
+| 2026-11-12 | Brazilian Portuguese (pt-BR) as a preview language: every interface text translated and marked as not yet reviewed, "Português (Brasil) (prévia)" in File › Options, Automatic following `pt-BR`, dates day first with a 24-hour clock and Monday first, two plural forms, and "-----Mensagem original-----" above a quoted original; incoming `RES:` and `ENC:` thread |

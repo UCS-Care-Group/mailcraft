@@ -3,16 +3,17 @@
 > **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-10 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian, Dutch and Romanian. A preview language has every text translated, but no native speaker has reviewed it yet:
-File › Options names it so in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
+Italian, Dutch, Romanian and Brazilian Portuguese. A preview language has every text translated, but no native speaker has reviewed it yet:
+File › Options names it so in its own words ("Français (aperçu)", "Deutsch (Vorschau)", "Português (Brasil) (prévia)"). Reviewing
 one, or adding another, needs no Rust.
 
 ## Where the texts are
 
 - `crates/i18n/po/messages.pot`: the template, every text the window and the engine show. It is
   generated; never edit it by hand.
-- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`), in
-  the gettext format any `.po` editor opens. The catalogues are compiled into the program.
+- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `pt-BR.po`), in
+  the gettext format any `.po` editor opens. The catalogues are compiled into the program. A code may
+  name a region (`pt-BR`); Automatic picks it for any Portuguese variant, as it does for `fr-CA`.
 
 `cargo xtask i18n` gathers the texts from the code, rewrites the template, merges it into every
 catalogue (a new text arrives with an empty translation, a text gone from the code is dropped) and
@@ -51,7 +52,11 @@ has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being
 - What goes to recipients (the lines above a quoted original, a meeting answer) should be what
   people writing in that language expect to read.
 - Translate from the English yourself; don't copy another program's translation files.
-- A plural has one `msgstr[n]` per form of the language's rule.
+- A plural has one `msgstr[n]` per form of the language's rule. Brazilian Portuguese uses two
+  (`plural=(n > 1)`): zero and one take `msgstr[0]`, two and above `msgstr[1]`.
+- Incoming `RES:` and `ENC:` subjects thread as replies and forwards in Brazilian Portuguese, as
+  `AW:`/`WG:` and `TR :` do elsewhere. Add their words to `normalize_subject` in `crates/model/src/message.rs`
+  when a language needs them.
 - A ribbon label with a line break (`"New\nEmail"`) is a large button's two lines: put the `\n`
   where the translation reads best, or leave it out for one short word.
 - Some English words mean two things. Such an entry has a `msgctxt` that says which: `msgctxt
