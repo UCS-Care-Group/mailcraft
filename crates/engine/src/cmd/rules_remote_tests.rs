@@ -2741,3 +2741,36 @@ fn changing_the_address_beside_a_rule_onto_another_server_names_the_server() {
     let said = crate::agent::describe(&s, "account.edit", &edit);
     assert!(said.contains("onto the server of elsewhere@example.org"), "{said}");
 }
+
+/// an agent's own change to the Safe or Blocked Senders that lets more mail
+/// through to the rules, beside a rule that moves that mail onto another account's server, is
+/// asked as a send;
+/// one that lets less through isn't.
+#[test]
+fn an_agents_change_to_the_lists_beside_a_rule_onto_another_server_is_asked_as_a_send() {
+    use crate::agent::{Access, Class, classify};
+    let (mut s, account, _, _) = session();
+    let elsewhere = elsewhere(&mut s);
+    add(&mut s, account, "Away", json!([{"type": "fromContains", "value": "zoe"}]), json!([{"type": "moveTo", "value": elsewhere}]));
+    let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
+    let from_zoe = s
+        .mailbox
+        .add_message(Message { account, folder: junk, from: Address::new("Zoe", "zoe@example.org"), subject: "Offer".into(), ..Default::default() })
+        .unwrap();
+    s.mailbox_changed();
+    run(&mut s, "junk.add", json!({"list": "blocked", "entry": "zoe@example.org", "account": account}));
+    let mut wrong = Vec::new();
+    for (id, params, send) in [
+        ("junk.remove", json!({"list": "blocked", "entry": "zoe@example.org", "account": account}), true),
+        ("junk.add", json!({"list": "safe", "entry": "zoe@example.org", "account": account}), true),
+        ("junk.neverBlockSender", json!({"ids": [from_zoe]}), true),
+        ("junk.neverBlockDomain", json!({"ids": [from_zoe]}), true),
+        ("junk.add", json!({"list": "blocked", "entry": "bob@example.org", "account": account}), false),
+    ] {
+        let class = classify(&s, id, &params);
+        if (class == Access::Owner(Class::Send)) != send {
+            wrong.push(format!("{id} {params}: {class:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

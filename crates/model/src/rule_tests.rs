@@ -473,3 +473,31 @@ fn marks_change_when_a_category_rule_reads_otherwise() {
     assert_ne!(rule_reads(&before), rule_reads(&after), "the rule reads them otherwise");
     assert_ne!(Marks::of(&before), Marks::of(&after), "so the marks differ");
 }
+
+/// "my address isn't in To" as a condition, of a message whose recipients were
+/// cut past what is kept (`headers_cut`, 600 people with the owner past the 500 a Microsoft
+/// listing keeps): the To that is here lacks the owner, but the To that came may not, so the
+/// condition doesn't hold and the rule can't tell yet ([`Condition::holds_in`]), as for one the
+/// recipients of which are all here it holds.
+#[test]
+fn not_to_me_doesnt_hold_of_recipients_cut_short() {
+    let me = "ada@example.org";
+    let how = Matching { me, ..Default::default() };
+    let rule = Rule { enabled: true, conditions: vec![Condition::NotToMe], actions: vec![Action::Delete], ..Default::default() };
+    let whole = Message { to: (0..500).map(|i| Address::new("", format!("p{i}@example.org"))).collect(), ..Default::default() };
+    assert!(rule.matches_in(&whole, &how), "all its recipients are here, and the owner isn't one");
+    let cut = Message { headers_cut: true, ..whole };
+    assert!(!rule.matches_in(&cut, &how), "the owner may be among those left out");
+    assert!(rule.undecided_in(&cut, &how));
+}
+
+/// a rule an earlier build of #566 saved with "delete permanently" opens, and
+/// that action reads as Delete.
+#[test]
+fn an_earlier_builds_delete_for_good_reads_as_delete() {
+    let saved = r#"{"id": 7, "name": "Purge", "enabled": true, "conditions": [{"type": "subjectContains", "value": "x"}],
+        "actions": [{"type": "deleteForGood"}]}"#;
+    let rule: Rule = serde_json::from_str(saved).unwrap();
+    assert_eq!(rule.actions, vec![Action::Delete]);
+    assert!(!serde_json::to_string(&rule).unwrap().contains("deleteForGood"));
+}
