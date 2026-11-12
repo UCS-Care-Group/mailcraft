@@ -112,7 +112,7 @@ fn a_change_made_here_goes_up_as_it_is_the_servers() {
         zone: "UTC".into(),
     };
     let calendar = server.url("/caldav/ada@example.org/calendar/");
-    let uploaded = upload_events("", "ada@example.org", "invented", &upload, &calendar);
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, &calendar);
     assert_eq!(uploaded.outcomes.len(), 1);
     assert_eq!(uploaded.outcomes[0].result, EventResult::Done);
     assert_eq!(uploaded.outcomes[0].uid, "made-here");
@@ -122,6 +122,32 @@ fn a_change_made_here_goes_up_as_it_is_the_servers() {
     assert!(request.contains("Content-Type: text/calendar; charset=utf-8\r\n"), "{request}");
     assert!(request.contains("If-None-Match: *\r\n"), "{request}");
     assert!(request.contains("SUMMARY:Stand-up") && request.contains("UID:made-here\r\n"), "{request}");
+}
+
+#[test]
+fn an_event_for_a_calendar_on_another_server_is_refused() {
+    use mailcraft_model::remote::{EventOp, EventTime, EventsUpload};
+    let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let upload = EventsUpload {
+        account: 7,
+        email: "ada@example.org".into(),
+        ops: vec![EventOp {
+            kind: EventChangeKind::Create,
+            event: 42,
+            token: "made-here".into(),
+            fields: EventFields {
+                title: Some("Stand-up".into()),
+                time: Some(EventTime { start: 1_800_000_000, end: 1_800_003_600, all_day: false }),
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
+        zone: "UTC".into(),
+    };
+    let uploaded = upload_events(&server.url("/caldav/"), "ada@example.org", "invented", &upload, "https://other.example/caldav/");
+    assert_eq!(uploaded.outcomes[0].result, EventResult::Refused);
+    assert!(uploaded.outcomes[0].error.contains("another server"), "{}", uploaded.outcomes[0].error);
+    assert_eq!(server.asked(), 0, "nothing is sent to the other server");
 }
 
 #[test]

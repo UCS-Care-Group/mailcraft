@@ -579,7 +579,7 @@ pub struct Services {
 impl Services {
     /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
-        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
+        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some() || self.dav.is_some()
     }
 }
 
@@ -3252,6 +3252,28 @@ impl MailApp {
         self.remember("davpassword", account, &password);
     }
 
+    /// Whether a DAV account's password is known: this session's, or the store's.
+    fn dav_password_known(&self, account: Id) -> bool {
+        self.dav_passwords.contains_key(&account) || self.remembered("davpassword", account).is_some()
+    }
+
+    /// Send/Receive of an account that keeps calendars and address books alone: its DAV job is
+    /// the whole run. Asks for its password when that isn't known.
+    fn start_dav_sync(&mut self, account: Id, p: &Value) -> Result<Value, String> {
+        if self.services.dav.is_none() {
+            return Err(tl!("This build can't connect to calendars and address books (a browser can't open DAV connections).").to_string());
+        }
+        if let Some(password) = p.get("password").and_then(Value::as_str) {
+            self.adopt_dav_password(account, password.to_string());
+        }
+        if !self.dav_password_known(account) {
+            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            return Ok(json!({"pending": "password", "account": account}));
+        }
+        self.dav_sync_soon(account);
+        Ok(json!({"started": true, "account": account, "dav": true}))
+    }
+
     /// Start a Send/Receive for an account (default: the first one with a server). Asks for the
     /// password the first time, or has the owner sign in on the provider's page; the answer is
     /// kept in memory until the app closes, and by the operating system when that is wanted.
@@ -3294,6 +3316,38 @@ impl MailApp {
         let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
         if target.is_some_and(|account| self.calendar_job_for(account)) {
             return Err(tl!("The calendar is being updated already.").to_string());
+        }
+        // An account of calendars and address books alone has no mail round: its DAV job is
+        // what Send/Receive starts.
+        let dav_only = |app: &Self, id: Id| app.session.mailbox.account(id).is_some_and(|a| a.is_dav() && !a.kind.has_server());
+        if let Some(account) = p.get("account").and_then(Value::as_u64).filter(|id| dav_only(self, *id)) {
+            return self.start_dav_sync(account, p);
+        }
+        // A Send/Receive of every account reads the calendars and address books of those with
+        // no mail too; when there is no mail account at all, they are the whole run.
+        if p.get("account").is_none() {
+            let only: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| a.is_dav() && !a.kind.has_server()).map(|a| a.id).collect();
+            if !only.is_empty() {
+                let missing = only.iter().copied().find(|account| !self.dav_password_known(*account));
+                if self.server_accounts().is_empty() {
+                    if let Some(account) = missing {
+                        return self.start_dav_sync(account, p);
+                    }
+                    for account in &only {
+                        self.dav_sync_soon(*account);
+                    }
+                    return Ok(json!({"started": true, "dav": true, "accounts": only}));
+                }
+                // The mail round goes on; the DAV-only accounts are read beside it, and one whose
+                // sign-in is missing asks for it now instead of waiting unseen.
+                if let Some(account) = missing {
+                    self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+                }
+                let known: Vec<Id> = only.iter().copied().filter(|account| self.dav_password_known(*account)).collect();
+                for account in known {
+                    self.dav_sync_soon(account);
+                }
+            }
         }
         // A run starts, the owner's or one by itself: full messages paused by Stop go on.
         self.resume_fetch();

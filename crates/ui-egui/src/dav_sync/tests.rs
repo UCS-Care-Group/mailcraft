@@ -27,6 +27,80 @@ fn app() -> (MailApp, Id) {
     (MailApp::new(Session::at(mailbox, 1_800_000_000, 0), crate::Services::default()), id)
 }
 
+fn dav_only_app() -> (MailApp, Id) {
+    let mut mailbox = Mailbox::with_local_account("", "");
+    let id = mailbox.add_account(Account {
+        email: "ada@example.org".into(),
+        display_name: "Ada".into(),
+        kind: AccountKind::Dav,
+        dav: Some(DavServer {
+            caldav: "https://cloud.example.org/remote.php/dav/".into(),
+            carddav: "https://cloud.example.org/remote.php/dav/".into(),
+            username: "ada".into(),
+        }),
+        ..Default::default()
+    });
+    let mut app = MailApp::new(Session::at(mailbox, 1_800_000_000, 0), crate::Services::default());
+    app.services.dav = Some(Box::new(|job: DavJob| {
+        let (tx, rx) = mpsc::channel();
+        let _ = tx.send(DavResult { account: job.account.id, ..Default::default() });
+        rx
+    }));
+    (app, id)
+}
+
+#[test]
+fn send_receive_starts_a_dav_only_accounts_job() {
+    let (mut app, account) = dav_only_app();
+    app.adopt_dav_password(account, "secret".into());
+    let named = app.execute("ui.sync", json!({"account": account})).unwrap();
+    assert_eq!((named["dav"].as_bool(), named["account"].as_u64()), (Some(true), Some(account)));
+    assert!(app.dav.requested.contains(&account), "the job is asked for");
+
+    let (mut app, account) = dav_only_app();
+    app.adopt_dav_password(account, "secret".into());
+    let all = app.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(all["dav"].as_bool(), Some(true), "a mailbox of DAV accounts only starts them");
+
+    let (mut app, account) = dav_only_app();
+    let asking = app.execute("ui.sync", json!({"account": account})).unwrap();
+    assert_eq!(asking["pending"].as_str(), Some("password"), "without a password it asks");
+
+    // The whole-mailbox Send/Receive asks too, rather than leaving the DAV-only account out.
+    let (mut app, _) = dav_only_app();
+    let asking = app.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(asking["pending"].as_str(), Some("password"), "and asks when no account is named");
+}
+
+#[test]
+fn a_refused_dav_sign_in_asks_for_the_password_again() {
+    let (mut app, account) = dav_only_app();
+    app.adopt_dav_password(account, "old password".into());
+    let (tx, rx) = mpsc::channel();
+    app.dav.rx = Some((account, app.session.openings(), rx));
+    tx.send(DavResult {
+        account,
+        errors: vec!["the calendars couldn't be read: the server answered 401 to a request for its collections".into()],
+        ..Default::default()
+    })
+    .unwrap();
+    app.poll_dav();
+    assert!(!app.dav_passwords.contains_key(&account), "the refused password is let go");
+    assert!(matches!(app.dialog, Some(crate::dialogs::Dialog::Password { account: id, .. }) if id == account), "the sign-in dialog comes up");
+}
+
+#[test]
+fn a_successful_run_clears_a_stale_sign_in_notice() {
+    let (mut app, account) = dav_only_app();
+    app.keep_sync_problems(account, &["The calendars and address books need their sign-in again: press Send/Receive.".into()]);
+    assert!(app.sync_problems.iter().any(|(a, ..)| *a == account));
+    let (tx, rx) = mpsc::channel();
+    app.dav.rx = Some((account, app.session.openings(), rx));
+    tx.send(DavResult { account, ..Default::default() }).unwrap();
+    app.poll_dav();
+    assert!(!app.sync_problems.iter().any(|(a, ..)| *a == account), "the stale notice goes when the run works");
+}
+
 #[test]
 fn the_calendars_and_every_shared_address_book_are_taken_in() {
     let (mut app, account) = app();
