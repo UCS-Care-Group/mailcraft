@@ -721,7 +721,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
         fn get(&self, key: &str) -> Option<String> {
             self.0.lock().unwrap().get(key).cloned()
         }
-        fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
             self.0.lock().unwrap().insert(key.to_string(), secret.to_string());
             Ok(())
         }
@@ -842,7 +842,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
         fn get(&self, key: &str) -> Option<String> {
             self.0.lock().unwrap().get(key).cloned()
         }
-        fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
             self.0.lock().unwrap().insert(key.to_string(), secret.to_string());
             Ok(())
         }
@@ -951,10 +951,10 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
             *self.0.lock().unwrap() = Some(StoreTrouble::Unavailable);
             None
         }
-        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
             self.1.fetch_add(1, Ordering::Relaxed);
             *self.0.lock().unwrap() = Some(StoreTrouble::Unavailable);
-            Err("the system's credential store refused: no Secret Service".into())
+            Err(mailcraft_host::SecretError::Other("the system's credential store refused: no Secret Service"))
         }
         fn delete(&self, _: &str) {}
         fn take_trouble(&self) -> Option<StoreTrouble> {
@@ -991,7 +991,7 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
     a.check_secret_store();
     assert_eq!(a.secrets_trouble, Some(StoreTrouble::Unavailable));
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, StoreTrouble::Unavailable.notice());
+    assert_eq!(said, crate::store_trouble_notice(StoreTrouble::Unavailable));
     assert!(said.contains("asks again each time it starts"), "{said}");
     assert!(!said.contains("pw-one"));
 
@@ -1013,8 +1013,8 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
     assert_eq!(b.secrets_trouble, Some(StoreTrouble::Unavailable));
 
     // A locked store is told as such.
-    assert_ne!(StoreTrouble::Locked.notice(), StoreTrouble::Unavailable.notice());
-    assert!(StoreTrouble::Locked.notice().contains("locked"));
+    assert_ne!(crate::store_trouble_notice(StoreTrouble::Locked), crate::store_trouble_notice(StoreTrouble::Unavailable));
+    assert!(crate::store_trouble_notice(StoreTrouble::Locked).contains("locked"));
 }
 
 /// Send/Receive starts by itself (when the app starts, then every few minutes) for the accounts
