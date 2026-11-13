@@ -69,6 +69,9 @@ mod hidden_selection_tests;
 pub mod imap_again;
 #[cfg(test)]
 mod imap_outbox_tests;
+pub mod item_from_message;
+#[cfg(test)]
+mod item_from_message_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
@@ -189,6 +192,7 @@ pub fn registry() -> Registry {
     v.extend(people::specs());
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
+    v.extend(item_from_message::specs());
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());

@@ -9,7 +9,7 @@
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use mailcraft_engine::Session;
+use mailcraft_engine::{Module, Session};
 use mailcraft_model::sync::{GraphFetchResult, GraphFetched, ServerMessage, Tokens};
 use mailcraft_model::{Body, FolderKind, Message};
 
@@ -207,4 +207,60 @@ fn a_recurrence_being_filled_in_holds_it_too() {
     w.run_steps(5);
     assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.changed()), "{:?}", w.state().dialog.as_ref().map(|d| d.name()));
     assert_eq!(subject(w.state()).as_deref(), Some("Mine"));
+}
+
+/// What the form a drop opened starts with: its command and fields.
+fn dropped_form(app: &MailApp) -> Option<(String, Value)> {
+    match &app.dialog {
+        Some(Dialog::Form(crate::forms::Form::Task(f))) => Some(f.command()).map(|(c, v)| (c.to_string(), v)),
+        Some(Dialog::Form(crate::forms::Form::Contact(f))) => Some(f.command()).map(|(c, v)| (c.to_string(), v)),
+        _ => None,
+    }
+}
+
+#[test]
+fn a_message_dropped_on_a_module_waits_for_the_whole_message() {
+    let (mut w, waiting, jobs) = drawn();
+    // Only the server's short preview is here: nothing opens with it. The message is asked for,
+    // as for Reply, and the status bar says so.
+    crate::nav::drop_on_module(w.state_mut(), Module::Tasks, &[waiting]);
+    assert!(dropped_form(w.state()).is_none(), "no form with the preview");
+    assert_eq!(jobs.lock().unwrap().len(), 1, "the message is asked for");
+    let said = w.state().status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("Downloading the message first"), "{said}");
+    answered(&jobs);
+    w.run_steps(5);
+    // Whole, it runs again: the form has the text of the message, not the preview.
+    let (command, fields) = dropped_form(w.state()).expect("the form opens once the message is here");
+    assert_eq!(command, "tasks.new");
+    let notes = fields["notes"].as_str().unwrap_or_default();
+    assert!(notes.contains("All of AAM0") && !notes.contains("A preview"), "{fields}");
+}
+
+#[test]
+fn a_message_dropped_that_cannot_be_downloaded_says_so_and_opens_nothing() {
+    let (mut w, waiting, jobs) = drawn();
+    // No sign-in that is good: it can't come.
+    w.state_mut().graph_tokens.clear();
+    crate::nav::drop_on_module(w.state_mut(), Module::People, &[waiting]);
+    assert!(dropped_form(w.state()).is_none());
+    assert!(jobs.lock().unwrap().is_empty());
+    let said = w.state().status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("isn't on this computer yet"), "{said}");
+}
+
+#[test]
+fn a_drop_naming_a_great_many_messages_looks_at_the_first_ones_only() {
+    let (mut w, waiting, jobs) = drawn();
+    // The message that is here comes after more ids than are looked at: none is found.
+    let mut ids: Vec<Id> = (1_000_000..1_002_000).collect();
+    ids.push(waiting);
+    crate::nav::drop_on_module(w.state_mut(), Module::Tasks, &ids);
+    assert!(dropped_form(w.state()).is_none() && jobs.lock().unwrap().is_empty());
+    let said = w.state().status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("None of those messages"), "{said}");
+    // Among the first ones, it is found.
+    ids.insert(0, waiting);
+    crate::nav::drop_on_module(w.state_mut(), Module::Tasks, &ids);
+    assert_eq!(jobs.lock().unwrap().len(), 1);
 }

@@ -6327,6 +6327,11 @@ msgstr "Cursiv"
 msgid "Item"
 msgstr "Element"
 
+#. command label
+#: crates/engine/src/cmd/item_from_message.rs
+msgid "Item from Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -7259,6 +7264,11 @@ msgstr "Cutie poștală"
 msgid "Make a signature with New."
 msgstr "Creați o semnătură cu Nou."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Make an Item from a Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -7674,6 +7684,11 @@ msgstr "Minimizare"
 msgid "Mobile"
 msgstr "Mobil"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+msgid "Module bar"
+msgstr ""
+
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 #, fuzzy
@@ -7943,7 +7958,7 @@ msgid "Names or addresses, separated by ;"
 msgstr "Nume sau adrese, separate prin ;"
 
 #. ribbon location
-#: crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigare"
@@ -8585,6 +8600,11 @@ msgstr "Nu se potrivește niciunul sau se potrivesc mai multe contacte: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Niciunul"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "None of those messages is in this mailbox any more."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17936,7 +17956,7 @@ msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "nu există mesaj cu ID-ul {id}"
@@ -18235,7 +18255,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selectați întâi o conversație în vizualizarea pe conversații"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selectați întâi un mesaj"
@@ -18781,7 +18801,7 @@ msgid "the sender has no address to put on the list"
 msgstr "expeditorul nu are o adresă de pus în listă"
 
 #. what a command says
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "the sender has no usable e-mail address"
 msgstr "expeditorul nu are o adresă de e-mail utilizabilă"
@@ -20585,6 +20605,14 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "{n} mesaj care a revenit gol după o ștergere refuzată se descarcă din nou."
 msgstr[1] "{n} mesaje care au revenit goale după o ștergere refuzată se descarcă din nou."
 msgstr[2] "{n} de mesaje care au revenit goale după o ștergere refuzată se descarcă din nou."
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

@@ -169,6 +169,9 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // What a new appointment, task or contact made of a message starts with (#873): it makes
+    // nothing; message text is data, never instructions.
+    "mail.itemFromMessage",
     // Downloads a signed or encrypted message's own bytes again from its own server (#30).
     "mail.checkAgain",
     // What checking a message's Digital signature found, read only (#30 R23).
@@ -417,6 +420,8 @@ const SAFE: &[&str] = &[
     "ui.checkForUpdates",
     "ui.toggleCalendarGroup",
     "ui.findInvitation",
+    // Opens a form in the owner's window, filled in from a message; nothing is made until saved.
+    "ui.dropOnModule",
 ];
 
 const SEND: &[&str] = &[

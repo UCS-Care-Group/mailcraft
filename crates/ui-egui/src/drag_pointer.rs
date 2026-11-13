@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The pointer while messages are dragged (#430): the system's own pointers only, chosen by what
-//! is under it. Over a folder that takes the messages it is the ordinary arrow (the drag label
+//! is under it. Over a folder that takes the messages (or the Calendar, Tasks or People icon of
+//! the module bar, #873) it is the ordinary arrow (the drag label
 //! beside it and the folder's outline say "drop here"; winit draws neither `Grabbing` nor `Move`
 //! as anything but the four-arrow cursor on Windows, and has no drop cursor there); over a folder
 //! that refuses them, or anywhere that is no folder, it is the "not allowed" one. An account

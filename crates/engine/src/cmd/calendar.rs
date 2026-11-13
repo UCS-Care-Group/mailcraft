@@ -394,16 +394,16 @@ fn apply(s: &Session, e: &mut Event, v: &Value) -> Result<(), CmdError> {
     meeting::apply(e, v)
 }
 
+/// The next half hour after `now` (a new appointment's start, as Outlook's).
+pub(super) fn next_half_hour(now: DateTime) -> DateTime {
+    DateTime::at_midnight(now.date).add_minutes((i64::from(now.minutes_of_day()) / 30 + 1) * 30)
+}
+
 /// The start a new appointment gets: the next half hour today, or the start of the working day
 /// on another day in view.
 fn default_start(s: &Session) -> DateTime {
     let now = s.local_now();
-    if s.view.date == now.date {
-        let minutes = (i64::from(now.minutes_of_day()) / 30 + 1) * 30;
-        DateTime::at_midnight(now.date).add_minutes(minutes)
-    } else {
-        DateTime { hour: s.prefs.work_start.min(23), ..DateTime::at_midnight(s.view.date) }
-    }
+    if s.view.date == now.date { next_half_hour(now) } else { DateTime { hour: s.prefs.work_start.min(23), ..DateTime::at_midnight(s.view.date) } }
 }
 
 fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {

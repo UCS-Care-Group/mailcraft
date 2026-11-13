@@ -214,6 +214,8 @@ fn params(f: &Fixture, id: &str) -> Value {
         "mail.get" | "mail.viewSource" | "mail.findFromSender" => json!({"id": m}),
         "mail.list" => json!({"folder": f.session.mailbox.message(m).map(|x| x.folder), "query": "", "limit": 500}),
         "mail.findRelated" => json!({}),
+        // A new item made of the message (#873); the task and contact forms are run in the test.
+        "mail.itemFromMessage" => json!({"id": m, "as": "appointment"}),
         "calendar.get" | "calendar.proposals" => json!({"id": e}),
         "calendar.join" => json!({"id": f.joinable}),
         "calendar.list" => json!({"from": "2026-10-14", "to": "2026-10-15"}),
@@ -248,6 +250,16 @@ fn no_marker_in_any_content_answer_stands_outside_a_frame() {
         }
         if *id == "mail.findRelated" {
             exec(&mut h, &pol, "mail.select", json!({"id": f.message})).unwrap();
+        }
+        if *id == "mail.itemFromMessage" {
+            for kind in ["task", "contact"] {
+                let p = json!({"id": f.message, "as": kind});
+                let answer = exec(&mut h, &pol, id, p.clone()).unwrap_or_else(|e| panic!("{id} {p}: {e}"));
+                assert!(answer.to_string().to_lowercase().contains("hostile"), "{id} {p} answered without the marked items: {answer}");
+                let mut found = Vec::new();
+                bare_marks(&answer, "", &mut found);
+                bare.extend(found.into_iter().map(|b| format!("{id} {kind}{b}")));
+            }
         }
         let p = params(&f, id);
         let answer = exec(&mut h, &pol, id, p.clone()).unwrap_or_else(|e| panic!("{id} {p}: {e}"));
