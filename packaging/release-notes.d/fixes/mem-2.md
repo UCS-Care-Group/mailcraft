@@ -1,1 +1,0 @@
-- MailCraft keeps less in memory for showing things again quickly: at most 96 MB of picture textures (was 160 MB), 48 MB and 150 of the pictures downloaded from the web (was 96 MB and 300), 300 senders' pictures (was 1,000) and 64 MB of content read from disk (was 128 MB). What is on screen is always kept.
