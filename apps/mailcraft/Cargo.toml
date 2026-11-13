@@ -20,6 +20,7 @@ mailcraft-names = { workspace = true }
 image = { workspace = true }
 # A private scratch directory for the optional local attachment renderer.
 tempfile = { workspace = true }
+mailcraft-host = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
 mailcraft-control-key = { workspace = true }
@@ -42,6 +43,8 @@ serde_json = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
+# The Graph run's seams, which the flow tests go through with a renewal of their own.
+mailcraft-host = { workspace = true, features = ["test-support"] }
 # The tests run the whole way of a calendar change, and of reading Outlook's Favorites, against
 # a stand-in for Microsoft Graph that takes only what the documented service takes
 # (`mailcraft_net::graph::standin`).
@@ -124,6 +127,8 @@ windows = { version = "0.62", features = [
     "Foundation_Collections",
     "Data_Xml_Dom",
     "UI_Notifications",
+    # Whether the system plays animations (`system_motion.rs`, #1183).
+    "UI_ViewManagement",
     "Security_Cryptography",
     "Security_Cryptography_Certificates",
     "Security_Cryptography_Core",
