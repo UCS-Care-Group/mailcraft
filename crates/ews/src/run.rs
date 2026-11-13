@@ -352,22 +352,29 @@ impl<E: HttpExchange> Run<'_, E> {
         let (mut state, mut deltas, mut tried_afresh) =
             (state.to_owned(), EwsFolderDeltas { afresh: state.is_empty(), ..EwsFolderDeltas::default() }, false);
         let mut skipped = 0usize;
+        // (What is in `unreadable_in` already, looked up in one step: a server may name thousands.)
+        let mut seen = std::collections::HashSet::new();
         for _ in 0..MAX_HIERARCHY_PAGES {
             let op = SyncFolderHierarchy::new(&state);
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     skipped = skipped.saturating_add(page.skipped);
                     for parent in page.unreadable {
+                        // (A delta keeps none of it, and once anywhere is said nothing more is needed.)
+                        if !deltas.afresh || deltas.unreadable_anywhere {
+                            break;
+                        }
                         // (None at all: that couldn't be read either. The root's id is the top here.)
                         if parent.is_empty() {
                             deltas.unreadable_anywhere = true;
                             continue;
                         }
                         let parent = if specials.root.as_deref() == Some(parent.as_str()) { String::new() } else { parent };
-                        if deltas.unreadable_in.contains(&parent) {
+                        if seen.contains(&parent) {
                             continue;
                         }
                         if deltas.unreadable_in.len() < MAX_FOLDERS {
+                            seen.insert(parent.clone());
                             deltas.unreadable_in.push(parent);
                         } else {
                             deltas.unreadable_anywhere = true;
@@ -402,6 +409,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 }
                 Err(Asked::Code(ResponseCode::InvalidSyncState)) if !tried_afresh => {
                     (state, tried_afresh, skipped) = (String::new(), true, 0);
+                    seen.clear();
                     deltas = EwsFolderDeltas { afresh: true, ..EwsFolderDeltas::default() };
                     log::info!("ews folders: the server no longer knows the folder list's state; reading it afresh");
                 }

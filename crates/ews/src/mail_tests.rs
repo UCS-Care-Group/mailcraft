@@ -220,6 +220,49 @@ fn a_mail_folder_that_could_not_be_read_inside_another_is_said_to_lie_in_it() {
     assert_eq!(folders.unreadable_in, [projects]);
 }
 
+/// Several unreadable folders in the same place name that place once, and each place once.
+#[test]
+fn unreadable_folders_in_the_same_place_name_it_once() {
+    let standin = StandIn::new();
+    let projects = "AAMkAGV4YW1wbGUtb3JnL2V3cy1zdGFuZC1pbgAuAAAAAACq000600+Tk/Zm9sZGVyLWlkAAA=".to_string();
+    {
+        let mut s = standin.state();
+        let top = s.folders.iter().find(|f| f.distinguished == "msgfolderroot").unwrap().id.clone();
+        let mut add = |n: u32, name: &str, parent: String| {
+            s.folders.push(crate::standin::Folder {
+                distinguished: String::new(),
+                id: format!("AAMkAGV4YW1wbGUtb3JnL2V3cy1zdGFuZC1pbgAuAAAAAACq{n:06}+Tk/Zm9sZGVyLWlkAAA="),
+                name: name.into(),
+                total: 0,
+                unread: 0,
+                parent,
+                class: "IPF.Note".into(),
+            });
+        };
+        add(601, "", top.clone());
+        add(602, "", top.clone());
+        add(603, "", projects.clone());
+        add(604, "", projects.clone());
+        s.folders.push(crate::standin::Folder {
+            distinguished: String::new(),
+            id: projects.clone(),
+            name: "Projects".into(),
+            total: 0,
+            unread: 0,
+            parent: top,
+            class: "IPF.Note".into(),
+        });
+    }
+    let (pieces, _) = run(&standin, &request());
+    let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
+    assert!(folders.afresh && !folders.unreadable_anywhere);
+    let mut places = folders.unreadable_in.clone();
+    places.sort();
+    let mut want = vec![String::new(), projects];
+    want.sort();
+    assert_eq!(places, want, "the top and Projects, once each");
+}
+
 /// Where each folder goes on from, as the pages of a run say: the last of each folder.
 fn states_of(pieces: &[EwsMailResult]) -> Vec<EwsFolderState> {
     let mut out: Vec<EwsFolderState> = Vec::new();
