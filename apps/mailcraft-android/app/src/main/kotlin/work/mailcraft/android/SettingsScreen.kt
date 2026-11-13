@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -31,7 +32,7 @@ import androidx.compose.ui.unit.dp
 private val Gutter = 16.dp
 private val IconBox = 24.dp
 
-/** Settings: a frame of sections. The language is the one section that does anything yet. */
+/** Settings: its sections, each a page of its own. */
 @Composable
 internal fun SettingsScreen(
     texts: Texts,
@@ -42,6 +43,8 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
     onAddAccount: () -> Unit,
 ) {
+    // The pages that hold something for each account read what is kept for them.
+    LaunchedEffect(data.accounts) { actions.settings.onShown(data.accounts) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -66,12 +69,12 @@ internal fun SettingsScreen(
                 SettingsPage.Accounts ->
                     AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
                 SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
-                SettingsPage.About -> AboutPage(texts, data.version)
-                else -> Text(
-                    text = texts.t("Pending development"),
-                    modifier = Modifier.padding(Gutter),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings)
+                SettingsPage.MailOffline -> MailOfflinePage(texts, data.settingsUi, data.accounts, actions.settings)
+                SettingsPage.Notifications -> NotificationsPage(texts, data.settingsUi.switches, actions.settings)
+                SettingsPage.Pictures -> PicturesSwitchPage(texts, data.settingsUi.switches, actions.settings)
+                SettingsPage.SenderImages -> SenderImagesSwitchPage(texts, data.settingsUi.switches, actions.settings)
+                SettingsPage.Signatures -> SignaturesPage(texts, data.settingsUi, data.accounts, actions.settings)
             }
         }
     }
@@ -84,7 +87,11 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.About -> data.version
-            else -> texts.t("Pending development")
+            SettingsPage.MailOffline -> offlineSummary(texts, data.settingsUi, data.accounts)
+            SettingsPage.Notifications -> notificationsSummary(texts, data.settingsUi.switches)
+            SettingsPage.Pictures -> picturesSummary(texts, data.settingsUi.switches)
+            SettingsPage.SenderImages -> senderImagesSummary(texts, data.settingsUi.switches)
+            SettingsPage.Signatures -> signaturesSummary(texts, data.settingsUi, data.accounts)
         }
         Row(
             modifier = Modifier
@@ -136,18 +143,4 @@ private fun LanguageRow(name: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) Icon(AppIcons.Check, contentDescription = null, modifier = Modifier.size(IconBox))
     }
     HorizontalDivider()
-}
-
-@Composable
-private fun AboutPage(texts: Texts, version: String) {
-    Column(modifier = Modifier.padding(Gutter)) {
-        Text("MailCraft", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            texts.t("Version"),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Gutter),
-        )
-        Text(version, style = MaterialTheme.typography.bodyLarge)
-    }
 }

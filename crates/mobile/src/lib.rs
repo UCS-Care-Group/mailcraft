@@ -33,6 +33,7 @@ mod platform;
 mod queries;
 mod queue;
 mod records;
+pub mod settings;
 pub mod text;
 
 #[cfg(test)]
@@ -46,6 +47,8 @@ mod junk_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]
+mod settings_tests;
+#[cfg(test)]
 mod tests;
 
 pub use accounts::{Permission, PermissionOutcome, PermissionState, SignInOutcome};
@@ -54,3 +57,4 @@ pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
+pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};

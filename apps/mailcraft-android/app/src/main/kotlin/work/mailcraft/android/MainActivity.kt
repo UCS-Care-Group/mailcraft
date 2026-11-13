@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import uniffi.mailcraft_mobile.Core
 
@@ -58,7 +59,7 @@ class MainActivity : AppCompatActivity() {
 @Composable
 internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
     when (started) {
-        is Started.Ready -> CoreShell(started.core, started.hub, version, chosenLanguage, onLanguage)
+        is Started.Ready -> CoreShell(started.core, started.hub, started.settings, version, chosenLanguage, onLanguage)
         Started.Failed -> Centered(stringResource(R.string.start_failed))
     }
 }
@@ -85,6 +86,7 @@ private suspend fun loadMail(core: Core, outlined: Outlined?, folder: FolderItem
 private fun CoreShell(
     core: Core,
     hub: AccountsHub,
+    settings: SettingsController,
     version: String,
     chosenLanguage: String,
     onLanguage: (String) -> Unit,
@@ -105,6 +107,14 @@ private fun CoreShell(
     SideEffect { hub.showing(accounts) }
     val controller = hub.controller
     val accountsUi by controller.ui.collectAsState()
+    val settingsUi by settings.ui.collectAsState()
+    val context = LocalContext.current
+    val settingsActions = remember(settings, context) {
+        settings.actions(
+            onChannelSettings = { id -> openChannelSettings(context, id) },
+            onOpenLink = { url -> openWebLink(context, url) },
+        )
+    }
     AppShell(
         texts = texts,
         data = ShellData(
@@ -115,11 +125,13 @@ private fun CoreShell(
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
+            settingsUi = settingsUi,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> picked = selected.id.toLong() },
             onLanguage = onLanguage,
             accounts = controller.actions(),
+            settings = settingsActions,
         ),
     )
 }

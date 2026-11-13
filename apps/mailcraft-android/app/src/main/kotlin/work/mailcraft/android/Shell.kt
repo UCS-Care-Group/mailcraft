@@ -49,6 +49,8 @@ internal class ShellData(
     val chosenLanguage: String,
     /** What the account screens draw besides the list of accounts. */
     val accountsUi: AccountsUi = AccountsUi(),
+    /** What the Settings pages draw besides the accounts. */
+    val settingsUi: SettingsUi = SettingsUi(),
 )
 
 /** What the shell asks of the app. */
@@ -56,6 +58,7 @@ internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
     val onLanguage: (String) -> Unit,
     val accounts: AccountActions = AccountActions(),
+    val settings: SettingsActions = SettingsActions(),
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -129,6 +132,7 @@ internal fun AppShell(
         )
     }
     AccountDialogs(texts, data, actions.accounts)
+    SpaceQuestion(texts, data, actions.settings)
 }
 
 /** The screen the navigation state says: Add Account, Settings, or a tab. */
@@ -182,6 +186,12 @@ private fun AccountDialogs(texts: Texts, data: ShellData, actions: AccountAction
         PermissionQuestionDialog(texts, question, account?.email.orEmpty(), actions)
     }
     data.accountsUi.removing?.let { RemoveAccountDialog(texts, it, actions) }
+}
+
+/** The question that floats over whatever screen is showing while a sync waits for room. */
+@Composable
+private fun SpaceQuestion(texts: Texts, data: ShellData, actions: SettingsActions) {
+    data.settingsUi.space?.let { SpaceDialog(texts, it, actions) }
 }
 
 @Composable

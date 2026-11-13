@@ -246,6 +246,8 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     let SignInOutcome::SignedIn { account, email, name } = outcome.clone() else { panic!("{outcome:?}") };
     assert_eq!((email.as_str(), name.as_str()), (ADA, "Ada Lumen"));
     assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    // A phone keeps a month of mail offline until the owner says otherwise (the desktop, twelve).
+    assert_eq!(block_on(rig.core.keep_offline(account)).unwrap(), "1m");
     // The refresh token is in the store, under the account's address, and nothing else is.
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
     assert_eq!(rig.secrets_kept(), 1);

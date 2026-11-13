@@ -110,6 +110,21 @@ fn every_query_with_junk_answers_and_never_panics() {
             not_internal("picture", &block_on(core.picture(n, t.to_string())));
         }
         not_internal("picture", &block_on(core.picture(n, huge.clone())));
+        // Settings: the windows, the thinning and the signatures, for any account and any text.
+        not_internal("keep_offline", &block_on(core.keep_offline(n)));
+        for t in texts {
+            not_internal("set_keep_offline", &block_on(core.set_keep_offline(n, t.to_string())));
+            not_internal("offline_freed", &block_on(core.offline_freed(n, t.to_string())));
+            not_internal("set_account_signature", &block_on(core.set_account_signature(n, t.to_string())));
+            assert!(crate::settings::offline_estimate(t.to_string()) > 0);
+            let _ = crate::settings::parse_device_settings(t.to_string());
+        }
+        not_internal("account_signature", &block_on(core.account_signature(n)));
+        not_internal("set_account_signature", &block_on(core.set_account_signature(n, huge.clone())));
+        not_internal("set_keep_offline", &block_on(core.set_keep_offline(n, huge.clone())));
+    }
+    for c in counts {
+        not_internal("thin_offline", &block_on(core.thin_offline(c)));
     }
     for a in dates {
         for b in dates {

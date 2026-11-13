@@ -30,6 +30,7 @@ internal enum class SettingsPage {
     Notifications,
     Pictures,
     SenderImages,
+    Signatures,
     Language,
     About,
     ;
@@ -40,6 +41,7 @@ internal enum class SettingsPage {
         Notifications -> texts.t("Notifications")
         Pictures -> texts.t("Pictures")
         SenderImages -> texts.t("Sender images")
+        Signatures -> texts.t("Signatures")
         Language -> texts.t("Language")
         About -> texts.t("About")
     }

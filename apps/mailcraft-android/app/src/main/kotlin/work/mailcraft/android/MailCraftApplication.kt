@@ -14,7 +14,7 @@ import uniffi.mailcraft_mobile.CoreException
 
 /** What starting the Rust core came to: the core, or why there is none. */
 internal sealed interface Started {
-    class Ready(val core: Core, val hub: AccountsHub) : Started
+    class Ready(val core: Core, val hub: AccountsHub, val settings: SettingsController) : Started
 
     data object Failed : Started
 }
@@ -74,9 +74,18 @@ class MailCraftApplication : Application() {
                 keep = { store.keep(core) },
                 copy = { text -> copyToClipboard(applicationContext, text) },
             )
+            val settings = SettingsController(
+                api = CoreSettings(
+                    core = core,
+                    store = DeviceSwitches(applicationContext),
+                    dir = noBackupFilesDir,
+                    keep = { store.keep(core) },
+                ),
+                scope = scope,
+            )
             events.register(hub::handle)
             events.launchIn(scope) { nextEvent(core) }
-            Started.Ready(core, hub)
+            Started.Ready(core, hub, settings)
         } catch (_: CoreException) {
             Started.Failed
         } catch (_: LinkageError) {

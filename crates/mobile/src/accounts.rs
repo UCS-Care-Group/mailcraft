@@ -266,6 +266,7 @@ impl Core {
         };
         let params = json!({
             "email": address, "name": name, "displayName": name, "kind": "microsoft", "auth": "oauth2", "provider": "microsoft", "directory": directory,
+            "keepOffline": crate::settings::MOBILE_KEEP_OFFLINE,
         });
         let (for_call, new_account) = (address.clone(), params);
         let added = self
