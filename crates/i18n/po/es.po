@@ -8298,7 +8298,7 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
-msgid "Nothing is sent until you say so."
+msgid "Nothing is sent until you say so, and then it goes at the next sync."
 msgstr ""
 
 #. interface
@@ -11485,6 +11485,11 @@ msgstr "Mostrar en la barra de horas"
 #, fuzzy
 msgid "Show messages on a light background in the dark theme"
 msgstr "Mostrar los mensajes sobre fondo claro en el tema oscuro"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+msgid "Show more tasks"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/secret_field.rs
@@ -19689,8 +19694,8 @@ msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
-msgid "{n} task is only on this phone. Send it to To Do?"
-msgid_plural "{n} tasks are only on this phone. Send them to To Do?"
+msgid "{n} task is only on this phone. Send it to To Do at the next sync?"
+msgid_plural "{n} tasks are only on this phone. Send them to To Do at the next sync?"
 msgstr[0] ""
 msgstr[1] ""
 

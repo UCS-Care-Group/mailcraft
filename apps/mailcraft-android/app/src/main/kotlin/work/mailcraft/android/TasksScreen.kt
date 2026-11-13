@@ -50,11 +50,14 @@ internal class TasksData(
 )
 
 /** What the Tasks tab asks of the app. */
+@Suppress("LongParameterList")
 internal class TasksActions(
     val onToggle: (TaskRow) -> Unit = {},
     val onOpen: (ULong) -> Unit = {},
     val onNew: (ULong) -> Unit = {},
     val onShowCompleted: (Boolean) -> Unit = {},
+    /** Read the next window of one list. */
+    val onMore: (TaskGroup) -> Unit = {},
     /** The owner's answer to "send the tasks that are only here to this account?"; null is "Not now". */
     val onSendLocal: (ULong?) -> Unit = {},
     val editor: EditorActions = EditorActions(),
@@ -121,6 +124,13 @@ private fun TaskGroups(texts: Texts, model: TasksModel, notice: String?, actions
             item(key = "g" + group.account + "/" + group.list) { GroupHeader(texts, group) }
             items(group.rows, key = { "t" + it.id }) { row ->
                 TaskRowView(texts, row, model.today, actions)
+            }
+            if (!group.complete) {
+                item(key = "m" + group.key) {
+                    TextButton(onClick = { actions.onMore(group) }, modifier = Modifier.padding(horizontal = Gutter)) {
+                        Text(texts.t("Show more tasks"))
+                    }
+                }
             }
         }
     }
@@ -212,14 +222,14 @@ private fun OfferCard(texts: Texts, offer: LocalOffer, onAnswer: (ULong?) -> Uni
                 } else {
                     texts.tn(
                         count,
-                        "{n} task is only on this phone. Send it to To Do?",
-                        "{n} tasks are only on this phone. Send them to To Do?",
+                        "{n} task is only on this phone. Send it to To Do at the next sync?",
+                        "{n} tasks are only on this phone. Send them to To Do at the next sync?",
                     )
                 },
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                texts.t("Nothing is sent until you say so."),
+                texts.t("Nothing is sent until you say so, and then it goes at the next sync."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

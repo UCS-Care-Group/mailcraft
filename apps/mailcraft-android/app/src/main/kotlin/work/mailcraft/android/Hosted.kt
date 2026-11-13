@@ -79,10 +79,16 @@ private fun rememberPeople(
         onMore = {
             val current = state as? PeopleState.Ready
             if (current != null && !current.list.complete) {
+                val asked = query
+                val offset = current.list.rows.size
                 scope.launch {
-                    val next = loadPeople(core, query, current.list.rows.size)
+                    val next = loadPeople(core, asked, offset)
                     val now = state as? PeopleState.Ready
-                    if (next is PeopleState.Ready && now != null) state = PeopleState.Ready(now.list.append(next.list))
+                    // A window for a search the owner has since changed, or for a list that has moved on, is dropped.
+                    val unchanged = query == asked && now?.list?.rows?.size == offset
+                    if (next is PeopleState.Ready && now != null && unchanged) {
+                        state = PeopleState.Ready(now.list.append(next.list))
+                    }
                 }
             }
         },
@@ -118,8 +124,9 @@ private fun rememberTasks(
     var showCompleted by rememberSaveable { mutableStateOf(false) }
     var editor by remember { mutableStateOf<DraftState?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
-    val state by produceState<TasksState>(TasksState.Loading, ready, showCompleted, tick.intValue) {
-        if (ready) value = loadTasks(core, showCompleted)
+    var depth by remember { mutableStateOf<Map<String, UInt>>(emptyMap()) }
+    val state by produceState<TasksState>(TasksState.Loading, ready, showCompleted, depth, tick.intValue) {
+        if (ready) value = loadTasks(core, showCompleted, depth)
     }
     // Runs a command and reads the lists again; says so when the core refused it.
     fun act(command: String, params: String, done: () -> Unit = {}) {
@@ -155,6 +162,10 @@ private fun rememberTasks(
         },
         onNew = { editor = DraftState.Ready(newDraft(it)) },
         onShowCompleted = { showCompleted = it },
+        onMore = { group ->
+            val now = depth[group.key] ?: TASK_WINDOW
+            depth = depth + (group.key to (now + TASK_WINDOW).coerceAtMost(MAX_DEPTH))
+        },
         onSendLocal = { account -> act("tasks.sendLocal", "{\"account\":${account ?: "null"}}") },
         editor = editorActions,
     )

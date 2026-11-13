@@ -95,4 +95,13 @@ class TasksTest {
         val params = newDraft(0u).copy(title = "x".repeat(MAX_TITLE + 100)).params()
         assertEquals(MAX_TITLE, params.count { it == 'x' })
     }
+
+    @Test
+    fun aListWithMoreThanItShowsOffersMore() {
+        val rows = List(3) { row(null) }
+        val group = TaskGroup(2u, "inbox", "Account", 5, 5, rows)
+        assertFalse(group.complete)
+        assertEquals("2/inbox", group.key)
+        assertTrue(group.copy(rows = rows + rows.take(2)).complete)
+    }
 }
