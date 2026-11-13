@@ -313,14 +313,14 @@ msgstr "Se importă un fișier .pst: încercați din nou după ce se termină"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "O modificare a calendarului nu a putut fi trimisă încă și va fi reîncercată: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "O modificare a calendarului unei cutii poștale partajate a fost refuzată: acest cont nu are voie să-l editeze. Se mai încearcă o dată, apoi se anulează."
@@ -2424,8 +2424,8 @@ msgstr "Modificat: se salvează când alegeți altă semnătură sau părăsiți
 msgid "Change…"
 msgstr "Modificare…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Modificarea calendarului are nevoie de permisiunea dvs.: Fișier › Informații › Conectare calendar și contacte"
@@ -13435,8 +13435,8 @@ msgstr "Calendarul „{name}” poate fi doar citit: proprietarul lui nu permite
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "Calendarul „{name}” arată doar când proprietarul e ocupat: acest cont nu îl poate modifica."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Modificările de calendar nu au putut fi preluate: {error}"
@@ -13471,8 +13471,8 @@ msgstr "Conexiunea calendarului funcționează"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "Conexiunea calendarului funcționează: ce s-a trimis a ajuns, iar serverul îl are așa cum a fost trimis."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Calendarul nu a putut fi preluat: {error}"
@@ -13549,8 +13549,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Calendarele cutiei poștale partajate așteaptă: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Categoriile nu au putut fi preluate: {error}"
@@ -13627,8 +13627,8 @@ msgstr "Contactul {id} este numit de două ori."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "Formularul contactului a fost închis: deschideți-l din nou ca să adăugați cheia"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Contactele nu au putut fi preluate: {error}"
@@ -13838,8 +13838,8 @@ msgstr "Cheia a fost eliminată de pe acest computer."
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "Linkul este în clipboard: trimiteți-l administratorului organizației"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "Lista de calendare nu a putut fi preluată: {error}"
@@ -14090,14 +14090,14 @@ msgstr "Răspunsul serviciului de rapoarte nu este unul pe care MailCraft îl î
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "Regulile de pe server nu au putut fi citite: operația s-a oprit neașteptat"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "Regulile de pe server nu au putut fi preluate: {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Regulile trimise nu au putut fi înregistrate: {error}"
@@ -14353,8 +14353,8 @@ msgstr "Calendarul „{name}” al cutiei poștale partajate arată doar când p
 msgid "The shared mailbox's e-mail address"
 msgstr "Adresa de e-mail a cutiei poștale partajate"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "Conectarea contului prin care este deschisă această cutie poștală partajată a fost refuzată: conectați-vă din nou cu Trimitere/primire"
@@ -14461,14 +14461,14 @@ msgstr "Textul nu a fost găsit."
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "Sarcinile nu au putut fi sincronizate: operația s-a oprit neașteptat"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "Sarcinile nu au putut fi preluate: {error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "Sarcinile trimise nu au putut fi înregistrate: {error}"
@@ -14671,14 +14671,14 @@ msgstr "Acest cont nu are conectare cu Microsoft"
 msgid "This account is no longer in the mailbox."
 msgstr "Acest cont nu mai este în cutia poștală."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Acest cont nu are voie să-și modifice regulile pe server"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "Acest cont nu are voie să-și folosească sarcinile prin Microsoft Graph"
@@ -18888,8 +18888,8 @@ msgstr "serverul a închis conexiunea"
 msgid "the server continued a cancelled password authentication"
 msgstr "serverul a continuat o autentificare cu parolă anulată"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "serverul nu a putut fi contactat"
@@ -20298,8 +20298,8 @@ msgstr[0] "{n} modificare care așteaptă serverul IMAP nu va ajunge la el; răm
 msgstr[1] "{n} modificări care așteaptă serverul IMAP nu vor ajunge la el; rămân în copia de rezervă."
 msgstr[2] "{n} de modificări care așteaptă serverul IMAP nu vor ajunge la el; rămân în copia de rezervă."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} modificări ale calendarului „{name}” sunt reținute aici, netrimise: acest cont nu mai are voie să-l modifice. Se trimit dacă primește din nou voie."

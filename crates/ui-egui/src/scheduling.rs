@@ -190,7 +190,7 @@ impl MailApp {
         if self.offline() {
             return Err(crate::send_receive::said());
         }
-        if self.graph_consent_needed.contains(&account.id) {
+        if self.session.driver.calendar.consent_needed.contains(&account.id) {
             return Err(tl!("Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts").to_string());
         }
         Ok(account.clone())
@@ -316,7 +316,7 @@ impl MailApp {
             self.favorites_token_is_plain(account);
         }
         if result.consent_needed {
-            self.graph_consent_needed.insert(account);
+            self.session.driver.calendar.consent_needed.insert(account);
         }
         let asked = self.free_busy.known.iter().find(|known| known.key == key).map_or_else(now_ms, |known| known.asked);
         let (people, error) = match &result.schedule {
@@ -1001,9 +1001,9 @@ mod tests {
         let look = app.free_busy(own, &people, day);
         assert!(!look.pending && look.note.contains("kept on this computer"), "{}", look.note);
         // The owner hasn't allowed it.
-        app.graph_consent_needed.insert(account);
+        app.session.driver.calendar.consent_needed.insert(account);
         assert!(app.free_busy(calendar, &people, day).note.contains("needs your permission"));
-        app.graph_consent_needed.clear();
+        app.session.driver.calendar.consent_needed.clear();
         // No sign-in at hand: Send/Receive asks for one, this doesn't.
         let (tokens, graph_tokens) = (std::mem::take(&mut app.tokens), std::mem::take(&mut app.graph_tokens));
         let look = app.free_busy(calendar, &people, day);

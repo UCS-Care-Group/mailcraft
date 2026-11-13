@@ -284,14 +284,14 @@ msgstr "Eine .pst-Datei wird gerade importiert: Versuchen Sie es erneut, sobald 
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "E-Mails eines JMAP-Kontos können noch nicht zurückgestellt werden."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Eine Kalenderänderung konnte noch nicht gesendet werden und wird erneut versucht: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "Eine Änderung am Kalender eines freigegebenen Postfachs wurde abgelehnt: Dieses Konto darf ihn möglicherweise nicht bearbeiten. Der Vorgang wird einmal wiederholt und der Kalender anschließend zurückgesetzt."
 
@@ -2265,8 +2265,8 @@ msgstr "Geändert: Wird gespeichert, wenn Sie eine andere Signatur wählen oder 
 msgid "Change…"
 msgstr "Ändern…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Änderungen am Kalender brauchen Ihre Erlaubnis: Datei › Informationen › Kalender und Kontakte verbinden"
@@ -12481,8 +12481,8 @@ msgstr "Der Kalender „{name}“ kann nur gelesen werden: Sein Besitzer hat die
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "Der Kalender „{name}“ zeigt nur an, wann sein Besitzer beschäftigt ist: Dieses Konto kann ihn nicht ändern."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Die Kalenderänderungen konnten nicht übernommen werden: {error}"
@@ -12517,8 +12517,8 @@ msgstr "Die Kalenderverbindung funktioniert"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "Die Kalenderverbindung funktioniert: Das Gesendete ist angekommen, und der Server hat es so, wie es gesendet wurde."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Der Kalender konnte nicht übernommen werden: {error}"
@@ -12587,8 +12587,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Die Kalender des freigegebenen Postfachs konnten nicht geladen werden: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Die Kategorien konnten nicht übernommen werden: {error}"
@@ -12654,8 +12654,8 @@ msgstr "Der Kontakt {id} wurde zweimal angegeben."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "Das Kontaktformular wurde geschlossen: öffnen Sie es erneut, um den Schlüssel hinzuzufügen"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Die Kontakte konnten nicht übernommen werden: {error}"
@@ -12842,8 +12842,8 @@ msgstr "Der Schlüssel wurde von diesem Computer entfernt."
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "Der Link ist in der Zwischenablage: Senden Sie ihn an den Administrator Ihrer Organisation"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "Die Kalenderliste konnte nicht übernommen werden: {error}"
@@ -13075,14 +13075,14 @@ msgstr "Die Antwort des Meldedienstes konnte von MailCraft nicht verstanden werd
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "Die Regeln auf dem Server konnten nicht gelesen werden: Der Vorgang wurde unerwartet beendet"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "Die Regeln auf dem Server konnten nicht übernommen werden: {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Die gesendeten Regeln konnten nicht vermerkt werden: {error}"
@@ -13306,8 +13306,8 @@ msgstr "Der Kalender des freigegebenen Postfachs „{name}“ zeigt nur an, wann
 msgid "The shared mailbox's e-mail address"
 msgstr "Die E-Mail-Adresse des freigegebenen Postfachs"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "Die Anmeldung des Kontos, über das dieses freigegebene Postfach geöffnet ist, wurde abgelehnt: Melden Sie sich mit Senden/Empfangen erneut an"
@@ -13403,13 +13403,13 @@ msgstr "Der Text wurde nicht gefunden."
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "Die Aufgaben konnten nicht synchron gehalten werden: Der Vorgang wurde unerwartet abgebrochen"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "Die Aufgaben konnten nicht übernommen werden: {error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "Die gesendeten Aufgaben konnten nicht erfasst werden: {error}"
 
@@ -13598,14 +13598,14 @@ msgstr "Dieses Konto hat keine Microsoft-Anmeldung"
 msgid "This account is no longer in the mailbox."
 msgstr "Dieses Konto ist nicht mehr im Postfach vorhanden."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Dieses Konto darf seine Regeln auf dem Server nicht ändern"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "Dieses Konto darf seine Aufgaben nicht über Microsoft Graph verwenden"
 
@@ -17547,8 +17547,8 @@ msgstr "Der Server hat die Verbindung geschlossen"
 msgid "the server continued a cancelled password authentication"
 msgstr "Der Server hat eine abgebrochene Passwort-Authentifizierung fortgesetzt"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "der Server war nicht erreichbar"
@@ -18873,8 +18873,8 @@ msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay 
 msgstr[0] "{n} Änderung, die auf den IMAP-Server wartet, erreicht ihn nicht; sie bleibt in der Sicherungskopie."
 msgstr[1] "{n} Änderungen, die auf den IMAP-Server warten, erreichen ihn nicht; sie bleiben in der Sicherungskopie."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} Änderungen am Kalender \"{name}\" werden hier zurückgehalten und nicht gesendet: Dieses Konto darf ihn möglicherweise nicht mehr ändern. Sie werden gesendet, sobald es wieder dazu berechtigt ist."
 
