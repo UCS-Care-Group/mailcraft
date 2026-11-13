@@ -107,6 +107,10 @@ fn headers_that_cant_be_believed_offer_nothing() {
         let (mut s, id) = with(&headers);
         assert!(run(&mut s, id, json!({})).is_err(), "{headers:?}");
     }
+    // An `id` named wrongly is refused, never read as the selection.
+    let (mut s, id) = with(&[("Authentication-Results", PASSED), list]);
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    assert!(s.run("mail.unsubscribe", &json!({"id": "invalid", "send": true})).is_err());
     // A message that doesn't say how.
     let (mut s, id) = with(&[("Authentication-Results", PASSED)]);
     assert!(run(&mut s, id, json!({})).is_err());

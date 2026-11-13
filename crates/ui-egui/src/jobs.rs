@@ -132,6 +132,9 @@ impl MailApp {
                 JobKind::AdminConsent => self.forget_admin_consent(),
             }
         }
+        // What came of unsubscribing (#1207) is the old mailbox's: its message ids may name
+        // others here, and a request on its way is let go (its answer is no longer read).
+        self.unsubscribing = Default::default();
     }
 
     /// Call off every Send/Receive (IMAP, Graph, Exchange, JMAP, Inbox passes, shared mailboxes)

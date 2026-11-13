@@ -24,9 +24,10 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// The message a call is about: `id`, else the selected one.
+/// The message a call is about: `id`, else the selected one; an `id` named wrongly is refused,
+/// never read as the selection.
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    p::id(v, "id").or_else(|| s.sel.messages.last().copied()).ok_or_else(|| fail("select a message first"))
+    p::id_strict(v, "id")?.or_else(|| s.sel.messages.last().copied()).ok_or_else(|| fail("select a message first"))
 }
 
 /// How `id` can be unsubscribed from, when its headers are to be believed: an error says why not.

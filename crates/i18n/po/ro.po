@@ -6233,6 +6233,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "Ajunge pe server după ce MailCraft are voie să modifice regulile serverului (Fișier › Informații › Întrebați din nou); până atunci rulează pe acest computer, cât timp MailCraft e deschis."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "Pleacă la următoarea Trimitere/primire; apoi lista vă scoate."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -7153,6 +7159,12 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr "MailCraft citește cheia fără fraza de acces și păstrează fișierul, protejat în continuare de ea, în depozitul de acreditări al sistemului. Cheia trebuie să aibă o frază de acces și să semneze cu Ed25519 sau ECDSA; MailCraft cere fraza de acces la semnare."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft trimite către {host} adresa pe care lista a dat-o pentru dezabonare, care vă poate identifica în fața ei, și nimic altceva: niciun cookie, nicio autentificare. Ca orice conexiune, arată și adresa dvs. de internet."
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -7169,12 +7181,6 @@ msgstr "MailCraft a oprit citirea înainte de final."
 #, fuzzy
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
 msgstr "MailCraft a oprit citirea fișierului .pst înainte de final: ce a intrat se păstrează"
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-#, fuzzy
-msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."
-msgstr "MailCraft îi spune lui {host} că nu mai doriți mesajele acestei liste. Doar atât se trimite: niciun cookie, nimic despre dvs."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9540,6 +9546,12 @@ msgid "Page Up"
 msgstr "Pagina în sus"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "Pagină deschisă."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Page {page} of {pages}"
@@ -10648,6 +10660,12 @@ msgstr "Solicitare răspunsuri"
 #, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Solicitare confirmare de citire"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "Cerere în Mesaje de trimis."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -13850,12 +13868,6 @@ msgstr "Lista de expeditori este plină: eliminați câțiva din Fișier › Op�
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "The list's page is open in your browser: unsubscribe there."
-msgstr "Pagina listei este deschisă în browser: dezabonați-vă acolo."
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-#, fuzzy
 msgid "The list's server didn't take the request: {why}."
 msgstr "Serverul listei nu a acceptat cererea: {why}."
 
@@ -14092,12 +14104,6 @@ msgstr "Serviciul de rapoarte nu funcționează acum. Încercați din nou mai t�
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Răspunsul serviciului de rapoarte nu este unul pe care MailCraft îl înțelege, deci raportul poate să fi ajuns. Încercați din nou mai târziu sau deschideți-l pe GitHub."
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-#, fuzzy
-msgid "The request is in your Outbox and goes with the next Send/Receive."
-msgstr "Cererea este în Mesaje de trimis și pleacă la următoarea Trimitere/primire."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15804,7 +15810,7 @@ msgid "Try Signing In Again"
 msgstr "Încercați din nou conectarea"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Încercați din nou"
@@ -15980,6 +15986,12 @@ msgstr "Mesaj nesalvat"
 #, fuzzy
 msgid "Unsubscribe"
 msgstr "Dezabonare"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "Dezabonați-vă pe pagina listei, în browser."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21242,4 +21254,16 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."
+#~ msgstr "MailCraft îi spune lui {host} că nu mai doriți mesajele acestei liste. Doar atât se trimite: niciun cookie, nimic despre dvs."
+
+#, fuzzy
+#~ msgid "The list's page is open in your browser: unsubscribe there."
+#~ msgstr "Pagina listei este deschisă în browser: dezabonați-vă acolo."
+
+#, fuzzy
+#~ msgid "The request is in your Outbox and goes with the next Send/Receive."
+#~ msgstr "Cererea este în Mesaje de trimis și pleacă la următoarea Trimitere/primire."
 

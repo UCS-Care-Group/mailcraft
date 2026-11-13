@@ -6167,6 +6167,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen); tot dan wordt hij op deze computer uitgevoerd, zolang MailCraft open is."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "Het gaat mee met de volgende Verzenden/ontvangen; daarna haalt de lijst u eraf."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -7071,6 +7077,12 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft stuurt {host} het adres dat deze lijst voor afmelden gaf, waarmee u bij de lijst herkenbaar kunt zijn, en verder niets: geen cookies, geen aanmelding. Zoals elke verbinding toont die ook uw internetadres."
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -7087,12 +7099,6 @@ msgstr "MailCraft is gestopt met lezen voordat het klaar was."
 #, fuzzy
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
 msgstr "MailCraft stopte met het lezen van het .pst-bestand vóór het klaar was: wat er binnenkwam, wordt behouden"
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-#, fuzzy
-msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."
-msgstr "MailCraft laat {host} weten dat u de e-mail van deze lijst niet meer wilt. Alleen dat wordt verzonden: geen cookies, niets over u."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9443,6 +9449,12 @@ msgid "Page Up"
 msgstr "Page Up"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "Pagina geopend."
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Page {page} of {pages}"
@@ -10533,6 +10545,12 @@ msgstr "Antwoorden vragen"
 #, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Leesbevestiging aanvragen"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "Verzoek in uw Postvak UIT."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -13693,12 +13711,6 @@ msgstr "De lijst met afzenders is vol: verwijder er enkele via Bestand › Optie
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "The list's page is open in your browser: unsubscribe there."
-msgstr "De pagina van de lijst is geopend in uw browser: meld u daar af."
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-#, fuzzy
 msgid "The list's server didn't take the request: {why}."
 msgstr "De server van de lijst heeft het verzoek niet aangenomen: {why}."
 
@@ -13924,12 +13936,6 @@ msgstr ""
 #: crates/ui-egui/src/report_problem.rs
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-#, fuzzy
-msgid "The request is in your Outbox and goes with the next Send/Receive."
-msgstr "Het verzoek staat in uw Postvak UIT en gaat mee met de volgende Verzenden/ontvangen."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -15612,7 +15618,7 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
@@ -15786,6 +15792,12 @@ msgstr "Niet-opgeslagen bericht"
 #, fuzzy
 msgid "Unsubscribe"
 msgstr "Afmelden"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "Meld u af op de pagina van de lijst in uw browser."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20914,6 +20926,18 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."
+#~ msgstr "MailCraft laat {host} weten dat u de e-mail van deze lijst niet meer wilt. Alleen dat wordt verzonden: geen cookies, niets over u."
+
+#, fuzzy
+#~ msgid "The list's page is open in your browser: unsubscribe there."
+#~ msgstr "De pagina van de lijst is geopend in uw browser: meld u daar af."
+
+#, fuzzy
+#~ msgid "The request is in your Outbox and goes with the next Send/Receive."
+#~ msgstr "Het verzoek staat in uw Postvak UIT en gaat mee met de volgende Verzenden/ontvangen."
 
 #, fuzzy
 #~ msgid "The signer's certificate isn't in the message."

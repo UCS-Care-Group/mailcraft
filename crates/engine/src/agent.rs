@@ -1402,7 +1402,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
         "calendar.respond" => format!("answer {} ({}) and tell its organizer", event_title(s, id, params), clip(st("response"), 20)),
         "mail.unsubscribe" | "ui.unsubscribe" => {
-            let from = p::id(params, "id").or_else(|| p::id(params, "message")).or_else(|| s.sel.messages.last().copied());
+            // Each by the key its command reads: what is approved is what is done.
+            let key = if id == "ui.unsubscribe" { "message" } else { "id" };
+            let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
             let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
             format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
         }

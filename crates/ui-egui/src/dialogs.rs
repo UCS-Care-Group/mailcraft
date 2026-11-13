@@ -842,6 +842,9 @@ pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
     let pin = match id {
         "people.delete" if !named("id") => sel.contact.map(|c| ("id", json!(c))),
         "folder.empty" | "folder.delete" if !named("id") => Some(("id", json!(app.session.view.folder))),
+        // The message the question was about, not whatever is selected when the owner says yes
+        // (#1207); `null` reads as the selection there too.
+        "ui.unsubscribe" if params.get("message").is_none_or(Value::is_null) => sel.focus().map(|m| ("message", json!(m))),
         _ => None,
     };
     if let (Some((key, value)), Some(map)) = (pin, params.as_object_mut()) {

@@ -23,13 +23,26 @@ use super::remote::notice;
 use crate::theme::{Tokens, regular, semibold};
 use crate::{MailApp, icons};
 
+/// What came of unsubscribing from a message: each way says only what it knows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Outcome {
+    /// One click: the list's server took the request.
+    Accepted,
+    /// By mail: the request is in the Outbox, not yet sent, let alone read.
+    Queued,
+    /// A web page: it is open in the browser, where the owner unsubscribes.
+    Opened,
+    /// One click: the list's server didn't take it, or the request was lost; why.
+    Failed(String),
+}
+
 /// The one-click unsubscribe on its way, and what came of the last one.
 #[derive(Default)]
 pub(crate) struct Unsubscribing {
     /// The message, and the list server's answer to come.
     flying: Option<(u64, Receiver<Result<(), String>>)>,
-    /// The message, and what is said of it: done (in words), or why not.
-    said: Option<(u64, Result<String, String>)>,
+    /// The message, and what came of it.
+    said: Option<(u64, Outcome)>,
 }
 
 /// The answer of a one-click unsubscribe, once it has come.
@@ -43,15 +56,15 @@ fn poll(app: &mut MailApp) {
     };
     app.unsubscribing.flying = None;
     let said = match answer {
-        Ok(()) => Ok(tl!("The list's server took the request. Mail from it may take a few days to stop.").to_string()),
-        Err(why) => Err(crate::i18n::fmt(tl!("The list's server didn't take the request: {why}."), &[("why", &why)])),
+        Ok(()) => Outcome::Accepted,
+        Err(why) => Outcome::Failed(why),
     };
     app.unsubscribing.said = Some((id, said));
 }
 
 /// Whether the engine would offer `m` a way to unsubscribe (its server vouches for it, and it has
-/// no sender warning).
-fn offered(app: &mut MailApp, m: &Message) -> bool {
+/// no sender warning): the bar and the right-click menu offer it only then.
+pub(crate) fn offered(app: &mut MailApp, m: &Message) -> bool {
     way(m).is_some()
         && mailcraft_model::auth_results::vouched(app.session.mailbox.account(m.account), m)
         && mailcraft_model::sender_warnings::banner_level(&app.session.sender_warnings(m, true)).is_none()
@@ -67,8 +80,27 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
     }
     let (hue, icon, lead, rest) = match (&said, flying) {
         (_, true) => (t.blue, "info", tl!("Unsubscribing…").to_string(), String::new()),
-        (Some(Ok(done)), _) => (t.green, "info", tl!("Unsubscribed.").to_string(), done.clone()),
-        (Some(Err(why)), _) => (t.orange, "highImportance", tl!("Not unsubscribed.").to_string(), why.clone()),
+        (Some(Outcome::Accepted), _) => (
+            t.green,
+            "info",
+            tl!("Unsubscribed.").to_string(),
+            tl!("The list's server took the request. Mail from it may take a few days to stop.").to_string(),
+        ),
+        (Some(Outcome::Queued), _) => (
+            t.blue,
+            "info",
+            tl!("Request in your Outbox.").to_string(),
+            tl!("It goes with the next Send/Receive; the list then takes you off it.").to_string(),
+        ),
+        (Some(Outcome::Opened), _) => {
+            (t.blue, "info", tl!("Page opened.").to_string(), tl!("Unsubscribe on the list's page in your browser.").to_string())
+        }
+        (Some(Outcome::Failed(why)), _) => (
+            t.orange,
+            "highImportance",
+            tl!("Not unsubscribed.").to_string(),
+            crate::i18n::fmt(tl!("The list's server didn't take the request: {why}."), &[("why", why)]),
+        ),
         (None, false) => (t.blue, "info", tl!("From a mailing list.").to_string(), String::new()),
     };
     notice(hue, t).show(ui, |ui| {
@@ -81,12 +113,15 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
             if !rest.is_empty() {
                 ui.add(egui::Label::new(egui::RichText::new(rest).font(regular(11.5)).color(t.text_dim)).wrap());
             }
-            if said.is_some() || flying {
+            // Unsubscribe, or after a failure Try again (asked first all the same).
+            let failed = matches!(said, Some(Outcome::Failed(_)));
+            if flying || said.is_some() && !failed {
                 return;
             }
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+            let label = if failed { tl!("Try again") } else { tl!("Unsubscribe") };
             let link = ui
-                .add(egui::Link::new(egui::RichText::new(tl!("Unsubscribe")).font(semibold(11.5))))
+                .add(egui::Link::new(egui::RichText::new(label).font(semibold(11.5))))
                 .on_hover_text(tl!("Ask the list to stop sending you its mail. MailCraft asks first and says how."));
             if place == Place::Pane {
                 app.hit.add("unsubscribe", m.id, link.rect);
@@ -107,7 +142,9 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<crate::dialogs::Quest
     let (text, action) = match way(m)? {
         Way::OneClick { url } => (
             crate::i18n::fmt(
-                tl!("MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."),
+                tl!(
+                    "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+                ),
                 &[("host", &host(&url))],
             ),
             tl!("Unsubscribe"),
@@ -160,7 +197,7 @@ fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         }
         Some("mail") => {
             app.session.run("mail.unsubscribe", &json!({"id": id, "send": true})).map_err(|e| e.to_string())?;
-            app.unsubscribing.said = Some((id, Ok(tl!("The request is in your Outbox and goes with the next Send/Receive.").to_string())));
+            app.unsubscribing.said = Some((id, Outcome::Queued));
             Ok(json!({"message": id, "way": "mail", "sent": true}))
         }
         Some("page") => {
@@ -169,7 +206,7 @@ fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
             }
             let Some(ctx) = app.ctx.clone() else { return Err(tl!("The window isn't up yet.").to_string()) };
             ctx.open_url(egui::OpenUrl::new_tab(url.clone()));
-            app.unsubscribing.said = Some((id, Ok(tl!("The list's page is open in your browser: unsubscribe there.").to_string())));
+            app.unsubscribing.said = Some((id, Outcome::Opened));
             Ok(json!({"message": id, "way": "page", "url": url}))
         }
         _ => Err(tl!("This message doesn't say how to unsubscribe from it.").to_string()),

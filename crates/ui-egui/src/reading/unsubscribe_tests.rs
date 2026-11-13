@@ -13,7 +13,7 @@ use mailcraft_model::{Address, Mailbox, Message};
 use serde_json::json;
 
 use super::super::tests::{select, window};
-use super::{Way, poll, question};
+use super::{Outcome, Way, poll, question};
 use crate::{MailApp, Services};
 
 const NOW: i64 = 1_791_993_600;
@@ -87,7 +87,36 @@ fn a_refusal_from_the_list_is_said() {
     let _ = host(&mut app, Err("the list's server answered 500".into()));
     app.execute("ui.unsubscribe", json!({"message": id})).unwrap();
     poll(&mut app);
-    assert!(app.unsubscribing.said.as_ref().is_some_and(|(m, said)| *m == id && said.as_ref().is_err_and(|e| e.contains("500"))));
+    assert!(matches!(&app.unsubscribing.said, Some((m, Outcome::Failed(why))) if *m == id && why.contains("500")));
+    // The bar says so, and offers to try again.
+    let mut harness = window(app, (1280.0, 900.0));
+    select(&mut harness, id);
+    assert!(harness.query_all_by_label_contains("Not unsubscribed").next().is_some());
+    assert!(harness.query_all_by_label("Try again").next().is_some());
+}
+
+#[test]
+fn a_page_opened_is_not_called_unsubscribed() {
+    let (app, id) = list_app(&[("Authentication-Results", PASSED), ("List-Unsubscribe", "<https://news.example/leave>")]);
+    let mut harness = window(app, (1280.0, 900.0));
+    select(&mut harness, id);
+    let said = harness.state_mut().execute("ui.unsubscribe", json!({"message": id})).unwrap();
+    assert_eq!(said["way"], "page");
+    harness.run_steps(4);
+    assert!(harness.query_all_by_label_contains("Page opened").next().is_some());
+    assert!(harness.query_all_by_label_contains("Unsubscribed.").next().is_none());
+}
+
+#[test]
+fn the_message_asked_about_is_the_one_unsubscribed_from() {
+    let (app, id) = list_app(&ONE_CLICK);
+    let mut harness = window(app, (1280.0, 900.0));
+    select(&mut harness, id);
+    // Pinned when the question opens: a yes acts on it, whatever is selected by then.
+    for params in [json!({}), json!({"message": null})] {
+        assert_eq!(crate::dialogs::pin_targets(harness.state(), "ui.unsubscribe", params)["message"], json!(id));
+    }
+    assert_eq!(crate::dialogs::pin_targets(harness.state(), "ui.unsubscribe", json!({"message": 7}))["message"], json!(7));
 }
 
 #[test]

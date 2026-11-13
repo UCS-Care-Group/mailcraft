@@ -5159,6 +5159,11 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
 msgstr ""
@@ -5926,6 +5931,11 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
 msgstr ""
@@ -5938,11 +5948,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."
 msgstr ""
 
 #. interface
@@ -7898,6 +7903,11 @@ msgid "Page Up"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Page opened."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 msgid "Page {page} of {pages}"
 msgstr ""
@@ -8808,6 +8818,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 msgid "Request a Read Receipt"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Request in your Outbox."
 msgstr ""
 
 #. interface
@@ -11459,11 +11474,6 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
-msgid "The list's page is open in your browser: unsubscribe there."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "The list's server didn't take the request: {why}."
 msgstr ""
 
@@ -11660,11 +11670,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading/unsubscribe.rs
-msgid "The request is in your Outbox and goes with the next Send/Receive."
 msgstr ""
 
 #. interface
@@ -13070,7 +13075,7 @@ msgid "Try Signing In Again"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 msgid "Try again"
 msgstr ""
 
@@ -13214,6 +13219,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribe"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribe on the list's page in your browser."
 msgstr ""
 
 #. interface
