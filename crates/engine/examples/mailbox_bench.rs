@@ -335,6 +335,8 @@ fn build(messages: usize, attachments: usize, exchange: bool) -> Result<(Mailbox
         };
         if exchange {
             m.headers = exchange_headers(&mut rng, i);
+            // (As a message read from its server has them: what nothing reads by name apart.)
+            m.split_headers();
         }
         m.body.text = text(&mut rng, body_len);
         if rng.below(10) < 6 {

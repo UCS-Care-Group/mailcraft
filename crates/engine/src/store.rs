@@ -811,6 +811,9 @@ struct State {
     /// many parts. A sweep, by this program or another, leaves these alone; anything else is
     /// written (or its time renewed) before a mailbox file names it.
     live: HashMap<Digest, u32>,
+    /// The header blocks an opening of a file in an older format put beside it unflushed
+    /// ([`stash_block`]): flushed before the file is next written ([`compact`]).
+    unsynced: Vec<Ref>,
     stamp: Option<Stamp>,
     /// The mailbox as it was opened, until something else is saved: a mailbox nobody changed is
     /// not rewritten, whatever form its file has.
@@ -1146,6 +1149,14 @@ impl AtomicFile {
         sync_dir_of(&self.path);
         Ok(())
     }
+
+    /// Renamed over the file it stands for without waiting for the disk: for a file that is only
+    /// a copy until it is flushed later ([`sync_stashed`]).
+    fn commit_unsynced(mut self) -> std::io::Result<()> {
+        let out = self.out.take().ok_or_else(|| std::io::Error::other("written twice"))?;
+        drop(out.into_inner().map_err(|e| e.into_error())?);
+        rename_over(&self.tmp, &self.path)
+    }
 }
 
 impl std::io::Write for AtomicFile {
@@ -1234,6 +1245,33 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
         }
     }
     Err(last.unwrap_or_else(|| std::io::Error::other("the content folder keeps going away")))
+}
+
+/// [`put`] without waiting for the disk, and always written (a file there already may be one an
+/// earlier such write left unflushed): for content that is a copy of what the mailbox file still
+/// holds until [`sync_stashed`] flushes it, before a mailbox file that names it is written.
+fn put_unsynced(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<()> {
+    let (sub, file) = blob_path(dir, &r.hash).ok_or_else(|| std::io::Error::other("no name"))?;
+    own_dir(&sub)?;
+    let mut out = AtomicFile::create(&file)?;
+    out.write_all(bytes)?;
+    out.commit_unsynced()
+}
+
+/// Flush the content [`put_unsynced`] wrote (`refs`, under `dir`) to the disk, with the folders it
+/// is in: before the mailbox file that names it is written.
+fn sync_stashed(dir: &Path, refs: &[Ref]) -> std::io::Result<()> {
+    let mut subs = HashSet::new();
+    for r in refs {
+        let (sub, file) = blob_path(dir, &r.hash).ok_or_else(|| std::io::Error::other("no name"))?;
+        fs::File::open(&file)?.sync_all()?;
+        subs.insert(sub);
+    }
+    for sub in subs {
+        sync_dir_of(&sub.join("x"));
+    }
+    sync_dir_of(&dir.join("x"));
+    Ok(())
 }
 
 /// Write `bytes`, whose SHA-256 is `hash`, into the content folder of the mailbox file at `path`
@@ -1886,7 +1924,10 @@ fn stash_block((parsed, fp): (Parsed, Fp), dir: Option<&Path>) -> (Parsed, Fp) {
     match (dir, parsed) {
         (Some(dir), Parsed::Message(mut m, wire)) if m.header_block.data.len() > INLINE_MAX => {
             let r = Ref::of(&m.header_block.data);
-            if let Err(e) = put(dir, &r, &m.header_block.data) {
+            // (Not flushed one by one, which for a large mailbox would keep its opening waiting on
+            // the disk for minutes: the file itself still holds every line until the save that
+            // first names these flushes them, `sync_stashed`.)
+            if let Err(e) = put_unsynced(dir, &r, &m.header_block.data) {
                 log::warn!("{}: a message's header lines couldn't be written there ({e}); they stay in memory", dir.display());
                 return (Parsed::Message(m, wire), fp);
             }
@@ -1984,6 +2025,10 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     // What each message keeps outside, to know it again at the next save without working it out
     // (`fill` marks which of it is in memory).
     let mut parts: HashMap<Id, Parts> = head.blobs.iter().map(|(id, wire)| (*id, wire.parts())).collect();
+    // (In a file of an older format every header block named is one put beside it now.)
+    if old {
+        st.unsynced = parts.values().filter_map(|p| p.headers.map(|p| p.r)).collect();
+    }
     let dir = blob_dir(file);
     let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts), launch);
     mailbox.version = 1;
@@ -3756,6 +3801,8 @@ fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, keep: Option<Keep>, p
     let mut saved = Saved::default();
     write_content(path, &wanted, &mut saved, progress)?;
     drop(wanted);
+    // The header blocks an opening put beside the file unflushed, flushed before it names them.
+    sync_stashed(&dir, &st.unsynced).map_err(|e| format!("{}: the header lines put beside the mailbox couldn't be written ({e})", dir.display()))?;
     // Before a newer format than the file's is first written over it: the file as it was, for
     // the MailCraft before this one (`store_before`).
     if !legacy {
@@ -3775,6 +3822,7 @@ fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, keep: Option<Keep>, p
     inner.commit().map_err(io_error)?;
     let gone: Vec<Digest> = st.live.keys().filter(|hash| !live.contains_key(*hash)).copied().collect();
     st.named_before.extend(gone);
+    st.unsynced.clear();
     st.live = live;
     st.stamp = Stamp::of(path, d.len, (len == d.len).then_some(sum));
     st.legacy = None;
