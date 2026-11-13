@@ -14,8 +14,10 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.paparazzi)
 }
 
+val appVersion = "0.12.0"
 val repoRoot: File = rootProject.projectDir.resolve("../..").canonicalFile
 val rustJniLibs = layout.buildDirectory.dir("rustJniLibs")
 
@@ -29,7 +31,8 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.12.0"
+        versionName = appVersion
+        resValue("string", "app_version", appVersion)
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
@@ -87,6 +90,7 @@ detekt {
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.browser)
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
