@@ -58,19 +58,23 @@ pub enum TroubleKind {
 /// `password:<address>` and `refresh:<address>`. Access tokens are never given to it.
 #[uniffi::export(with_foreign)]
 pub trait SecretStore: Send + Sync {
-    fn get(&self, key: String) -> Option<String>;
+    fn get(&self, key: String) -> Result<Option<String>, HostError>;
     fn set(&self, key: String, secret: String) -> Result<(), HostError>;
-    fn delete(&self, key: String);
+    fn delete(&self, key: String) -> Result<(), HostError>;
     /// Why the store couldn't be used the last time; asking clears it.
-    fn take_trouble(&self) -> Option<TroubleKind>;
+    fn take_trouble(&self) -> Result<Option<TroubleKind>, HostError>;
 }
 
 /// What the native app gives the core.
+///
+/// Every method returns a `Result`: UniFFI turns a native exception into a panic in Rust for a
+/// method that has no error to carry it in, and the core never panics. A method that fails is
+/// given a safe stand-in by [`Native`] (no store, an unknown network, the system clock, no offset).
 #[uniffi::export(with_foreign)]
 pub trait Platform: Send + Sync {
     /// The credential store, when there is one.
-    fn secrets(&self) -> Option<Arc<dyn SecretStore>>;
-    fn redirect(&self) -> RedirectKind;
+    fn secrets(&self) -> Result<Option<Arc<dyn SecretStore>>, HostError>;
+    fn redirect(&self) -> Result<RedirectKind, HostError>;
     /// Show the provider's sign-in page at `url` in the system's browser (Custom Tabs,
     /// `ASWebAuthenticationSession`). An error means nothing was opened.
     fn open_sign_in_page(&self, url: String) -> Result<(), HostError>;
@@ -81,13 +85,13 @@ pub trait Platform: Send + Sync {
     /// Open an attachment with the system's program for its kind; `name` is already made safe.
     fn open_file(&self, name: String, bytes: Vec<u8>) -> Result<(), HostError>;
     /// Now, in seconds since 1970 (UTC).
-    fn now(&self) -> i64;
+    fn now(&self) -> Result<i64, HostError>;
     /// Minutes east of UTC of the owner's time zone at `at`, daylight saving included.
-    fn utc_offset_minutes(&self, at: i64) -> i32;
+    fn utc_offset_minutes(&self, at: i64) -> Result<i32, HostError>;
     /// The most bytes of mail content the system lets the app keep in memory; `None` when it
     /// doesn't say.
-    fn memory_budget(&self) -> Option<u64>;
-    fn network(&self) -> NetworkKind;
+    fn memory_budget(&self) -> Result<Option<u64>, HostError>;
+    fn network(&self) -> Result<NetworkKind, HostError>;
 }
 
 /// [`mailcraft_host::Platform`] over the native side. A native call that fails (it threw, or
@@ -96,13 +100,20 @@ pub(crate) struct Native {
     pub(crate) inner: Arc<dyn Platform>,
 }
 
-struct NativeSecrets {
+pub(crate) struct NativeSecrets {
     inner: Arc<dyn SecretStore>,
+}
+
+#[cfg(test)]
+impl NativeSecrets {
+    pub(crate) fn new(inner: Arc<dyn SecretStore>) -> NativeSecrets {
+        NativeSecrets { inner }
+    }
 }
 
 impl HostSecretStore for NativeSecrets {
     fn get(&self, key: &str) -> Option<String> {
-        self.inner.get(key.to_string())
+        self.inner.get(key.to_string()).ok().flatten()
     }
 
     fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
@@ -110,14 +121,15 @@ impl HostSecretStore for NativeSecrets {
     }
 
     fn delete(&self, key: &str) {
-        self.inner.delete(key.to_string());
+        let _ = self.inner.delete(key.to_string());
     }
 
     fn take_trouble(&self) -> Option<StoreTrouble> {
-        self.inner.take_trouble().map(|t| match t {
-            TroubleKind::Unavailable => StoreTrouble::Unavailable,
-            TroubleKind::Locked => StoreTrouble::Locked,
-        })
+        match self.inner.take_trouble() {
+            Ok(Some(TroubleKind::Locked)) => Some(StoreTrouble::Locked),
+            Ok(Some(TroubleKind::Unavailable)) | Err(_) => Some(StoreTrouble::Unavailable),
+            Ok(None) => None,
+        }
     }
 }
 
@@ -131,13 +143,14 @@ fn record(n: &Notification) -> NotificationRecord {
 
 impl mailcraft_host::Platform for Native {
     fn secrets(&self) -> Option<Arc<dyn HostSecretStore>> {
-        self.inner.secrets().map(|inner| Arc::new(NativeSecrets { inner }) as Arc<dyn HostSecretStore>)
+        let inner = self.inner.secrets().ok().flatten()?;
+        Some(Arc::new(NativeSecrets { inner }) as Arc<dyn HostSecretStore>)
     }
 
     fn redirect(&self) -> Redirect {
         match self.inner.redirect() {
-            RedirectKind::Loopback => Redirect::Loopback,
-            RedirectKind::CustomScheme { scheme } => Redirect::CustomScheme(scheme),
+            Ok(RedirectKind::CustomScheme { scheme }) => Redirect::CustomScheme(scheme),
+            Ok(RedirectKind::Loopback) | Err(_) => Redirect::Loopback,
         }
     }
 
@@ -158,22 +171,27 @@ impl mailcraft_host::Platform for Native {
     }
 
     fn now(&self) -> mailcraft_time::Timestamp {
-        self.inner.now()
+        match self.inner.now() {
+            Ok(t) => t,
+            Err(_) => {
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| i64::try_from(d.as_secs()).ok()).unwrap_or(0)
+            }
+        }
     }
 
     fn utc_offset_minutes(&self, at: mailcraft_time::Timestamp) -> i32 {
-        self.inner.utc_offset_minutes(at)
+        self.inner.utc_offset_minutes(at).unwrap_or(0)
     }
 
     fn memory_budget(&self) -> Option<u64> {
-        self.inner.memory_budget()
+        self.inner.memory_budget().ok().flatten()
     }
 
     fn network(&self) -> NetworkState {
         match self.inner.network() {
-            NetworkKind::Unknown => NetworkState::Unknown,
-            NetworkKind::Offline => NetworkState::Offline,
-            NetworkKind::Online { metered, data_saving } => NetworkState::Online { metered, data_saving },
+            Ok(NetworkKind::Offline) => NetworkState::Offline,
+            Ok(NetworkKind::Online { metered, data_saving }) => NetworkState::Online { metered, data_saving },
+            Ok(NetworkKind::Unknown) | Err(_) => NetworkState::Unknown,
         }
     }
 }

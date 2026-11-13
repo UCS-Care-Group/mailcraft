@@ -346,3 +346,39 @@ fn records_stay_bounded_for_a_deep_and_wide_message() {
         assert!(!view.blocks.is_empty());
     }
 }
+
+#[test]
+fn a_message_window_leaves_the_selection_and_the_list_cache_of_the_view_alone() {
+    let core = sample_core();
+    let folder = inbox(&core);
+    let other = block_on(core.folders(0)).unwrap().folders.iter().find(|f| f.id != folder && f.total > 0).map(|f| f.id).unwrap_or(folder);
+    exec(&core, "folder.select", json!({"id": folder})).unwrap();
+    let id = block_on(core.messages(folder, "unread".into(), 0, 1)).unwrap().rows[0].id;
+    exec(&core, "mail.select", json!({"id": id})).unwrap();
+    let state = |core: &Core| block_on(core.call(|s| Ok((format!("{:?}", s.sel), format!("{:?}", s.view), s.rows().len())))).unwrap();
+    let before = state(&core);
+    for filter in ["all", "unread", "flagged"] {
+        assert!(block_on(core.messages(other, filter.into(), 0, 5)).is_ok());
+    }
+    assert_eq!(state(&core), before);
+}
+
+#[test]
+fn a_message_with_a_big_attachment_reads_without_the_attachment() {
+    let core = Core::start(FakePlatform::new(), || {
+        let mut mb = mailcraft_model::Mailbox::with_local_account("Avery", "avery@example.org");
+        let account = mb.accounts[0].id;
+        let folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let mut m = Message { account, folder, subject: "Big".into(), ..Message::default() };
+        m.body.text = "See the file".into();
+        m.attachments = vec![Attachment::new("big.bin", "application/octet-stream", vec![7u8; 8 << 20])];
+        mb.add_message(m).unwrap();
+        Session::at(mb, now(), 0)
+    })
+    .unwrap();
+    let id = block_on(core.messages(inbox(&core), "all".into(), 0, 5)).unwrap().rows[0].id;
+    let view = block_on(core.message(id, 390.0, false)).unwrap();
+    assert!(!view.blocks.is_empty());
+    assert_eq!(view.attachments.len(), 1);
+    assert_eq!(view.attachments[0].size, 8 << 20);
+}

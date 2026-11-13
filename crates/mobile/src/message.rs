@@ -64,7 +64,8 @@ fn pane(width: f32, dark: bool) -> (Env, u16) {
 }
 
 fn load(s: &Session, id: Id) -> Result<std::sync::Arc<Message>, CoreError> {
-    s.loaded_message(id).map_err(|_| failed("the message could not be read"))
+    // The body alone: an attachment's bytes (or a signed original) are not read to show a message.
+    s.loaded_message_where(id, |_| false).map_err(|_| failed("the message could not be read"))
 }
 
 #[uniffi::export]

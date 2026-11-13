@@ -45,8 +45,8 @@ pub(crate) struct FakeSecrets {
 }
 
 impl SecretStore for FakeSecrets {
-    fn get(&self, key: String) -> Option<String> {
-        self.kept.lock().unwrap().iter().find(|(k, _)| *k == key).map(|(_, v)| v.clone())
+    fn get(&self, key: String) -> Result<Option<String>, HostError> {
+        Ok(self.kept.lock().unwrap().iter().find(|(k, _)| *k == key).map(|(_, v)| v.clone()))
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
@@ -54,12 +54,13 @@ impl SecretStore for FakeSecrets {
         Ok(())
     }
 
-    fn delete(&self, key: String) {
+    fn delete(&self, key: String) -> Result<(), HostError> {
         self.kept.lock().unwrap().retain(|(k, _)| *k != key);
+        Ok(())
     }
 
-    fn take_trouble(&self) -> Option<TroubleKind> {
-        None
+    fn take_trouble(&self) -> Result<Option<TroubleKind>, HostError> {
+        Ok(None)
     }
 }
 
@@ -80,12 +81,12 @@ impl FakePlatform {
 }
 
 impl Platform for FakePlatform {
-    fn secrets(&self) -> Option<Arc<dyn SecretStore>> {
-        Some(self.secrets.clone())
+    fn secrets(&self) -> Result<Option<Arc<dyn SecretStore>>, HostError> {
+        Ok(Some(self.secrets.clone()))
     }
 
-    fn redirect(&self) -> RedirectKind {
-        RedirectKind::CustomScheme { scheme: "org.example.mailcraft".to_string() }
+    fn redirect(&self) -> Result<RedirectKind, HostError> {
+        Ok(RedirectKind::CustomScheme { scheme: "org.example.mailcraft".to_string() })
     }
 
     fn open_sign_in_page(&self, _url: String) -> Result<(), HostError> {
@@ -105,20 +106,20 @@ impl Platform for FakePlatform {
         Err(HostError::Unsupported)
     }
 
-    fn now(&self) -> i64 {
-        now()
+    fn now(&self) -> Result<i64, HostError> {
+        Ok(now())
     }
 
-    fn utc_offset_minutes(&self, _at: i64) -> i32 {
-        0
+    fn utc_offset_minutes(&self, _at: i64) -> Result<i32, HostError> {
+        Ok(0)
     }
 
-    fn memory_budget(&self) -> Option<u64> {
-        self.budget
+    fn memory_budget(&self) -> Result<Option<u64>, HostError> {
+        Ok(self.budget)
     }
 
-    fn network(&self) -> NetworkKind {
-        NetworkKind::Online { metered: true, data_saving: false }
+    fn network(&self) -> Result<NetworkKind, HostError> {
+        Ok(NetworkKind::Online { metered: true, data_saving: false })
     }
 }
 

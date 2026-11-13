@@ -35,6 +35,8 @@ pub mod text;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
+mod host_failure_tests;
+#[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
 mod tests;

@@ -156,7 +156,7 @@ impl Core {
     /// A window of the message list of `folder`, filtered by `filter` (`all`, `unread`,
     /// `flagged`, `attachments`, `toMe`), in the order and grouping the session's view has:
     /// `count` rows (1 to 200) from row `offset`. It reads the list without leaving the view
-    /// changed: the folder in view, its filter and its search are as they were.
+    /// changed: the folder in view, its filter, its search, the selection and the list kept for it are as they were.
     pub async fn messages(&self, folder: u64, filter: String, offset: u32, count: u32) -> Result<MessageWindow, CoreError> {
         let filter: Filter = serde_json::from_value(Value::String(filter)).map_err(|_| bad("that filter is not known"))?;
         let count = text::window(count);
@@ -164,12 +164,17 @@ impl Core {
             if s.mailbox.folder(folder).is_none() {
                 return Err(bad("there is no such folder"));
             }
+            // The list is built by the engine's non-mutating path, over a view made for this
+            // query alone: `Session::rows` would also move the selection's stays and the list
+            // cache of the folder in view.
             let saved = s.view.clone();
             s.view.folder = folder;
             s.view.filter = filter;
             s.view.search.clear();
             s.view.gmail = None;
-            let rows = s.rows();
+            s.view.scope = mailcraft_engine::Scope::Folder;
+            s.view.open.clear();
+            let rows = mailcraft_engine::list::rows(s);
             s.view = saved;
             let start = usize::try_from(offset).unwrap_or(usize::MAX);
             let window = rows

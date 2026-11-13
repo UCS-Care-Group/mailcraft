@@ -54,10 +54,16 @@ impl Core {
         let events = Queue::new();
         let (jobs, inbox) = mpsc::channel::<Job>();
         let sink = EventSink { queue: events.clone() };
+        // The session is built before `start` returns, so a `make` that panics is an error here and
+        // not a core whose every call would wait for a reply that never comes.
+        let (ready_tx, ready) = mpsc::sync_channel::<bool>(1);
         std::thread::Builder::new()
             .name("mailcraft-session".to_string())
-            .spawn(move || run_session(make, inbox, &sink))
+            .spawn(move || run_session(make, inbox, &sink, &ready_tx))
             .map_err(|_| CoreError::Init { message: "a thread for the session could not be started".to_string() })?;
+        if ready.recv() != Ok(true) {
+            return Err(CoreError::Init { message: "the session could not be opened".to_string() });
+        }
         Ok(Arc::new(Core { jobs: Mutex::new(Some(jobs)), events, platform, memory_budget: host.memory_budget(), language: AtomicU8::new(0) }))
     }
 
@@ -98,8 +104,12 @@ impl Core {
 }
 
 /// The session thread: one job after another, and `RevChanged` when a job moved the revision.
-fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink: &EventSink) {
-    let Ok(mut session) = catch_unwind(AssertUnwindSafe(make)) else { return sink.queue.close() };
+fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink: &EventSink, ready: &mpsc::SyncSender<bool>) {
+    let Ok(mut session) = catch_unwind(AssertUnwindSafe(make)) else {
+        let _ = ready.send(false);
+        return sink.queue.close();
+    };
+    let _ = ready.send(true);
     let mut last = session.rev();
     while let Ok(job) = inbox.recv() {
         // (A job catches its own panic; this is for what it does outside it.)
@@ -167,7 +177,10 @@ impl Core {
 
     /// What the platform says of the network now ("Offline" on the lists).
     pub fn network(&self) -> NetworkKind {
-        self.platform.network()
+        match self.platform.network() {
+            Ok(n) => n,
+            Err(_) => NetworkKind::Unknown,
+        }
     }
 
     /// The interface language from now on (`en`, `fr`, `auto` is the app's to resolve first):
