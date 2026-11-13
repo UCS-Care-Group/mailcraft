@@ -699,13 +699,13 @@ fn main() {
     if lines.iter().any(|l| l.pointer("/host/printers").is_some()) {
         use mailcraft_ui_egui::printing::{Host, Printer};
         services.print = Some(Host {
-            printers: Box::new(|| {
+            printers: std::sync::Arc::new(|| {
                 vec![
                     Printer { name: "Office_Laser".into(), label: "Laser on the second floor".into(), default: false },
                     Printer { name: "Home_Inkjet".into(), label: "Home Inkjet".into(), default: true },
                 ]
             }),
-            submit: Box::new(|_job| Ok(())),
+            submit: std::sync::Arc::new(|_job| Ok(())),
         });
     }
     // The owner's own keys (#30), when a line says (`{"host": {"ownKeys": true}}`): a smartcard's

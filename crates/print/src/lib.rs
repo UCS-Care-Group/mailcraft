@@ -17,10 +17,12 @@ mod layout;
 mod pdf;
 mod picture;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use font::{Face, Fonts, MAX_FACE_BYTES, MAX_FACES};
 pub use mailcraft_html::Block;
+pub use picture::MAX_PICTURE_BYTES;
 
 /// The faces MailCraft bundles (`assets/fonts`, ATTRIBUTION.md): Inter, regular and semibold,
 /// and JetBrains Mono. The window draws its own text in the same bytes.
@@ -67,9 +69,10 @@ pub struct Doc {
     pub fields: Vec<(String, String)>,
     /// The body.
     pub blocks: Vec<Block>,
-    /// The pictures attached to the message, by their content id without `<>` (any case), for
-    /// the body's `cid:` pictures.
-    pub pictures: Vec<(String, Arc<[u8]>)>,
+    /// The pictures attached to the message, by the `src` of each picture block that shows one
+    /// (`cid:…` as the body writes it, trimmed). Every spelling of one attachment's address
+    /// holds the same bytes, which are decoded once.
+    pub pictures: HashMap<String, Arc<Vec<u8>>>,
 }
 
 /// How the pages look.
@@ -109,15 +112,17 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// `docs` laid out on pages, each starting on a page of its own, as a PDF.
-pub fn pdf(docs: &[Doc], fonts: &Fonts, options: &Options) -> Result<Vec<u8>, Error> {
+/// `docs` laid out on pages, each starting on a page of its own, as a PDF, with how many pages
+/// it has. They are laid out once; what is past [`MAX_PAGES`] is never laid out.
+pub fn pdf(docs: &[Doc], fonts: &Fonts, options: &Options) -> Result<(Vec<u8>, usize), Error> {
     if docs.is_empty() {
         return Err(Error::Empty);
     }
     let mut faces = font::FaceSet::new(fonts).ok_or(Error::Font)?;
     let mut pictures = picture::Pictures::default();
     let pages = layout::pages(docs, &mut faces, &mut pictures, options);
-    Ok(pdf::write(&pages, &mut faces, &pictures, options))
+    let count = pages.len();
+    Ok((pdf::write(&pages, &mut faces, &pictures, options), count))
 }
 
 /// The text of each page of `docs` as it is laid out, line by line: what [`pdf`] puts on paper,

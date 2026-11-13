@@ -13,10 +13,12 @@
 #[cfg(unix)]
 use std::process::{Command, Stdio};
 #[cfg(unix)]
-use std::time::Duration;
+use std::sync::Arc;
+#[cfg(unix)]
+use std::time::{Duration, Instant};
 
 #[cfg(unix)]
-use mailcraft_ui_egui::printing::{Host, Job, Printer, valid_range};
+use mailcraft_ui_egui::printing::{Host, Job, PrintError, Printer, valid_range};
 
 /// How long `lpstat` may take to list the printers, and `lp` to take a job.
 #[cfg(unix)]
@@ -28,7 +30,7 @@ const MAX_PRINTERS: usize = 200;
 /// Printing through CUPS, when the system has it.
 #[cfg(unix)]
 pub fn host(opened: &'static crate::opened_files::Opened) -> Option<mailcraft_ui_egui::printing::Host> {
-    Some(Host { printers: Box::new(printers), submit: Box::new(move |job| submit(opened, job)) })
+    Some(Host { printers: Arc::new(printers), submit: Arc::new(move |job| submit(opened, job)) })
 }
 
 /// No printing of our own on Windows yet: the window opens the PDF in the system's viewer.
@@ -37,28 +39,65 @@ pub fn host(_opened: &'static crate::opened_files::Opened) -> Option<mailcraft_u
     None
 }
 
-/// `program args`, its standard output when it ends well within [`WAIT`].
+/// How a program run for printing ended.
 #[cfg(unix)]
-fn output(program: &str, args: &[&str]) -> Option<String> {
-    let child =
-        Command::new(program).args(args).env("LC_ALL", "C").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().ok()?;
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::Builder::new()
-        .name(format!("{program} for printing"))
-        .spawn(move || {
-            let _ = tx.send(child.wait_with_output());
+enum Ran {
+    /// Well, with its standard output.
+    Done(String),
+    /// It couldn't be started, or it said no.
+    Failed,
+    /// It didn't end within [`WAIT`], and was stopped.
+    TimedOut,
+}
+
+/// `program args`, waited for at most [`WAIT`]; one that takes longer is stopped (never left
+/// running behind the window's back).
+#[cfg(unix)]
+fn output(program: &str, args: &[&str]) -> Ran {
+    use std::io::Read;
+    let Ok(mut child) = Command::new(program).args(args).env("LC_ALL", "C").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()
+    else {
+        return Ran::Failed;
+    };
+    // Read as it comes, so that a long answer never fills the pipe and holds the program up.
+    let reader = child.stdout.take().map(|mut out| {
+        std::thread::spawn(move || {
+            let mut text = Vec::new();
+            let _ = (&mut out).take(1 << 20).read_to_end(&mut text);
+            text
         })
-        .ok()?;
-    let out = rx.recv_timeout(WAIT).ok()?.ok()?;
-    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    });
+    let deadline = Instant::now() + WAIT;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ran::TimedOut;
+            }
+        }
+    };
+    let text = reader.and_then(|r| r.join().ok()).unwrap_or_default();
+    if status.success() { Ran::Done(String::from_utf8_lossy(&text).into_owned()) } else { Ran::Failed }
+}
+
+/// The standard output of `program args` when it ended well.
+#[cfg(unix)]
+fn answer(program: &str, args: &[&str]) -> Option<String> {
+    match output(program, args) {
+        Ran::Done(text) => Some(text),
+        Ran::Failed | Ran::TimedOut => None,
+    }
 }
 
 /// The printers CUPS knows, the default first, each with its description where it has one.
 #[cfg(unix)]
 fn printers() -> Vec<Printer> {
-    let Some(names) = output("lpstat", &["-e"]) else { return Vec::new() };
-    let default = output("lpstat", &["-d"]).and_then(|d| parse_default(&d));
-    let described = output("lpstat", &["-l", "-p"]).map(|d| parse_descriptions(&d)).unwrap_or_default();
+    let Some(names) = answer("lpstat", &["-e"]) else { return Vec::new() };
+    let default = answer("lpstat", &["-d"]).and_then(|d| parse_default(&d));
+    let described = answer("lpstat", &["-l", "-p"]).map(|d| parse_descriptions(&d)).unwrap_or_default();
     parse_printers(&names, default.as_deref(), &described)
 }
 
@@ -126,24 +165,31 @@ pub fn lp_args(job: &mailcraft_ui_egui::printing::Job, path: &str) -> Vec<String
     args
 }
 
-/// Send `job` to its printer.
+/// Send `job` to its printer. When `lp` doesn't answer in time it is stopped, and the owner is
+/// told the job may print all the same, so that printing again isn't the first thing they do.
 #[cfg(unix)]
-fn submit(opened: &crate::opened_files::Opened, job: Job) -> Result<(), String> {
+fn submit(opened: &crate::opened_files::Opened, job: Job) -> Result<(), PrintError> {
     if !usable_name(&job.printer) {
-        return Err("That printer can't be printed to.".into());
+        return Err(PrintError::Printer);
     }
     if job.pages.as_deref().is_some_and(|p| !valid_range(p)) {
-        return Err("The pages to print aren't a list of page numbers.".into());
+        return Err(PrintError::Pages);
     }
-    let path = opened.write(&format!("{}.pdf", if job.title.trim().is_empty() { "message" } else { job.title.as_str() }), &job.pdf)?;
-    let path = path.to_str().ok_or("The file to print couldn't be named.")?.to_string();
+    let path = opened
+        .write(&format!("{}.pdf", if job.title.trim().is_empty() { "message" } else { job.title.as_str() }), &job.pdf)
+        .map_err(PrintError::File)?;
+    let path = path.to_str().ok_or_else(|| PrintError::File(String::new()))?.to_string();
     let args = lp_args(&job, &path);
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     match output("lp", &refs) {
-        Some(_) => Ok(()),
-        None => {
-            log::warn!("lp refused or didn't answer a print job");
-            Err("The printer didn't take the job. Check that it is on and connected, or Save as PDF instead.".into())
+        Ran::Done(_) => Ok(()),
+        Ran::Failed => {
+            log::warn!("lp refused a print job");
+            Err(PrintError::Refused)
+        }
+        Ran::TimedOut => {
+            log::warn!("lp didn't answer a print job in time and was stopped");
+            Err(PrintError::NoAnswer)
         }
     }
 }

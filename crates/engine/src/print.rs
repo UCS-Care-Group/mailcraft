@@ -4,9 +4,11 @@
 //! recipients, date and attachments, its body as the reading pane shows it, in its light colours.
 //! The text is drawn in the bundled faces, with the system's faces for other scripts behind them
 //! ([`Session::print_fallbacks`]); pictures attached to the message or written into it are printed,
-//! and nothing is fetched.
+//! and nothing is fetched. A message whose body isn't on this computer yet is refused, not printed
+//! from its preview.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use mailcraft_html::{BlockKind, Env};
 use mailcraft_model::{Id, Message};
@@ -19,6 +21,13 @@ use crate::{CmdError, Session};
 pub const MAX_MESSAGES: usize = 100;
 /// How wide a body is laid out for its `@media` rules, in CSS pixels: a printed page's.
 const PAGE_PX: f32 = 650.0;
+/// The most bytes of attached pictures one message prints, and a whole print.
+pub const MAX_MESSAGE_PICTURE_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_PRINT_PICTURE_BYTES: usize = 256 * 1024 * 1024;
+/// The most picture addresses of one message that are looked up.
+const MAX_PICTURE_ADDRESSES: usize = 4_096;
+/// What a message that isn't here yet is refused with.
+pub const NOT_HERE: &str = "This message isn't on this computer yet. It will download when you're online.";
 
 /// The words of a printed header and page foot, in the interface language.
 #[derive(Clone, Debug)]
@@ -77,8 +86,9 @@ pub struct Request {
 }
 
 impl Session {
-    /// The messages `ids` names, or the selected ones, at most [`MAX_MESSAGES`].
-    fn print_targets(&self, ids: &[Id]) -> Result<Vec<Id>, CmdError> {
+    /// The messages `ids` names, or the selected ones, at most [`MAX_MESSAGES`]: what a print
+    /// takes, as it takes them.
+    pub fn print_ids(&self, ids: &[Id]) -> Result<Vec<Id>, CmdError> {
         let ids: Vec<Id> = if ids.is_empty() {
             let mut sel = self.sel.messages.clone();
             if sel.is_empty() {
@@ -95,8 +105,10 @@ impl Session {
             return Err(fail(format!("print at most {MAX_MESSAGES} messages at a time")));
         }
         for id in &ids {
-            if self.mailbox.message(*id).is_none() {
-                return Err(failed!("no message with id {id}", id = *id));
+            let Some(m) = self.mailbox.message(*id) else { return Err(failed!("no message with id {id}", id = *id)) };
+            // Its preview is all that is here: printing that would leave the rest out unsaid.
+            if m.unfetched && m.server.is_some() {
+                return Err(fail(NOT_HERE));
             }
         }
         Ok(ids)
@@ -110,14 +122,18 @@ impl Session {
     /// The messages of `request` as documents to print.
     pub fn print_docs(&self, request: &Request) -> Result<Vec<Doc>, CmdError> {
         let mut docs = Vec::new();
-        for id in self.print_targets(&request.ids)? {
-            let m = self.loaded_message(id)?;
-            docs.push(self.print_doc(&m, &request.labels));
+        let mut room = MAX_PRINT_PICTURE_BYTES;
+        for id in self.print_ids(&request.ids)? {
+            // The body and the pictures it shows in place; its other attachments stay where they are.
+            let m = self.loaded_for_reply(id)?;
+            docs.push(print_doc(self, &m, &request.labels, &mut room));
         }
         Ok(docs)
     }
+}
 
-    fn print_doc(&self, m: &Message, labels: &Labels) -> Doc {
+impl Session {
+    fn print_header(&self, m: &Message, labels: &Labels) -> Vec<(String, String)> {
         let mut fields = Vec::new();
         let from = m.from.full();
         if !from.trim().is_empty() {
@@ -141,26 +157,28 @@ impl Session {
         if !files.is_empty() {
             fields.push((labels.attachments.clone(), files.join("; ")));
         }
-        let blocks = body_blocks(m);
-        let mut pictures = Vec::new();
-        for picture in mailcraft_html::images(&blocks) {
-            let BlockKind::Image { src, data: None, .. } = &picture.kind else { continue };
-            let Some((id, index)) = attachment(m, src) else { continue };
-            if pictures.iter().any(|(known, _): &(String, Arc<[u8]>)| known == &id) {
-                continue;
-            }
-            if let Ok(bytes) = self.content(m.id, crate::Part::Attachment(index)) {
-                pictures.push((id, Arc::from(bytes.as_slice())));
-            }
-        }
-        Doc { title: m.subject.clone(), fields, blocks, pictures }
+        fields
     }
 
-    /// The faces to print in: the bundled ones, and the system's for other scripts.
+    /// The faces to print in: the bundled ones, and the system's for other scripts
+    /// ([`Session::print_fallbacks`], else [`crate::system_fonts::fallback_paths`]). They are
+    /// read and checked once and kept for the next print, while the files are the same.
     pub fn print_fonts(&self) -> Result<mailcraft_print::Fonts, CmdError> {
+        static KEPT: Mutex<Option<(Vec<std::path::PathBuf>, mailcraft_print::Fonts)>> = Mutex::new(None);
+        let paths: Vec<std::path::PathBuf> = match &self.print_fallbacks {
+            Some(paths) => paths.clone(),
+            None => crate::system_fonts::fallback_paths(),
+        };
+        let paths: Vec<std::path::PathBuf> = paths.into_iter().take(mailcraft_print::MAX_FACES.saturating_sub(4)).collect();
+        if let Ok(kept) = KEPT.lock()
+            && let Some((known, fonts)) = kept.as_ref()
+            && *known == paths
+        {
+            return Ok(fonts.clone());
+        }
         let mut fallbacks = Vec::new();
         #[cfg(not(target_arch = "wasm32"))]
-        for path in self.print_fallbacks.iter().take(mailcraft_print::MAX_FACES.saturating_sub(4)) {
+        for path in &paths {
             let Ok(meta) = std::fs::metadata(path) else { continue };
             if meta.len() > mailcraft_print::MAX_FACE_BYTES as u64 {
                 continue;
@@ -169,19 +187,67 @@ impl Session {
                 fallbacks.push(face);
             }
         }
-        mailcraft_print::bundled(fallbacks).ok_or_else(|| fail("the font to print in can't be read"))
+        let fonts = mailcraft_print::bundled(fallbacks).ok_or_else(|| fail("the font to print in can't be read"))?;
+        if let Ok(mut kept) = KEPT.lock() {
+            *kept = Some((paths, fonts.clone()));
+        }
+        Ok(fonts)
+    }
+
+    /// The options a print of `docs` is laid out with.
+    pub fn print_options(&self, docs: &[Doc], request: &Request) -> Options {
+        let title = docs.first().map(|d| d.title.clone()).unwrap_or_default();
+        Options { paper: request.paper.unwrap_or_else(|| self.print_paper()), title, page_label: request.labels.page.clone() }
     }
 
     /// The messages of `request` as a PDF, with how many pages and messages it has.
     pub fn print_pdf(&self, request: &Request) -> Result<(Vec<u8>, usize, usize), CmdError> {
         let docs = self.print_docs(request)?;
         let fonts = self.print_fonts()?;
-        let title = docs.first().map(|d| d.title.clone()).unwrap_or_default();
-        let options = Options { paper: request.paper.unwrap_or_else(|| self.print_paper()), title, page_label: request.labels.page.clone() };
-        let pages = mailcraft_print::page_text(&docs, &fonts, &options).map_err(|e| fail(e.to_string()))?.len();
-        let bytes = mailcraft_print::pdf(&docs, &fonts, &options).map_err(|e| fail(e.to_string()))?;
+        let options = self.print_options(&docs, request);
+        let (bytes, pages) = render(&docs, &fonts, &options).map_err(fail)?;
         Ok((bytes, pages, docs.len()))
     }
+}
+
+/// `docs` laid out once as a PDF, with its page count; what is said when that can't be done.
+/// Needs no [`Session`]: the window runs it on a thread of its own.
+pub fn render(docs: &[Doc], fonts: &mailcraft_print::Fonts, options: &Options) -> Result<(Vec<u8>, usize), String> {
+    mailcraft_print::pdf(docs, fonts, options).map_err(|e| e.to_string())
+}
+
+/// Message `m` as a document to print. Each attachment a picture of its body names is taken
+/// once, by its place, however the body spells its address; and only when it is a picture the
+/// reading pane shows, within the caps for one picture, one message and the print (`room`).
+fn print_doc(s: &Session, m: &Message, labels: &Labels, room: &mut usize) -> Doc {
+    let fields = s.print_header(m, labels);
+    let blocks = body_blocks(m);
+    let mut pictures: HashMap<String, Arc<Vec<u8>>> = HashMap::new();
+    let mut by_place: HashMap<usize, Option<Arc<Vec<u8>>>> = HashMap::new();
+    let mut taken = 0usize;
+    for picture in mailcraft_html::images(&blocks).into_iter().take(MAX_PICTURE_ADDRESSES) {
+        let BlockKind::Image { src, data: None, .. } = &picture.kind else { continue };
+        let src = src.trim();
+        if pictures.contains_key(src) {
+            continue;
+        }
+        let Some(index) = mailcraft_model::shown::cid_part(m, src) else { continue };
+        let bytes = by_place.entry(index).or_insert_with(|| {
+            let a = m.attachments.get(index).filter(|a| a.is_loaded())?;
+            let len = a.data.len();
+            let fits = len <= mailcraft_print::MAX_PICTURE_BYTES && taken.saturating_add(len) <= MAX_MESSAGE_PICTURE_BYTES && len <= *room;
+            if !fits || !mailcraft_model::shown::is_picture(&a.data) {
+                return None;
+            }
+            taken += len;
+            *room -= len;
+            Some(a.data.clone())
+        });
+        if let Some(bytes) = bytes {
+            pictures.insert(src.to_string(), bytes.clone());
+        }
+    }
+    Doc { title: m.subject.clone(), fields, blocks, pictures }
 }
 
 /// A message's display blocks as the reading pane takes them: from its HTML when that shows
@@ -192,7 +258,7 @@ fn body_blocks(m: &Message) -> Vec<mailcraft_html::Block> {
         let read = mailcraft_html::parse_in(html, &env);
         let shows_picture = mailcraft_html::images(&read.blocks).iter().any(|b| match &b.kind {
             BlockKind::Image { data: Some(_), .. } => true,
-            BlockKind::Image { src, .. } => attachment(m, src).is_some(),
+            BlockKind::Image { src, .. } => mailcraft_model::shown::cid_part(m, src).is_some(),
             _ => false,
         });
         if mailcraft_html::has_text(&read.blocks) || shows_picture || m.body.text.trim().is_empty() {
@@ -200,43 +266,4 @@ fn body_blocks(m: &Message) -> Vec<mailcraft_html::Block> {
         }
     }
     mailcraft_html::text_blocks(&m.body.text)
-}
-
-/// The attachment a `cid:` address names, as the reading pane finds it: its id as the address
-/// gives it, and its place.
-fn attachment(m: &Message, src: &str) -> Option<(String, usize)> {
-    let src = src.trim();
-    let id = src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))?;
-    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
-    if id.is_empty() {
-        return None;
-    }
-    let decoded = percent_decode(id);
-    let parts = || m.attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty());
-    parts()
-        .find(|(_, a)| a.content_id == id)
-        .or_else(|| parts().find(|(_, a)| a.content_id == decoded))
-        .or_else(|| parts().find(|(_, a)| a.content_id.eq_ignore_ascii_case(id) || a.content_id.eq_ignore_ascii_case(&decoded)))
-        .map(|(i, _)| (id.to_string(), i))
-}
-
-/// `%40` and the like decoded; anything that isn't a valid escape, or doesn't give UTF-8, is left.
-fn percent_decode(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while let Some(&b) = bytes.get(i) {
-        let escape = (b == b'%').then(|| text.get(i + 1..i + 3)).flatten().and_then(|hex| u8::from_str_radix(hex, 16).ok());
-        match escape {
-            Some(byte) => {
-                out.push(byte);
-                i += 3;
-            }
-            None => {
-                out.push(b);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8(out).unwrap_or_else(|_| text.to_string())
 }

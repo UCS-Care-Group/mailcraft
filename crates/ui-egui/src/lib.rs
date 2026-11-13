@@ -2168,15 +2168,22 @@ impl MailApp {
         }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
-        // A print's header in the interface language, and the system's faces for other scripts.
+        // A print's header in the interface language.
         let params = printing::with_labels(id, params);
-        if matches!(id, "file.print" | "file.saveAsPdf") {
-            self.session.print_fallbacks = theme::SystemFont::load().fallback_paths();
-        }
         // A message being written isn't let go of without a word (#442).
         if dialogs::leaves_message(self, id, &params) {
             self.dialog = Some(dialogs::leaving(id, params));
             return Ok(json!({"pending": "discardDraft"}));
+        }
+        // A message whose body isn't here yet is fetched before its Print dialog opens, which
+        // then prints it whole (and not its preview).
+        if id == "file.print"
+            && let Some(r) = self.fetch_first(id, &params)
+        {
+            if let Err(e) = &r {
+                self.say_refused(id, e);
+            }
+            return r;
         }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)

@@ -66,7 +66,7 @@ pub(crate) fn write(pages: &[Page], faces: &mut FaceSet, pictures: &Pictures, op
         let mut pictures_used = Vec::new();
         for op in &page.ops {
             match op {
-                Op::Text { x, y, face, size, glyphs, color, italic, fake_bold, .. } => {
+                Op::Text { x, y, face, size, glyphs, text, color, italic, fake_bold } => {
                     let (r, g, b) = rgb(*color);
                     let name = format!("F{face}");
                     if !faces_used.contains(face) {
@@ -84,7 +84,16 @@ pub(crate) fn write(pages: &[Page], faces: &mut FaceSet, pictures: &Pictures, op
                     content.set_font(Name(name.as_bytes()), *size);
                     let skew = if *italic { 0.2 } else { 0.0 };
                     content.set_text_matrix([1.0, 0.0, skew, 1.0, *x, paper.height - y]);
+                    // A character no face has is drawn as the missing glyph, which stands for
+                    // many: the run says what it is, for copying and searching.
+                    let missing = glyphs.contains(&0) && !text.is_empty();
+                    if missing {
+                        content.begin_marked_content_with_properties(Name(b"Span")).properties().actual_text(TextStr(text));
+                    }
                     content.show(Str(&codes(glyphs)));
+                    if missing {
+                        content.end_marked_content();
+                    }
                     content.end_text();
                 }
                 Op::Rect { x, y, w, h, color } => {

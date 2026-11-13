@@ -126,6 +126,8 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
             | "mail.openAttachment"
             | "mail.viewSource"
             | "compose.attachItem"
+            | "file.print"
+            | "file.saveAsPdf"
     ) {
         return None;
     }

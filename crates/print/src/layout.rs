@@ -153,6 +153,9 @@ struct Ctx<'a> {
     doc: &'a Doc,
     /// The tallest a slab may be: the page's content height.
     page_height: f32,
+    /// How much may still be laid out at the top level, in points: what fills the pages left
+    /// before [`MAX_PAGES`]. What is past it is never laid out.
+    budget: f32,
 }
 
 /// The pages of `docs`, each starting on a page of its own, with the page labels at their feet.
@@ -163,15 +166,17 @@ pub(crate) fn pages(docs: &[Doc], faces: &mut FaceSet, pictures: &mut Pictures, 
     let bottom = (paper.height - MARGIN).max(top + 72.0);
     let mut pages: Vec<Page> = Vec::new();
     for doc in docs {
-        let mut ctx = Ctx { faces, pictures, doc, page_height: bottom - top };
-        let mut slabs = header(&mut ctx, doc, width);
-        lay_blocks(&mut ctx, &doc.blocks, width, 0, &mut slabs);
-        deal(&slabs, &mut pages, top, bottom);
         if pages.len() >= MAX_PAGES {
-            pages.truncate(MAX_PAGES);
             break;
         }
+        pictures.start_doc();
+        let left = MAX_PAGES.saturating_sub(pages.len()) as f32;
+        let mut ctx = Ctx { faces, pictures, doc, page_height: bottom - top, budget: left * (bottom - top) };
+        let mut slabs = header(&mut ctx, doc, width);
+        lay_blocks(&mut ctx, &doc.blocks, width, 0, &mut slabs);
+        deal(slabs, &mut pages, top, bottom);
     }
+    pages.truncate(MAX_PAGES);
     if !options.page_label.is_empty() {
         let count = pages.len();
         for (n, page) in pages.iter_mut().enumerate() {
@@ -186,17 +191,23 @@ pub(crate) fn pages(docs: &[Doc], faces: &mut FaceSet, pictures: &mut Pictures, 
 }
 
 /// `slabs` onto pages from a new page on.
-fn deal(slabs: &[Slab], pages: &mut Vec<Page>, top: f32, bottom: f32) {
+fn deal(slabs: Vec<Slab>, pages: &mut Vec<Page>, top: f32, bottom: f32) {
     pages.push(Page::default());
     let mut y = top;
-    for (i, slab) in slabs.iter().enumerate() {
+    let keeps: Vec<f32> = (0..slabs.len())
+        .map(|i| {
+            let keep = slabs.get(i).is_some_and(|s| s.keep);
+            if keep { slabs.get(i + 1..).and_then(|rest| rest.iter().find(|s| !s.space)).map_or(0.0, |s| s.height) } else { 0.0 }
+        })
+        .collect();
+    for (i, slab) in slabs.into_iter().enumerate() {
         if pages.len() > MAX_PAGES {
             return;
         }
         if slab.space {
             if y > top && y + slab.height <= bottom {
                 if let Some(page) = pages.last_mut() {
-                    page.ops.extend(slab.ops.iter().cloned().map(|op| op.moved(MARGIN, y)));
+                    page.ops.extend(slab.ops.into_iter().map(|op| op.moved(MARGIN, y)));
                 }
                 y += slab.height;
             } else if y > top {
@@ -205,13 +216,13 @@ fn deal(slabs: &[Slab], pages: &mut Vec<Page>, top: f32, bottom: f32) {
             }
             continue;
         }
-        let next = if slab.keep { slabs.get(i + 1..).and_then(|rest| rest.iter().find(|s| !s.space)).map_or(0.0, |s| s.height) } else { 0.0 };
+        let next = keeps.get(i).copied().unwrap_or(0.0);
         if y > top && (y + slab.height > bottom || (slab.keep && y + slab.height + next > bottom)) {
             pages.push(Page::default());
             y = top;
         }
         if let Some(page) = pages.last_mut() {
-            page.ops.extend(slab.ops.iter().cloned().map(|op| op.moved(MARGIN, y)));
+            page.ops.extend(slab.ops.into_iter().map(|op| op.moved(MARGIN, y)));
         }
         y += slab.height;
     }
@@ -294,6 +305,23 @@ struct Run {
     descent: f32,
 }
 
+impl Run {
+    /// Whether `other`, right after this run on a line, is drawn as more of it.
+    fn looks_like(&self, other: &Run) -> bool {
+        self.face == other.face
+            && self.size == other.size
+            && self.color == other.color
+            && self.background == other.background
+            && self.underline == other.underline
+            && self.strike == other.strike
+            && self.italic == other.italic
+            && self.fake_bold == other.fake_bold
+            && self.link == other.link
+            && self.ascent == other.ascent
+            && self.descent == other.descent
+    }
+}
+
 /// What a line may be broken between: a word, a space, a line break.
 #[derive(Clone, Debug, Default)]
 struct Atom {
@@ -311,6 +339,24 @@ struct TextLine {
 }
 
 impl TextLine {
+    /// The line with each run that looks like the one before it joined to it: a line of words
+    /// in one face is drawn as one piece of text, not as a piece for each word.
+    fn merged(self) -> TextLine {
+        let mut runs: Vec<(f32, Run)> = Vec::with_capacity(self.runs.len());
+        for (x, run) in self.runs {
+            if let Some((_, last)) = runs.last_mut()
+                && last.looks_like(&run)
+            {
+                last.glyphs.extend_from_slice(&run.glyphs);
+                last.text.push_str(&run.text);
+                last.width += run.width;
+                continue;
+            }
+            runs.push((x, run));
+        }
+        TextLine { runs, width: self.width }
+    }
+
     /// The runs as ops with the baseline at `y`, from `x`.
     fn ops(&self, x: f32, y: f32) -> Vec<Op> {
         let mut ops = Vec::new();
@@ -438,7 +484,10 @@ fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
                 flush(&mut word, &mut out);
             }
             let placed = faces.place(c, style);
-            let gid = faces.used.get_mut(placed.face).map_or(0, |u| u.use_glyph(placed.gid, &c.to_string()));
+            // The missing glyph stands for every character no face has: what it stands for is
+            // said where it is drawn (`ActualText`), never in the face's own map.
+            let said = if placed.gid == 0 { String::new() } else { c.to_string() };
+            let gid = faces.used.get_mut(placed.face).map_or(0, |u| u.use_glyph(placed.gid, &said));
             let advance = placed.advance * size;
             let atom = if is_space { &mut Atom { space: true, ..Atom::default() } } else { &mut word };
             let fits = atom.runs.last().is_some_and(|r| r.face == placed.face && r.fake_bold == placed.fake_bold && r.size == size);
@@ -506,7 +555,7 @@ fn break_lines(atoms: Vec<Atom>, width: f32) -> Vec<TextLine> {
                 line.width -= r.width;
             }
         }
-        lines.push(std::mem::take(line));
+        lines.push(std::mem::take(line).merged());
     };
     let mut queue: std::collections::VecDeque<Atom> = atoms.into();
     while let Some(atom) = queue.pop_front() {
@@ -578,7 +627,12 @@ fn paragraph(ctx: &mut Ctx, spans: &[Span], para: &Para) -> Vec<Slab> {
     let lines = break_lines(atoms(ctx.faces, spans, para), width);
     let (asc, desc) = ctx.faces.extent(para.style);
     let mut out = Vec::new();
+    let mut laid = 0.0;
     for line in lines {
+        // A paragraph taller than every page left is laid out no further.
+        if laid > ctx.budget {
+            break;
+        }
         let ascent = line.runs.iter().map(|(_, r)| r.ascent).fold(asc * para.size, f32::max);
         let descent = line.runs.iter().map(|(_, r)| r.descent).fold(desc * para.size, f32::min);
         let size = line.runs.iter().map(|(_, r)| r.size).fold(para.size, f32::max);
@@ -590,6 +644,7 @@ fn paragraph(ctx: &mut Ctx, spans: &[Span], para: &Para) -> Vec<Slab> {
                 Align::Center => ((width - line.width) / 2.0).max(0.0),
                 Align::Right => (width - line.width).max(0.0),
             };
+        laid += height;
         out.push(Slab { height, ops: line.ops(x, baseline), ..Slab::default() });
     }
     out
@@ -706,7 +761,9 @@ fn lay_blocks(ctx: &mut Ctx, blocks: &[Block], width: f32, depth: usize, out: &m
                 out.extend(lines);
             }
         }
+        let mut laid = 0.0;
         for slab in out.iter_mut().skip(start) {
+            laid += slab.height;
             if slab.space {
                 continue;
             }
@@ -714,6 +771,12 @@ fn lay_blocks(ctx: &mut Ctx, blocks: &[Block], width: f32, depth: usize, out: &m
             for level in 0..block.quote.min(8) {
                 let x = f32::from(level) * 12.0 + 3.0;
                 slab.ops.push(Op::Line { x1: x, y1: 0.0, x2: x, y2: slab.height, width: 1.5, color: QUOTE_BAR, style: LineStyle::Solid });
+            }
+        }
+        if depth == 0 {
+            ctx.budget -= laid;
+            if ctx.budget < 0.0 {
+                return;
             }
         }
         i += 1;
@@ -726,9 +789,7 @@ fn picture_bytes<'a>(doc: &'a Doc, block: &'a Block) -> Option<&'a [u8]> {
     if let Some(picture) = data {
         return Some(picture.0.as_slice());
     }
-    let id = src.trim().get(4..).filter(|_| src.trim().get(..4).is_some_and(|s| s.eq_ignore_ascii_case("cid:")))?;
-    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
-    doc.pictures.iter().find(|(cid, _)| cid.trim_start_matches('<').trim_end_matches('>').eq_ignore_ascii_case(id)).map(|(_, b)| b.as_ref())
+    doc.pictures.get(src.trim()).map(|b| b.as_slice())
 }
 
 /// Pictures side by side on a line, wrapping when it is full; one that can't be printed shows its
@@ -1073,61 +1134,109 @@ fn lay_table(ctx: &mut Ctx, table: &Table, align: Align, width: f32, depth: usiz
         let height = cells.iter().map(content).fold(0.0, f32::max);
         let top = if r == 0 { gap } else { 0.0 };
         let bottom = gap;
-        if height + top + bottom > ctx.page_height {
-            for (_, _, _, slabs, _) in cells {
-                out.extend(slabs);
+        // A row taller than a page is cut into pieces, each cell between its own lines, and each
+        // piece is drawn as the row is: its cells where they are, with their frames and colours.
+        let pieces = if height + top + bottom > ctx.page_height { cut_row(cells, ctx.page_height - top - bottom) } else { vec![(height, cells)] };
+        let count = pieces.len();
+        for (n, (height, cells)) in pieces.into_iter().enumerate() {
+            let (first, last) = (n == 0, n + 1 == count);
+            let top = if first { top } else { 0.0 };
+            let slab_h = height + top + bottom;
+            let mut ops = Vec::new();
+            if let Some(bg) = table.background {
+                ops.push(Op::Rect { x: x0, y: 0.0, w: total, h: slab_h, color: bg });
             }
-            continue;
-        }
-        let slab_h = height + top + bottom;
-        let mut ops = Vec::new();
-        if let Some(bg) = table.background {
-            ops.push(Op::Rect { x: x0, y: 0.0, w: total, h: slab_h, color: bg });
-        }
-        for (x, w, pad, slabs, cell) in cells {
-            let ch = slabs.iter().map(|s| s.height).sum::<f32>() + pad[0] + pad[2];
-            if let Some(bg) = cell.background {
-                ops.push(Op::Rect { x, y: top, w, h: height, color: bg });
-            }
-            let shift = match cell.valign {
-                Some(VAlign::Middle) => (height - ch) / 2.0,
-                Some(VAlign::Bottom) => height - ch,
-                _ => 0.0,
-            };
-            let mut y = top + pad[0] + shift.max(0.0);
-            for slab in slabs {
-                ops.extend(slab.ops.into_iter().map(|op| op.moved(x + pad[3], y)));
-                y += slab.height;
-            }
-            let lines = cell_lines(table, cell);
-            let (l, t, rr, b) = (x, top, x + w, top + height);
-            let edges = [(l, t, rr, t), (rr, t, rr, b), (l, b, rr, b), (l, t, l, b)];
-            for (line, (x1, y1, x2, y2)) in lines.iter().zip(edges) {
-                if let Some((lw, color, style)) = line {
-                    ops.push(Op::Line { x1, y1, x2, y2, width: *lw, color: *color, style: *style });
+            for (x, w, pad, slabs, cell) in cells {
+                let ch = slabs.iter().map(|s| s.height).sum::<f32>() + pad[0] + pad[2];
+                if let Some(bg) = cell.background {
+                    ops.push(Op::Rect { x, y: top, w, h: height, color: bg });
+                }
+                let shift = match cell.valign {
+                    _ if count > 1 => 0.0,
+                    Some(VAlign::Middle) => (height - ch) / 2.0,
+                    Some(VAlign::Bottom) => height - ch,
+                    _ => 0.0,
+                };
+                let mut y = top + pad[0] + shift.max(0.0);
+                for slab in slabs {
+                    ops.extend(slab.ops.into_iter().map(|op| op.moved(x + pad[3], y)));
+                    y += slab.height;
+                }
+                let lines = cell_lines(table, cell);
+                let (l, t, rr, b) = (x, top, x + w, top + height);
+                let edges = [(l, t, rr, t), (rr, t, rr, b), (l, b, rr, b), (l, t, l, b)];
+                for (side, (line, (x1, y1, x2, y2))) in lines.iter().zip(edges).enumerate() {
+                    // A row cut across pages has its top on the first piece and its foot on the last.
+                    if (side == 0 && !first) || (side == 2 && !last) {
+                        continue;
+                    }
+                    if let Some((lw, color, style)) = line {
+                        ops.push(Op::Line { x1, y1, x2, y2, width: *lw, color: *color, style: *style });
+                    }
                 }
             }
+            outline(table, &mut ops, (x0, x0 + total, slab_h), (r == 0 && first, r + 1 == rows && last));
+            out.push(Slab { height: slab_h, ops, ..Slab::default() });
         }
-        if table.outline {
-            let lines = table.lines;
-            let get = |i: usize| -> (f32, Rgb, LineStyle) {
-                let l = lines.get(i).copied().unwrap_or_default();
-                if l.is_set() { (f32::from(l.width) * PX, l.color.unwrap_or(RULE), l.style) } else { (0.75, RULE, LineStyle::Solid) }
-            };
-            let (x1, x2) = (x0, x0 + total);
-            if r == 0 {
-                let (w, c, s) = get(0);
-                ops.push(Op::Line { x1, y1: 0.0, x2, y2: 0.0, width: w, color: c, style: s });
+    }
+}
+
+/// A cell laid out in a row: where it starts, how wide it is, its padding, its pieces, the cell.
+type Laid<'a> = (f32, f32, [f32; 4], Vec<Slab>, &'a Cell);
+
+/// A row's cells cut into pieces no taller than `room`, each cell at its own lines: every piece
+/// takes what of each cell fits under the last one's, and at least one piece of each cell that
+/// has some left. Each piece's height comes with it.
+fn cut_row(cells: Vec<Laid<'_>>, room: f32) -> Vec<(f32, Vec<Laid<'_>>)> {
+    let mut rest: Vec<(f32, f32, [f32; 4], std::collections::VecDeque<Slab>, &Cell)> =
+        cells.into_iter().map(|(x, w, pad, slabs, cell)| (x, w, pad, slabs.into(), cell)).collect();
+    let mut pieces = Vec::new();
+    loop {
+        let mut piece = Vec::new();
+        let mut height: f32 = 0.0;
+        for (x, w, pad, slabs, cell) in rest.iter_mut() {
+            let avail = (room - pad[0] - pad[2]).max(1.0);
+            let mut taken = Vec::new();
+            let mut used = 0.0;
+            while let Some(next) = slabs.front() {
+                if used > 0.0 && used + next.height > avail {
+                    break;
+                }
+                used += next.height;
+                taken.extend(slabs.pop_front());
             }
-            let (w, c, s) = get(1);
-            ops.push(Op::Line { x1: x2, y1: 0.0, x2, y2: slab_h, width: w, color: c, style: s });
-            let (w, c, s) = get(3);
-            ops.push(Op::Line { x1, y1: 0.0, x2: x1, y2: slab_h, width: w, color: c, style: s });
-            if r + 1 == rows {
-                let (w, c, s) = get(2);
-                ops.push(Op::Line { x1, y1: slab_h, x2, y2: slab_h, width: w, color: c, style: s });
-            }
+            height = height.max(used + pad[0] + pad[2]);
+            piece.push((*x, *w, *pad, taken, *cell));
         }
-        out.push(Slab { height: slab_h, ops, ..Slab::default() });
+        pieces.push((height, piece));
+        if rest.iter().all(|c| c.3.is_empty()) || pieces.len() >= MAX_PAGES {
+            break;
+        }
+    }
+    pieces
+}
+
+/// The lines a table with an outline draws round a row's slab `x1`..`x2`, `h` tall: its sides,
+/// its top over the first and its foot under the last.
+fn outline(table: &Table, ops: &mut Vec<Op>, (x1, x2, h): (f32, f32, f32), (first, last): (bool, bool)) {
+    if !table.outline {
+        return;
+    }
+    let lines = table.lines;
+    let get = |i: usize| -> (f32, Rgb, LineStyle) {
+        let l = lines.get(i).copied().unwrap_or_default();
+        if l.is_set() { (f32::from(l.width) * PX, l.color.unwrap_or(RULE), l.style) } else { (0.75, RULE, LineStyle::Solid) }
+    };
+    if first {
+        let (w, c, s) = get(0);
+        ops.push(Op::Line { x1, y1: 0.0, x2, y2: 0.0, width: w, color: c, style: s });
+    }
+    let (w, c, s) = get(1);
+    ops.push(Op::Line { x1: x2, y1: 0.0, x2, y2: h, width: w, color: c, style: s });
+    let (w, c, s) = get(3);
+    ops.push(Op::Line { x1, y1: 0.0, x2: x1, y2: h, width: w, color: c, style: s });
+    if last {
+        let (w, c, s) = get(2);
+        ops.push(Op::Line { x1, y1: h, x2, y2: h, width: w, color: c, style: s });
     }
 }

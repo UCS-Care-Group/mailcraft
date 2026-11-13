@@ -26,7 +26,7 @@ fn doc(html: &str) -> Doc {
             ("To:".into(), "Charles Babbage <charles@example.org>; Team <team@example.org>".into()),
         ],
         blocks: mailcraft_html::parse(html),
-        pictures: Vec::new(),
+        pictures: Default::default(),
     }
 }
 
@@ -54,7 +54,8 @@ println!("{x}");</pre>
 
 #[test]
 fn a_message_prints_as_a_pdf() {
-    let bytes = pdf(&[doc(SAMPLE)], &fonts(), &Options::default()).unwrap();
+    let (bytes, pages) = pdf(&[doc(SAMPLE)], &fonts(), &Options::default()).unwrap();
+    assert_eq!(pages, 1);
     dump("sample.pdf", &bytes);
     assert!(bytes.starts_with(b"%PDF-"));
     assert!(bytes.len() < 200_000, "{} bytes: the fonts are subset", bytes.len());
@@ -103,8 +104,8 @@ fn attached_pictures_print_and_missing_ones_show_their_text() {
     let mut d = doc(
         r#"<p>Logo:</p><img src="cid:logo@example.org" width="120"><img src="cid:photo@example.org"><img src="https://example.org/x.png" alt="A remote chart">"#,
     );
-    d.pictures = vec![("<logo@example.org>".into(), png(40, 20, true).into()), ("PHOTO@example.org".into(), jpeg(64, 48).into())];
-    let bytes = pdf(&[d.clone()], &fonts(), &Options::default()).unwrap();
+    d.pictures = [("cid:logo@example.org".to_string(), png(40, 20, true).into()), ("cid:photo@example.org".to_string(), jpeg(64, 48).into())].into();
+    let (bytes, _) = pdf(&[d.clone()], &fonts(), &Options::default()).unwrap();
     dump("pictures.pdf", &bytes);
     let text = String::from_utf8_lossy(&bytes);
     assert_eq!(text.matches("/Subtype /Image").count(), 3, "two pictures and one soft mask");
@@ -118,7 +119,7 @@ fn a_character_the_font_lacks_comes_from_a_fallback() {
     let mono = f.mono.take().unwrap();
     f.fallbacks.push(mono);
     let d = doc("<p>Box: ┌─┐</p>");
-    let bytes = pdf(&[d], &f, &Options::default()).unwrap();
+    let (bytes, _) = pdf(&[d], &f, &Options::default()).unwrap();
     let text = String::from_utf8_lossy(&bytes);
     assert_eq!(text.matches("/Subtype /Type0").count(), 3, "Inter, its bold for the labels, and the fallback");
 }
@@ -139,7 +140,7 @@ fn long_messages_break_across_pages_and_each_message_starts_a_page() {
 
 #[test]
 fn letter_paper_is_letter_sized() {
-    let bytes = pdf(&[doc("<p>x</p>")], &fonts(), &Options { paper: Paper::LETTER, ..Options::default() }).unwrap();
+    let (bytes, _) = pdf(&[doc("<p>x</p>")], &fonts(), &Options { paper: Paper::LETTER, ..Options::default() }).unwrap();
     assert!(String::from_utf8_lossy(&bytes).contains("/MediaBox [0 0 612 792]"));
     assert_eq!(Paper::for_region("us"), Paper::LETTER);
     assert_eq!(Paper::for_region("CH"), Paper::A4);
@@ -157,11 +158,125 @@ fn hostile_layouts_print_without_hanging() {
     let huge_picture = format!(r#"<img src="cid:big" width="60000" height="60000"><p>{}</p>"#, "w".repeat(20_000));
     for html in [deep.as_str(), wide.as_str(), tall_cell.as_str(), huge_picture.as_str(), "", "<p></p>", "<ul><li></li></ul>"] {
         let mut d = doc(html);
-        d.pictures = vec![("big".into(), png(3000, 2, false).into()), ("junk".into(), vec![0u8; 100].into())];
+        d.pictures = [("cid:big".to_string(), png(3000, 2, false).into()), ("cid:junk".to_string(), vec![0u8; 100].into())].into();
         let pages = page_text(&[d.clone()], &fonts(), &Options::default()).unwrap();
         assert!(!pages.is_empty() && pages.len() <= MAX_PAGES);
-        assert!(pdf(&[d], &fonts(), &Options::default()).unwrap().starts_with(b"%PDF"));
+        assert!(pdf(&[d], &fonts(), &Options::default()).unwrap().0.starts_with(b"%PDF"));
     }
     assert_eq!(pdf(&[], &fonts(), &Options::default()), Err(Error::Empty));
     assert!(Face::new(vec![0u8; 64], 0).is_none());
+}
+
+/// The PDF's compressed streams, inflated and joined.
+fn inflated(bytes: &[u8]) -> String {
+    use std::io::Read;
+    let mut out = String::new();
+    let mut rest = bytes;
+    while let Some(at) = rest.windows(7).position(|w| w == b"stream\n") {
+        rest = &rest[at + 7..];
+        let end = rest.windows(9).position(|w| w == b"endstream").unwrap_or(rest.len());
+        let mut text = Vec::new();
+        if flate2::read::ZlibDecoder::new(&rest[..end]).read_to_end(&mut text).is_ok() {
+            out.push_str(&String::from_utf8_lossy(&text));
+        }
+        rest = &rest[end..];
+    }
+    out
+}
+
+fn cmyk_jpeg() -> Vec<u8> {
+    // A JPEG whose frame has four components, as a CMYK picture's has; the scan itself is never
+    // read, for such a JPEG isn't passed through.
+    let mut bytes = jpeg(8, 8);
+    let sof = bytes.windows(2).position(|w| w == [0xFF, 0xC0]).unwrap();
+    bytes[sof + 9] = 4;
+    bytes
+}
+
+#[test]
+fn only_grey_and_ycbcr_jpegs_are_passed_through() {
+    assert_eq!(picture::passes_through(&jpeg(8, 8)), Some(false));
+    let mut gray = std::io::Cursor::new(Vec::new());
+    image::GrayImage::from_pixel(8, 8, image::Luma([90])).write_to(&mut gray, image::ImageFormat::Jpeg).unwrap();
+    assert_eq!(picture::passes_through(gray.get_ref()), Some(true));
+    assert_eq!(picture::passes_through(&cmyk_jpeg()), None, "CMYK is decoded and written again");
+    // An Adobe JPEG that says its three components are RGB, not YCbCr.
+    let mut rgb = jpeg(8, 8);
+    let mut adobe = vec![0xFF, 0xEE, 0x00, 0x0E];
+    adobe.extend_from_slice(b"Adobe\x00\x64\x00\x00\x00\x00\x00");
+    rgb.splice(2..2, adobe);
+    assert_eq!(picture::passes_through(&rgb), None);
+    for junk in [&b""[..], b"\xFF\xD8", b"\xFF\xD8\xFF\xC0\x00", b"\xFF\xD8\xFF\xE0\xFF\xFF"] {
+        assert_eq!(picture::passes_through(junk), None);
+    }
+}
+
+#[test]
+fn a_picture_is_decoded_once_however_often_it_is_shown_and_only_kinds_the_pane_shows_print() {
+    let shared: Arc<Vec<u8>> = png(30, 30, false).into();
+    let html: String = (0..300).map(|n| format!(r#"<img src="cid:Logo{n}@x">"#)).collect();
+    let mut d = doc(&html);
+    d.pictures = (0..300).map(|n| (format!("cid:Logo{n}@x"), shared.clone())).collect();
+    let (bytes, _) = pdf(&[d], &fonts(), &Options::default()).unwrap();
+    assert_eq!(String::from_utf8_lossy(&bytes).matches("/Subtype /Image").count(), 1);
+    let mut ico = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::from_pixel(8, 8, image::Rgba([1, 2, 3, 255])).write_to(&mut ico, image::ImageFormat::Ico).unwrap();
+    let mut d = doc(r#"<img src="cid:t" alt="icon">"#);
+    d.pictures = [("cid:t".to_string(), ico.into_inner().into())].into();
+    let (bytes, _) = pdf(&[d], &fonts(), &Options::default()).unwrap();
+    assert_eq!(String::from_utf8_lossy(&bytes).matches("/Subtype /Image").count(), 0, "an icon file isn't shown in the pane");
+    let mut d = doc(r#"<img src="cid:c">"#);
+    d.pictures = [("cid:c".to_string(), cmyk_jpeg().into())].into();
+    let (bytes, _) = pdf(&[d], &fonts(), &Options::default()).unwrap();
+    assert!(!String::from_utf8_lossy(&bytes).contains("/DCTDecode"), "a CMYK JPEG is never tagged RGB");
+}
+
+#[test]
+fn a_character_no_face_has_says_what_it_is() {
+    let d = doc("<p>A \u{4e2d} B \u{65e5} C</p>");
+    let (bytes, _) = pdf(&[d], &fonts(), &Options::default()).unwrap();
+    assert!(inflated(&bytes).contains("/ActualText"), "the run with the missing glyph carries its text");
+    assert!(page_text(&[doc("<p>A \u{4e2d} B \u{65e5} C</p>")], &fonts(), &Options::default()).unwrap()[0].contains("A \u{4e2d} B \u{65e5} C"));
+}
+
+#[test]
+fn a_line_of_words_is_one_piece_of_text() {
+    let mut faces = font::FaceSet::new(&fonts()).unwrap();
+    let mut pictures = picture::Pictures::default();
+    let d = doc("<p>one two three four five six seven</p>");
+    let pages = layout::pages(&[d], &mut faces, &mut pictures, &Options::default());
+    let runs = pages[0].ops.iter().filter(|op| matches!(op, layout::Op::Text { text, .. } if text.contains("one"))).count();
+    let whole = pages[0].ops.iter().any(|op| matches!(op, layout::Op::Text { text, .. } if text == "one two three four five six seven"));
+    assert!(runs == 1 && whole);
+}
+
+#[test]
+fn a_row_taller_than_a_page_keeps_its_cells_in_place_with_their_colours() {
+    let html = format!(r#"<table><tr><td style="background:#e8f0fe">{}</td><td>right side</td></tr></table>"#, "<p>line</p>".repeat(200));
+    let mut faces = font::FaceSet::new(&fonts()).unwrap();
+    let mut pictures = picture::Pictures::default();
+    let pages = layout::pages(&[doc(&html)], &mut faces, &mut pictures, &Options::default());
+    assert!(pages.len() >= 3);
+    for page in &pages[1..] {
+        assert!(page.ops.iter().any(|op| matches!(op, layout::Op::Rect { .. })), "the cell's colour goes on with it");
+    }
+    let ops: Vec<&layout::Op> = pages.iter().flat_map(|p| &p.ops).collect();
+    let right = ops.iter().find_map(|op| match op {
+        layout::Op::Text { x, text, .. } if text.contains("right") => Some(*x),
+        _ => None,
+    });
+    let left = ops.iter().find_map(|op| match op {
+        layout::Op::Text { x, text, .. } if text == "line" => Some(*x),
+        _ => None,
+    });
+    assert!(right.unwrap() > left.unwrap() + 10.0, "the second cell stays beside the first");
+}
+
+#[test]
+fn what_is_past_the_last_page_is_never_laid_out() {
+    let body = format!("<pre>{}</pre>", "a line\n".repeat(MAX_PAGES * 70));
+    let started = std::time::Instant::now();
+    let (_, pages) = pdf(&[doc(&body), doc("<p>never</p>")], &fonts(), &Options::default()).unwrap();
+    assert_eq!(pages, MAX_PAGES);
+    assert!(started.elapsed() < std::time::Duration::from_secs(60));
 }

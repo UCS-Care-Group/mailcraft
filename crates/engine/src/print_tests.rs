@@ -74,3 +74,81 @@ fn printing_changes_nothing() {
     s.run("file.print", &json!({"id": id})).unwrap();
     assert_eq!(serde_json::to_string(&s.mailbox).unwrap(), before);
 }
+
+fn png() -> Vec<u8> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    image_png(&mut out);
+    out.into_inner()
+}
+
+fn image_png(out: &mut std::io::Cursor<Vec<u8>>) {
+    use std::io::Write;
+    // A real PNG is not needed: the engine takes a picture by what its bytes start with, and the
+    // print crate decodes it.
+    out.write_all(b"\x89PNG\r\n\x1a\n").unwrap();
+    out.write_all(&[7u8; 4096]).unwrap();
+}
+
+fn with_pictures(s: &mut Session, html: String, parts: Vec<mailcraft_model::Attachment>) -> u64 {
+    let inbox = s.mailbox.inbox().unwrap();
+    let mut m = mailcraft_model::Message { folder: inbox, subject: "Pictures".into(), ..Default::default() };
+    m.body.html = Some(html);
+    m.attachments = parts;
+    s.mailbox.add_message(m).unwrap()
+}
+
+#[test]
+fn a_picture_is_taken_once_however_its_address_is_spelled() {
+    let mut s = sample();
+    let html = r#"<img src="cid:abc@x"><img src="cid:ABC@X"><img src="cid:%61bc@x"><img src="cid:<abc@x>">"#.repeat(500);
+    let logo =
+        mailcraft_model::Attachment { content_id: "abc@x".into(), inline: true, ..mailcraft_model::Attachment::new("logo.png", "image/png", png()) };
+    let id = with_pictures(&mut s, html, vec![logo]);
+    let docs = s.print_docs(&Request { ids: vec![id], ..Request::default() }).unwrap();
+    let pictures: Vec<_> = docs[0].pictures.values().collect();
+    assert_eq!(pictures.len(), 4, "every spelling that names it");
+    assert!(pictures.windows(2).all(|w| std::sync::Arc::ptr_eq(w[0], w[1])), "one copy of its bytes");
+}
+
+#[test]
+fn only_pictures_within_the_caps_are_taken() {
+    let mut s = sample();
+    let big = mailcraft_model::Attachment {
+        content_id: "big@x".into(),
+        ..mailcraft_model::Attachment::new(
+            "big.png",
+            "image/png",
+            [b"\x89PNG\r\n\x1a\n".to_vec(), vec![0; mailcraft_print::MAX_PICTURE_BYTES]].concat(),
+        )
+    };
+    let file =
+        mailcraft_model::Attachment { content_id: "file@x".into(), ..mailcraft_model::Attachment::new("a.zip", "application/zip", vec![1; 4096]) };
+    let id = with_pictures(&mut s, r#"<img src="cid:big@x"><img src="cid:file@x">"#.into(), vec![big, file]);
+    let docs = s.print_docs(&Request { ids: vec![id], ..Request::default() }).unwrap();
+    assert!(docs[0].pictures.is_empty(), "too large, and no picture");
+}
+
+#[test]
+fn a_message_not_downloaded_yet_is_refused_not_printed_from_its_preview() {
+    let mut s = sample();
+    let inbox = s.mailbox.inbox().unwrap();
+    let server = mailcraft_model::sync::ServerMessage::default();
+    let mut m = mailcraft_model::Message { folder: inbox, subject: "Later".into(), unfetched: true, server: Some(server), ..Default::default() };
+    m.body.text = "Only the preview".into();
+    let id = s.mailbox.add_message(m).unwrap();
+    let e = s.run("file.saveAsPdf", &json!({"id": id})).unwrap_err().to_string();
+    assert!(e.contains("isn't on this computer yet"), "{e}");
+}
+
+#[test]
+fn the_system_s_faces_are_used_unless_the_host_names_others() {
+    let mut s = sample();
+    s.print_fallbacks = Some(Vec::new());
+    assert!(s.print_fonts().unwrap().fallbacks.is_empty());
+    s.print_fallbacks = None;
+    let system = s.print_fonts().unwrap().fallbacks.len();
+    assert_eq!(
+        system,
+        crate::system_fonts::fallback_paths().iter().filter(|p| mailcraft_print::Face::new(std::fs::read(p).unwrap(), 0).is_some()).count()
+    );
+}

@@ -6218,6 +6218,11 @@ msgstr "„Später“ belässt dieses Konto vorerst bei IMAP. Sie können jederz
 msgid "Lay this calendar over the others"
 msgstr "Diesen Kalender über die anderen legen"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Laying out the pages…"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6383,6 +6388,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Looking at the server's certificate…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Looking for printers…"
 msgstr ""
 
 #. interface
@@ -11049,6 +11059,11 @@ msgid "Sending the report…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Sending to the printer…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Sending what is waiting for the server first; then {account} switches to Microsoft Graph."
@@ -12439,6 +12454,11 @@ msgid "That key is on the card already"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "That printer can't be printed to."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
 msgstr ""
@@ -12830,6 +12850,11 @@ msgid "The file is larger than an OpenPGP key can be."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The file to print couldn't be written: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "The file's passphrase:"
 msgstr ""
@@ -13034,6 +13059,11 @@ msgid "The message you were writing was saved to Drafts; a link opened a new one
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The messages couldn't be laid out for printing."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
@@ -13097,6 +13127,11 @@ msgid "The owner hasn't allowed update checks."
 msgstr "Der Besitzer hat die Suche nach Updates nicht erlaubt."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The pages to print aren't a list of page numbers."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
 msgstr "Das Bild war zu groß und wurde verkleinert ({w} px breit)."
@@ -13106,6 +13141,16 @@ msgstr "Das Bild war zu groß und wurde verkleinert ({w} px breit)."
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
 msgstr "Der Port; leer lassen für den üblichen"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The printer didn't answer in time. The job may still print: look at the print queue before printing again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The printer didn't take the job. Check that it is on and connected, or Save as PDF instead."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -14250,8 +14295,8 @@ msgstr "Diese Nachricht ist keine Einladung, die beantwortet werden kann."
 msgid "This message isn't from the organizer of that meeting, so it can't call it off: take the meeting out of the calendar yourself."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+#. interface, what a command says
+#: crates/engine/src/print.rs crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message isn't on this computer yet. It will download when you're online."
 msgstr "Diese Nachricht ist noch nicht auf diesem Computer. Sie wird heruntergeladen, sobald Sie online sind."

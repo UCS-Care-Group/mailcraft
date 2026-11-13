@@ -24,13 +24,13 @@ fn window(printers: bool) -> (Window, Jobs, Arc<Mutex<Vec<String>>>) {
     if printers {
         let sink = jobs.clone();
         app.services.print = Some(Host {
-            printers: Box::new(|| {
+            printers: std::sync::Arc::new(|| {
                 vec![
                     Printer { name: "Office_Laser".into(), label: "Laser".into(), default: false },
                     Printer { name: "Home_Inkjet".into(), label: "Inkjet".into(), default: true },
                 ]
             }),
-            submit: Box::new(move |job| {
+            submit: std::sync::Arc::new(move |job| {
                 sink.lock().unwrap().push(job);
                 Ok(())
             }),
@@ -48,6 +48,18 @@ fn window(printers: bool) -> (Window, Jobs, Arc<Mutex<Vec<String>>>) {
     (h, jobs, opened)
 }
 
+/// The frames it takes the dialog to lay the pages out and list the printers.
+fn settle(h: &mut Window) {
+    for _ in 0..400 {
+        h.run_steps(1);
+        let busy = matches!(&h.state().dialog, Some(crate::dialogs::Dialog::Print(d)) if d.busy());
+        if !busy {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
 fn press(h: &mut Window, kind: &str) {
     let r = h.state().hit.rect_in(0, kind, 0).unwrap_or_else(|| panic!("no {kind}"));
     click(h, r.center(), PointerButton::Primary, 1);
@@ -58,14 +70,16 @@ fn press(h: &mut Window, kind: &str) {
 fn the_job_goes_to_the_default_printer_as_the_owner_set_it_up() {
     let (mut h, jobs, _) = window(true);
     h.state_mut().run("file.print", json!({})).unwrap();
-    h.run_steps(3);
+    settle(&mut h);
     assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("print"));
     press(&mut h, "printSomePages");
     press(&mut h, "printRange");
     text(&mut h, "1");
     press(&mut h, "printTwoSided");
     press(&mut h, "printLetter");
+    settle(&mut h);
     press(&mut h, "printGo");
+    settle(&mut h);
     assert!(h.state().dialog.is_none());
     let jobs = jobs.lock().unwrap();
     assert_eq!(jobs.len(), 1);
@@ -82,7 +96,7 @@ fn the_job_goes_to_the_default_printer_as_the_owner_set_it_up() {
 fn without_a_printer_the_pdf_opens_in_the_viewer() {
     let (mut h, _, opened) = window(false);
     h.state_mut().run("file.print", json!({})).unwrap();
-    h.run_steps(3);
+    settle(&mut h);
     press(&mut h, "printGo");
     assert_eq!(*opened.lock().unwrap(), ["Your October invoice is ready.pdf"]);
 }
@@ -110,4 +124,41 @@ fn page_ranges_and_labels() {
     assert_eq!(p["id"], 3);
     assert_eq!(with_labels("file.saveAsPdf", json!({"labels": {"from": "Von:"}}))["labels"]["from"], "Von:");
     assert_eq!(with_labels("mail.flag", json!({"id": 3})), json!({"id": 3}));
+}
+
+#[test]
+fn the_dialog_prints_what_it_counted_though_the_selection_moves_on() {
+    let (mut h, jobs, _) = window(true);
+    h.state_mut().run("file.print", json!({})).unwrap();
+    settle(&mut h);
+    let other = h.state().session.mailbox.messages.keys().copied().find(|id| *id != INVOICE).unwrap();
+    h.state_mut().session.sel.messages = vec![other];
+    let Some(crate::dialogs::Dialog::Print(d)) = &h.state().dialog else { panic!("no dialog") };
+    assert_eq!(d.ids(), [INVOICE]);
+    press(&mut h, "printGo");
+    settle(&mut h);
+    assert_eq!(jobs.lock().unwrap()[0].title, "Your October invoice is ready");
+}
+
+#[test]
+fn a_printer_that_says_no_is_said_once_and_the_dialog_stays() {
+    let (mut h, _, _) = window(true);
+    if let Some(host) = h.state_mut().services.print.as_mut() {
+        host.submit = Arc::new(|_| Err(crate::printing::PrintError::NoAnswer));
+    }
+    h.state_mut().run("file.print", json!({})).unwrap();
+    settle(&mut h);
+    press(&mut h, "printGo");
+    settle(&mut h);
+    assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("print"));
+}
+
+#[test]
+fn an_agent_s_print_comes_back_as_data_without_a_dialog() {
+    let (mut h, _, _) = window(true);
+    h.state_mut().session.agent = Some(Vec::new());
+    let r = h.state_mut().execute("file.print", json!({})).unwrap();
+    h.state_mut().session.agent = None;
+    assert!(r["data"].as_str().is_some_and(|d| !d.is_empty()), "{r}");
+    assert!(h.state().dialog.is_none());
 }

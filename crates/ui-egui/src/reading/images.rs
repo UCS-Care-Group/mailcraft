@@ -67,42 +67,9 @@ pub fn is_remote(src: &str) -> bool {
     ["http://", "https://"].iter().any(|scheme| src.get(..scheme.len()).is_some_and(|start| start.eq_ignore_ascii_case(scheme)))
 }
 
-/// The attachment a `cid:` address refers to. The address is compared with each part's
-/// `Content-ID` as written, then with `%xx` decoded, then without regard to letter case.
+/// The attachment a `cid:` address refers to ([`mailcraft_model::shown::cid_part`]).
 pub fn attachment<'a>(message: &'a Message, src: &str) -> Option<&'a Attachment> {
-    let src = src.trim();
-    let id = src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))?;
-    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
-    if id.is_empty() {
-        return None;
-    }
-    let decoded = percent_decode(id);
-    let parts = || message.attachments.iter().filter(|a| !a.content_id.is_empty());
-    parts()
-        .find(|a| a.content_id == id)
-        .or_else(|| parts().find(|a| a.content_id == decoded))
-        .or_else(|| parts().find(|a| a.content_id.eq_ignore_ascii_case(id) || a.content_id.eq_ignore_ascii_case(&decoded)))
-}
-
-/// `%40` and the like decoded; anything that isn't a valid escape, or doesn't give UTF-8, is left.
-fn percent_decode(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while let Some(&b) = bytes.get(i) {
-        let escape = (b == b'%').then(|| text.get(i + 1..i + 3)).flatten().and_then(|hex| u8::from_str_radix(hex, 16).ok());
-        match escape {
-            Some(byte) => {
-                out.push(byte);
-                i += 3;
-            }
-            None => {
-                out.push(b);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8(out).unwrap_or_else(|_| text.to_string())
+    mailcraft_model::shown::cid_part(message, src).and_then(|i| message.attachments.get(i))
 }
 
 /// The kinds of picture shown, by what their bytes are: in a message (and in a signature), and
@@ -546,8 +513,8 @@ mod tests {
         }
         // A part without a Content-ID is never matched by an empty address.
         assert_eq!(attachment(&m, "cid:"), None);
-        assert_eq!(percent_decode("a%2"), "a%2");
-        assert_eq!(percent_decode("%ff%fe"), "%ff%fe");
+        assert_eq!(mailcraft_model::shown::percent_decode("a%2"), "a%2");
+        assert_eq!(mailcraft_model::shown::percent_decode("%ff%fe"), "%ff%fe");
     }
 
     #[test]

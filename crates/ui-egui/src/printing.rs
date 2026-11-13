@@ -6,10 +6,13 @@
 //! printer ([`Host`]). Without a host that prints, the PDF is opened in the system's PDF viewer to
 //! be printed from there, or downloaded in the browser.
 
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::{Arc, Mutex};
+
 use egui::{RichText, Ui, vec2};
 use mailcraft_engine::print::{Labels, Request};
 use mailcraft_model::Id;
-use mailcraft_print::Paper;
+use mailcraft_print::{Doc, Fonts, Options, Paper};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -49,12 +52,72 @@ pub struct Job {
     pub paper: &'static str,
 }
 
-/// Desktop: what the system offers for printing.
+/// Why the host printed nothing, said in the interface language ([`PrintError::said`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PrintError {
+    /// The printer's name isn't one that can be printed to.
+    Printer,
+    /// The pages asked for aren't a list of page numbers.
+    Pages,
+    /// The file to print couldn't be written or named; what the system said.
+    File(String),
+    /// The printer refused the job.
+    Refused,
+    /// The printer didn't answer in time: the job may still print.
+    NoAnswer,
+}
+
+impl PrintError {
+    pub fn said(&self) -> String {
+        match self {
+            PrintError::Printer => tl!("That printer can't be printed to.").to_string(),
+            PrintError::Pages => tl!("The pages to print aren't a list of page numbers.").to_string(),
+            PrintError::File(e) => crate::i18n::fmt(tl!("The file to print couldn't be written: {error}"), &[("error", e)]),
+            PrintError::Refused => tl!("The printer didn't take the job. Check that it is on and connected, or Save as PDF instead.").to_string(),
+            PrintError::NoAnswer => {
+                tl!("The printer didn't answer in time. The job may still print: look at the print queue before printing again.").to_string()
+            }
+        }
+    }
+}
+
+/// Desktop: what the system offers for printing. Both are called on a thread of their own, never
+/// the window's: each may wait for the system.
 pub struct Host {
     /// The printers, the default first; empty when there are none or they can't be listed.
-    pub printers: Box<dyn Fn() -> Vec<Printer>>,
+    pub printers: Arc<dyn Fn() -> Vec<Printer> + Send + Sync>,
     /// Send a job to its printer. An error says why nothing was printed.
-    pub submit: Box<dyn Fn(Job) -> Result<(), String>>,
+    pub submit: Arc<dyn Fn(Job) -> Result<(), PrintError> + Send + Sync>,
+}
+
+/// `work` done on a thread of its own, its answer to be picked up from the receiver; in the
+/// browser, which has no threads, and when no thread can be had, done at once.
+fn background<T: Send + 'static>(name: &str, work: impl FnOnce() -> T + Send + 'static) -> Receiver<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let work = std::sync::Arc::new(Mutex::new(Some(work)));
+        let shared = work.clone();
+        let sender = tx.clone();
+        let spawned = std::thread::Builder::new().name(name.to_string()).spawn(move || {
+            if let Some(work) = shared.lock().ok().and_then(|mut w| w.take()) {
+                let _ = sender.send(work());
+            }
+        });
+        if spawned.is_ok() {
+            return rx;
+        }
+        if let Some(work) = work.lock().ok().and_then(|mut w| w.take()) {
+            let _ = tx.send(work());
+        }
+        rx
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = name;
+        let _ = tx.send(work());
+        rx
+    }
 }
 
 /// The header's words in the interface language, for the engine.
@@ -105,10 +168,29 @@ pub fn valid_range(text: &str) -> bool {
     })
 }
 
-/// The Print dialog.
+/// A print laid out for one paper: its bytes and page count, or why it couldn't be.
+type Laid = Result<(Arc<Vec<u8>>, usize), String>;
+
+/// Where a print for one paper is.
+enum Layout {
+    Busy(Receiver<Laid>),
+    Done(Laid),
+}
+
+/// The Print dialog. What it prints is taken when it opens (the messages, laid out by the engine
+/// as documents), so that a change of the selection meanwhile, by a sync or an agent, prints
+/// nothing else than what the dialog counted. The pages are laid out on a thread of their own,
+/// once for each paper, and the printers are listed and the job is sent there too: the window
+/// never waits for the system.
 pub struct PrintDialog {
     ids: Vec<Id>,
+    docs: Arc<Vec<Doc>>,
+    fonts: Fonts,
+    options: Options,
+    /// The PDF's name.
+    name: String,
     printers: Vec<Printer>,
+    listing: Option<Receiver<Vec<Printer>>>,
     printer: usize,
     copies: u32,
     all_pages: bool,
@@ -116,8 +198,10 @@ pub struct PrintDialog {
     letter: bool,
     two_sided: bool,
     color: bool,
-    /// The page count for the paper it was counted on.
-    pages: Option<(bool, usize)>,
+    /// The print on A4 and on Letter, as far as they have been laid out.
+    laid: [Option<Layout>; 2],
+    /// A job on its way to the printer, and what to say when it is there.
+    sending: Option<(Receiver<Result<(), PrintError>>, String)>,
     error: String,
 }
 
@@ -127,35 +211,113 @@ impl PrintDialog {
     pub fn open(app: &MailApp, params: &Value) -> Option<PrintDialog> {
         let mut ids: Vec<Id> = params.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
         ids.extend(params.get("id").and_then(Value::as_u64));
+        let ids = app.session.print_ids(&ids).ok()?;
         let request = Request { ids: ids.clone(), labels: labels(), paper: None };
-        app.session.print_docs(&request).ok()?;
-        let printers = app.services.print.as_ref().map(|h| (h.printers)()).unwrap_or_default();
-        let printer = printers.iter().position(|p| p.default).unwrap_or(0);
+        let docs = app.session.print_docs(&request).ok()?;
+        let fonts = app.session.print_fonts().ok()?;
+        let options = app.session.print_options(&docs, &request);
+        let name = mailcraft_engine::cmd::file::pdf_name(&app.session, &ids);
+        let listing = app.services.print.as_ref().map(|h| {
+            let printers = h.printers.clone();
+            background("printers", move || printers())
+        });
         Some(PrintDialog {
             ids,
-            printers,
-            printer,
+            docs: Arc::new(docs),
+            fonts,
+            options,
+            name,
+            printers: Vec::new(),
+            listing,
+            printer: 0,
             copies: 1,
             all_pages: true,
             range: String::new(),
             letter: app.session.print_paper() == Paper::LETTER,
             two_sided: false,
             color: true,
-            pages: None,
+            laid: [None, None],
+            sending: None,
             error: String::new(),
         })
     }
 
-    fn request(&self) -> Request {
-        Request { ids: self.ids.clone(), labels: labels(), paper: Some(if self.letter { Paper::LETTER } else { Paper::A4 }) }
+    /// The messages it prints, as it took them.
+    pub fn ids(&self) -> &[Id] {
+        &self.ids
+    }
+
+    /// Whether something is still being worked out: the pages, the printers, a job on its way.
+    pub fn busy(&self) -> bool {
+        self.listing.is_some() || self.sending.is_some() || matches!(self.laid.get(usize::from(self.letter)), Some(Some(Layout::Busy(_))))
+    }
+
+    /// The print for the paper chosen: laid out, started, or picked up when it is done.
+    fn current(&mut self) -> Option<&Laid> {
+        let slot = self.laid.get_mut(usize::from(self.letter))?;
+        if slot.is_none() {
+            let (docs, fonts) = (self.docs.clone(), self.fonts.clone());
+            let options = Options { paper: if self.letter { Paper::LETTER } else { Paper::A4 }, ..self.options.clone() };
+            let rx = background("print-layout", move || {
+                mailcraft_engine::print::render(&docs, &fonts, &options).map(|(bytes, pages)| (Arc::new(bytes), pages))
+            });
+            *slot = Some(Layout::Busy(rx));
+        }
+        if let Some(Layout::Busy(rx)) = slot {
+            match rx.try_recv() {
+                Ok(laid) => *slot = Some(Layout::Done(laid)),
+                Err(TryRecvError::Empty) => return None,
+                Err(TryRecvError::Disconnected) => {
+                    *slot = Some(Layout::Done(Err(tl!("The messages couldn't be laid out for printing.").to_string())))
+                }
+            }
+        }
+        match slot {
+            Some(Layout::Done(laid)) => Some(laid),
+            _ => None,
+        }
+    }
+
+    /// What has come back from the threads: the printers, a job sent.
+    fn pick_up(&mut self, app: &mut MailApp) -> bool {
+        if let Some(rx) = &self.listing {
+            match rx.try_recv() {
+                Ok(printers) => {
+                    self.printer = printers.iter().position(|p| p.default).unwrap_or(0);
+                    self.printers = printers;
+                    self.listing = None;
+                }
+                Err(TryRecvError::Disconnected) => self.listing = None,
+                Err(TryRecvError::Empty) => {}
+            }
+        }
+        let Some((rx, said)) = &self.sending else { return false };
+        let answer = match rx.try_recv() {
+            Ok(answer) => answer,
+            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Disconnected) => Err(PrintError::Refused),
+        };
+        let said = said.clone();
+        self.sending = None;
+        match answer {
+            Ok(()) => {
+                app.status(said);
+                true
+            }
+            Err(e) => {
+                self.error = e.said();
+                false
+            }
+        }
     }
 
     /// The dialog's contents; whether it is done.
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
-        let mut done = false;
-        if self.pages.is_none_or(|(letter, _)| letter != self.letter) {
-            self.pages = app.session.print_pdf(&self.request()).ok().map(|(_, pages, _)| (self.letter, pages));
+        let mut done = self.pick_up(app);
+        let laid = self.current().cloned();
+        if self.busy() {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         }
         let can_print = app.services.print.is_some() && !self.printers.is_empty();
         egui::Grid::new("printDialog").num_columns(2).spacing(vec2(16.0, 8.0)).show(ui, |ui| {
@@ -168,6 +330,8 @@ impl PrintDialog {
                     }
                 });
                 app.hit.add("printPrinter", 0, resp.response.rect);
+            } else if self.listing.is_some() {
+                ui.label(RichText::new(tl!("Looking for printers…")).color(t.text_dim));
             } else {
                 ui.label(RichText::new(tl!("Opens in your PDF viewer, to print from there")).color(t.text_dim));
             }
@@ -210,28 +374,45 @@ impl PrintDialog {
                 ui.end_row();
             }
         });
-        if let Some((_, pages)) = self.pages {
-            ui.add_space(2.0);
-            let text = tln!(pages, "{n} page", "{n} pages");
-            ui.label(RichText::new(text).color(t.text_dim));
+        ui.add_space(2.0);
+        match &laid {
+            None => {
+                ui.label(RichText::new(tl!("Laying out the pages…")).color(t.text_dim));
+            }
+            Some(Ok((_, pages))) => {
+                ui.label(RichText::new(tln!(*pages, "{n} page", "{n} pages")).color(t.text_dim));
+            }
+            Some(Err(e)) => {
+                ui.label(RichText::new(e.as_str()).color(t.red));
+            }
+        }
+        if self.sending.is_some() {
+            ui.label(RichText::new(tl!("Sending to the printer…")).color(t.text_dim));
         }
         if !self.error.is_empty() {
             ui.label(RichText::new(self.error.as_str()).color(t.red));
         }
         let range_ok = self.all_pages || valid_range(&self.range);
+        let ready = matches!(laid, Some(Ok(_))) && self.sending.is_none() && self.listing.is_none();
         ui.add_space(4.0);
         button_row(ui, |ui| {
             let b = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0)));
             app.hit.add("printCancel", 0, b.rect);
             done |= b.clicked();
-            let b = primary_button(ui, tl!("Print"), range_ok);
+            let b = primary_button(ui, tl!("Print"), range_ok && ready);
             app.hit.add("printGo", 0, b.rect);
-            if (b.clicked() || enter) && range_ok {
-                match self.print(app) {
-                    Ok(said) => {
+            if (b.clicked() || enter)
+                && range_ok
+                && ready
+                && let Some(Ok((pdf, pages))) = &laid
+            {
+                self.error.clear();
+                match self.print(app, pdf, *pages) {
+                    Ok(Some(said)) => {
                         app.status(said);
                         done = true;
                     }
+                    Ok(None) => {}
                     Err(e) => self.error = e,
                 }
             }
@@ -239,37 +420,39 @@ impl PrintDialog {
         done
     }
 
-    /// Lay the messages out and send them to the printer (or the viewer); what to say.
-    fn print(&self, app: &mut MailApp) -> Result<String, String> {
-        let (pdf, pages, _) = app.session.print_pdf(&self.request()).map_err(|e| e.to_string())?;
-        let name = mailcraft_engine::cmd::file::pdf_name(&app.session, &self.ids);
-        let printer = self.printers.get(self.printer).filter(|_| !self.printers.is_empty());
+    /// Send the print to the printer, on a thread of its own (`None`: what to say comes when it
+    /// is there), or open it in the viewer (what to say).
+    fn print(&mut self, app: &mut MailApp, pdf: &Arc<Vec<u8>>, pages: usize) -> Result<Option<String>, String> {
+        let name = self.name.clone();
+        let printer = self.printers.get(self.printer).cloned();
         match (&app.services.print, printer) {
             (Some(host), Some(printer)) => {
                 let job = Job {
                     printer: printer.name.clone(),
                     title: name.trim_end_matches(".pdf").to_string(),
-                    pdf,
+                    pdf: pdf.as_ref().clone(),
                     copies: self.copies.clamp(1, MAX_COPIES),
                     pages: (!self.all_pages).then(|| self.range.split_whitespace().collect::<String>()),
                     two_sided: self.two_sided,
                     color: self.color,
                     paper: if self.letter { "Letter" } else { "A4" },
                 };
-                (host.submit)(job)?;
-                Ok(crate::i18n::fmt(
+                let said = crate::i18n::fmt(
                     &tln!(pages, "Printing {n} page on {printer}", "Printing {n} pages on {printer}"),
                     &[("printer", &printer.label)],
-                ))
+                );
+                let submit = host.submit.clone();
+                self.sending = Some((background("print-job", move || submit(job)), said));
+                Ok(None)
             }
             _ => {
                 if let Some(open_file) = &app.services.open_file {
-                    open_file(&name, &pdf)?;
-                    return Ok(crate::i18n::fmt(tl!("Opened {name} to print"), &[("name", &name)]));
+                    open_file(&name, pdf)?;
+                    return Ok(Some(crate::i18n::fmt(tl!("Opened {name} to print"), &[("name", &name)])));
                 }
                 if let Some(download) = &app.services.download {
-                    download(&name, &pdf)?;
-                    return Ok(crate::i18n::fmt(tl!("Downloaded {name}: open it to print"), &[("name", &name)]));
+                    download(&name, pdf)?;
+                    return Ok(Some(crate::i18n::fmt(tl!("Downloaded {name}: open it to print"), &[("name", &name)])));
                 }
                 Err(tl!("Printing isn't available here: use Save as PDF instead.").to_string())
             }
