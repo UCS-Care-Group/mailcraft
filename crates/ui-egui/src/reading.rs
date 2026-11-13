@@ -67,6 +67,16 @@ pub(crate) use warnings::row_mark as warning_mark;
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+/// Let go of what is kept to show messages again quickly (the window is out of sight,
+/// [`crate::out_of_sight`]): the bodies laid out, the pictures' textures and bytes, the pictures
+/// from the web and the faces read for messages. Each is made, asked for or read again when it
+/// is next shown; what is on its way is not waited for, and not kept.
+pub(crate) fn let_go(app: &mut MailApp, ctx: &egui::Context) {
+    view::Store::let_go(ctx);
+    app.remote_pictures.let_go(ctx);
+    fonts::let_go(ctx);
+}
+
 /// Most recipient names the header of the reading pane lists, and most category chips it paints.
 const SHOWN_NAMES: usize = 50;
 const SHOWN_CATEGORIES: usize = 8;
@@ -282,16 +292,28 @@ pub(crate) fn has_unreadable(m: &Message) -> bool {
         .any(|text| text.contains(MARK))
 }
 
+/// Messages whose [`has_unreadable`] answer is kept ([`unreadable_line`]).
+const UNREADABLE_KEPT: usize = 8;
+
 /// The line above a message that holds a character that couldn't be read ([`has_unreadable`]):
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
 fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens) {
-    let key = egui::Id::unique(("mailcraft-unreadable", m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
-    let unreadable = match ui.ctx().data(|d| d.get_temp::<bool>(key)) {
-        Some(kept) => kept,
+    // Kept for the last few messages shown (the pane and windows), under one key: not one entry
+    // in egui's memory for every message ever read.
+    let key = egui::Id::unique("mailcraft-unreadable");
+    let this = egui::Id::unique((m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
+    let known = ui.ctx().data(|d| d.get_temp::<Vec<(egui::Id, bool)>>(key)).unwrap_or_default();
+    let unreadable = match known.iter().find(|(of, _)| *of == this) {
+        Some((_, kept)) => *kept,
         None => {
             let found = has_unreadable(m);
-            ui.ctx().data_mut(|d| d.insert_temp(key, found));
+            let mut known = known;
+            if known.len() >= UNREADABLE_KEPT {
+                known.remove(0);
+            }
+            known.push((this, found));
+            ui.ctx().data_mut(|d| d.insert_temp(key, known));
             found
         }
     };

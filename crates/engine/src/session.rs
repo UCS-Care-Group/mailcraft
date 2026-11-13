@@ -2714,6 +2714,57 @@ impl Session {
         self.resident_bytes = self.resident_bytes.saturating_sub(freed);
     }
 
+    /// Let go of the content brought into messages, from the message after `from` (from the
+    /// first: `None`) on, as the budget does ([`Session::evict`]): a message whose body or files
+    /// are in memory and safely on disk as they are goes back to naming them, and its Undo and
+    /// Redo steps let go of them too. The messages `keep` names (open in a window, being written)
+    /// stay as they are. For a window out of sight a while; what is shown again is read again.
+    /// At most `most` messages are let go of in one call: the answer is the message to go on
+    /// after, `None` once every message was looked at. Nothing is let go of while a command or a
+    /// search runs.
+    pub fn let_go_of_content(&mut self, from: Option<Id>, keep: &HashSet<Id>, most: usize) -> Option<Id> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.swaps.is_some() || self.search_pass.is_some() {
+                return from;
+            }
+            let path = self.path.clone()?;
+            let mut next = from.map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
+            let mut left = most.max(1);
+            loop {
+                let found = self
+                    .mailbox
+                    .messages
+                    .range((next, std::ops::Bound::Unbounded))
+                    .find(|(id, m)| !keep.contains(id) && may_go(m))
+                    .map(|(id, m)| (*id, crate::store::evictable(&path, *id, m)));
+                let Some((id, lean)) = found else { break };
+                next = std::ops::Bound::Excluded(id);
+                let Some(lean) = lean else { continue };
+                self.put_in_place(id, lean, true);
+                self.loads += 1;
+                left -= 1;
+                if left == 0 {
+                    return Some(id);
+                }
+            }
+            // What is counted as brought in is what of it is still in memory and could go.
+            let messages = &self.mailbox.messages;
+            self.resident.retain_mut(|(id, bytes)| {
+                let now = messages.get(id).filter(|m| may_go(m)).map_or(0, |m| in_memory(m));
+                *bytes = (*bytes).min(now);
+                *bytes > 0
+            });
+            self.resident_bytes = self.resident.iter().map(|(_, b)| *b).fold(0, u64::saturating_add);
+            None
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (from, keep, most);
+            None
+        }
+    }
+
     /// The mailbox was `was` and is now another (an undo or a redo): what is counted as brought
     /// into a message that holds less of it now (its body named on disk again, #688) is let go
     /// of by as much, so that the count is never more than what is held.
@@ -3855,6 +3906,19 @@ fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(m.hidden_text.len());
     let original = m.original.as_ref().map_or(0, |o| o.data.len() as u64);
     m.attachments.iter().fold((body as u64).saturating_add(original), |n, a| n.saturating_add(a.data.len() as u64))
+}
+
+/// Whether message `m` holds in memory content that a save keeps outside the mailbox file (a
+/// body or a file of more than [`crate::store::INLINE_MAX`] bytes, an original), and so may go
+/// back to naming it ([`Session::let_go_of_content`]).
+#[cfg(not(target_arch = "wasm32"))]
+fn may_go(m: &Message) -> bool {
+    let out = |n: usize| n > crate::store::INLINE_MAX;
+    out(m.body.text.len())
+        || m.body.html.as_ref().is_some_and(|h| out(h.len()))
+        || out(m.hidden_text.len())
+        || m.attachments.iter().any(|a| out(a.data.len()))
+        || m.original.as_ref().is_some_and(|o| !o.data.is_empty())
 }
 
 /// A body an opening for a window left on disk though the memory budget holds it, to be read

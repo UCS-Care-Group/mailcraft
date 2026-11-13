@@ -472,13 +472,24 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
         }
         return;
     }
-    let key = egui::Id::unique("mailcraft-compose-signature").with(&html);
-    let message = match ctx.data(|d| d.get_temp::<std::sync::Arc<mailcraft_model::Message>>(key)) {
-        Some(m) => m,
+    // The last few signatures shown (one a window being written), under one key: not one entry in
+    // egui's memory for every signature ever shown.
+    type Kept = Vec<(egui::Id, std::sync::Arc<mailcraft_model::Message>)>;
+    const KEPT: usize = 4;
+    let key = egui::Id::unique("mailcraft-compose-signature");
+    let this = egui::Id::unique(&html);
+    let known = ctx.data(|d| d.get_temp::<Kept>(key)).unwrap_or_default();
+    let message = match known.iter().find(|(of, _)| *of == this) {
+        Some((_, m)) => m.clone(),
         None => {
             // As it is sent: cleaned.
             let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
-            ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+            let mut known = known;
+            if known.len() >= KEPT {
+                known.remove(0);
+            }
+            known.push((this, m.clone()));
+            ctx.data_mut(|d| d.insert_temp(key, known));
             m
         }
     };

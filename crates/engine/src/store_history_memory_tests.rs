@@ -198,3 +198,56 @@ fn a_step_older_than_a_change_of_the_text_keeps_the_text_it_had() {
         assert_eq!(text_of(&s, id), rewritten);
     }
 }
+
+#[test]
+fn a_window_out_of_sight_lets_go_of_every_body_but_those_kept() {
+    let tmp = Temp::new("let-go-all");
+    let path = tmp.file();
+    let mb = mailbox(40);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let kept: Vec<Id> = newest_first(&mb).into_iter().filter(|id| s.mailbox.message(*id).unwrap().body_is_kept()).collect();
+    // Everything brought in, under a budget that holds it all, and a step to undo for each flag.
+    s.loaded_budget = u64::MAX;
+    for id in &kept {
+        s.load_message(*id).unwrap();
+        s.run("mail.flag", &json!({"id": id})).unwrap();
+    }
+    let open = kept[0];
+    s.sel.messages = vec![kept[1]];
+    let before = held_with_steps(&s);
+    assert!(s.resident_bytes() > 0);
+    // A few at a time, as the window does it: each call goes on from where the last stopped.
+    let keep: HashSet<Id> = [open].into_iter().collect();
+    let mut from = None;
+    let mut calls = 0;
+    loop {
+        from = s.let_go_of_content(from, &keep, 3);
+        calls += 1;
+        if from.is_none() {
+            break;
+        }
+        assert!(calls < 100);
+    }
+    assert!(calls > 1);
+    // What the kept message holds is left (as it is and as its step before the flag has it),
+    // and short bodies kept in the mailbox file; the rest went, from the steps too.
+    let m = s.mailbox.message(open).unwrap();
+    assert!(!m.body_is_kept(), "the message open in a window keeps its body");
+    let left = whole_size(m);
+    let after = held_with_steps(&s);
+    let slack = INLINE_MAX as u64 * 2 * mb.messages.len() as u64;
+    assert!(after <= 2 * left + slack, "{after} of {before} bytes still held ({left} kept)");
+    assert!(before > 4 * after, "{after} of {before} bytes still held");
+    assert!(s.mailbox.message(kept[1]).unwrap().body_is_kept(), "the one selected goes too: nothing is shown");
+    assert!(s.resident_bytes() <= left, "{} counted", s.resident_bytes());
+    // Read again when wanted, and Undo all the way finds every body.
+    assert_eq!(text_of(&s, kept[2]), mb.message(kept[2]).unwrap().body.text);
+    while s.can_undo() {
+        s.run("edit.undo", &json!({})).unwrap();
+    }
+    for id in &kept {
+        assert_eq!(text_of(&s, *id), mb.message(*id).unwrap().body.text);
+    }
+}
