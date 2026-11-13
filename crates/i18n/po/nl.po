@@ -313,14 +313,14 @@ msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het kla
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Een agendawijziging kan nog niet worden verzonden en wordt opnieuw geprobeerd: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "Een wijziging van de agenda van een gedeeld postvak is geweigerd: dit account mag die niet bewerken. Er wordt nog één keer geprobeerd, en daarna wordt die teruggezet."
@@ -2405,8 +2405,8 @@ msgstr "Gewijzigd: wordt opgeslagen wanneer u een andere handtekening kiest of d
 msgid "Change…"
 msgstr "Wijzigen…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Het wijzigen van de agenda vereist uw toestemming: Bestand › Info › Agenda en contactpersonen verbinden"
@@ -2972,7 +2972,7 @@ msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Bijdragers kiezen zelf hun namen; zie docs/contributors.md."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Kopieert een kort bericht met het adres van de pagina van Microsoft waarop een beheerder van uw organisatie MailCraft goedkeurt, eenmalig voor iedereen. Er wordt niets verzonden: plak het zelf in e-mail of chat."
@@ -3005,6 +3005,12 @@ msgstr "Diagnose kopiëren"
 msgid "Copy Event"
 msgstr "Gebeurtenis kopiëren"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Items kopiëren"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3036,7 +3042,7 @@ msgid "Copy a Message for My Administrator"
 msgstr "Een bericht voor mijn beheerder kopiëren"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Copy a message for my administrator"
 msgstr "Een bericht voor mijn beheerder kopiëren"
@@ -3052,6 +3058,12 @@ msgstr "Alles kopiëren"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Problemen kopiëren"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "De geselecteerde items naar de map kopiëren:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -7700,6 +7712,12 @@ msgid "Move Folder"
 msgstr "Map verplaatsen"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Items verplaatsen"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7728,6 +7746,12 @@ msgstr "Alleen de afspraken verplaatsen"
 #, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
 msgstr "Verplaats het bericht naar een map om de bijlagen te openen of op te slaan"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "De geselecteerde items naar de map verplaatsen:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8322,7 +8346,7 @@ msgid "No file manager could be started to show the folder."
 msgstr "Er kon geen bestandsbeheerder worden gestart om de map te tonen."
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
 msgstr "Geen mappen komen overeen"
@@ -8743,7 +8767,7 @@ msgid "Numbering"
 msgstr "Nummering"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11118,7 +11142,7 @@ msgid "Say yes only if you asked the agent for this. Text in a message can tell 
 msgstr "Zeg alleen ja als u de agent hierom hebt gevraagd. Tekst in een bericht kan een agent dingen laten doen waar u niet om hebt gevraagd."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Geeft aan wat u en de beheerder van uw organisatie kunnen doen, en laat een beheerder MailCraft vanaf hier goedkeuren op de pagina van Microsoft."
@@ -11209,7 +11233,7 @@ msgid "Search contacts"
 msgstr "Contactpersonen zoeken"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search folders"
 msgstr "Mappen zoeken"
@@ -13269,8 +13293,8 @@ msgstr "De agenda „{name}” kan alleen worden gelezen: de eigenaar heeft dit 
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "De agenda „{name}” toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "De agendawijzigingen konden niet worden opgehaald: {error}"
@@ -13305,8 +13329,8 @@ msgstr "De agendaverbinding werkt"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "De agendaverbinding werkt: wat is verzonden, is aangekomen, en de server heeft het zoals het is verzonden."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "De agenda kon niet worden opgehaald: {error}"
@@ -13383,8 +13407,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "De agenda's van het gedeelde postvak wachten: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "De categorieën konden niet worden opgehaald: {error}"
@@ -13460,8 +13484,8 @@ msgstr "De contactpersoon {id} is twee keer genoemd."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "De contactpersonen konden niet worden opgehaald: {error}"
@@ -13657,8 +13681,8 @@ msgstr ""
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "De koppeling staat op het klembord: stuur deze naar de beheerder van uw organisatie"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "De lijst met agenda's kon niet worden opgehaald: {error}"
@@ -13898,14 +13922,14 @@ msgstr ""
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "De regels op de server konden niet worden gelezen: de taak stopte onverwacht"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "De regels op de server konden niet worden overgenomen: {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "De verzonden regels konden niet worden vastgelegd: {error}"
@@ -14158,8 +14182,8 @@ msgstr "De agenda „{name}” van het gedeelde postvak toont alleen wanneer de 
 msgid "The shared mailbox's e-mail address"
 msgstr "Het e-mailadres van het gedeelde postvak"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "De aanmelding van het account waarmee dit gedeelde postvak wordt geopend, is geweigerd: meld u opnieuw aan met Verzenden/ontvangen"
@@ -14263,14 +14287,14 @@ msgstr "De tekst is niet gevonden."
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "De to-do's konden niet worden bijgehouden: het is onverwacht gestopt"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "De to-do's konden niet worden opgehaald: {error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "De verzonden to-do's konden niet worden genoteerd: {error}"
@@ -14472,14 +14496,14 @@ msgstr "Dit account heeft geen aanmelding bij Microsoft"
 msgid "This account is no longer in the mailbox."
 msgstr "Dit account staat niet meer in het postvak."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Dit account mag zijn regels op de server niet wijzigen"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "Dit account mag zijn to-do's niet via Microsoft Graph gebruiken"
@@ -16049,7 +16073,7 @@ msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Wat te doen wanneer uw organisatie MailCraft moet goedkeuren"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "What to do next"
 msgstr "Wat hierna te doen"
@@ -18630,8 +18654,8 @@ msgstr "de server heeft de verbinding gesloten"
 msgid "the server continued a cancelled password authentication"
 msgstr "de server ging door met een geannuleerde wachtwoordverificatie"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "de server kon niet worden bereikt"
@@ -20001,8 +20025,8 @@ msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay 
 msgstr[0] "{n} wijziging die op de IMAP-server wacht, bereikt die niet; ze blijft in de reservekopie."
 msgstr[1] "{n} wijzigingen die op de IMAP-server wachten, bereiken die niet; ze blijven in de reservekopie."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} wijzigingen van de agenda „{name}” worden hier aangehouden, niet verzonden: dit account mag die niet meer wijzigen. Ze worden verzonden als dat weer mag."

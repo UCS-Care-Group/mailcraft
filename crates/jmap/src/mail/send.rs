@@ -77,7 +77,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::Message;
 use mailcraft_model::sync::{JmapMailResult, MAX_LISTED_FOLDERS, MAX_SENDS, SendDone, SendOutcome, SendUp};
 use serde_json::{Map, Value, json};
@@ -163,7 +163,7 @@ pub(super) fn recipients(message: &Message) -> Result<Vec<String>, &'static str>
 pub(super) fn written(message: &Message) -> Vec<u8> {
     let message = if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) };
     let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-    mailcraft_mime::write(&message, &options)
+    mailcraft_mime_model::write(&message, &options)
 }
 
 /// The identity to send as `email` with, of those an answer to `Identity/get` lists: its id.

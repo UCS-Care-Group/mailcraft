@@ -168,7 +168,7 @@ fn a_message_is_uploaded_imported_into_sent_and_submitted_with_its_envelope_in_o
     let fields: Vec<(&str, &str)> = upload.fields().collect();
     assert!(fields.contains(&("Content-Type", "message/rfc822")) && fields.iter().any(|(name, _)| *name == "Authorization"));
     let text = String::from_utf8_lossy(upload.body()).to_string();
-    let read = mailcraft_mime::parse(upload.body());
+    let read = mailcraft_mime_model::parse(upload.body());
     assert_eq!(
         (read.subject.as_str(), read.from.email.as_str(), read.to.len(), read.cc.len(), read.body.text.trim()),
         ("Lunch", ME, 2, 2, "Shall we?")
@@ -714,10 +714,10 @@ fn the_message_goes_without_its_bcc_field_and_dated() {
     let text = String::from_utf8_lossy(&octets).to_string();
     assert!(!text.contains("erin@example.org") && !text.lines().any(|line| line.to_ascii_lowercase().starts_with("bcc:")), "{text}");
     assert!(text.contains("bob@example.org") && text.contains("carol@example.org"));
-    assert_eq!(mailcraft_mime::parse(&octets).date, THEN);
+    assert_eq!(mailcraft_mime_model::parse(&octets).date, THEN);
     // One that was never dated is dated now.
     mail.date = 0;
-    let dated = mailcraft_mime::parse(&written(&mail)).date;
+    let dated = mailcraft_mime_model::parse(&written(&mail)).date;
     assert!(dated > 1_700_000_000, "{dated}");
 }
 

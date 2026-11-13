@@ -341,7 +341,7 @@ impl Data {
             None => Some(named),
         };
         let email = email.and_then(|id| self.email(id)).ok_or_else(|| wrong("emailId"))?;
-        let message = mailcraft_mime::parse(&email.raw);
+        let message = mailcraft_mime_model::parse(&email.raw);
         let (mail_from, rcpt_to) = match entry.get("envelope") {
             // The server's own, from the message's fields (RFC 8621 §7).
             None | Some(Value::Null) => {

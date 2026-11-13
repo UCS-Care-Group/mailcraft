@@ -27,7 +27,7 @@ fn window(messages: &[Vec<u8>], trusted: bool) -> (Window, Vec<u64>) {
     let inbox = mb.inbox().unwrap();
     let mut ids = Vec::new();
     for bytes in messages {
-        let mut m = mailcraft_mime::parse_fetched(bytes);
+        let mut m = mailcraft_mime_model::parse_fetched(bytes);
         m.folder = inbox;
         ids.push(mb.add_message(m).unwrap());
     }

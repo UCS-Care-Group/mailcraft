@@ -7,6 +7,45 @@
 
 use std::collections::HashMap;
 
+pub mod calendar;
+pub mod calendar_plan;
+#[cfg(test)]
+mod calendar_plan_tests;
+#[cfg(test)]
+mod calendar_tests;
+pub mod favorites;
+#[cfg(test)]
+mod favorites_tests;
+pub mod fetch;
+pub mod fetch_flow;
+#[cfg(test)]
+mod fetch_flow_tests;
+#[cfg(test)]
+mod fetch_tests;
+pub mod jobs;
+#[cfg(test)]
+mod jobs_tests;
+pub mod offline;
+#[cfg(test)]
+mod offline_tests;
+#[cfg(test)]
+mod reset_tests;
+pub mod rules;
+#[cfg(test)]
+mod rules_tests;
+pub mod tasks;
+#[cfg(test)]
+mod tasks_tests;
+
+pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
+pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
+pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
+pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
+pub use jobs::{Busy, JobKind, Start};
+pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
+pub use tasks::{TasksCame, TasksDriver, TasksFacts};
+
 use mailcraft_model::Id;
 
 /// How one kind of job is paced (all times in milliseconds).
@@ -24,6 +63,8 @@ pub struct Pacing {
 
 impl Pacing {
     /// The To Do job's: read every few minutes, a change goes after three quiet seconds.
+    /// The rules are kept as the to-dos are.
+    pub const RULES: Pacing = Pacing::TASKS;
     pub const TASKS: Pacing = Pacing { refresh_ms: 5.0 * 60_000.0, quiet_ms: 3_000.0, first_retry_ms: 30_000.0, longest_retry_ms: 15.0 * 60_000.0 };
 
     /// The calendar's: a change goes at once (it is on the server as soon as it is in Outlook), a
@@ -102,22 +143,64 @@ impl JobBook {
     /// is due: changes that have waited out the quiet time, or nothing asked for since the refresh
     /// time, and, after a failure, the wait it asks for decides alone.
     pub fn due(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
-        let since = match self.waiting.get(&account) {
-            Some((seen, since)) if *seen == ready => *since,
-            _ => {
-                self.waiting.insert(account, (ready, now));
-                now
-            }
-        };
+        let pushes = self.quiet_over(pacing, account, ready, now);
         let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
         if failures > 0 {
             // After a failure the back-off alone decides: it is the retry, so the refresh time
             // (counted from the failed check) is not waited out on top of it.
             return now - at >= pacing.patience_ms(failures);
         }
-        let pushes = ready > 0 && now - since >= pacing.quiet_ms;
-        let asked = self.checked.get(&account).copied();
-        pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)
+        pushes || self.checked.get(&account).is_none_or(|at| now - at >= pacing.refresh_ms)
+    }
+
+    /// Note that `account` has `ready` changes waiting at `now`, and say since when that many
+    /// have waited (`now` when the number is new).
+    pub fn waiting_since(&mut self, account: Id, ready: usize, now: f64) -> f64 {
+        match self.waiting.get(&account) {
+            Some((seen, since)) if *seen == ready => *since,
+            _ => {
+                self.waiting.insert(account, (ready, now));
+                now
+            }
+        }
+    }
+
+    /// Note that `account` has `ready` changes waiting at `now`, and say whether there are some
+    /// and they have waited out the quiet time.
+    pub fn quiet_over(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
+        let since = self.waiting_since(account, ready, now);
+        ready > 0 && now - since >= pacing.quiet_ms
+    }
+
+    /// Whether any account had changes waiting at its last look.
+    pub fn any_waiting(&self) -> bool {
+        self.waiting.values().any(|(n, _)| *n > 0)
+    }
+
+    /// Whether `account` is not within the wait that its failures in a row ask for at `now`.
+    pub fn patient(&self, pacing: &Pacing, account: Id, now: f64) -> bool {
+        let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
+        !(failures > 0 && now - at < pacing.patience_ms(failures))
+    }
+
+    /// When `account` was last asked for.
+    pub fn checked(&self, account: Id) -> Option<f64> {
+        self.checked.get(&account).copied()
+    }
+
+    /// Forget when every account was last asked for.
+    pub fn forget_all_checked(&mut self) {
+        self.checked.clear();
+    }
+
+    /// Forget the failures of `account`: the next look is not made to wait for them.
+    pub fn forget_failures(&mut self, account: Id) {
+        self.failures.remove(&account);
+    }
+
+    /// Forget every account's failures.
+    pub fn forget_all_failures(&mut self) {
+        self.failures.clear();
     }
 
     /// A job for `account` was started at `now`.
@@ -138,7 +221,7 @@ impl JobBook {
 
     /// The job worked: no failures in a row.
     pub fn worked(&mut self, account: Id) {
-        self.failures.remove(&account);
+        self.forget_failures(account);
     }
 
     /// How many failures in a row `account` has.
@@ -178,6 +261,103 @@ impl Permission {
     }
 }
 
+/// Whether `account`'s permission is a question being asked, one that went away unanswered, or a no.
+fn answered_by_owner(perm: &HashMap<Id, Permission>, account: Id) -> bool {
+    matches!(perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_)))
+}
+
+/// A question that went away unanswered is not asked again by itself: when none is on screen
+/// (`still`), every account being asked about is `Declined`.
+fn unanswered(perm: &mut HashMap<Id, Permission>, still: bool) {
+    if still {
+        return;
+    }
+    for p in perm.values_mut().filter(|p| **p == Permission::Asking) {
+        *p = Permission::Declined;
+    }
+}
+
+/// The account the owner is next to be asked about, the lowest first.
+fn to_ask(perm: &HashMap<Id, Permission>) -> Option<Id> {
+    perm.iter().filter(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a).min()
+}
+
+/// How many changes wait per account, worked out for the mailbox as of one revision (every look
+/// asks; the work is done again only when the mailbox changed).
+#[derive(Debug, Default)]
+struct WaitingCache(Option<(u64, HashMap<Id, usize>)>);
+
+impl WaitingCache {
+    /// How many changes wait for `account` at revision `rev`: `count` works it out when not known.
+    fn get(&mut self, rev: u64, account: Id, count: impl FnOnce() -> usize) -> usize {
+        let (_, known) = match &mut self.0 {
+            Some(cache) if cache.0 == rev => cache,
+            other => other.insert((rev, HashMap::new())),
+        };
+        *known.entry(account).or_insert_with(count)
+    }
+}
+
+/// What a job's answer says of the owner's permission and the sign-in.
+#[derive(Clone, Copy)]
+struct Standing {
+    consent_needed: bool,
+    denied: bool,
+    sign_in_refused: bool,
+    new_tokens: bool,
+}
+
+/// Keep where `account`'s permission stands after a job answered with `came` (`what` names the
+/// job in the log, which never carries anything of the account); `read` says the job read or
+/// wrote with it. `settling`: the refusals left that are taken for the provider not having caught
+/// up. Whether a failure was noted for it (then the answer doesn't count as a success too).
+#[allow(clippy::too_many_arguments)]
+fn standing_in(
+    what: &str,
+    book: &mut JobBook,
+    perm: &mut HashMap<Id, Permission>,
+    settling_of: &mut HashMap<Id, u32>,
+    account: Id,
+    (started, given): (f64, u64),
+    came: Standing,
+    (denied_said, read): (impl FnOnce() -> String, bool),
+) -> bool {
+    let settling = settling_of.get(&account).copied().unwrap_or(0);
+    if !came.consent_needed {
+        settling_of.remove(&account);
+    }
+    if came.consent_needed && settling > 0 {
+        log::info!("{what}: refused just after the owner allowed them; trying again ({settling} more)");
+        settling_of.insert(account, settling - 1);
+        book.failed(account, started);
+        book.forget_checked(account);
+        return true;
+    }
+    if came.consent_needed {
+        log::info!("{what}: the sign-in doesn't cover them; the owner is to be asked");
+        if !answered_by_owner(perm, account) {
+            perm.insert(account, Permission::Needed);
+        }
+    } else if came.denied {
+        perm.insert(account, Permission::Refused(denied_said()));
+    } else if came.sign_in_refused && !came.new_tokens && settling == 0 {
+        // The refresh itself was refused, for mail too: never "not asked yet" with no way back
+        // (#520). (Not when the owner allowed it since the job began: that sign-in is newer.)
+        log::warn!("{what}: the sign-in was refused; waiting for a new one");
+        if !answered_by_owner(perm, account) {
+            perm.insert(account, Permission::SignInOver(given));
+        }
+    } else if came.sign_in_refused {
+        // A token just renewed was refused: the next look tries again, after the back-off.
+        log::warn!("{what}: the server refused the sign-in; trying again later");
+        book.failed(account, started);
+        return true;
+    } else if read {
+        perm.insert(account, Permission::Given);
+    }
+    false
+}
+
 /// A refresh token, told apart from another without being kept: whether the account has signed
 /// in again since a job's was refused.
 pub fn fingerprint(refresh: &str) -> u64 {
@@ -185,4 +365,31 @@ pub fn fingerprint(refresh: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     refresh.hash(&mut hasher);
     hasher.finish()
+}
+
+/// The sync driver's state, in the session: what the front end's jobs have to remember between
+/// looks. In memory only, never saved, and with no I/O; a front end reads and writes it through
+/// the functions here and on [`Session`](crate::Session).
+#[derive(Debug, Default)]
+pub struct Driver {
+    /// Mail to keep offline: when it was last taken back.
+    pub thinning: Thinning,
+    /// The calendar kept in step with each account's server.
+    pub calendar: CalendarDriver,
+    /// Outlook's Favorites read from each Microsoft account's server.
+    pub favorites: FavoritesDriver,
+    /// Messages fetched whole in the background and for the owner.
+    pub fetch: FetchDriver,
+    /// Tasks kept in step with Microsoft To Do.
+    pub tasks: TasksDriver,
+    /// The rules kept on the server.
+    pub rules: RulesDriver,
+}
+
+impl Driver {
+    /// Another mailbox took the place of the open one: everything the driver remembered is the
+    /// old mailbox's (its accounts' ids may name other accounts here), so none of it is kept.
+    pub fn reset(&mut self) {
+        *self = Driver::default();
+    }
 }

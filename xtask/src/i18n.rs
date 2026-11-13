@@ -145,6 +145,10 @@ fn gather(root: &Path) -> Result<Texts, String> {
     for (_, toks) in &ui {
         constants(toks, &mut ui_consts);
     }
+    // (The Favorites' refusals are the sync driver's, below the window, and shown by it.)
+    for (_, toks) in &sources(root, "crates/engine/src/sync_driver")? {
+        constants(toks, &mut ui_consts);
+    }
     for name in SHOWN_CONSTS {
         if let Some(s) = ui_consts.get(*name) {
             add(&mut texts, s, None, "crates/ui-egui/src", "interface");

@@ -20,6 +20,7 @@
 use std::sync::mpsc::Receiver;
 
 use egui::{Align2, Color32, CursorIcon, Rect, Sense, Stroke, Ui, pos2, vec2};
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::remote::{FreeBusy, FreeBusyAsk, MAX_SCHEDULES};
 use mailcraft_model::sync::Tokens as SignIn;
 use mailcraft_model::{Address, Id, ShowAs};
@@ -189,7 +190,7 @@ impl MailApp {
         if self.offline() {
             return Err(crate::send_receive::said());
         }
-        if self.graph_consent_needed.contains(&account.id) {
+        if self.session.driver.calendar.consent_needed.contains(&account.id) {
             return Err(tl!("Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts").to_string());
         }
         Ok(account.clone())
@@ -227,7 +228,7 @@ impl MailApp {
         // One question at a time, and not while the account's sign-in or calendar is being
         // seen to; and not the same question again before its time.
         let due = known.is_none_or(|known| now - known.asked >= if known.error.is_empty() { REFRESH_MS } else { RETRY_MS });
-        let busy = self.free_busy.rx.is_some() || self.signing_in.is_some() || self.graph_rx.is_some() || self.calendar_syncing();
+        let busy = self.job_busy().blocks(Start::FreeBusy);
         if !due || busy {
             return look;
         }
@@ -315,7 +316,7 @@ impl MailApp {
             self.favorites_token_is_plain(account);
         }
         if result.consent_needed {
-            self.graph_consent_needed.insert(account);
+            self.session.driver.calendar.consent_needed.insert(account);
         }
         let asked = self.free_busy.known.iter().find(|known| known.key == key).map_or_else(now_ms, |known| known.asked);
         let (people, error) = match &result.schedule {
@@ -1000,9 +1001,9 @@ mod tests {
         let look = app.free_busy(own, &people, day);
         assert!(!look.pending && look.note.contains("kept on this computer"), "{}", look.note);
         // The owner hasn't allowed it.
-        app.graph_consent_needed.insert(account);
+        app.session.driver.calendar.consent_needed.insert(account);
         assert!(app.free_busy(calendar, &people, day).note.contains("needs your permission"));
-        app.graph_consent_needed.clear();
+        app.session.driver.calendar.consent_needed.clear();
         // No sign-in at hand: Send/Receive asks for one, this doesn't.
         let (tokens, graph_tokens) = (std::mem::take(&mut app.tokens), std::mem::take(&mut app.graph_tokens));
         let look = app.free_busy(calendar, &people, day);
@@ -1014,7 +1015,7 @@ mod tests {
         app.services.free_busy = host;
         // While the account's calendar is being seen to, the question waits its turn.
         app.auto_sync = true;
-        app.calendar.due = true;
+        app.session.driver.calendar.due = true;
         app.execute("view.calendar", json!({})).unwrap();
         assert!(app.calendar_tick_at(true, now_ms() + 400_000.0));
         assert!(!app.free_busy(calendar, &people, day.add_days(5)).pending);
