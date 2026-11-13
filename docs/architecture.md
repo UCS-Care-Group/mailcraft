@@ -60,7 +60,7 @@ egui, eframe, winit or rfd.
    sends the Outbox through SMTP and downloads new mail and flag changes over IMAP with `proto`
    and `mime`; `sync.apply` (pure) takes the result in and runs the rules on new Inbox mail. The
    engine and the UI never touch a socket, which is why they build for the browser. A JMAP
-   account goes the Graph way: `sync.jmapRequest` (pure) says what to read, the host (the browser
+   account goes the Graph way: `sync.jmapRequest` (pure) says what to take up and read, the host (the browser
    build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
    `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)). An Exchange server
    account (#252, Exchange Web Services) goes the same way: its request and result shapes are

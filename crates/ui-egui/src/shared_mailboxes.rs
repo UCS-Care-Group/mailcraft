@@ -249,7 +249,7 @@ impl MailApp {
         } else if !result.consent_needed {
             self.session.sync_status.clear();
         }
-        self.note_sync_problems(account, &errors, true);
+        self.note_problems_from("shared", account, &errors, None, true);
         self.note_pushed(account);
     }
 

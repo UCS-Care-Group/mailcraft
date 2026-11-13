@@ -218,21 +218,7 @@ impl Refusals {
             .iter()
             .map(|((kind, why), (n, subject, to))| {
                 let many = *n > 1;
-                let what = if many { format!("{n} messages") } else { format!("'{subject}'") };
-                let to = to.as_ref().map(|to| format!(" to {to}")).unwrap_or_default();
-                let doing = match kind {
-                    Kind::Read(true) => format!("mark {what} as read"),
-                    Kind::Read(false) => format!("mark {what} as unread"),
-                    Kind::Flag => format!("change the flag of {what}"),
-                    Kind::Categories => format!("change the categories of {what}"),
-                    Kind::Importance => format!("change the importance of {what}"),
-                    Kind::Several => format!("change {what}"),
-                    Kind::Move => format!("move {what}{to}"),
-                    Kind::Copy => format!("copy {what}{to}"),
-                    Kind::Delete if subject.is_empty() && !many => "permanently delete a message".to_string(),
-                    Kind::Delete => format!("permanently delete {what}"),
-                    Kind::MovedOut => format!("remove {what} from the server after moving it here"),
-                };
+                let doing = doing(*kind, *n, subject, to.as_deref());
                 match (kind, why) {
                     (Kind::Delete, Why::Denied) => format!("Couldn't {doing}: the server doesn't allow it."),
                     _ => format!("Couldn't {doing}: the server says {}.", why.words(many)),
@@ -242,8 +228,29 @@ impl Refusals {
     }
 }
 
+/// What couldn't be done, for a line that says so: "move 'Invoice 42' to Archive", "mark 3
+/// messages as read". `n` messages, the first one's `subject`, and the folder they were to go to.
+pub(super) fn doing(kind: Kind, n: usize, subject: &str, to: Option<&str>) -> String {
+    let many = n > 1;
+    let what = if many { format!("{n} messages") } else { format!("'{subject}'") };
+    let to = to.map(|to| format!(" to {to}")).unwrap_or_default();
+    match kind {
+        Kind::Read(true) => format!("mark {what} as read"),
+        Kind::Read(false) => format!("mark {what} as unread"),
+        Kind::Flag => format!("change the flag of {what}"),
+        Kind::Categories => format!("change the categories of {what}"),
+        Kind::Importance => format!("change the importance of {what}"),
+        Kind::Several => format!("change {what}"),
+        Kind::Move => format!("move {what}{to}"),
+        Kind::Copy => format!("copy {what}{to}"),
+        Kind::Delete if subject.is_empty() && !many => "permanently delete a message".to_string(),
+        Kind::Delete => format!("permanently delete {what}"),
+        Kind::MovedOut => format!("remove {what} from the server after moving it here"),
+    }
+}
+
 /// A subject as a line about it shows it.
-fn shown(subject: &str) -> String {
+pub(super) fn shown(subject: &str) -> String {
     let subject: String = subject.chars().filter(|c| !c.is_control()).take(60).collect();
     if subject.trim().is_empty() { "(no subject)".to_string() } else { subject }
 }
@@ -255,7 +262,7 @@ pub(super) fn folder_name(mb: &Mailbox, account: Id, id: &str, local: Option<Id>
 }
 
 /// The message of `account` called `id` on the server, when it is still `message` here.
-fn mine<'m>(mb: &'m mut Mailbox, account: Id, message: Id, id: &str) -> Option<&'m mut Message> {
+pub(super) fn mine<'m>(mb: &'m mut Mailbox, account: Id, message: Id, id: &str) -> Option<&'m mut Message> {
     let m = mb.message_mut(message).ok()?;
     (m.account == account && m.server.as_ref().is_some_and(|s| s.id == id)).then_some(m)
 }
@@ -446,7 +453,7 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
 /// as new mail is). Kept but with nowhere on the server known (being moved out of the account, and
 /// not to be read), it goes back where it was here. A folder the server has it in that isn't here
 /// yet brings it down with its first listing. The subject, for saying so.
-fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>, there: Option<&GraphMessage>) -> String {
+pub(super) fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>, there: Option<&GraphMessage>) -> String {
     let subject = kept.as_ref().map(|m| m.subject.clone()).or_else(|| there.map(|t| t.subject.clone())).unwrap_or_default();
     // Back already (it came down again meanwhile): nothing to do.
     if mb.messages.values().any(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == id)) {
@@ -497,4 +504,4 @@ pub fn missing(mb: &mut Mailbox, account: Id, ids: &[String]) -> usize {
 
 #[cfg(test)]
 #[path = "graph_up_tests.rs"]
-mod tests;
+pub(crate) mod tests;

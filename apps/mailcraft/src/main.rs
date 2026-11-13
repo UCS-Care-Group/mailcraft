@@ -41,6 +41,8 @@ mod desktop_icons;
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
+mod diagnostics_problem_tests;
+#[cfg(test)]
 mod ews_mail_flow;
 mod ews_runner;
 mod ews_setup;
@@ -96,8 +98,6 @@ mod shared_calendar_flow;
 mod shared_send_flow;
 mod single_instance;
 mod system_locale;
-#[cfg(test)]
-mod tasks_job_tests;
 #[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
@@ -458,6 +458,23 @@ fn background<T: Send + 'static>(ctx: &egui::Context, name: &str, work: impl FnO
         log::error!("couldn't start {name}: {e}");
     }
     rx
+}
+
+/// A job on the host's threads, or, when the host didn't start, on a thread of its own as
+/// `background` does: the jobs never stop for want of it.
+fn host_job<T: Send + 'static>(
+    host: Option<&std::sync::Arc<mailcraft_host::Host>>,
+    ctx: &egui::Context,
+    name: &str,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> std::sync::mpsc::Receiver<T> {
+    match host {
+        Some(host) => {
+            let wake = ctx.clone();
+            host.run_job(name, move |_platform| work(), move || wake.request_repaint())
+        }
+        None => background(ctx, name, work),
+    }
 }
 
 /// The application (client) id this build presents to Microsoft's sign-in page: the
@@ -1135,7 +1152,7 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 if graph::send_unsure(&e) {
                     out.unsure.push(message.id);
                 }
-                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
+                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim().replace(['"', '\\'], "'")));
             }
         }
     }
@@ -1365,67 +1382,6 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
     out
 }
 
-/// Keep an account's tasks in step with Microsoft To Do (#248): a token of its own for the lists
-/// (a sign-in from before they were asked for gets none: the answer says the owner is to be
-/// asked), what waits to go up told to the server, then the lists and tasks read whole. Nothing
-/// of a task is logged.
-fn tasks_job(job: mailcraft_ui_egui::task_sync::TasksJob) -> mailcraft_ui_egui::task_sync::TasksResult {
-    let mail = tasks_mail(&job.account);
-    tasks_job_with(job, &move |oauth, refresh| mailcraft_net::oauth::refresh_graph_tasks(oauth, refresh, mail))
-}
-
-/// How a to-do job's account has its mail: what a no for the to-dos is checked against (#520).
-fn tasks_mail(account: &mailcraft_model::Account) -> mailcraft_net::oauth::Resource {
-    use mailcraft_net::oauth::Resource;
-    if account.kind == mailcraft_model::AccountKind::Microsoft { Resource::GraphMail } else { Resource::Mail }
-}
-
-/// [`tasks_job`], with how the token is had as `renew` (the tests' own, which asks nobody).
-fn tasks_job_with(
-    job: mailcraft_ui_egui::task_sync::TasksJob,
-    renew: &dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
-) -> mailcraft_ui_egui::task_sync::TasksResult {
-    use mailcraft_model::remote_tasks::TaskResult;
-    use mailcraft_net::{NetError, graph};
-    let mut out = mailcraft_ui_egui::task_sync::TasksResult { account: job.account.id, ..Default::default() };
-    let access = match renew(&job.oauth, &job.refresh) {
-        Ok(got) => {
-            let access = got.tokens.access.clone();
-            out.tokens = Some(got.tokens);
-            access
-        }
-        Err(e) => {
-            out.consent_needed = e.is_consent_needed();
-            out.sign_in_refused = !out.consent_needed && e.is_refused_sign_in();
-            if !out.consent_needed && !out.sign_in_refused {
-                out.errors.push(format!("Couldn't sign in to Microsoft for the tasks: {e}"));
-            }
-            return out;
-        }
-    };
-    if !job.upload.ops.is_empty() {
-        let uploaded = graph::push_tasks(&access, &job.upload, job.zone).for_account(&job.account);
-        out.denied = uploaded.outcomes.iter().any(|o| o.result == TaskResult::Denied);
-        let refused = uploaded.token_refused;
-        out.uploaded = Some(uploaded);
-        if refused {
-            out.sign_in_refused = true;
-            return out;
-        }
-    }
-    if out.denied {
-        return out;
-    }
-    match graph::tasks(&access, job.zone) {
-        Ok(download) => out.download = Some(download.for_account(&job.account)),
-        // The token covers the permission and Graph still says no: the organisation keeps it.
-        Err(NetError::Forbidden(_)) => out.denied = true,
-        Err(e) if e.is_refused_sign_in() => out.sign_in_refused = true,
-        Err(e) => out.errors.push(format!("Couldn't bring the tasks down: {e}")),
-    }
-    out
-}
-
 /// Keep an account's rules on its server (#566): when something waits to go, a token that may
 /// change the rules (a sign-in that doesn't cover it gets none: the answer says the owner is to
 /// be asked, and nothing is sent), what waits told to the server; then the server's rules read
@@ -1518,7 +1474,9 @@ fn auto_replies_job(job: mailcraft_ui_egui::auto_replies::AutoRepliesJob) -> mai
     use mailcraft_net::{NetError, graph, oauth};
     let mut out = mailcraft_ui_egui::auto_replies::AutoRepliesResult { account: job.account.id, ..Default::default() };
     let renewed = match &job.change {
-        Some(_) => oauth::refresh_graph_replies(&job.oauth, &job.refresh, tasks_mail(&job.account)).map(|got| (got.tokens, true)),
+        Some(_) => {
+            oauth::refresh_graph_replies(&job.oauth, &job.refresh, mailcraft_host::tasks::mail_resource(&job.account)).map(|got| (got.tokens, true))
+        }
         None => oauth::refresh_graph(&job.oauth, &job.refresh).map(|got| (got.tokens, !got.extras_missing)),
     };
     let access = match renewed {
@@ -1715,12 +1673,28 @@ fn services(
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let autodiscover_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
+    // The host: what the platform gives the program, held by the threads that run its jobs. The
+    // desktop's platform asks the window, by message, for what only the window may do.
+    let platform_calls = mailcraft_ui_egui::platform::PlatformCalls::default();
+    let wake_ctx = tasks_ctx.clone();
+    let platform = platform_calls.platform(secrets::store(), std::sync::Arc::new(move || wake_ctx.request_repaint()));
+    let host = match mailcraft_host::init(std::sync::Arc::new(platform)) {
+        Ok(host) => Some(std::sync::Arc::new(host)),
+        // The jobs still run, each on a thread of its own, as before the host (the desktop's
+        // platform gives no memory budget, so this is not expected); nothing stops silently.
+        Err(e) => {
+            log::error!("the host couldn't start, jobs run without it: {e}");
+            None
+        }
+    };
     Services {
+        platform_calls,
         file_dialog: Some(file_dialog),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
         // channel short enough that a busy window holds the run back instead of piling pieces up.
@@ -1764,7 +1738,7 @@ fn services(
         })),
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
         graph_tasks: Some(Box::new(move |job: mailcraft_ui_egui::task_sync::TasksJob| {
-            background(&tasks_ctx, "microsoft to do", move || tasks_job(job))
+            host_job(host.as_ref(), &tasks_ctx, "microsoft to do", move || mailcraft_host::tasks::run(job))
         })),
         // The rules a Microsoft account's server keeps (#566).
         graph_rules: Some(Box::new(move |job: mailcraft_ui_egui::rule_sync::RulesJob| {
@@ -1774,8 +1748,11 @@ fn services(
         graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
             background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
         })),
-        lookup_mx: Some(Box::new(move |domain| {
-            background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
+        discover: Some(Box::new(move |domain| {
+            background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))
+        })),
+        lookup_autodiscover: Some(Box::new(move |domain| {
+            background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).
@@ -1871,6 +1848,8 @@ fn services(
         data_folder: data_folder(prefs_enabled()),
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
+        open_page: Some(Box::new(open_in_browser)),
+        open_page_waiting: Some(std::sync::Arc::new(open_in_browser)),
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
@@ -2181,6 +2160,13 @@ fn main() -> eframe::Result {
             // The mailbox is read on a thread of its own, so that the window is there at once
             // (#519): it shows the opening screen meanwhile, and is made as it always was once
             // the mailbox is there (`build`).
+            // Drawing by the processor (a software rasteriser) is said once and slows the window's
+            // own repaints down (#software-render); the adapter is known now.
+            let software = cc.wgpu_render_state.as_ref().is_some_and(|s| s.adapter.get_info().device_type == eframe::wgpu::DeviceType::Cpu);
+            if software {
+                log::warn!("graphics: drawing with a software rasteriser, expect high processor use");
+            }
+            mailcraft_ui_egui::software::set_software(software);
             let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
             let reading = progress.clone();
             // The certification authorities this computer trusts, for checking Digital
@@ -2259,6 +2245,7 @@ fn main() -> eframe::Result {
                     None => app.fresh_prefs(),
                 }
                 app.settings_unread = settings_unread;
+                app.software_drawing = software;
                 app.ui.window = restored;
                 app.integrated_titlebar = cfg!(target_os = "macos");
                 for f in files {
