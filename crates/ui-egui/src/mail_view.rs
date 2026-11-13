@@ -475,7 +475,7 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
 fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let on = !app.session.view.search.trim().is_empty();
     // It fades in when a search starts; with no search it is gone at once, ready to fade again.
-    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { 0.15 } else { 0.0 });
+    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { crate::motion::fade(ui, 0.15) } else { 0.0 });
     if !on {
         return;
     }

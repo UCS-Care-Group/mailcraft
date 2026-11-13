@@ -570,16 +570,25 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let address = pos.first().ok_or_else(missing)?;
             let mut s = Session::empty();
             // From the address alone first; a domain nobody here knows is asked about (only the
-            // domain goes out, never the mailbox name).
+            // domain goes out, never the mailbox name): its mail exchangers, and the servers its
+            // own records name (#1063).
             let mut found = s.run("account.preset", &json!({"email": address}))?;
             if found["known"] != true
                 && !rest.iter().any(|a| a == "--offline")
                 && let Some((_, domain)) = address.rsplit_once('@')
             {
-                match mailcraft_net::lookup_mx(domain) {
-                    Ok(mx) => {
-                        found = s.run("account.preset", &json!({"email": address, "mx": mx}))?;
-                        found["mx"] = json!(mx);
+                match mailcraft_net::discover(domain) {
+                    Ok(discovered) => {
+                        let server = |server: &mailcraft_model::provider::FoundServer| json!({"host": server.server.host, "port": server.server.port, "security": server.server.security.code(), "via": server.via.code()});
+                        let mut params = json!({"email": address, "mx": discovered.exchangers});
+                        if discovered.incoming.is_some() || discovered.outgoing.is_some() {
+                            params["found"] = json!({
+                                "incoming": discovered.incoming.as_ref().map(server),
+                                "outgoing": discovered.outgoing.as_ref().map(server),
+                            });
+                        }
+                        found = s.run("account.preset", &params)?;
+                        found["mx"] = json!(discovered.exchangers);
                     }
                     Err(e) => eprintln!("detect: couldn't look up {domain}: {e}"),
                 }

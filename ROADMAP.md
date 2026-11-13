@@ -189,7 +189,7 @@ browser.
 It is to be a mail client of its own (decided 2026-10-19, with #226):
 
 1. Review it: run it in the main browsers, and list what works, what doesn't and what is missing.
-2. JMAP accounts: read (#226, done); then changes going up and sending.
+2. JMAP accounts: read (#226, done); changes going up (#1074 part 1, done); then sending.
 3. Microsoft accounts through Microsoft Graph, which runs over HTTPS as JMAP does.
 4. Gmail and Google Workspace accounts ([#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)),
    once Google sign-in on the desktop is in ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232)).
@@ -208,7 +208,7 @@ follows:
 | M3 | **Writes like mail** | Rich-text composing and replies, pictures, spell check | Rich text done (R4); pictures in the body and spell checking after beta (gap 7) |
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
-| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
+| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226), and the marks, moves and deletions made in them go up (#1074 part 1); sending next |
 | M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: six preview languages |
 
 ## Progress log

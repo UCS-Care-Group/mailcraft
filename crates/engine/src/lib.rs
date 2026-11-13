@@ -65,6 +65,7 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
@@ -459,6 +460,8 @@ mod sender_warnings_tests;
 mod strict_ids_all_tests;
 #[cfg(test)]
 mod strict_ids_tests;
+#[cfg(test)]
+mod sync_driver_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
