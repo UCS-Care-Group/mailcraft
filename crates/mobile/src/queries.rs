@@ -88,7 +88,7 @@ fn task_record(t: &Task) -> TaskRecord {
     }
 }
 
-fn row(m: &Message, members: usize, group: Option<String>) -> MessageRow {
+fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -98,7 +98,7 @@ fn row(m: &Message, members: usize, group: Option<String>) -> MessageRow {
         subject: text::clip(&m.subject, MAX_SUBJECT),
         preview: mailcraft_engine::list::preview(m, MAX_PREVIEW),
         when: mailcraft_engine::list::when(m),
-        unread: !m.read,
+        unread: unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
         has_attachments: m.attachments.iter().any(|a| !a.inline),
         important: m.importance == Importance::High,
@@ -185,7 +185,7 @@ impl Core {
                 .iter()
                 .skip(start)
                 .take(count)
-                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.group.clone())))
+                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.unread, r.group.clone())))
                 .collect();
             Ok(MessageWindow { rev: s.rev(), folder, total: text::count_of(rows.len()), offset, rows: window })
         })

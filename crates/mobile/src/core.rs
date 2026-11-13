@@ -53,6 +53,11 @@ impl Core {
     pub fn start(platform: Arc<dyn Platform>, make: impl FnOnce() -> Session + Send + 'static) -> Result<Arc<Core>, CoreError> {
         android::check()?;
         let host = mailcraft_host::init(Arc::new(Native { inner: platform.clone() }))?;
+        // What the device can spare caps what the session keeps of mail content.
+        // (A device that says nothing leaves the setting as it was: the engine's own cap stands.)
+        if let Some(device) = host.platform().memory_budget() {
+            mailcraft_engine::store::set_device_budget(Some(device));
+        }
         let events = Queue::new();
         let (jobs, inbox) = mpsc::channel::<Job>();
         let sink = EventSink { queue: events.clone() };

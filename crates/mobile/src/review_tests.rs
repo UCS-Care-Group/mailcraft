@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 
-use mailcraft_engine::Session;
-use mailcraft_model::{Mailbox, Task};
+use mailcraft_engine::{Session, sample};
+use mailcraft_model::{Mailbox, Message, Task};
 
 use crate::fake_tests::{FakePlatform, block_on, now, sample_core};
 use crate::queue::{MOST_QUEUED, Queue};
@@ -146,4 +146,47 @@ fn two_lists_with_a_long_common_start_stay_two() {
         let tasks = block_on(core.tasks(l.account, l.list.clone(), true, 0, 10)).unwrap();
         assert_eq!(tasks.total, 1);
     }
+}
+
+#[test]
+fn the_last_notification_does_not_take_the_only_revision() {
+    let queue = Queue::<Event>::new();
+    queue.push(Event::RevChanged { rev: 1 });
+    for n in 0..(MOST_QUEUED as u64 - 1) {
+        queue.push(Event::SignInNeeded { account: n });
+    }
+    queue.push(Event::SignInNeeded { account: 999 });
+    assert_eq!(queue.len(), MOST_QUEUED);
+    let events: Vec<Event> = (0..MOST_QUEUED).filter_map(|_| block_on(queue.next())).collect();
+    assert!(events.contains(&Event::RevChanged { rev: 1 }));
+    // The oldest sign-in went instead; the newest stayed.
+    assert!(!events.contains(&Event::SignInNeeded { account: 0 }));
+    assert!(events.contains(&Event::SignInNeeded { account: 999 }));
+}
+
+#[test]
+fn a_conversation_with_an_older_unread_message_is_unread() {
+    let core = crate::Core::start(FakePlatform::new(), || {
+        let mut mailbox = sample::mailbox(now(), 0);
+        let inbox = mailbox.inbox().unwrap();
+        for (date, read) in [(now() - 100, false), (now() - 10, true)] {
+            mailbox.add_message(Message { folder: inbox, subject: "Zebra planning".into(), date, read, ..Default::default() }).unwrap();
+        }
+        let mut session = Session::at(mailbox, now(), 0);
+        session.view.conversations = true;
+        session
+    })
+    .unwrap();
+    let folder = block_on(core.call(|s| Ok(s.mailbox.inbox()))).unwrap().unwrap();
+    let window = block_on(core.messages(folder, "all".into(), 0, 200)).unwrap();
+    let row = window.rows.iter().find(|r| r.subject == "Zebra planning").unwrap();
+    assert_eq!(row.members, 2);
+    assert!(row.unread);
+}
+
+#[test]
+fn the_device_budget_caps_what_the_session_keeps() {
+    let core = crate::Core::start(FakePlatform::with_budget(1 << 20), Session::empty).unwrap();
+    assert_eq!(mailcraft_engine::store::body_budget(), 1 << 20);
+    assert_eq!(core.memory_budget(), 1 << 20);
 }

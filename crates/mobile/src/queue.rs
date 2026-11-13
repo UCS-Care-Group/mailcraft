@@ -122,6 +122,11 @@ fn make_room<T: Shed>(items: &mut VecDeque<T>, incoming: &T) -> bool {
     }
     // Only what must be acted on is left, more of it than anybody can have meant to leave
     // unread: the memory stays bounded and the oldest goes.
+    // The one revision stands for every cached query: it is kept, and the oldest other event goes.
+    if let Some(at) = items.iter().position(|i| i.weight() != Weight::Replaced) {
+        items.remove(at);
+        return true;
+    }
     items.pop_front().is_some()
 }
 
