@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 /** Everything the shell draws, as plain values: it reads no core and no system service. */
-internal class ShellData(
+internal data class ShellData(
     val accounts: List<AccountItem>,
     val folderName: String,
     val folderId: ULong?,
@@ -52,6 +52,8 @@ internal class ShellData(
     val version: String,
     /** The language the owner chose in the app: its code, or "" for the system's. */
     val chosenLanguage: String,
+    /** The message being read. */
+    val reading: ReadingUi = ReadingUi(),
 )
 
 /** What the shell asks of the app. */
@@ -60,6 +62,7 @@ internal class ShellActions(
     val onLanguage: (String) -> Unit,
     val mail: MailListActions,
     val onSwipe: (SwipeConfig) -> Unit,
+    val reading: ReadingActions = ReadingActions.None,
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -124,9 +127,13 @@ internal fun AppShell(
                 title = if (nav.tab == Tab.Mail) data.folderName else nav.tab.label(texts),
                 onTab = { nav = nav.select(it) },
                 onMenu = { scope.launch { drawer.open() } },
+                onBack = if (nav.message != null) ({ back?.let { nav = it } }) else null,
             ) { modifier, expanded ->
                 when (nav.tab) {
-                    Tab.Mail -> MailTab(texts, data, actions, modifier, expanded)
+                    Tab.Mail -> {
+                        val opening = actions.mail.withOpen { row -> nav = nav.openMessage(row.id) }
+                        MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
+                    }
                     else -> Centered(texts.t("Pending development"), modifier)
                 }
             }
@@ -141,6 +148,7 @@ private fun MainFrame(
     title: String,
     onTab: (Tab) -> Unit,
     onMenu: () -> Unit,
+    onBack: (() -> Unit)?,
     content: @Composable (Modifier, Boolean) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -165,8 +173,14 @@ private fun MainFrame(
                     TopAppBar(
                         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
-                            IconButton(onClick = onMenu) {
-                                Icon(AppIcons.Menu, contentDescription = texts.t("Menu"))
+                            if (onBack != null) {
+                                IconButton(onClick = onBack) {
+                                    Icon(AppIcons.Back, contentDescription = texts.t("Back"))
+                                }
+                            } else {
+                                IconButton(onClick = onMenu) {
+                                    Icon(AppIcons.Menu, contentDescription = texts.t("Menu"))
+                                }
                             }
                         },
                     )
@@ -197,22 +211,39 @@ private fun MainFrame(
 private val ListWidth = 400.dp
 
 /**
- * The Mail tab. A phone shows the list alone; an expanded window shows it beside the space the
- * reading pane takes (it is not built yet).
+ * The Mail tab. A phone shows the list, or the message that was opened on a screen of its own; an
+ * expanded window shows the list beside the reading pane.
  */
 @Composable
-private fun MailTab(texts: Texts, data: ShellData, actions: ShellActions, modifier: Modifier, expanded: Boolean) {
+private fun MailTab(
+    texts: Texts,
+    data: ShellData,
+    actions: ShellActions,
+    modifier: Modifier,
+    expanded: Boolean,
+    messageId: ULong?,
+) {
     val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
             VerticalDivider()
-            Centered(texts.t("Pending development"), Modifier.weight(1f))
+            if (messageId != null) {
+                ReadingPane(texts, messageId, data.reading, actions.reading, Modifier.weight(1f))
+            } else {
+                Centered(texts.t("Select a message to read it."), Modifier.weight(1f))
+            }
         }
+    } else if (messageId != null) {
+        ReadingPane(texts, messageId, data.reading, actions.reading, modifier)
     } else {
         MailListScreen(context, data.mail, actions.mail, modifier)
     }
 }
+
+/** These actions with the list's own changed. */
+private fun ShellActions.copy(mail: MailListActions) =
+    ShellActions(onFolder, onLanguage, mail, onSwipe, reading)
 
 @Composable
 private fun TabLabel(text: String) {

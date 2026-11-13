@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -78,8 +79,13 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val texts = remember(core) { CoreTexts(core) }
     val source = remember(core) { CoreMailSource(core) }
     val controller = remember(core) { MailListController(source) }
-    val appContext = LocalContext.current.applicationContext
+    val hostContext = LocalContext.current
+    val appContext = hostContext.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
+    val scope = rememberCoroutineScope()
+    val reading = remember(core) { ReadingController(CoreReadSource(core), scope) }
+    val links = remember { AndroidLinks(appContext) { hostContext as? Activity } }
+    val readingUi by reading.ui.collectAsState()
     var outlined by remember { mutableStateOf<Outlined?>(null) }
     var swipe by remember { mutableStateOf(prefs.load()) }
     var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
@@ -90,19 +96,8 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val folderId = query.folder.takeIf { it != 0uL } ?: outline?.inboxId
     val folder = outline?.accounts?.flatMap { it.folders }?.firstOrNull { it.id == folderId }
 
-    LaunchedEffect(core) { outlined = Outlined(loadOutline(core)) }
-    LaunchedEffect(core) { pumpEvents(core, controller) { outlined = Outlined(readOutline(core)) } }
-    LaunchedEffect(core) {
-        while (true) {
-            controller.checkNetwork()
-            now = System.currentTimeMillis()
-            delay(TICK_MILLIS)
-        }
-    }
-    LaunchedEffect(outline) { controller.accountsHaveServer(outline?.accounts?.any { it.server } == true) }
-    LaunchedEffect(folderId, query) { if (folderId != null) controller.show(query.copy(folder = folderId)) }
+    ShellEffects(core, controller, outline, folderId, query, { outlined = Outlined(it) }) { now = it }
 
-    val scope = rememberCoroutineScope()
     val mailActions = remember(controller, scope) {
         mailListActions(controller, scope) { change -> query = change(query) }
     }
@@ -116,6 +111,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         swipe = swipe,
         version = version,
         chosenLanguage = chosenLanguage,
+        reading = readingUi,
     )
     AppShell(
         texts = texts,
@@ -128,8 +124,39 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
                 swipe = it
                 prefs.save(it)
             },
+            reading = ReadingActions(
+                onOpen = { id, width, dark -> reading.open(id, width, dark) },
+                onLink = links::open,
+            ),
         ),
     )
+}
+
+/** What runs beside the screen: reading the outline, the core's events, the clock and the list asked for. */
+@Composable
+private fun ShellEffects(
+    core: Core,
+    controller: MailListController,
+    outline: MailboxOutline?,
+    folderId: ULong?,
+    query: MailQuery,
+    onOutline: (MailboxOutline?) -> Unit,
+    onNow: (Long) -> Unit,
+) {
+    LaunchedEffect(core) { onOutline(loadOutline(core)) }
+    LaunchedEffect(core) { pumpEvents(core, controller) { onOutline(readOutline(core)) } }
+    LaunchedEffect(core) { tick(controller, onNow) }
+    LaunchedEffect(outline) { controller.accountsHaveServer(outline?.accounts?.any { it.server } == true) }
+    LaunchedEffect(folderId, query) { if (folderId != null) controller.show(query.copy(folder = folderId)) }
+}
+
+/** Looks at the network and the clock now and every [TICK_MILLIS]. */
+private suspend fun tick(controller: MailListController, setNow: (Long) -> Unit) {
+    while (true) {
+        controller.checkNetwork()
+        setNow(System.currentTimeMillis())
+        delay(TICK_MILLIS)
+    }
 }
 
 /** Reads the core's events: a newer revision reads the list's pages again, a finished sync marks it fresh. */

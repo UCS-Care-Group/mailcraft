@@ -55,8 +55,16 @@ internal data class NavState(
     val tab: Tab = Tab.Mail,
     val settings: Boolean = false,
     val page: SettingsPage? = null,
+    /** The message being read (the Mail tab), by its id as a signed number; null when none is open. */
+    val message: Long? = null,
 ) {
     fun select(tab: Tab): NavState = NavState(tab = tab)
+
+    /** Opens message [id] in the Mail tab: its own screen on a phone, beside the list on a tablet. */
+    fun openMessage(id: ULong): NavState = NavState(tab = Tab.Mail, message = id.toLong())
+
+    /** The id of the message being read. */
+    val messageId: ULong? get() = message?.takeIf { it >= 0 }?.toULong()
 
     fun openSettings(): NavState = copy(settings = true, page = null)
 
@@ -64,6 +72,7 @@ internal data class NavState(
 
     /** One step back, or null when there is nothing to go back to (the system leaves the app). */
     fun back(): NavState? = when {
+        message != null -> copy(message = null)
         page != null -> copy(page = null)
         settings -> copy(settings = false)
         else -> null
@@ -72,17 +81,20 @@ internal data class NavState(
     companion object {
         /** Saved across a change of configuration or the process's death; what can't be read is the start. */
         val Saver: Saver<NavState, Any> = listSaver(
-            save = { listOf(it.tab.ordinal, it.settings, it.page?.ordinal ?: NONE) },
+            save = { listOf(it.tab.ordinal, it.settings, it.page?.ordinal ?: NONE, it.message ?: NONE.toLong()) },
             restore = { fromSaved(it) },
         )
 
         private const val NONE = -1
+        private const val AT_MESSAGE = 3
 
         internal fun fromSaved(saved: List<Any?>): NavState {
             val tab = (saved.getOrNull(0) as? Int)?.let { Tab.entries.getOrNull(it) } ?: Tab.Mail
             val settings = saved.getOrNull(1) as? Boolean ?: false
             val page = (saved.getOrNull(2) as? Int)?.let { SettingsPage.entries.getOrNull(it) }
-            return NavState(tab = tab, settings = settings || page != null, page = page)
+            val reading = tab == Tab.Mail && !settings && page == null
+            val message = (saved.getOrNull(AT_MESSAGE) as? Long)?.takeIf { it >= 0 && reading }
+            return NavState(tab = tab, settings = settings || page != null, page = page, message = message)
         }
     }
 }

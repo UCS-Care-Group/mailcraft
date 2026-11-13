@@ -99,6 +99,4 @@ internal object ShellShots {
 }
 
 /** The same data with another list. */
-internal fun ShellData.withMail(ui: MailListUi) = ShellData(
-    accounts, folderName, folderId, ui, categories, nowMillis, swipe, version, chosenLanguage,
-)
+internal fun ShellData.withMail(ui: MailListUi) = copy(mail = ui)

@@ -55,6 +55,8 @@ private val Gap4 = Arrangement.spacedBy(space = 4.dp)
 internal class RowActions(
     val onTriage: (Triage) -> Unit,
     val onMenu: () -> Unit,
+    /** The row was tapped: open its message. */
+    val onOpen: () -> Unit = {},
 )
 
 /** A row that swipes: to the right does [SwipeConfig.start], to the left [SwipeConfig.end]. */
@@ -155,7 +157,7 @@ internal fun MailRowContent(texts: Texts, row: InboxRow, swipe: SwipeConfig, act
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .combinedClickable(onClick = {}, onLongClick = actions.onMenu)
+            .combinedClickable(onClick = actions.onOpen, onLongClick = actions.onMenu)
             .semantics(mergeDescendants = true) {
                 stateDescription = description
                 customActions = listOf(swipe.start, swipe.end).distinct().map { action ->

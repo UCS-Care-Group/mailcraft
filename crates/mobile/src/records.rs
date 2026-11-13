@@ -273,3 +273,25 @@ pub struct CategoryList {
     pub rev: u64,
     pub categories: Vec<CategoryRecord>,
 }
+
+/// What a link is and where it goes, as the owner is shown it and as it is launched.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct LinkTarget {
+    pub kind: LinkKind,
+    /// The address written as it is shown and launched: for a web address, the host in lower case
+    /// with international labels as Punycode, so that the host shown is the host reached.
+    pub shown: String,
+}
+
+/// The only kinds of link that are followed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum LinkKind {
+    /// `http` or `https`: to the browser.
+    Web,
+    /// `mailto`: to the composer.
+    Mail,
+    /// `tel`: to the dialer.
+    Phone,
+    /// `cid`: a part of the message itself; nothing is followed.
+    Part,
+}

@@ -125,6 +125,11 @@ fn every_query_with_junk_answers_and_never_panics() {
         }
         not_internal("picture", &block_on(core.picture(n, huge.clone())));
     }
+    // The pure link export takes any text: it never panics.
+    for t in texts.iter().copied().chain(["https://127.0.0.1/x", "http://[::1]/", "mailto:a@b.example", "tel:1", "cid:x", "http://exa mple.org/"]) {
+        let _ = crate::links::link_target(t.to_string());
+    }
+    let _ = crate::links::link_target(huge.clone());
     for a in dates {
         for b in dates {
             not_internal("calendar", &block_on(core.calendar(a.to_string(), b.to_string())));
