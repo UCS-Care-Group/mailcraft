@@ -37,9 +37,10 @@ internal fun SettingsScreen(
     texts: Texts,
     page: SettingsPage?,
     data: ShellData,
+    actions: ShellActions,
     onOpen: (SettingsPage) -> Unit,
     onBack: () -> Unit,
-    onLanguage: (String) -> Unit,
+    onAddAccount: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -62,7 +63,9 @@ internal fun SettingsScreen(
         Column(modifier = Modifier.padding(padding).verticalScroll(rememberScrollState())) {
             when (page) {
                 null -> SettingsRows(texts, data, onOpen)
-                SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, onLanguage)
+                SettingsPage.Accounts ->
+                    AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
+                SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
                 SettingsPage.About -> AboutPage(texts, data.version)
                 else -> Text(
                     text = texts.t("Pending development"),
@@ -78,6 +81,7 @@ internal fun SettingsScreen(
 private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -> Unit) {
     SettingsPage.entries.forEach { entry ->
         val summary = when (entry) {
+            SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.About -> data.version
             else -> texts.t("Pending development")
@@ -102,6 +106,10 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
         HorizontalDivider()
     }
 }
+
+/** What the Accounts row says: how many accounts there are. */
+private fun accountsSummary(texts: Texts, count: Int): String =
+    if (count == 0) texts.t("No account yet") else texts.tn(count.toULong(), "{n} account", "{n} accounts")
 
 /** What the language row says: the language chosen in its own name, or that the system's is used. */
 private fun languageName(texts: Texts, chosen: String): String =

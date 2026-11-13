@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import java.time.Duration
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** The address the provider's page sent the owner back to, as the system opened the app with it. */
@@ -32,73 +29,36 @@ internal object Redirect {
     }
 }
 
-/** What waiting for the owner's return came to. */
-internal sealed interface Handed {
-    /** The whole address the page came back to. */
-    class Address(val address: String) : Handed
-
-    /** The owner gave up, or the sign-in was cancelled. */
-    data object Cancelled : Handed
-
-    data object TimedOut : Handed
-}
-
 /**
- * Where the redirect lands. A sign-in [arm]s it, opens the page, and [await]s; the redirect's
- * activity [deliver]s what the system gave it. Only an armed sign-in takes an address, and only
- * the first: a second, or one with no sign-in waiting (another program may name our scheme), is
- * dropped. Waiting is for no longer than asked and stops at once when the flag is set, as the
- * core's hand-back asks.
+ * Where the redirect lands, on the way to the core. A sign-in [arm]s it before its page opens; the
+ * redirect's activity [deliver]s what the system gave it, and the address goes, whole and unread, to
+ * [sink] (the core's `handBackRedirect`), where the strategy in Rust judges all of it: the scheme, the
+ * path, the state, the fields. Only an armed sign-in takes an address, and only the first: a second,
+ * or one with no sign-in waiting (another program may name our scheme), is dropped here and costs
+ * nothing. The state check is not here and must not be: Kotlin never holds it.
  */
 internal class SignInHandback {
-    private val queue = LinkedBlockingQueue<String>(1)
+    private val armed = AtomicBoolean(false)
 
+    /** Where an accepted address goes; false from it means no sign-in took it. Set once the core exists. */
     @Volatile
-    private var armed = false
+    var sink: (String) -> Boolean = { false }
 
-    /** A sign-in is about to open its page: forget anything left over and listen. */
+    /** A sign-in is about to open its page: the next address is for it. */
     fun arm() {
-        queue.clear()
-        armed = true
+        armed.set(true)
     }
 
     /** Nobody waits any more. */
     fun disarm() {
-        armed = false
-        queue.clear()
+        armed.set(false)
     }
 
     /** What the redirect's activity got; false when it was not taken. */
     fun deliver(address: String?): Boolean {
-        val accepted = Redirect.accepted(address)
-        if (!armed || accepted == null) return false
-        return queue.offer(accepted)
-    }
-
-    fun await(cancel: AtomicBoolean, timeout: Duration): Handed {
-        val deadline = System.nanoTime() + timeout.toNanos().coerceAtLeast(0)
-        try {
-            var result: Handed? = null
-            while (result == null) result = step(cancel, deadline)
-            return result
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-            return Handed.Cancelled
-        } finally {
-            disarm()
-        }
-    }
-
-    // One short wait: the answer when there is one, null to go round again.
-    private fun step(cancel: AtomicBoolean, deadline: Long): Handed? {
-        if (cancel.get()) return Handed.Cancelled
-        val left = deadline - System.nanoTime()
-        if (left <= 0) return Handed.TimedOut
-        val slice = minOf(left, TimeUnit.MILLISECONDS.toNanos(SLICE_MS))
-        return queue.poll(slice, TimeUnit.NANOSECONDS)?.let { Handed.Address(it) }
-    }
-
-    private companion object {
-        const val SLICE_MS = 100L
+        val accepted = Redirect.accepted(address) ?: return false
+        // (Only the first: whoever clears the flag is the one that passes the address on.)
+        if (!armed.compareAndSet(true, false)) return false
+        return sink(accepted)
     }
 }

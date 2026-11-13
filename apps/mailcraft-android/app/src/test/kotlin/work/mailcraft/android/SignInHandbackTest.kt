@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import java.time.Duration
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,48 +30,92 @@ class SignInHandbackTest {
 
     @Test
     fun anAddressWithNoSignInWaitingIsDropped() {
+        val got = mutableListOf<String>()
         val h = SignInHandback()
+        h.sink = { got.add(it) }
         assertFalse(h.deliver(good))
         h.arm()
         assertTrue(h.deliver(good))
         assertFalse("only the first is taken", h.deliver(good))
+        assertEquals(listOf(good), got)
     }
 
     @Test
-    fun theWaitGetsTheAddress() {
+    fun theAddressGoesToTheCoreWholeAndUnreadWhatItSays() {
+        val got = mutableListOf<String>()
         val h = SignInHandback()
+        h.sink = { got.add(it) }
+        // The state, the code and the rest are the core's to judge:
+        // any address with the registered scheme and path goes.
+        val odd = "work.mailcraft.android:/oauth2redirect?state=not-ours&code=%00&evil=1#frag"
         h.arm()
-        thread { h.deliver(good) }
-        val got = h.await(AtomicBoolean(false), Duration.ofSeconds(5))
-        assertEquals(good, (got as Handed.Address).address)
+        assertTrue(h.deliver(odd))
+        assertEquals(listOf(odd), got)
     }
 
     @Test
-    fun aStaleAddressIsForgottenWhenAnotherSignInStarts() {
+    fun aStrangersAddressIsNotPassedOnAndLeavesTheSignInWaiting() {
+        val got = mutableListOf<String>()
         val h = SignInHandback()
+        h.sink = { got.add(it) }
+        h.arm()
+        assertFalse(h.deliver("https://example.org/oauth2redirect?code=c&state=s"))
+        assertFalse(h.deliver("work.mailcraft.android:/other?code=c"))
+        assertFalse(h.deliver(null))
+        assertTrue(got.isEmpty())
+        assertTrue("the real one still gets through", h.deliver(good))
+        assertEquals(listOf(good), got)
+    }
+
+    @Test
+    fun whatTheCoreSaysOfAnAddressIsWhatDeliverSays() {
+        val h = SignInHandback()
+        h.sink = { false }
+        h.arm()
+        assertFalse(h.deliver(good))
+        // (The address was offered once; nothing waits for a second.)
+        h.sink = { true }
+        assertFalse(h.deliver(good))
+    }
+
+    @Test
+    fun aSignInThatEndedTakesNothing() {
+        val got = mutableListOf<String>()
+        val h = SignInHandback()
+        h.sink = { got.add(it) }
+        h.arm()
+        h.disarm()
+        assertFalse(h.deliver(good))
+        assertTrue(got.isEmpty())
+    }
+
+    @Test
+    fun anotherSignInArmsItAfresh() {
+        val got = mutableListOf<String>()
+        val h = SignInHandback()
+        h.sink = { got.add(it) }
         h.arm()
         h.deliver(good)
         h.arm()
-        assertEquals(Handed.TimedOut, h.await(AtomicBoolean(false), Duration.ofMillis(150)))
+        assertTrue(h.deliver(good))
+        assertEquals(2, got.size)
     }
 
     @Test
-    fun theWaitEndsWhenCancelledOrTimedOut() {
+    fun onlyOneOfTwoAddressesAtTheSameTimeIsPassedOn() {
+        val count = java.util.concurrent.atomic.AtomicInteger()
         val h = SignInHandback()
-        h.arm()
-        assertEquals(Handed.Cancelled, h.await(AtomicBoolean(true), Duration.ofSeconds(5)))
-        h.arm()
-        assertEquals(Handed.TimedOut, h.await(AtomicBoolean(false), Duration.ofMillis(50)))
-        h.arm()
-        assertEquals(Handed.TimedOut, h.await(AtomicBoolean(false), Duration.ofSeconds(-3)))
-    }
-
-    @Test
-    fun afterTheWaitNothingIsTaken() {
-        val h = SignInHandback()
-        h.arm()
-        h.await(AtomicBoolean(false), Duration.ofMillis(10))
-        assertFalse(h.deliver(good))
+        h.sink = {
+            count.incrementAndGet()
+            true
+        }
+        repeat(200) {
+            count.set(0)
+            h.arm()
+            val workers = List(4) { thread { h.deliver(good) } }
+            workers.forEach { it.join() }
+            assertEquals(1, count.get())
+        }
     }
 
     @Test

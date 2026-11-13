@@ -53,6 +53,8 @@ class MailCraftApplication : Application() {
             Bridge.initVerifier(applicationContext)
             Started.Ready(Core(AndroidPlatform(applicationContext, handback, foreground::get)).also {
                 createChannels(applicationContext, channelSpecs(it::t))
+                // The address the sign-in's page comes back to goes to the core as it is.
+                handback.sink = it::handBackRedirect
             })
         } catch (_: CoreException) {
             Started.Failed
