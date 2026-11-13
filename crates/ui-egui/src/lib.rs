@@ -219,6 +219,7 @@ pub mod platform;
 #[cfg(test)]
 mod platform_tests;
 mod problem_log;
+mod public_folders;
 pub mod reading;
 mod recent_attachments;
 mod reminder_dialog;
