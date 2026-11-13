@@ -1396,6 +1396,11 @@ msgid "At start time"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "At the Foot of the Pane"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "At the same time: {items}"
 msgstr ""
@@ -1642,6 +1647,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Back to account settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bar on the Left"
 msgstr ""
 
 #. interface
@@ -6602,6 +6612,18 @@ msgstr ""
 #. ribbon location
 #: crates/engine/src/cmd/view.rs
 msgid "Navigation"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Navigation\n"
+"Bar"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Navigation Bar"
 msgstr ""
 
 #. interface

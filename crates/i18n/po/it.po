@@ -1606,6 +1606,12 @@ msgid "At start time"
 msgstr "All'ora di inizio"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "At the Foot of the Pane"
+msgstr "In fondo al riquadro"
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "At the same time: {items}"
@@ -1867,6 +1873,12 @@ msgstr "Torna al messaggio"
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Back to account settings"
 msgstr "Torna alle impostazioni dell’account"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Bar on the Left"
+msgstr "Barra a sinistra"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -7546,6 +7558,22 @@ msgstr "Nomi o indirizzi, separati da ;"
 #, fuzzy
 msgid "Navigation"
 msgstr "Spostamento"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Navigation\n"
+"Bar"
+msgstr ""
+"Barra di\n"
+"spostamento"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Navigation Bar"
+msgstr "Barra di spostamento"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs

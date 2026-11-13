@@ -1679,6 +1679,12 @@ msgid "At start time"
 msgstr "La ora de început"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "At the Foot of the Pane"
+msgstr "La baza panoului"
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "At the same time: {items}"
@@ -1977,6 +1983,12 @@ msgstr "Înapoi la mesaj"
 #, fuzzy
 msgid "Back to account settings"
 msgstr "Înapoi la setările contului"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Bar on the Left"
+msgstr "Bară în stânga"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -7971,6 +7983,22 @@ msgstr "Nume sau adrese, separate prin ;"
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigare"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Navigation\n"
+"Bar"
+msgstr ""
+"Bară de\n"
+"navigare"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Navigation Bar"
+msgstr "Bară de navigare"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs

@@ -254,6 +254,7 @@ const SAFE: &[&str] = &[
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",
+    "view.navigationBar",
     "view.conversations",
     "view.sort",
     "view.reverseSort",
