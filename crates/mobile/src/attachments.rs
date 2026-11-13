@@ -112,6 +112,18 @@ pub fn attachment_check(name: String) -> AttachmentCheck {
     check_of(&name, "")
 }
 
+/// Whether a file of this check may be handed to another app: never a blocked kind, and a kind that
+/// can carry macros or scripts only once the owner said yes.
+pub(crate) fn refuse_unless_openable(check: &AttachmentCheck, confirmed: bool) -> Result<(), CoreError> {
+    match check.verdict {
+        OpenVerdict::Blocked => Err(CoreError::Failed { reason: check.blocked.clone() }),
+        OpenVerdict::Macros | OpenVerdict::Scripts if !confirmed => {
+            Err(bad("the owner has to be asked before this kind of file is opened"))
+        }
+        _ => Ok(()),
+    }
+}
+
 fn bad(reason: &str) -> CoreError {
     CoreError::BadRequest { reason: reason.to_string() }
 }
@@ -195,15 +207,11 @@ impl Core {
 impl Core {
     async fn read_attachment_for_opening(&self, id: u64, index: u32, confirmed: bool) -> Result<AttachmentFile, CoreError> {
         // The verdict is read before a byte is: a refused kind is never read.
-        let listed = self.attachment_verdict_of(id, index).await?;
-        match listed.verdict {
-            OpenVerdict::Blocked => return Err(CoreError::Failed { reason: listed.blocked }),
-            OpenVerdict::Macros | OpenVerdict::Scripts if !confirmed => {
-                return Err(bad("the owner has to be asked before this kind of file is opened"));
-            }
-            _ => {}
-        }
-        self.read_attachment(id, index, self.attachment_cap(), None).await
+        refuse_unless_openable(&self.attachment_verdict_of(id, index).await?, confirmed)?;
+        let file = self.read_attachment(id, index, self.attachment_cap(), None).await?;
+        // And again for what was read: the message may have been replaced between the two calls.
+        refuse_unless_openable(&file.check, confirmed)?;
+        Ok(file)
     }
 
     async fn attachment_verdict_of(&self, id: u64, index: u32) -> Result<AttachmentCheck, CoreError> {

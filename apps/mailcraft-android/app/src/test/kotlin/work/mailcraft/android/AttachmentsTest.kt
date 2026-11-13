@@ -7,6 +7,8 @@ package work.mailcraft.android
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.After
@@ -173,8 +175,27 @@ private fun AttachmentController.tap(id: ULong, item: AttachmentItem) = act(id, 
 class AttachmentControllerTest {
     private val source = FakeAttachments()
     private val device = FakeDevice()
-    private val controller = AttachmentController(source, device, CoroutineScope(Dispatchers.Unconfined))
+    private val ioRuns = mutableListOf<Boolean>()
+    private val io = object : CoroutineDispatcher() {
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            ioRuns += true
+            block.run()
+        }
+    }
+    private val controller = AttachmentController(source, device, CoroutineScope(Dispatchers.Unconfined), io)
     private val png = byteArrayOf(1, 2, 3)
+
+    @Test
+    fun theFilesAreWrittenOnTheIoDispatcherNotTheCallers() {
+        source.files[0u] = AttachmentBytes.Got(png, "report.pdf", picture = false)
+        controller.act(7uL, item("report.pdf"), AttachmentAction.Share)
+        assertEquals(1, ioRuns.size)
+        controller.act(7uL, item("report.pdf"), AttachmentAction.Save)
+        controller.saveTo("content://example.org/doc")
+        assertEquals(2, ioRuns.size)
+        assertEquals(1, device.shared.size)
+        assertEquals(1, device.written.size)
+    }
 
     @Test
     fun anOrdinaryFileIsHandedToTheCore() {
@@ -266,6 +287,7 @@ class AttachmentControllerTest {
         controller.act(7uL, item("../report.pdf"), AttachmentAction.Share)
         assertEquals(listOf("report.pdf"), device.shared)
         device.canShare = false
+        source.files[0u] = AttachmentBytes.Got(png, "report.pdf", picture = false)
         controller.act(7uL, item("report.pdf"), AttachmentAction.Share)
         assertEquals(AttachmentNotice.ShareFailed, controller.ui.value.notice)
     }

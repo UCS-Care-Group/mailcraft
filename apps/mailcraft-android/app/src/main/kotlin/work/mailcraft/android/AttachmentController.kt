@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What an attachment's bytes came to. */
 internal sealed interface AttachmentBytes {
@@ -42,7 +45,10 @@ internal interface AttachmentSource {
 
 /** What the attachments' logic needs of the phone. */
 internal interface AttachmentDevice {
-    /** Offers [bytes] to the system's share sheet with a one-off read-only grant; whether it could. */
+    /**
+     * Blocking: the controller calls it off the main thread. Offers [bytes] to the system's share sheet
+     * with a one-off read-only grant; whether it could.
+     */
     fun share(name: String, bytes: ByteArray): Boolean
 
     /** Writes [bytes] to the document the owner chose ([target], the picker's answer); whether it could. */
@@ -94,6 +100,8 @@ internal class AttachmentController(
     private val source: AttachmentSource,
     private val device: AttachmentDevice,
     private val scope: CoroutineScope,
+    /** Where the phone's files are written: never the main thread. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val state = MutableStateFlow(AttachmentUi())
     val ui: StateFlow<AttachmentUi> get() = state
@@ -169,14 +177,16 @@ internal class AttachmentController(
         state.update { it.copy(saving = null) }
         if (target == null || bytes == null) return
         scope.launch {
-            tell(if (device.write(target, bytes)) AttachmentNotice.Saved else AttachmentNotice.SaveFailed)
+            val wrote = withContext(io) { device.write(target, bytes) }
+            tell(if (wrote) AttachmentNotice.Saved else AttachmentNotice.SaveFailed)
         }
     }
 
     private fun share(id: ULong, item: AttachmentItem) {
         busy {
             when (val got = source.bytes(id, item.index)) {
-                is AttachmentBytes.Got -> if (!device.share(got.saveName, got.bytes)) tell(AttachmentNotice.ShareFailed)
+                is AttachmentBytes.Got ->
+                    if (!withContext(io) { device.share(got.saveName, got.bytes) }) tell(AttachmentNotice.ShareFailed)
                 is AttachmentBytes.Failed -> tell(AttachmentNotice.Said(got.why))
             }
         }

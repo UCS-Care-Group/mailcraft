@@ -144,5 +144,11 @@ internal object SaveToFiles {
             open()?.use { it.write(bytes) } != null
         } catch (_: IOException) {
             false
+        } catch (_: SecurityException) {
+            false
+        } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: IllegalStateException) {
+            false
         }
 }
