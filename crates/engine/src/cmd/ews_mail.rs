@@ -274,8 +274,9 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str) -> Result<String
 /// `busyFor`, `summary`), `authRefused` when the server turned the password down and `untrusted`
 /// (the certificate's fingerprint) when the run stopped at a certificate the owner is to be asked about.
 pub fn apply_ews_mail(s: &mut Session, result: EwsMailResult) -> CmdResult {
-    let taken = apply_ews_news(s, result);
-    super::snooze::after(s);
+    let mut taken = apply_ews_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
     taken
 }
 

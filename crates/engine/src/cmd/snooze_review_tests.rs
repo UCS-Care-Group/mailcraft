@@ -240,16 +240,96 @@ fn mail_that_cant_come_back_does_not_starve_the_rest_of_the_due_ones() {
     let jmap = s.mailbox.add_account(Account { name: "Jay".into(), email: "jay@example.org".into(), kind: AccountKind::Jmap, ..Default::default() });
     let jmap_inbox = s.mailbox.folder_of_kind(jmap, FolderKind::Inbox).unwrap();
     let theirs = s.mailbox.add_message(Message { account: jmap, folder: jmap_inbox, ..Default::default() }).unwrap();
-    s.mailbox.snooze_messages(&[theirs], NOW + 60, NOW, "Snoozed").unwrap();
+    s.mailbox.snooze_messages(&[theirs], NOW + 60, "Snoozed").unwrap();
     let snoozed = s.mailbox.snoozed_folder(jmap).unwrap();
     // The server's own mail waiting in a Snoozed folder (a file said so) can't move yet.
     for n in 0..(snooze::MOST_RETURNED_AT_ONCE + 5) {
         let server = ServerMessage { id: format!("J{n}"), folder: "mb".into(), ..Default::default() };
         let id = s.mailbox.add_message(Message { account: jmap, folder: snoozed, server: Some(server), ..Default::default() }).unwrap();
-        s.mailbox.message_mut(id).unwrap().snooze = Some(Snooze { until: NOW + 1, since: NOW - 9, from: jmap_inbox, returned: None });
+        s.mailbox.message_mut(id).unwrap().snooze = Some(Snooze { until: NOW + 1, after_id: 0, from: jmap_inbox, ..Default::default() });
     }
     at(&mut s, NOW + 700);
     let returned = s.run("mail.returnDue", &json!({})).unwrap()["returned"].clone();
     assert!(returned.as_array().unwrap().contains(&json!(a)), "{returned}");
     assert!(returned.as_array().unwrap().contains(&json!(theirs)));
+}
+
+#[test]
+fn graph_a_move_back_the_server_keeps_refusing_is_given_up_after_three_and_said_once() {
+    let (mut s, account, m) = graph_snoozed();
+    at(&mut s, NOW + 600);
+    let mut gave_up = Vec::new();
+    for round in 1..=4 {
+        let answer = s.run("mail.returnDue", &json!({})).unwrap();
+        gave_up.extend(answer["gaveUp"].as_array().unwrap().clone());
+        let returned = answer["returned"].as_array().unwrap().len();
+        if returned == 0 {
+            assert!(round > 3, "round {round}");
+            break;
+        }
+        // The server refuses; the run's answer says so only when it gives up.
+        let request = graph_mail_request(&s, account).unwrap();
+        let change = MessageChangeDone { change: request.messages[0].clone(), outcome: MessageOutcome::Refused { status: 400 }, there: None };
+        let said =
+            apply_graph_mail(&mut s, GraphMailResult { account, email: "owner@example.org".into(), messages: vec![change], ..Default::default() })
+                .unwrap();
+        let errors = said["errors"].to_string();
+        assert_eq!(errors.contains("no longer snoozed"), round == 3, "round {round}: {errors}");
+    }
+    assert_eq!(s.mailbox.message(m).unwrap().snooze, None);
+    assert_eq!(s.mailbox.message(m).unwrap().folder, s.mailbox.snoozed_folder(account).unwrap());
+    // Nothing is tried again.
+    assert_eq!(s.run("mail.returnDue", &json!({})).unwrap()["returned"], json!([]));
+    let _ = gave_up;
+}
+
+#[test]
+fn return_due_tells_a_reset_from_a_call_off() {
+    let (mut s, account, _, a) = local();
+    s.run("mail.snooze", &json!({"ids": [a], "until": NOW + 600})).unwrap();
+    at(&mut s, NOW + 700);
+    s.run("mail.returnDue", &json!({})).unwrap();
+    // Refused as a server would: back in Snoozed with the return in flight.
+    let snoozed = s.mailbox.snoozed_folder(account).unwrap();
+    s.mailbox.message_mut(a).unwrap().folder = snoozed;
+    let answer = s.run("mail.returnDue", &json!({})).unwrap();
+    assert_eq!((answer["reset"].clone(), answer["calledOff"].clone(), answer["returned"].clone()), (json!(1), json!(0), json!([a])));
+}
+
+#[test]
+fn a_message_that_came_back_and_was_filed_into_snoozed_by_hand_stays_there() {
+    let (mut s, account, inbox, a) = local();
+    s.run("mail.snooze", &json!({"ids": [a], "until": NOW + 600})).unwrap();
+    at(&mut s, NOW + 700);
+    s.run("mail.returnDue", &json!({})).unwrap();
+    s.run("mail.returnDue", &json!({})).unwrap();
+    let snoozed = s.mailbox.snoozed_folder(account).unwrap();
+    s.run("mail.move", &json!({"ids": [a], "folder": snoozed})).unwrap();
+    let answer = s.run("mail.returnDue", &json!({})).unwrap();
+    assert_eq!((answer["returned"].clone(), answer["reset"].clone(), answer["calledOff"].clone()), (json!([]), json!(0), json!(1)));
+    let m = s.mailbox.message(a).unwrap();
+    assert_eq!((m.folder, m.snooze), (snoozed, None));
+    let _ = inbox;
+}
+
+#[test]
+fn calling_off_the_last_snooze_after_a_run_marks_the_mailbox_changed() {
+    let (mut s, account, _, a) = local();
+    s.run("mail.snooze", &json!({"ids": [a], "until": NOW + 86_400})).unwrap();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    s.mailbox.move_message(a, archive).unwrap();
+    let rev = s.rev();
+    snooze::after(&mut s);
+    assert_eq!(s.mailbox.message(a).unwrap().snooze, None);
+    assert!(s.rev() > rev);
+}
+
+#[test]
+fn a_reply_delivered_late_with_an_old_date_still_brings_it_back() {
+    let (mut s, account, inbox, a) = local();
+    s.run("mail.snooze", &json!({"ids": [a], "until": NOW + 86_400})).unwrap();
+    // The server dated it before the snooze (internal date, clock skew, a late delivery).
+    arrive(&mut s, account, inbox, |m| (m.in_reply_to, m.received, m.date) = ("a@example.org".into(), NOW - 10_000, NOW - 10_000));
+    snooze::after(&mut s);
+    assert!(!waiting(&s, a));
 }

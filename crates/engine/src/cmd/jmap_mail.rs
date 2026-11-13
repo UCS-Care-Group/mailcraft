@@ -224,8 +224,9 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, session: &str) -> Result<St
 /// `removed` folders; `new`, `changed`, `gone` and `removedMessages` messages; `errors`,
 /// `busyFor`, `complete`, `summary`), and `authRefused` when the server turned the secret down.
 pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
-    let taken = apply_jmap_news(s, result);
-    super::snooze::after(s);
+    let mut taken = apply_jmap_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
     taken
 }
 

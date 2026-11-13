@@ -19,7 +19,9 @@ use crate::{
     Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
     clean_name,
 };
-pub use snooze::{MAX_SNOOZE_AHEAD, Snooze};
+#[cfg(test)]
+pub(crate) use bulk::MOVE_EACH_CALLS;
+pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
@@ -2237,6 +2239,13 @@ impl Mailbox {
         {
             return Err(invalid(INTO_OUTBOX));
         }
+        if m.snooze.is_some_and(|z| z.returning) {
+            // Moved by someone: the return the server was to make isn't in flight any more (#949).
+            if let Some(z) = self.message_mut(id)?.snooze.as_mut() {
+                z.returning = false;
+            }
+        }
+        let m = self.message(id).ok_or(not_found("message", id))?;
         if m.returned > 0 {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
@@ -2701,6 +2710,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
+            copy.snooze = None;
             copy.placed.clear();
             copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
@@ -2724,6 +2734,8 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
+        // (A copy is not snoozed.)
+        copy.snooze = None;
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;

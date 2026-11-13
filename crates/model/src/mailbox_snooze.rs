@@ -31,9 +31,10 @@ pub const MAX_SNOOZE_AHEAD: i64 = 5 * 366 * 86_400;
 pub struct Snooze {
     /// The Return time.
     pub until: Timestamp,
-    /// When it was snoozed: mail of its conversation that arrived after this brings it back at
-    /// once.
-    pub since: Timestamp,
+    /// The newest message id there was when it was snoozed: mail of its conversation with a
+    /// higher id arrived since, and brings it back at once. (Ids only ever grow; a message's date
+    /// is its server's word and a late delivery may carry an earlier one.)
+    pub after_id: Id,
     /// The folder the message came from, which it goes back to (the Inbox when that is gone).
     pub from: Id,
     /// `Some(when)`: the message has come back, at that moment (which may be later than `until`:
@@ -42,6 +43,43 @@ pub struct Snooze {
     /// folder.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub returned: Option<Timestamp>,
+    /// It was moved back here and its server hasn't said yes yet: if it is found in the Snoozed
+    /// folder with this on, the server refused the move. Any other move of the message ends it.
+    #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
+    pub returning: bool,
+    /// How many times the server refused to move it back ([`MAX_SNOOZE_REFUSALS`]).
+    #[serde(skip_serializing_if = "is_zero", deserialize_with = "crate::sync::lenient_or_default")]
+    pub refusals: u8,
+}
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
+}
+
+/// How many refusals of the move back a snooze takes before it is called off and the message is
+/// left where the server has it.
+pub const MAX_SNOOZE_REFUSALS: u8 = 3;
+
+/// What [`Mailbox::settle_snoozes`] changed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Settled {
+    /// Snoozes called off: the message was moved out of the Snoozed folder (or into it by hand
+    /// after it had come back).
+    pub called_off: usize,
+    /// Messages whose move back the server refused, set to wait again.
+    pub reset: usize,
+    /// Messages whose move back the server refused [`MAX_SNOOZE_REFUSALS`] times: the snooze is
+    /// called off and they stay where the server has them.
+    pub gave_up: Vec<Id>,
+    /// Returns the server confirmed.
+    pub confirmed: usize,
+}
+
+impl Settled {
+    /// Whether anything of any message changed.
+    pub fn any(&self) -> bool {
+        self.called_off + self.reset + self.confirmed > 0 || !self.gave_up.is_empty()
+    }
 }
 
 impl Snooze {
@@ -99,17 +137,22 @@ impl Mailbox {
         Ok(id)
     }
 
-    /// Snooze each of `ids` until `until`, at `now`: moved, in one go, into its account's Snoozed
+    /// Snooze each of `ids` until `until`: moved, in one go, into its account's Snoozed
     /// folder (made with `name` when missing), remembering where it came from. A message already
     /// waiting there gets the new time and keeps where it first came from. Refused, with nothing
     /// changed: a draft, mail in an Outbox, mail a JMAP server has, and mail that already lies in
     /// the Snoozed folder without having been snoozed (it came from another device). Answers how
     /// many were snoozed.
-    pub fn snooze_messages(&mut self, ids: &[Id], until: Timestamp, now: Timestamp, name: &str) -> Result<usize, ModelError> {
+    pub fn snooze_messages(&mut self, ids: &[Id], until: Timestamp, name: &str) -> Result<usize, ModelError> {
         let mut seen = HashSet::new();
         let ids: Vec<Id> = ids.iter().copied().filter(|id| seen.insert(*id)).collect();
+        // Every message and account is looked at before a folder is made for any.
         for id in &ids {
             let m = self.message(*id).ok_or(not_found("message", *id))?;
+            let account = self.account(m.account).ok_or(not_found("account", m.account))?;
+            if account.is_shared() {
+                return Err(invalid("a shared mailbox has no Snoozed folder"));
+            }
             if m.draft || self.is_send_queue(m.folder) {
                 return Err(invalid("a message being written or waiting to be sent can't be snoozed"));
             }
@@ -120,6 +163,7 @@ impl Mailbox {
                 return Err(invalid("this message is in the Snoozed folder already"));
             }
         }
+        let watermark = self.messages.keys().next_back().copied().unwrap_or(0);
         let mut moves = Vec::with_capacity(ids.len());
         let mut snoozes = Vec::with_capacity(ids.len());
         for id in &ids {
@@ -134,7 +178,7 @@ impl Mailbox {
                 _ => was_in,
             };
             moves.push((*id, snoozed));
-            snoozes.push((*id, Snooze { until, since: now, from, returned: None }));
+            snoozes.push((*id, Snooze { until, after_id: watermark, from, ..Default::default() }));
         }
         self.move_each(&moves)?;
         for (id, snooze) in &snoozes {
@@ -201,16 +245,25 @@ impl Mailbox {
                 && let Ok(m) = self.message_mut(id)
             {
                 m.read = false;
-                m.snooze = Some(Snooze { returned: Some(now), ..snooze });
+                m.snooze = Some(Snooze { returned: Some(now), returning: true, ..snooze });
                 back.push(id);
             }
         }
         back
     }
 
-    /// Whether mail may be returned into the folder `id`: not Deleted Items or under it.
+    /// Whether mail may be returned into the folder `id`: not Deleted Items, Drafts or an Outbox,
+    /// or under one of them.
     fn fits_back(&self, id: Id) -> bool {
-        !self.is_in_deleted(id)
+        let mut at = Some(id);
+        for _ in 0..=crate::MAX_FOLDER_DEPTH {
+            let Some(f) = at.and_then(|id| self.folder(id)) else { return true };
+            if matches!(f.kind, FolderKind::Deleted | FolderKind::Drafts | FolderKind::Outbox) || self.is_send_queue(f.id) {
+                return false;
+            }
+            at = f.parent;
+        }
+        false
     }
 
     /// Whether the folder `id` is Deleted Items or lies under it (a folder the owner deleted goes
@@ -227,32 +280,75 @@ impl Mailbox {
         false
     }
 
-    /// Put the snoozes right with where the mail is: the snooze of every message that waits but
-    /// isn't in its account's Snoozed folder any more is called off (the owner moved it out, here
-    /// or on another device, or the folder is gone); a message marked as come back that still lies
-    /// in the Snoozed folder (the server refused the move back) waits again, and so comes back at
-    /// the next step. Answers how many snoozes were changed.
-    pub fn settle_snoozes(&mut self) -> usize {
-        let fix: Vec<(Id, bool)> = self
-            .messages
-            .values()
-            .filter_map(|m| {
-                let s = m.snooze?;
-                let in_snoozed = self.snoozed_folder(m.account) == Some(m.folder);
-                match (s.waiting(), in_snoozed) {
-                    (true, false) => Some((m.id, true)),
-                    (false, true) => Some((m.id, false)),
-                    _ => None,
-                }
+    /// Whether any message has a snooze, waiting or come back.
+    pub fn has_snoozes(&self) -> bool {
+        self.messages.values().any(|m| m.snooze.is_some())
+    }
+
+    /// Whether the server is still to confirm that `m` lies where it was moved to: a move waits
+    /// for it, or the server has it in another folder than the one it lies in.
+    fn in_flight(&self, m: &crate::Message, moving: &HashSet<Id>) -> bool {
+        moving.contains(&m.id)
+            || m.server.as_ref().is_some_and(|s| {
+                self.folder(m.folder).and_then(|f| f.server.as_ref()).is_some_and(|there| !there.id.is_empty() && there.id != s.folder)
+            })
+    }
+
+    /// Put the snoozes right with where the mail is:
+    ///
+    /// - a message that waits but isn't in its account's Snoozed folder has its snoozed called off
+    ///   (the owner moved it out, here or on another device, or the folder is gone);
+    /// - one that has come back and lies in the Snoozed folder again was either refused by the
+    ///   server (the return was in flight): it waits again, and is tried again at the next step,
+    ///   until the server has refused [`MAX_SNOOZE_REFUSALS`] times and the snooze is called off;
+    ///   or was filed there by hand: its snooze is called off, and it stays;
+    /// - a return the server has confirmed is no longer in flight.
+    pub fn settle_snoozes(&mut self) -> Settled {
+        let moving: HashSet<Id> = self
+            .pending
+            .iter()
+            .filter_map(|p| match p {
+                super::Pending::Move { message, .. } => Some(*message),
+                _ => None,
             })
             .collect();
-        for (id, call_off) in &fix {
-            if let Some(m) = self.messages.get_mut(id) {
-                let m = Arc::make_mut(m);
-                m.snooze = if *call_off { None } else { m.snooze.map(|s| Snooze { returned: None, ..s }) };
+        let mut out = Settled::default();
+        let mut fix: Vec<(Id, Option<Snooze>)> = Vec::new();
+        for m in self.messages.values() {
+            let Some(s) = m.snooze else { continue };
+            let in_snoozed = self.snoozed_folder(m.account) == Some(m.folder);
+            match (s.waiting(), in_snoozed) {
+                (true, false) => {
+                    out.called_off += 1;
+                    fix.push((m.id, None));
+                }
+                (false, true) if s.returning => {
+                    let refusals = s.refusals.saturating_add(1);
+                    if refusals >= MAX_SNOOZE_REFUSALS {
+                        out.gave_up.push(m.id);
+                        fix.push((m.id, None));
+                    } else {
+                        out.reset += 1;
+                        fix.push((m.id, Some(Snooze { returned: None, returning: false, refusals, ..s })));
+                    }
+                }
+                (false, true) => {
+                    out.called_off += 1;
+                    fix.push((m.id, None));
+                }
+                (false, false) if s.returning && !self.in_flight(m, &moving) => {
+                    out.confirmed += 1;
+                    fix.push((m.id, Some(Snooze { returning: false, ..s })));
+                }
+                _ => {}
             }
         }
-        fix.len()
+        for (id, snooze) in fix {
+            if let Some(m) = self.messages.get_mut(&id) {
+                Arc::make_mut(m).snooze = snooze;
+            }
+        }
+        out
     }
 
     /// Part of [`Mailbox::repair`]: an account's Snoozed folder that can't be one is forgotten
@@ -268,6 +364,7 @@ impl Mailbox {
                 a.snoozed_folder = None;
             }
         }
-        self.settle_snoozes()
+        let settled = self.settle_snoozes();
+        settled.called_off + settled.reset + settled.gave_up.len()
     }
 }

@@ -18,7 +18,7 @@
 //!   `References`) or has the server's conversation id the message has.
 //! - A JMAP account's server isn't told of moves yet, so a message it has is refused.
 
-use mailcraft_model::{FolderKind, Id, MAX_SNOOZE_AHEAD};
+use mailcraft_model::{FolderKind, Id, MAX_SNOOZE_AHEAD, Mailbox, Message};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
@@ -79,9 +79,8 @@ fn snooze(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets_whole(s, v)?;
     let before = s.rows();
     let name = s.interface_language.t("Snoozed").to_string();
-    let now = s.now();
     // Taken whole: a refusal leaves the mailbox as it was.
-    let count = s.mailbox.snooze_messages(&ids, at, now, &name)?;
+    let count = s.mailbox.snooze_messages(&ids, at, &name)?;
     select_after_removal(s, &before, &ids);
     let folders: Vec<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id).map(|m| m.folder)).collect::<HashSet<_>>().into_iter().collect();
     Ok(json!({"snoozed": count, "until": at, "folders": folders}))
@@ -100,36 +99,82 @@ fn unsnooze(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn return_due(s: &mut Session, _: &Value) -> CmdResult {
-    let called_off = s.mailbox.settle_snoozes();
+    let settled = s.mailbox.settle_snoozes();
     let now = s.now();
     let mut due = s.mailbox.due_snoozes(now);
     due.truncate(MOST_RETURNED_AT_ONCE);
     let back = s.mailbox.return_snoozed(&due, now);
-    Ok(json!({"returned": back, "calledOff": called_off}))
+    Ok(json!({"returned": back, "calledOff": settled.called_off, "reset": settled.reset, "gaveUp": settled.gave_up}))
+}
+
+/// Add what [`after`] has to say to a run's problems (`errors` of its answer).
+pub(crate) fn tell(answer: &mut CmdResult, said: Vec<String>) {
+    if said.is_empty() {
+        return;
+    }
+    if let Ok(Value::Object(answer)) = answer
+        && let Value::Array(errors) = answer.entry("errors").or_insert_with(|| json!([]))
+    {
+        errors.extend(said.into_iter().map(Value::String));
+    }
 }
 
 /// After a run's news was taken in: the snoozes are put right with where the mail is now (called
 /// off for mail the server shows outside the Snoozed folder; waiting again for mail whose move
-/// back the server refused), and a message that waits comes back at once when mail of its
-/// conversation arrived since it was snoozed. The mailbox is marked changed when anything was.
+/// back the server refused, three times at most), and a message that waits comes back at once
+/// when mail of its conversation arrived since it was snoozed. The mailbox is marked changed when
+/// anything was. Answers what the run is to tell the owner: a snooze given up because the server
+/// would not move the message back.
 ///
 /// Mail only says what the owner did, and is no news, when it was sent, is a draft, lies in
-/// Deleted Items, Junk E-mail or the Snoozed folder, or is from the account's own address (a copy
-/// to themselves, a list's echo). It is of the conversation only by a known link: it answers the
-/// snoozed message by `In-Reply-To` or `References`, or the server gave both the same conversation
-/// id. Nothing is remembered between runs: mail that got its conversation id in a later piece of a
+/// Deleted Items, Junk E-mail, Drafts, an Outbox or the Snoozed folder, or is from the account's
+/// own address (a copy to themselves, a list's echo). It is of the conversation only by a known
+/// link: it answers the snoozed message by `In-Reply-To` or `References`, or the server gave both
+/// the same conversation id. It arrived after the snooze when its id is higher than the newest
+/// there was then ([`mailcraft_model::Snooze::after_id`]), whatever date its server gave it.
+/// Nothing is remembered between runs: mail that got its conversation id in a later piece of a
 /// run is found then.
-pub(crate) fn after(s: &mut Session) {
-    if !s.mailbox.has_snoozed() {
-        return;
+pub(crate) fn after(s: &mut Session) -> Vec<String> {
+    if !s.mailbox.has_snoozes() {
+        return Vec::new();
     }
-    let mut changed = s.mailbox.settle_snoozes() > 0;
+    let lang = s.interface_language;
+    let settled = s.mailbox.settle_snoozes();
+    let problems: Vec<String> = settled
+        .gave_up
+        .iter()
+        .map(|id| {
+            let subject = s.mailbox.message(*id).map(|m| m.subject.clone()).unwrap_or_default();
+            let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
+            mailcraft_i18n::fmt(
+                lang.t("'{subject}' stays in the Snoozed folder: the server would not move it back, so it is no longer snoozed."),
+                &[("subject", &subject)],
+            )
+        })
+        .collect();
+    let mut changed = settled.any();
     let mb = &s.mailbox;
-    let waiting: Vec<_> = mb.messages.values().filter(|m| m.snooze.is_some_and(|z| z.waiting())).collect();
-    let Some(oldest) = waiting.iter().filter_map(|m| m.snooze.map(|z| z.since)).min() else { return };
+    let waiting: Vec<&Message> = mb.messages.values().map(|m| m.as_ref()).filter(|m| m.snooze.is_some_and(|z| z.waiting())).collect();
+    let back = match waiting.iter().filter_map(|m| m.snooze.map(|z| z.after_id)).min() {
+        Some(oldest) => arrived_for(mb, &waiting, oldest),
+        None => Vec::new(),
+    };
+    if !back.is_empty() {
+        let now = s.now();
+        changed |= !s.mailbox.return_snoozed(&back, now).is_empty();
+    }
+    if changed {
+        s.mailbox_changed();
+    }
+    problems
+}
+
+/// The waiting messages that mail with an id above `oldest` is of the conversation of.
+fn arrived_for(mb: &Mailbox, waiting: &[&Message], oldest: Id) -> Vec<Id> {
+    let Some(from) = oldest.checked_add(1) else { return Vec::new() };
     let mut by_id: HashMap<(Id, &str), Vec<Id>> = HashMap::new();
     let mut by_thread: HashMap<(Id, &str), Vec<Id>> = HashMap::new();
-    for m in &waiting {
+    for m in waiting {
         if !m.message_id.is_empty() {
             by_id.entry((m.account, m.message_id.as_str())).or_default().push(m.id);
         }
@@ -137,15 +182,19 @@ pub(crate) fn after(s: &mut Session) {
             by_thread.entry((m.account, thread)).or_default().push(m.id);
         }
     }
-    let since = |id: Id| mb.message(id).and_then(|m| m.snooze).map_or(i64::MAX, |z| z.since);
+    // Looked up once: a run may bring thousands of messages.
+    let kinds: HashMap<Id, FolderKind> = mb.folders.iter().map(|f| (f.id, f.kind)).collect();
+    let snoozed: HashMap<Id, Option<Id>> = mb.accounts.iter().map(|a| (a.id, mb.snoozed_folder(a.id))).collect();
+    let emails: HashMap<Id, &str> = mb.accounts.iter().map(|a| (a.id, a.email.trim())).collect();
+    let after_id = |id: Id| mb.message(id).and_then(|m| m.snooze).map_or(Id::MAX, |z| z.after_id);
     let mut back: HashSet<Id> = HashSet::new();
-    for m in mb.messages.values().filter(|m| m.received > oldest && !m.draft) {
-        let Some(folder) = mb.folder(m.folder) else { continue };
-        let own = matches!(folder.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox | FolderKind::Deleted | FolderKind::Junk);
-        if own || mb.snoozed_folder(m.account) == Some(m.folder) {
+    for m in mb.messages.range(from..).map(|(_, m)| m).filter(|m| !m.draft) {
+        let Some(kind) = kinds.get(&m.folder) else { continue };
+        let own = matches!(kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox | FolderKind::Deleted | FolderKind::Junk);
+        if own || snoozed.get(&m.account).copied().flatten() == Some(m.folder) {
             continue;
         }
-        if mb.account(m.account).is_some_and(|a| !a.email.is_empty() && a.email.trim().eq_ignore_ascii_case(m.from.email.trim())) {
+        if emails.get(&m.account).is_some_and(|mine| !mine.is_empty() && mine.eq_ignore_ascii_case(m.from.email.trim())) {
             continue;
         }
         let linked = Some(m.in_reply_to.as_str()).filter(|id| !id.is_empty()).into_iter().chain(m.references.iter().map(String::as_str));
@@ -153,14 +202,7 @@ pub(crate) fn after(s: &mut Session) {
         if let Some(thread) = m.server.as_ref().map(|x| x.thread.as_str()).filter(|t| !t.is_empty()) {
             hits.extend(by_thread.get(&(m.account, thread)).into_iter().flatten().copied());
         }
-        back.extend(hits.into_iter().filter(|id| *id != m.id && m.received > since(*id)));
+        back.extend(hits.into_iter().filter(|id| *id != m.id && m.id > after_id(*id)));
     }
-    if !back.is_empty() {
-        let now = s.now();
-        let back: Vec<Id> = back.into_iter().collect();
-        changed |= !s.mailbox.return_snoozed(&back, now).is_empty();
-    }
-    if changed {
-        s.mailbox_changed();
-    }
+    back.into_iter().collect()
 }

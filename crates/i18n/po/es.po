@@ -111,6 +111,11 @@ msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Out
 msgstr "Es posible que «{subject}» se haya enviado: compruebe Elementos enviados. Se conserva en la Bandeja de salida."
 
 #. what a command says
+#: crates/engine/src/cmd/snooze.rs
+msgid "'{subject}' stays in the Snoozed folder: the server would not move it back, so it is no longer snoozed."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/undo.rs
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgstr ""
@@ -139,7 +144,7 @@ msgid "(no recipients)"
 msgstr "(sin destinatarios)"
 
 #. interface, what a command says, why a mail server couldn't be used
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(sin asunto)"
@@ -18053,6 +18058,11 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "este mensaje no tiene ningún asunto que buscar"
+
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+msgid "this message is in the Snoozed folder already"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
