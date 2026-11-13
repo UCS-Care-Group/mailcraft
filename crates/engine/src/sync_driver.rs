@@ -10,11 +10,15 @@ use std::collections::HashMap;
 pub mod calendar;
 #[cfg(test)]
 mod calendar_tests;
+pub mod favorites;
+#[cfg(test)]
+mod favorites_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
 
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
+pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
 
 use mailcraft_model::Id;
@@ -245,4 +249,6 @@ pub struct Driver {
     pub thinning: Thinning,
     /// The calendar kept in step with each account's server.
     pub calendar: CalendarDriver,
+    /// Outlook's Favorites read from each Microsoft account's server.
+    pub favorites: FavoritesDriver,
 }
