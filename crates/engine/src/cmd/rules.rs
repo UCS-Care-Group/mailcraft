@@ -356,6 +356,12 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
 /// has among them, or the rule `only` alone; answers how many messages a rule acted on.
 fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     let ids: Vec<Id> = s.mailbox.messages_in(folder).map(|m| m.id).collect();
+    run_on_ids(s, folder, ids, only)
+}
+
+/// [`run_on`] for messages already listed. A run over several folders takes that list before any
+/// rule runs, so a message one rule moves into a later Inbox is not ruled there in the same run.
+fn run_on_ids(s: &mut Session, folder: Id, ids: Vec<Id>, only: Option<Id>) -> usize {
     let account = s.mailbox.folder(folder).map_or(0, |f| f.account);
     // A rule that reads the body reads it whole: one kept on disk is brought in first (one that
     // can't be read says so in its place, and is matched as that).
@@ -386,7 +392,10 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
     if only.is_some() && folders.len() != 1 {
         return Err(fail("a rule is run on one folder"));
     }
-    let matched: usize = folders.into_iter().map(|folder| run_on(s, folder, only)).sum();
+    // Each folder's mail as it is now. A rule that moves a message into an Inbox still to come
+    // must not have that Inbox's rules act on it in this same run.
+    let planned: Vec<(Id, Vec<Id>)> = folders.iter().map(|folder| (*folder, s.mailbox.messages_in(*folder).map(|m| m.id).collect())).collect();
+    let matched: usize = planned.into_iter().map(|(folder, ids)| run_on_ids(s, folder, ids, only)).sum();
     Ok(json!({"matched": matched}))
 }
 

@@ -453,6 +453,12 @@ fn all_inboxes_row(app: &mut MailApp, ui: &mut Ui, count: Count, selected: bool)
         if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) },
         if selected { t.accent_soft_text } else { t.text },
     );
+    let name = tl!("All Inboxes").to_string();
+    let said = match count {
+        Count::Unread(n) if n > 0 => format!("{name}, {}", tln!(n, "{n} unread", "{n} unread")),
+        _ => name,
+    };
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, true, selected, &said));
     if resp.clicked() {
         let _ = app.run("view.allInboxes", json!({}));
     }

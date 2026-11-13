@@ -43,3 +43,62 @@ fn every_inbox_is_one_list_and_mark_all_read_covers_them() {
     let back: HashSet<_> = s.rows().iter().map(|r| s.mailbox.message(r.id).unwrap().folder).collect();
     assert_eq!(back, HashSet::from([first]));
 }
+
+#[test]
+fn a_message_moved_into_a_later_inbox_is_ruled_once() {
+    let mut s = session();
+    let first = s.mailbox.inboxes()[0];
+    let account = s.mailbox.folder(first).unwrap().account;
+    let one = s.mailbox.messages_in(first).next().unwrap().id;
+    s.mailbox.message_mut(one).unwrap().subject = "Relay".into();
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let second_account = added["id"].as_u64().unwrap();
+    let second = s.mailbox.inboxes().into_iter().find(|id| *id != first).unwrap();
+    let copy = s.run("mail.copy", &json!({"ids": [one], "folder": second})).unwrap()["copies"][0].as_u64().unwrap();
+    let move_to = json!({
+        "name": "To the other",
+        "account": account,
+        "conditions": [{"type": "subjectContains", "value": "Relay"}],
+        "actions": [{"type": "moveTo", "value": second}],
+    });
+    let drop = json!({
+        "name": "Drop it",
+        "account": second_account,
+        "conditions": [{"type": "subjectContains", "value": "Relay"}],
+        "actions": [{"type": "delete"}],
+    });
+    s.run("rules.add", &move_to).unwrap();
+    s.run("rules.add", &drop).unwrap();
+    // The sample mailbox already has one rule that acts on a message in the first Inbox.
+    // The moved message is the second, and the copy that was already in the later Inbox is the
+    // third. Ruling the moved message again there would be a fourth.
+    assert_eq!(s.run("rules.run", &json!({"allInboxes": true})).unwrap()["matched"], 3);
+    assert_eq!(s.mailbox.message(one).unwrap().folder, second);
+    assert_ne!(s.mailbox.message(copy).unwrap().folder, second);
+}
+
+#[test]
+fn opening_every_inbox_closes_the_conversations() {
+    let mut s = session();
+    s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let one = s.mailbox.messages_in(s.mailbox.inboxes()[0]).next().unwrap().id;
+    s.view.open.push((one, mailcraft_model::ThreadKey(1)));
+    s.run("view.allInboxes", &json!({})).unwrap();
+    assert!(s.view.all_inboxes);
+    assert!(s.view.open.is_empty());
+}
+
+#[test]
+fn listing_a_named_folder_does_not_list_every_inbox() {
+    let mut s = session();
+    let first = s.mailbox.inboxes()[0];
+    s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let second = s.mailbox.inboxes().into_iter().find(|id| *id != first).unwrap();
+    let one = s.mailbox.messages_in(first).next().unwrap().id;
+    s.run("mail.copy", &json!({"ids": [one], "folder": second})).unwrap();
+    s.run("view.allInboxes", &json!({})).unwrap();
+    let listed = s.run("mail.list", &json!({"folder": first})).unwrap();
+    let folders: HashSet<u64> = listed["messages"].as_array().unwrap().iter().filter_map(|m| m["folder"].as_u64()).collect();
+    assert_eq!(folders, HashSet::from([first]));
+    assert!(s.view.all_inboxes, "the list in view is put back");
+}

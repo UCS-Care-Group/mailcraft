@@ -437,6 +437,8 @@ pub(crate) struct ListOf {
     /// The Gmail category it shows, if any (#911).
     gmail: Option<(Id, mailcraft_model::GmailCategory)>,
     search: Option<(mailcraft_model::search::Query, Scope)>,
+    /// Every Inbox together, above Favorites. Another list from the one folder in view.
+    all_inboxes: bool,
     /// The day, the first day of the week and the zone, for a search with dates in it:
     /// `received:today` is other messages tomorrow (#329).
     when: Option<String>,
@@ -449,7 +451,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
+        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, all_inboxes: view.all_inboxes, when }
     }
 }
 

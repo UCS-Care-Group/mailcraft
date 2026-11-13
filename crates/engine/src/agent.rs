@@ -973,6 +973,14 @@ fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
     (r.account != 0).then_some(r.account)
 }
 
+/// The folders `rules.run` acts on, read as the command reads them: every Inbox, or the one
+/// folder named (the folder in view when none is).
+fn rules_run_folders(s: &Session, params: &Value) -> Option<Vec<Id>> {
+    let all = p::opt_bool(params, "allInboxes").ok()?;
+    let folder = p::id_strict(params, "folder").ok()?;
+    Some(if all == Some(true) { s.mailbox.inboxes() } else { vec![folder.unwrap_or(s.view.folder)] })
+}
+
 /// Whether the rules this command makes, switches on or runs put mail on another account's
 /// server (#451).
 fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
@@ -990,11 +998,9 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         }),
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
-            let (Ok(all), Ok(folder), Ok(only)) = (p::opt_bool(params, "allInboxes"), p::id_strict(params, "folder"), p::id_strict(params, "id"))
-            else {
+            let (Some(folders), Ok(only)) = (rules_run_folders(s, params), p::id_strict(params, "id")) else {
                 return false;
             };
-            let folders = if all == Some(true) { mb.inboxes() } else { vec![folder.unwrap_or(s.view.folder)] };
             folders.into_iter().any(|folder| {
                 mb.folder(folder).is_some_and(|f| {
                     mb.rules.iter().any(|r| {
@@ -1532,18 +1538,23 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             Err(_) => "make a rule from a message that can't be made as asked".to_string(),
         },
         "rules.run" if rules_onto_another_server(s, id, params) => {
-            let folder = p::id_strict(params, "folder").ok().flatten().unwrap_or(s.view.folder);
-            let from = s.mailbox.folder(folder).map(|f| f.account);
+            let folders = rules_run_folders(s, params).unwrap_or_default();
             let only = p::id_strict(params, "id").ok().flatten();
-            let onto: Vec<String> = s
-                .mailbox
-                .rules
-                .iter()
-                .filter(|r| r.enabled && from.is_some_and(|a| r.is_for(a)) && only.is_none_or(|o| o == r.id))
-                .filter_map(|r| rule_onto_server(s, r, from))
-                .filter_map(|a| s.mailbox.account(a).map(|a| clip(&a.email, 80)))
-                .collect();
-            let place = s.mailbox.folder(folder).map_or_else(|| "a folder".to_string(), |f| quoted(&s.mailbox.folder_path(f.id)));
+            let mut names = Vec::new();
+            let mut onto = Vec::new();
+            for folder in folders {
+                let Some(f) = s.mailbox.folder(folder) else { continue };
+                names.push(quoted(&s.mailbox.folder_path(f.id)));
+                for r in s.mailbox.rules.iter().filter(|r| r.enabled && r.is_for(f.account) && only.is_none_or(|o| o == r.id)) {
+                    let Some(account) = rule_onto_server(s, r, Some(f.account)) else { continue };
+                    let Some(a) = s.mailbox.account(account) else { continue };
+                    let email = clip(&a.email, 80);
+                    if !onto.contains(&email) {
+                        onto.push(email);
+                    }
+                }
+            }
+            let place = if names.is_empty() { "a folder".to_string() } else { names.join(", ") };
             format!("run the rules on {place}, which move mail onto the server of {}", onto.join(", "))
         }
         "rules.move" => {

@@ -650,6 +650,11 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     let (view, sel) = (s.view.clone(), s.sel.clone());
     s.view.folder = folder;
+    // The folder asked for, not every Inbox: the flag is only for the list in view, which this
+    // call puts back when it is done.
+    if v.get("folder").is_some_and(|f| !f.is_null()) {
+        s.view.all_inboxes = false;
+    }
     s.view.module = crate::Module::Mail;
     s.view.search = query;
     s.view.scope = crate::Scope::Folder;

@@ -1756,6 +1756,12 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     s.run("rules.enable", &json!({"id": made, "value": true})).unwrap();
     let what = describe(&s, "rules.run", &json!({"folder": inbox}));
     assert!(what.contains("which move mail onto the server of blake@other.example"), "{what}");
+    // Every Inbox: the question names each of them, and every server their rules move mail onto.
+    let back = json!({"name": "Back", "account": b, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": inbox}]});
+    s.run("rules.add", &back).unwrap();
+    let what = describe(&s, "rules.run", &json!({"allInboxes": true}));
+    assert!(what.contains("avery@mail.example") && what.contains("blake@other.example"), "{what}");
+    assert_eq!(what.matches('\u{201c}').count(), s.mailbox.inboxes().len(), "{what}");
     // A rule for one account's mail that files it in that account's own folder puts nothing on
     // another server: switched on, or named to run over another account's folder.
     let own = json!({"name": "Own", "account": b, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": other}]});
