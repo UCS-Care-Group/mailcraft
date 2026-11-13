@@ -349,6 +349,18 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail_finds_deleted: bool,
     /// Don't know STATUS: answer BAD to it, as a very old server would.
     pub(crate) no_status: bool,
+    /// Know IDLE (RFC 2177), and say so. While a client idles, every line in `idle_events` is
+    /// sent to it, once, as the server's own news (`* 3 EXISTS`).
+    pub(crate) idle: bool,
+    pub(crate) idle_events: Vec<String>,
+    /// End the next IDLE the way a server may on its own (the tagged OK), after this many polls
+    /// of 20 ms; `None` for never.
+    pub(crate) idle_ends_after: Option<usize>,
+    /// Hang up on an idling client, once, after this many polls of 20 ms.
+    pub(crate) idle_hangs_up_after: Option<usize>,
+    /// How many clients are idling now, and how many IDLE commands have been taken in all.
+    pub(crate) idling: usize,
+    pub(crate) idles: usize,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
     /// Every line received.
@@ -366,8 +378,9 @@ impl ImapWorld {
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
+        let idle = if self.idle { " IDLE" } else { "" };
         let no_login = if self.login_disabled { " LOGINDISABLED" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{no_login}")
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{idle}{no_login}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -542,6 +555,7 @@ fn quote(name: &str) -> String {
 pub(crate) const GMAIL_IDS: u64 = 1_500_000_000_000_000_000;
 
 fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
+    let socket = stream.try_clone().ok();
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
     let mut secured = false;
     let greeting = {
@@ -694,6 +708,66 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     }
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
                 }
+            }
+            // The server tells of changes until the client says DONE (RFC 2177).
+            "IDLE" if world.idle && open.is_some() => {
+                world.idles += 1;
+                world.idling += 1;
+                drop(world);
+                if reader.get_mut().write_all(b"+ idling\r\n").is_err() {
+                    return;
+                }
+                if let Some(socket) = &socket {
+                    let _ = socket.set_read_timeout(Some(Duration::from_millis(20)));
+                }
+                let mut polls = 0usize;
+                let ended = loop {
+                    let news: Vec<String> = std::mem::take(&mut shared.lock().unwrap().idle_events);
+                    for line in news {
+                        if reader.get_mut().write_all(format!("{line}\r\n").as_bytes()).is_err() {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                    }
+                    polls += 1;
+                    if shared.lock().unwrap().idle_hangs_up_after.is_some_and(|after| polls > after) {
+                        let mut world = shared.lock().unwrap();
+                        world.idle_hangs_up_after = None;
+                        world.idling -= 1;
+                        return;
+                    }
+                    if shared.lock().unwrap().idle_ends_after.is_some_and(|after| polls > after) {
+                        shared.lock().unwrap().idle_ends_after = None;
+                        break "by itself";
+                    }
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                        Ok(_) => {
+                            shared.lock().unwrap().log.push(line.trim_end().to_string());
+                            if line.trim().eq_ignore_ascii_case("DONE") {
+                                break "by the client";
+                            }
+                        }
+                        Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+                        Err(_) => {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                    }
+                };
+                if let Some(socket) = &socket {
+                    let _ = socket.set_read_timeout(None);
+                }
+                shared.lock().unwrap().idling -= 1;
+                let _ = ended;
+                if reader.get_mut().write_all(format!("{tag} OK IDLE terminated\r\n").as_bytes()).is_err() {
+                    return;
+                }
+                continue;
             }
             // What a mailbox holds, without opening it (RFC 3501 §6.3.10).
             "STATUS" if !world.no_status => {

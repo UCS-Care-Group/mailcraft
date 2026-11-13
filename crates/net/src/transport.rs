@@ -130,6 +130,19 @@ impl<'a> Stream<'a> {
         tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io))
     }
 
+    /// A connection that waits for the server to speak (IDLE, #276): a read gives up after `poll`
+    /// of silence, so that its owner can look at the clock and at whether it was told to stop,
+    /// and the connection is good for `patience` after the last command was sent, not for the
+    /// few minutes a command and its answer are.
+    pub(crate) fn wait_for_news(&mut self, poll: Duration, patience: Duration) -> std::io::Result<()> {
+        self.patience = patience;
+        let tcp = match &self.io {
+            Io::Plain(tcp) => tcp,
+            Io::Tls(tls) => &tls.sock,
+        };
+        tcp.set_read_timeout(Some(poll.max(Duration::from_millis(1))))
+    }
+
     /// The DER of the certificate the server showed first (its end-entity certificate), on an
     /// encrypted connection whose handshake is done: for channel binding.
     pub(crate) fn server_certificate(&self) -> Option<Vec<u8>> {

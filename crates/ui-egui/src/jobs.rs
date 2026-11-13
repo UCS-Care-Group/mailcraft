@@ -113,6 +113,8 @@ impl MailApp {
     pub(crate) fn forget_mail_runs(&mut self) {
         self.services.sync_cancel.store(true, Ordering::Relaxed);
         self.inbox_check.forget();
+        // The watches on the Inboxes belong to the mailbox that was open (#276).
+        self.idle.stop_all();
         (self.sync_rx, self.graph_rx, self.graph_pieces, self.send_gate) = (None, None, None, None);
         (self.sync_run, self.inbox_run, self.graph_after_sign_in, self.shared_check_next) = (None, None, None, None);
         (self.sync_password, self.sync_refused, self.graph_pieces_taken) = (None, false, 0);

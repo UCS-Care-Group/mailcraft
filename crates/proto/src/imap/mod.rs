@@ -9,6 +9,9 @@
 //! There is no plain EXPUNGE and no CLOSE here, on purpose: both remove every message marked
 //! `\Deleted` in the mailbox, also those another program marked.
 
+mod idle;
+#[cfg(test)]
+mod idle_tests;
 mod parse;
 mod password;
 #[cfg(test)]
@@ -18,6 +21,7 @@ mod status;
 mod status_tests;
 mod utf7;
 
+pub use idle::IdleEvent;
 pub use status::{FolderStatus, MAX_STATUS_BATCH};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -94,6 +98,8 @@ pub struct Imap<S> {
     /// current command alone (a Gmail search, #911); `skipped` says one was.
     skip_long: bool,
     skipped: bool,
+    /// The tag of the IDLE command the server is waiting in, if it is ([`Imap::idle_begin`]).
+    idle_tag: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -590,6 +596,7 @@ impl<S: Read + Write> Imap<S> {
             response_cap: MAX_RESPONSES,
             skip_long: false,
             skipped: false,
+            idle_tag: None,
         }
     }
 
