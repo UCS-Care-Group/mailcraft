@@ -1170,6 +1170,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr "Une pièce jointe ne peut pas être copiée ici : enregistrez-la plutôt avec Enregistrer sous."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
 msgstr ""
@@ -2821,6 +2827,12 @@ msgstr "Contributeurs"
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Les contributeurs choisissent eux-mêmes leur nom ; voir docs/contributors.md."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Copied {name}"
+msgstr "{name} copié"
+
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
@@ -2828,7 +2840,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "Copie un court message contenant l'adresse de la page Microsoft où un administrateur de votre organisation approuve MailCraft, une fois pour tout le monde. Rien n'est envoyé : collez-le vous-même dans un message ou une conversation."
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Copier"
@@ -2842,6 +2854,12 @@ msgid ""
 msgstr ""
 "Copier les\n"
 "diagnostics"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Copy Attachment"
+msgstr "Copier la pièce jointe"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -4365,6 +4383,12 @@ msgstr "Les boîtes de dialogue de fichiers ne sont pas disponibles ici"
 #: crates/ui-egui/src/security.rs
 msgid "File:"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Files can't be put on the clipboard here."
+msgstr "Les fichiers ne peuvent pas être placés dans le Presse-papiers ici."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -8593,6 +8617,12 @@ msgstr "Seulement quand je le demande"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "Uniquement quand MailCraft n'est pas la fenêtre au premier plan, et uniquement pour les boîtes de réception de vos propres comptes."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr "Vous seul pouvez copier une pièce jointe, avec Copier dans son menu ou Ctrl+C."
+
 #. interface, ribbon
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -10807,6 +10837,12 @@ msgstr "Sélectionnez d'abord du texte"
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Select the message before previewing its attachment."
 msgstr ""
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Selection"
+msgstr "Sélection"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs

@@ -722,6 +722,23 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 tl!("Double-click to open {name}; right-click to save it")
             };
             let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", &shown)]));
+            // A click picks the attachment, as in Outlook, and so does the keyboard reaching its
+            // chip: Ctrl+C then copies the file (#807), not the text selected in the message.
+            if resp.clicked() {
+                select::pick_attachment(ui.ctx(), resp.id, main_rect);
+            }
+            let picked = select::attachment_picked(ui.ctx(), resp.id, main_rect);
+            if resp.has_focus() {
+                select::attachment_focused(ui.ctx(), resp.id);
+            }
+            if picked && !resp.has_focus() {
+                ui.painter().rect_stroke(main_rect.shrink(1.0), left, Stroke::new(1.0, t.focus_ring), egui::StrokeKind::Inside);
+            }
+            if (picked || resp.has_focus()) && ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy))) {
+                let _ = app.run("mail.copyAttachment", json!({"id": m.id, "index": index}));
+                // (Nor does a selection of egui's own, in the header, copy over it.)
+                ui.ctx().input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Copy)));
+            }
             if resp.double_clicked() {
                 crate::attachment_preview::cancel_click(app);
                 let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
@@ -758,4 +775,6 @@ pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: us
     crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": id}));
     crate::widgets::mi(ui, app, "Remove Attachment", "mail.removeAttachment", json!({"id": id, "index": index}));
+    // The file onto the clipboard, for a file manager or a message being written to paste (#807).
+    crate::widgets::mi(ui, app, "Copy", "mail.copyAttachment", json!({"id": id, "index": index}));
 }

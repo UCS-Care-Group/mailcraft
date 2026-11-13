@@ -46,6 +46,10 @@ send ([Problem reports](#problem-reports)).
   for the expected CLI name in the usual Windows or macOS installation location and then on
   `PATH`. It selects the file by path and name without verifying the program's publisher or
   identity. In Junk E-mail and its subfolders, choose Preview Attachment from the attachment menu.
+- **Attachments you copy** (Copy in an attachment's menu, Ctrl+C) are written to a folder only you
+  can read, in MailCraft's cache folder, so that a paste in your file manager finds them. They stay
+  there after you quit, until a later start finds them a day old, and no more than 512 MB are kept
+  (the oldest go first; the one you copied last is always kept, however large).
 - **A downloaded new version** (only for a copy that updates itself) is kept in the `updates`
   folder of MailCraft's settings folder until it is installed (when you press Restart to update,
   or when you quit), and is deleted when it doesn't pass MailCraft's release signature or when a

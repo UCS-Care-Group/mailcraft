@@ -287,6 +287,15 @@ pub struct Services {
     /// programs and scripts and asked about macros. An error means nothing was opened. Absent in
     /// the browser (the file is downloaded instead) and the tests.
     pub open_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
+    /// Desktop: write an attachment the owner copied (`mail.copyAttachment`, #807) where a file
+    /// manager can paste it from, and say where: under the attachment's own name made safe as Save
+    /// As makes it,
+    /// into a folder of MailCraft's own that only this user can read, which is kept when MailCraft
+    /// quits (a paste soon after still finds the file) and tidied at a later start once it is a
+    /// day old. Any kind of file: nothing is opened. The window then puts the path on the
+    /// clipboard ([`RichClipboard::put_files`]). Only ever called for the owner's own Copy or
+    /// Ctrl+C. Absent in the browser and the tests: nothing is copied, and Copy says so.
+    pub copy_file: Option<Box<dyn Fn(&str, &[u8]) -> Result<std::path::PathBuf, String>>>,
     pub attachment_preview: Option<attachment_preview::Host>,
     /// Web: hand bytes to the browser as a download. An error means no download started.
     pub download: Option<Box<dyn Fn(&str, &[u8]) -> Result<(), String>>>,
@@ -574,6 +583,18 @@ pub trait RichClipboard {
     /// does with what the system read.
     fn text(&self) -> Option<String> {
         None
+    }
+    /// Put files on the clipboard as a file manager puts the ones it copies, for a file manager or
+    /// another program to paste (#807): `paths` are files the host has written. An error means
+    /// the clipboard has none of them.
+    fn put_files(&self, paths: &[std::path::PathBuf]) -> Result<(), String> {
+        let _ = paths;
+        Err(tl!("Files can't be put on the clipboard here.").to_string())
+    }
+    /// The files on the clipboard, when what is on it is files copied in a file manager (#807);
+    /// empty when it isn't. Where they are, as the clipboard says: nothing of them is read here.
+    fn files(&self) -> Vec<std::path::PathBuf> {
+        Vec::new()
     }
 }
 
@@ -1591,6 +1612,13 @@ pub struct MailApp {
     shot_images: std::sync::Arc<std::sync::Mutex<Vec<(u64, std::sync::Arc<egui::ColorImage>)>>>,
     pending_shots: Vec<(u64, Option<String>, bool, std::sync::mpsc::Sender<Value>, f64)>,
     pub(crate) synthetic: Vec<egui::Event>,
+    /// Input the macOS menu bar's Edit menu made (Cut, Copy, Paste, Undo, Redo, Select All): the
+    /// owner's own, as a key press is, and so never counted as the control channel's
+    /// (`driven`); `synthetic` is the control channel's.
+    pub(crate) menu_input: Vec<egui::Event>,
+    /// The attachments the owner copied in this run, for the same one pressed again not to be
+    /// written again ([`attachment_open`]).
+    pub(crate) copies: attachment_open::Copies,
     /// What agents want that waits for the owner's yes ([`agent_gate`]).
     pub(crate) asking: agent_gate::Questions,
     styled: bool,
@@ -1863,6 +1891,8 @@ impl MailApp {
             shot_images: Default::default(),
             pending_shots: Vec::new(),
             synthetic: Vec::new(),
+            menu_input: Vec::new(),
+            copies: Default::default(),
             asking: Default::default(),
             styled: false,
             applied_theme: None,
@@ -4739,7 +4769,7 @@ impl MailApp {
         self.collect_screenshots();
         self.issue_screenshots(ctx);
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
-        if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
+        if !self.synthetic.is_empty() || !self.menu_input.is_empty() || waiting || !self.sync_queue.is_empty() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
         } else if self.auto_sync && self.services.can_sync() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
             // Nothing is happening: look again in a while, in case a Send/Receive round is due or
@@ -5074,21 +5104,31 @@ impl MailApp {
         secret_field::Watch { captured, driven: self.driven }
     }
 
-    /// Inject synthetic input events from the control channel (one pointer event per frame).
+    /// Inject synthetic input events from the control channel (one pointer event per frame), and
+    /// the owner's input from the macOS menu bar, which is not the control channel's: a pass that
+    /// has only that is not `driven`.
     pub fn raw_input_hook(&mut self, raw: &mut egui::RawInput) {
         self.driven = !self.synthetic.is_empty();
         if self.synthetic.is_empty() {
+            let n = Self::next_events(&self.menu_input);
+            raw.events.extend(self.menu_input.drain(..n));
             return;
         }
-        let n = match self.synthetic.first() {
-            Some(egui::Event::PointerMoved(_) | egui::Event::PointerButton { .. }) => 1,
-            _ => self.synthetic.iter().position(|e| matches!(e, egui::Event::Key { pressed: false, .. })).map_or(self.synthetic.len(), |i| i + 1),
-        };
+        let n = Self::next_events(&self.synthetic);
         if let Some(egui::Event::PointerMoved(p) | egui::Event::PointerButton { pos: p, .. }) = self.synthetic.first() {
             raw.events.push(egui::Event::PointerMoved(*p));
         }
-        let n = n.min(self.synthetic.len());
         raw.events.extend(self.synthetic.drain(..n));
+    }
+
+    /// How many of the queued `events` go in one frame: a pointer event alone, else up to and
+    /// with the first key's release.
+    fn next_events(events: &[egui::Event]) -> usize {
+        let n = match events.first() {
+            Some(egui::Event::PointerMoved(_) | egui::Event::PointerButton { .. }) => 1,
+            _ => events.iter().position(|e| matches!(e, egui::Event::Key { pressed: false, .. })).map_or(events.len(), |i| i + 1),
+        };
+        n.min(events.len())
     }
 
     /// Have the mailbox, and the appointments that stand open, read by the clock of the zone the

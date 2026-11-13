@@ -589,8 +589,10 @@ const NEVER: &[&str] = &[
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
     "ui.copySelection",
-    // A file from a message opened with another program: only ever the owner's own doing.
+    // A file from a message opened with another program, or put on the clipboard for another
+    // program to paste (#807): only ever the owner's own doing.
     "mail.openAttachment",
+    "mail.copyAttachment",
     "ui.previewAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",

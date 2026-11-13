@@ -10,6 +10,8 @@
 //! MailCraft's own, under a name made safe, and asks the system to open it
 //! ([`Services::open_file`](crate::Services::open_file)). The browser has no such thing: there the
 //! file is downloaded instead. Agents can't ask for any of it (`agent::access`).
+//!
+//! `mail.copyAttachment` (#807) is here too: the same attachment, put on the clipboard as a file.
 
 use mailcraft_engine::opening::{self, Verdict};
 use mailcraft_model::Id;
@@ -18,6 +20,35 @@ use serde_json::{Value, json};
 use crate::MailApp;
 
 pub(crate) const OPEN: &str = "mail.openAttachment";
+pub(crate) const COPY: &str = "mail.copyAttachment";
+
+/// The attachments copied in this run, so that the same one copied again (Ctrl+C held down comes
+/// as a Copy for every key repeat) is put on the clipboard from the file written the first time,
+/// not written anew each time.
+#[derive(Default)]
+pub(crate) struct Copies(Vec<(Copied, std::path::PathBuf)>);
+
+/// Which attachment, of which opening of the mailbox: its message, its index, its name and size.
+#[derive(PartialEq)]
+struct Copied(u64, Id, usize, String, u64);
+
+/// The most attachments remembered; the oldest go first.
+const MOST_COPIES: usize = 16;
+
+impl Copies {
+    /// Where `what` was written, while that file is still there (the host tidies and caps them).
+    fn of(&self, what: &Copied) -> Option<&std::path::Path> {
+        self.0.iter().find(|(c, _)| c == what).map(|(_, path)| path.as_path()).filter(|path| path.is_file())
+    }
+
+    fn remember(&mut self, what: Copied, path: std::path::PathBuf) {
+        self.0.retain(|(c, _)| *c != what);
+        if self.0.len() >= MOST_COPIES {
+            self.0.remove(0);
+        }
+        self.0.push((what, path));
+    }
+}
 
 /// The attachment the params name: its message, its index and its name.
 fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
@@ -49,12 +80,48 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, Stri
     Some((tl!("Opening Mail Attachment").to_string(), text, tl!("Open").to_string()))
 }
 
-/// `mail.openAttachment` from the window, the control channel or a test.
+/// `mail.openAttachment` and `mail.copyAttachment` from the window, the control channel or a test.
 pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
-    if id != OPEN {
-        return None;
+    match id {
+        OPEN => Some(open(app, p)),
+        COPY => Some(copy(app, p)),
+        _ => None,
     }
-    Some(open(app, p))
+}
+
+/// Copy (#807): the file put on the system's clipboard as a file manager puts the files it
+/// copies, for one to paste, or a message being written. As Save As, any kind of file and under
+/// the name Save As gives it (nothing is opened); the host writes it ([`Services::copy_file`],
+/// [`crate::RichClipboard::put_files`]). The browser has no such clipboard: Copy says so.
+///
+/// [`Services::copy_file`]: crate::Services::copy_file
+fn copy(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let (message, index, name) = target(app, p)?;
+    // The control channel's clicks are no Copy of the owner's: the clipboard is never an agent's.
+    if app.driven {
+        return Err(tl!("Only you can copy an attachment, with its menu's Copy or Ctrl+C.").to_string());
+    }
+    let (Some(write), Some(board)) = (&app.services.copy_file, &app.services.clipboard) else {
+        return Err(tl!("An attachment can't be copied here: save it with Save As instead.").to_string());
+    };
+    let size = app.session.mailbox.message(message).and_then(|m| m.attachments.get(index)).map_or(0, |a| a.size() as u64);
+    let what = Copied(app.session.openings(), message, index, name.clone(), size);
+    // The same one again (a key held down repeats Ctrl+C): the file written for it already is put
+    // on the clipboard once more, nothing is read or written.
+    if let Some(path) = app.copies.of(&what).map(std::path::Path::to_path_buf) {
+        board.put_files(std::slice::from_ref(&path))?;
+        let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| opening::save_name(&name));
+        app.status(crate::i18n::fmt(tl!("Copied {name}"), &[("name", &file)]));
+        return Ok(json!({"name": file, "copied": true}));
+    }
+    let bytes = app.session.content(message, mailcraft_engine::Part::Attachment(index)).map_err(|e| e.to_string())?;
+    // The host names it, as Save As does ([`opening::save_name`]); said as it named it.
+    let path = write(&name, bytes.as_slice())?;
+    let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| opening::save_name(&name));
+    board.put_files(std::slice::from_ref(&path))?;
+    app.copies.remember(what, path);
+    app.status(crate::i18n::fmt(tl!("Copied {name}"), &[("name", &file)]));
+    Ok(json!({"name": file, "copied": true}))
 }
 
 fn open(app: &mut MailApp, p: &Value) -> Result<Value, String> {

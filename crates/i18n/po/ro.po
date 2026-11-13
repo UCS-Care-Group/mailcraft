@@ -1223,6 +1223,11 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "O programare marcată privată arată doar că sunteți ocupat. Nu este numit niciun invitat."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "An attachment can't be copied here: save it with Save As instead."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -2996,6 +3001,11 @@ msgstr "Contribuitori"
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Contribuitorii își aleg singuri numele; vedeți docs/contributors.md."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "Copied {name}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
@@ -3003,7 +3013,7 @@ msgid "Copies a short message with the address of Microsoft's page where an admi
 msgstr "Copiază un mesaj scurt cu adresa paginii Microsoft unde un administrator al organizației aprobă MailCraft, o dată pentru toți. Nu se trimite nimic: lipiți-l chiar dvs. într-un e-mail sau chat."
 
 #. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Copiere"
@@ -3017,6 +3027,11 @@ msgid ""
 msgstr ""
 "Copiere\n"
 "diagnostic"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Copy Attachment"
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -4611,6 +4626,11 @@ msgstr "Ferestrele de fișiere nu sunt disponibile aici"
 #, fuzzy
 msgid "File:"
 msgstr "Fișier:"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Files can't be put on the clipboard here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -9106,6 +9126,11 @@ msgstr "Doar când cer"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "Doar cât timp MailCraft nu este fereastra din față și doar pentru dosarele Mesaje primite ale propriilor conturi."
 
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "Only you can copy an attachment, with its menu's Copy or Ctrl+C."
+msgstr ""
+
 #. interface, ribbon
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -11463,6 +11488,11 @@ msgstr "Selectați întâi un text"
 #, fuzzy
 msgid "Select the message before previewing its attachment."
 msgstr "Selectați mesajul înainte de a-i previzualiza atașamentul."
+
+#. ribbon location
+#: crates/engine/src/cmd/mail.rs
+msgid "Selection"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs

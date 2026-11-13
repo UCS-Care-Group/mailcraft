@@ -1055,6 +1055,7 @@ fn services(
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
+    let opened = opened_files();
     // The host: what the platform gives the program, held by the threads that run its jobs. The
     // desktop's platform asks the window, by message, for what only the window may do.
     let platform_calls = mailcraft_ui_egui::platform::PlatformCalls::default();
@@ -1218,8 +1219,13 @@ fn services(
         })),
         // An attachment the owner opened (double-click, Open): written into MailCraft's own
         // folder and opened with the system's program for its kind (#126).
-        open_file: opened_files()
+        open_file: opened
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
+        // An attachment the owner copied (Copy, Ctrl+C): written beside them, in a folder that is
+        // kept when MailCraft quits, for a file manager to paste (#807).
+        copy_file: opened.map(|opened| {
+            Box::new(move |name: &str, bytes: &[u8]| opened.copy(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<std::path::PathBuf, String>>
+        }),
         attachment_preview,
         secrets: secrets::store(),
         // File › Options › Security (#30 R13): the owner's own certificates and keys listed,

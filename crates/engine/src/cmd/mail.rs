@@ -85,6 +85,12 @@ pub fn specs() -> Vec<CommandSpec> {
                 r#"{"index": number, "id"?: number} — opens the file with the computer's own program for it, in the MailCraft window only (never for an agent). Programs, scripts, shortcuts, installers and disk images are refused: save them instead. Anywhere else answers why it opened nothing"#,
             )
             .selection(needs_message),
+        CommandSpec::new("mail.copyAttachment", "Copy Attachment", "Attachments › Selection", copy_attachment)
+            .pure()
+            .params(
+                r#"{"index": number, "id"?: number} — puts the file on the computer's clipboard, for a file manager or a message being written to paste, in the MailCraft window only (never for an agent). Any kind of file, as Save As: nothing is opened. Anywhere else answers why it copied nothing"#,
+            )
+            .selection(needs_message),
         CommandSpec::new("mail.saveAttachment", "Save Attachment", "Attachments › Actions", save_attachment)
             .pure()
             .params(r#"{"index": number, "id"?: number, "path"?: string} — without a path, answers the bytes as base64 `data`"#)
@@ -987,6 +993,13 @@ fn open_attachment(s: &mut Session, v: &Value) -> CmdResult {
         crate::opening::Verdict::Blocked => fail(crate::opening::blocked_message(&name)),
         _ => crate::CmdError::Disabled("attachments are opened in the MailCraft window; `mail.saveAttachment` gives the file".into()),
     })
+}
+
+/// The window copies attachments onto the system's clipboard (through its host, #807); everywhere
+/// else this says why nothing was copied. The kind of file doesn't stop it: nothing is opened.
+fn copy_attachment(s: &mut Session, v: &Value) -> CmdResult {
+    attachment_target(s, v)?;
+    Err(crate::CmdError::Disabled("attachments are copied to the clipboard in the MailCraft window; `mail.saveAttachment` gives the file".into()))
 }
 
 fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {

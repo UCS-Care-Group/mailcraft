@@ -405,6 +405,17 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   `apps/mailcraft/src/picture_cache.rs`); a settings, log or picture folder that an earlier version
   left open to others is closed when MailCraft next uses it. On Windows they live in the owner's
   profile.
+- **Files copied to and from the clipboard are the owner's own doing** (#807). An attachment is put
+  on the clipboard as a file only by the owner's Copy, Ctrl+C or the macOS menu bar's Edit › Copy
+  (the control channel's input never copies: `mail.copyAttachment` is `never` for agents, and the
+  menu bar's input is told apart from the control channel's), into a folder of the owner's alone
+  that quitting leaves for a paste to find. The same attachment copied again (a key held down
+  repeats Ctrl+C) is written once, and the copies kept come to no more than 512 MB, the oldest going
+  first (the one just copied always stays) (`apps/mailcraft/src/opened_files.rs`, `crates/ui-egui/src/attachment_open.rs`). Files on
+  the clipboard are attached to a message being written by a paste only when the text that comes
+  with them is nothing (then all of them) or lists files (their paths, addresses or names; then only
+  those), so a page that puts `file://` addresses beside the text copied from it gets that text
+  pasted as text; the status line names the files attached (`crates/ui-egui/src/compose/file_paste.rs`).
 - **Secrets are in the operating system's credential store** (Windows Credential Manager, the macOS
   keychain, the Secret Service: GNOME Keyring, KWallet; `apps/mailcraft/src/secrets.rs`), never in
   the mailbox file, `ui.json`, a command line, a URL or a log line. They are `#[serde(skip)]` and redacted
