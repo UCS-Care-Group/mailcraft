@@ -8,6 +8,9 @@
 use std::collections::HashMap;
 
 pub mod calendar;
+pub mod calendar_plan;
+#[cfg(test)]
+mod calendar_plan_tests;
 #[cfg(test)]
 mod calendar_tests;
 pub mod favorites;
@@ -22,7 +25,10 @@ mod jobs_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
+#[cfg(test)]
+mod reset_tests;
 
+pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
@@ -264,4 +270,12 @@ pub struct Driver {
     pub favorites: FavoritesDriver,
     /// Messages fetched whole in the background and for the owner.
     pub fetch: FetchDriver,
+}
+
+impl Driver {
+    /// Another mailbox took the place of the open one: everything the driver remembered is the
+    /// old mailbox's (its accounts' ids may name other accounts here), so none of it is kept.
+    pub fn reset(&mut self) {
+        *self = Driver::default();
+    }
 }

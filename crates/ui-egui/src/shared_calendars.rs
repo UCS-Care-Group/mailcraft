@@ -27,43 +27,9 @@ use serde_json::{Value, json};
 use crate::dialogs::Dialog;
 use crate::{MailApp, Tokens};
 
-/// Where a shared mailbox's calendars stand with the owner's permission for reading them.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Permission {
-    /// A run read them with it.
-    Given,
-    /// The owner allowed it on Microsoft's page just now, and no run has read them with it yet:
-    /// the next one does (it isn't held back), and says [`Permission::Given`] or
-    /// [`Permission::Needed`].
-    Allowed,
-    /// A run found the owner's sign-in doesn't cover it: the owner is to be asked.
-    Needed,
-    /// The owner is being asked: the question, or Microsoft's page.
-    Asking,
-    /// Asked, and no: why, in a few words.
-    Refused(String),
-}
+pub(crate) use mailcraft_engine::sync_driver::SharedPermission as Permission;
 
 impl MailApp {
-    /// Whether any calendar of the shared mailbox `shared` is ticked: the owner wants it read.
-    pub(crate) fn shared_calendar_wanted(&self, shared: Id) -> bool {
-        self.session.mailbox.calendars.iter().any(|c| c.origin.account == shared && c.visible)
-    }
-
-    /// The shared mailboxes whose calendars are kept in step now: one of them is ticked, and the
-    /// account it is opened through signs in with Microsoft.
-    pub(crate) fn shared_calendar_accounts(&self) -> Vec<Id> {
-        let mailbox = &self.session.mailbox;
-        let signs_in = |shared: &&Account| mailbox.owner_of(shared.id).is_some_and(|owner| owner.oauth.is_some());
-        mailbox.accounts.iter().filter(|a| a.is_shared()).filter(signs_in).filter(|a| self.shared_calendar_wanted(a.id)).map(|a| a.id).collect()
-    }
-
-    /// Whether `shared`'s calendars wait for the owner's permission: not asked of the server
-    /// until it is had (or asked for again).
-    pub(crate) fn shared_calendars_blocked(&self, shared: Id) -> bool {
-        matches!(self.shared_calendar_perm.get(&shared), Some(Permission::Needed | Permission::Asking | Permission::Refused(_)))
-    }
-
     /// Ask the owner, once, for what a calendar ticked in a shared mailbox found missing: a
     /// question first, with the calendar in front (the owner ticked it), then Microsoft's page.
     /// Called every look at the calendar.
@@ -71,15 +37,7 @@ impl MailApp {
         if self.dialog.is_some() || self.session.view.module != mailcraft_engine::Module::Calendar || self.ui.backstage {
             return;
         }
-        let Some(shared) = self
-            .shared_calendar_perm
-            .iter()
-            .filter(|(_, perm)| **perm == Permission::Needed)
-            .map(|(shared, _)| *shared)
-            .find(|shared| self.session.mailbox.account(*shared).is_some_and(Account::is_shared))
-        else {
-            return;
-        };
+        let Some(shared) = self.session.shared_calendar_to_ask() else { return };
         self.ask_shared_calendars(shared);
     }
 
@@ -102,7 +60,7 @@ impl MailApp {
             cancel: None,
             tick: None,
         };
-        self.shared_calendar_perm.insert(shared, Permission::Asking);
+        self.session.driver.calendar.shared_perm.insert(shared, Permission::Asking);
         self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedCalendars".to_string(), params: json!({"account": shared}), ask });
         true
     }
@@ -127,10 +85,10 @@ impl MailApp {
         (self.shared_next, self.shared_calendars_next) = (None, false);
         if let Err(e) = begun {
             // (The page never came up: nothing was refused, and Ask again is there.)
-            self.shared_calendar_perm.insert(shared, Permission::Needed);
+            self.session.driver.calendar.shared_perm.insert(shared, Permission::Needed);
             return Err(e);
         }
-        self.shared_calendar_perm.insert(shared, Permission::Asking);
+        self.session.driver.calendar.shared_perm.insert(shared, Permission::Asking);
         self.session.sync_status = tl!("Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…").to_string();
         Ok(json!({"pending": "signIn", "account": owner.id}))
     }
@@ -145,37 +103,37 @@ impl MailApp {
         match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(owner, &tokens) => {
-                self.shared_calendar_perm.insert(shared, Permission::Needed);
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Needed);
             }
             Ok(tokens) => {
                 self.keep_shared_calendar_tokens(shared, owner, tokens);
                 // Allowed, as far as is known: the next look at the calendar finds out.
-                self.shared_calendar_perm.insert(shared, Permission::Allowed);
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Allowed);
                 self.session.driver.calendar.book.forget_failures(shared);
                 self.session.driver.calendar.book.forget_checked(shared);
-                self.graph_checked.remove(&shared);
+                self.session.driver.calendar.checked.remove(&shared);
                 self.session.driver.calendar.due = true;
             }
             Err(e) if e == NEEDS_APPROVAL => {
                 let said = tl!("Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info");
-                self.shared_calendar_perm.insert(shared, Permission::Refused(said.to_string()));
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Refused(said.to_string()));
                 self.status(said);
                 // What to do next (#124): an administrator approves once, for everybody.
                 let _ = self.run("ui.approvalHelp", json!({"account": owner}));
             }
             Err(e) if e == REFUSED_BY_ORGANISATION || e == REFUSED_FOR_ACCOUNT => {
                 let said = tl!("Your organisation doesn't allow MailCraft to read shared mailboxes' calendars");
-                self.shared_calendar_perm.insert(shared, Permission::Refused(said.to_string()));
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Refused(said.to_string()));
                 self.status(said);
             }
             // The page never came up: nothing was refused, and File › Info asks again.
             Err(e) if e == NO_BROWSER => {
-                self.shared_calendar_perm.insert(shared, Permission::Needed);
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Needed);
                 self.status(crate::i18n::fmt(tl!("The calendars of the shared mailbox wait: {error}"), &[("error", &e)]));
             }
             Err(e) => {
                 let said = crate::i18n::fmt(tl!("Shared mailboxes' calendars weren't allowed: {error}"), &[("error", &e)]);
-                self.shared_calendar_perm.insert(shared, Permission::Refused(said.clone()));
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Refused(said.clone()));
                 self.status(said);
             }
         }
@@ -187,15 +145,15 @@ impl MailApp {
     pub(crate) fn shared_calendars_answered(&mut self, shared: Id, result: &crate::GraphResult, errors: &mut Vec<String>) {
         if result.consent_needed {
             // (Asked about when the calendar is in front: [`MailApp::shared_calendars_ask_tick`].)
-            if !matches!(self.shared_calendar_perm.get(&shared), Some(Permission::Asking | Permission::Refused(_))) {
-                self.shared_calendar_perm.insert(shared, Permission::Needed);
+            if !matches!(self.session.driver.calendar.shared_perm.get(&shared), Some(Permission::Asking | Permission::Refused(_))) {
+                self.session.driver.calendar.shared_perm.insert(shared, Permission::Needed);
             }
         } else if result.sign_in_refused {
             errors.push(
                 tl!("The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive").to_string(),
             );
         } else if !result.token_refused {
-            self.shared_calendar_perm.insert(shared, Permission::Given);
+            self.session.driver.calendar.shared_perm.insert(shared, Permission::Given);
         }
         // What makes the server send mail from the shared mailbox (an answer to a meeting, one
         // called off or forwarded, one with people invited) found that sending from shared
@@ -242,7 +200,7 @@ impl MailApp {
     /// hour going by does, for a host's tests (which have a stopped clock).
     #[doc(hidden)]
     pub fn calendar_list_due(&mut self, account: Id) {
-        self.graph_checked.remove(&account);
+        self.session.driver.calendar.checked.remove(&account);
         self.session.driver.calendar.book.forget_checked(account);
     }
 
@@ -250,7 +208,7 @@ impl MailApp {
     /// whether there is a way to ask again.
     pub(crate) fn shared_calendar_line(&self, shared: Id) -> Option<(String, bool)> {
         self.session.mailbox.account(shared).filter(|a| a.is_shared())?;
-        match self.shared_calendar_perm.get(&shared) {
+        match self.session.driver.calendar.shared_perm.get(&shared) {
             Some(Permission::Given) => Some((tl!("Calendars: allowed").to_string(), false)),
             Some(Permission::Allowed) => Some((tl!("Calendars: allowed, reading them…").to_string(), false)),
             Some(Permission::Needed) => Some((tl!("Calendars: waiting for your permission").to_string(), true)),
