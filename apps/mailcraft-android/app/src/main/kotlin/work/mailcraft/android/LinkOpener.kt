@@ -3,7 +3,6 @@
 package work.mailcraft.android
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
@@ -64,9 +63,8 @@ internal class SystemLinks(
             } else {
                 context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-        } catch (_: ActivityNotFoundException) {
-            throw HostException.Failed()
-        } catch (_: SecurityException) {
+        } catch (_: RuntimeException) {
+            // (No app takes it, or the system refused.)
             throw HostException.Failed()
         }
     }

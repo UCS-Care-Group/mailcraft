@@ -6,6 +6,8 @@ package work.mailcraft.android
 
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import app.cash.paparazzi.SnapshotHandler
+import java.lang.reflect.Proxy
 import com.android.ide.common.rendering.api.SessionParams
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -13,12 +15,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+/**
+ * A Paparazzi handler that keeps no picture: this test reads the semantics and has nothing to compare.
+ * (A proxy, since the picture type it is handed is not on the compile path of an Android test.)
+ */
+private fun noPictures(): SnapshotHandler {
+    val loader = SnapshotHandler::class.java.classLoader
+    val frames = Proxy.newProxyInstance(loader, arrayOf(SnapshotHandler.FrameHandler::class.java)) { _, _, _ -> null }
+    return Proxy.newProxyInstance(loader, arrayOf(SnapshotHandler::class.java)) { _, method, _ ->
+        if (method.name == "newFrameHandler") frames else null
+    } as SnapshotHandler
+}
+
 /** What a screen reader is told of the corpus messages, read from the semantics tree that was really drawn. */
 class BodySemanticsTest {
     @get:Rule
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 3_400),
         renderingMode = SessionParams.RenderingMode.NORMAL,
+        snapshotHandler = noPictures(),
     )
 
     private fun draw(ui: ReadingUi): List<Said> {
