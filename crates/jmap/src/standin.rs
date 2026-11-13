@@ -230,6 +230,10 @@ pub struct Data {
     /// (RFC 8620 §6.1), and an import of an email it has is refused with `alreadyExists` and the
     /// `existingId` (RFC 8621 §4.8).
     pub no_duplicates: bool,
+    /// Every upload gets a blob id of its own, octets the server has already too: RFC 8620 §6 lets the
+    /// same octets go by more than one id. With [`Data::no_duplicates`], an email it has already is still
+    /// refused, and its blob is not the one just uploaded.
+    pub blob_per_upload: bool,
     /// What the next uploads are answered with instead of being taken, oldest first: an HTTP status and
     /// a `Retry-After` of that many seconds.
     pub refuse_next_upload: VecDeque<(u16, Option<u32>)>,
@@ -298,6 +302,7 @@ impl Data {
             passes_over_unknown: false,
             refuse_submission: None,
             no_duplicates: false,
+            blob_per_upload: false,
             refuse_next_upload: VecDeque::new(),
             now: "2026-10-15T12:00:00Z".into(),
             token: Some(TOKEN.into()),

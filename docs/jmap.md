@@ -52,7 +52,9 @@ sync` refuses it.
   to the server as recipients only; the message names none of them. A message the server refuses
   is held in the Outbox with the reason, and so is one whose answer was lost, which may have gone:
   neither is sent again by itself. A server that offers no submission, or has no identity for the
-  account's address, sends nothing: the message is held and says so.
+  account's address, sends nothing: the message is held and says so. Only Send sends: a message
+  moved into the account's Outbox (a draft, or mail only this computer has) is held there until
+  Send Again, and a copy doesn't go into it.
 
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the

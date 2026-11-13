@@ -111,15 +111,40 @@ fn what_a_call_answered_before_its_error_can_be_taken_with_the_error() {
     // The plain way still takes the call for failed.
     assert!(matches!(parsed.clone().take_named(&ids[0], "Foo/set"), Err(CallFailure::Method(_))));
     let mut response = parsed;
-    let (answer, after) = response.take_named_before_error(&ids[0], "Foo/set");
+    let (answer, rest, after) = response.take_named_before_error(&ids[0], "Foo/set");
     assert_eq!(answer.unwrap()["created"]["k"]["id"], "F1");
+    assert!(rest.is_empty());
     assert_eq!(after.map(|error| error.kind().clone()), Some(MethodErrorKind::ServerUnavailable));
     // An error with nothing before it is the call's failure; another name is not taken for the one asked.
-    let (answer, after) = response.take_named_before_error(&ids[1], "Foo/set");
-    assert!(matches!(answer, Err(CallFailure::Method(error)) if error.kind() == &MethodErrorKind::ServerFail) && after.is_none());
-    assert_eq!(response.take_named_before_error(&ids[2], "Foo/set"), (Err(CallFailure::UnexpectedResponse), None));
-    assert_eq!(response.take_named_before_error(&ids[3], "Foo/set"), (Err(CallFailure::Missing), None));
-    assert_eq!(response.take_named_before_error(&ids[0], "Foo/set"), (Err(CallFailure::Missing), None), "taken once");
+    let (answer, rest, after) = response.take_named_before_error(&ids[1], "Foo/set");
+    assert!(matches!(answer, Err(CallFailure::Method(error)) if error.kind() == &MethodErrorKind::ServerFail) && rest.is_empty() && after.is_none());
+    assert_eq!(response.take_named_before_error(&ids[2], "Foo/set"), (Err(CallFailure::UnexpectedResponse), Vec::new(), None));
+    assert_eq!(response.take_named_before_error(&ids[3], "Foo/set"), (Err(CallFailure::Missing), Vec::new(), None));
+    assert_eq!(response.take_named_before_error(&ids[0], "Foo/set"), (Err(CallFailure::Missing), Vec::new(), None), "taken once");
+}
+
+// RFC 8621 §7.5: the implicit call may answer as a response of its own, under the same call id.
+#[test]
+fn what_else_a_call_answered_is_handed_back_beside_the_response_asked_for() {
+    let (_, ids) = calls(2);
+    let body = json!({
+        "methodResponses": [
+            ["Foo/set", {"created": {"k": {"id": "F1"}}}, "c0"], ["Bar/set", {"notUpdated": {"B1": {"type": "forbidden"}}}, "c0"],
+            ["Bar/set", {"updated": {"B2": null}}, "c1"], ["Foo/set", {}, "c1"], ["Baz/set", {}, "c1"], ["error", {"type": "serverFail"}, "c1"],
+        ],
+        "sessionState": "s"
+    });
+    let mut response = ApiResponse::parse(body.to_string().as_bytes(), &Redactor::new()).unwrap();
+    let (answer, rest, after) = response.take_named_before_error(&ids[0], "Foo/set");
+    assert_eq!(answer.unwrap()["created"]["k"]["id"], "F1");
+    assert_eq!(rest.iter().map(MethodResponse::name).collect::<Vec<_>>(), ["Bar/set"]);
+    assert_eq!(rest[0].arguments()["notUpdated"]["B1"]["type"], "forbidden");
+    assert!(after.is_none());
+    // In the order they came, wherever the one asked for stood, and with the error that ended the call.
+    let (answer, rest, after) = response.take_named_before_error(&ids[1], "Foo/set");
+    assert!(answer.is_ok_and(|answer| answer.is_empty()));
+    assert_eq!(rest.iter().map(MethodResponse::name).collect::<Vec<_>>(), ["Bar/set", "Baz/set"]);
+    assert!(after.is_some());
 }
 
 // Requirement 3.3: a name other than the one asked for is not silently accepted.

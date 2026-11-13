@@ -349,16 +349,25 @@ impl ApiResponse {
     /// is handed back beside it. That is a method whose own work was done and whose implicit call then failed
     /// (RFC 8621 §7.5: the `Email/set` of `onSuccessUpdateEmail` is answered after the `EmailSubmission/set`,
     /// under the same call id). An error with no response named `name` before it is the failure of the call.
-    pub fn take_named_before_error(&mut self, call: &CallId, name: &str) -> (Result<Map<String, Value>, CallFailure>, Option<MethodError>) {
-        let Some(CallResult { responses, error }) = self.calls.remove(call.as_str()) else {
-            return (Err(CallFailure::Missing), None);
+    /// What else the call answered is handed back between the two, in the order it came: the implicit call
+    /// may answer as a response of its own, which says what it did and what it would not do.
+    pub fn take_named_before_error(
+        &mut self,
+        call: &CallId,
+        name: &str,
+    ) -> (Result<Map<String, Value>, CallFailure>, Vec<MethodResponse>, Option<MethodError>) {
+        let Some(CallResult { mut responses, error }) = self.calls.remove(call.as_str()) else {
+            return (Err(CallFailure::Missing), Vec::new(), None);
         };
         let nothing = responses.is_empty();
-        match (responses.into_iter().find(|response| response.name == name), error) {
-            (Some(response), after) => (Ok(response.into_arguments()), after),
-            (None, Some(error)) => (Err(CallFailure::Method(error)), None),
-            (None, None) if nothing => (Err(CallFailure::Missing), None),
-            (None, None) => (Err(CallFailure::UnexpectedResponse), None),
+        match (responses.iter().position(|response| response.name == name), error) {
+            (Some(at), after) => {
+                let response = responses.remove(at);
+                (Ok(response.into_arguments()), responses, after)
+            }
+            (None, Some(error)) => (Err(CallFailure::Method(error)), Vec::new(), None),
+            (None, None) if nothing => (Err(CallFailure::Missing), Vec::new(), None),
+            (None, None) => (Err(CallFailure::UnexpectedResponse), Vec::new(), None),
         }
     }
 

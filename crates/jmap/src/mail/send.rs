@@ -47,15 +47,19 @@
 //!   (the run stopped, the sign-in refused, the server busy or not reached), the message waits and the copy
 //!   stays; it is not known here at the next run, which imports again. A server that keeps no two emails
 //!   alike then answers `alreadyExists` with the id of the one it has (RFC 8621 §4.8), and that one is
-//!   submitted instead, once it is seen to be of the very blob that was just uploaded (`Email/get`, its
-//!   `blobId`): never an email that only resembles the message. One that cannot be told to be the same
-//!   holds the message with the server's refusal. A copy that was there already is never destroyed. (A
+//!   submitted instead, once it is seen to hold the very octets that were just uploaded (`Email/get`: its
+//!   `blobId` is the upload's; or, a server being free to name the same octets by another id (RFC 8620
+//!   §6), its `size` is the upload's and its blob, downloaded with no more octets taken than were
+//!   uploaded, is the same octet for octet): never an email that only resembles the message. One that
+//!   cannot be told to be the same holds the message with the server's refusal. A copy that was there
+//!   already is never destroyed. (A
 //!   server that lets two emails be alike makes a second one, which is sent; the first stays in Sent with
 //!   its draft mark, one copy too many and nothing lost.)
 //! - *The submission*: sent only when the answer has it among those created, and then it is sent whatever
 //!   follows under the same call (the implicit `Email/set` of `onSuccessUpdateEmail`, RFC 8621 §7.5, is
-//!   answered after it, and its error does not unsay the submission; the draft mark it should have taken
-//!   off is then asked off once more by itself). Refused by the server (`notCreated`, or an error of the
+//!   answered after it, and neither its error nor its saying that the email was not updated unsays the
+//!   submission; the draft mark it should have taken off is then asked off once more by itself). Refused
+//!   by the server (`notCreated`, or an error of the
 //!   call that leaves the server as it was): held with why, or waiting when the server says to try later,
 //!   and the copy this run imported is destroyed again. Anything else: held as one that may have gone, and
 //!   the copy is left where it is (destroying it would not call the delivery back, RFC 8621 §7.5).
@@ -78,9 +82,10 @@ use serde_json::{Map, Value, json};
 
 use super::{LIST_BYTES, Outcome, Run, Stop, arguments, get, mail_request, refusal, said};
 use crate::connection::unusable;
+use crate::fetch::{MESSAGE_NAME, MESSAGE_TYPE};
 use crate::{
-    ApiRequest, BuildError, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, MethodError, MethodErrorKind, Redactor,
-    TransportError,
+    ApiRequest, BuildError, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, MethodError, MethodErrorKind, MethodResponse,
+    Redactor, TransportError,
 };
 
 /// Most recipients one message is sent to.
@@ -302,6 +307,30 @@ pub(super) fn same_octets(answer: &Value, email: &str, blob: &str) -> bool {
         .any(|entry| entry.get("id").and_then(Value::as_str) == Some(email) && entry.get("blobId").and_then(Value::as_str) == Some(blob))
 }
 
+/// The blob of the email `email`, of those an answer to `Email/get` lists, when the answer says it is of
+/// `size` octets: one that may hold the octets of an upload of that size under another id, which a server
+/// is free to give them (RFC 8620 §6), and that is worth reading to see. An email of another size is not
+/// the upload, whatever its blob.
+pub(super) fn blob_of_size(answer: &Value, email: &str, size: usize) -> Option<Id> {
+    let list = answer.get("list").and_then(Value::as_array)?;
+    let size = u64::try_from(size).ok()?;
+    let entry = list.iter().take(MAX_IDENTITIES).find(|entry| entry.get("id").and_then(Value::as_str) == Some(email))?;
+    if entry.get("size").and_then(Value::as_u64) != Some(size) {
+        return None;
+    }
+    entry.get("blobId").and_then(Value::as_str).and_then(|blob| Id::new(blob).ok())
+}
+
+/// Whether what a submission's call answered besides (`rest`) says that the email `email` was not
+/// updated: the implicit `Email/set` of `onSuccessUpdateEmail` answers as an `Email/set` response of the
+/// same call (RFC 8621 §7.5), and an email it would not update is among its `notUpdated`.
+pub(super) fn not_updated(rest: &[MethodResponse], email: &str) -> bool {
+    let named = |response: &&MethodResponse| response.name() == "Email/set";
+    rest.iter()
+        .filter(named)
+        .any(|response| response.arguments().get("notUpdated").and_then(Value::as_object).is_some_and(|all| all.contains_key(email)))
+}
+
 /// What the answers to the import (`imported`) and the submission (`submitted`) of one message say became
 /// of it. Whatever they hold, this reads them without trusting them: the message is sent only when the
 /// answer has the submission among those created; it is held with a reason only when the answer says the
@@ -466,7 +495,8 @@ impl<H: HttpExchange> Run<'_, H> {
         if u64::try_from(octets.len()).unwrap_or(u64::MAX) > limit {
             return (Some(held(TOO_LARGE)), None);
         }
-        let blob = match self.connection.upload("message/rfc822", octets, &self.secrets).await {
+        // (The octets are kept: an email the server says it has already is compared with them.)
+        let blob = match self.connection.upload(MESSAGE_TYPE, octets.clone(), &self.secrets).await {
             Ok(blob) => blob,
             Err(error) => return self.not_uploaded(error),
         };
@@ -474,7 +504,7 @@ impl<H: HttpExchange> Run<'_, H> {
         if let Err(stop) = self.check() {
             return (None, Some(stop));
         }
-        let (outcome, stop, tidy) = self.submit(blob.as_str(), identity, mailbox, &to).await;
+        let (outcome, stop, tidy) = self.submit(blob.as_str(), &octets, identity, mailbox, &to).await;
         let tidied = match tidy {
             Some(tidy) if self.check().is_ok() => self.tidy(tidy).await,
             _ => None,
@@ -516,9 +546,9 @@ impl<H: HttpExchange> Run<'_, H> {
         }
     }
 
-    /// Import the blob and submit the email, in one request where the server takes two calls: what became
-    /// of the message, why the sending ends here (if it does), and what is left to tidy up.
-    async fn submit(&self, blob: &str, identity: &str, mailbox: &str, to: &[String]) -> Step {
+    /// Import the blob (of `octets`) and submit the email, in one request where the server takes two calls:
+    /// what became of the message, why the sending ends here (if it does), and what is left to tidy up.
+    async fn submit(&self, blob: &str, octets: &[u8], identity: &str, mailbox: &str, to: &[String]) -> Step {
         let account = self.account();
         let from = self.request.email.as_str();
         let import = import_arguments(account, blob, mailbox);
@@ -542,13 +572,13 @@ impl<H: HttpExchange> Run<'_, H> {
                 }
             };
             let imported = answers.take_named(&import, "Email/import");
-            let (submitted, after) = answers.take_named_before_error(&submit, "EmailSubmission/set");
+            let (submitted, rest, after) = answers.take_named_before_error(&submit, "EmailSubmission/set");
             // The server has the message already, and says the submission was not made for want of it.
             if let Some(copy) = existing_of(&imported).filter(|_| not_made(&submitted)) {
                 let refused = settled(&self.secrets, imported, submitted).outcome.unwrap_or_else(lost);
-                return self.submit_copy(&copy, blob, identity, to, refused).await;
+                return self.submit_copy(&copy, blob, octets, identity, to, refused).await;
             }
-            return self.concluded(imported, submitted, after.as_ref(), true);
+            return self.concluded(imported, submitted, &rest, after.as_ref(), true);
         }
         // A server that takes one call to a request: the import first, which sends nothing.
         let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
@@ -572,7 +602,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 _ => return (None, Some(Stop::Failed(unusable("the answer does not say what became of the message").into())), None),
             };
             return match copy {
-                Some(copy) => self.submit_copy(&copy, blob, identity, to, refused).await,
+                Some(copy) => self.submit_copy(&copy, blob, octets, identity, to, refused).await,
                 None => (Some(refused), None, None),
             };
         };
@@ -585,19 +615,29 @@ impl<H: HttpExchange> Run<'_, H> {
     }
 
     /// The server would not import the message because it has it already, as the email `copy`. When that
-    /// email is of the blob just uploaded (the same octets, by the id of its blob), it is the one submitted;
-    /// when that cannot be seen, the message is held with the server's refusal, `refused`. The copy was
-    /// there before this request, and is never destroyed.
-    async fn submit_copy(&self, copy: &str, blob: &str, identity: &str, to: &[String], refused: SendOutcome) -> Step {
+    /// email holds the octets just uploaded (`octets`, as the blob `blob`), it is the one submitted: its
+    /// blob is `blob`, or it is a blob of as many octets under another id (which RFC 8620 §6 lets a server
+    /// give the same octets) that is read and found the same, octet for octet. When that cannot be seen,
+    /// the message is held with the server's refusal, `refused`. The copy was there before this request,
+    /// and is never destroyed.
+    async fn submit_copy(&self, copy: &str, blob: &str, octets: &[u8], identity: &str, to: &[String], refused: SendOutcome) -> Step {
         if let Err(stop) = self.check() {
             return (None, Some(stop), None);
         }
-        let args = json!({"accountId": self.account(), "ids": [copy], "properties": ["id", "blobId"]});
-        let same = match self.call_of("Email/get", args).await {
-            Ok(answer) => same_octets(&answer, copy, blob),
-            Err(Stop::Failed(_)) => false,
+        let args = json!({"accountId": self.account(), "ids": [copy], "properties": ["id", "blobId", "size"]});
+        let answer = match self.call_of("Email/get", args).await {
+            Ok(answer) => answer,
+            Err(Stop::Failed(_)) => return (Some(refused), None, None),
             Err(stop) => return (None, Some(stop), None),
         };
+        let same = same_octets(&answer, copy, blob)
+            || match blob_of_size(&answer, copy, octets.len()) {
+                Some(other) => match self.holds(&other, octets).await {
+                    Ok(same) => same,
+                    Err(stop) => return (None, Some(stop), None),
+                },
+                None => false,
+            };
         if !same {
             return (Some(refused), None, None);
         }
@@ -609,6 +649,22 @@ impl<H: HttpExchange> Run<'_, H> {
         let mut imported = Map::new();
         imported.insert("created".to_string(), Value::Object(created));
         self.submit_email(copy, Ok(imported), identity, to, false).await
+    }
+
+    /// Whether the blob `blob` holds `octets` and nothing else: downloaded (RFC 8620 §6.2), with no more
+    /// octets taken than `octets` has. A blob that cannot be had, or is larger than it was said to be, is
+    /// not seen to be the same; a stop, a refused sign-in, a busy server and one that is not reached end
+    /// the run as at any other request, and the message waits.
+    async fn holds(&self, blob: &Id, octets: &[u8]) -> Result<bool, Stop> {
+        self.check()?;
+        match self.connection.download(blob, MESSAGE_TYPE, MESSAGE_NAME, octets.len(), &self.secrets).await {
+            Ok(has) => Ok(has == octets),
+            Err(Error::NotFound | Error::Refused { .. } | Error::Http { status: 400..=499, .. }) => Ok(false),
+            Err(error) => match self.call_stop(error) {
+                Stop::Failed(_) => Ok(false),
+                stop => Err(stop),
+            },
+        }
     }
 
     /// Submit the email `email` in a request of its own. `imported` is the answer that made it, and `ours`
@@ -630,25 +686,29 @@ impl<H: HttpExchange> Run<'_, H> {
                 return (outcome, stop, None);
             }
         };
-        let (submitted, after) = answers.take_named_before_error(&call, "EmailSubmission/set");
-        self.concluded(imported, submitted, after.as_ref(), ours)
+        let (submitted, rest, after) = answers.take_named_before_error(&call, "EmailSubmission/set");
+        self.concluded(imported, submitted, &rest, after.as_ref(), ours)
     }
 
     /// What the answers come to ([`settled`]), and what is left to tidy up: the email of a message the
     /// server would not send, when this run made it (`ours`); the draft mark of one that was sent, when the
-    /// call failed after the submission's own answer (`after`: the implicit `Email/set`, RFC 8621 §7.5).
+    /// implicit `Email/set` (RFC 8621 §7.5) did not take it off: the call failed after the submission's own
+    /// answer (`after`), or what it answered besides (`rest`) says the email was not updated.
     fn concluded(
         &self,
         imported: Result<Map<String, Value>, CallFailure>,
         submitted: Result<Map<String, Value>, CallFailure>,
+        rest: &[MethodResponse],
         after: Option<&MethodError>,
         ours: bool,
     ) -> Step {
         let email = made_of(&imported);
         let Settled { outcome, orphan, later } = settled(&self.secrets, imported, submitted);
-        let tidy = match (&outcome, after) {
-            (Some(SendOutcome::Sent), Some(error)) => {
-                log::info!("jmap mail: a message was sent, and the server did not take its draft mark off ({})", error.kind().as_str());
+        let marked = after.is_some() || email.as_deref().is_some_and(|email| not_updated(rest, email));
+        let tidy = match &outcome {
+            Some(SendOutcome::Sent) if marked => {
+                let why = after.map_or("notUpdated", |error| error.kind().as_str());
+                log::info!("jmap mail: a message was sent, and the server did not take its draft mark off ({why})");
                 email.map(Tidy::Unmark)
             }
             _ => orphan.filter(|_| ours).map(Tidy::Destroy),

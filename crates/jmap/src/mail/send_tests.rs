@@ -4,6 +4,7 @@
 //! taken for, what is never asked twice, and what a hostile answer makes of it. Over the stand-in and over
 //! scripted servers; every message and address is invented, and nothing leaves the process.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -18,7 +19,7 @@ use super::changes_tests::{
 };
 use super::send::{
     BAD_RECIPIENT, BAD_SENDER, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOTHING, Settled, TOO_LARGE, TOO_MANY,
-    existing_of, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled, written,
+    blob_of_size, existing_of, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled, written,
 };
 use super::*;
 use crate::connection::tests::any_json;
@@ -1029,7 +1030,7 @@ fn an_email_the_server_has_already_is_submitted_only_when_it_is_of_the_blob_uplo
         let pieces = send_fake(&fake, vec![simple(41)]);
         assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
         assert_eq!(emails(&fake), asked, "{calls}");
-        assert_eq!(fake.args_of("Email/get")[0], json!({"accountId": "A1", "ids": ["E9"], "properties": ["id", "blobId"]}));
+        assert_eq!(fake.args_of("Email/get")[0], json!({"accountId": "A1", "ids": ["E9"], "properties": ["id", "blobId", "size"]}));
         assert!(fake.args_of("Email/set").is_empty() && last(&pieces).whole, "{calls}");
 
         // Another blob, so perhaps other octets (an email that only shares its Message-ID): never submitted.
@@ -1092,6 +1093,192 @@ fn an_email_the_server_has_already_is_submitted_only_when_it_is_of_the_blob_uplo
     assert!(same_octets(&json!({"list": [null, {"id": "E9"}, {"id": "E9", "blobId": "B7"}]}), "E9", "B7"));
     for other in [json!(null), json!({"list": {}}), json!({"list": [{"id": "E8", "blobId": "B7"}]}), json!({"list": [{"id": "E9", "blobId": 7}]})] {
         assert!(!same_octets(&other, "E9", "B7"), "{other}");
+    }
+}
+
+/// The downloads of a blob a scripted server was asked for.
+fn downloads(fake: &Fake) -> usize {
+    fake.sent.borrow().iter().filter(|req| req.method() == Method::Get && req.url().contains("/jmap/download/")).count()
+}
+
+// RFC 8620 §6: a blob's id names its octets, and nothing keeps a server from giving the same octets another
+// id. RFC 8621 §4.1.1: an email's `blobId` is of the raw message, and its `size` the octets of it.
+#[test]
+fn an_email_the_server_has_under_another_blob_id_is_submitted_only_when_it_holds_the_octets_uploaded() {
+    // The stand-in keeps no two emails alike and gives every upload an id of its own. The first run's
+    // submission is turned away unread (a server that takes one call to a request), so its copy stays.
+    for calls in [1, 16] {
+        let (stand_in, ids) = world();
+        stand_in.with(|d| {
+            d.max_calls = 1;
+            (d.no_duplicates, d.blob_per_upload) = (true, true);
+            d.refuse_next.extend([None, None, None, Some((503, None))]);
+        });
+        assert!(sent_of(&send(&stand_in, vec![simple(41)])).is_empty(), "{calls}: it waits");
+        // The next run uploads the same octets, which get another id; the email it has is of the first.
+        stand_in.with(|d| d.max_calls = calls);
+        let pieces = send(&stand_in, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
+        stand_in.with(|d| {
+            assert_eq!((d.submitted.len(), d.emails.len(), d.uploads.len()), (1, 1, 2), "{calls}");
+            let email = d.email(&d.submitted[0].email).unwrap();
+            assert!(email.mailboxes.contains(&ids.sent) && !email.keywords.contains("$draft"), "{calls}");
+        });
+        // Its blob was read once to see that, and nothing was destroyed.
+        assert_eq!(stand_in.seen().iter().filter(|seen| seen.path.starts_with("/jmap/download/")).count(), 1, "{calls}");
+        assert!(last(&pieces).whole, "{calls}");
+    }
+
+    // A scripted server that has the email E9 already, of the blob B8 (the upload is answered `B7`): it
+    // says E9 has `more` octets more than were uploaded, and gives what `blob` makes of the upload for B8.
+    fn has_it(calls: u32, more: usize, blob: fn(Vec<u8>) -> Reply) -> Fake {
+        let kept: Rc<RefCell<Vec<u8>>> = Rc::default();
+        Fake::new(move |req, _| match req.method() {
+            Method::Get if req.url().contains("/jmap/download/") => {
+                assert!(req.url().contains("/A1/B8/"), "the blob of the email it has, and no other");
+                blob(kept.borrow().clone())
+            }
+            Method::Get => session_reply(json!({"maxCallsInRequest": calls}), true),
+            _ if is_upload(req) => {
+                *kept.borrow_mut() = req.body().to_vec();
+                uploaded()
+            }
+            _ => {
+                let size = kept.borrow().len() + more;
+                api_reply(req, |name, args| match name {
+                    "Email/import" => Answer::Is(json!({"notCreated": {"m": {"type": "alreadyExists", "existingId": "E9"}}})),
+                    "Email/get" if args["ids"] == json!(["E9"]) => Answer::Is(json!({"list": [{"id": "E9", "blobId": "B8", "size": size}]})),
+                    "EmailSubmission/set" if args["create"]["s"]["emailId"] == "#m" => {
+                        Answer::Is(json!({"notCreated": {"s": {"type": "invalidProperties", "properties": ["emailId"]}}}))
+                    }
+                    "EmailSubmission/set" => Answer::Is(json!({"created": {"s": {"id": "S1"}}})),
+                    _ => sending(name, args),
+                })
+            }
+        })
+    }
+    let emails = |fake: &Fake| fake.args_of("EmailSubmission/set").iter().map(|args| args["create"]["s"]["emailId"].clone()).collect::<Vec<_>>();
+    let refused = |sent: &[SendDone]| matches!(&sent[0].outcome, SendOutcome::Held { lost: false, why } if why.starts_with("the server would not take the message: "));
+    for calls in [16, 1] {
+        // The same octets under the other id: the email the server has is the one submitted, once.
+        let fake = has_it(calls, 0, |octets| Ok(HttpResponse::new(200, octets)));
+        let pieces = send_fake(&fake, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
+        assert_eq!(emails(&fake).iter().filter(|email| **email == json!("E9")).count(), 1, "{calls}");
+        assert_eq!(downloads(&fake), 1, "{calls}");
+        assert!(fake.args_of("Email/set").is_empty() && last(&pieces).whole, "{calls}");
+
+        // As many octets, and one of them another: an email that only resembles the message. Never submitted.
+        let fake = has_it(calls, 0, |mut octets| {
+            let last = octets.last_mut().unwrap();
+            *last = last.wrapping_add(1);
+            Ok(HttpResponse::new(200, octets))
+        });
+        let sent = sent_of(&send_fake(&fake, vec![simple(41)]));
+        assert!(refused(&sent), "{calls}: {sent:?}");
+        assert!(!emails(&fake).contains(&json!("E9")) && downloads(&fake) == 1, "{calls}");
+
+        // Another size: not the upload, and its blob is not asked for.
+        let fake = has_it(calls, 1, |octets| Ok(HttpResponse::new(200, octets)));
+        let sent = sent_of(&send_fake(&fake, vec![simple(41)]));
+        assert!(refused(&sent), "{calls}: {sent:?}");
+        assert!(!emails(&fake).contains(&json!("E9")) && downloads(&fake) == 0, "{calls}");
+
+        // A blob larger than the email was said to be, and one the server will not give: not seen to be the same.
+        for blob in [
+            (|mut octets| {
+                octets.push(b'x');
+                Ok(HttpResponse::new(200, octets))
+            }) as fn(Vec<u8>) -> Reply,
+            |_| status_reply(404, None),
+        ] {
+            let fake = has_it(calls, 0, blob);
+            let sent = sent_of(&send_fake(&fake, vec![simple(41)]));
+            assert!(refused(&sent), "{calls}: {sent:?}");
+            assert!(!emails(&fake).contains(&json!("E9")), "{calls}");
+        }
+
+        // A refused sign-in and a busy server met there end the run, and the message waits.
+        for status in [401, 503] {
+            let fake = if status == 401 { has_it(calls, 0, |_| status_reply(401, None)) } else { has_it(calls, 0, |_| status_reply(503, None)) };
+            let pieces =
+                run_unchecked(fake.clone(), FAKE_TOKEN, &JmapMailRequest { sends: vec![simple(41)], ..asks(FAKE_SESSION) }, &AtomicBool::new(false));
+            assert!(sent_of(&pieces).is_empty(), "{calls} {status}: it waits");
+            assert_eq!((last(&pieces).auth_refused, last(&pieces).busy_for.is_some()), (status == 401, status == 503), "{calls} {status}");
+            assert!(!emails(&fake).contains(&json!("E9")), "{calls} {status}");
+        }
+    }
+
+    // Read without trusting it.
+    let listed = json!({"list": [null, {"id": "E8", "blobId": "B1", "size": 9}, {"id": "E9", "blobId": "B8", "size": 9}]});
+    assert_eq!(blob_of_size(&listed, "E9", 9).as_ref().map(Id::as_str), Some("B8"));
+    assert_eq!(blob_of_size(&listed, "E9", 8), None);
+    assert_eq!(blob_of_size(&listed, "E7", 9), None);
+    for other in [
+        json!(null),
+        json!({"list": {}}),
+        json!({"list": [{"id": "E9", "blobId": "B 8", "size": 9}]}),
+        json!({"list": [{"id": "E9", "blobId": "B8", "size": "9"}]}),
+        json!({"list": [{"id": "E9", "size": 9}]}),
+        json!({"list": [{"id": "E9", "blobId": "B8"}]}),
+    ] {
+        assert_eq!(blob_of_size(&other, "E9", 9), None, "{other}");
+    }
+}
+
+// RFC 8621 §7.5: the implicit `Email/set` of `onSuccessUpdateEmail` answers as an `Email/set` response of
+// its own, after the submission's and under the same call id. An email it would not update is in `notUpdated`.
+#[test]
+fn a_draft_mark_the_server_says_it_did_not_take_off_is_asked_off_once_more() {
+    for calls in [16, 1] {
+        // The stand-in makes the submission and will not change the email, whatever id it gets.
+        let (stand_in, ids) = world();
+        stand_in.with(|d| {
+            d.max_calls = calls;
+            d.refused_changes.extend((1..100).map(|n| (format!("E{n}"), ("forbidden".to_string(), String::new()))));
+        });
+        let pieces = send(&stand_in, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
+        // Asked off once more, by itself (the stand-in refuses that too); the email is not destroyed, and
+        // the run reads on.
+        assert_eq!(stand_in.calls().iter().filter(|call| *call == "Email/set").count(), 1, "{calls}");
+        stand_in.with(|d| {
+            assert_eq!((d.submitted.len(), d.emails.len()), (1, 1), "{calls}");
+            assert!(d.emails[0].mailboxes.contains(&ids.sent) && d.emails[0].keywords.contains("$draft"), "{calls}");
+        });
+        assert!(last(&pieces).whole && read_on(&pieces), "{calls}");
+
+        // A scripted server whose implicit answer says which email it did not update.
+        let implicit = |email: &'static str| {
+            Fake::new(move |req, _| match req.method() {
+                Method::Get => session_reply(json!({"maxCallsInRequest": calls}), true),
+                _ if is_upload(req) => uploaded(),
+                _ if names_of(req).iter().any(|name| name == "EmailSubmission/set") => {
+                    let body: Value = serde_json::from_slice(req.body()).unwrap();
+                    let mut responses = Vec::new();
+                    for call in body["methodCalls"].as_array().unwrap() {
+                        let (name, id) = (call[0].as_str().unwrap(), call[2].clone());
+                        if let Answer::Is(value) = sending(name, &call[1]) {
+                            responses.push(json!([name, value, id]));
+                        }
+                        if name == "EmailSubmission/set" {
+                            responses
+                                .push(json!(["Email/set", {"accountId": "A1", "updated": null, "notUpdated": {email: {"type": "forbidden"}}}, id]));
+                        }
+                    }
+                    json_reply(200, &json!({"methodResponses": responses, "sessionState": "1"}))
+                }
+                _ => api_reply(req, sending),
+            })
+        };
+        let fake = implicit("E50");
+        assert_eq!(sent_of(&send_fake(&fake, vec![simple(41)])), [is(41, SendOutcome::Sent)], "{calls}");
+        assert_eq!(fake.args_of("EmailSubmission/set").len(), 1, "{calls}");
+        assert_eq!(fake.args_of("Email/set"), [json!({"accountId": "A1", "update": {"E50": {"keywords/$draft": null}}})], "{calls}");
+        // Another email's: nothing of this message is left to tidy up.
+        let fake = implicit("E51");
+        assert_eq!(sent_of(&send_fake(&fake, vec![simple(41)])), [is(41, SendOutcome::Sent)], "{calls}");
+        assert!(fake.args_of("Email/set").is_empty(), "{calls}");
     }
 }
 

@@ -198,6 +198,47 @@ fn a_copy_doesnt_go_into_a_jmap_accounts_outbox() {
     assert_eq!(offered(&s, jmap), [lunch]);
 }
 
+/// Mail only this computer has (a draft saved in the account, mail brought into it) can be moved
+/// into a JMAP account's Outbox, and nothing would tell it from mail queued with Send: it is held
+/// there, as in an IMAP account's Outbox, and goes only on Send Again.
+#[test]
+fn a_message_moved_into_a_jmap_accounts_outbox_is_held_and_not_sent() {
+    let (mut s, _, jmap, _) = mailbox();
+    let outbox = s.mailbox.folder_of_kind(jmap, FolderKind::Outbox).unwrap();
+    let drafts = s.mailbox.folder_of_kind(jmap, FolderKind::Drafts).unwrap();
+    let inbox = s.mailbox.folder_of_kind(jmap, FolderKind::Inbox).unwrap();
+    let here = |folder, subject: &str, draft| mailcraft_model::Message {
+        folder,
+        subject: subject.into(),
+        from: Address::new("Bo", "bo@example.org"),
+        to: vec![Address::new("Cy", "cy@example.org")],
+        date: 100,
+        draft,
+        ..Default::default()
+    };
+    let draft = s.mailbox.add_message(here(drafts, "Draft", true)).unwrap();
+    let brought = s.mailbox.add_message(here(inbox, "Invoice", false)).unwrap();
+    let queued = written(&mut s, jmap, "Lunch");
+    s.run("mail.move", &json!({"ids": [draft, brought], "folder": outbox})).unwrap();
+    for id in [draft, brought] {
+        let m = s.mailbox.message(id).unwrap();
+        assert_eq!((m.folder, m.held.as_str()), (outbox, mailcraft_model::MOVED_INTO_OUTBOX));
+    }
+    // The next run sends what Send queued, and nothing that was only moved there.
+    assert_eq!(offered(&s, jmap), [queued]);
+    assert_eq!(super::graph_send::waiting(&s.mailbox, jmap), 1);
+    // Until the owner says so.
+    s.run("mail.sendAgain", &json!({"id": draft})).unwrap();
+    assert_eq!(offered(&s, jmap), [draft, queued]);
+    // Moved out again, it is no longer held for having been there.
+    s.run("mail.move", &json!({"ids": [brought], "folder": inbox})).unwrap();
+    assert!(s.mailbox.message(brought).unwrap().held.is_empty());
+    // What Send queued, taken out and put back, waits for Send Again too.
+    s.run("mail.move", &json!({"ids": [queued], "folder": drafts})).unwrap();
+    s.run("mail.move", &json!({"ids": [queued], "folder": outbox})).unwrap();
+    assert_eq!(offered(&s, jmap), [draft]);
+}
+
 #[test]
 fn sending_from_a_jmap_account_is_never_undone() {
     let (mut s, _, jmap, _) = mailbox();
