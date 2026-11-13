@@ -207,7 +207,10 @@ impl Core {
     pub async fn people(&self, search: String, offset: u32, count: u32) -> Result<PeopleWindow, CoreError> {
         let count = text::window(count);
         // (What waits for the session thread is held to a size: a longer search could not name anybody.)
-        let search = text::clip(&search, MAX_NAME);
+        let clipped = text::clip(&search, MAX_NAME);
+        // (The caller's own string would otherwise live as long as the call waits.)
+        drop(search);
+        let search = clipped;
         self.call_holding(search.len(), move |s| {
             let needle = search.trim().to_lowercase();
             let hit = |c: &Contact| {

@@ -312,10 +312,12 @@ impl Core {
     pub fn set_language(&self, code: String) {
         let lang = Lang::from_pref(&code, None);
         let at = Lang::ALL.iter().position(|l| *l == lang).and_then(|i| u8::try_from(i).ok()).unwrap_or(0);
-        self.language.store(at, Ordering::Relaxed);
         // (The session says dates and its own messages in it too: it takes the latest before its next
-        // job, whatever the queue holds.)
-        *self.pending_language.lock().unwrap_or_else(PoisonError::into_inner) = Some(lang);
+        // job, whatever the queue holds. One lock over both, so that two callers at once can't leave
+        // the session in one language and `t` in another.)
+        let mut pending = self.pending_language.lock().unwrap_or_else(PoisonError::into_inner);
+        self.language.store(at, Ordering::Relaxed);
+        *pending = Some(lang);
     }
 
     /// `msgid` (the English text) in the interface language; English when there is no
