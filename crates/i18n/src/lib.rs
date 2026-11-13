@@ -397,7 +397,7 @@ mod tests {
                 ("Archivar", "Archivo"),
                 ("Archivia", "Archivio"),
                 ("Archiveren", "Archief"),
-                ("Arquivar", "Arquivo")
+                ("Arquivar", "Arquivo Morto")
             ]
         );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
