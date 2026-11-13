@@ -8614,8 +8614,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 msgid "Remove from Favorites"
 msgstr ""
 
@@ -9135,6 +9135,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Save Signature"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
 msgstr ""
 
 #. interface
@@ -9794,6 +9799,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Server: {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
 msgstr ""
 
 #. name
@@ -14848,6 +14858,11 @@ msgstr ""
 msgid "no rule with id {id}"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 msgid "no shared mailbox is open"
@@ -15826,6 +15841,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/password.rs
 msgid "the user name or password is too long"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
 msgstr ""
 
 #. what a command says

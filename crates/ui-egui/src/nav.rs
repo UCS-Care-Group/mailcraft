@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
 use mailcraft_engine::cmd::folder::sort_as_listed;
-use mailcraft_model::{Folder, FolderKind, GmailCategory, Id, Mailbox};
+use mailcraft_model::{Folder, FolderKind, GmailCategory, Id, Mailbox, SearchFavorite};
 use serde_json::json;
 
 use crate::favorites_sync::Note;
@@ -507,6 +507,48 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     });
 }
 
+/// A search saved from Advanced Search, at the top of Favorites. Clicking it runs that search.
+fn search_favorite_row(app: &mut MailApp, ui: &mut Ui, fav: &SearchFavorite, selected: bool) {
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+    let resp = ui.interact(r, ui.scope_id().with(("search_favorite", fav.id)), Sense::click());
+    app.hit.add("searchFavorite", fav.id, r);
+    let row = highlight(r);
+    if selected {
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
+    }
+    let icon = Rect::from_center_size(pos2(r.min.x + CHEVRON_X, r.center().y), vec2(14.0, 14.0));
+    let ink = if selected { t.accent_soft_text } else { t.text };
+    icons::paint(ui.painter(), icon, "search", if selected { ink } else { t.text_dim }, t.accent);
+    let y = r.center().y - TEXT_RISE;
+    paint_clipped(
+        ui.painter(),
+        pos2(r.min.x + NAME_LEFT, y),
+        (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0),
+        &fav.name,
+        if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) },
+        ink,
+    );
+    if resp.clicked() {
+        app.search_text = fav.query.clone();
+        let _ = app.run("view.search", json!({"query": fav.query, "scope": fav.scope}));
+        if let Some(ctx) = &app.ctx {
+            crate::chrome::caret_at_end(ctx, &app.search_text);
+        }
+    }
+    let id = fav.id;
+    resp.context_menu(|ui| {
+        ui.set_min_width(190.0);
+        if ui.add(egui::Button::new(tl!("Remove from Favorites")).min_size(vec2(180.0, 0.0))).clicked() {
+            let _ = app.run("search.unfavorite", json!({"id": id}));
+            ui.close();
+        }
+    });
+}
+
 /// What the window calls one of Gmail's categories (#911).
 pub(crate) fn gmail_name(category: GmailCategory) -> &'static str {
     match category {
@@ -774,6 +816,9 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // account whose server has them; else the ones that are marked here.
             let favorites: Vec<Folder> =
                 mailcraft_engine::cmd::folder::favorites(&app.session).into_iter().filter_map(|id| app.session.mailbox.folder(id).cloned()).collect();
+            let saved: Vec<SearchFavorite> = app.session.mailbox.search_favorites.clone();
+            let view_query = app.session.view.search.clone();
+            let view_scope = crate::chrome::scopes().into_iter().find(|(s, ..)| *s == app.session.view.scope).map_or("folder", |(_, _, code)| code);
             // And what there is to say of Outlook's, in one quiet line under the heading.
             let note = app.favorites_note();
             // (A shared mailbox right after the account it is opened through, #70.)
@@ -799,7 +844,10 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let gmail_current = app.session.view.folder;
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
-            let favorite_selected = among_favorites && !(in_a_list && picked_in_list(ui));
+            // A saved search that is the one on screen is the row that is on: the folder it was
+            // reached from stays in view underneath, and is not marked as well.
+            let search_on = !view_query.is_empty() && saved.iter().any(|fav| fav.query == view_query && fav.scope == view_scope);
+            let favorite_selected = !search_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.
             let own = owners(&app.session.mailbox);
@@ -815,9 +863,13 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     heading(app, ui, id, name, 2.0 * ROW_H, 34.5, true, movable.contains(&id))
                 }
             };
-            if (!favorites.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites")) {
+            if (!favorites.is_empty() || !saved.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites")) {
                 if let Some((account, note)) = &note {
                     favorites_note(app, ui, *account, note);
+                }
+                for fav in &saved {
+                    let on = search_on && fav.query == view_query && fav.scope == view_scope;
+                    search_favorite_row(app, ui, fav, on);
                 }
                 for f in &favorites {
                     folder_row(app, ui, f, 0, false, "fav", count(f), favorite_selected && f.id == current);
@@ -848,11 +900,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                         app.hit.add("folder", f.id, r);
                         continue;
                     }
-                    folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !favorite_selected && f.id == current);
+                    folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !search_on && !favorite_selected && f.id == current);
                     if gmail && !app.ui.collapsed_folders.contains(&f.id) {
                         for category in GmailCategory::ALL {
                             let unread = counts.gmail(f.id, category).unread;
-                            let selected = f.id == gmail_current && gmail_now == Some(category);
+                            let selected = !search_on && f.id == gmail_current && gmail_now == Some(category);
                             gmail_row(app, ui, f.id, depth + 1, category, unread, selected);
                         }
                     }

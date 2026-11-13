@@ -300,7 +300,8 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
     let today_iso = today.iso();
     let week_start = app.session.prefs.week_start;
     let mut filters = app.ui.advanced_filters;
-    let (mut search, mut clear, mut enter) = (false, false, false);
+    let (mut search, mut clear, mut save, mut enter) = (false, false, false, false);
+    let mut save_rect = None;
     let problems = day_problems(&panel.received_from, &panel.received_to);
     let ok = problems == (None, None);
     // Taken before drawing: a list in the panel that a click closes in this frame was open.
@@ -468,6 +469,15 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     clear = ui.add(egui::Button::new(tl!("Clear filters")).min_size(vec2(0.0, 26.0))).clicked();
+                    // A search with nothing in it is not worth keeping: the button waits until a
+                    // field asks for something. A day that isn't a date already keeps Search waiting.
+                    let can_save = ok && panel.query().is_some_and(|q| !q.trim().is_empty());
+                    let mut resp = ui.add_enabled(can_save, egui::Button::new(tl!("Save as a favorite")).min_size(vec2(0.0, 26.0)));
+                    if ok && !can_save {
+                        resp = resp.on_disabled_hover_text(tl!("Set a filter first"));
+                    }
+                    save_rect = Some(resp.rect);
+                    save = resp.clicked();
                     search = crate::widgets::primary_button(ui, tl!("Search"), ok).clicked();
                 });
             });
@@ -475,11 +485,19 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
     });
     let rect = area.response.rect;
     app.hit.add("advancedSearch", 0, rect);
+    if let Some(r) = save_rect {
+        app.hit.add("saveSearchFavorite", 0, r);
+    }
     app.ui.advanced_filters = filters;
     if clear {
         panel.fields = Advanced::default();
         panel.received_from.clear();
         panel.received_to.clear();
+    }
+    if save && let Some(query) = panel.query().filter(|q| !q.trim().is_empty()) {
+        let scope = crate::chrome::scopes().into_iter().find(|(s, ..)| *s == panel.scope).map_or("folder", |(_, _, code)| code);
+        app.dialog = Some(crate::dialogs::Dialog::SearchFavorite { name: String::new(), query, scope: scope.to_string(), error: String::new() });
+        return;
     }
     if (search || enter) && panel.query().is_some() {
         app.advanced_search = Some(panel);

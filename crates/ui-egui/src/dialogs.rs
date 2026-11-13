@@ -34,6 +34,13 @@ pub enum Dialog {
         name: String,
         error: String,
     },
+    /// A name for the search Advanced Search is showing, then `search.favorite`.
+    SearchFavorite {
+        name: String,
+        query: String,
+        scope: String,
+        error: String,
+    },
     GoToDate {
         text: String,
         error: String,
@@ -229,6 +236,7 @@ impl Dialog {
         match self {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
+            Dialog::SearchFavorite { .. } => "searchFavorite",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
@@ -286,6 +294,12 @@ impl Dialog {
         let id = |k: &str| params.get(k).and_then(Value::as_u64).filter(|i| *i != 0);
         Some(match name {
             "commands" => Dialog::Commands { query: params.get("query").and_then(Value::as_str).unwrap_or("").to_string(), selected: 0 },
+            "searchFavorite" => Dialog::SearchFavorite {
+                name: String::new(),
+                query: params.get("query").and_then(Value::as_str).unwrap_or("").to_string(),
+                scope: params.get("scope").and_then(Value::as_str).unwrap_or("folder").to_string(),
+                error: String::new(),
+            },
             "folder" => {
                 let rename = params.get("mode").and_then(Value::as_str) == Some("rename");
                 if rename {
@@ -1542,6 +1556,29 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     FolderMode::Rename { id } => app.execute("folder.rename", json!({"id": id, "name": name})),
                 };
                 match r {
+                    Ok(_) => close = true,
+                    Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::SearchFavorite { name, query, scope, error } => {
+            let mut submit = false;
+            let open = window(ctx, tl!("Save as a favorite"), 380.0, |ui| {
+                let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
+                let resp = crate::text_menu::field(resp);
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let (ok, cancel) = buttons(ui, tl!("Save"), !name.trim().is_empty());
+                submit = ok || (enter && !name.trim().is_empty());
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                match app.execute("search.favorite", json!({"name": name, "query": query, "scope": scope})) {
                     Ok(_) => close = true,
                     Err(e) => *error = e,
                 }

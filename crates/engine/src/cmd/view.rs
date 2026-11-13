@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use super::people;
 use super::tasks_remote::keeps_tasks;
-use super::{bad, done, mac_or};
+use super::{bad, done, fail, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
 
@@ -42,6 +42,11 @@ pub fn specs() -> Vec<CommandSpec> {
             .reads()
             .key("Mod+E / F3")
             .params(r#"{"query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"}"#),
+        CommandSpec::new("search.favorite", "Save as a favorite", "Search", save_favorite).params(
+            r#"{"name": string, "query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"} — keeps this search at the top of Favorites, newest first, at most 50. Answers {"id", "name", "query", "scope"}"#,
+        ),
+        CommandSpec::new("search.unfavorite", "Remove from Favorites", "Search", remove_favorite)
+            .params(r#"{"id": number} — takes that saved search out of Favorites"#),
         CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).reads(),
         CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).reads().params(
             r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
@@ -151,6 +156,32 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
     s.view.search = query;
     s.view.module = Module::Mail;
     Ok(json!({"query": s.view.search, "scope": s.view.scope, "found": crate::list::listed(&s.rows())}))
+}
+
+/// Most searches Favorites holds ([`mailcraft_model::MAX_SEARCH_FAVORITES`]).
+const MAX_SAVED: usize = mailcraft_model::MAX_SEARCH_FAVORITES;
+
+fn save_favorite(s: &mut Session, v: &Value) -> CmdResult {
+    let name = mailcraft_model::clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("a name is needed"))?;
+    let query: String = p::req_str(v, "query")?.chars().filter(|c| !c.is_control()).take(2_000).collect();
+    let scope = p::str(v, "scope").unwrap_or("folder");
+    parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder, subfolders, mailbox or everywhere"))?;
+    if s.mailbox.search_favorites.len() >= MAX_SAVED {
+        return Err(fail("there are already 50 saved searches"));
+    }
+    let id = s.mailbox.alloc_id();
+    s.mailbox.search_favorites.insert(0, mailcraft_model::SearchFavorite { id, name: name.clone(), query: query.clone(), scope: scope.to_string() });
+    Ok(json!({"id": id, "name": name, "query": query, "scope": scope}))
+}
+
+fn remove_favorite(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::id(v, "id").ok_or_else(|| bad("`id` (number) is required"))?;
+    let before = s.mailbox.search_favorites.len();
+    s.mailbox.search_favorites.retain(|f| f.id != id);
+    if s.mailbox.search_favorites.len() == before {
+        return Err(fail("no saved search has that id"));
+    }
+    Ok(json!({"id": id}))
 }
 
 /// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`

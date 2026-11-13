@@ -9801,8 +9801,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Quitar del calendario"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Quitar de Favoritos"
@@ -10413,6 +10413,11 @@ msgstr ""
 #, fuzzy
 msgid "Save Signature"
 msgstr "Guardar firma"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11157,6 +11162,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Server: {address}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
 msgstr ""
 
 #. name
@@ -16808,6 +16818,11 @@ msgstr "esta firma no tiene la imagen {id}"
 msgid "no rule with id {id}"
 msgstr "no hay ninguna regla con el id. {id}"
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -17931,6 +17946,11 @@ msgstr "el nombre de usuario o la contraseña tiene un carácter que no se puede
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "el nombre de usuario o la contraseña es demasiado largo"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

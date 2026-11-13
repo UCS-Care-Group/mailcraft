@@ -10292,8 +10292,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Verwijderen uit agenda"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Verwijderen uit favorieten"
@@ -10930,6 +10930,11 @@ msgstr "Berichtbestand opslaan als"
 #, fuzzy
 msgid "Save Signature"
 msgstr "Handtekening opslaan"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11714,6 +11719,11 @@ msgstr "Serverinstellingen"
 #, fuzzy
 msgid "Server: {address}"
 msgstr "Server: {address}"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -17712,6 +17722,11 @@ msgstr "geen afbeelding {id} in deze handtekening"
 msgid "no rule with id {id}"
 msgstr "geen regel met id {id}"
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -18873,6 +18888,11 @@ msgstr "de gebruikersnaam of het wachtwoord bevat een teken dat niet kan worden 
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "de gebruikersnaam of het wachtwoord is te lang"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

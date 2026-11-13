@@ -10406,8 +10406,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Eliminare din calendar"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Eliminare din Favorite"
@@ -11045,6 +11045,11 @@ msgstr "Salvare fișier mesaj ca"
 #, fuzzy
 msgid "Save Signature"
 msgstr "Salvare semnătură"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11842,6 +11847,11 @@ msgstr "Setări server"
 #, fuzzy
 msgid "Server: {address}"
 msgstr "Server: {address}"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -17935,6 +17945,11 @@ msgstr "nu există imaginea {id} în această semnătură"
 msgid "no rule with id {id}"
 msgstr "nu există regulă cu ID-ul {id}"
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -19109,6 +19124,11 @@ msgstr "numele de utilizator sau parola conține un caracter care nu poate fi tr
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "numele de utilizator sau parola este prea lungă"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
