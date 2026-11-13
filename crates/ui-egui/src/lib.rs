@@ -200,6 +200,8 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+#[cfg(test)]
+mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
 mod symbol;
@@ -4493,7 +4495,15 @@ impl MailApp {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
-                Ok(_) => {}
+                Ok(answer) => {
+                    // What the engine added after taking it in (a snooze given up): the run's
+                    // own problems did not include it, and the owner is to be told.
+                    let said: Vec<String> =
+                        answer["said"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+                    if !said.is_empty() {
+                        self.note_sync_problems(account, &said, false);
+                    }
+                }
                 Err(e) => {
                     self.status(e.to_string());
                     self.send_doubt = true;
