@@ -349,6 +349,8 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail_finds_deleted: bool,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
+    /// Personal IMAP namespace `(prefix, delimiter)` to advertise via `NAMESPACE`.
+    pub(crate) namespace: Option<(String, String)>,
     /// Every line received.
     pub(crate) log: Vec<String>,
     pub(crate) connections: usize,
@@ -364,8 +366,9 @@ impl ImapWorld {
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
+        let namespace = if self.namespace.is_some() { " NAMESPACE" } else { "" };
         let no_login = if self.login_disabled { " LOGINDISABLED" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{no_login}")
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{namespace}{no_login}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -587,6 +590,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
         }
         match verb.to_ascii_uppercase().as_str() {
             "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities(secured)).bytes()),
+            "NAMESPACE" => {
+                if let Some((prefix, delimiter)) = &world.namespace {
+                    reply.extend(format!("* NAMESPACE ((\"{prefix}\" \"{delimiter}\")) NIL NIL\r\n{tag} OK done\r\n").bytes());
+                } else {
+                    reply.extend(format!("{tag} BAD not offered\r\n").bytes());
+                }
+            }
             "STARTTLS" if world.offer_starttls => {
                 let upgrade = world.starttls_upgrade.clone();
                 drop(world);
