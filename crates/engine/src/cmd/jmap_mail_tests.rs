@@ -849,3 +849,32 @@ fn run_rules_now_doesnt_act_on_jmap_mail_past_an_exception_its_listing_cut() {
         "acted on past an exception for the end of the subject the listing cut"
     );
 }
+
+/// Run Rules Now with a rule that copies and flags a JMAP server's mail (#566): a message not
+/// downloaded yet isn't copied, in its account or onto this computer, where the copy would never
+/// be whole (its server isn't asked to make it), as one out of a Microsoft or an Exchange server
+/// account isn't; the rest of the rule acts on it. One downloaded is copied.
+#[test]
+fn run_rules_now_doesnt_copy_jmap_mail_not_downloaded_yet() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "news", 1_000), email("E2", "news", 1_100)], true)], true);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let local = s.mailbox.local_account();
+    let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let mime = b"From: Zoe Park <zoe@example.org>\r\nSubject: news\r\nMessage-ID: <E2@example.org>\r\n\r\nAll of it.\r\n".to_vec();
+    apply_jmap_fetch(
+        &mut s,
+        GraphFetchResult { account, email: ME.into(), fetched: vec![GraphFetched { id: "E2".into(), mime }], ..Default::default() },
+    )
+    .unwrap();
+    let rule = json!({"name": "Keep", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}],
+        "actions": [{"type": "copyTo", "value": projects}, {"type": "copyTo", "value": elsewhere}, {"type": "flag"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let e1 = here(&s, account, "E1").unwrap();
+    assert_eq!((e1.unfetched, e1.folder, e1.flag), (true, inbox, FlagStatus::Flagged), "the rest of the rule acts");
+    let copies = |folder: Id| {
+        s.mailbox.messages_in(folder).filter(|m| m.server.is_none()).map(|m| (m.unfetched, m.body.text.contains("All of it."))).collect::<Vec<_>>()
+    };
+    assert_eq!((copies(projects), copies(elsewhere)), (vec![(false, true)], vec![(false, true)]), "only the downloaded one is copied");
+}
