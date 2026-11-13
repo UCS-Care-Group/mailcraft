@@ -3000,7 +3000,7 @@ msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Katkıda bulunanlar kendi adlarını seçer; bkz. docs/contributors.md."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Kuruluşunuzun bir yöneticisinin MailCraft'ı herkes için bir kez onayladığı Microsoft sayfasının adresini içeren kısa bir ileti kopyalar. Hiçbir şey gönderilmez: kendiniz postaya veya sohbete yapıştırın."
@@ -3070,7 +3070,7 @@ msgid "Copy a Message for My Administrator"
 msgstr "Yöneticim için İleti Kopyala"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Copy a message for my administrator"
 msgstr "Yöneticim için bir ileti kopyala"
@@ -11268,7 +11268,7 @@ msgid "Say yes only if you asked the agent for this. Text in a message can tell 
 msgstr "Yalnızca bunu aracıdan siz istediyseniz evet deyin. Bir iletideki metin, bir aracıya istemediğiniz şeyleri yapmasını söyleyebilir."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Sizin ve kuruluşunuzun yöneticisinin neler yapabileceğini söyler ve bir yöneticinin MailCraft'ı buradan Microsoft'un sayfasında onaylamasını sağlar."
@@ -16278,7 +16278,7 @@ msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Kuruluşunuz MailCraft'ı Onaylamak Zorundayken Ne Yapmalı"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "What to do next"
 msgstr "Sırada ne yapmalı"
