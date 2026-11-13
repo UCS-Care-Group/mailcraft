@@ -2981,6 +2981,8 @@ impl Session {
         self.graph_listed_short.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
+        // The background fetch's waits and offline flag were the old mailbox's.
+        self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);
         self.pst_running = None;
         self.pst_tops.clear();
