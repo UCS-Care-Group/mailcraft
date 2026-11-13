@@ -27,7 +27,9 @@ internal object Redirect {
         if (address == null || address.length > MAX_ADDRESS) return null
         val head = "$SCHEME://$HOST"
         if (!address.startsWith(head)) return null
-        val next = address.getOrNull(head.length)
+        // Entra sends a registration with no path back with one `/` after the host.
+        val at = if (address.getOrNull(head.length) == '/') head.length + 1 else head.length
+        val next = address.getOrNull(at)
         return if (next == null || next == '?' || next == '#') address else null
     }
 }

@@ -24,6 +24,11 @@ class SignInHandbackTest {
         assertNull(Redirect.accepted("work.mailcraft.android://other?code=c"))
         assertNull(Redirect.accepted("work.mailcraft.android:/oauth2redirect?code=c"))
         assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect/x?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect//?code=c"))
+        assertEquals(
+            "work.mailcraft.android://oauth2redirect/?code=c",
+            Redirect.accepted("work.mailcraft.android://oauth2redirect/?code=c"),
+        )
         assertNull(Redirect.accepted("work.mailcraft.android://OAUTH2REDIRECT?code=c"))
         assertNull(Redirect.accepted("WORK.mailcraft.android://oauth2redirect"))
         assertNull(Redirect.accepted("https://example.org/oauth2redirect"))

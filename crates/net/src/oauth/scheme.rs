@@ -201,7 +201,15 @@ pub(super) fn read_return(address: &str, scheme: &CustomScheme<'_>, state: &str,
     if !got_scheme.eq_ignore_ascii_case(&scheme.scheme) {
         return Err(hostile("the sign-in came back to an address that is not the registered one"));
     }
-    let query = match rest.strip_prefix(scheme.after_scheme().as_str()) {
+    let after = rest.strip_prefix(scheme.after_scheme().as_str());
+    // Entra sends a registration with no path back with one `/` after the host (its documented
+    // behaviour: `scheme://host` comes back as `scheme://host/?code=...`); that one slash, and
+    // nothing else, is taken as the same address.
+    let after = match after {
+        Some(after) if scheme.path.is_empty() && scheme.authority.is_some() => Some(after.strip_prefix('/').unwrap_or(after)),
+        other => other,
+    };
+    let query = match after {
         Some("") => "",
         Some(after) => after.strip_prefix('?').ok_or_else(|| hostile("the sign-in came back to an address that is not the registered one"))?,
         None => return Err(hostile("the sign-in came back to an address that is not the registered one")),

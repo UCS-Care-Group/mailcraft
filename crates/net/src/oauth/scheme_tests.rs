@@ -706,9 +706,13 @@ fn the_host_only_form_is_the_address_registered_to_the_letter() {
     let base = "work.mailcraft.android://oauth2redirect";
     assert!(read(&format!("{base}?code=c&state=s")));
     assert!(read(&format!("{base}?state=s")));
+    // How Entra really sends it back: one `/` after a host with no path.
+    assert!(read(&format!("{base}/?code=c&state=s")));
+    assert!(read(&format!("{base}/")) == read(base));
     for hostile in [
         "work.mailcraft.android://oauth2redirect/x?code=c&state=s",
-        "work.mailcraft.android://oauth2redirect/?code=c&state=s",
+        "work.mailcraft.android://oauth2redirect//?code=c&state=s",
+        "work.mailcraft.android://oauth2redirect/&code=c&state=s",
         "work.mailcraft.android://oauth2redirectx?code=c&state=s",
         "work.mailcraft.android://oauth2redirect.evil?code=c&state=s",
         "work.mailcraft.android://oauth2redirect@evil?code=c&state=s",
