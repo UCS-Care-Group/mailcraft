@@ -14,8 +14,15 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use super::{MailIdentity, Mailbox, NOT_MOVING_YET, Pending, Queued, invalid, kept_for_put_back, not_found};
+use super::{MailIdentity, Mailbox, ONLY_SERVER_FOLDERS, Pending, Queued, awaits_its_copy, invalid, kept_for_put_back, not_found};
 use crate::{FolderKind, Id, Message, ModelError};
+
+// How many times `Mailbox::move_each` was called on this thread: for the tests of what moves
+// messages in one go, like `ThreadIndex::work`.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static MOVE_EACH_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
 /// What a removal of many messages looks up once rather than for each message.
 pub(super) struct Removal {
@@ -97,6 +104,8 @@ impl Mailbox {
     /// messages something waited for before the first of them was moved: moving one adds nothing
     /// for another, so a big move takes time in proportion to its size rather than to its square.
     pub fn move_each(&mut self, moves: &[(Id, Id)]) -> Result<Vec<(Id, Id)>, ModelError> {
+        #[cfg(test)]
+        MOVE_EACH_CALLS.with(|c| c.set(c.get() + 1));
         let pending = self.pending.iter().filter_map(|p| match p {
             Pending::Move { message, .. } => Some(*message),
             Pending::Delete { .. } => None,
@@ -109,8 +118,8 @@ impl Mailbox {
         let mut moved = Vec::new();
         for (id, folder) in moves {
             let Some(account) = self.message(*id).filter(|m| m.folder != *folder).map(|m| m.account) else { continue };
-            if self.folder(*folder).is_some() && self.stays_on_server(*id) {
-                return Err(invalid(NOT_MOVING_YET));
+            if self.folder(*folder).is_some() && self.stays_out_of(*id, *folder) {
+                return Err(invalid(ONLY_SERVER_FOLDERS));
             }
             self.move_anyway(*id, *folder, !waited.contains(id))?;
             moved.push((*id, account));
@@ -121,13 +130,9 @@ impl Mailbox {
     /// Remove `id` for good as part of the removal `r` ([`Mailbox::remove_message`]); what is
     /// done for every message removed at once is left to [`Mailbox::end_removal`].
     pub(super) fn remove_one(&mut self, id: Id, r: &mut Removal) -> Result<Arc<Message>, ModelError> {
-        // Not one a JMAP account's server has: the next run would bring it back.
-        if self.stays_on_server(id) {
-            return Err(invalid(NOT_MOVING_YET));
-        }
-        let (was_in, account, uid, message_id, seen) = {
+        let (was_in, account, uid, message_id, seen, awaiting) = {
             let m = self.message(id).ok_or(not_found("message", id))?;
-            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
+            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)), awaits_its_copy(m, m.synced))
         };
         self.queue_graph_delete_in(id, true, r);
         // (Where the removal found it; should it not be there, it is looked for.)
@@ -145,7 +150,8 @@ impl Mailbox {
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
-                if let (Some(from), true) = (from, uid != 0) {
+                // (Or one whose copy hasn't come down yet: deleted there once it is matched.)
+                if let Some(from) = from.filter(|_| uid != 0 || (awaiting && seen.is_some())) {
                     self.pending.push(Pending::Delete { account, from, uid, message_id, seen });
                 }
             }
@@ -155,14 +161,15 @@ impl Mailbox {
         Ok(m)
     }
 
-    /// What the server of a Microsoft account is to be told when `id` goes for good here, as part
+    /// What the server of an account whose deletions are queued (a Microsoft account, or one kept
+    /// in step over JMAP: [`Mailbox::queues_deletions`]) is to be told when `id` goes for good here, as part
     /// of the removal `r`: its copy is deleted there (`own`; not when its folder's deletion takes
     /// it along), and so is the server's copy of one being moved out of the account, and a copy
     /// of it not yet made there is not made ([`Mailbox::end_removal`] takes those out).
     pub(super) fn queue_graph_delete_in(&mut self, id: Id, own: bool, r: &mut Removal) {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.keeps_changes_for_server(m.account)) {
+        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.queues_deletions(m.account)) {
             deletes.push((m.account, server.id.clone()));
         }
         if let Some(out) = &m.moving_out {

@@ -1605,7 +1605,7 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
 
     // Exported as .eml: the files are in it.
     let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
-    let parsed = mailcraft_mime::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
+    let parsed = mailcraft_mime_model::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
     assert_eq!(
         parsed.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>(),
         was.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>()
@@ -1613,7 +1613,7 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
     assert_eq!(parsed.body.text.trim(), was.body.text.trim());
     // A folder as .mbox too.
     let mbox = s.run("file.exportFolder", &json!({"id": was.folder})).unwrap();
-    let all = mailcraft_mime::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+    let all = mailcraft_mime_model::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
     assert_eq!(all.len(), 24);
     assert!(all.iter().all(|m| m.attachments.iter().all(|a| !a.data.is_empty())));
 

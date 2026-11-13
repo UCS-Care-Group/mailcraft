@@ -7,7 +7,8 @@
 //!
 //! Where the other stand-ins of the tests answer whatever they are told and take whatever they are
 //! sent, this one holds a client to the standard (RFC 8620, 8621) as a real server does, for the part
-//! it serves: the session, `Mailbox/get`, `Email/query`, `Email/get` and the download of a blob.
+//! it serves: the session, `Mailbox/get`, `Email/query`, `Email/get`, the download of a blob, and what
+//! changes mail (`Email/set`: see `standin/changing.rs`).
 //!
 //! - **Who.** `Authorization: Basic` with [`USER`] and [`PASSWORD`], or `Bearer` with the one token it
 //!   holds ([`Data::token`], [`TOKEN`] at first; a token it no longer holds is refused like any other:
@@ -36,8 +37,8 @@
 //! - **What it answers with.** JSON as `application/json`, a request refused as a whole as problem details
 //!   (`application/problem+json`, RFC 9457), a blob as `application/octet-stream`, and a `Retry-After` in
 //!   seconds when it asks to be left alone.
-//! - **Not there.** Anything that changes mail, uploads, sending, `*/changes`, threads, push. The session
-//!   names no `eventSourceUrl`.
+//! - **Not there.** Making, renaming and removing mailboxes, uploads, sending, `*/changes`, `Thread/get`,
+//!   push. The session names no `eventSourceUrl`.
 //! - **Kinds of server.** [`Data::profile`] makes it a store of the standard kind, which parses the header
 //!   fields of an email for a client (`subject`, `from`…), or a server that names a message by where it
 //!   is, which serves the raw fields only, keeps an email in one mailbox and refuses `Mailbox/set`
@@ -64,6 +65,7 @@ use serde_json::{Map, Value, json};
 use crate::{CAPABILITY_CORE as CORE, CAPABILITY_MAIL as MAIL, HttpExchange, HttpRequest, HttpResponse, Id, TransportError};
 
 mod by_place;
+mod changing;
 
 pub use by_place::Profile;
 
@@ -189,6 +191,14 @@ pub struct Data {
     /// What the session says it takes: method calls in a request, ids in a `get`.
     pub max_calls: usize,
     pub max_get: usize,
+    /// What the session says it takes besides: changes in a `set` (`maxObjectsInSet`).
+    pub max_set: usize,
+    /// Emails (ids) that `Email/set` will not update or destroy: the `type` and the `description` of the
+    /// error it gives instead.
+    pub refused_changes: BTreeMap<String, (String, String)>,
+    /// `Email/set` says nothing at all of an email it does not have, where the standard has it answer
+    /// `notFound`: as some servers do.
+    pub passes_over_unknown: bool,
     /// The one bearer token it lets in; `None`: no bearer token.
     pub token: Option<String>,
     /// What kind of server it is.
@@ -235,6 +245,9 @@ impl Data {
             seen: Vec::new(),
             max_calls: 16,
             max_get: 500,
+            max_set: 500,
+            refused_changes: BTreeMap::new(),
+            passes_over_unknown: false,
             token: Some(TOKEN.into()),
             profile: Profile::standard(),
             refuse_next: VecDeque::new(),
@@ -463,7 +476,7 @@ impl Data {
                     "maxConcurrentRequests": 2,
                     "maxCallsInRequest": self.max_calls,
                     "maxObjectsInGet": self.max_get,
-                    "maxObjectsInSet": self.max_get,
+                    "maxObjectsInSet": self.max_set,
                     "collationAlgorithms": ["i;ascii-casemap"],
                 },
                 MAIL: {},
@@ -533,10 +546,10 @@ impl Data {
         (200, json!({"methodResponses": responses, "sessionState": self.state()}), names)
     }
 
-    fn method(&self, using: &[&str], name: &str, args: &Value, done: &[Done]) -> Outcome<Value> {
+    fn method(&mut self, using: &[&str], name: &str, args: &Value, done: &[Done]) -> Outcome<Value> {
         // A method whose capability the request doesn't name is unknown to the server (RFC 8620 §3.6.2).
         let served = match name {
-            "Mailbox/get" | "Email/query" | "Email/get" => true,
+            "Mailbox/get" | "Email/query" | "Email/get" | "Email/set" => true,
             "Mailbox/set" => self.profile.fixed_mailboxes,
             _ => false,
         };
@@ -548,6 +561,7 @@ impl Data {
             "Mailbox/get" => self.mailbox_get(&args),
             "Mailbox/set" => by_place::mailbox_set(&args, &self.state()),
             "Email/query" => self.email_query(&args),
+            "Email/set" => self.email_set(&args),
             _ => self.email_get(&args),
         }
     }
@@ -875,7 +889,7 @@ fn email_json(email: &Email, properties: &[String]) -> Value {
     let text = String::from_utf8_lossy(&email.raw);
     let (fields, body) = split_message(&text);
     // What a store of the standard kind parses out of the header, read by the program's own reader.
-    let parsed = properties.iter().any(|p| EMAIL_PARSED.contains(&p.as_str())).then(|| mailcraft_mime::parse(&email.raw));
+    let parsed = properties.iter().any(|p| EMAIL_PARSED.contains(&p.as_str())).then(|| mailcraft_mime_model::parse(&email.raw));
     let truths = |set: &BTreeSet<String>| Value::Object(set.iter().map(|k| (k.clone(), Value::Bool(true))).collect());
     let mut out = Map::new();
     out.insert("id".into(), json!(email.id));
@@ -901,7 +915,7 @@ fn email_json(email: &Email, properties: &[String]) -> Value {
 /// The thread of an email (RFC 8621 §3), as a server that threads by the header would name it: after
 /// the first message its `References` name, else the one it answers, else itself.
 fn thread_of(email: &Email) -> String {
-    let m = mailcraft_mime::parse(&email.raw);
+    let m = mailcraft_mime_model::parse(&email.raw);
     let root = m.references.first().cloned().filter(|r| !r.is_empty()).unwrap_or(m.in_reply_to);
     let root = if root.is_empty() { m.message_id } else { root };
     if root.is_empty() { format!("T{}", email.id) } else { format!("T{:016x}", mailcraft_model::text_hash(&root)) }
@@ -1028,5 +1042,7 @@ impl HttpExchange for StandIn {
     }
 }
 
+#[cfg(test)]
+mod changing_tests;
 #[cfg(test)]
 mod tests;
