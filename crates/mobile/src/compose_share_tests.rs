@@ -100,7 +100,7 @@ fn shared_text_is_cleaned_and_capped() {
     let v = shared(&core, Some("Line one\r\nBcc: evil@example.org"), "a\0b\u{202e}c\r\nd");
     assert!(v.subject.chars().all(|c| !c.is_control()), "{:?}", v.subject);
     assert!(v.bcc.is_empty());
-    assert!(v.text.starts_with("ab\u{202e}c\nd"), "{:?}", v.text);
+    assert!(v.text.starts_with("abc\nd"), "{:?}", v.text);
     let huge = "word ".repeat(100_000);
     let v = shared(&core, Some(&"s".repeat(10_000)), &huge);
     assert!(v.text.chars().count() <= 100_100, "{}", v.text.chars().count());
@@ -117,4 +117,15 @@ fn shared_text_with_too_many_or_odd_addresses_links_only_web_ones() {
     assert!(links.iter().all(|l| l.starts_with("https://example.org/")));
     let v = shared(&core, None, "");
     assert!(v.spans.iter().all(|s| s.link.is_none()));
+}
+
+#[test]
+fn shared_text_and_subject_carry_no_direction_overrides() {
+    let core = core();
+    let v = shared(&core, Some("Re\u{202e}port\u{2066}1\u{2069}"), "a\u{202a}b\u{202d}c\u{2067}d\u{202c}e");
+    assert_eq!(v.subject, "Report1");
+    assert!(v.text.starts_with("abcde"), "{:?}", v.text);
+    for c in v.subject.chars().chain(v.text.chars()) {
+        assert!(!matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'), "{c:?}");
+    }
 }

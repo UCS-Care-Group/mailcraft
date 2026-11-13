@@ -143,7 +143,7 @@ private fun CoreShell(
     val reader = remember(core) { ReadingStack(core, appContext, scope) }
     val pictures = reader.pictures
     val writing = rememberComposeHost(core, texts, scope)
-    TakeIncoming(incoming, onIncomingHandled, writing, appContext)
+    TakeIncoming(texts, incoming, onIncomingHandled, writing, appContext)
     val attachmentUi by reader.attachments.ui.collectAsState()
     val reading by pictures.reading.ui.collectAsState()
     val avatars by pictures.senderImages.images.collectAsState()
@@ -193,7 +193,13 @@ private fun CoreShell(
 
 /** Starts the message another app asked for (a mailto: link or a share), once. */
 @Composable
-private fun TakeIncoming(incoming: () -> Incoming?, handled: () -> Unit, writing: ComposeHost, context: Context) {
+private fun TakeIncoming(
+    texts: Texts,
+    incoming: () -> Incoming?,
+    handled: () -> Unit,
+    writing: ComposeHost,
+    context: Context,
+) {
     val shareReader = remember(context) { ResolverShareReader(context) }
     val asked = incoming()
     LaunchedEffect(asked) {
@@ -202,6 +208,7 @@ private fun TakeIncoming(incoming: () -> Incoming?, handled: () -> Unit, writing
             writing.beginIncoming(asked, shareReader, context.packageName + ".files")
         }
     }
+    IncomingLayers(texts, writing)
 }
 
 /** What the shell asks of the app: the list, the reading pane, the composer, Settings. */

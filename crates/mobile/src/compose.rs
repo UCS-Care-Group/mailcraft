@@ -453,12 +453,18 @@ fn select(s: &mut Session, id: u64, from: u32, to: u32) -> Result<(usize, usize)
 /// is cut to [`MAX_SHARED_CHARS`].
 fn shared_text(text: &str) -> String {
     let text = text.replace("\r\n", "\n").replace('\r', "\n");
-    text::clip(&text, MAX_SHARED_CHARS).chars().filter(|c| !c.is_control() || matches!(c, '\n' | '\t')).collect()
+    text::clip(&text, MAX_SHARED_CHARS).chars().filter(|c| (!c.is_control() || matches!(c, '\n' | '\t')) && !is_bidi_control(*c)).collect()
+}
+
+/// The characters that override or isolate the direction of text (U+202A to U+202E, U+2066 to U+2069):
+/// a sender could use them to make shared text read in another order than it is written.
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
 }
 
 /// A header line's worth of a shared subject.
 fn one_line(subject: &str) -> String {
-    let line: String = subject.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    let line: String = subject.chars().filter(|c| !is_bidi_control(*c)).map(|c| if c.is_control() { ' ' } else { c }).collect();
     text::clip(line.trim(), MAX_SUBJECT)
 }
 

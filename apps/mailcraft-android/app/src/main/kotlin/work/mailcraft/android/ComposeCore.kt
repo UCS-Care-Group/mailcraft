@@ -126,8 +126,8 @@ internal class PickedFile(val name: String, val bytes: ByteArray)
 internal const val MAX_PICKED_BYTES = 25 * 1024 * 1024
 
 /** Everything of [stream] up to [cap] bytes, or null when there is more: a file larger than the cap is never held. */
-internal fun readCapped(stream: InputStream, cap: Int): ByteArray? {
-    val out = ByteArrayOutputStream()
+internal fun readCapped(stream: InputStream, cap: Int, expected: Long? = null): ByteArray? {
+    val out = ByteArrayOutputStream(expected?.coerceIn(BUFFER.toLong(), cap.toLong().coerceAtLeast(BUFFER.toLong()))?.toInt() ?: BUFFER)
     val buffer = ByteArray(BUFFER)
     var total = 0
     while (true) {

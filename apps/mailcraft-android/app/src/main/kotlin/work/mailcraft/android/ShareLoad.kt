@@ -101,22 +101,19 @@ internal class ResolverShareReader(private val context: Context) : ShareReader {
                 ShareRead.TooLarge(name)
             } else {
                 val stream = context.contentResolver.openInputStream(address)
-                val bytes = stream?.use { readCapped(it, cap) }
+                val bytes = stream?.use { readCapped(it, cap, size) }
                 when {
                     stream == null -> ShareRead.Unreadable
                     bytes == null -> ShareRead.TooLarge(name)
                     else -> ShareRead.Bytes(name, bytes)
                 }
             }
+        } catch (_: RuntimeException) {
+            // A provider in another process can fail in ways of its own (a dead binder, a null): all are unreadable.
+            ShareRead.Unreadable
         } catch (_: IOException) {
             ShareRead.Unreadable
-        } catch (_: SecurityException) {
-            ShareRead.Unreadable
-        } catch (_: IllegalArgumentException) {
-            ShareRead.Unreadable
-        } catch (_: IllegalStateException) {
-            ShareRead.Unreadable
-        } catch (_: UnsupportedOperationException) {
+        } catch (_: OutOfMemoryError) {
             ShareRead.Unreadable
         }
     }

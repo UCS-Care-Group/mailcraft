@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +68,18 @@ internal class ComposeHost(
     var snack by mutableStateOf<String?>(null)
         private set
 
+    /** True while the files of a share are being read. */
+    var reading by mutableStateOf(false)
+        private set
+
+    /** Said in a dialog the owner closes, never in a snackbar that is gone before it is read. */
+    var blocked by mutableStateOf<String?>(null)
+        private set
+
+    fun blockedShown() {
+        blocked = null
+    }
+
     fun begin(start: ComposeStart) {
         if (controller != null) return
         controller = ComposeController(CoreCompose(core), scope).also { it.start(start) }
@@ -85,7 +98,19 @@ internal class ComposeHost(
             is Incoming.Share -> {
                 if (controller != null) return busy()
                 scope.launch {
-                    val load = withContext(io) { loadShared(incoming.files, reader, ownAuthority) }
+                    reading = true
+                    val load = try {
+                        withContext(io) { loadShared(incoming.files, reader, ownAuthority) }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Whatever went wrong, the message still opens, with the files said to be unreadable.
+                        ShareLoad(emptyList(), listOf(Refusal(Why.Unreadable, count = incoming.files.size)))
+                    } catch (_: OutOfMemoryError) {
+                        ShareLoad(emptyList(), listOf(Refusal(Why.Unreadable, count = incoming.files.size)))
+                    } finally {
+                        reading = false
+                    }
                     if (controller != null) return@launch busy()
                     val start = if (incoming.text == null && incoming.subject == null) {
                         ComposeStart.New(0uL, null)
@@ -100,7 +125,7 @@ internal class ComposeHost(
     }
 
     private fun busy() {
-        snack = texts.t("Finish or close the message you are writing, then try again.")
+        blocked = texts.t("Finish or close the message you are writing, then try again.")
     }
 
     fun snackShown() {

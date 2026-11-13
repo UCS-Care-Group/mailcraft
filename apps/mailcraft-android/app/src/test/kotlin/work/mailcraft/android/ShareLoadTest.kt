@@ -143,4 +143,14 @@ class ShareLoadTest {
         assertTrue(text, text.contains("1 more file was not attached: a message takes at most 20 files from a share."))
         assertTrue(text, text.contains("7 more files were not attached: a message takes at most 20 files from a share."))
     }
+
+    @Test
+    fun a_size_the_provider_names_never_lets_more_than_the_cap_be_read() {
+        val data = ByteArray(1000) { 1 }
+        assertEquals(1000, readCapped(data.inputStream(), 5000, 1000)?.size)
+        // A provider that understates or overstates its size changes nothing about the cap.
+        assertEquals(null, readCapped(data.inputStream(), 500, 10))
+        assertEquals(1000, readCapped(data.inputStream(), 5000, Long.MAX_VALUE)?.size)
+        assertEquals(1000, readCapped(data.inputStream(), 5000, -3)?.size)
+    }
 }
