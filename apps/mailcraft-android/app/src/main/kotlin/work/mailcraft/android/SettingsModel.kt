@@ -112,6 +112,9 @@ internal data class SettingsUi(
     val space: SpaceAsk? = null,
     /** Changing a window did not go through. */
     val keepFailed: Boolean = false,
+    /** Older mail is being taken back to its headers after a shorter window; [thinned] so far. */
+    val thinning: Boolean = false,
+    val thinned: Long = 0L,
 )
 
 /** What Settings asks of the app: one entry for each thing the owner can do there. */
@@ -121,6 +124,7 @@ internal class SettingsActions(
     val onShown: (List<AccountItem>) -> Unit = {},
     val onSwitches: (Switches) -> Unit = {},
     val onKeepOffline: (AccountItem, String) -> Unit = { _, _ -> },
+    val onThinStop: () -> Unit = {},
     val onSpaceYes: () -> Unit = {},
     val onSpaceNo: () -> Unit = {},
     val onSignatureDraft: (AccountItem, String) -> Unit = { _, _ -> },

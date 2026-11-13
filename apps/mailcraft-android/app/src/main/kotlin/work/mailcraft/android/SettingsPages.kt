@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +82,17 @@ internal fun MailOfflinePage(texts: Texts, ui: SettingsUi, accounts: List<Accoun
         )
         ui.codes.forEach { code ->
             ChoiceRow(offlineLabel(texts, code), selected = code == chosen) { actions.onKeepOffline(account, code) }
+        }
+    }
+    if (ui.thinning) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                texts.tn(ui.thinned.toULong(), "{n} older message taken back to its headers", "{n} older messages taken back to its headers"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(Gutter),
+            )
+            TextButton(onClick = actions.onThinStop) { Text(texts.t("Stop")) }
         }
     }
     if (ui.keepFailed) Hint(texts.t("That didn't go through. The window is as it was."))

@@ -25,6 +25,7 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
     var refuse = false
     var thinning = mutableListOf(Thinned(300, 300), Thinned(300, 120), Thinned(120, 0))
     var thinCalls = 0
+    var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
     var setCalls = 0
 
     override fun codes() = OFFLINE_CODES
@@ -41,6 +42,7 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
 
     override suspend fun thin(): Thinned? {
         thinCalls++
+        gate?.await()
         return if (thinning.isEmpty()) Thinned(0, 0) else thinning.removeAt(0)
     }
 
@@ -147,6 +149,29 @@ class SettingsControllerTest {
         assertNull(c.ui.value.space)
         assertEquals("1w", c.ui.value.keepOffline[1uL])
         assertEquals(3, api.thinCalls)
+    }
+
+    @Test
+    fun thinningSaysHowMuchWasDoneAndEndsWithNoneLeft() {
+        val api = FakeSettings()
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onKeepOffline(ada, "1w")
+        assertEquals(720L, c.ui.value.thinned)
+        assertEquals(false, c.ui.value.thinning)
+    }
+
+    @Test
+    fun stopEndsThinningWhileItWaitsAndTheWindowStays() {
+        val api = FakeSettings().apply { gate = kotlinx.coroutines.CompletableDeferred() }
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onKeepOffline(ada, "3d")
+        assertEquals(true, c.ui.value.thinning)
+        c.actions().onThinStop()
+        assertEquals(false, c.ui.value.thinning)
+        assertEquals(0L, c.ui.value.thinned)
+        assertEquals("3d", c.ui.value.keepOffline[1uL])
     }
 
     @Test

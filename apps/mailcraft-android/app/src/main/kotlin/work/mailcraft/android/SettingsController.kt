@@ -4,6 +4,9 @@ package work.mailcraft.android
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -66,6 +69,9 @@ internal class SettingsController(
     private val asking = Mutex()
     private var answer: CompletableDeferred<Boolean>? = null
 
+    /** The one run of thinning older mail: a second window choice, or Stop, ends it. */
+    private var thinning: Job? = null
+
     fun actions(
         onChannelSettings: (String) -> Unit = {},
         onOpenLink: (String) -> Unit = {},
@@ -73,6 +79,7 @@ internal class SettingsController(
         onShown = ::shown,
         onSwitches = ::switches,
         onKeepOffline = { account, code -> chooseWindow(account.id, code) },
+        onThinStop = ::stopThinning,
         onSpaceYes = { answered(true) },
         onSpaceNo = { answered(false) },
         onSignatureDraft = { account, text -> draft(account.id, text) },
@@ -136,12 +143,28 @@ internal class SettingsController(
         }
         // A shorter window takes nothing off the disk by itself: older mail goes back to its
         // headers a few hundred messages a call, until none is left.
-        if (changed?.shorter == true) thinAll()
+        // It stops at Stop and at the next choice; the sync driver takes it over when it exists.
+        if (changed?.shorter == true) startThinning()
+    }
+
+    private fun startThinning() {
+        thinning?.cancel()
+        ui.update { state -> state.copy(thinning = true, thinned = 0L) }
+        val run = scope.launch { thinAll() }
+        thinning = run
+        run.invokeOnCompletion { if (thinning === run) ui.update { state -> state.copy(thinning = false) } }
+    }
+
+    /** Stops taking older mail back to its headers; what was thinned stays thinned. */
+    fun stopThinning() {
+        thinning?.cancel()
     }
 
     private suspend fun thinAll() {
         repeat(MAX_THIN_CALLS) {
+            if (!currentCoroutineContext().isActive) return
             val step = api.thin() ?: return
+            ui.update { state -> state.copy(thinned = state.thinned + step.thinned.coerceAtLeast(0)) }
             if (step.left <= 0 || step.thinned <= 0) return
         }
     }

@@ -12264,8 +12264,8 @@ msgstr ""
 msgid "Still indexing: some older mail is searched more slowly"
 msgstr "Todavía indexando: parte del correo antiguo se busca más despacio"
 
-#. interface
-#: crates/ui-egui/src/sync_panel.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Stop"
 msgstr "Detener"
@@ -19778,6 +19778,13 @@ msgstr "{n} de {total}"
 #, fuzzy
 msgid "{n} of {total} so far."
 msgstr "{n} de {total} hasta ahora."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+msgid "{n} older message taken back to its headers"
+msgid_plural "{n} older messages taken back to its headers"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
