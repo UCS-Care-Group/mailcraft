@@ -92,6 +92,18 @@ fn addresses_resolve_within_the_service() {
 }
 
 #[test]
+fn a_service_with_no_address_books_is_not_an_error() {
+    // A CalDAV-only service lists its collections and none of them is an address book. That is
+    // not a fault: nothing of the mailbox's contacts goes, and the run says nothing is wrong.
+    let body = r#"<?xml version="1.0"?><D:multistatus xmlns:D="DAV:"><D:response><D:href>/dav/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>"#;
+    let reply = format!("HTTP/1.1 207 Multi-Status\r\nContent-Length: {}\r\n\r\n{body}", body.len());
+    let server = FakeHttp::answering(reply.into_bytes());
+    let found = contacts(&server.url("/dav/"), "").unwrap();
+    assert!(found.contacts.is_empty());
+    assert!(!found.complete, "no address book was read, so nothing is removed from the mailbox for it");
+}
+
+#[test]
 fn a_change_made_here_goes_up_as_it_is_the_servers() {
     use mailcraft_model::remote::{EventOp, EventTime, EventsUpload};
     let server = FakeHttp::answering(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n".to_vec());

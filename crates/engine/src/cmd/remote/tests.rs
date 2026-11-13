@@ -1898,6 +1898,43 @@ fn a_series_made_elsewhere_keeps_its_days_of_the_week_here() {
 }
 
 #[test]
+fn a_series_that_comes_alone_keeps_the_days_it_says_it_skips() {
+    let (mut s, account) = session();
+    let rule = Recurrence {
+        by_day: vec![mailcraft_time::Weekday::Mon, mailcraft_time::Weekday::Wed, mailcraft_time::Weekday::Fri],
+        ..Recurrence::every(Freq::Weekly)
+    };
+    // One resource for the whole series, as CalDAV hands it: its `EXDATE`s and the day of its
+    // changed instance are in the series itself, and no occurrence is listed beside it.
+    let master = RemoteEvent { exceptions: vec![day(10, 16), day(10, 21)], ..master("s-1", "Stand-up", at(2026, 10, 5, 13, 0), 30, rule) };
+    let late = RemoteEvent {
+        id: "x-21".into(),
+        kind: RemoteEventKind::Exception,
+        original: Some(at(2026, 10, 21, 13, 0)),
+        ..instance("s-1", "Stand-up (late)", at(2026, 10, 21, 15, 0), 30)
+    };
+    let download = EventsDownload { masters_only: true, ..october(account, vec![master.clone(), late.clone()]) };
+    apply_events(&mut s, &download).unwrap();
+    // Only the two days the series names are skipped: the days its rule keeps are not taken for
+    // days the server deleted.
+    let series = event_called(&s, account, "s-1");
+    assert_eq!(series.exceptions, [day(10, 16), day(10, 21)]);
+    let nine: Vec<(u8, u8)> = [5, 7, 9, 12, 14, 19, 23, 26, 28, 30].into_iter().map(|d| (d, 9)).collect();
+    assert_eq!(shown(&s, "Stand-up"), nine);
+    assert_eq!(shown(&s, "Stand-up (late)"), [(21, 11)]);
+
+    // The same series again, and a stretch that reaches past October: what it skips stays what
+    // it says, and no other day goes.
+    let wider =
+        EventsDownload { from: at(2026, 10, 10, 0, 0), to: at(2026, 11, 15, 0, 0), masters_only: true, ..october(account, vec![master, late]) };
+    apply_events(&mut s, &wider).unwrap();
+    let series = event_called(&s, account, "s-1");
+    assert_eq!(series.exceptions, [day(10, 16), day(10, 21)]);
+    assert_eq!(shown(&s, "Stand-up"), nine);
+    assert_eq!(from_server(&s, account).len(), 2);
+}
+
+#[test]
 fn one_day_of_a_series_or_all_of_it_is_changed_on_the_server() {
     let (mut s, account) = session();
     apply_events(&mut s, &october(account, standup(&STANDUP_DAYS))).unwrap();

@@ -412,6 +412,36 @@ fn timing_guards_allow_lossless_recurrence_and_unrelated_title_edits() {
 }
 
 #[test]
+fn moving_an_event_keeps_an_alarm_the_writer_words_its_own_way() {
+    // The server's alarm says `Erinnerung`; the writer calls the same alarm `Reminder`. Moving
+    // the event changes neither its trigger nor its delay, so the alarm is no reason to refuse.
+    let alarm = "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Erinnerung\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n";
+    let source = EVENT
+        .replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z")
+        .replace("END:VEVENT", &format!("{alarm}END:VEVENT"));
+    let got = real_writer_edit(&source, |e| {
+        e.start = e.start.add_minutes(120);
+        e.end = e.end.add_minutes(120);
+    })
+    .unwrap();
+    assert!(got.contains("DTSTART:20261024T140000Z"), "{got}");
+    assert!(got.contains(alarm), "{got}");
+}
+
+#[test]
+fn an_edit_stamps_the_revision_and_moves_a_sequence_on() {
+    let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:stable\r\nDTSTAMP:20260101T000000Z\r\nSEQUENCE:2\r\nLAST-MODIFIED:20260101T000000Z\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nSUMMARY:Old\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let before = source.replace("DTSTAMP:20260101T000000Z", "DTSTAMP:20260102T000000Z");
+    let after = before.replace("SUMMARY:Old", "SUMMARY:New");
+    let got = patch(source, &before, &after, Component::Event).unwrap();
+    assert!(got.contains("DTSTAMP:20260102T000000Z\r\n"), "{got}");
+    assert!(!got.contains("20260101T000000Z"), "{got}");
+    assert!(got.contains("SEQUENCE:3\r\n"), "{got}");
+    assert!(got.contains("LAST-MODIFIED:20260102T000000Z\r\n"), "{got}");
+    assert!(got.contains("SUMMARY:New\r\n"), "{got}");
+}
+
+#[test]
 fn moving_an_event_refuses_an_unmodelled_absolute_reminder() {
     let alarm = "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:R\r\nTRIGGER;VALUE=DATE-TIME:20261024T114500Z\r\nEND:VALARM\r\n";
     let source = EVENT

@@ -1746,6 +1746,7 @@ fn event_of(entry: &Value) -> Option<RemoteEvent> {
         token: text(entry, "transactionId").to_string(),
         recurrence: None,
         series_day: None,
+        exceptions: Vec::new(),
         original: instant(text(entry, "originalStart")),
         categories: entry
             .get("categories")

@@ -362,7 +362,17 @@ fn events_of(
         return Err(NetError::Forbidden(format!("the server answered {} to a calendar query", reply.status)));
     }
     let responses = multistatus(&reply.body)?;
-    let mut out = mailcraft_model::remote::EventsDownload { from, to, complete: true, calendar: calendar_id.to_string(), ..Default::default() };
+    let mut out = mailcraft_model::remote::EventsDownload {
+        from,
+        to,
+        complete: true,
+        // One resource holds a whole series, master and changed instances together: the
+        // occurrences of its rule are not listed separately, so what is missing from here says
+        // nothing about a day it skips. What it does skip is its `EXDATE`s, below.
+        masters_only: true,
+        calendar: calendar_id.to_string(),
+        ..Default::default()
+    };
     if responses.len() > MAX_OBJECTS {
         out.complete = false;
     }
@@ -422,6 +432,10 @@ fn remote_event(event: mailcraft_model::Event, id: String, uid: String, etag: St
         token: String::new(),
         recurrence: event.recurrence,
         series_day: series.then_some(event.start.date),
+        // The days the series itself says it skips (its `EXDATE`s and the days its changed
+        // instances stand in for). The engine takes them with the series when the occurrences
+        // are not listed beside it.
+        exceptions: if series { event.exceptions } else { Vec::new() },
         original: None,
         categories: event.categories,
         importance: event.importance,
@@ -471,11 +485,14 @@ fn contacts(base: &str, auth: &str) -> Result<ContactsDownload, NetError> {
         }
     }
     if books == 0 {
-        // Every account has its personal book: none at all is a home that wasn't
-        // found, and nothing is removed from the mailbox for it.
+        // Every account has its personal book: none at all is a home that wasn't found, and
+        // nothing is removed from the mailbox for it. It is no problem to report: an account
+        // that keeps only calendars has no address books, and that is not a fault.
         out.complete = false;
     }
-    if out.contacts.is_empty() && !out.complete {
+    // A book that was listed and couldn't be read is worth saying; a server with no address
+    // books at all is not.
+    if books > 0 && out.contacts.is_empty() && !out.complete {
         return Err(NetError::Forbidden("no address book could be read".into()));
     }
     Ok(out)

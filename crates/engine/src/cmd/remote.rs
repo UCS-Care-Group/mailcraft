@@ -631,6 +631,9 @@ fn keep_options(old: &Event, fresh: &mut Event) {
 pub fn series_from_remote(remote: &RemoteEvent, owner: &str, offset_at: &dyn Fn(Timestamp) -> i32) -> Event {
     let mut event = event_from_remote(remote, owner, offset_at);
     let Some(mut rule) = remote.recurrence.clone() else { return event };
+    // The days it says it skips, as the server said them (the merge keeps them when the
+    // occurrences are not listed beside the series).
+    event.exceptions = remote.exceptions.clone();
     // A series whose zone is known repeats by that zone's clock, and its rule counts that
     // zone's days as it stands (`mailcraft_model::zoned`): nothing of it is shifted.
     if !remote.all_day {
@@ -710,8 +713,17 @@ fn skipped_days(
     let complete = download.complete && download.events.len() <= MAX_EVENTS && download.from < download.to;
     let asked = |day: Date| complete && (download.from..download.to).contains(&occurrence_instant(series, day, offset_at));
     let is_own = |day: &Date| own.is_some_and(|own| own.contains(day));
-    let mut skipped: BTreeSet<Date> = before.iter().copied().filter(|day| !asked(*day) && !is_own(day)).collect();
-    skipped.extend(days.iter().copied().filter(|day| asked(*day) && !is_own(day)));
+    // What the series itself says it skips (`EXDATE`, and the days its changed instances stand
+    // for): one resource for the whole series names them, where a server that lists the
+    // occurrences of each day names none of it.
+    let mut skipped: BTreeSet<Date> = series.exceptions.iter().copied().filter(|day| !is_own(day)).collect();
+    skipped.extend(before.iter().copied().filter(|day| !asked(*day) && !is_own(day)));
+    // Only a download that lists the occurrences of a series can say one of them is missing from
+    // it: a server that hands the series alone has nothing to list, and a day its rule names is
+    // not a day it was deleted on.
+    if !download.masters_only {
+        skipped.extend(days.iter().copied().filter(|day| asked(*day) && !is_own(day)));
+    }
     skipped.extend(loose.into_iter().flatten().copied());
     skipped.extend(waiting.into_iter().flatten().map(|instant| series_day_at(series, *instant, offset_at)));
     skipped.into_iter().take(MAX_SKIPPED).collect()

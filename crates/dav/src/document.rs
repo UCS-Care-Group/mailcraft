@@ -328,6 +328,72 @@ fn validate_rule_until(start: &str, rule: &str) -> Result<(), InvalidDocument> {
     Ok(())
 }
 
+/// The timing facts of a document's nested components: an alarm's `TRIGGER` and the repeats it
+/// takes (`DURATION`, `REPEAT`). What else a nested component says (an alarm's description, say)
+/// is not timing, and a writer may word it its own way.
+fn nested_timing(document: &Document) -> Result<Vec<String>, InvalidDocument> {
+    let mut timing = Vec::new();
+    for nested in &document.nested {
+        for line in lines(nested)? {
+            let (head, _) = parts(&line.text)?;
+            let key = head.split(';').next().unwrap_or_default();
+            if ["TRIGGER", "DURATION", "REPEAT"].iter().any(|name| key.eq_ignore_ascii_case(name)) {
+                timing.push(line.text);
+            }
+        }
+    }
+    Ok(timing)
+}
+
+/// What an edit writes over the source: a fresh `DTSTAMP`, the `SEQUENCE` after the one the
+/// source had, and a `LAST-MODIFIED` that matches the stamp. The first line is the writer's
+/// stamp; `superseded` names the source properties it stands in for, which go rather than
+/// keeping their old values beside the new ones.
+fn revision(
+    component: Component,
+    changed: &BTreeSet<&str>,
+    source: &BTreeMap<&str, Vec<&str>>,
+    writer: &BTreeMap<&str, Vec<&str>>,
+) -> Result<(Vec<String>, BTreeSet<&'static str>), InvalidDocument> {
+    if component != Component::Event {
+        return Ok((Vec::new(), BTreeSet::new()));
+    }
+    let Some(stamp) = writer.get("DTSTAMP").and_then(|lines| lines.first()).copied() else {
+        return Ok((Vec::new(), BTreeSet::new()));
+    };
+    let (stamp_head, stamp_value) = parts(stamp)?;
+    if !stamp_head.eq_ignore_ascii_case("DTSTAMP") || stamp_value.is_empty() {
+        return Err(InvalidDocument);
+    }
+    let mut lines = vec![stamp.to_string()];
+    let mut superseded = BTreeSet::from(["DTSTAMP"]);
+    // A sequence the writer did not say for itself is moved on from the source's, when that one
+    // is a number; one that isn't is left as it is rather than guessed at.
+    if !changed.contains("SEQUENCE")
+        && let Some(sequence) = source.get("SEQUENCE").and_then(|lines| lines.first()).and_then(|line| bumped_sequence(line))
+    {
+        lines.push(sequence);
+        superseded.insert("SEQUENCE");
+    }
+    // A last-modified the source has says the same as the new stamp: it is when this edit was
+    // made.
+    if !changed.contains("LAST-MODIFIED")
+        && let Some(last) = source.get("LAST-MODIFIED").and_then(|lines| lines.first())
+    {
+        let (head, _) = parts(last)?;
+        lines.push(format!("{head}:{stamp_value}"));
+        superseded.insert("LAST-MODIFIED");
+    }
+    Ok((lines, superseded))
+}
+
+/// `SEQUENCE:4` for a source's `SEQUENCE:3`, or none when the source's is not a number.
+fn bumped_sequence(line: &str) -> Option<String> {
+    let (head, value) = parts(line).ok()?;
+    let sequence: u32 = value.trim().parse().ok()?;
+    Some(format!("{head}:{}", sequence.saturating_add(1).min(2_147_483_647)))
+}
+
 fn difference<'a>(left: &'a Document, right: &Document, changed: &BTreeSet<&str>) -> BTreeMap<&'a str, usize> {
     let mut counts = BTreeMap::new();
     for p in left.properties.iter().filter(|p| changed.contains(p.key.as_str())) {
@@ -370,6 +436,9 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
         }
     }
     let changed: BTreeSet<&str> = old_values.keys().chain(new_values.keys()).copied().filter(|k| old_values.get(k) != new_values.get(k)).collect();
+    // The writer stamps every copy it writes, so a stamp that differs between its two copies is
+    // no edit of its own. A real edit refreshes the source's, below.
+    let changed: BTreeSet<&str> = changed.into_iter().filter(|key| *key != "DTSTAMP").collect();
     if changed.is_empty() {
         return Ok(original.into());
     }
@@ -413,7 +482,7 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
         // when the writer did not retain the source's complete timing information.
         let timing = ["DTSTART", "DTEND", "DURATION", "RRULE", "RDATE", "EXDATE", "EXRULE"];
         if timing.iter().any(|key| changed.contains(key))
-            && (timing.iter().any(|key| source_values.get(key) != old_values.get(key)) || source.nested != old.nested)
+            && (timing.iter().any(|key| source_values.get(key) != old_values.get(key)) || nested_timing(&source)? != nested_timing(&old)?)
         {
             return Err(InvalidDocument);
         }
@@ -499,6 +568,9 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
     // its original position, parameters and physical folding, even beside an edited line.
     let mut remove = difference(&source, &new, &changed);
     let mut add = difference(&new, &old, &changed);
+    // An edit is a revision of what the server has: it carries a fresh stamp, and the sequence
+    // and last-modified that say it came after.
+    let (revision, superseded) = revision(component, &changed, &source_values, &new_values)?;
     // Insert property replacements before any nested alarms, preferably at the first
     // removed line. RFC 5545 §3.6.1 puts event properties before its nested components.
     let ending = if original.split_inclusive('\n').next().is_some_and(|line| line.ends_with("\r\n")) { "\r\n" } else { "\n" };
@@ -512,7 +584,16 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
             }
         }
     }
-    let removed: Vec<_> = source.properties.iter().filter(|p| take(&mut remove, &p.line.text)).map(|p| p.line.span.clone()).collect();
+    for line in &revision {
+        insertions.push_str(line);
+        insertions.push_str(ending);
+    }
+    let removed: Vec<_> = source
+        .properties
+        .iter()
+        .filter(|p| superseded.contains(p.key.as_str()) || take(&mut remove, &p.line.text))
+        .map(|p| p.line.span.clone())
+        .collect();
     let insertion = removed.first().map_or(source.properties_end, |span| span.start.min(source.properties_end));
     let mut output = String::new();
     let mut cursor = 0;

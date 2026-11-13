@@ -220,7 +220,12 @@ impl MailApp {
         let mut errors = std::mem::take(&mut result.errors);
         if let Some(uploaded) = &result.uploaded {
             match remote::apply_event_outcomes(&mut self.session, uploaded) {
-                Ok(applied) => errors.extend(applied.messages),
+                Ok(applied) => {
+                    if let Some(first) = applied.messages.first() {
+                        self.status(first.clone());
+                    }
+                    errors.extend(applied.messages);
+                }
                 Err(e) => errors.push(crate::i18n::fmt(tl!("The calendar changes couldn't be taken in: {error}"), &[("error", &e.to_string())])),
             }
         }
@@ -249,8 +254,26 @@ impl MailApp {
             let mut events = events.clone();
             events.account = account;
             events.email = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
-            if let Err(e) = remote::apply_events(&mut self.session, &events) {
-                errors.push(crate::i18n::fmt(tl!("The calendar events couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+            match remote::take_in_events(&mut self.session, &events) {
+                Ok(merged) => {
+                    if let Some(first) = merged.messages.first() {
+                        self.status(first.clone());
+                    }
+                    // (They name the events: for the owner to read, not for the log.)
+                    errors.extend(merged.messages);
+                    log::info!(
+                        "calendar and address books, account {account}: {} events came down ({} new, {} changed, {} gone here); of what was sent, {} are there as sent, {} were put back, {} are not seen yet; {} waiting changes were given up",
+                        events.events.len(),
+                        merged.added,
+                        merged.updated,
+                        merged.removed,
+                        merged.verified,
+                        merged.put_back,
+                        merged.unverified,
+                        merged.dropped.len()
+                    );
+                }
+                Err(e) => errors.push(crate::i18n::fmt(tl!("The calendar events couldn't be taken in: {error}"), &[("error", &e.to_string())])),
             }
         }
         if let Some(contacts) = &result.contacts {

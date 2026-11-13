@@ -4,7 +4,10 @@
 
 use super::*;
 use mailcraft_engine::Session;
-use mailcraft_model::remote::{CalendarsDownload, ContactsDownload, EventsDownload, RemoteCalendar, RemoteContact, RemoteEvent};
+use mailcraft_model::remote::{
+    CalendarsDownload, ContactsDownload, EventChangeKind, EventOp, EventOutcome, EventResult, EventsDownload, EventsUploaded, RemoteCalendar,
+    RemoteContact, RemoteEvent,
+};
 use mailcraft_model::{Account, AccountKind, Calendar, DavServer, Mailbox, Origin, Security, Server};
 use serde_json::json;
 use std::sync::mpsc;
@@ -99,6 +102,62 @@ fn a_successful_run_clears_a_stale_sign_in_notice() {
     tx.send(DavResult { account, ..Default::default() }).unwrap();
     app.poll_dav();
     assert!(!app.sync_problems.iter().any(|(a, ..)| *a == account), "the stale notice goes when the run works");
+}
+
+#[test]
+fn a_refused_dav_change_is_said_in_the_status_bar_and_kept_as_a_problem() {
+    let (mut app, account) = app();
+    let (tx, rx) = mpsc::channel();
+    app.dav.rx = Some((account, app.session.openings(), rx));
+    tx.send(DavResult {
+        account,
+        events: vec![EventsDownload {
+            account,
+            email: "ada@example.org".into(),
+            from: 1_799_999_000,
+            to: 1_800_100_000,
+            complete: true,
+            events: vec![RemoteEvent { id: "e-1".into(), title: "Stand-up".into(), start: 1_800_000_000, end: 1_800_003_600, ..Default::default() }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    })
+    .unwrap();
+    app.poll_dav();
+    let id = app.session.mailbox.events.values().find(|event| event.title == "Stand-up").map(|event| event.id).unwrap();
+    app.execute("calendar.private", json!({"id": id, "value": true})).unwrap();
+    assert!(
+        app.session.mailbox.event_changes.iter().any(|change| change.remote == "e-1" && change.kind == EventChangeKind::Update),
+        "the change waits to be sent"
+    );
+
+    // The server refuses it: the owner hears it in the status bar, and it is kept among the
+    // problems of the account rather than only in the log.
+    let (tx, rx) = mpsc::channel();
+    app.dav.rx = Some((account, app.session.openings(), rx));
+    tx.send(DavResult {
+        account,
+        uploaded: Some(EventsUploaded {
+            account,
+            outcomes: vec![EventOutcome {
+                op: EventOp { kind: EventChangeKind::Update, event: id, remote: "e-1".into(), ..Default::default() },
+                result: EventResult::Refused,
+                error: "the calendar is read-only".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .unwrap();
+    app.poll_dav();
+    let said = app.status_msg.as_ref().map(|(said, _)| said.as_str()).unwrap_or_default();
+    assert!(said.contains("wouldn't take the change to"), "{said}");
+    assert!(
+        app.account_problem_lines(account).iter().any(|line| line.contains("wouldn't take the change to")),
+        "the refusal is a problem of the account too: {:?}",
+        app.account_problem_lines(account)
+    );
 }
 
 #[test]
