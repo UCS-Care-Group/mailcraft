@@ -308,6 +308,11 @@ msgstr "@{login}: {prs} samengevoegde PR's, {commits} commits, +{added} / −{de
 msgid "A .pst file is being imported: try again when it is done"
 msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het klaar is"
 
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+msgid "A JMAP account's mail can't be snoozed yet."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -6937,17 +6942,16 @@ msgstr "MailCraft kan zich nog niet op deze manier aanmelden bij deze server (de
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft kon uw browser niet openen voor de goedkeuringspagina van Microsoft. Kopieer in plaats daarvan het bericht: de koppeling erin opent dezelfde pagina."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
 msgstr "MailCraft kent de instellingen voor dit adres niet. De servers hieronder zijn alleen een gok op basis van het domein: controleer ze bij uw provider of beheerder voordat u verbinding maakt."
-
-#. what a command says
-#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
-#, fuzzy
-msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
-msgstr "MailCraft verplaatst of verwijdert nog geen e-mail van een JMAP-account: de volgende Verzenden/ontvangen zou die terugbrengen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7010,6 +7014,11 @@ msgstr ""
 #, fuzzy
 msgid "MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open."
 msgstr "MailCraft bewaart de regels van dit account op deze computer: de regel wordt uitgevoerd zolang MailCraft open is."
+
+#. what a command says
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
+msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -13483,12 +13492,6 @@ msgstr ""
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr ""
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "The draft stays in Drafts. {why}"
-msgstr "Het concept blijft in Concepten. {why}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -20770,6 +20773,14 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
+#~ msgstr "MailCraft verplaatst of verwijdert nog geen e-mail van een JMAP-account: de volgende Verzenden/ontvangen zou die terugbrengen"
+
+#, fuzzy
+#~ msgid "The draft stays in Drafts. {why}"
+#~ msgstr "Het concept blijft in Concepten. {why}"
 
 #, fuzzy
 #~ msgid "The signer's certificate isn't in the message."

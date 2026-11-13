@@ -972,6 +972,10 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)) {
         return super::graph_mail::unpushed(s, account);
     }
+    // A JMAP account's are the changes of its messages (its folders' don't go up yet).
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+        return super::jmap_up::unpushed(&s.mailbox, account);
+    }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
 
