@@ -7,6 +7,12 @@
 
 use std::collections::HashMap;
 
+pub mod offline;
+#[cfg(test)]
+mod offline_tests;
+
+pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+
 use mailcraft_model::Id;
 
 /// How one kind of job is paced (all times in milliseconds).
@@ -183,4 +189,13 @@ pub fn fingerprint(refresh: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     refresh.hash(&mut hasher);
     hasher.finish()
+}
+
+/// The sync driver's state, in the session: what the front end's jobs have to remember between
+/// looks. In memory only, never saved, and with no I/O; a front end reads and writes it through
+/// the functions here and on [`Session`](crate::Session).
+#[derive(Debug, Default)]
+pub struct Driver {
+    /// Mail to keep offline: when it was last taken back.
+    pub thinning: Thinning,
 }
