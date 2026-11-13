@@ -47,7 +47,7 @@ fn not_internal<T: std::fmt::Debug>(what: &str, r: &Result<T, CoreError>) {
     assert!(!matches!(r, Err(CoreError::Internal)), "{what}: a panic was caught");
     // `Session::run` turns a command's panic into this error, so that is caught here too.
     if let Err(CoreError::Failed { reason }) = r {
-        assert!(!message.contains("failed unexpectedly"), "{what}: a command's panic was caught by Session::run");
+        assert!(!reason.contains("failed unexpectedly"), "{what}: a command's panic was caught by Session::run");
     }
 }
 
