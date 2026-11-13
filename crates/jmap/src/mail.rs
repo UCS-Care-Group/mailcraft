@@ -76,12 +76,14 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use mailcraft_jmap_types::{Comparator, EmailFilterCondition, EmailQueryRequest, Filter, GetRequest, QueryRequest};
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
     FolderListing, GraphMessage, GraphProgress, JmapMailRequest, JmapMailResult, JmapScope, MAX_JMAP_WINDOW, MAX_THREAD_ASKS, MessagePage, ThreadOf,
     thread_id,
 };
-use serde_json::{Map, Value, json};
+use serde::Serialize;
+use serde_json::{Map, Value};
 
 use self::message::{Marks, claims};
 use crate::connection::{busy_seconds, unusable};
@@ -422,9 +424,9 @@ impl<'a, H: HttpExchange> Run<'a, H> {
     }
 
     /// A request of the one call `method` with `args`, and its answer, held to `most` bytes.
-    async fn one_call(&self, method: &str, args: Value, most: usize) -> Result<Value, Stop> {
+    async fn one_call(&self, method: &str, args: Map<String, Value>, most: usize) -> Result<Value, Stop> {
         let mut request = mail_request(most)?;
-        let call = request.add_call(method, arguments(args))?;
+        let call = request.add_call(method, args)?;
         let mut answers = self.post(&request).await?;
         Self::take(&mut answers, &call, method)
     }
@@ -480,7 +482,7 @@ impl<'a, H: HttpExchange> Run<'a, H> {
     /// without a listing; one that says the server can not be had ends the run.
     async fn list(&self, out: &mut Outcome) -> Result<Option<Places>, Stop> {
         self.check()?;
-        let args = json!({"accountId": self.account(), "properties": MAILBOX_PROPERTIES});
+        let args = arguments(&get(self.account(), None, &MAILBOX_PROPERTIES))?;
         let told = |out: &mut Outcome, error: &dyn fmt::Display| out.listing = Some(self.said(error));
         let answer = match self.one_call("Mailbox/get", args, LIST_BYTES).await {
             Ok(answer) => answer,
@@ -634,20 +636,26 @@ impl<'a, H: HttpExchange> Run<'a, H> {
     /// keywords and the mailboxes they lie in.
     async fn newest(&self, mailbox: &str, places: Option<&Places>) -> Result<Newest, Stop> {
         let account = self.account();
-        let query = json!({
-            "accountId": account,
-            "filter": {"inMailbox": mailbox},
-            "sort": [{"property": "receivedAt", "isAscending": false}],
-            "limit": self.window,
-            "calculateTotal": true,
-        });
+        let query = arguments(&EmailQueryRequest {
+            query: QueryRequest {
+                account_id: account.to_owned(),
+                filter: Some(Filter::Condition(EmailFilterCondition { in_mailbox: Some(mailbox.to_owned()), ..Default::default() })),
+                sort: Some(vec![Comparator { property: "receivedAt".to_owned(), is_ascending: Some(false), ..Default::default() }]),
+                position: None,
+                anchor: None,
+                anchor_offset: None,
+                limit: Some(u64::try_from(self.window).unwrap_or(u64::MAX)),
+                calculate_total: Some(true),
+            },
+            collapse_threads: None,
+        })?;
         let (found, marks) = if self.two_calls {
             // The get is given the ids the query finds (RFC 8620 §3.7).
             let mut request = mail_request(WINDOW_BYTES)?;
-            let listed = request.add_call("Email/query", arguments(query))?;
+            let listed = request.add_call("Email/query", query)?;
             let ids = request.reference(&listed, "Email/query", "/ids")?;
-            let get = json!({"accountId": account, "properties": WINDOW_PROPERTIES});
-            let read = request.add_call_with_references("Email/get", arguments(get), vec![("ids", ids)])?;
+            let marks = arguments(&get(account, None, &WINDOW_PROPERTIES))?;
+            let read = request.add_call_with_references("Email/get", marks, vec![("ids", ids)])?;
             let mut answers = self.post(&request).await?;
             (Self::take(&mut answers, &listed, "Email/query")?, Self::take(&mut answers, &read, "Email/get")?)
         } else {
@@ -664,8 +672,7 @@ impl<'a, H: HttpExchange> Run<'a, H> {
                 .filter_map(Value::as_str)
                 .filter(|id| Id::new(id).is_ok())
                 .collect();
-            let get = json!({"accountId": account, "ids": ids, "properties": WINDOW_PROPERTIES});
-            let marks = self.one_call("Email/get", get, WINDOW_BYTES).await?;
+            let marks = self.one_call("Email/get", arguments(&get(account, Some(&ids), &WINDOW_PROPERTIES))?, WINDOW_BYTES).await?;
             (found, marks)
         };
         self.newest_of(mailbox, &found, &marks, places).map_err(|error| Stop::Failed(error.into()))
@@ -751,7 +758,10 @@ impl<'a, H: HttpExchange> Run<'a, H> {
             if self.check().is_err() {
                 break;
             }
-            let args = json!({"accountId": self.account(), "ids": some, "properties": ["id", "threadId"]});
+            let Ok(args) = arguments(&get(self.account(), Some(some), &["id", "threadId"])) else {
+                log::info!("jmap mail: threads not asked for now; a later run goes on");
+                break;
+            };
             let got = match self.one_call("Email/get", args, WINDOW_BYTES).await {
                 Ok(got) => got,
                 Err(Stop::Busy(seconds, why)) => {
@@ -794,8 +804,7 @@ impl<'a, H: HttpExchange> Run<'a, H> {
 
     /// `Email/get` of the emails `ids`, for what a message list shows of them.
     async fn whole(&self, mailbox: &str, ids: &[&str], claimable: Option<&HashMap<String, usize>>) -> Result<Details, Stop> {
-        let args = json!({"accountId": self.account(), "ids": ids, "properties": EMAIL_PROPERTIES});
-        let got = self.one_call("Email/get", args, DETAILS_BYTES).await?;
+        let got = self.one_call("Email/get", arguments(&get(self.account(), Some(ids), &EMAIL_PROPERTIES))?, DETAILS_BYTES).await?;
         let list = got.get("list").and_then(Value::as_array).ok_or_else(|| Stop::Failed(unusable("the answer has no list of emails").into()))?;
         let gone: HashSet<&str> =
             got.get("notFound").and_then(Value::as_array).into_iter().flatten().take(ids.len()).filter_map(Value::as_str).collect();
@@ -837,11 +846,20 @@ fn mail_request(most: usize) -> Result<ApiRequest, BuildError> {
     Ok(request)
 }
 
-/// The arguments of a call, from the JSON object they are written as.
-fn arguments(args: Value) -> Map<String, Value> {
-    match args {
-        Value::Object(args) => args,
-        _ => Map::new(),
+/// The arguments of a call, written from their type (an object, as every method's arguments are).
+pub(crate) fn arguments<T: Serialize>(args: &T) -> Result<Map<String, Value>, BuildError> {
+    match serde_json::to_value(args) {
+        Ok(Value::Object(args)) => Ok(args),
+        _ => Err(BuildError::Serialisation),
+    }
+}
+
+/// The arguments of a `/get` (RFC 8620 §5.1) of `properties`, of the objects `ids` (none: all of them).
+pub(crate) fn get(account: &str, ids: Option<&[&str]>, properties: &[&str]) -> GetRequest {
+    GetRequest {
+        account_id: account.to_owned(),
+        ids: ids.map(|ids| ids.iter().map(|id| (*id).to_owned()).collect()),
+        properties: Some(properties.iter().map(|property| (*property).to_owned()).collect()),
     }
 }
 
