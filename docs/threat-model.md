@@ -29,8 +29,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (`crates/html/src/sheet.rs`, our own reader: selectors, specificity, order and `!important`,
   within caps of 64 KB, 4,000 rules, 16 parts to a selector and a bounded count of matching
   steps; fuzzed). A style sheet is one more source of the same values, never a new kind of
-  presentation, and nothing in it is run or fetched: `@import`, `@font-face`, other at-rules,
-  `url()` and `content` are ignored, and `:visited` never matches. `@media` and a `<style media>`
+  presentation, and nothing in it is run, nor fetched but the picture behind a box (below):
+  `@import`, `@font-face`, other at-rules, `url()` outside `background` and `background-image`,
+  and `content` are ignored, and `:visited` never matches. `@media` and a `<style media>`
   are tested against the width the body is laid out at and the window's theme and nothing else
   (`crates/html/src/media.rs`: a list is read to 512 bytes, 8 queries and 8 parts a query, nested
   to 3 levels and 400 lists a message; what is not understood is false), so no media query can
@@ -58,13 +59,16 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  placeholder, and the same for one behind a box (#601); a `data:` address is never a link
+  (`crates/html/src/data.rs`).
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
   a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
-  `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
-  tracking pixel doesn't fire.
+  `<img>` addresses and the pictures behind a table, a cell, a block or the body
+  (`crates/html/src/bg.rs`, #601: the same request and limits as an `<img>`; none for a box that
+  is hidden or 2 px or less across); no style sheets, fonts or frames, nothing 2 px or smaller,
+  so a tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a

@@ -134,7 +134,8 @@ fn a_data_address_is_never_a_link_or_a_background() {
     let blocks = parse(&format!("<a href=\"data:text/html,<script>x</script>\"><img src=\"data:image/png;base64,{}\"></a>", b64(&PNG)));
     let shown: Vec<_> = images(&blocks).into_iter().map(|b| &b.kind).collect();
     assert!(matches!(shown.as_slice(), [BlockKind::Image { link: None, data: Some(_), .. }]), "{shown:?}");
-    // A background in the style or the old attribute is no picture.
+    // A background in the style or the old attribute is no picture of the text: it is the
+    // box's picture behind it (#601, `bg_tests.rs`).
     let blocks = parse(&format!(
         "<table background=\"data:image/png;base64,{0}\"><tr><td style=\"background:url(data:image/png;base64,{0})\">x</td></tr></table>",
         b64(&PNG)

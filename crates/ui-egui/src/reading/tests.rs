@@ -1217,8 +1217,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 20,
-        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 22,
+        "reading.rs, backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -1307,7 +1307,7 @@ impl Host {
 }
 
 /// The pictures of the corpus's newsletter, in the order it shows them.
-const NEWSLETTER_PICTURES: [&str; 8] = [
+const NEWSLETTER_PICTURES: [&str; 9] = [
     "https://img.fernhollow.example/brand/wordmark-light@2x.png",
     "https://img.fernhollow.example/2026/10/hero-ridge-morning.jpg",
     "https://img.fernhollow.example/2026/10/p-4471-merino-crew.jpg",
@@ -1316,6 +1316,8 @@ const NEWSLETTER_PICTURES: [&str; 8] = [
     "https://img.fernhollow.example/icons/soc-photos-32.png",
     "https://img.fernhollow.example/icons/soc-video-32.png",
     "https://img.fernhollow.example/icons/soc-journal-32.png",
+    // The picture behind the whole message (#601), from its style sheet.
+    "https://img.fernhollow.example/bg/leaves.png",
 ];
 
 /// A drawing for each of them, the size the newsletter says it is.
@@ -1409,9 +1411,10 @@ fn pictures_on_the_web_are_placeholders_until_the_owner_asks() {
         let sizes = sizes.unwrap();
         assert_eq!(sizes[0], (220.0, 44.0));
         assert!(sizes[1].0 > 300.0 && sizes[1].0 <= 600.0 && (sizes[1].0 / sizes[1].1 - 600.0 / 280.0).abs() < 0.01, "{:?}", sizes[1]);
-        // They are decoded like any picture of a message, and kept by their address.
+        // They are decoded like any picture of a message, and kept by their address (with the
+        // one behind the message, #601).
         let pictures = Pictures::of(&harness.ctx);
-        assert_eq!(pictures.lock().unwrap().remote_counts().0, 8);
+        assert_eq!(pictures.lock().unwrap().remote_counts().0, 9);
         assert!(pictures.lock().unwrap().counts().1 >= 2, "{:?}", pictures.lock().unwrap().counts());
 
         // It was asked for this message: the next one with pictures is not downloaded with it,
@@ -1422,7 +1425,7 @@ fn pictures_on_the_web_are_placeholders_until_the_owner_asks() {
         select(&mut harness, id);
         harness.run_steps(10);
         assert_eq!(shown(&harness, id), (8, 0, 0));
-        assert_eq!(host.asked().len(), 8);
+        assert_eq!(host.asked().len(), 9);
     }
 }
 
@@ -1745,15 +1748,20 @@ fn only_what_is_shown_as_a_picture_is_asked_for() {
             "https://evil.example/picture-fallback.jpg",
             "https://evil.example/noscript.gif",
             "https://evil.example/mathml.gif",
+            // The pictures behind boxes (#601), each the one the cascade gives its box.
+            "https://evil.example/body-bg.gif",
+            "https://evil.example/table-bg.gif",
+            "https://evil.example/shorthand-bg.gif",
+            "https://evil.example/div-bg.gif",
         ]
     );
-    // The newsletter: its eight pictures, and neither of its two tracking pixels, nor its
-    // background, nor its fonts.
+    // The newsletter: its eight pictures and the one behind it, and neither of its two
+    // tracking pixels, nor its fonts.
     select(&mut harness, id_of(&ids, "newsletter"));
     harness.run_steps(10);
     let asked = host.asked();
-    assert_eq!(asked.get(7..), Some(&NEWSLETTER_PICTURES.map(String::from)[..]));
-    assert!(!asked.iter().any(|url| url.contains("/o/v1/") || url.contains("pixel.") || url.contains("fonts.") || url.contains("bg/leaves")));
+    assert_eq!(asked.get(11..), Some(&NEWSLETTER_PICTURES.map(String::from)[..]));
+    assert!(!asked.iter().any(|url| url.contains("/o/v1/") || url.contains("pixel.") || url.contains("fonts.")));
     // Every other message of the corpus: nothing but `http` and `https` is ever handed to the host.
     for (_, id) in &ids {
         select(&mut harness, *id);
@@ -1825,9 +1833,9 @@ fn pictures_come_a_few_at_a_time_and_only_for_what_is_on_screen() {
     select(&mut harness, news);
     harness.run_steps(4);
     assert_eq!(host.asked(), NEWSLETTER_PICTURES);
-    host.release(8, || Ok(png(32, 32)));
+    host.release(9, || Ok(png(32, 32)));
     harness.run_steps(12);
-    assert_eq!((host.asked().len(), shown(&harness, news)), (8, (8, 0, 0)));
+    assert_eq!((host.asked().len(), shown(&harness, news)), (9, (8, 0, 0)));
     assert!(!says(&harness, "Downloading pictures"));
 }
 
@@ -2194,6 +2202,8 @@ fn a_newsletter_from_a_column_builder_shows_its_pictures_when_asked() {
                 "https://img.tallowwick.example/people/signature-maud@2x.png",
                 "https://img.tallowwick.example/icons/round-photos.png",
                 "https://img.tallowwick.example/icons/round-letters.png",
+                // The picture behind the title's cell (#601), as its style names it.
+                "https://img.tallowwick.example/bg/css-linen.jpg",
             ]
         );
         assert_eq!(shown(&harness, id), (9, 0, 0));
@@ -2580,7 +2590,7 @@ fn a_message_in_the_pane_and_in_a_window_is_laid_out_for_each() {
     assert_eq!((at(&harness, Place::Pane).2, at(&harness, Place::Window(own)).2), (8, 8));
     let begun = super::view::layouts_begun(&harness.ctx);
     harness.run_steps(30);
-    assert_eq!((super::view::layouts_begun(&harness.ctx), host.asked().len()), (begun, 8));
+    assert_eq!((super::view::layouts_begun(&harness.ctx), host.asked().len()), (begun, 9));
     // A window that is gone leaves nothing behind once another is opened, and what is kept
     // stays within bounds however many come and go.
     harness.state_mut().execute("ui.closeWindow", json!({"all": true})).unwrap();
@@ -2616,10 +2626,11 @@ fn a_say_so_that_is_taken_back_stops_the_asking_at_once() {
     // What came is kept, and is not shown while the message may not show pictures.
     assert_eq!(shown(&harness, news), (0, 8, 8));
     assert_eq!(Pictures::of(&harness.ctx).lock().unwrap().remote_counts().0, 4);
-    // On again: those four are shown without being asked for again, and the other four are sent for.
+    // On again: those four are shown without being asked for again, and four more are sent for
+    // (the last, the picture behind the message, waits its turn).
     harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap();
     harness.run_steps(6);
-    assert_eq!((host.asked(), shown(&harness, news).0), (NEWSLETTER_PICTURES.map(String::from).to_vec(), 4));
+    assert_eq!((host.asked(), shown(&harness, news).0), (NEWSLETTER_PICTURES.map(String::from)[..8].to_vec(), 4));
 }
 
 // ---- selecting and copying ----
@@ -4035,6 +4046,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod bg_pictures;
 mod inline_blocks;
 mod invitation;
 mod primary;
