@@ -2229,3 +2229,22 @@ fn content_a_scanner_never_lets_go_of_is_left_out() {
     assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
     assert!(refused_by_scanner(&dir, &r, &e));
 }
+
+/// #1311: a part whose file a save left out (a virus scanner refused or took it away) is not
+/// let go of from memory, where it is then the only copy.
+#[test]
+fn a_part_whose_file_is_missing_is_never_let_go_of() {
+    let mut mb = mailbox(24);
+    let id = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
+    if let Some(m) = mb.messages.get_mut(&id) {
+        Arc::make_mut(m).attachments.clear();
+    }
+    let t = Temp::new("missing-part");
+    let path = t.file();
+    save(&path, &mb).unwrap();
+    let m = mb.message(id).unwrap();
+    assert!(evictable(&path, id, m).is_some(), "safely on disk, it can go");
+    fs::remove_file(blob_file(&path, m.body.text.as_bytes())).unwrap();
+    let kept = evictable(&path, id, m);
+    assert!(kept.is_none_or(|lean| lean.body.text == m.body.text), "the only copy stays in memory");
+}

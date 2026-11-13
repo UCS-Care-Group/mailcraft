@@ -2807,6 +2807,10 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
         return None;
     }
     let parts = &st.disk.as_ref()?.messages.get(&id)?.parts;
+    // A part is let go of only when its file is there: a save leaves out one a virus scanner
+    // refused or took away (#1311), and the copy in memory is then the only one.
+    let dir = blob_dir(&resolve(path));
+    let there = |r: &Ref| blob_path(&dir, &r.hash).is_some_and(|(_, file)| fs::metadata(file).is_ok_and(|f| f.is_file() && f.len() == r.len));
     let mut lean = Message::clone(m);
     let mut kept = m.kept.as_deref().copied().unwrap_or_default();
     let mut any = false;
@@ -2814,6 +2818,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
         && !m.body.text.is_empty()
         && m.body.text.len() as u64 == p.r.len
         && Ref::of(m.body.text.as_bytes()) == p.r
+        && there(&p.r)
     {
         lean.body.text = String::new();
         kept.text = Some(p.r.to_model());
@@ -2822,6 +2827,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     if let (Some(p), Some(html)) = (parts.html, &m.body.html)
         && html.len() as u64 == p.r.len
         && Ref::of(html.as_bytes()) == p.r
+        && there(&p.r)
     {
         lean.body.html = None;
         kept.html = Some(p.r.to_model());
@@ -2831,6 +2837,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
         && !m.hidden_text.is_empty()
         && m.hidden_text.len() as u64 == p.r.len
         && Ref::of(m.hidden_text.as_bytes()) == p.r
+        && there(&p.r)
     {
         lean.hidden_text = String::new();
         kept.hidden = Some(p.r.to_model());
@@ -2838,7 +2845,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     }
     for (a, p) in lean.attachments.iter_mut().zip(&parts.attachments) {
         let Some(p) = p else { continue };
-        if a.data.is_empty() || a.data.len() as u64 != p.r.len {
+        if a.data.is_empty() || a.data.len() as u64 != p.r.len || !there(&p.r) {
             continue;
         }
         let key = Arc::as_ptr(&a.data) as usize;
@@ -2852,6 +2859,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     if let (Some(p), Some(o)) = (parts.original, lean.original.as_mut())
         && !o.data.is_empty()
         && o.data.len() as u64 == p.r.len
+        && there(&p.r)
         && st
             .hashes
             .get(&(Arc::as_ptr(&o.data) as usize))
