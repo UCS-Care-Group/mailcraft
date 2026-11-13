@@ -831,6 +831,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
     }
     let mut again = super::imap_again::wanted(&s.mailbox, account, s.now());
+    let now = s.now();
     let folders = s
         .mailbox
         .folders
@@ -845,6 +846,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
             again: again.remove(&f.id).unwrap_or_default(),
+            // Good to pass the folder over by until the next reading in full is due (#276).
+            status: f.imap_status.filter(|st| (0..super::graph_mail::FULL_SWEEP_EVERY).contains(&now.saturating_sub(st.at))),
         })
         .collect();
     let (ops, _) = remote_ops(s, account, MAX_OPS);
@@ -2301,6 +2304,11 @@ fn take_in(
     if let Ok(f) = mb.folder_mut(folder) {
         if delta.complete {
             f.whole = Some(true);
+            // What the server said of it before it was read to the end (#276), or nothing.
+            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: now, ..status });
+        }
+        if reset {
+            f.imap_status = None;
         }
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         if reset || delta.uid_from != 0 {

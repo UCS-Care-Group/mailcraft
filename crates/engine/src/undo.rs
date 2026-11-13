@@ -429,6 +429,7 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
                 let mut f = t;
                 (f.remote, f.uid_validity, f.uid_seen, f.uid_from) = (c.remote.clone(), c.uid_validity, c.uid_seen, c.uid_from);
                 (f.whole, f.server, f.awaiting_listing) = (c.whole, c.server.clone(), c.awaiting_listing);
+                f.imap_status = c.imap_status;
                 kept.push(f);
             }
             (true, None) => kept.push(t),
