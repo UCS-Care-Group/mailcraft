@@ -24,6 +24,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::rules_remote;
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::remote_rules::{RulesDownload, RulesUpload, RulesUploaded};
 use mailcraft_model::{Account, Id};
 use serde_json::{Value, json};
@@ -154,14 +155,7 @@ impl MailApp {
         }
         // One thing at a time: the calendar's job, the to-dos', the automatic replies', a
         // Send/Receive and a sign-in go first (the jobs renew the same sign-in).
-        if self.calendar.rx.is_some()
-            || self.tasks.busy()
-            || self.auto_replies.busy()
-            || self.graph_rx.is_some()
-            || self.sync_rx.is_some()
-            || self.signing_in.is_some()
-            || !self.sync_queue.is_empty()
-        {
+        if self.job_busy().blocks(Start::Rules) {
             return false;
         }
         for account in rules_remote::rule_accounts(&self.session.mailbox) {
@@ -358,7 +352,7 @@ impl MailApp {
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
             self.rules.failures.insert(account, (n.saturating_add(1), started));
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("rules", account, &errors, None, false);
     }
 
     /// Ask the owner, once, when a job had a rule to send and the sign-in doesn't cover

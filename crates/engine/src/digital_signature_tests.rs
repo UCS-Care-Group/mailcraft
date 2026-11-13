@@ -24,7 +24,7 @@ fn session_with(messages: &[&[u8]]) -> (Session, Vec<u64>) {
     let inbox = mb.inbox().unwrap();
     let mut ids = Vec::new();
     for bytes in messages {
-        let mut m = mailcraft_mime::parse_fetched(bytes);
+        let mut m = mailcraft_mime_model::parse_fetched(bytes);
         m.folder = inbox;
         ids.push(mb.add_message(m).unwrap());
     }
@@ -67,7 +67,7 @@ fn a_message_that_isnt_signed_has_no_result() {
 fn one_read_before_its_bytes_were_kept_says_check_again() {
     let mut mb = Mailbox::with_local_account("Bob", "bob@smime.example");
     let inbox = mb.inbox().unwrap();
-    let mut m = mailcraft_mime::parse(DETACHED);
+    let mut m = mailcraft_mime_model::parse(DETACHED);
     m.folder = inbox;
     let id = mb.add_message(m).unwrap();
     let mut s = Session::new(mb);
@@ -328,7 +328,7 @@ fn old_opaque() -> (Session, mailcraft_model::Id) {
 
 /// The message an older build kept of an opaque signed message.
 fn read_bare() -> Message {
-    let mut m = mailcraft_mime::parse_fetched(OPAQUE_FILES);
+    let mut m = mailcraft_mime_model::parse_fetched(OPAQUE_FILES);
     m.body = Default::default();
     m.attachments.truncate(1);
     m
@@ -405,7 +405,7 @@ fn a_command_inside_another_reads_nothing_again() {
 fn messages_a_command_changes_ask_nothing_of_the_queue_unless_bare() {
     let (mut s, _) = old_opaques(1);
     let inbox = s.mailbox.inbox().unwrap();
-    let plain = mailcraft_mime::parse(b"From: ada@example.org\r\nSubject: Plain\r\n\r\nHello.\r\n");
+    let plain = mailcraft_mime_model::parse(b"From: ada@example.org\r\nSubject: Plain\r\n\r\nHello.\r\n");
     let ids: Vec<_> = (0..50).map(|_| s.mailbox.add_message(Message { folder: inbox, ..plain.clone() }).unwrap()).collect();
     let asked = s.signatures.to_read_again.asked;
     s.run("mail.flag", &json!({"ids": ids})).unwrap();
@@ -430,7 +430,7 @@ fn an_old_opaque_message_whose_bytes_arrive_is_read_again() {
     let id = s.mailbox.messages.values().find(|m| m.account == account).unwrap().id;
     assert!(is_bare(&s, id) && !s.mailbox.message(id).unwrap().has_original());
     s.run("mail.checkAgain", &json!({"id": id})).unwrap();
-    let read = Message { uid: 1, ..mailcraft_mime::parse_fetched(OPAQUE_FILES) };
+    let read = Message { uid: 1, ..mailcraft_mime_model::parse_fetched(OPAQUE_FILES) };
     let again = SyncResult { account, folders: vec![delta(FolderDelta { refetched: vec![read], ..Default::default() })], ..Default::default() };
     s.run("sync.apply", &json!({"result": again})).unwrap();
     assert!(s.mailbox.message(id).unwrap().has_original() && is_bare(&s, id));
