@@ -396,6 +396,12 @@ pub struct Account {
     /// before there were any.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub opened_address_books: Vec<crate::OpenedAddressBook>,
+    /// For an Exchange server account: the calendars and address books of its organisation's
+    /// public folders that its owner picked to be shown (#1263), read with its sign-in and never
+    /// written, kept here only, at most [`crate::MAX_PUBLIC_FOLDERS`]. Empty for every other
+    /// account, and in a file from before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub opened_public: Vec<crate::PublicFolder>,
     /// For a Microsoft account: the shared mailboxes open under it whose calendar its server lists
     /// among its own calendars as well, and whether that copy is hidden ([`crate::ListedTwice`],
     /// #70), at most [`MAX_SHARED`]. An entry says the owner was asked: MailCraft offers once.
@@ -475,6 +481,16 @@ impl Account {
             books.push(opened);
         }
         self.opened_address_books = books;
+        let mut public: Vec<crate::PublicFolder> = Vec::new();
+        for mut folder in std::mem::take(&mut self.opened_public) {
+            folder.name = crate::calendar::flat_line(&folder.name, crate::MAX_PUBLIC_NAME);
+            let known = public.iter().any(|have| have.id == folder.id);
+            if !crate::sync::ews_id_ok(&folder.id) || known || public.len() >= crate::MAX_PUBLIC_FOLDERS {
+                continue;
+            }
+            public.push(folder);
+        }
+        self.opened_public = public;
         let mut twice: Vec<crate::ListedTwice> = Vec::new();
         for mut entry in std::mem::take(&mut self.listed_twice) {
             entry.address = crate::calendar::flat_line(&entry.address, crate::calendar::MAX_OWNER_ADDRESS).replace(' ', "");

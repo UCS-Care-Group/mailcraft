@@ -65,6 +65,13 @@ pub enum Dialog {
         /// An address book rather than a calendar (an Exchange server account's shared contacts).
         address_book: bool,
     },
+    /// The calendars and address books of an Exchange server account's public folders (#1263):
+    /// asks for their listing, and ticks the ones to show (`publicFolders.*`,
+    /// [`crate::public_folders`]).
+    PublicFolders {
+        account: Id,
+        error: String,
+    },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
         url: String,
@@ -236,6 +243,7 @@ impl Dialog {
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { address_book: true, .. } => "openAddressBook",
             Dialog::OpenCalendar { .. } => "openCalendar",
+            Dialog::PublicFolders { .. } => "publicFolders",
             Dialog::Link { .. } => "link",
             Dialog::DateTime { .. } => "dateTime",
             Dialog::WordCount { .. } => "wordCount",
@@ -336,6 +344,16 @@ impl Dialog {
                 };
                 let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
                 Dialog::OpenCalendar { account, address, error: String::new(), reading: None, address_book: true }
+            }
+            "publicFolders" => {
+                // Under the account named, else the first Exchange server account.
+                let can = |a: &&mailcraft_model::Account| mailcraft_engine::cmd::public_folders::eligible(a);
+                let mailbox = &app.session.mailbox;
+                let account = match id("account") {
+                    Some(id) => mailbox.account(id).filter(can)?.id,
+                    None => mailbox.accounts.iter().find(can)?.id,
+                };
+                Dialog::PublicFolders { account, error: String::new() }
             }
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
@@ -1272,6 +1290,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "contacts.openShared" if !has("address") => Some("openAddressBook"),
+        // (The listing is asked for, and the folders picked, in the dialog.)
+        "publicFolders.list" | "publicFolders.listed" => Some("publicFolders"),
         "rules.list" => Some("rules"),
         "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
@@ -1729,6 +1749,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     }
                 }
             }
+        }
+        Dialog::PublicFolders { account, error } => {
+            let open = window(ctx, tl!("Public Folders"), 480.0, |ui| close |= crate::public_folders::show(app, ui, *account, error, &t));
+            close |= !open;
         }
         Dialog::Link { url, error, linked } => {
             let (mut submit, mut remove) = (false, false);

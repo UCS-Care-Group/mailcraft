@@ -111,6 +111,10 @@ impl Access {
 }
 
 const SAFE: &[&str] = &[
+    // The names of the calendars and address books in the public folders (#1263), listed at the
+    // account's next Send/Receive with the owner's sign-in, and what that listing found.
+    "publicFolders.list",
+    "publicFolders.listed",
     // A result the servers found for the owner's search, opened (and so fetched) as any message.
     "search.openServerResult",
     // File: content goes in and out as `data`; a path is refused separately.
@@ -463,6 +467,10 @@ const ACCOUNTS: &[&str] = &[
     // with the owner's sign-in, and removing one removes what is kept of it here.
     "contacts.openShared",
     "contacts.removeShared",
+    // A calendar or an address book of the organisation's public folders (#1263): read with the
+    // owner's sign-in, and removing one removes what is kept of it here.
+    "publicFolders.open",
+    "publicFolders.close",
     // A shared mailbox's calendar listed twice (#70): hiding the copy removes it and its events
     // from this computer.
     "calendar.hideListedCopy",
@@ -1640,6 +1648,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
         }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
+        "publicFolders.open" => format!(
+            "show {} of the public folders (read with the account's sign-in at each Send/Receive, read-only)",
+            crate::cmd::public_folders::described(s, params)
+        ),
+        "publicFolders.close" => {
+            format!("stop showing {} of the public folders, and remove it from this computer", crate::cmd::public_folders::described(s, params))
+        }
         "calendar.openShared" => {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
         }

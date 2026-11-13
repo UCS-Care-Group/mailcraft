@@ -16,6 +16,17 @@ in every folder request; it is listed under Shared Calendars or with the account
 lets the owner into the shared folder it is given but not list that mailbox's other folders, so a
 shared calendar or book is read as its default folder there.
 
+The calendars and address books of the organisation's public folders (#1263) are listed only when
+the owner asks for the list (Public Folders, on the Calendar's and People's Home tabs): the next
+Send/Receive walks the public folder tree from its top one level at a time (`FindFolder`,
+`Shallow`, within caps on the folders, the depth and the requests) and keeps the folders whose
+class is a calendar or an address book, with the names of the folders they lie in. Those the owner
+ticks are read at each Send/Receive beside the account's own, read-only, listed under Public
+Folders; nothing in them is written. The requests carry no `X-AnchorMailbox` or
+`X-PublicFolderMailbox` routing headers: an organisation's own Exchange Server sends them on to the
+public folder mailbox that holds the folder, and Exchange Online, which wants them, is never
+reached through Exchange Web Services with a password.
+
 ## Grommunio
 
 **Seen:** Grommunio's own container deployment, Gromox 3.13.33 (October 2026), one domain, three
@@ -103,7 +114,8 @@ the Windows installer, and the window used by hand.
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server
 itself (calendars, address books and to-dos have been tried only on Grommunio), NTLM against a real
-server, Kerberos and modern sign-in (not built), a shared mailbox, and Autodiscover from an address.
+server, Kerberos and modern sign-in (not built), a shared mailbox, Autodiscover from an address, public folders on
+Grommunio and SmarterMail, and an organisation whose public folders lie in more than one public folder mailbox.
 
 ## Revision history
 

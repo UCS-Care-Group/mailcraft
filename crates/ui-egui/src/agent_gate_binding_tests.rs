@@ -176,6 +176,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("contacts.openShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("contacts.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
+    ("publicFolders.open", r#"{"id": "pf-1"}"#, Setup::None),
+    ("publicFolders.close", r#"{"id": "pf-1"}"#, Setup::None),
     ("calendar.hideListedCopy", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.moveToAccount", "{}", Setup::None),
     ("ui.checkCalendar", "{}", Setup::None),

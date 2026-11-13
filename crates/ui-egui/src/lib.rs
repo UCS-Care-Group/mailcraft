@@ -155,6 +155,7 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+mod public_folders;
 pub mod reading;
 mod reminders;
 mod report_problem;

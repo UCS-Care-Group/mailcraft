@@ -185,6 +185,10 @@ impl<E: HttpExchange> Run<'_, E> {
                 }
             }
         }
+        // The public folders' calendars and books the owner picked, and their listing when asked.
+        if mailbox.is_none() {
+            self.public_folders(request, out).await?;
+        }
         Ok(())
     }
 
@@ -281,7 +285,14 @@ impl<E: HttpExchange> Run<'_, E> {
         Ok((list, events))
     }
 
-    async fn read_events(&mut self, folder: &FolderInfo, remote_id: &str, from: i64, to: i64, plain: bool) -> Result<(EventsDownload, bool), Asked> {
+    pub(crate) async fn read_events(
+        &mut self,
+        folder: &FolderInfo,
+        remote_id: &str,
+        from: i64,
+        to: i64,
+        plain: bool,
+    ) -> Result<(EventsDownload, bool), Asked> {
         let mut masters: Vec<RemoteEvent> = Vec::new();
         let mut by_uid: std::collections::HashMap<String, String> = std::collections::HashMap::new();
         // The series themselves: `FindItem` without a view returns them, and their occurrences

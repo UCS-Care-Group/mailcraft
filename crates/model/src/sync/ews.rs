@@ -175,6 +175,12 @@ pub struct EwsDirectoryRequest {
     /// Other mailboxes whose calendar or address book is read with the same sign-in.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub shared: Vec<EwsSharedMailbox>,
+    /// The public folders the owner picked to be shown (#1263): each read, never written.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub public: Vec<crate::PublicFolder>,
+    /// List the calendars and address books of the public folders, for the owner to pick from.
+    #[serde(skip_serializing_if = "is_false")]
+    pub browse_public: bool,
     /// The calendar changes made here, first.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub changes: Option<EventsUpload>,
@@ -238,6 +244,14 @@ pub struct EwsDirectoryResult {
     /// How the run signed in, `basic` or `ntlm`.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub signed_in_with: String,
+    /// The request asked for a listing of the public folders (`browse_public`): whether or not
+    /// one came, the asking is answered.
+    #[serde(skip_serializing_if = "is_false")]
+    pub public_browsed: bool,
+    /// The calendars and address books found in the public folders, when they were listed; `None`
+    /// when they weren't asked for or couldn't be listed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_listing: Option<Vec<crate::PublicFolder>>,
 }
 
 impl EwsDirectoryResult {
@@ -270,6 +284,17 @@ impl EwsDirectoryResult {
         if self.tasks.as_ref().is_some_and(|t| t.tasks.len() > crate::remote_tasks::MAX_TASKS) {
             return Err(TOO_MANY);
         }
+        if let Some(listing) = &self.public_listing {
+            if listing.len() > crate::MAX_PUBLIC_LISTING {
+                return Err(TOO_MANY);
+            }
+            if !listing
+                .iter()
+                .all(|folder| id_ok(&folder.id) && folder.name.chars().take(crate::MAX_PUBLIC_NAME + 1).count() <= crate::MAX_PUBLIC_NAME)
+            {
+                return Err("names a public folder that can't be one");
+            }
+        }
         Ok(())
     }
 
@@ -287,6 +312,8 @@ impl std::fmt::Debug for EwsDirectoryRequest {
             .field("contacts", &self.contacts)
             .field("tasks", &self.tasks)
             .field("shared", &self.shared.len())
+            .field("public", &self.public.len())
+            .field("browse_public", &self.browse_public)
             .field("changes", &self.changes.as_ref().map(|upload| upload.ops.len()))
             .field("contact_changes", &self.contact_changes.as_ref().map(|upload| upload.ops.len()))
             .field("task_changes", &self.task_changes.as_ref().map(|upload| upload.ops.len()))
@@ -571,6 +598,12 @@ pub struct EwsMailResult {
 /// Whether `id` may be a server id of a folder or an item: not empty, at most [`MAX_EWS_ID`] bytes,
 /// no control character. Nothing else is assumed of it.
 fn id_ok(id: &str) -> bool {
+    ews_id_ok(id)
+}
+
+/// [`id_ok`], for the rest of the model: whether `id` may be an Exchange server's id of a folder or
+/// an item.
+pub fn ews_id_ok(id: &str) -> bool {
     !id.is_empty() && id.len() <= MAX_EWS_ID && !id.chars().any(char::is_control)
 }
 

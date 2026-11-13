@@ -552,7 +552,12 @@ fn home_calendar(app: &MailApp) -> Tab {
         }
     }
     // Somebody else's calendar, by their address (#70).
-    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
+    let mut manage = vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)];
+    // The calendars of an Exchange server account's public folders (#1263).
+    if app.session.mailbox.accounts.iter().any(mailcraft_engine::cmd::public_folders::eligible) {
+        manage.push(Item::big("folder", "Public\nFolders", "publicFolders.list", no()).at(4, 9));
+    }
+    groups.push(g("Manage Calendars", manage));
     groups.push(g(
         "Share",
         vec![
@@ -566,6 +571,16 @@ fn home_calendar(app: &MailApp) -> Tab {
 
 fn home_people(app: &MailApp) -> Tab {
     let favorite = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.favorite);
+    let mut share = vec![
+        Item::big("forward", "Forward\nContact", "people.forward", no()).at(4, 4),
+        Item::big("address", "Open Shared\nAddress Book", "contacts.openShared", no()).at(4, 5),
+    ];
+    // The address books of an Exchange server account's public folders (#1263).
+    if app.session.mailbox.accounts.iter().any(mailcraft_engine::cmd::public_folders::eligible) {
+        share.push(Item::big("folder", "Public\nFolders", "publicFolders.list", no()).at(4, 5));
+    }
+    share.push(Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5));
+    share.push(Item::big("import", "Import", "ui.import", no()).at(4, 5));
     Tab::of(vec![
         g(
             "New",
@@ -590,15 +605,7 @@ fn home_people(app: &MailApp) -> Tab {
                 Item::big("mergeContacts", "Merge\nDuplicates", "people.merge", merge_params(app)).at(3, 4),
             ],
         ),
-        g(
-            "Share",
-            vec![
-                Item::big("forward", "Forward\nContact", "people.forward", no()).at(4, 4),
-                Item::big("address", "Open Shared\nAddress Book", "contacts.openShared", no()).at(4, 5),
-                Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5),
-                Item::big("import", "Import", "ui.import", no()).at(4, 5),
-            ],
-        ),
+        g("Share", share),
     ])
 }
 

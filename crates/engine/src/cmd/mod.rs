@@ -103,6 +103,7 @@ pub mod picture;
 mod picture_tests;
 #[cfg(test)]
 mod protected_moves_tests;
+pub mod public_folders;
 #[cfg(test)]
 mod quote_tests;
 #[cfg(test)]
@@ -176,6 +177,7 @@ pub fn registry() -> Registry {
     v.extend(calendar_extra::specs());
     v.extend(calendar_opened::specs());
     v.extend(contacts_opened::specs());
+    v.extend(public_folders::specs());
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());

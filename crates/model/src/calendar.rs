@@ -125,6 +125,45 @@ pub struct OpenedAddressBook {
 /// Most address books one account may have opened by address.
 pub const MAX_OPENED_ADDRESS_BOOKS: usize = 20;
 
+/// What a public folder that the owner picked holds (#1263).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PublicFolderKind {
+    /// A calendar (`IPF.Appointment`).
+    #[default]
+    Calendar,
+    /// An address book (`IPF.Contact`).
+    Contacts,
+}
+
+/// A calendar or an address book in the public folders of an Exchange server account's
+/// organisation (#1263): one the owner picked to be shown, or one a listing of the public folders
+/// found. Read with the owner's own sign-in, as the server lets them, and never written. Kept on
+/// this computer only.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PublicFolder {
+    /// The server's id of the folder: opaque, at most [`crate::sync::MAX_EWS_ID`] bytes.
+    pub id: String,
+    /// What it is called, after the folders it lies in (`Team / Holidays`).
+    pub name: String,
+    pub kind: PublicFolderKind,
+}
+
+impl std::fmt::Debug for PublicFolder {
+    /// The kind alone: the id and the name are the organisation's.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PublicFolder").field("kind", &self.kind).finish()
+    }
+}
+
+/// Most public folders one account may show.
+pub const MAX_PUBLIC_FOLDERS: usize = 20;
+/// Most calendars and address books a listing of the public folders holds.
+pub const MAX_PUBLIC_LISTING: usize = 300;
+/// The longest name of a public folder kept, with the folders it lies in.
+pub const MAX_PUBLIC_NAME: usize = 240;
+
 /// A shared mailbox open under an account whose calendar the account's server lists among the
 /// account's own calendars too (#70: a sharing invitation accepted in Outlook puts it there, under
 /// Shared Calendars), and what the owner said when MailCraft offered, once, to hide that copy:
