@@ -817,6 +817,68 @@ fn accounts_that_sign_in_on_the_providers_page() {
     );
     // A guess is never "outside": it is made from the address's own domain.
     assert_eq!(half["incoming"]["outside"].as_bool(), Some(false));
+    // #1112: what the domain publishes for mail programs or Mozilla's ISP database lists is
+    // taken the same way, and the user name is what the source's placeholders make of the address.
+    let published = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "found": {
+            "incoming": {"host": "mail.lumen.example", "security": "tls", "via": "autoconfig"},
+            "outgoing": {"host": "smtp.hosted.example", "security": "starttls", "via": "ispdb"},
+            "username": "%EMAILLOCALPART%"
+        }}),
+    );
+    assert_eq!(
+        (published["known"].as_bool(), published["via"].as_str(), published["username"].as_str()),
+        (Some(false), Some("autoconfig"), Some("Avery"))
+    );
+    assert_eq!(
+        (published["incoming"]["port"].as_u64(), published["incoming"]["via"].as_str(), published["incoming"]["outside"].as_bool()),
+        (Some(993), Some("autoconfig"), Some(false))
+    );
+    assert_eq!(
+        (published["outgoing"]["port"].as_u64(), published["outgoing"]["via"].as_str(), published["outgoing"]["outside"].as_bool()),
+        (Some(587), Some("ispdb"), Some(true))
+    );
+    // What is put in for a placeholder is never read as one again: a `%` in the address stays.
+    for (email, template, name) in [
+        ("avery%tag@lumen.example", "%EMAILLOCALPART%", "avery%tag"),
+        ("%EMAILDOMAIN%@lumen.example", "%EMAILLOCALPART%", "%EMAILDOMAIN%"),
+        ("avery@lumen.example", "%EMAILLOCALPART%+mail@%EMAILDOMAIN%", "avery+mail@lumen.example"),
+        // Characters that show nothing, or turn the text round, are not part of a user name.
+        ("avery@lumen.example", "\u{202e}%EMAILLOCALPART%\u{200b}\u{2066}", "avery"),
+    ] {
+        let filled = run(
+            &mut s,
+            "account.preset",
+            json!({"email": email, "found": {"incoming": {"host": "imap.lumen.example", "security": "tls", "via": "autoconfig"}, "username": template}}),
+        );
+        assert_eq!(filled["username"], name, "{email} {template}");
+    }
+    // A placeholder nobody knows, or a user name without a found incoming server: the address.
+    for (records, why) in [
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%@%NOBODY%"}),
+            "unknown placeholder",
+        ),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "\r\n"}), "empty"),
+        (json!({"username": "%EMAILLOCALPART%"}), "nothing found"),
+        (
+            json!({"outgoing": {"host": "smtp.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%"}),
+            "no incoming server found",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%EMAILDOMAIN%"}),
+            "half a placeholder",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}),
+            "an SRV record writes no user name",
+        ),
+    ] {
+        let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
+        assert_eq!(odd["username"], "avery@lumen.example", "{why}");
+    }
     // A server without encryption, a host that isn't one, a source nobody knows, a bad port: the
     // usual names stand in.
     for (bad, why) in [

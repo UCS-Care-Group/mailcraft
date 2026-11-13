@@ -287,6 +287,20 @@ pub(crate) fn get(url: &Url, headers: &[(&str, &str)], patience: Duration) -> Re
     send(url, "GET", headers, None, patience)
 }
 
+/// [`get`] from a host nobody chose: one a domain's records or its name led to, as a domain's
+/// own settings document is ([`crate::autoconfig`]). Its addresses must be the public
+/// internet's ([`transport::Reach::Public`]; a host written as this machine, as a test's is,
+/// is this machine), and the handshake gets no more than `patience` either.
+pub(crate) fn get_public(url: &Url, headers: &[(&str, &str)], patience: Duration) -> Result<Answer, NetError> {
+    let server = Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None } };
+    let reach = if transport::is_loopback(&url.host) { transport::Reach::Any } else { transport::Reach::Public };
+    let waits = transport::Patience { connect: patience, io: patience, handshake: patience, ..Default::default() };
+    let (mut stream, _) = transport::open_reaching(&server, Service::Http, &waits, None, reach)?;
+    let request = Request { method: "GET", headers, body: None, patience, max_body: MAX_BODY };
+    let (reply, _) = exchange(&mut stream, url, &request, false)?;
+    Ok(Answer { status: reply.status, body: reply.body })
+}
+
 /// POST `fields` as a form to `url`, asking for JSON, and read the answer, whatever its status.
 /// Connecting may take `patience`, and so may the answer.
 pub(crate) fn post_form(url: &Url, fields: &[(&str, &str)], patience: Duration) -> Result<Answer, NetError> {
