@@ -191,4 +191,18 @@ fn a_message_put_in_place_in_copies_shares_their_chunks() {
     assert!(!other.put_in_place_of(3, &old, &lean, &live, &mut done));
     assert!(!other.put_in_place_of(99, &old, &lean, &live, &mut done));
     assert_eq!(other.get(&3).unwrap().subject, "another");
+    // One record kept across two messages of a chunk: the second is put in place of its own, and
+    // the first's replacement is never taken for it.
+    let mut live = Messages::new();
+    for id in 1..=5 {
+        live.insert(id, message(id, "full"));
+    }
+    let (old1, old2) = (live.get(&1).unwrap().clone(), live.get(&2).unwrap().clone());
+    let (mut a, mut b) = (live.clone(), live.clone());
+    let lean1 = message(1, "lean");
+    let lean2 = message(2, "lean");
+    let mut done = crate::messages::Replaced::default();
+    assert!(a.put_in_place_of(1, &old1, &lean1, &live, &mut done));
+    assert!(b.put_in_place_of(2, &old2, &lean2, &live, &mut done));
+    assert!(Arc::ptr_eq(b.get(&2).unwrap(), &lean2) && Arc::ptr_eq(b.get(&1).unwrap(), &old1));
 }

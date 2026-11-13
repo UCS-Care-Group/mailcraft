@@ -272,7 +272,7 @@ impl Messages {
     pub fn put_in_place_of(&mut self, id: Id, old: &Arc<Message>, new: &Arc<Message>, live: &Messages, done: &mut Replaced) -> bool {
         let key = chunk_of(id);
         let Some(chunk) = self.chunks.get_mut(&key) else { return false };
-        if let Some((_, after)) = done.chunks.iter().find(|(before, _)| Arc::ptr_eq(before, chunk)) {
+        if let Some((_, _, after)) = done.chunks.iter().find(|(was, before, _)| *was == id && Arc::ptr_eq(before, chunk)) {
             *chunk = after.clone();
             self.originals.stale.insert(key);
             return true;
@@ -286,7 +286,7 @@ impl Messages {
             Some(theirs) if same_chunk(&own, theirs) => theirs.clone(),
             _ => Arc::new(own),
         };
-        done.chunks.push((chunk.clone(), after.clone()));
+        done.chunks.push((id, chunk.clone(), after.clone()));
         *chunk = after;
         self.originals.stale.insert(key);
         true
@@ -327,11 +327,13 @@ impl Messages {
     }
 }
 
-/// The chunks [`Messages::put_in_place_of`] has replaced in the copies it was given, each as it
-/// was and as it became, so that copies sharing one share its replacement.
+/// The chunks [`Messages::put_in_place_of`] has replaced in the copies it was given, each with the
+/// message put in place and as the chunk was and became, so that copies sharing one share its
+/// replacement. (One is for one message: the same chunk with another message put in it is
+/// another replacement.)
 #[derive(Default)]
 pub struct Replaced {
-    chunks: Vec<(Arc<Chunk>, Arc<Chunk>)>,
+    chunks: Vec<(Id, Arc<Chunk>, Arc<Chunk>)>,
 }
 
 /// Whether two chunks hold the same messages, each the same allocation.

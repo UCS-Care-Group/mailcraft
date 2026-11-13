@@ -1,1 +1,0 @@
-- Opening and changing many messages no longer keeps their bodies and attachments in memory through the steps Undo can take back: what the memory budget lets go of, the Undo and Redo steps let go of too, and Undo reads it from disk again when it is wanted.

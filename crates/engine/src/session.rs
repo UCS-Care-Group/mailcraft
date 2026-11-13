@@ -2600,20 +2600,28 @@ impl Session {
         // Each version found in a step, as it was and as it is without its content.
         let mut made: Vec<(Arc<Message>, Arc<Message>)> = vec![(old.clone(), new.clone())];
         let live = &self.mailbox.messages;
+        // `theirs` without its content: the one made already for that version, else one made now.
+        // (One with nothing to let go of is noted as its own, and not looked at again.)
+        let mut lean_of = |theirs: &Arc<Message>| -> Arc<Message> {
+            if let Some((_, lean)) = made.iter().find(|(was, _)| Arc::ptr_eq(was, theirs)) {
+                return lean.clone();
+            }
+            let lean = if in_memory(theirs) == 0 { None } else { crate::store::evictable(&path, id, theirs) };
+            let lean = lean.map_or_else(|| theirs.clone(), Arc::new);
+            made.push((theirs.clone(), lean.clone()));
+            lean
+        };
         for step in self.history.iter_mut().chain(self.redo.iter_mut()) {
-            let Some(theirs) = step.mailbox.messages.get(&id).cloned() else { continue };
-            let lean = match made.iter().find(|(was, _)| Arc::ptr_eq(was, &theirs)) {
-                Some((_, lean)) => lean.clone(),
-                None => {
-                    // (One with nothing to let go of is noted as its own, and not looked at again.)
-                    let lean = if in_memory(&theirs) == 0 { None } else { crate::store::evictable(&path, id, &theirs) };
-                    let lean = lean.map_or_else(|| theirs.clone(), Arc::new);
-                    made.push((theirs.clone(), lean.clone()));
-                    lean
+            if let Some(theirs) = step.mailbox.messages.get(&id).cloned() {
+                let lean = lean_of(&theirs);
+                if !Arc::ptr_eq(&lean, &theirs) {
+                    step.mailbox.messages.put_in_place_of(id, &theirs, &lean, live, &mut done);
                 }
-            };
-            if !Arc::ptr_eq(&lean, &theirs) {
-                step.mailbox.messages.put_in_place_of(id, &theirs, &lean, live, &mut done);
+            }
+            // What a step noted of a Microsoft, EWS or JMAP account's message, as it was right
+            // after the step, holds its content too.
+            if let Some(theirs) = step.touched.message_mut(id) {
+                *theirs = lean_of(theirs);
             }
         }
         self.hold(made.iter().skip(1).filter(|(was, lean)| !Arc::ptr_eq(was, lean)).map(|(_, lean)| lean));
