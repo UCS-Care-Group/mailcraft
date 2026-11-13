@@ -30,6 +30,9 @@ pub mod offline;
 mod offline_tests;
 #[cfg(test)]
 mod reset_tests;
+pub mod tasks;
+#[cfg(test)]
+mod tasks_tests;
 
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
@@ -37,6 +40,7 @@ pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, 
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+pub use tasks::{TasksCame, TasksDriver, TasksFacts};
 
 use mailcraft_model::Id;
 
@@ -273,6 +277,8 @@ pub struct Driver {
     pub favorites: FavoritesDriver,
     /// Messages fetched whole in the background and for the owner.
     pub fetch: FetchDriver,
+    /// Tasks kept in step with Microsoft To Do.
+    pub tasks: TasksDriver,
 }
 
 impl Driver {

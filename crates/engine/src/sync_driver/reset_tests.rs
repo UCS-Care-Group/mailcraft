@@ -30,6 +30,9 @@ fn busy(driver: &mut Driver) {
     driver.fetch.idle_until = 9.0;
     driver.fetch.offline = true;
     driver.fetch.stuck.insert(7, (2, 9.0));
+    driver.tasks.perm.insert(7, super::Permission::Needed);
+    driver.tasks.settling.insert(7, 2);
+    driver.tasks.book.started(7, 5.0);
 }
 
 #[test]

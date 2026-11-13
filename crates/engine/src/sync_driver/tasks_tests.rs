@@ -1,0 +1,96 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use mailcraft_i18n::Lang;
+use mailcraft_model::Id;
+use mailcraft_model::remote_tasks::TasksDownload;
+use serde_json::json;
+
+use super::tasks::*;
+use super::{Busy, Permission, fingerprint};
+use crate::Session;
+
+const NOW: i64 = 1_790_000_000;
+
+fn session() -> (Session, Id) {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap();
+    let id = added["id"].as_u64().unwrap();
+    (s, id)
+}
+
+fn facts() -> TasksFacts {
+    TasksFacts { enabled: true, running: false, busy: Busy::default() }
+}
+
+fn tokens(_: Id) -> Option<String> {
+    Some("refresh".into())
+}
+
+fn answered(s: &mut Session, account: Id, came: &TasksCame<'_>) {
+    let ran_for = s.mailbox.account(account).unwrap().clone();
+    s.tasks_answered(account, 1_000.0, fingerprint("refresh"), &ran_for, Lang::English, came);
+}
+
+#[test]
+fn nothing_is_due_while_the_host_cannot_or_something_else_goes_first() {
+    let (mut s, a) = session();
+    assert_eq!(s.tasks_due(&facts(), tokens, 1e6), vec![a]);
+    assert!(s.tasks_due(&TasksFacts { enabled: false, ..facts() }, tokens, 1e6).is_empty());
+    assert!(s.tasks_due(&TasksFacts { running: true, ..facts() }, tokens, 1e6).is_empty());
+    let busy = Busy { signing_in: true, ..Default::default() };
+    assert!(s.tasks_due(&TasksFacts { busy, ..facts() }, tokens, 1e6).is_empty());
+    // Asked for: not again until the refresh time.
+    s.tasks_started(a, 1e6);
+    assert!(s.tasks_due(&facts(), tokens, 1e6 + 1_000.0).is_empty());
+}
+
+#[test]
+fn a_sign_in_that_does_not_cover_to_dos_asks_the_owner_and_holds_the_job() {
+    let (mut s, a) = session();
+    answered(&mut s, a, &TasksCame { consent_needed: true, ..Default::default() });
+    assert_eq!(s.driver.tasks.perm.get(&a), Some(&Permission::Needed));
+    assert_eq!(s.driver.tasks.to_ask(), Some(a));
+    assert!(s.tasks_blocked(a, Some("refresh")) && s.tasks_held(a));
+    assert!(s.tasks_due(&facts(), tokens, 1e9).is_empty());
+    s.driver.tasks.asking(a);
+    s.driver.tasks.unanswered(false);
+    assert_eq!(s.driver.tasks.perm.get(&a), Some(&Permission::Declined), "not asked again by itself");
+}
+
+#[test]
+fn a_refusal_just_after_the_owner_allowed_is_tried_again_and_then_is_a_no() {
+    let (mut s, a) = session();
+    s.driver.tasks.allowed(a);
+    let consent = TasksCame { consent_needed: true, ..Default::default() };
+    for _ in 0..3 {
+        answered(&mut s, a, &consent);
+        assert_eq!(s.driver.tasks.perm.get(&a), None);
+    }
+    answered(&mut s, a, &consent);
+    assert_eq!(s.driver.tasks.perm.get(&a), Some(&Permission::Needed));
+}
+
+#[test]
+fn a_job_that_read_the_to_dos_says_they_work_and_a_dead_sign_in_waits_for_a_new_one() {
+    let (mut s, a) = session();
+    let download = TasksDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
+    answered(&mut s, a, &TasksCame { download: Some(&download), ..Default::default() });
+    assert_eq!(s.driver.tasks.perm.get(&a), Some(&Permission::Given));
+    assert_eq!(s.tasks_working(), vec![a]);
+    answered(&mut s, a, &TasksCame { sign_in_refused: true, ..Default::default() });
+    assert!(matches!(s.driver.tasks.perm.get(&a), Some(Permission::SignInOver(_))));
+    assert!(s.tasks_blocked(a, Some("refresh")), "the same sign-in is not tried again");
+    assert!(!s.tasks_blocked(a, Some("a newer one")));
+    s.driver.tasks.refused(a, "no".into());
+    assert!(s.tasks_blocked(a, None));
+}
+
+#[test]
+fn a_mailbox_that_takes_the_place_forgets_what_was_known_of_the_to_dos() {
+    let (mut s, a) = session();
+    s.driver.tasks.allowed(a);
+    s.driver.tasks.needed(a);
+    s.driver.reset();
+    assert!(s.driver.tasks.perm.is_empty() && s.driver.tasks.settling.is_empty());
+}
