@@ -260,10 +260,10 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
     } else if app.jmap_refused.contains(&m.account) {
         // Its server turned the account's sign-in down: nothing downloads until it is given again.
         tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.")
-    } else if app.fetching.offline && !app.session.mailbox.within_window(m, app.session.now()) {
+    } else if app.session.driver.fetch.offline && !app.session.mailbox.within_window(m, app.session.now()) {
         // Older than its mail to keep offline (#143): only its headers and preview are kept here.
         tl!("Not connected: the rest of this message is on the server")
-    } else if app.fetching.offline {
+    } else if app.session.driver.fetch.offline {
         tl!("This message isn't on this computer yet. It will download when you're online.")
     } else if app.opened_after_batch(m.id) {
         tl!("This message downloads once the messages being downloaded now are here.")

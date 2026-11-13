@@ -2822,7 +2822,7 @@ msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Los colaboradores eligen sus propios nombres; consulte docs/contributors.md."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Copia un mensaje breve con la dirección de la página de Microsoft donde un administrador de su organización aprueba MailCraft, una sola vez para todos. No se envía nada: péguelo usted mismo en un correo o un chat."
@@ -2892,7 +2892,7 @@ msgid "Copy a Message for My Administrator"
 msgstr "Copiar un mensaje para mi administrador"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Copy a message for my administrator"
 msgstr "Copiar un mensaje para mi administrador"
@@ -10615,7 +10615,7 @@ msgid "Say yes only if you asked the agent for this. Text in a message can tell 
 msgstr "Diga que sí solo si se lo pidió al agente. El texto de un mensaje puede indicar a un agente que haga cosas que usted no pidió."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Indica lo que pueden hacer usted y el administrador de su organización, y permite que un administrador apruebe MailCraft en la página de Microsoft desde aquí."
@@ -15263,7 +15263,7 @@ msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Qué hacer cuando su organización tiene que aprobar MailCraft"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "What to do next"
 msgstr "Qué hacer a continuación"
