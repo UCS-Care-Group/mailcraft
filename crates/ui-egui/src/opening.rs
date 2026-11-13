@@ -174,7 +174,7 @@ pub(crate) fn logic(app: &mut MailApp, ctx: &egui::Context) {
     }
     if o.held.is_none() {
         // The bytes read move on, and the screen comes after a moment.
-        ctx.request_repaint_after(Duration::from_millis(100));
+        crate::software::repaint_after(ctx, Duration::from_millis(100));
     }
 }
 
@@ -555,7 +555,7 @@ pub(crate) fn poll_ahead(app: &mut MailApp, ctx: &egui::Context) {
     let Some(ahead) = &app.reading_ahead else { return };
     let read = match ahead.rx.try_recv() {
         Err(TryRecvError::Empty) => {
-            ctx.request_repaint_after(Duration::from_millis(200));
+            crate::software::repaint_after(ctx, Duration::from_millis(200));
             return;
         }
         Ok(read) => read,
