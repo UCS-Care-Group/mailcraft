@@ -10,12 +10,12 @@ use std::collections::HashMap;
 pub mod calendar;
 #[cfg(test)]
 mod calendar_tests;
-pub mod fetch;
-#[cfg(test)]
-mod fetch_tests;
 pub mod favorites;
 #[cfg(test)]
 mod favorites_tests;
+pub mod fetch;
+#[cfg(test)]
+mod fetch_tests;
 pub mod jobs;
 #[cfg(test)]
 mod jobs_tests;

@@ -93,7 +93,10 @@ fn the_directory_a_sign_in_named_is_kept_for_the_run_and_forgotten_with_the_acco
 
 #[test]
 fn the_codes_and_words_of_the_notes_are_as_the_control_channel_had_them() {
-    assert_eq!((Note::Offer.code(), Note::Approval.code(), Note::Refused("x".into()).code(), Note::Failed("y".into()).code()), ("offer", "approval", "refused", "failed"));
+    assert_eq!(
+        (Note::Offer.code(), Note::Approval.code(), Note::Refused("x".into()).code(), Note::Failed("y".into()).code()),
+        ("offer", "approval", "refused", "failed")
+    );
     assert_eq!(Note::Refused("x".into()).text(), "x");
     assert_eq!((Step::CopyMessage.code(), Step::Help.code()), ("copyMessage", "help"));
     assert!(!Step::Help.label().is_empty() && !Step::CopyMessage.about().is_empty());

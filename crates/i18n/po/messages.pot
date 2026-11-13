@@ -2453,7 +2453,7 @@ msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr ""
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr ""
 
@@ -2505,7 +2505,7 @@ msgid "Copy a Message for My Administrator"
 msgstr ""
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 msgid "Copy a message for my administrator"
 msgstr ""
 
@@ -9235,7 +9235,7 @@ msgid "Say yes only if you asked the agent for this. Text in a message can tell 
 msgstr ""
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr ""
 
@@ -13357,7 +13357,7 @@ msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr ""
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 msgid "What to do next"
 msgstr ""
 

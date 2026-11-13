@@ -29,8 +29,8 @@ use crate::{MailApp, MailRun};
 
 // The kinds of job, and what may start while another is at work, are the engine's
 // ([`mailcraft_engine::sync_driver::jobs`]); this says which are at work.
-pub(crate) use mailcraft_engine::sync_driver::JobKind;
 use mailcraft_engine::sync_driver::Busy;
+pub(crate) use mailcraft_engine::sync_driver::JobKind;
 
 impl MailApp {
     /// What is at work now, as the engine's rules of precedence ([`Busy::blocks`]) ask for it.

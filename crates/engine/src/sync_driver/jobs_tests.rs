@@ -35,7 +35,12 @@ fn the_calendar_waits_for_mail_but_a_look_at_other_days_does_not_wait_for_a_run(
     let graph = Busy { graph: true, ..Default::default() };
     assert!(ALL.iter().all(|j| graph.blocks(*j)));
     let queued = Busy { queued: true, ..Default::default() };
-    assert!(queued.blocks(Start::Calendar) && queued.blocks(Start::CalendarAround) && !queued.blocks(Start::CalendarCheck) && !queued.blocks(Start::FreeBusy));
+    assert!(
+        queued.blocks(Start::Calendar)
+            && queued.blocks(Start::CalendarAround)
+            && !queued.blocks(Start::CalendarCheck)
+            && !queued.blocks(Start::FreeBusy)
+    );
 }
 
 #[test]

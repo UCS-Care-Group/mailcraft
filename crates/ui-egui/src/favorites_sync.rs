@@ -27,7 +27,6 @@
 //!
 //! None of these is asked about again that day unless the owner asks.
 
-
 use mailcraft_engine::cmd::remote;
 use mailcraft_model::remote::{FavoritesDownload, FavoritesOutcome, RemoteFavorite};
 use mailcraft_model::{Directory, Id};

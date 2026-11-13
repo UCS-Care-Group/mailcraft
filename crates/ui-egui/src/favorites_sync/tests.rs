@@ -438,7 +438,11 @@ fn the_commands_take_anything_and_say_what_they_cannot_do() {
     );
     // An account that goes takes what was remembered of it along.
     rig.app.execute("account.remove", json!({"id": rig.account})).unwrap();
-    assert!(rig.app.favorites_note().is_none() && rig.app.session.driver.favorites.notes.is_empty() && rig.app.session.driver.favorites.missing.is_empty());
+    assert!(
+        rig.app.favorites_note().is_none()
+            && rig.app.session.driver.favorites.notes.is_empty()
+            && rig.app.session.driver.favorites.missing.is_empty()
+    );
 }
 
 fn window(rig: Rig) -> (egui_kittest::Harness<'static, MailApp>, Arc<Mutex<Host>>, [Id; 5]) {

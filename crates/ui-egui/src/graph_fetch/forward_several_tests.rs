@@ -477,8 +477,11 @@ fn those_come_by_other_means_meanwhile_go_on() {
         // brings none: the server busy, or the network gone.
         let fetched =
             ["AA0M0", "AA0M2"].map(|id| GraphFetched { id: id.into(), mime: format!("Subject: Whole {id}\r\n\r\nAll of {id}.\r\n").into_bytes() });
-        mailcraft_engine::sync_driver::fetch::apply_fetch(&mut app.session, GraphFetchResult { account: one, email: "one@example.org".into(), fetched: fetched.to_vec(), ..Default::default() })
-            .unwrap();
+        mailcraft_engine::sync_driver::fetch::apply_fetch(
+            &mut app.session,
+            GraphFetchResult { account: one, email: "one@example.org".into(), fetched: fetched.to_vec(), ..Default::default() },
+        )
+        .unwrap();
         for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
             let result = GraphFetchResult { account: job.request.account, offline, busy_for: (!offline).then_some(30), ..Default::default() };
             tx.send(result).unwrap();
