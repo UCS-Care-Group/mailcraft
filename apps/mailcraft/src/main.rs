@@ -1697,6 +1697,7 @@ fn services(
     updates: Option<&HostUpdates>,
 ) -> Services {
     let pictures_ctx = ctx.clone();
+    let unsubscribe_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
     let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
@@ -1834,6 +1835,8 @@ fn services(
             let kept = pictures_kept.clone();
             background(&pictures_ctx, "picture", move || picture_cache::picture(&url, kept.as_ref()))
         })),
+        // One-click unsubscribe (#1207): a POST the owner asked for, on its own thread.
+        unsubscribe: Some(Box::new(move |url| background(&unsubscribe_ctx, "unsubscribe", move || mailcraft_net::pictures::unsubscribe(&url)))),
         // A sender's picture for the message list, once the owner turned that on: from
         // Gravatar, favicon.im or Google, downloaded and kept like a message's pictures.
         sender_images: Some(Box::new(move |address, wanted| {

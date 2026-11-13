@@ -444,6 +444,8 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             );
             question(tl!("Download Pictures in All Mail"), text, tl!("Download in all mail"))
         }
+        // Unsubscribing from a list (#1207): what is sent, to whom, or what opens.
+        "ui.unsubscribe" => crate::reading::unsubscribe::question(app, params),
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
