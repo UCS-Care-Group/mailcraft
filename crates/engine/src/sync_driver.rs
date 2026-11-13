@@ -17,6 +17,9 @@ pub mod favorites;
 #[cfg(test)]
 mod favorites_tests;
 pub mod fetch;
+pub mod fetch_flow;
+#[cfg(test)]
+mod fetch_flow_tests;
 #[cfg(test)]
 mod fetch_tests;
 pub mod jobs;
@@ -28,8 +31,8 @@ mod offline_tests;
 #[cfg(test)]
 mod reset_tests;
 
-pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
+pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
 pub use jobs::{Busy, JobKind, Start};
