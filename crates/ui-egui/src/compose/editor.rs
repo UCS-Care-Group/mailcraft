@@ -861,9 +861,14 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                         None => {
                             let board = app.services.clipboard.as_ref();
                             let html = board.and_then(|b| b.html()).filter(|h| !h.trim().is_empty());
-                            // Into the message, a picture only when nothing else is on the clipboard (#547).
-                            let image =
-                                (text.is_empty() && (which == Which::Signature || html.is_none())).then(|| board.and_then(|b| b.image())).flatten();
+                            // Into the message, a picture only when nothing else is on the clipboard (#547),
+                            // or when the HTML is that picture alone: a browser's Copy Image puts an
+                            // `<img>` of its web address beside the picture itself, which would paste
+                            // as a link and a caption (#1217).
+                            let alone = html.as_deref().is_some_and(pictures_only);
+                            let image = (alone || (text.is_empty() && (which == Which::Signature || html.is_none())))
+                                .then(|| board.and_then(|b| b.image()))
+                                .flatten();
                             (html, image)
                         }
                     };
@@ -1204,3 +1209,10 @@ mod tests {
 #[cfg(test)]
 #[path = "wide_picture_tests.rs"]
 mod wide_picture_tests;
+
+/// The HTML holds pictures and nothing else that reads (a browser's Copy Image, #1217).
+fn pictures_only(html: &str) -> bool {
+    let blocks = mailcraft_html::parse_text(html);
+    let picture = |b: &mailcraft_html::Block| matches!(b.kind, mailcraft_html::BlockKind::Image { .. });
+    blocks.iter().any(picture) && blocks.iter().all(|b| picture(b) || b.text().trim().is_empty())
+}
