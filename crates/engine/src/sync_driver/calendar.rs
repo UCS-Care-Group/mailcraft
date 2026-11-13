@@ -281,7 +281,9 @@ impl Session {
     /// Send/Receive (`directory`: a month back, a year ahead), or else `stretch`.
     pub fn calendar_asks(&self, account: Id, directory: bool, stretch: Option<(Timestamp, Timestamp)>) -> Vec<CalendarAsk> {
         let now = self.now();
-        let Some((from, to)) = (if directory { Some((now - WIDE_BEHIND, now + WIDE_AHEAD)) } else { stretch }) else { return Vec::new() };
+        let Some((from, to)) = (if directory { Some((now.saturating_sub(WIDE_BEHIND), now.saturating_add(WIDE_AHEAD))) } else { stretch }) else {
+            return Vec::new();
+        };
         // (And one that holds something which was sent and is yet to be seen on the server,
         // shown or not: an appointment that was just put into a calendar that isn't ticked.)
         let unseen = remote::unverified_calendars(self, account);

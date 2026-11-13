@@ -32,16 +32,11 @@ pub struct RulesDriver {
     /// The accounts whose server's rules have been read, and those whose can't be.
     pub read: HashSet<Id>,
     pub unreadable: HashSet<Id>,
-    /// How many changes wait per account, worked out for the mailbox as of this revision.
-    ready: Option<(u64, HashMap<Id, usize>)>,
+    /// How many changes wait per account.
+    ready: super::WaitingCache,
 }
 
 impl RulesDriver {
-    /// Whether the permission is a question being asked, or one that went away unanswered, or no.
-    fn answered_by_owner(&self, account: Id) -> bool {
-        matches!(self.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_)))
-    }
-
     /// The owner is being asked about `account`.
     pub fn asking(&mut self, account: Id) {
         self.perm.insert(account, Permission::Asking);
@@ -83,18 +78,20 @@ impl RulesDriver {
     /// A question that went away unanswered is not asked again by itself: when none is on screen
     /// (`still`), every account being asked about is `Declined`.
     pub fn unanswered(&mut self, still: bool) {
-        if still {
-            return;
-        }
-        let asking: Vec<Id> = self.perm.iter().filter(|(_, p)| **p == Permission::Asking).map(|(a, _)| *a).collect();
-        for account in asking {
-            self.perm.insert(account, Permission::Declined);
-        }
+        super::unanswered(&mut self.perm, still);
     }
 
     /// The account the owner is next to be asked about, the lowest first.
     pub fn to_ask(&self) -> Option<Id> {
-        self.perm.iter().filter(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a).min()
+        super::to_ask(&self.perm)
+    }
+
+    /// Account removal: nothing of these accounts' permission or rules is kept.
+    pub fn forget_accounts(&mut self, gone: &HashSet<Id>) {
+        self.perm.retain(|account, _| !gone.contains(account));
+        self.settling.retain(|account, _| !gone.contains(account));
+        self.read.retain(|account| !gone.contains(account));
+        self.unreadable.retain(|account| !gone.contains(account));
     }
 }
 
@@ -185,19 +182,8 @@ impl Session {
 
     /// How many changes wait for `account`, as of this revision of the mailbox.
     fn rules_ready(&mut self, account: Id) -> usize {
-        let rev = self.rev();
-        let driver = &mut self.driver.rules;
-        if driver.ready.as_ref().is_none_or(|(at, _)| *at != rev) {
-            driver.ready = Some((rev, HashMap::new()));
-        }
-        if let Some(n) = driver.ready.as_ref().and_then(|(_, m)| m.get(&account).copied()) {
-            return n;
-        }
-        let n = rules_remote::rules_waiting(&self.mailbox, account);
-        if let Some((_, m)) = &mut self.driver.rules.ready {
-            m.insert(account, n);
-        }
-        n
+        let (rev, mailbox) = (self.rev(), &self.mailbox);
+        self.driver.rules.ready.get(rev, account, || rules_remote::rules_waiting(mailbox, account))
     }
 
     /// The host handed a rules job for `account` to its server at `now`.
@@ -210,33 +196,24 @@ impl Session {
     /// refusal that is kept is said in. Say what went wrong, in order.
     pub fn rules_answered(&mut self, account: Id, started: f64, given: u64, lang: mailcraft_i18n::Lang, came: &RulesCame<'_>) -> Vec<Text> {
         let mut errors = Vec::new();
-        let settling = self.driver.rules.settling.get(&account).copied().unwrap_or(0);
-        if !came.consent_needed {
-            self.driver.rules.settling.remove(&account);
-        }
-        if came.consent_needed && settling > 0 {
-            log::info!("rules: refused just after the owner allowed them; trying again ({settling} more)");
-            self.driver.rules.settling.insert(account, settling - 1);
-            self.driver.rules.book.failed(account, started);
-            self.driver.rules.book.forget_checked(account);
-        } else if came.consent_needed {
-            log::info!("rules: the sign-in doesn't cover changing the rules; the owner is to be asked");
-            if !self.driver.rules.answered_by_owner(account) {
-                self.driver.rules.needed(account);
-            }
-        } else if came.denied {
-            let said = said!("This account may not change its rules on the server");
-            self.driver.rules.refused(account, said.in_lang(lang));
-        } else if came.sign_in_refused && !came.new_tokens && settling == 0 {
-            log::warn!("rules: the sign-in was refused; waiting for a new one");
-            if !self.driver.rules.answered_by_owner(account) {
-                self.driver.rules.perm.insert(account, Permission::SignInOver(given));
-            }
-        } else if came.sign_in_refused {
-            log::warn!("rules: the server refused the sign-in; trying again later");
-        } else if came.uploaded.is_some() {
-            self.driver.rules.perm.insert(account, Permission::Given);
-        }
+        let rules = &mut self.driver.rules;
+        let standing = super::Standing {
+            consent_needed: came.consent_needed,
+            denied: came.denied,
+            sign_in_refused: came.sign_in_refused,
+            new_tokens: came.new_tokens,
+        };
+        let said = || said!("This account may not change its rules on the server").in_lang(lang);
+        let noted = super::standing_in(
+            "rules",
+            &mut rules.book,
+            &mut rules.perm,
+            &mut rules.settling,
+            account,
+            (started, given),
+            standing,
+            (said, came.uploaded.is_some()),
+        );
         if came.unreadable {
             self.driver.rules.unreadable.insert(account);
         } else if came.download.is_some() {
@@ -263,7 +240,9 @@ impl Session {
                 Err(e) => errors.push(said!("The rules on the server couldn't be taken in: {error}", error = e.to_string())),
             }
         }
-        if worked && errors.is_empty() && !came.job_errors {
+        if noted {
+            // (A failure is noted for this answer already: a success doesn't undo it.)
+        } else if worked && errors.is_empty() && !came.job_errors {
             self.driver.rules.book.forget_failures(account);
         } else if !came.consent_needed && !came.sign_in_refused && !came.unreadable {
             self.driver.rules.book.failed(account, started);

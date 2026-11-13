@@ -90,3 +90,34 @@ fn an_answer_the_host_itself_found_wanting_is_a_failure_even_when_what_came_was_
     answered(&mut s, a, &RulesCame { download: Some(&download), ..Default::default() });
     assert_eq!(s.driver.rules.book.failures(a), 0);
 }
+
+#[test]
+fn a_refused_sign_in_the_account_may_renew_is_a_failure_that_backs_the_job_off() {
+    let (mut s, a) = session();
+    s.rules_started(a, 0.0);
+    answered(&mut s, a, &RulesCame { sign_in_refused: true, new_tokens: true, ..Default::default() });
+    assert_eq!(s.driver.rules.book.failures(a), 1);
+    assert!(s.rules_due(&facts(), tokens, 10_000.0).is_empty(), "within the back-off");
+    assert_eq!(s.rules_due(&facts(), tokens, 1_100_000.0).len(), 1);
+}
+
+#[test]
+fn a_success_in_the_answer_that_was_a_settling_refusal_does_not_forget_its_failure() {
+    let (mut s, a) = session();
+    s.driver.rules.allowed(a);
+    let download = RulesDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
+    answered(&mut s, a, &RulesCame { consent_needed: true, download: Some(&download), ..Default::default() });
+    assert_eq!(s.driver.rules.book.failures(a), 1);
+}
+
+#[test]
+fn a_removed_account_is_no_longer_asked_about() {
+    let (mut s, a) = session();
+    let other = s.run("account.add", &json!({"email": "bo@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    s.driver.rules.allowed(a);
+    s.driver.rules.needed(a);
+    s.driver.rules.needed(other);
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    assert_eq!(s.driver.rules.to_ask(), Some(other));
+    assert!(!s.driver.rules.perm.contains_key(&a) && !s.driver.rules.settling.contains_key(&a));
+}

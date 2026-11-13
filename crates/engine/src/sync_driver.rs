@@ -261,6 +261,103 @@ impl Permission {
     }
 }
 
+/// Whether `account`'s permission is a question being asked, one that went away unanswered, or a no.
+fn answered_by_owner(perm: &HashMap<Id, Permission>, account: Id) -> bool {
+    matches!(perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_)))
+}
+
+/// A question that went away unanswered is not asked again by itself: when none is on screen
+/// (`still`), every account being asked about is `Declined`.
+fn unanswered(perm: &mut HashMap<Id, Permission>, still: bool) {
+    if still {
+        return;
+    }
+    for p in perm.values_mut().filter(|p| **p == Permission::Asking) {
+        *p = Permission::Declined;
+    }
+}
+
+/// The account the owner is next to be asked about, the lowest first.
+fn to_ask(perm: &HashMap<Id, Permission>) -> Option<Id> {
+    perm.iter().filter(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a).min()
+}
+
+/// How many changes wait per account, worked out for the mailbox as of one revision (every look
+/// asks; the work is done again only when the mailbox changed).
+#[derive(Debug, Default)]
+struct WaitingCache(Option<(u64, HashMap<Id, usize>)>);
+
+impl WaitingCache {
+    /// How many changes wait for `account` at revision `rev`: `count` works it out when not known.
+    fn get(&mut self, rev: u64, account: Id, count: impl FnOnce() -> usize) -> usize {
+        let (_, known) = match &mut self.0 {
+            Some(cache) if cache.0 == rev => cache,
+            other => other.insert((rev, HashMap::new())),
+        };
+        *known.entry(account).or_insert_with(count)
+    }
+}
+
+/// What a job's answer says of the owner's permission and the sign-in.
+#[derive(Clone, Copy)]
+struct Standing {
+    consent_needed: bool,
+    denied: bool,
+    sign_in_refused: bool,
+    new_tokens: bool,
+}
+
+/// Keep where `account`'s permission stands after a job answered with `came` (`what` names the
+/// job in the log, which never carries anything of the account); `read` says the job read or
+/// wrote with it. `settling`: the refusals left that are taken for the provider not having caught
+/// up. Whether a failure was noted for it (then the answer doesn't count as a success too).
+#[allow(clippy::too_many_arguments)]
+fn standing_in(
+    what: &str,
+    book: &mut JobBook,
+    perm: &mut HashMap<Id, Permission>,
+    settling_of: &mut HashMap<Id, u32>,
+    account: Id,
+    (started, given): (f64, u64),
+    came: Standing,
+    (denied_said, read): (impl FnOnce() -> String, bool),
+) -> bool {
+    let settling = settling_of.get(&account).copied().unwrap_or(0);
+    if !came.consent_needed {
+        settling_of.remove(&account);
+    }
+    if came.consent_needed && settling > 0 {
+        log::info!("{what}: refused just after the owner allowed them; trying again ({settling} more)");
+        settling_of.insert(account, settling - 1);
+        book.failed(account, started);
+        book.forget_checked(account);
+        return true;
+    }
+    if came.consent_needed {
+        log::info!("{what}: the sign-in doesn't cover them; the owner is to be asked");
+        if !answered_by_owner(perm, account) {
+            perm.insert(account, Permission::Needed);
+        }
+    } else if came.denied {
+        perm.insert(account, Permission::Refused(denied_said()));
+    } else if came.sign_in_refused && !came.new_tokens && settling == 0 {
+        // The refresh itself was refused, for mail too: never "not asked yet" with no way back
+        // (#520). (Not when the owner allowed it since the job began: that sign-in is newer.)
+        log::warn!("{what}: the sign-in was refused; waiting for a new one");
+        if !answered_by_owner(perm, account) {
+            perm.insert(account, Permission::SignInOver(given));
+        }
+    } else if came.sign_in_refused {
+        // A token just renewed was refused: the next look tries again, after the back-off.
+        log::warn!("{what}: the server refused the sign-in; trying again later");
+        book.failed(account, started);
+        return true;
+    } else if read {
+        perm.insert(account, Permission::Given);
+    }
+    false
+}
+
 /// A refresh token, told apart from another without being kept: whether the account has signed
 /// in again since a job's was refused.
 pub fn fingerprint(refresh: &str) -> u64 {

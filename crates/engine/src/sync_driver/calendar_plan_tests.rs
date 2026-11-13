@@ -99,9 +99,30 @@ fn a_part_the_host_could_not_bring_down_asks_for_the_wide_stretch_again_at_the_n
     let out = s.calendar_answered(a, false, 10.0, 20.0, &came);
     assert!(out.taken && out.errors.is_empty(), "what came was taken in");
     assert!(!s.driver.calendar.checked.contains_key(&a), "but the host's own error says a part is missing");
+    assert_eq!(s.driver.calendar.book.failures(a), 1, "and the partial answer is a failure, so the next job waits out the back-off");
     s.driver.calendar.directory = true;
     s.calendar_answered(a, false, 10.0, 30.0, &CalendarCame { job_errors: false, ..came });
     assert_eq!(s.driver.calendar.checked.get(&a), Some(&30.0));
+    assert_eq!(s.driver.calendar.book.failures(a), 0, "a whole answer ends the failures");
+}
+
+#[test]
+fn a_partial_answer_that_carried_changes_does_not_hold_up_their_retry() {
+    let (mut s, a) = microsoft_session();
+    let events = EventsDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
+    let came = CalendarCame { events: Some(&events), job_errors: true, ..Default::default() };
+    s.driver.calendar.directory = true;
+    s.calendar_answered(a, true, 10.0, 20.0, &came);
+    // (The carried changes with no outcome count as one failure already, and only one.)
+    assert_eq!(s.driver.calendar.book.failures(a), 1);
+}
+
+#[test]
+fn the_wide_stretch_is_worked_out_at_the_ends_of_time_without_overflow() {
+    let plan = CalendarPlan { account: 1, push: false, changes: None, directory: true, settings: false, window: (0, 1), around: false };
+    assert_eq!(plan.range(i64::MAX).1, i64::MAX);
+    assert_eq!(plan.range(i64::MIN).0, i64::MIN);
+    assert_eq!(plan.range(1_000_000_000), (1_000_000_000 - WIDE_BEHIND, 1_000_000_000 + WIDE_AHEAD));
 }
 
 #[test]

@@ -80,7 +80,7 @@ pub struct CalendarPlan {
 impl CalendarPlan {
     /// The range of the calendar the job asks for: the wide stretch when it brings the directory.
     pub fn range(&self, now: Timestamp) -> (Timestamp, Timestamp) {
-        if self.directory { (now - WIDE_BEHIND, now + WIDE_AHEAD) } else { self.window }
+        if self.directory { (now.saturating_sub(WIDE_BEHIND), now.saturating_add(WIDE_AHEAD)) } else { self.window }
     }
 }
 
@@ -346,13 +346,18 @@ impl Session {
         }
         // (A part that couldn't be had is among the errors, the host's own included: then the next
         // job asks again.)
-        if std::mem::take(&mut self.driver.calendar.directory) && taken && out.errors.is_empty() && !came.job_errors {
+        let wide = std::mem::take(&mut self.driver.calendar.directory);
+        let partial = wide && taken && (!out.errors.is_empty() || came.job_errors);
+        if wide && taken && !partial {
             self.driver.calendar.checked.insert(account, now);
         }
         // Something went up: what the server has now is asked for again soon, should this
         // answer have been cut short.
         let went = came.uploaded.is_some_and(|uploaded| !uploaded.outcomes.is_empty());
-        let nothing = !taken || (carried && !went);
+        // A wide job that brought events but not all it was asked for counts as a failure too (the
+        // back-off keeps the next one from starting at every look); one that carried changes is
+        // left as it was, so that its quick retry isn't held up any longer.
+        let nothing = !taken || (carried && !went) || (partial && !carried);
         self.driver.calendar.answered(account, nothing, started);
         out.taken = taken;
         out

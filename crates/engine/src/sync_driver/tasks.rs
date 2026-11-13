@@ -28,17 +28,11 @@ pub struct TasksDriver {
     /// The owner allowed the to-dos on Microsoft's page: how many refusals are still taken for
     /// Microsoft not having taken it in yet, rather than for a no.
     pub settling: HashMap<Id, u32>,
-    /// How many changes wait per account, worked out for the mailbox as of this revision (every
-    /// look asks; the work is done again only when the mailbox changed).
-    ready: Option<(u64, HashMap<Id, usize>)>,
+    /// How many changes wait per account.
+    ready: super::WaitingCache,
 }
 
 impl TasksDriver {
-    /// Whether the permission is a question being asked, or one that went away unanswered, or no.
-    fn answered_by_owner(&self, account: Id) -> bool {
-        matches!(self.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_)))
-    }
-
     /// The owner is being asked about `account`.
     pub fn asking(&mut self, account: Id) {
         self.perm.insert(account, Permission::Asking);
@@ -78,18 +72,18 @@ impl TasksDriver {
     /// A question that went away unanswered is not asked again by itself: when none is on screen
     /// (`still`), every account being asked about is `Declined`.
     pub fn unanswered(&mut self, still: bool) {
-        if still {
-            return;
-        }
-        let asking: Vec<Id> = self.perm.iter().filter(|(_, p)| **p == Permission::Asking).map(|(a, _)| *a).collect();
-        for account in asking {
-            self.perm.insert(account, Permission::Declined);
-        }
+        super::unanswered(&mut self.perm, still);
     }
 
     /// The account the owner is next to be asked about, the lowest first.
     pub fn to_ask(&self) -> Option<Id> {
-        self.perm.iter().filter(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a).min()
+        super::to_ask(&self.perm)
+    }
+
+    /// Account removal: nothing of these accounts' permission is kept.
+    pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.perm.retain(|account, _| !gone.contains(account));
+        self.settling.retain(|account, _| !gone.contains(account));
     }
 }
 
@@ -155,19 +149,8 @@ impl Session {
 
     /// How many changes wait for `account`, as of this revision of the mailbox.
     fn tasks_ready(&mut self, account: Id) -> usize {
-        let rev = self.rev();
-        let driver = &mut self.driver.tasks;
-        if driver.ready.as_ref().is_none_or(|(at, _)| *at != rev) {
-            driver.ready = Some((rev, HashMap::new()));
-        }
-        if let Some(n) = driver.ready.as_ref().and_then(|(_, m)| m.get(&account).copied()) {
-            return n;
-        }
-        let n = tasks_remote::tasks_waiting(&self.mailbox, account);
-        if let Some((_, m)) = &mut self.driver.tasks.ready {
-            m.insert(account, n);
-        }
-        n
+        let (rev, mailbox) = (self.rev(), &self.mailbox);
+        self.driver.tasks.ready.get(rev, account, || tasks_remote::tasks_waiting(mailbox, account))
     }
 
     /// The host handed a to-do job for `account` to its server at `now`.
@@ -188,37 +171,17 @@ impl Session {
         came: &TasksCame<'_>,
     ) -> Vec<Text> {
         let mut errors = Vec::new();
-        let settling = self.driver.tasks.settling.get(&account).copied().unwrap_or(0);
-        if !came.consent_needed {
-            self.driver.tasks.settling.remove(&account);
-        }
-        if came.consent_needed && settling > 0 {
-            log::info!("tasks, account {account}: refused just after the owner allowed them; trying again ({settling} more)");
-            self.driver.tasks.settling.insert(account, settling - 1);
-            self.driver.tasks.book.failed(account, started);
-            self.driver.tasks.book.forget_checked(account);
-        } else if came.consent_needed {
-            log::info!("tasks, account {account}: the sign-in doesn't cover to-dos; the owner is to be asked");
-            if !self.driver.tasks.answered_by_owner(account) {
-                self.driver.tasks.needed(account);
-            }
-        } else if came.denied {
-            let said = said!("This account may not use its to-dos through Microsoft Graph");
-            self.driver.tasks.refused(account, said.in_lang(lang));
-        } else if came.sign_in_refused && !came.new_tokens && settling == 0 {
-            // The refresh itself was refused, for mail too: never "not asked yet" with no way back
-            // (#520). (Not when the owner allowed the to-dos since the job began: that sign-in is
-            // newer than this answer.)
-            log::warn!("tasks: the sign-in was refused; waiting for a new one");
-            if !self.driver.tasks.answered_by_owner(account) {
-                self.driver.tasks.perm.insert(account, Permission::SignInOver(given));
-            }
-        } else if came.sign_in_refused {
-            // Graph refused a token just renewed: the next look tries again.
-            log::warn!("tasks: the server refused the sign-in; trying again later");
-        } else if came.download.is_some() || came.uploaded.is_some() {
-            self.driver.tasks.perm.insert(account, Permission::Given);
-        }
+        let tasks = &mut self.driver.tasks;
+        let standing = super::Standing {
+            consent_needed: came.consent_needed,
+            denied: came.denied,
+            sign_in_refused: came.sign_in_refused,
+            new_tokens: came.new_tokens,
+        };
+        let said = || said!("This account may not use its to-dos through Microsoft Graph").in_lang(lang);
+        let read = came.download.is_some() || came.uploaded.is_some();
+        let noted =
+            super::standing_in("tasks", &mut tasks.book, &mut tasks.perm, &mut tasks.settling, account, (started, given), standing, (said, read));
         let mut worked = false;
         if let Some(uploaded) = came.uploaded {
             // (Taken in for the account as the job had it, never relabelled with what is here now.)
@@ -237,7 +200,9 @@ impl Session {
                 Err(e) => errors.push(said!("The to-dos couldn't be taken in: {error}", error = e.to_string())),
             }
         }
-        if worked && errors.is_empty() && !came.job_errors {
+        if noted {
+            // (A failure is noted for this answer already: a success doesn't undo it.)
+        } else if worked && errors.is_empty() && !came.job_errors {
             self.driver.tasks.book.worked(account);
         } else if !came.consent_needed && !came.sign_in_refused {
             self.driver.tasks.book.failed(account, started);
