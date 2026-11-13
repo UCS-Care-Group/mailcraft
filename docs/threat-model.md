@@ -397,11 +397,11 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   menu bar's input is told apart from the control channel's), into a folder of the owner's alone
   that quitting leaves for a paste to find. The same attachment copied again (a key held down
   repeats Ctrl+C) is written once, and the copies kept come to no more than 512 MB, the oldest going
-  first (`apps/mailcraft/src/opened_files.rs`, `crates/ui-egui/src/attachment_open.rs`). Files on
+  first (the one just copied always stays) (`apps/mailcraft/src/opened_files.rs`, `crates/ui-egui/src/attachment_open.rs`). Files on
   the clipboard are attached to a message being written by a paste only when the text that comes
-  with them is nothing, or lists those very files (their paths, addresses or names), so a page that
-  puts `file://` addresses beside the text copied from it gets that text pasted as text; the status
-  line names the files attached (`crates/ui-egui/src/compose/file_paste.rs`).
+  with them is nothing (then all of them) or lists files (their paths, addresses or names; then only
+  those), so a page that puts `file://` addresses beside the text copied from it gets that text
+  pasted as text; the status line names the files attached (`crates/ui-egui/src/compose/file_paste.rs`).
 - **Secrets are in the operating system's credential store** (Windows Credential Manager, the macOS
   keychain, the Secret Service: GNOME Keyring, KWallet; `apps/mailcraft/src/secrets.rs`), never in
   the mailbox file, `ui.json`, a command line, a URL or a log line. They are `#[serde(skip)]` and redacted

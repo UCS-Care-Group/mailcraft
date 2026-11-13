@@ -65,37 +65,56 @@ impl Keys {
 }
 
 /// The files on the clipboard that a paste into the message being written attaches: none for a
-/// signature, without a clipboard that has files, when what is on it is no files, or when the
-/// text that came with the paste (`text`; empty for Ctrl+V the backend kept) is not what a file
-/// manager leaves beside the files it copies: their paths, addresses or names. A page can put a
-/// list of `file://` addresses on the clipboard beside the text the owner copied from it; that
-/// text is pasted as text, and no file of the owner's goes into the message.
+/// signature, without a clipboard that has files, or when what is on it is no files. With the text
+/// that came with the paste (`text`; empty for a Ctrl+V the backend kept, which is Explorer's files
+/// alone) only the files that text names, and none when it names anything else: a file manager
+/// leaves beside the files it copies their paths, addresses or names, but a page can put a list of
+/// `file://` addresses on the clipboard beside the text the owner copied from it, and that text is
+/// then pasted as text, and no file of the owner's goes into the message.
 pub(super) fn files(app: &MailApp, which: super::Which, text: &str) -> Option<Vec<String>> {
     if which != super::Which::Message {
         return None;
     }
     let board = app.services.clipboard.as_ref()?;
     let files: Vec<String> = board.files().iter().filter_map(|p| p.to_str().map(str::to_string)).collect();
-    (!files.is_empty() && names_them(text, &files)).then_some(files)
+    let named = named_by(text, &files)?;
+    (!named.is_empty()).then_some(named)
 }
 
-/// Whether `text` says no more than which `files` there are: nothing at all (what Explorer
-/// leaves), or lines each of which is the path of one of them, its `file://` address or its name
-/// (what Dolphin, GNOME Files and Finder leave).
-fn names_them(text: &str, files: &[String]) -> bool {
+/// Of `files`, those that `text` names: all of them for no text at all; else each line of it must
+/// be the path of one of them, its `file://` address or its name, and the files named are the
+/// ones that are attached. `None` when a line names no file.
+fn named_by(text: &str, files: &[String]) -> Option<Vec<String>> {
     // (Slashes either way: a Windows path in an address has them forward.)
     let slashed = |text: &str| text.replace('\\', "/");
-    let named = |line: &str| {
-        let (line, decoded) = (slashed(line), slashed(&decoded_address(line)));
-        files.iter().any(|f| {
-            let path = slashed(f);
-            let name = path.rsplit('/').next().unwrap_or(&path);
-            path == line || path == decoded || name == line || name == decoded
-        })
+    let names = |file: &str, line: &str, decoded: &str| {
+        let path = slashed(file);
+        let name = path.rsplit('/').next().unwrap_or(&path);
+        path == line || path == decoded || name == line || name == decoded
     };
     // (A paste of more lines than files can name is no list of them.)
     let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).take(files.len().saturating_add(1)).collect();
-    lines.len() <= files.len() && lines.iter().all(|line| named(line))
+    if lines.is_empty() {
+        return Some(files.to_vec());
+    }
+    if lines.len() > files.len() {
+        return None;
+    }
+    let mut named = vec![false; files.len()];
+    for line in lines {
+        let (line, decoded) = (slashed(line), slashed(&decoded_address(line)));
+        // (Every file that goes by the name: two files of one name in different folders, both.)
+        let mut found = false;
+        for (i, f) in files.iter().enumerate() {
+            if names(f, &line, &decoded) {
+                (named[i], found) = (true, true);
+            }
+        }
+        if !found {
+            return None;
+        }
+    }
+    Some(files.iter().zip(named).filter(|(_, named)| *named).map(|(f, _)| f.clone()).collect())
 }
 
 /// `line` with a `file://` address read as the path it names: the scheme and a local host taken

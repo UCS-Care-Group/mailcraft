@@ -188,7 +188,12 @@ impl Opened {
         private_dir(&folder)?;
         let path = folder.join(name);
         let mut file = new_file(&path, private)?;
-        file.write_all(bytes).and_then(|()| file.sync_all())?;
+        if let Err(e) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+            // Half a file is no copy: it goes, with the folder made for it.
+            drop(file);
+            remove_tree(&folder, 1);
+            return Err(e);
+        }
         drop(file);
         mailcraft_engine::mark::mark_from_internet(&path);
         Ok(path)

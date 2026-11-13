@@ -211,18 +211,30 @@ fn text_that_names_other_files_is_pasted_as_text_and_attaches_nothing() {
 
 #[test]
 fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
-    let files = vec!["/home/ada/My Files/report.pdf".to_string(), "C:\\Users\\ada\\notes.txt".to_string()];
-    // Nothing (Explorer), paths, addresses (spaces as %20, a local host, a drive), names (Finder).
+    let (report, notes) = ("/home/ada/My Files/report.pdf".to_string(), "C:\\Users\\ada\\notes.txt".to_string());
+    let files = vec![report.clone(), notes.clone()];
+    let both = Some(files.clone());
+    // Nothing (Explorer): all of them. Paths, addresses (spaces as %20, a local host, a drive) and
+    // names (Finder): the ones named.
+    for text in ["", "  \n"] {
+        assert_eq!(super::named_by(text, &files), both, "{text:?}");
+    }
     for text in [
-        "",
-        "  \n",
-        "/home/ada/My Files/report.pdf",
         "/home/ada/My Files/report.pdf\r\nC:\\Users\\ada\\notes.txt\r\n",
-        "file:///home/ada/My%20Files/report.pdf\nfile://localhost/home/ada/My%20Files/report.pdf",
-        "file:///C:/Users/ada/notes.txt",
         "report.pdf\nnotes.txt",
+        "file:///home/ada/My%20Files/report.pdf\nfile:///C:/Users/ada/notes.txt",
     ] {
-        assert!(super::names_them(text, &files), "{text:?}");
+        assert_eq!(super::named_by(text, &files), both, "{text:?}");
+    }
+    for (text, only) in [
+        ("/home/ada/My Files/report.pdf", &report),
+        ("file:///home/ada/My%20Files/report.pdf\nfile://localhost/home/ada/My%20Files/report.pdf", &report),
+        ("file:///C:/Users/ada/notes.txt", &notes),
+        // The same one named twice names the one, not the other.
+        ("notes.txt\nnotes.txt", &notes),
+        ("report.pdf", &report),
+    ] {
+        assert_eq!(super::named_by(text, &files), Some(vec![only.clone()]), "{text:?}");
     }
     // Anything else, however much of it names a file.
     for text in [
@@ -233,8 +245,19 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
         "/home/ada/My Files/other.pdf",
         "file:///home/ada/My%2",
     ] {
-        assert!(!super::names_them(text, &files), "{text:?}");
+        assert_eq!(super::named_by(text, &files), None, "{text:?}");
     }
+}
+
+#[test]
+fn a_paste_names_the_files_it_attaches_and_no_others() {
+    let folder = Folder::new("named-only");
+    let board = Files::default();
+    let mut h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one"), folder.file("private.pdf", b"two")];
+    h.event(Event::Paste("report.pdf".into()));
+    h.run_steps(2);
+    assert_eq!(attached(&h), vec![("report.pdf".to_string(), b"one".to_vec())]);
 }
 
 #[test]
