@@ -25,6 +25,9 @@ pub mod fetch_flow;
 mod fetch_flow_tests;
 #[cfg(test)]
 mod fetch_tests;
+pub mod free_busy;
+#[cfg(test)]
+mod free_busy_tests;
 pub mod jobs;
 #[cfg(test)]
 mod jobs_tests;
@@ -45,6 +48,7 @@ pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHI
 pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
+pub use free_busy::FreeBusyDriver;
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
 pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
@@ -399,6 +403,8 @@ pub struct Driver {
     pub rules: RulesDriver,
     /// The automatic replies kept in step with the mailbox's settings.
     pub auto_replies: AutoRepliesDriver,
+    /// What was found out of other people's free and busy times.
+    pub free_busy: FreeBusyDriver,
     /// The host turned automatic checking off (a host that starts jobs only when asked, a test).
     /// A setting of the host, not of a mailbox: it outlives [`Driver::reset`].
     auto_sync_off: bool,
