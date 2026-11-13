@@ -5149,9 +5149,8 @@ msgstr "L'accesso con Google non è configurato in questa versione. Usa invece u
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Finché Google esamina MailCraft, l'accesso con Google è aperto solo ai tester invitati. Per partecipare, scrivi a systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8144,8 +8143,8 @@ msgstr "Nessun accesso in corso"
 msgid "Nobody matches the search"
 msgstr "Nessuno corrisponde alla ricerca"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Non è invitato nessuno con un indirizzo"
@@ -10800,8 +10799,8 @@ msgstr "Secondo fuso orario"
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Per vedere quando gli altri sono occupati serve l'autorizzazione: File › Informazioni › Collega calendario e contatti"
@@ -13381,8 +13380,8 @@ msgstr "Il server non ha consegnato 1 messaggio di «{name}»"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "Il server non ha consegnato {count} messaggi di «{name}»"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Il server non ha indicato quando gli altri sono occupati"
@@ -13913,8 +13912,8 @@ msgstr "Impossibile visualizzare questo allegato in anteprima."
 msgid "This attachment is too large to preview."
 msgstr "Questo allegato è troppo grande per l’anteprima."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Questa build non può chiedere a un server quando gli altri sono occupati: viene mostrato solo il proprio calendario."
@@ -14341,8 +14340,8 @@ msgstr "Questa riunione non è ancora nel calendario qui. Si potrà rispondere n
 msgid "This meeting was called off by its organizer."
 msgstr "Questa riunione è stata annullata dall'organizzatore."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "Il calendario di questa riunione è conservato su questo computer, che non può sapere quando gli altri sono occupati: viene mostrato solo il proprio calendario."
@@ -15766,8 +15765,8 @@ msgstr "È stato eseguito l'accesso come {signedIn}, non come {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "Questa riunione è stata accettata come provvisoria."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr ""
 
@@ -19937,6 +19936,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Finché Google esamina MailCraft, l'accesso con Google è aperto solo ai tester invitati. Per partecipare, scrivi a systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

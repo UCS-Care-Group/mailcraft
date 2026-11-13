@@ -5418,9 +5418,8 @@ msgstr "此版本未配置 Google 登录。请改用应用密码。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8562,8 +8561,8 @@ msgstr "没有正在登录的账户"
 msgid "Nobody matches the search"
 msgstr "没有匹配搜索条件的联系人"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "没有邀请任何有地址的人员"
@@ -11370,8 +11369,8 @@ msgstr "第二时区"
 msgid "Security"
 msgstr "安全性"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "查看他人的忙闲状态需要您的许可：文件 › 信息 › 连接日历和联系人"
@@ -14129,8 +14128,8 @@ msgstr "服务器未提供“{name}”中的 1 封邮件"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "服务器未提供“{name}”中的 {count} 封邮件"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "服务器未提供其他人的忙闲信息"
@@ -14698,8 +14697,8 @@ msgstr "无法预览此附件。"
 msgid "This attachment is too large to preview."
 msgstr "此附件过大，无法预览。"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "此版本无法向服务器查询其他人的忙闲信息：仅显示您自己的日历。"
@@ -15135,8 +15134,8 @@ msgstr "此会议尚未显示在您这里的日历中。显示后即可回复。
 msgid "This meeting was called off by its organizer."
 msgstr "此会议已被组织者取消。"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "此会议的日历保存在本机，无法查询其他人的忙闲状态，因此只显示您自己的日历。"
@@ -16650,8 +16649,8 @@ msgstr "您以 {signedIn} 身份登录，而不是 {typed}。"
 msgid "You tentatively accepted this meeting."
 msgstr "您已暂定接受此会议。"
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 #, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "您正在离线工作。请在“发送/接收”中关闭“离线工作”以连接。"
@@ -20963,6 +20962,10 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

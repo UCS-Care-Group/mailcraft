@@ -70,3 +70,14 @@ fn a_reading_that_didnt_come_to_the_end_or_a_new_numbering_leaves_none() {
     assert_eq!(state_of(&s, a), None);
     let _ = FolderKind::Custom;
 }
+
+#[test]
+fn a_damaged_file_whose_mail_is_fetched_again_passes_no_folder_over() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    let a = s.run("account.add", &json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    cmd::account::apply_sync(&mut s, read(a, 7, true, Some(status()))).unwrap();
+    assert!(state_of(&s, a).is_some());
+
+    crate::store::forget_how_far_fetched(&mut s.mailbox);
+    assert_eq!(state_of(&s, a), None);
+}

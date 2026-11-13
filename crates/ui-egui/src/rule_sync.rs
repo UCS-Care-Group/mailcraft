@@ -102,8 +102,7 @@ impl MailApp {
     /// frame. (Public for a host's tests, which have no window.)
     pub fn rules_tick_at(&mut self, now: f64) -> bool {
         self.rules_ask_tick();
-        let facts =
-            RulesFacts { enabled: self.auto_sync && self.services.graph_rules.is_some(), running: self.rules.rx.is_some(), busy: self.job_busy() };
+        let facts = RulesFacts { reachable: self.services.graph_rules.is_some(), running: self.rules.rx.is_some(), busy: self.job_busy() };
         let tokens = &self.tokens;
         let due = self.session.rules_due(&facts, |account| tokens.get(&account).map(|t| t.refresh.clone()), now);
         for plan in due {
@@ -118,7 +117,10 @@ impl MailApp {
         self.rules_tick_at(now_ms());
         if self.rules.rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
-        } else if self.services.graph_rules.is_some() && self.auto_sync && !rules_remote::rule_accounts(&self.session.mailbox).is_empty() {
+        } else if self.services.graph_rules.is_some()
+            && self.session.driver.auto_sync()
+            && !rules_remote::rule_accounts(&self.session.mailbox).is_empty()
+        {
             ctx.request_repaint_after(std::time::Duration::from_secs(5));
         }
     }
@@ -224,10 +226,7 @@ impl MailApp {
         let still = self.signing_in.is_some() || matches!(&self.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowRules");
         self.session.driver.rules.unanswered(still);
         // (Working offline, Microsoft's page can't be had: the question waits.)
-        if self.dialog.is_some() || self.ui.backstage || self.signing_in.is_some() || self.offline() {
-            return;
-        }
-        if let Some(account) = self.session.driver.rules.to_ask() {
+        if let Some(account) = self.session.rules_question(&self.ask_window()) {
             self.ask_rules(account);
         }
     }
@@ -349,7 +348,7 @@ impl MailApp {
     pub(crate) fn rules_wait_reason(&self, account: Id) -> String {
         match self.session.driver.rules.perm.get(&account) {
             Some(Permission::Needed | Permission::Asking) => tl!("waiting for your permission to change the rules on the server").to_string(),
-            Some(Permission::Declined) => tl!("not allowed on the server yet: File › Info › Ask again").to_string(),
+            Some(Permission::Declined | Permission::Denied) => tl!("not allowed on the server yet: File › Info › Ask again").to_string(),
             Some(Permission::Refused(why)) => why.clone(),
             Some(Permission::SignInOver(_)) => tl!("Microsoft no longer takes the sign-in").to_string(),
             Some(Permission::Given) | None => tl!("it goes to the server at the next connection").to_string(),
@@ -368,7 +367,9 @@ impl MailApp {
             Some(Permission::Given) => (tl!("Rules: kept on the server").to_string(), false),
             Some(Permission::Needed) => (tl!("Rules: waiting for your permission to keep them on the server").to_string(), true),
             Some(Permission::Asking) => (tl!("Rules: asking for your permission…").to_string(), false),
-            Some(Permission::Declined) => (tl!("Rules: not allowed on the server yet; new ones and changes stay on this computer").to_string(), true),
+            Some(Permission::Declined | Permission::Denied) => {
+                (tl!("Rules: not allowed on the server yet; new ones and changes stay on this computer").to_string(), true)
+            }
             Some(Permission::Refused(why)) => {
                 (crate::i18n::fmt(tl!("Rules: not allowed on the server ({why})"), &[("why", shown(why).as_str())]), true)
             }

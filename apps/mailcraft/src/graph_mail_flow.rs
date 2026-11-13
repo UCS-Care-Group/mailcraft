@@ -173,7 +173,8 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
     let url = server.url();
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let base = url.clone();
     app.services.graph = Some(Box::new(move |request: GraphRequest| {
         let (tx, rx) = std::sync::mpsc::channel();
@@ -356,7 +357,8 @@ fn a_message_over_16_mb_and_those_refused_dont_hold_the_background_up() {
     let url = server.url();
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let base = url.clone();
     app.services.graph = Some(Box::new(move |request: GraphRequest| {
         let (tx, rx) = std::sync::mpsc::channel();

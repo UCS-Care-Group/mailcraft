@@ -5437,9 +5437,8 @@ msgstr "Conectarea Google nu este configurată pentru această versiune. Folosi�
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Conectarea Google este deschisă doar testerilor invitați cât timp Google analizează MailCraft. Ca să vă alăturați, scrieți la systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8592,8 +8591,8 @@ msgstr "Nu se conectează nimeni"
 msgid "Nobody matches the search"
 msgstr "Nimeni nu se potrivește căutării"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Nu este invitat nimeni cu adresă"
@@ -11404,8 +11403,8 @@ msgstr "Al doilea fus orar"
 msgid "Security"
 msgstr "Securitate"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Ca să vedeți când sunt ocupate alte persoane, aveți nevoie de permisiunea dvs.: Fișier › Informații › Conectare calendar și contacte"
@@ -14174,8 +14173,8 @@ msgstr "Serverul nu a predat 1 mesaj din „{name}”"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "Serverul nu a predat {count} mesaje din „{name}”"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Serverul nu a spus când sunt ocupate alte persoane"
@@ -14743,8 +14742,8 @@ msgstr "Acest atașament nu a putut fi previzualizat."
 msgid "This attachment is too large to preview."
 msgstr "Acest atașament este prea mare pentru previzualizare."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Această versiune nu poate întreba un server când sunt ocupate alte persoane: se afișează doar calendarul dvs."
@@ -15192,8 +15191,8 @@ msgstr "Această întâlnire nu este încă aici în calendarul dvs. I se poate 
 msgid "This meeting was called off by its organizer."
 msgstr "Această întâlnire a fost anulată de organizator."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "Calendarul acestei întâlniri este păstrat pe acest computer, care nu poate ști când sunt ocupate alte persoane: se afișează doar calendarul dvs."
@@ -16706,8 +16705,8 @@ msgstr "V-ați conectat ca {signedIn}, nu ca {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "Ați acceptat provizoriu această întâlnire."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 #, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "Lucrați offline. Dezactivați Lucru offline (Trimitere / primire) ca să vă conectați."
@@ -21186,6 +21185,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Conectarea Google este deschisă doar testerilor invitați cât timp Google analizează MailCraft. Ca să vă alăturați, scrieți la systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

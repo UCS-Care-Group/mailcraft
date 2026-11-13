@@ -6825,7 +6825,7 @@ mod tests {
         use egui_kittest::kittest::Queryable as _;
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         // Whose meeting it is, and what was answered so far.
@@ -7544,7 +7544,7 @@ mod tests {
         let team = rig.app.session.mailbox.calendars.iter().find(|c| c.name == "Team").map(|c| c.id).unwrap();
         let mut app = MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
