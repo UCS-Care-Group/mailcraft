@@ -1418,6 +1418,11 @@ msgid "Apply Sent Calendar Changes"
 msgstr "Aplicare modificări de calendar trimise"
 
 #. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Apply Sent Contact Changes"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -2947,6 +2952,11 @@ msgstr "Contactare participanți"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Fișă de contact"
+
+#. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Contact Changes to Send"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6218,6 +6228,11 @@ msgstr "Ajunge pe server după ce MailCraft are voie să modifice regulile serve
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
 msgstr "Este un identificator, nu un secret. MailCraft îl păstrează în setările sale (Fișier › Opțiuni)."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "It is deleted from its account's server too."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11453,7 +11468,7 @@ msgid "Send & Receive"
 msgstr "Trimitere și primire"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Trimitere / primire"
@@ -13574,7 +13589,7 @@ msgid "The contact's form was closed: open it again to add the key"
 msgstr "Formularul contactului a fost închis: deschideți-l din nou ca să adăugați cheia"
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/jmap_contacts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Contactele nu au putut fi preluate: {error}"
@@ -15621,6 +15636,11 @@ msgid "Too many calendar changes are waiting to be sent to the server. Let Send/
 msgstr "Prea multe modificări de calendar așteaptă să fie trimise serverului. Lăsați întâi Trimitere/primire să le trimită."
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Too many deleted contacts are waiting to be told to the server. Let Send/Receive get them through first."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "Too many shared mailboxes are listed twice"
@@ -16205,6 +16225,11 @@ msgstr "Rezultatul Trimiterii/primirii anterioare: ultima nu a adus nimic nou"
 #, fuzzy
 msgid "What the people invited are asked for is for its organizer to say."
 msgstr "Ce li se cere invitaților decide organizatorul."
+
+#. interface
+#: crates/ui-egui/src/jmap_contacts.rs
+msgid "What the server said of the changed contacts couldn't be taken in: {error}"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs

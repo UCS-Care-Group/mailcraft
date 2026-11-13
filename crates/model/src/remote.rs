@@ -452,6 +452,180 @@ impl ContactsDownload {
     }
 }
 
+/// Most changes to contacts that one [`ContactsUpload`] carries (the rest go with the next), and
+/// the longest text kept of why a server didn't take one.
+pub const MAX_CONTACT_OPS: usize = 100;
+const MAX_CONTACT_WHY: usize = 300;
+
+/// What is done to a contact on a server.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactOpKind {
+    /// Make it, in the account's default address book.
+    #[default]
+    Create,
+    /// Change what [`ContactOp::changed`] names, and nothing else of it.
+    Update,
+    Delete,
+}
+
+/// A part of a contact that is changed on a server by itself: what is not named stays as the
+/// server has it, whatever else the server keeps there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactField {
+    /// The display name and the first, middle and last names.
+    Name,
+    Nickname,
+    /// The company and the department.
+    Organization,
+    /// The job title.
+    Title,
+    Emails,
+    Phones,
+    Addresses,
+    Websites,
+    Birthday,
+    Notes,
+}
+
+impl ContactField {
+    pub const ALL: [ContactField; 10] = [
+        ContactField::Name,
+        ContactField::Nickname,
+        ContactField::Organization,
+        ContactField::Title,
+        ContactField::Emails,
+        ContactField::Phones,
+        ContactField::Addresses,
+        ContactField::Websites,
+        ContactField::Birthday,
+        ContactField::Notes,
+    ];
+
+    /// Whether `a` and `b` say the same of this part.
+    pub fn same(self, a: &RemoteContact, b: &RemoteContact) -> bool {
+        match self {
+            ContactField::Name => (&a.display_name, &a.first, &a.middle, &a.last) == (&b.display_name, &b.first, &b.middle, &b.last),
+            ContactField::Nickname => a.nickname == b.nickname,
+            ContactField::Organization => (&a.company, &a.department) == (&b.company, &b.department),
+            ContactField::Title => a.title == b.title,
+            ContactField::Emails => a.emails == b.emails,
+            ContactField::Phones => a.phones == b.phones,
+            ContactField::Addresses => a.addresses == b.addresses,
+            ContactField::Websites => a.websites == b.websites,
+            ContactField::Birthday => a.birthday == b.birthday,
+            ContactField::Notes => a.notes == b.notes,
+        }
+    }
+
+    /// The parts in which `now` differs from `base`, in the order of [`ContactField::ALL`].
+    pub fn changed(base: &RemoteContact, now: &RemoteContact) -> Vec<ContactField> {
+        ContactField::ALL.into_iter().filter(|field| !field.same(base, now)).collect()
+    }
+
+    /// Put this part of `from` into `into`.
+    pub fn copy(self, from: &RemoteContact, into: &mut RemoteContact) {
+        match self {
+            ContactField::Name => {
+                (into.display_name, into.first) = (from.display_name.clone(), from.first.clone());
+                (into.middle, into.last) = (from.middle.clone(), from.last.clone());
+            }
+            ContactField::Nickname => into.nickname = from.nickname.clone(),
+            ContactField::Organization => (into.company, into.department) = (from.company.clone(), from.department.clone()),
+            ContactField::Title => into.title = from.title.clone(),
+            ContactField::Emails => into.emails = from.emails.clone(),
+            ContactField::Phones => into.phones = from.phones.clone(),
+            ContactField::Addresses => into.addresses = from.addresses.clone(),
+            ContactField::Websites => into.websites = from.websites.clone(),
+            ContactField::Birthday => into.birthday = from.birthday,
+            ContactField::Notes => into.notes = from.notes.clone(),
+        }
+    }
+}
+
+/// One change to tell a server.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactOp {
+    pub kind: ContactOpKind,
+    /// The contact here; 0 for a deletion of one that is gone from here.
+    pub contact: Id,
+    /// What the server calls it (a creation has none).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub id: String,
+    /// The contact as it is here now, for a creation (all of it goes) and an update (what
+    /// `changed` names goes); its `id` is `id`. Default for a deletion.
+    pub card: RemoteContact,
+    /// For an update: the parts that differ from what the server last had, and so are written.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changed: Vec<ContactField>,
+}
+
+/// What a host is to tell an account's server of its contacts.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactsUpload {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub ops: Vec<ContactOp>,
+}
+
+/// What a server made of one change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactResult {
+    /// The server has it as it was sent.
+    Done,
+    /// The server no longer has the contact.
+    Gone,
+    /// The server won't take it (`error` says why): not sent again as it is.
+    Refused,
+    /// It couldn't be asked, or the answer said nothing of it: sent again with the next.
+    #[default]
+    Failed,
+}
+
+/// One change and what became of it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactOutcome {
+    pub kind: ContactOpKind,
+    /// The contact here, as the op named it.
+    pub contact: Id,
+    /// What the server calls it: for a creation that is done, the id the server gave it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub id: String,
+    pub result: ContactResult,
+    /// For an update that is done: the parts that were written, as the op named them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changed: Vec<ContactField>,
+    /// Why not, in a server's words cleaned and cut short; empty when it didn't say.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub error: String,
+}
+
+impl ContactOutcome {
+    /// Cut to the size the mailbox keeps: the id is one or it is none, the reason is one short line.
+    pub fn tidy(&mut self) {
+        self.id = key(&self.id);
+        self.error = line(&self.error, MAX_CONTACT_WHY);
+        self.changed.sort();
+        self.changed.dedup();
+    }
+}
+
+/// What a host heard from an account's server about the changes of an upload.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactsUploaded {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub outcomes: Vec<ContactOutcome>,
+}
+
 /// Most changes to events that may wait for a server at once ([`crate::Mailbox::event_changes`]),
 /// and most that one [`EventsUpload`] carries: the rest go with the next.
 pub const MAX_EVENT_CHANGES: usize = 5_000;

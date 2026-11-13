@@ -34,6 +34,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{FolderListing, GraphProgress, MessagePage, SendDone, SendUp, ThreadOf, is_false};
 use crate::Id;
+use crate::remote::{ContactOp, ContactOutcome, ContactsDownload};
 
 /// Most messages of one mailbox that a run reads (the newest ones): what [`JmapMailRequest::window`]
 /// is held to, here and by the host.
@@ -352,6 +353,93 @@ impl std::fmt::Debug for JmapMailResult {
             .field("whole", &self.whole)
             .field("stopped", &self.stopped)
             .field("progress", &self.progress.is_some())
+            .field("auth_refused", &self.auth_refused)
+            .finish()
+    }
+}
+
+/// What a host is asked to read of a [`crate::AccountKind::Jmap`] account's contacts (RFC 9610):
+/// all of them, from every address book of the account. It says where the server is, as a
+/// [`JmapMailRequest`] does; the secret that opens the server goes beside it and is not in it.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapContactsRequest {
+    pub account: Id,
+    /// The account's address: what the answer is checked against.
+    pub email: String,
+    /// The address of the server's session resource ([`crate::JmapServer::session`]). It may carry
+    /// the account's address, so it is never logged.
+    pub session: String,
+    /// The secret that goes beside this request is a bearer token ([`crate::JmapServer::bearer`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub bearer: bool,
+    /// What was made, changed or deleted here and the server is yet to hear: told to it first
+    /// (`ContactCard/set`), then the contacts are read, so that what is read shows it already.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changes: Vec<ContactOp>,
+}
+
+/// What reading a JMAP account's contacts came to. Never an error as a whole: mail goes on either way.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapContactsResult {
+    pub account: Id,
+    /// The address of the account the request was for, and the session's address it named: an
+    /// answer is not taken in by another account, nor once the account names another server.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
+    /// The server does not offer contacts for this account (no `urn:ietf:params:jmap:contacts`):
+    /// nothing was read, nothing is wrong, and there is no need to ask again soon.
+    #[serde(skip_serializing_if = "is_false")]
+    pub not_offered: bool,
+    /// The contacts, when they could be read at all ([`ContactsDownload::complete`] says whether
+    /// every one of them is here). Its account and address are the request's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts: Option<ContactsDownload>,
+    /// What the server made of the request's changes, one for each that was answered. A change
+    /// that is not here (the call failed, the run was cut short) is worked out again for the next.
+    /// To be taken in before the contacts.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changed: Vec<ContactOutcome>,
+    /// Problems worth telling the owner; empty when all went well.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
+    /// The server said it was busy and to stay away this many seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub busy_for: Option<u32>,
+    /// The reading was called off before it ended.
+    #[serde(skip_serializing_if = "is_false")]
+    pub stopped: bool,
+    /// The server turned the secret down.
+    #[serde(skip_serializing_if = "is_false")]
+    pub auth_refused: bool,
+}
+
+/// Counts only, as a run's request: no address.
+impl std::fmt::Debug for JmapContactsRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JmapContactsRequest")
+            .field("account", &self.account)
+            .field("bearer", &self.bearer)
+            .field("changes", &self.changes.len())
+            .finish()
+    }
+}
+
+/// Counts only: no address, and nothing of a contact.
+impl std::fmt::Debug for JmapContactsResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JmapContactsResult")
+            .field("account", &self.account)
+            .field("not_offered", &self.not_offered)
+            .field("contacts", &self.contacts.as_ref().map(|download| download.contacts.len()))
+            .field("complete", &self.contacts.as_ref().map(|download| download.complete))
+            .field("changed", &self.changed.len())
+            .field("errors", &self.errors.len())
+            .field("busy_for", &self.busy_for)
+            .field("stopped", &self.stopped)
             .field("auth_refused", &self.auth_refused)
             .finish()
     }

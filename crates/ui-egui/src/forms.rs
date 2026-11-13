@@ -3688,7 +3688,11 @@ mod contact {
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut add_key = false;
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
-            let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
+            // (A new contact's account is where `people.new` puts one made without saying where.)
+            let account = match self.id {
+                Some(id) => app.session.mailbox.contact(id).map_or(0, |c| c.origin.account),
+                None => mailcraft_engine::cmd::people::new_contact_place(&app.session),
+            };
             let categories = app.session.mailbox.categories_of(account).to_vec();
             body(ui, |ui| {
                 row(ui, tl!("First name"), |ui| {

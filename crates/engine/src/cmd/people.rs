@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! People: contacts.
 
-use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, PostalAddress, clean_name};
+use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, Origin, PostalAddress, clean_name};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
@@ -20,7 +20,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("people.new", "New Contact", "Home › New", new).key("Mod+Shift+C").params(CONTACT),
         CommandSpec::new("people.edit", "Edit Contact", "Contact", edit)
-            .params(r#"{"id"?: number, …the fields of people.new}"#)
+            .params(r#"{"id"?: number, …the fields of people.new but `account`: a contact stays in its account}"#)
             .selection(needs_contact),
         CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_contact),
         CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
@@ -48,13 +48,13 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
-            .params(r#"{"id"?: number} (a message; default: the selected one) — a new contact is kept on this computer; the list moves to show the contact"#)
+            .params(r#"{"id"?: number, "account"?: number} (a message; default: the selected one). A new contact goes where one of people.new goes (`account`, as there); the list moves to show the contact"#)
             .selection(needs_message),
     ]
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes)} — it is kept on this computer; the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "account"?: number}. `account`: the account whose server keeps it (one kept in step over JMAP, whose contacts are written to its server), 0 for this computer (default: the account whose contacts the list shows when that is such an account, else this computer). A contact of such an account is told to its server by the next Send/Receive of its contacts, and so is a change to it or its deletion. The list moves to show it. Answers {"id", "account", "keptAt"}"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -68,6 +68,30 @@ pub fn keeps_contacts(mailbox: &Mailbox, account: Id) -> bool {
 /// The accounts whose contacts are read from their servers.
 pub fn contact_accounts(mailbox: &Mailbox) -> Vec<Id> {
     mailbox.accounts.iter().filter(|a| a.keeps_contacts()).map(|a| a.id).collect()
+}
+
+/// Whether what is changed of the account's contacts here is told to its server.
+pub fn writes_contacts(mailbox: &Mailbox, account: Id) -> bool {
+    super::contacts_remote::writes_contacts(mailbox, account)
+}
+
+/// Where a new contact goes unless told otherwise: the account whose contacts the list shows,
+/// when what is made there is told to its server; else 0, this computer.
+pub fn new_contact_place(s: &Session) -> Id {
+    match shown_account(s) {
+        AccountChoice::Account(account) if writes_contacts(&s.mailbox, account) => account,
+        _ => 0,
+    }
+}
+
+/// Where `people.new` puts a contact: where `v` says, else [`new_contact_place`].
+fn place(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let Some(account) = v.get("account") else { return Ok(new_contact_place(s)) };
+    let account = account.as_u64().ok_or_else(|| bad("`account` is an account's id, or 0 for this computer"))?;
+    if account != 0 && !writes_contacts(&s.mailbox, account) {
+        return Err(bad("that account's contacts aren't written to its server: a contact can't be made in it here"));
+    }
+    Ok(account)
 }
 
 /// Whose contacts the list shows: what the owner chose, while it means something. With no account
@@ -108,13 +132,23 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
-/// [`target`] for a command that changes or deletes the contact. A contact that an account's
-/// server keeps is refused: changes are not sent back yet, and the next download would undo
-/// them. (Its categories and whether it is a favourite are kept here, so those don't ask.)
+/// Refuse to change or delete a contact that an account's server keeps and that is only read
+/// from it (a Microsoft account's): the change would not reach the server, and the next download
+/// would undo it. One of an account that writes its contacts ([`writes_contacts`]) is changed
+/// here and the server is told.
+pub(crate) fn changeable(mailbox: &Mailbox, origin: &Origin) -> Result<(), CmdError> {
+    match super::remote::keeper(mailbox, origin) {
+        Some(account) if account.writes_contacts() => Ok(()),
+        _ => super::remote::changeable(mailbox, origin, "contact"),
+    }
+}
+
+/// [`target`] for a command that changes or deletes the contact ([`changeable`]). (Its
+/// categories and whether it is a favourite are kept here, so those don't ask.)
 fn own_target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = target(s, v)?;
     if let Some(c) = s.mailbox.contact(id) {
-        super::remote::changeable(&s.mailbox, &c.origin, "contact")?;
+        changeable(&s.mailbox, &c.origin)?;
     }
     Ok(id)
 }
@@ -221,11 +255,14 @@ fn apply(c: &mut Contact, v: &Value) -> Result<(), CmdError> {
 }
 
 fn new(s: &mut Session, v: &Value) -> CmdResult {
+    let place = place(s, v)?;
     let mut c = Contact::default();
     apply(&mut c, v)?;
     if c.name().is_empty() {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
+    // In an account, it is that account's from now on: its server gives it an id when it is told.
+    c.origin.account = place;
     // Its categories take the spelling of the list its account's items use (one made here is
     // this computer's: the shared list); a new name joins it.
     if p::strings(v, "categories").is_some() {
@@ -234,14 +271,21 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.mailbox.add_contact(c);
     s.sel.contact = Some(id);
     reveal(s, id);
-    Ok(json!({"id": id}))
+    let origin = Origin { account: place, ..Default::default() };
+    Ok(json!({"id": id, "account": place, "keptAt": kept_at(&s.mailbox, &origin)}))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = own_target(s, v)?;
-    let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
+    let before = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
+    if v.get("account").is_some_and(|account| account.as_u64() != Some(before.origin.account)) {
+        return Err(bad("a contact stays in its account"));
+    }
+    let mut c = before.clone();
     let had = c.categories.clone();
     apply(&mut c, v)?;
+    // (What its server has is what it was, when nothing says so yet: the change is one to tell.)
+    super::contacts_remote::remember(&s.mailbox, &before, &mut c);
     if c.name().is_empty() {
         return Err(fail("a contact needs a name, a company or an e-mail address"));
     }
@@ -279,6 +323,9 @@ fn arrange(s: &mut Session, v: &Value) -> CmdResult {
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = own_target(s, v)?;
+    if s.mailbox.contact(id).is_some_and(|c| !c.origin.id.is_empty() && writes_contacts(&s.mailbox, c.origin.account)) {
+        super::contacts_remote::room_for_deletions(&s.mailbox, 1)?;
+    }
     // The selection moves to the neighbour in the list.
     let order = sorted(s, &s.view.people_search);
     let at = order.iter().position(|x| *x == id);
@@ -373,6 +420,7 @@ fn email(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
+    let place = place(s, v)?;
     let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let from = s.mailbox.message(mid).map(|m| m.from.clone()).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     if !from.is_valid() {
@@ -389,7 +437,8 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
         Some((f, l)) => (f.trim().to_string(), l.trim().to_string()),
         None => (from.name.trim().to_string(), String::new()),
     };
-    let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], ..Default::default() });
+    let origin = Origin { account: place, ..Default::default() };
+    let id = s.mailbox.add_contact(Contact { first, last, emails: vec![Labeled::new("work", from.email)], origin, ..Default::default() });
     s.sel.contact = Some(id);
     reveal(s, id);
     s.view.module = Module::People;

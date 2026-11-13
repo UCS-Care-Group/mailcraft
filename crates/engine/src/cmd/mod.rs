@@ -26,6 +26,9 @@ mod category_tests;
 pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
+pub mod contacts_remote;
+#[cfg(test)]
+mod contacts_remote_tests;
 #[cfg(test)]
 mod conversation_thread_tests;
 pub mod edit;
@@ -206,6 +209,7 @@ pub fn registry() -> Registry {
     v.extend(graph_send::specs());
     v.extend(remote::specs());
     v.extend(tasks_remote::specs());
+    v.extend(contacts_remote::specs());
     v.extend(sync_progress::specs());
     v.extend(search_server::specs());
     Registry::new(v)

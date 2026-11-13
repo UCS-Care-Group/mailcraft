@@ -31,6 +31,7 @@ pub const ASKS_A_SERVER: &[&str] = &[
     "sync.ewsFetchRequest",
     "sync.eventChanges",
     "sync.taskChanges",
+    "sync.contactChanges",
 ];
 
 pub fn specs() -> Vec<CommandSpec> {

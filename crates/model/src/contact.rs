@@ -5,6 +5,7 @@
 use mailcraft_time::Date;
 use serde::{Deserialize, Serialize};
 
+use crate::remote::{ContactField, RemoteContact};
 use crate::{Address, Id, Origin};
 
 /// A value with a label (`work`, `home`, `mobile`).
@@ -197,9 +198,105 @@ pub struct Contact {
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
     pub origin: Origin,
+    /// For a contact of an account whose contacts are written to its server
+    /// ([`crate::Account::writes_contacts`]): the contact as the server last said it, or as it was
+    /// last told. What was changed here since is the difference ([`Contact::changed_fields`]), and
+    /// only that is sent. Never set for a contact that lives on this computer only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub synced: Option<Box<RemoteContact>>,
 }
 
+/// A contact that was deleted here and that its account's server is yet to be told about.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactGone {
+    pub account: Id,
+    /// What the server calls it.
+    pub id: String,
+}
+
+/// Most deletions of contacts that wait for a server at once; the rest are forgotten.
+pub const MAX_CONTACT_GONE: usize = 5_000;
+
 impl Contact {
+    /// The contact as a server would have it: the inverse of what a download makes of a server's
+    /// contact, cut to size as everything that crosses to a server is ([`RemoteContact::tidy`]).
+    /// Its id and change key are the server's own ([`Contact::origin`]); what is only kept here
+    /// (categories, the favourite mark, keys) is not part of it.
+    pub fn as_remote(&self) -> RemoteContact {
+        let mut card = RemoteContact {
+            id: self.origin.id.clone(),
+            change_key: self.origin.change_key.clone(),
+            display_name: self.display_name.clone(),
+            first: self.first.clone(),
+            middle: self.middle.clone(),
+            last: self.last.clone(),
+            nickname: self.nickname.clone(),
+            company: self.company.clone(),
+            title: self.title.clone(),
+            department: self.department.clone(),
+            emails: self.emails.clone(),
+            phones: self.phones.clone(),
+            addresses: self.addresses.clone(),
+            websites: self.websites.clone(),
+            birthday: self.birthday,
+            notes: self.notes.clone(),
+            modified: 0,
+        };
+        card.tidy();
+        card
+    }
+
+    /// Whether every part a server keeps is, as it stands here, just what `card` has: nothing is
+    /// copied to find out.
+    fn same_as(&self, card: &RemoteContact) -> bool {
+        self.display_name == card.display_name
+            && self.first == card.first
+            && self.middle == card.middle
+            && self.last == card.last
+            && self.nickname == card.nickname
+            && self.company == card.company
+            && self.title == card.title
+            && self.department == card.department
+            && self.emails == card.emails
+            && self.phones == card.phones
+            && self.addresses == card.addresses
+            && self.websites == card.websites
+            && self.birthday == card.birthday
+            && self.notes == card.notes
+    }
+
+    /// The parts that were changed here since the server last had the contact
+    /// ([`Contact::synced`]), in the order of [`ContactField::ALL`]. None for a contact that has
+    /// no such memory: one on this computer only, or one the server is yet to be given.
+    pub fn changed_fields(&self) -> Vec<ContactField> {
+        match self.synced.as_deref() {
+            // (What a server is sent is cut to size first, and what it said was cut to size when
+            // it came: a contact that is the same before the cut is the same after it.)
+            Some(base) if !self.same_as(base) => ContactField::changed(base, &self.as_remote()),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Put the part `field` of `from` into the contact.
+    pub fn set_part(&mut self, field: ContactField, from: &RemoteContact) {
+        match field {
+            ContactField::Name => {
+                (self.display_name, self.first) = (from.display_name.clone(), from.first.clone());
+                (self.middle, self.last) = (from.middle.clone(), from.last.clone());
+            }
+            ContactField::Nickname => self.nickname = from.nickname.clone(),
+            ContactField::Organization => (self.company, self.department) = (from.company.clone(), from.department.clone()),
+            ContactField::Title => self.title = from.title.clone(),
+            ContactField::Emails => self.emails = from.emails.clone(),
+            ContactField::Phones => self.phones = from.phones.clone(),
+            ContactField::Addresses => self.addresses = from.addresses.clone(),
+            ContactField::Websites => self.websites = from.websites.clone(),
+            ContactField::Birthday => self.birthday = from.birthday,
+            ContactField::Notes => self.notes = from.notes.clone(),
+        }
+    }
+
     /// Most keys kept for one contact.
     pub const MAX_KEYS: usize = 32;
 

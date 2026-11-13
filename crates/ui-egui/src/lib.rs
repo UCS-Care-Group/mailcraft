@@ -118,7 +118,9 @@ pub mod icons;
 pub mod import_pst;
 pub mod import_tree;
 mod inbox_pass;
+mod jmap_contacts;
 pub mod jmap_mail;
+mod jmap_side_job;
 #[cfg(test)]
 mod job_replacement_tests;
 mod jobs;
@@ -328,6 +330,11 @@ pub struct Services {
     /// The same host: fetch messages of a JMAP account whole, as `graph_fetch` does for a Microsoft
     /// account (`mailcraft_jmap::fetch::fetch_messages`).
     pub jmap_fetch: Option<Box<dyn Fn(jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// The same host: read the contacts of a JMAP account from its server (RFC 9610), every one of
+    /// every address book, as a task of its own (`mailcraft_jmap::sync_contacts`), and hand back
+    /// what that came to, waking the UI. Nothing is written to the server. Absent where no host
+    /// does: a JMAP account's contacts are then the ones kept here ([`jmap_contacts`]).
+    pub jmap_contacts: Option<Box<dyn Fn(jmap_mail::JmapContactsJob) -> Receiver<mailcraft_model::sync::JmapContactsResult>>>,
     /// Desktop: read an Exchange server account (#252, E6) as the job says, on a background thread:
     /// sign in to the account's server with the job's password (Basic over TLS, the certificate
     /// trusted as the request says), read what the request asks for (`mailcraft_ews::sync_mail`) and
@@ -1711,6 +1718,8 @@ pub struct MailApp {
     /// JMAP accounts whose server turned their credential down this session: no round that starts
     /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
     jmap_refused: std::collections::HashSet<Id>,
+    /// Reading JMAP accounts' contacts from their servers ([`jmap_contacts`]).
+    jmap_contacts: jmap_contacts::JmapContacts,
     control_rx: Option<Receiver<ControlRequest>>,
     shot_token: u64,
     queued_shots: Vec<(u64, f64, u32)>,
@@ -1982,6 +1991,7 @@ impl MailApp {
             sync_refused: false,
             sync_password: None,
             jmap_refused: Default::default(),
+            jmap_contacts: Default::default(),
             control_rx: None,
             shot_token: 0,
             queued_shots: Vec::new(),
@@ -2437,6 +2447,7 @@ impl MailApp {
             self.passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
+            self.jmap_contacts.forget_account(account);
             self.ews_unreadable.remove(&account);
             self.ews_signed_in.remove(&account);
             self.ews_certificate.remove(&account);
@@ -2463,6 +2474,7 @@ impl MailApp {
             self.graph_tokens.remove(&before.id);
             self.forget_favorites(before.id);
             self.jmap_refused.remove(&before.id);
+            self.jmap_contacts.forget_account(before.id);
             self.ews_signed_in.remove(&before.id);
             self.ews_certificate.remove(&before.id);
         }
@@ -2475,6 +2487,7 @@ impl MailApp {
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
                     self.jmap_refused.remove(&account);
+                    self.jmap_contacts.forget_account(account);
                 }
             }
         }
@@ -3652,6 +3665,7 @@ impl MailApp {
             // forgotten.
             self.clear_jobs_on_replace();
             self.fetching.forget();
+            self.jmap_contacts.forget();
             self.forget_graph_switch();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
@@ -4827,6 +4841,8 @@ impl MailApp {
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
             self.rules_tick(ctx);
+            // A JMAP account's contacts by themselves, read from its server ([`jmap_contacts`]).
+            self.jmap_contacts_tick(ctx);
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
         }

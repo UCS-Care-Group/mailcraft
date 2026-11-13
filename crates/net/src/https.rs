@@ -75,6 +75,8 @@ pub struct Response {
     pub retry_after: Option<String>,
     /// `X-EWS-Policy-Reason`.
     pub policy_reason: Option<String>,
+    /// `Content-Type`; none when it is too long to be one.
+    pub content_type: Option<String>,
 }
 
 impl std::fmt::Debug for Response {
@@ -90,10 +92,21 @@ impl std::fmt::Debug for Response {
 /// accepted (nothing of the request went), [`NetError::Config`] for an address or a fingerprint
 /// that is no such thing, and the usual connection and protocol errors otherwise.
 pub fn send(request: &Request<'_>) -> Result<Response, NetError> {
+    send_with(request, PATIENCE)
+}
+
+/// The longest a caller may give an exchange with [`send_with`].
+pub const MOST_PATIENCE: Duration = Duration::from_secs(600);
+
+/// [`send`], with `patience` (at most [`MOST_PATIENCE`]) for connecting and the whole answer in
+/// place of the usual 30 seconds: for an answer that may be large, such as a message downloaded
+/// whole.
+pub fn send_with(request: &Request<'_>, patience: Duration) -> Result<Response, NetError> {
     let url = Url::parse(request.url)?;
     let pin = pin_of(request.trusted)?;
+    let patience = patience.min(MOST_PATIENCE);
     let http_request =
-        HttpRequest { method: request.method, headers: request.fields, body: Some(request.body), patience: PATIENCE, max_body: request.max_response };
+        HttpRequest { method: request.method, headers: request.fields, body: Some(request.body), patience, max_body: request.max_response };
     if !url.secure {
         return http::request(&url, &http_request).map(response);
     }
@@ -225,7 +238,18 @@ fn response(reply: http::Reply) -> Response {
         challenges: reply.challenges,
         retry_after: reply.retry_after,
         policy_reason: reply.policy_reason,
+        content_type: reply.content_type,
     }
+}
+
+/// Whether an error of [`send`] says that the answer didn't come in the time it had.
+pub fn is_too_slow(error: &NetError) -> bool {
+    http::is_too_slow(error)
+}
+
+/// Whether an error of [`send`] says that the answer was longer than [`Request::max_response`].
+pub fn is_too_long(error: &NetError) -> bool {
+    http::is_too_long(error)
 }
 
 /// What a person is shown about a certificate (re-exported for hosts).
