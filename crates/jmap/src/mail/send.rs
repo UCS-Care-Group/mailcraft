@@ -23,7 +23,8 @@
 //! the envelope only. Every recipient is checked before anything is asked (an address with a space, a line
 //! break, a control character or angle brackets in it is none, and the message is held), and so are the
 //! number of them and the size against the server's `maxSizeUpload`. A message that was never dated is
-//! dated now, as it is for the other ways of sending.
+//! dated now, as it is for the other ways of sending. The marks that are the mailbox's alone (read,
+//! answered, flagged) are not written: the octets are the same at every run, whatever of them changes.
 //!
 //! **What is reported**, a piece for each message as soon as it is known ([`SendDone`]):
 //!
@@ -52,7 +53,8 @@
 //!   §6), its `size` is the upload's and its blob, downloaded with no more octets taken than were
 //!   uploaded, is the same octet for octet): never an email that only resembles the message. Once sent,
 //!   it is filed in the Sent (or Drafts) mailbox as well, and left in any other another program moved it
-//!   to (`alreadyExists` is of the whole account). One that
+//!   to (`alreadyExists` is of the whole account), or moved into Sent where the account lets an email lie
+//!   in no more mailboxes than it lies in already (`maxMailboxesPerEmail`, RFC 8621 §1.3.1). One that
 //!   cannot be told to be the same holds the message with the server's refusal. A copy that was there
 //!   already is never destroyed. (A
 //!   server that lets two emails be alike makes a second one, which is sent; the first stays in Sent with
@@ -73,21 +75,20 @@
 //! ends between two exchanges leaves at the most a blob, or a copy marked `$draft` in Sent, and the engine
 //! holds what it had marked as being sent.
 
-use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
 use mailcraft_mime_model::WriteOptions;
-use mailcraft_model::Message;
 use mailcraft_model::sync::{JmapMailResult, MAX_LISTED_FOLDERS, MAX_SENDS, SendDone, SendOutcome, SendUp};
+use mailcraft_model::{FlagStatus, Message};
 use serde_json::{Map, Value, json};
 
 use super::{LIST_BYTES, Outcome, Run, Stop, arguments, get, mail_request, refusal, said};
 use crate::connection::unusable;
 use crate::fetch::{MESSAGE_NAME, MESSAGE_TYPE};
 use crate::{
-    ApiRequest, BuildError, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, MethodError, MethodErrorKind, MethodResponse,
-    Redactor, TransportError,
+    ApiRequest, BuildError, CAPABILITY_MAIL, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, MethodError, MethodErrorKind,
+    MethodResponse, Redactor, TransportError,
 };
 
 /// Most recipients one message is sent to.
@@ -159,9 +160,13 @@ pub(super) fn recipients(message: &Message) -> Result<Vec<String>, &'static str>
 
 /// The octets `message` goes as: without its Bcc field, and dated now when it never was. (The engine
 /// dates such a message in the Outbox before it offers it to a run, so that the octets are the same at
-/// every run; the date here is for a host that offers one undated all the same.)
+/// every run; the date here is for a host that offers one undated all the same.) The marks that are the
+/// mailbox's alone (read, answered, flagged), which the writer would put in `Status`, `X-Status` and
+/// `X-MailCraft-Flag`, are left out: they are nobody else's, and the octets are the same whatever of them
+/// changes between two runs (a copy a first run left is known by its octets).
 pub(super) fn written(message: &Message) -> Vec<u8> {
-    let message = if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) };
+    let date = if message.date == 0 { mailcraft_time::now() } else { message.date };
+    let message = Message { date, read: false, answered: false, flag: FlagStatus::None, ..message.clone() };
     let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
     mailcraft_mime_model::write(&message, &options)
 }
@@ -209,22 +214,57 @@ pub(super) fn import_arguments(account: &str, blob: &str, mailbox: &str) -> Valu
     })
 }
 
-/// What is changed of an email once it is sent: its draft mark taken off, and, when `filing` names a
-/// mailbox, the email put in it too (RFC 8620 §5.3: a patch that adds the one mailbox and leaves the
-/// email in every mailbox it was in).
-pub(super) fn sent_patch(filing: Option<&str>) -> Value {
+/// How an email that was there before is filed, once it is sent, in the Sent (or Drafts) mailbox.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Filing {
+    /// The mailbox.
+    pub(super) mailbox: String,
+    /// Whether it is moved there out of the mailboxes it lies in, rather than put there beside them: where
+    /// one more would be more than the account lets an email lie in.
+    pub(super) alone: bool,
+}
+
+/// How the email `email` is filed in `mailbox` once it is sent, by what an answer to `Email/get` says of it
+/// and the most mailboxes an email of the account may lie in (`most`, `maxMailboxesPerEmail`: RFC 8621
+/// §1.3.1): not at all when it lies there already; put there beside the others; or, where one more would be
+/// too many (the server would refuse it with `tooManyMailboxes`, RFC 8621 §4.6), moved there. An answer that
+/// does not say where it lies is taken for one mailbox.
+pub(super) fn filing_for(answer: &Value, email: &str, mailbox: &str, most: Option<u64>) -> Option<Filing> {
+    let list = answer.get("list").and_then(Value::as_array);
+    let entry = list.and_then(|list| list.iter().take(MAX_IDENTITIES).find(|entry| entry.get("id").and_then(Value::as_str) == Some(email)));
+    let lies = entry.and_then(|entry| entry.get("mailboxIds")).and_then(Value::as_object);
+    if lies.is_some_and(|all| all.get(mailbox) == Some(&Value::Bool(true))) {
+        return None;
+    }
+    let count = lies.map_or(1, |all| all.values().filter(|on| **on == Value::Bool(true)).count().max(1));
+    let alone = most.is_some_and(|most| u64::try_from(count).unwrap_or(u64::MAX).saturating_add(1) > most);
+    Some(Filing { mailbox: mailbox.to_string(), alone })
+}
+
+/// What is changed of an email once it is sent: its draft mark taken off, and, when `filing` says so, the
+/// email filed (RFC 8620 §5.3: a patch that adds the one mailbox and leaves the email in every mailbox it
+/// was in, or that names the one mailbox it is to lie in).
+pub(super) fn sent_patch(filing: Option<&Filing>) -> Value {
     let mut patch = Map::new();
     patch.insert("keywords/$draft".to_string(), Value::Null);
-    if let Some(mailbox) = filing {
-        patch.insert(format!("mailboxIds/{mailbox}"), Value::Bool(true));
+    match filing {
+        Some(Filing { mailbox, alone: true }) => {
+            let mut only = Map::new();
+            only.insert(mailbox.clone(), Value::Bool(true));
+            patch.insert("mailboxIds".to_string(), Value::Object(only));
+        }
+        Some(Filing { mailbox, alone: false }) => {
+            patch.insert(format!("mailboxIds/{mailbox}"), Value::Bool(true));
+        }
+        None => {}
     }
     Value::Object(patch)
 }
 
 /// The arguments of the `EmailSubmission/set` that sends the email `email` (an id, or `#` and the creation
-/// id of its import in the same request) as `identity`, from `from` to `to`, filing it in `filing` as well
-/// when that names a mailbox.
-pub(super) fn submission_arguments(account: &str, email: &str, identity: &str, from: &str, to: &[String], filing: Option<&str>) -> Value {
+/// id of its import in the same request) as `identity`, from `from` to `to`, filing it as `filing` says,
+/// when it says anything.
+pub(super) fn submission_arguments(account: &str, email: &str, identity: &str, from: &str, to: &[String], filing: Option<&Filing>) -> Value {
     let to: Vec<Value> = to.iter().map(|email| json!({"email": email, "parameters": null})).collect();
     let mut on_success = Map::new();
     on_success.insert(format!("#{SUBMISSION}"), sent_patch(filing));
@@ -407,8 +447,8 @@ enum Tidy {
     /// Destroy the email this run imported for a message the server would not send.
     Destroy(String),
     /// Take the draft mark off the email of a message that was sent, where the server did not, and file it
-    /// in the mailbox named, when one is.
-    Unmark(String, Option<String>),
+    /// as the filing says, when there is one.
+    Unmark(String, Option<Filing>),
 }
 
 /// A message's [`Fate`], and what is left to tidy up.
@@ -538,7 +578,7 @@ impl<H: HttpExchange> Run<'_, H> {
             Tidy::Destroy(email) => json!({"accountId": self.account(), "destroy": [email]}),
             Tidy::Unmark(email, filing) => {
                 let mut update = Map::new();
-                update.insert(email.clone(), sent_patch(filing.as_deref()));
+                update.insert(email.clone(), sent_patch(filing.as_ref()));
                 json!({"accountId": self.account(), "update": update})
             }
         };
@@ -546,7 +586,9 @@ impl<H: HttpExchange> Run<'_, H> {
             Ok(_) => None,
             Err(stop @ (Stop::Auth | Stop::Busy(..))) => Some(stop),
             Err(_) => {
-                log::debug!("jmap mail: the copy of a message could not be tidied up on the server ({tidy:?})");
+                // What was asked, and never of which email: a server's id is not for a log.
+                let what = if matches!(tidy, Tidy::Destroy(_)) { "destroy" } else { "draft mark" };
+                log::debug!("jmap mail: the copy of a message could not be tidied up on the server ({what})");
                 None
             }
         }
@@ -639,13 +681,14 @@ impl<H: HttpExchange> Run<'_, H> {
     /// the message is held with the server's refusal, `refused`. The copy was there before this request,
     /// and is never destroyed. It may lie in another mailbox than `mailbox` (`alreadyExists` is of the whole
     /// account, and another program may have moved it): once it is sent, it is filed in `mailbox` too, and
-    /// left in the others.
+    /// left in the others, or moved into `mailbox` where the account lets an email lie in no more mailboxes
+    /// than it lies in already ([`filing_for`]).
     #[allow(clippy::too_many_arguments)]
     async fn submit_copy(&self, copy: &str, blob: &str, octets: &[u8], identity: &str, mailbox: &str, to: &[String], refused: SendOutcome) -> Step {
         if let Err(stop) = self.check() {
             return (None, Some(stop), None);
         }
-        let args = json!({"accountId": self.account(), "ids": [copy], "properties": ["id", "blobId", "size"]});
+        let args = json!({"accountId": self.account(), "ids": [copy], "properties": ["id", "blobId", "size", "mailboxIds"]});
         let answer = match self.call_of("Email/get", args).await {
             Ok(answer) => answer,
             Err(Stop::Failed(_)) => return (Some(refused), None, None),
@@ -665,11 +708,13 @@ impl<H: HttpExchange> Run<'_, H> {
         if let Err(stop) = self.check() {
             return (None, Some(stop), None);
         }
+        let mail = self.connection.client().account().and_then(|account| account.capability(CAPABILITY_MAIL));
+        let filing = filing_for(&answer, copy, mailbox, mail.and_then(|mail| mail.get("maxMailboxesPerEmail")).and_then(Value::as_u64));
         let mut created = Map::new();
         created.insert(EMAIL.to_string(), json!({"id": copy}));
         let mut imported = Map::new();
         imported.insert("created".to_string(), Value::Object(created));
-        self.submit_email(copy, Ok(imported), identity, to, false, Some(mailbox)).await
+        self.submit_email(copy, Ok(imported), identity, to, false, filing.as_ref()).await
     }
 
     /// Whether the blob `blob` holds `octets` and nothing else: downloaded (RFC 8620 §6.2), with no more
@@ -690,7 +735,7 @@ impl<H: HttpExchange> Run<'_, H> {
 
     /// Submit the email `email` in a request of its own. `imported` is the answer that made it, and `ours`
     /// whether this run did (an email of this run's is destroyed again when the server will not send it).
-    /// Once sent, it is filed in `filing` too, when that names a mailbox.
+    /// Once sent, it is filed as `filing` says, when it says anything.
     async fn submit_email(
         &self,
         email: &str,
@@ -698,7 +743,7 @@ impl<H: HttpExchange> Run<'_, H> {
         identity: &str,
         to: &[String],
         ours: bool,
-        filing: Option<&str>,
+        filing: Option<&Filing>,
     ) -> Step {
         let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
             let submission = submission_arguments(self.account(), email, identity, self.request.email.as_str(), to, filing);
@@ -732,7 +777,7 @@ impl<H: HttpExchange> Run<'_, H> {
         rest: &[MethodResponse],
         after: Option<&MethodError>,
         ours: bool,
-        filing: Option<&str>,
+        filing: Option<&Filing>,
     ) -> Step {
         let email = made_of(&imported);
         let Settled { outcome, orphan, later } = settled(&self.secrets, imported, submitted);
@@ -741,7 +786,7 @@ impl<H: HttpExchange> Run<'_, H> {
             Some(SendOutcome::Sent) if marked => {
                 let why = after.map_or("notUpdated", |error| error.kind().as_str());
                 log::info!("jmap mail: a message was sent, and the server did not take its draft mark off ({why})");
-                email.map(|email| Tidy::Unmark(email, filing.map(str::to_string)))
+                email.map(|email| Tidy::Unmark(email, filing.cloned()))
             }
             _ => orphan.filter(|_| ours).map(Tidy::Destroy),
         };

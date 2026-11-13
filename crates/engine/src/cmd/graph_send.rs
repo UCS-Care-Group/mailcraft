@@ -133,8 +133,10 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
     let kind = mb.account(account).map(|a| a.kind);
     let server = if kind == Some(mailcraft_model::AccountKind::Microsoft) { "Microsoft" } else { "the server" };
-    // A JMAP account's copy is filed in Sent marked as a draft before it is submitted, and the
-    // submission takes the mark off (RFC 8621 §7.5): a copy is there whether or not it went.
+    // A JMAP account's copy is filed in Sent (in Drafts where there is none) marked as a draft
+    // before it is submitted, and the submission takes the mark off (RFC 8621 §7.5): a copy is
+    // there whether or not it went, and one still marked may have gone too (the server may send it
+    // and fail to change the copy), so the mark never says that it did not go.
     let jmap = kind == Some(mailcraft_model::AccountKind::Jmap);
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
     let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
@@ -173,7 +175,7 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
         }
         SendOutcome::Held { lost, why } => {
             let held = if *lost && jmap {
-                "It may have been sent: the answer from the server was lost. A copy is in Sent either way: it went if that copy is no longer marked as a draft. Look there before you send it again.".to_string()
+                "It may have been sent: the answer from the server was lost. Its copy is in Sent, or in Drafts where the account has no Sent folder: if the copy is no longer marked as a draft, it went; if it still is, it may have gone too. Ask a recipient before you send it again.".to_string()
             } else if *lost {
                 format!("It may have been sent: the answer from {server} was lost. Look in Sent Items before you send it again.")
             } else {
@@ -181,7 +183,9 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
             };
             said.push(if *lost && jmap {
                 mailcraft_i18n::fmt(
-                    lang.t("'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."),
+                    lang.t(
+                        "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox.",
+                    ),
                     &[("subject", &subject)],
                 )
             } else if *lost {
@@ -200,9 +204,10 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
 /// What a message held for having been handed to a server without an answer coming back says.
 pub const MAY_HAVE_GONE: &str = "It may have been sent: it was handed to the server, and the answer never came back (another mailbox was opened, or MailCraft stopped). Look in Sent Items before you send it again.";
 
-/// The same for a JMAP account, whose copy is in Sent marked as a draft whether or not it went
-/// (RFC 8621 §7.5: the submission takes the mark off).
-pub const MAY_HAVE_GONE_JMAP: &str = "It may have been sent: it was handed to the server, and the answer never came back (another mailbox was opened, or MailCraft stopped). A copy is in Sent either way: it went if that copy is no longer marked as a draft. Look there before you send it again.";
+/// The same for a JMAP account, whose copy is in Sent (or Drafts) marked as a draft whether or not
+/// it went (RFC 8621 §7.5: the submission takes the mark off, and may go without the mark coming
+/// off).
+pub const MAY_HAVE_GONE_JMAP: &str = "It may have been sent: it was handed to the server, and the answer never came back (another mailbox was opened, or MailCraft stopped). Its copy is in Sent, or in Drafts where the account has no Sent folder: if the copy is no longer marked as a draft, it went; if it still is, it may have gone too. Ask a recipient before you send it again.";
 
 /// Mark the messages `ids` of `account`'s Outbox as being sent (AU3-26), before the run that
 /// sends them is handed to the host. Whether any mark is new (the mailbox is to be saved before
@@ -252,7 +257,7 @@ pub fn hold_unanswered(mb: &mut Mailbox, account: Id, lang: mailcraft_i18n::Lang
         let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
         let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
         let line = if jmap {
-            lang.t("'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox.")
+            lang.t("'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox.")
         } else {
             lang.t("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox.")
         };

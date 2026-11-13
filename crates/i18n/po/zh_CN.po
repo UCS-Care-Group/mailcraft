@@ -107,14 +107,14 @@ msgstr "“{shown}”不是电子邮件地址"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-#, fuzzy
-msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
-msgstr "“{subject}”可能已经发送，请查看“已发送邮件”。它仍保留在发件箱中。"
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-msgid "'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."
-msgstr ""
+#, fuzzy
+msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
+msgstr "“{subject}”可能已经发送，请查看“已发送邮件”。它仍保留在发件箱中。"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs

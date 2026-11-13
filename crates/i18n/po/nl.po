@@ -107,14 +107,14 @@ msgstr "„{shown}” is geen e-mailadres"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-#, fuzzy
-msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
-msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt vastgehouden in Postvak UIT."
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-msgid "'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."
-msgstr ""
+#, fuzzy
+msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
+msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt vastgehouden in Postvak UIT."
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs

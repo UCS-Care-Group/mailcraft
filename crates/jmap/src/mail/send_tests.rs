@@ -18,8 +18,8 @@ use super::changes_tests::{
     run_fake, run_over, run_stand_in, run_unchecked, sent_of, session_reply, status_reply,
 };
 use super::send::{
-    BAD_RECIPIENT, BAD_SENDER, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOTHING, Settled, TOO_LARGE, TOO_MANY,
-    blob_of_size, existing_of, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled, written,
+    BAD_RECIPIENT, BAD_SENDER, Filing, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOTHING, Settled, TOO_LARGE, TOO_MANY,
+    blob_of_size, existing_of, filing_for, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled, written,
 };
 use super::*;
 use crate::connection::tests::any_json;
@@ -1030,7 +1030,7 @@ fn an_email_the_server_has_already_is_submitted_only_when_it_is_of_the_blob_uplo
         let pieces = send_fake(&fake, vec![simple(41)]);
         assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
         assert_eq!(emails(&fake), asked, "{calls}");
-        assert_eq!(fake.args_of("Email/get")[0], json!({"accountId": "A1", "ids": ["E9"], "properties": ["id", "blobId", "size"]}));
+        assert_eq!(fake.args_of("Email/get")[0], json!({"accountId": "A1", "ids": ["E9"], "properties": ["id", "blobId", "size", "mailboxIds"]}));
         assert!(fake.args_of("Email/set").is_empty() && last(&pieces).whole, "{calls}");
 
         // Another blob, so perhaps other octets (an email that only shares its Message-ID): never submitted.
@@ -1363,5 +1363,126 @@ fn an_email_the_server_has_already_in_another_mailbox_is_filed_in_sent_too_once_
             assert!(!email.keywords.contains("$draft"), "{calls}");
         });
         assert!(last(&pieces).whole, "{calls}");
+    }
+}
+
+/// The marks that are the mailbox's alone (read, answered, flagged) are not in what is sent: the octets of
+/// a message are the same whatever of them changes between two runs, so that a copy a first run left is
+/// known again by its octets.
+#[test]
+fn the_octets_sent_are_the_same_whatever_marks_of_the_mailbox_change() {
+    let mail = message(&["bob@example.org"], &[], &[]);
+    let plain = written(&mail);
+    for marked in [
+        Message { read: true, ..mail.clone() },
+        Message { answered: true, ..mail.clone() },
+        Message { flag: mailcraft_model::FlagStatus::Flagged, ..mail.clone() },
+        Message { flag: mailcraft_model::FlagStatus::Complete, read: true, ..mail.clone() },
+    ] {
+        assert_eq!(written(&marked), plain);
+    }
+    let text = String::from_utf8_lossy(&written(&Message { read: true, answered: true, ..mail.clone() })).to_ascii_lowercase();
+    assert!(!text.contains("\r\nstatus:") && !text.contains("\r\nx-status:") && !text.contains("x-mailcraft-flag"), "{text}");
+
+    // Over two runs: the first leaves its copy (the submission turned away unread), the message is read in
+    // between, and the second submits that copy instead of importing another.
+    let (stand_in, ids) = world();
+    stand_in.with(|d| {
+        d.max_calls = 1;
+        d.no_duplicates = true;
+        d.refuse_next.extend([None, None, None, Some((401, None))]);
+    });
+    assert!(sent_of(&send(&stand_in, vec![simple(41)])).is_empty(), "it waits");
+    let read = outbox(41, Message { read: true, flag: mailcraft_model::FlagStatus::Flagged, ..mail });
+    assert_eq!(sent_of(&send(&stand_in, vec![read])), [is(41, SendOutcome::Sent)]);
+    stand_in.with(|d| {
+        assert_eq!((d.submitted.len(), d.emails.len()), (1, 1));
+        assert!(d.emails[0].mailboxes.contains(&ids.sent) && !d.emails[0].keywords.contains("$draft"));
+    });
+}
+
+// RFC 8621 §1.3.1: `maxMailboxesPerEmail`; §4.6: `tooManyMailboxes`.
+#[test]
+fn a_copy_on_a_server_that_keeps_an_email_in_one_mailbox_is_moved_into_sent_once_it_is_sent() {
+    let (stand_in, ids) = world();
+    let archive = stand_in.with(|d| {
+        d.max_calls = 1;
+        d.no_duplicates = true;
+        d.refuse_next.extend([None, None, None, Some((401, None))]);
+        d.mailbox("Archive", None, Some("archive"))
+    });
+    assert!(sent_of(&send(&stand_in, vec![simple(41)])).is_empty(), "it waits");
+    // Another program moves the copy to Archive, on a server that keeps an email in one mailbox.
+    stand_in.with(|d| {
+        d.max_calls = 16;
+        d.profile.one_mailbox = true;
+        d.emails[0].mailboxes = [archive.clone()].into_iter().collect();
+    });
+    let pieces = send(&stand_in, vec![simple(41)]);
+    assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)]);
+    stand_in.with(|d| {
+        assert_eq!((d.submitted.len(), d.emails.len()), (1, 1));
+        // Moved into Sent (one more mailbox would be one too many), and no draft any more.
+        assert_eq!(d.emails[0].mailboxes, [ids.sent.clone()].into_iter().collect());
+        assert!(!d.emails[0].keywords.contains("$draft"));
+    });
+    // Nothing was left to ask again.
+    assert_eq!(stand_in.calls().iter().filter(|call| *call == "Email/set").count(), 0);
+    assert!(last(&pieces).whole);
+    // How a copy is filed: not at all where it lies already; beside the others; moved where one more is
+    // too many; and one whose mailboxes are not said is taken for one mailbox.
+    let answer = json!({"list": [{"id": "E1", "mailboxIds": {"M1": true, "M2": true}}, {"id": "E2"}]});
+    assert_eq!(filing_for(&answer, "E1", "M2", Some(1)), None);
+    assert_eq!(filing_for(&answer, "E1", "M3", None), Some(Filing { mailbox: "M3".into(), alone: false }));
+    assert_eq!(filing_for(&answer, "E1", "M3", Some(3)), Some(Filing { mailbox: "M3".into(), alone: false }));
+    assert_eq!(filing_for(&answer, "E1", "M3", Some(2)), Some(Filing { mailbox: "M3".into(), alone: true }));
+    assert_eq!(filing_for(&answer, "E2", "M3", Some(1)), Some(Filing { mailbox: "M3".into(), alone: true }));
+    assert_eq!(filing_for(&answer, "E2", "M3", Some(2)), Some(Filing { mailbox: "M3".into(), alone: false }));
+}
+
+thread_local! {
+    static LOGGED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A logger that keeps what this thread logs, for a test to read.
+struct Kept;
+
+impl log::Log for Kept {
+    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+        true
+    }
+    fn log(&self, record: &log::Record<'_>) {
+        LOGGED.with(|logged| logged.borrow_mut().push(record.args().to_string()));
+    }
+    fn flush(&self) {}
+}
+
+/// Secrets never touch a log: nor does an id of the server's.
+#[test]
+fn what_a_send_logs_names_no_email_of_the_servers() {
+    static KEPT: Kept = Kept;
+    if log::set_logger(&KEPT).is_ok() {
+        log::set_max_level(log::LevelFilter::Trace);
+    }
+    LOGGED.with(|logged| logged.borrow_mut().clear());
+    // The server refuses the submission, and the request that takes the copy away again fails.
+    let fake = sender_but(|req, _| {
+        if req.method() != Method::Post || is_upload(req) {
+            return None;
+        }
+        if names_of(req) == ["Email/set"] {
+            return Some(status_reply(500, None));
+        }
+        Some(api_reply(req, |name, args| match name {
+            "EmailSubmission/set" => Answer::Is(json!({"notCreated": {"s": {"type": "forbiddenToSend"}}})),
+            _ => sending(name, args),
+        }))
+    });
+    let pieces = send_fake(&fake, vec![simple(41)]);
+    assert_eq!(sent_of(&pieces), [is(41, held("the server does not let this account send mail"))]);
+    let logged = LOGGED.with(|logged| logged.borrow().clone());
+    assert!(logged.iter().any(|line| line.contains("could not be tidied up")), "{logged:?}");
+    for line in &logged {
+        assert!(!line.contains("E50") && !line.contains("B7") && !line.contains(ME), "{line}");
     }
 }

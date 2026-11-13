@@ -143,14 +143,14 @@ fn a_message_that_may_have_gone_is_held_and_never_sent_again_by_itself() {
     let answer = answered(&mut s, jmap, lost, SendOutcome::Held { lost: true, why: String::new() });
     assert_eq!(
         answer["errors"][0].as_str(),
-        Some("'First' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox.")
+        Some("'First' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox.")
     );
     let held = &s.mailbox.message(lost).unwrap().held;
-    // Its copy is in Sent marked as a draft until the submission takes the mark off: the advice
-    // says what tells the two apart.
+    // Its copy is in Sent (or Drafts) marked as a draft until the submission takes the mark off,
+    // and a copy still marked may have gone too: the advice never says it did not go.
     assert_eq!(
         held,
-        "It may have been sent: the answer from the server was lost. A copy is in Sent either way: it went if that copy is no longer marked as a draft. Look there before you send it again."
+        "It may have been sent: the answer from the server was lost. Its copy is in Sent, or in Drafts where the account has no Sent folder: if the copy is no longer marked as a draft, it went; if it still is, it may have gone too. Ask a recipient before you send it again."
     );
     assert!(offered(&s, jmap).is_empty());
     // The run's answer never came at all (the program stopped): the message was marked as being
@@ -160,7 +160,7 @@ fn a_message_that_may_have_gone_is_held_and_never_sent_again_by_itself() {
     assert!(super::graph_send::mark_sending(&mut s.mailbox, jmap, &[unanswered]));
     let mut said = Vec::new();
     assert!(super::graph_send::hold_unanswered(&mut s.mailbox, jmap, s.interface_language, &mut said));
-    assert_eq!(said, ["'Second' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."]);
+    assert_eq!(said, ["'Second' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."]);
     assert_eq!(s.mailbox.message(unanswered).unwrap().held, super::graph_send::MAY_HAVE_GONE_JMAP);
     assert!(offered(&s, jmap).is_empty());
     assert_eq!(count(&s, jmap, FolderKind::Outbox), 2);

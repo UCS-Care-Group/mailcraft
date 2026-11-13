@@ -107,14 +107,14 @@ msgstr "„{shown}” nu este o adresă de e-mail"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-#, fuzzy
-msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
-msgstr "„{subject}” poate să fi fost trimis: verificați în Elemente trimise. Este păstrat în Mesaje de trimis."
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-msgid "'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."
-msgstr ""
+#, fuzzy
+msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
+msgstr "„{subject}” poate să fi fost trimis: verificați în Elemente trimise. Este păstrat în Mesaje de trimis."
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs

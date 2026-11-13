@@ -51,15 +51,18 @@ sync` refuses it.
   submitted, as the identity the server has for the account's address. Who is named in Bcc is told
   to the server as recipients only; the message names none of them. A message the server refuses
   is held in the Outbox with the reason, and so is one whose answer was lost, which may have gone:
-  neither is sent again by itself. The copy is filed in Sent marked as a draft before it is
-  submitted, and the mark comes off once it is sent: for one whose answer was lost, a copy in Sent
-  no longer marked as a draft is the sign that it went, and the message held says so. A server that offers no submission, or has no identity for the
+  neither is sent again by itself. The copy is filed in Sent (or Drafts) marked as a draft before
+  it is submitted, and the mark comes off once it is sent: for one whose answer was lost, a copy no
+  longer marked as a draft went, and one still marked may have gone too (the mark stays when the
+  server sends it and then fails to change the copy), and the message held says so. A server that
+  offers no submission, or has no identity for the
   account's address, sends nothing: the message is held and says so. Only Send sends: a message
   moved into the account's Outbox (a draft, or mail only this computer has) is held there until
   Send Again, and a copy doesn't go into it. A message that was never dated is dated before its
-  first try and keeps that date, so that a try after one that ended early uploads the same message;
-  a copy the server has from that earlier try is sent instead, and filed in Sent as well wherever
-  else it lies.
+  first try and keeps that date, and what is read or flagged here is not in the message, so that a
+  try after one that ended early uploads the same message; a copy the server has from that earlier
+  try is sent instead, and filed in Sent as well wherever else it lies (moved into Sent on a server
+  that keeps an email in one mailbox).
 
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the

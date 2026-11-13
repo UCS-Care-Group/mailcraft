@@ -106,14 +106,14 @@ msgstr "«{shown}» no es una dirección de correo electrónico"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-#, fuzzy
-msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
-msgstr "Es posible que «{subject}» se haya enviado: compruebe Elementos enviados. Se conserva en la Bandeja de salida."
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
-msgid "'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."
-msgstr ""
+#, fuzzy
+msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
+msgstr "Es posible que «{subject}» se haya enviado: compruebe Elementos enviados. Se conserva en la Bandeja de salida."
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
