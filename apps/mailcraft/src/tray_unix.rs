@@ -92,6 +92,10 @@ impl Drop for Backend {
         if let Some(handle) = &self.handle {
             handle.shutdown();
         }
+        // An icon that came up but was never polled in goes too, rather than staying in the tray.
+        if let Ok(Ok(handle)) = self.arriving.try_recv() {
+            handle.shutdown();
+        }
     }
 }
 
