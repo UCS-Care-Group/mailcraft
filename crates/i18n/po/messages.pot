@@ -7110,8 +7110,8 @@ msgstr ""
 msgid "Nobody matches the search"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "Nobody with an address is invited"
 msgstr ""
 
@@ -9433,8 +9433,8 @@ msgstr ""
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr ""
 
@@ -11732,8 +11732,8 @@ msgstr ""
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "The server didn't say when other people are busy"
 msgstr ""
 
@@ -12207,8 +12207,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr ""
 
@@ -12579,8 +12579,8 @@ msgstr ""
 msgid "This meeting was called off by its organizer."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr ""
 
@@ -13819,8 +13819,8 @@ msgstr ""
 msgid "You tentatively accepted this meeting."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr ""
 

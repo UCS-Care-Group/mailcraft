@@ -25,7 +25,8 @@ const TYPED: &str = "example-pass";
 fn sign_in() -> (Harness<'static, MailApp>, std::sync::mpsc::Sender<ControlRequest>) {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default()).with_control(rx);
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let r = app.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}));
     let account = r.unwrap()["id"].as_u64().unwrap();
     app.dialog = Some(Dialog::Password { account, password: String::new(), shown: false });
