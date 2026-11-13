@@ -238,7 +238,7 @@ pub(crate) fn named(s: &Session, folder: &Value, account: Option<Id>) -> Result<
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    let account = p::id(v, "account");
+    let account = p::id_strict(v, "account")?;
     let id = if let Some(folder) = v.get("folder").filter(|f| !f.is_null()) {
         named(s, folder, account)?
     } else if let Some(id) = p::id_strict(v, "id")? {

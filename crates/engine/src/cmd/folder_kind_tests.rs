@@ -85,6 +85,23 @@ fn a_kind_is_of_the_account_named_or_in_view() {
     assert_eq!(listed_folder(&mut s, json!({"folder": "inbox"})), other_inbox, "now the account in view");
 }
 
+/// `account` is read strictly: what isn't an account's id is refused, never dropped for the
+/// account in view. Asked for another account's Inbox and given this one's, with nothing in the
+/// answer to say which it is, an agent would work on the wrong mailbox.
+#[test]
+fn an_account_that_is_not_an_id_is_refused() {
+    let (mut s, inbox, _) = german();
+    let in_view = s.view.folder;
+    for account in [json!("7"), json!(""), json!(-1), json!(1.5), json!(true), json!([7]), json!({}), Value::Null] {
+        let params = json!({"folder": "inbox", "account": account});
+        assert!(s.run("mail.list", &params).is_err(), "{params}");
+        assert!(s.run("folder.select", &params).is_err(), "{params}");
+        assert_eq!(s.view.folder, in_view, "{params}: nothing moved");
+    }
+    // No `account` key at all is the account in view, as before.
+    assert_eq!(listed_folder(&mut s, json!({"folder": "inbox"})), inbox);
+}
+
 /// What names no folder is refused, and changes nothing.
 #[test]
 fn what_names_no_folder_is_refused() {

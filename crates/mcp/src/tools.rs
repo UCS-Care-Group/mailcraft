@@ -240,7 +240,7 @@ pub fn tool_definitions() -> Value {
             "List messages",
             "The message list of a folder, newest first, optionally narrowed by a search (from:, subject:, has:attachment, is:unread, before:/after:YYYY-MM-DD…). The folder is an id, a standard folder's kind (inbox, sent, drafts, deleted, junk, archive, outbox), which works whatever the mailbox's language calls it, or a path of the folders' names as list_folders shows them, such as \"Inbox/Projects\". A kind is of the account that account names, else of the account the window shows, and comes before a folder of the owner's own called that, which is still reached by its id or by its full path.",
             obj(
-                json!({"folder": s("Folder id, kind (inbox, sent, drafts, deleted, junk, archive, outbox) or path (default: the folder in view)"), "account": n("Whose folder a kind means (default: the account in view); list_folders says each account's id"), "query": s("Search"), "limit": n("Most messages to return (default 50)")}),
+                json!({"folder": s("Folder id, kind (inbox, sent, drafts, deleted, junk, archive, outbox) or path (default: the folder in view)"), "account": n("Whose folder a kind or a path means, with `folder` and not on its own (default: the account in view); list_folders says each account's id"), "query": s("Search"), "limit": n("Most messages to return (default 50)")}),
                 &[]
             ),
             true
