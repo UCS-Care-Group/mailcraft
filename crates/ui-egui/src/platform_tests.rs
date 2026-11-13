@@ -82,3 +82,19 @@ fn a_worker_asks_the_window_and_the_window_does_what_it_always_did() {
     // Mail alerts are the window's own.
     assert_eq!(p.notify(&note(NotificationKind::Mail)), Err(PlatformError::Unsupported));
 }
+
+#[test]
+fn the_window_asking_itself_is_refused_at_once() {
+    let s = Services::default();
+    let (p, _) = platform_of(&s);
+    assert_eq!(p.open_sign_in_page("https://login.example.org/"), Err(PlatformError::Failed("the window cannot ask itself")));
+}
+
+#[test]
+fn a_window_that_does_not_answer_times_the_worker_out() {
+    let s = Services::default();
+    let p = Arc::new(s.platform_calls.platform(s.secrets.clone(), Arc::new(|| {})).patient(std::time::Duration::from_millis(50)));
+    let worker = std::thread::spawn(move || p.open_file("a.txt", b"x"));
+    // Nobody serves the window's side.
+    assert_eq!(worker.join().ok().unwrap(), Err(PlatformError::Failed("the window did not answer")));
+}

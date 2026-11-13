@@ -460,6 +460,23 @@ fn background<T: Send + 'static>(ctx: &egui::Context, name: &str, work: impl FnO
     rx
 }
 
+/// A job on the host's threads, or, when the host didn't start, on a thread of its own as
+/// `background` does: the jobs never stop for want of it.
+fn host_job<T: Send + 'static>(
+    host: Option<&std::sync::Arc<mailcraft_host::Host>>,
+    ctx: &egui::Context,
+    name: &str,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> std::sync::mpsc::Receiver<T> {
+    match host {
+        Some(host) => {
+            let wake = ctx.clone();
+            host.run_job(name, move |_platform| work(), move || wake.request_repaint())
+        }
+        None => background(ctx, name, work),
+    }
+}
+
 /// The application (client) id this build presents to Microsoft's sign-in page: the
 /// `MAILCRAFT_MS_CLIENT_ID` environment variable when the app starts, else the one the build was
 /// given under the same name. An identifier, not a secret; empty when there is none.
@@ -1668,9 +1685,10 @@ fn services(
     let platform = platform_calls.platform(secrets::store(), std::sync::Arc::new(move || wake_ctx.request_repaint()));
     let host = match mailcraft_host::init(std::sync::Arc::new(platform)) {
         Ok(host) => Some(std::sync::Arc::new(host)),
-        // Without it the jobs that run on the host (the to-dos) don't run; mail goes on.
+        // The jobs still run, each on a thread of its own, as before the host (the desktop's
+        // platform gives no memory budget, so this is not expected); nothing stops silently.
         Err(e) => {
-            log::error!("the host couldn't start: {e}");
+            log::error!("the host couldn't start, jobs run without it: {e}");
             None
         }
     };
@@ -1718,13 +1736,9 @@ fn services(
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
         })),
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
-        graph_tasks: host.map(|host| {
-            Box::new(move |job: mailcraft_ui_egui::task_sync::TasksJob| {
-                let wake = tasks_ctx.clone();
-                host.run_job("microsoft to do", move |_platform| mailcraft_host::tasks::run(job), move || wake.request_repaint())
-            })
-                as Box<dyn Fn(mailcraft_ui_egui::task_sync::TasksJob) -> std::sync::mpsc::Receiver<mailcraft_ui_egui::task_sync::TasksResult>>
-        }),
+        graph_tasks: Some(Box::new(move |job: mailcraft_ui_egui::task_sync::TasksJob| {
+            host_job(host.as_ref(), &tasks_ctx, "microsoft to do", move || mailcraft_host::tasks::run(job))
+        })),
         // The rules a Microsoft account's server keeps (#566).
         graph_rules: Some(Box::new(move |job: mailcraft_ui_egui::rule_sync::RulesJob| {
             background(&rules_ctx, "server rules", move || rules_job(job))

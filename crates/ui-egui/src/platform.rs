@@ -10,6 +10,7 @@
 
 use std::sync::mpsc::{Receiver, Sender, SyncSender, channel, sync_channel};
 use std::sync::{Arc, Mutex};
+use std::thread::ThreadId;
 use std::time::Duration;
 
 use mailcraft_host::{Notification, NotificationKind, Platform, PlatformError, SecretStore};
@@ -49,27 +50,43 @@ impl PlatformCalls {
     /// The platform for the host's threads: the credential store as it is, and the window asked
     /// for the rest; `wake` makes the window look (it repaints).
     pub fn platform(&self, secrets: Option<Arc<dyn SecretStore>>, wake: Arc<dyn Fn() + Send + Sync>) -> DesktopPlatform {
-        DesktopPlatform { secrets, calls: Mutex::new(self.tx.clone()), wake }
+        DesktopPlatform { secrets, calls: Mutex::new(self.tx.clone()), wake, window: std::thread::current().id(), patience: ANSWER_WITHIN }
     }
 }
 
-/// The desktop's [`Platform`], for the host's threads.
+/// The desktop's [`Platform`], for the host's threads. It is for the host's threads only: a call
+/// from the window's own thread (the one that made it) is refused at once, since that thread is
+/// the one that answers. A call that "did not answer" may still be done by the window later, so a
+/// caller must not retry it as if nothing had happened.
 pub struct DesktopPlatform {
     secrets: Option<Arc<dyn SecretStore>>,
     calls: Mutex<Sender<Call>>,
     wake: Arc<dyn Fn() + Send + Sync>,
+    /// The thread that made this platform: the window's.
+    window: ThreadId,
+    patience: Duration,
 }
 
 impl DesktopPlatform {
+    /// The same, waiting `patience` for an answer (tests).
+    #[cfg(test)]
+    pub(crate) fn patient(mut self, patience: Duration) -> Self {
+        self.patience = patience;
+        self
+    }
+
     /// Put `call` to the window and wait for its answer.
     fn ask(&self, call: impl FnOnce(Answer) -> Call) -> Result<(), PlatformError> {
+        if std::thread::current().id() == self.window {
+            return Err(PlatformError::Failed("the window cannot ask itself"));
+        }
         let (answer, answered) = sync_channel(1);
         {
             let calls = self.calls.lock().map_err(|_| PlatformError::Failed("the window could not be asked"))?;
             calls.send(call(answer)).map_err(|_| PlatformError::Failed("the window could not be asked"))?;
         }
         (self.wake)();
-        answered.recv_timeout(ANSWER_WITHIN).map_err(|_| PlatformError::Failed("the window did not answer"))?
+        answered.recv_timeout(self.patience).map_err(|_| PlatformError::Failed("the window did not answer"))?
     }
 }
 
