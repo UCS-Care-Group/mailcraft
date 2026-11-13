@@ -136,6 +136,18 @@ pub struct FavoritesDriver {
 }
 
 impl FavoritesDriver {
+    /// Account removal: nothing of these accounts' Favorites is kept.
+    pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.asked.retain(|account, _| !gone.contains(account));
+        self.missing.retain(|account, _| !gone.contains(account));
+        self.notes.retain(|account, _| !gone.contains(account));
+        self.uncovered.retain(|account| !gone.contains(account));
+        self.connected.retain(|account| !gone.contains(account));
+        self.due.retain(|account| !gone.contains(account));
+        self.directories.retain(|account, _| !gone.contains(account));
+        self.tenants.retain(|account, _| !gone.contains(account));
+    }
+
     /// Whether the Favorites of `account` are due at `now`, without noting anything.
     pub fn are_due(&self, account: Id, now: f64, asked_for: bool) -> bool {
         // Told that the sign-in doesn't cover them: not again that day, unless the owner asks.

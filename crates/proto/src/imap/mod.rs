@@ -13,7 +13,12 @@ mod parse;
 mod password;
 #[cfg(test)]
 mod password_tests;
+mod status;
+#[cfg(test)]
+mod status_tests;
 mod utf7;
+
+pub use status::{FolderStatus, MAX_STATUS_BATCH};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::{Read, Write};
