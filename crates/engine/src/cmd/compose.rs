@@ -32,7 +32,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
             .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
-            .selection(super::needs_movable),
+            .selection(super::needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
             .pure()
@@ -586,8 +586,14 @@ fn reply(s: &mut Session, v: &Value) -> CmdResult {
 /// account without one, stays where it is: this never deletes for good.
 fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    if s.mailbox.has_jmap_account() && s.mailbox.stays_on_server(id) {
-        return Err(fail(mailcraft_model::NOT_MOVING_YET));
+    // Mail a JMAP account's server has goes to Deleted Items only when the server has that folder
+    // too: said before the reply is begun, not after.
+    if s.mailbox.has_jmap_account()
+        && let Some(m) = s.mailbox.message(id)
+        && let Some(bin) = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder))
+        && s.mailbox.stays_out_of(id, bin)
+    {
+        return Err(fail(mailcraft_model::ONLY_SERVER_FOLDERS));
     }
     let before = s.rows();
     let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
@@ -1590,12 +1596,8 @@ fn pop_out(s: &mut Session, _: &Value) -> CmdResult {
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {
     let draft = s.compose.take().and_then(|c| c.draft);
-    // Already gone is fine; one a JMAP account's server has stays (M6), and the answer says so.
+    // Already gone is fine. (One a JMAP account's server has goes there too, with the next run.)
     let deleted = draft.is_some_and(|d| s.mailbox.remove_message(d).is_ok() || s.mailbox.message(d).is_none());
-    // Why it stays in Drafts, for the window to say: the reason the Move menu greys for it.
-    if let Some(d) = draft.filter(|d| !deleted && s.mailbox.stays_on_server(*d)) {
-        return Ok(json!({"draftDeleted": false, "draft": d, "stays": mailcraft_model::NOT_MOVING_YET}));
-    }
     Ok(json!({"draftDeleted": deleted}))
 }
 

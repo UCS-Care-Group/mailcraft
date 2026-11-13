@@ -64,7 +64,7 @@ impl SecretStore for Locked {
         }
         (key == PASSWORD_KEY).then(|| self.kept.lock().unwrap().clone()).flatten()
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         Ok(())
     }
     fn delete(&self, _: &str) {}
