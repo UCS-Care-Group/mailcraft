@@ -135,6 +135,21 @@ class SecretFilesTest {
         assertNull(s.get("a"))
     }
 
+    @Test
+    fun leftoverTemporaryFilesAreSweptAtStart() {
+        val dir = File(tmp.root, "secrets").apply { mkdirs() }
+        val stray = File(dir, "abc.tmp").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        store(dir = dir)
+        assertFalse(stray.exists())
+    }
+
+    @Test
+    fun aSealerThatThrowsAtRuntimeIsUnavailableNotACrash() {
+        val broken = SecretFiles(File(tmp.root, "y"), AesGcmSealer { throw IllegalStateException("provider") })
+        assertThrows(HostException.Failed::class.java) { broken.set("k", "v") }
+        assertEquals(TroubleKind.UNAVAILABLE, broken.takeTrouble())
+    }
+
     private companion object {
         const val MAX_FILE_PLUS = SecretFiles.MAX_SECRET + 1024
     }
