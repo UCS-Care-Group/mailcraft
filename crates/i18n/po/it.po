@@ -2861,6 +2861,12 @@ msgstr "Copia diagnostica"
 msgid "Copy Event"
 msgstr "Copia evento"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Copia elementi"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -2908,6 +2914,12 @@ msgstr "Copia tutto"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Copia problemi"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "Copia gli elementi selezionati nella cartella:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -7365,6 +7377,12 @@ msgid "Move Folder"
 msgstr "Sposta cartella"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Sposta elementi"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7392,6 +7410,12 @@ msgstr "Sposta solo gli appuntamenti"
 #: crates/ui-egui/src/reading.rs
 msgid "Move the message to a folder to open or save its attachments"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "Sposta gli elementi selezionati nella cartella:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7973,7 +7997,7 @@ msgid "No file manager could be started to show the folder."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 msgid "No folders match"
 msgstr ""
 
@@ -8379,7 +8403,7 @@ msgid "Numbering"
 msgstr "Elenco numerato"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -10726,7 +10750,7 @@ msgid "Search contacts"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 msgid "Search folders"
 msgstr ""
 
