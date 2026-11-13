@@ -567,6 +567,29 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    let mut animations = egui::Rect::NOTHING;
+    row(ui, tl!("Animations"), |ui| {
+        let cur = app.ui.animations;
+        let combo = egui::ComboBox::from_id_salt("opt_animations").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for m in crate::motion::Motion::ALL {
+                if ui.selectable_label(m == cur, tl!(m.label())).clicked() {
+                    let _ = app.run("ui.animations", json!({"value": m.code()}));
+                }
+            }
+        });
+        // (Its name for a screen reader: the row's label is painted.)
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Animations"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        animations = combo.response.rect;
+        combo.response.on_hover_text(tl!(
+            "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+        ));
+    });
+    app.hit.add("optionAnimations", 0, animations);
     let mut strong = app.ui.high_contrast;
     if ui.checkbox(&mut strong, tl!("High contrast")).on_hover_text(tl!("Stronger text and edges, in the light or the dark theme.")).changed() {
         let _ = app.run("ui.highContrast", json!({"on": strong}));

@@ -336,7 +336,8 @@ impl AccountKind {
 #[serde(default, rename_all = "camelCase")]
 pub struct Account {
     pub id: Id,
-    /// What the folder pane calls it (usually the address).
+    /// What the folder pane calls it: the address, unless the owner named it in Account
+    /// Settings (#1017).
     pub name: String,
     pub email: String,
     /// The owner's name, as recipients see it.
@@ -447,6 +448,18 @@ pub struct Account {
 }
 
 impl Account {
+    /// The name the folder pane gives an account the owner hasn't named (#1017): its address, or
+    /// `Mailbox` for one without an address.
+    pub fn name_by_default(&self) -> String {
+        if self.email.trim().is_empty() { "Mailbox".into() } else { self.email.clone() }
+    }
+
+    /// Whether the account goes by its address in the folder pane, not a name the owner gave it
+    /// (#1017). Addresses compare without regard to ASCII case.
+    pub fn named_by_address(&self) -> bool {
+        self.name.trim().is_empty() || self.name.trim().eq_ignore_ascii_case(self.name_by_default().trim())
+    }
+
     /// Keep the calendars opened by address to what can be kept: an address that could be one
     /// (once, whatever its case), a one-line name, at most [`crate::MAX_OPENED_CALENDARS`].
     pub fn clamp_opened_calendars(&mut self) {
@@ -1359,7 +1372,7 @@ impl Mailbox {
         account.id = self.alloc_id();
         let id = account.id;
         if account.name.trim().is_empty() {
-            account.name = if account.email.trim().is_empty() { "Mailbox".into() } else { account.email.clone() };
+            account.name = account.name_by_default();
         }
         self.accounts.push(account);
         for kind in FolderKind::STANDARD {

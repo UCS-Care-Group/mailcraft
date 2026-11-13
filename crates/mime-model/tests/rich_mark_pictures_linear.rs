@@ -5,7 +5,7 @@
 
 use std::time::{Duration, Instant};
 
-use mailcraft_mime::rich::{from_html, from_html_with_pictures};
+use mailcraft_mime_model::rich::{from_html, from_html_with_pictures};
 use proptest::prelude::*;
 
 fn time_of(read: impl Fn()) -> Duration {
