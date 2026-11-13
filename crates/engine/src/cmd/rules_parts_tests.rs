@@ -378,8 +378,9 @@ fn purge(s: &mut Session, account: Id) {
     s.run("rules.add", &purge).unwrap();
 }
 
-/// A JMAP account: mail its server has isn't deleted here yet, so a rule that deletes it does
-/// nothing, and Run Rules Now doesn't count it as changed.
+/// A JMAP account whose Deleted Items is here only (its server lists no such mailbox): mail its
+/// server has can't be moved into it, so a rule that deletes it does nothing, and Run Rules Now
+/// doesn't count it as changed.
 #[test]
 fn run_rules_now_doesnt_count_what_a_rule_couldnt_do() {
     let mut s = Session::at(Default::default(), NOW, 0);
