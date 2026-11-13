@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-13 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -81,7 +81,15 @@ go when a row has several (files, importance, categories) is ours, the reference
 
 Rendering is egui on wgpu (DirectX 12 with an OpenGL fallback on Windows, Metal, Vulkan; WebGPU
 with a WebGL2 fallback in the browser). Verified here: Windows 11 x64 and a Chromium browser.
-High-DPI is handled by egui; a system tray and badges are absent (gap #11). Desktop alerts for
+High-DPI is handled by egui. The system tray uses MailCraft's own icon, with Show MailCraft and
+Quit MailCraft. File › Options › General › Close to system tray (off by default) keeps the program
+running when the main window is closed; Quit still saves and asks about unsaved work. Without a
+working tray or a window that can be hidden, closing exits normally. Losing the tray restores a
+hidden window, as do a notification click and another launch. Windows uses the notification area,
+macOS the menu bar, and Linux/BSD a StatusNotifierItem host (such as KDE Plasma, or a GNOME tray
+extension). On Linux and FreeBSD, MailCraft uses X11/XWayland when `DISPLAY` is available because
+winit 0.30 cannot hide a native Wayland window; on pure Wayland the close button exits normally.
+Unread-count badges are still absent. Desktop alerts for
 reminders and for new mail go through the system's own notifications while MailCraft runs (R7.1):
 the desktop's notification service on Linux and the BSDs, toasts on Windows (for the copy the
 `.msi` installed, whose Start menu shortcut names it), the notification centre for the macOS app.

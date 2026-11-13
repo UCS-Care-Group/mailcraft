@@ -101,6 +101,7 @@ mod system_locale;
 mod system_motion;
 #[cfg(test)]
 mod token_renew_flow;
+mod tray;
 #[cfg(test)]
 mod unconfirmed_flow;
 #[cfg(test)]
@@ -133,6 +134,7 @@ struct App(
     file_dialogs::Launcher,
     Option<single_instance::Guard>,
     Option<HostUpdates>,
+    tray::Tray,
     #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
     #[cfg(target_os = "macos")] Option<menubar::MenuBar>,
 );
@@ -165,7 +167,7 @@ impl HostUpdates {
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
-        apple_events::poll(&self.6, &mut self.0, ctx);
+        apple_events::poll(&self.7, &mut self.0, ctx);
         // MailCraft was started again (the shortcut, a `mailto:` link, a file opened from the
         // file manager): what it was started with opens here, and the window comes forward.
         if let Some(asked) = self.4.as_ref().and_then(single_instance::Guard::handed_over) {
@@ -180,7 +182,7 @@ impl eframe::App for App {
         }
         // The menu bar's choices run before the frame's own work (macOS).
         #[cfg(target_os = "macos")]
-        if let Some(bar) = &mut self.7 {
+        if let Some(bar) = &mut self.8 {
             bar.pump(&mut self.0, ctx);
         }
         self.0.logic(ctx);
@@ -209,7 +211,9 @@ impl eframe::App for App {
         open_pages(ctx, frame);
         // Leaving (the close button, Quit, the Dock): a message being written asks first, then
         // the platform's own way out (`quit`). Last in `logic`, which runs while minimized too.
-        quit::on_frame(ctx, &mut self.0);
+        self.6.pump(ctx, &mut self.0);
+        quit::on_frame(ctx, &mut self.0, self.6.available());
+        self.6.after_frame(ctx);
     }
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
         // On Linux and the BSDs, the desktop's light or dark preference (`desktop_theme`), for
@@ -641,7 +645,15 @@ fn run_window(options: eframe::NativeOptions, creator: eframe::AppCreator<'_>) -
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
         let _ = BROWSER.set(browser::Browser::new(std::sync::Arc::new(browser::Desktop)));
-        let event_loop = winit::event_loop::EventLoop::<eframe::UserEvent>::with_user_event().build()?;
+        let mut builder = winit::event_loop::EventLoop::<eframe::UserEvent>::with_user_event();
+        // winit 0.30's native Wayland set_visible is a no-op. X11 (including XWayland)
+        // lets a close really hide the window, removing its taskbar button. Both backends
+        // are already built; pure Wayland still runs, with close-to-tray unavailable.
+        if std::env::var_os("DISPLAY").is_some_and(|display| !display.is_empty()) {
+            use winit::platform::x11::EventLoopBuilderExtX11;
+            builder.with_x11();
+        }
+        let event_loop = builder.build()?;
         // eframe keeps a start-up failure to itself on this path: the app is only created once
         // the window is, so a loop that ends without having created it failed to start.
         let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1684,6 +1696,7 @@ fn main() -> eframe::Result {
                 dialogs,
                 guard,
                 updates,
+                tray::Tray::new(&cc.egui_ctx, tray::can_hide(cc)),
                 #[cfg(target_os = "macos")]
                 apple_events.connect(&cc.egui_ctx),
                 #[cfg(target_os = "macos")]

@@ -2773,6 +2773,11 @@ msgstr "Venster sluiten"
 msgid "Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."
 msgstr "Sluit dit gedeelde postvak en verwijder de e-mail die hier voor het postvak wordt bewaard. Op de server verandert er niets."
 
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Close to system tray"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -5060,8 +5065,8 @@ msgstr "Alle details: en waar, en de notities"
 msgid "Full messages: {done} of {total}"
 msgstr "Volledige berichten: {done} van {total}"
 
-#. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#. interface, name, ribbon location
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "General"
 msgstr "Algemeen"
@@ -6416,6 +6421,11 @@ msgstr "Alleen deze"
 #, fuzzy
 msgid "Keep Both"
 msgstr "Beide behouden"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -11872,6 +11882,11 @@ msgstr "Bijdragers weergeven"
 #, fuzzy
 msgid "Show Gmail's categories under the Inbox"
 msgstr "De categorieën van Gmail onder het Postvak IN tonen"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Show MailCraft"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

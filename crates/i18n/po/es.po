@@ -2633,6 +2633,11 @@ msgstr "Cerrar ventana"
 msgid "Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."
 msgstr "Cerrar este buzón compartido y quitar el correo guardado aquí para él. No cambia nada en el servidor."
 
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Close to system tray"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Closed the page? This opens the provider's sign-in page afresh."
@@ -4824,8 +4829,8 @@ msgstr ""
 msgid "Full messages: {done} of {total}"
 msgstr "Mensajes completos: {done} de {total}"
 
-#. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#. interface, name, ribbon location
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "General"
 msgstr "General"
@@ -6088,6 +6093,11 @@ msgstr "Solo esta"
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "Keep Both"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
 msgstr ""
 
 #. command label
@@ -11305,6 +11315,11 @@ msgstr "Mostrar colaboradores"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Show Gmail's categories under the Inbox"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Show MailCraft"
 msgstr ""
 
 #. command label, interface

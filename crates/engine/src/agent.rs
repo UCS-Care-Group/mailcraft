@@ -534,6 +534,7 @@ const SETTINGS: &[&str] = &[
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
     "ui.desktopAlerts",
+    "ui.closeToTray",
     "ui.repliesInWindow",
     "ui.updateCheck",
     "ui.updateInstall",

@@ -1,0 +1,1 @@
+- File › Options › General has Close to system tray, off by default. MailCraft's icon beside the clock offers Show MailCraft and Quit MailCraft; closing can keep mail and reminders running, while Quit still saves and protects unsaved work. Linux uses X11/XWayland for window hiding; without a working tray, closing exits normally.

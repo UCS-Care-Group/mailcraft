@@ -1,0 +1,1 @@
+| 2026-11-13 | Optional Close to system tray in File › Options › General, using MailCraft's icon with Show and Quit, on Windows, macOS and Linux/BSD with a tray host. Mail and reminders keep running while hidden; Quit saves and protects unsaved work. Linux/FreeBSD use X11/XWayland for hiding; without a working tray, closing exits normally. |

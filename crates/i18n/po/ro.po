@@ -2794,6 +2794,11 @@ msgstr "Închidere fereastră"
 msgid "Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."
 msgstr "Închideți această cutie poștală partajată și eliminați e-mailurile păstrate aici pentru ea. Pe server nu se schimbă nimic."
 
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Close to system tray"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -5097,8 +5102,8 @@ msgstr "Toate detaliile: inclusiv locul și notele"
 msgid "Full messages: {done} of {total}"
 msgstr "Mesaje integrale: {done} din {total}"
 
-#. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#. interface, name, ribbon location
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "General"
 msgstr "General"
@@ -6485,6 +6490,11 @@ msgstr "Doar aceasta"
 #, fuzzy
 msgid "Keep Both"
 msgstr "Le păstrez pe amândouă"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -12000,6 +12010,11 @@ msgstr "Afișare contribuitori"
 #, fuzzy
 msgid "Show Gmail's categories under the Inbox"
 msgstr "Afișați categoriile Gmail sub Mesaje primite"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Show MailCraft"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
