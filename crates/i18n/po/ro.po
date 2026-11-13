@@ -675,6 +675,12 @@ msgstr ""
 msgid "Account Settings"
 msgstr "Setări cont"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Account name"
+msgstr "Nume cont"
+
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12208,6 +12214,12 @@ msgstr "Afișat ca text: nimic din el nu rulează, nu se deschide și nu se desc
 #, fuzzy
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr "Afișat lângă numele contului și pe e-mailurile lui, acolo unde e-mailurile mai multor conturi apar împreună."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
+msgstr "Afișat în panoul de dosare, de exemplu Serviciu sau Acasă. Lăsați gol pentru a afișa adresa."
 
 #. interface
 #: crates/ui-egui/src/compose.rs

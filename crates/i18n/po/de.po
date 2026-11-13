@@ -642,6 +642,12 @@ msgstr "Kontoeinstellungen"
 msgid "Account Settings"
 msgstr "Kontoeinstellungen"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Account name"
+msgstr "Kontoname"
+
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -11494,6 +11500,12 @@ msgstr ""
 #, fuzzy
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr "Wird neben dem Namen des Kontos angezeigt und an seinen E-Mails, wo E-Mails mehrerer Konten zusammen aufgeführt sind."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
+msgstr "Wird im Ordnerbereich angezeigt, zum Beispiel Arbeit oder Privat. Leer lassen, um die Adresse anzuzeigen."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
