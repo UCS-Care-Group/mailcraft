@@ -31,10 +31,10 @@ use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::sync::{GraphFetchResult, GraphFetched, JmapFetchRequest};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::connection::{busy_seconds, unusable};
-use crate::mail::{said, secrets_of};
+use crate::mail::{arguments, get, said, secrets_of};
 use crate::{ApiRequest, CAPABILITY_MAIL, Connection, Error, Failure, HttpExchange, Id, Redactor, TransportError, Unusable};
 
 /// Largest message taken, in octets: what a caller may ask for is held to it. A bigger message is
@@ -98,11 +98,11 @@ async fn locate<H: HttpExchange>(connection: &Connection<H>, ids: &[String], sec
     let client = connection.client();
     let most = usize::try_from(client.limits().max_objects_in_get()).unwrap_or(usize::MAX).max(1);
     for chunk in asked.chunks(most) {
-        let args = json!({"accountId": client.account_id().as_str(), "ids": chunk, "properties": ["blobId", "size"]});
+        let args = arguments(&get(client.account_id().as_str(), Some(chunk), &["blobId", "size"]))?;
         let mut request = ApiRequest::new();
         request.using(CAPABILITY_MAIL)?;
         request.set_response_limit(LOCATE_BYTES);
-        let call = request.add_call("Email/get", args.as_object().cloned().unwrap_or_default())?;
+        let call = request.add_call("Email/get", args)?;
         let mut answers = connection.call(&request, secrets).await?;
         read_located(&Value::Object(answers.take_named(&call, "Email/get")?), chunk, &mut known);
     }

@@ -8,4 +8,18 @@ description = "MailCraft host services below the window: what a platform gives t
 [lints]
 workspace = true
 
+[features]
+# The seams the flow tests of the app run through (a renewal of their own): a test's build only.
+test-support = []
+
 [dependencies]
+log = { workspace = true }
+# The engine's own memory cap, which the device's budget is held against.
+mailcraft-engine = { workspace = true }
+mailcraft-model = { workspace = true }
+# The jobs the host runs: what they are told and what they bring back, and the requests (empty in the browser).
+mailcraft-net = { workspace = true }
+mailcraft-time = { workspace = true }
+
+[dev-dependencies]
+mailcraft-i18n = { workspace = true }

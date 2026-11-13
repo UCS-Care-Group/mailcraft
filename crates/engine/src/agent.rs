@@ -142,6 +142,10 @@ const SAFE: &[&str] = &[
     "mail.delete",
     "mail.archive",
     "mail.move",
+    // Snoozing is filing, like a move (#949): into the Snoozed folder, and back by itself.
+    "mail.snooze",
+    "mail.unsnooze",
+    "mail.returnDue",
     // Moving between Gmail's categories is a move, and asks what a move asks (#911): the messages
     // named (`NEEDS_IDS`).
     "mail.setGmailCategory",
@@ -385,6 +389,7 @@ const SAFE: &[&str] = &[
     "ui.closeDialog",
     "ui.theme",
     "ui.highContrast",
+    "ui.animations",
     "ui.accent",
     "ui.lightMessages",
     "ui.language",
@@ -1028,6 +1033,8 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",
+    "mail.snooze",
+    "mail.unsnooze",
     "mail.setGmailCategory",
     "mail.copy",
     "mail.archive",

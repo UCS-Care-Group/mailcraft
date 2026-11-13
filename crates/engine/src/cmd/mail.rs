@@ -8,7 +8,7 @@ use std::sync::Arc;
 use mailcraft_model::{FlagStatus, FolderKind, Id, Queued, ThreadKey};
 use serde_json::{Value, json};
 
-use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_whole};
+use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, select_after_removal, targets, targets_whole};
 use crate::list::{Row, listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
@@ -36,16 +36,16 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).reads().params(r#"{"id"?: number} (default: the selected message). An `id` or `ids` that names nothing (null, text, 0, a fraction) is refused"#),
         CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it"#),
-        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_movable),
+        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.deletePermanently", "Delete Permanently", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
             .params(IDS_WHOLE)
-            .selection(needs_movable),
-        CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS_WHOLE).selection(needs_movable),
+            .selection(needs_message),
+        CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.move", "Move to Folder", "Home › Move", move_to)
             .key("Mod+Shift+V")
             .params(MOVE)
-            .selection(needs_movable),
+            .selection(needs_message),
         CommandSpec::new("mail.copy", "Copy to Folder", "Home › Move", copy_to)
             .key("Mod+Shift+Y")
             .params(MOVE)
@@ -72,8 +72,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.dismissWarnings", "Dismiss Warnings", "Reading Pane", dismiss_warnings)
             .params(r#"{"ids"?: [number], "value"?: bool (default true; false shows the banner again)} — hides the sender-warning banner of a message (#508), until a new kind of warning appears. Never for an agent"#)
             .selection(needs_message),
-        CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS_WHOLE).selection(needs_movable),
-        CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS_WHOLE).selection(needs_movable),
+        CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS_WHOLE).selection(needs_message),
+        CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
         CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender)
             .pure()
