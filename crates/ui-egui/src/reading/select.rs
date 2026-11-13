@@ -613,6 +613,14 @@ impl PlaceState {
         self.copy_when_laid = false;
     }
 
+    /// Select text in the body between character points `anchor` and `head` (e.g. for bookmark jump).
+    pub(super) fn select_body_range(&mut self, anchor: Point, head: Point) {
+        self.selection = Some(Selection::new(Zone::Body, anchor, head));
+        self.pressed = None;
+        self.dragging = None;
+        self.extending = false;
+    }
+
     /// Do to the selection what the pointer did in the text of `zone`: a drag selects from where
     /// it went down, with Shift it moves the end of what is selected; two clicks take a word and
     /// three a paragraph as the button goes down, and a drag from there goes on by words or
@@ -810,6 +818,7 @@ pub(super) enum Action {
     Copy,
     SelectAll,
     CopyLink(Arc<str>),
+    AddBookmark,
 }
 
 /// `place` as a command's parameters.
@@ -827,6 +836,14 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
         Action::Copy => app.run("ui.copySelection", params(place)),
         Action::SelectAll => app.run("ui.selectAllInMessage", params(place)),
         Action::CopyLink(url) => app.run("ui.copyLinkAddress", json!({"url": &*url})),
+        Action::AddBookmark => {
+            let quote = app.ctx.as_ref().and_then(|ctx| app.text_selection.state(place).and_then(|s| selected_text(ctx, s))).unwrap_or_default();
+            let mid = match place {
+                Place::Window(id) => id,
+                _ => app.session.sel.focus().unwrap_or(0),
+            };
+            app.run("bookmark.add", json!({"id": mid, "quote": quote}))
+        }
     };
 }
 
@@ -946,6 +963,12 @@ pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<st
     }
     if body && item(ui, true, "Select All", "Mod+A") {
         chosen = Some(Action::SelectAll);
+    }
+    if can_copy {
+        ui.separator();
+        if item(ui, true, "Add Bookmark", "") {
+            chosen = Some(Action::AddBookmark);
+        }
     }
     if let Some(url) = link {
         ui.separator();

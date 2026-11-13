@@ -785,6 +785,11 @@ msgstr ""
 msgid "Add Account"
 msgstr "Ajouter un compte"
 
+#. command label, interface
+#: crates/engine/src/cmd/bookmark.rs crates/ui-egui/src/ribbon.rs
+msgid "Add Bookmark"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -2215,8 +2220,25 @@ msgstr "Gras"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Book-\n"
+"marks"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 msgid "Bookmark"
 msgstr "Signet"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bookmark #{n}"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bookmarks"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -6129,7 +6151,7 @@ msgid "Hold Unsent Mail"
 msgstr "Retenir le courrier non envoyé"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/bookmark.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Accueil"
@@ -6979,6 +7001,11 @@ msgstr "juil."
 msgid "July"
 msgstr "juillet"
 
+#. command label
+#: crates/engine/src/cmd/bookmark.rs
+msgid "Jump to Bookmark"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -7329,6 +7356,11 @@ msgstr "Liens"
 #, fuzzy
 msgid "List Accounts"
 msgstr "Lister les comptes"
+
+#. command label
+#: crates/engine/src/cmd/bookmark.rs
+msgid "List Bookmarks"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -9097,6 +9129,11 @@ msgstr "Aucun rendez-vous n'est ouvert dans une fenêtre distincte"
 #, fuzzy
 msgid "No appointment matches."
 msgstr "Aucun rendez-vous ne correspond."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No bookmarks"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11319,7 +11356,7 @@ msgid "Reminders Window"
 msgstr "Fenêtre des rappels"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Supprimer"
@@ -11335,6 +11372,11 @@ msgstr "Supprimer le compte"
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "Supprimer la pièce jointe"
+
+#. command label
+#: crates/engine/src/cmd/bookmark.rs
+msgid "Remove Bookmark"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -14162,7 +14204,7 @@ msgid "Tables"
 msgstr "Tableaux"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/bookmark.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Indicateurs"
@@ -20052,7 +20094,7 @@ msgid "select a conversation in conversation view first"
 msgstr "sélectionnez d'abord une conversation dans l'affichage par conversations"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/bookmark.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "sélectionnez d'abord un message"
@@ -21366,6 +21408,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "fois"
 msgstr[1] "fois"
+
+#. what a command says
+#: crates/engine/src/cmd/bookmark.rs
+msgid "too many bookmarks"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
