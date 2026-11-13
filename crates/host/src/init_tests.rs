@@ -49,3 +49,15 @@ fn connect_defaults_to_plain_sockets_and_fails_typed() {
     assert!(matches!(Fake(None).connect("127.0.0.1", port, Duration::from_secs(2)), Err(PlatformError::Io(_))));
     assert!(matches!(Fake(None).connect("", 0, Duration::from_millis(10)), Err(PlatformError::Io(_))));
 }
+
+#[test]
+fn a_silent_peer_times_a_read_out_instead_of_hanging() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let mut stream = Fake(None).connect("127.0.0.1", port, Duration::from_millis(200)).unwrap();
+    let _held = listener.accept().unwrap(); // accepted, never writes
+    let started = std::time::Instant::now();
+    let mut byte = [0u8; 1];
+    assert!(std::io::Read::read(&mut stream, &mut byte).is_err());
+    assert!(started.elapsed() < Duration::from_secs(5));
+}

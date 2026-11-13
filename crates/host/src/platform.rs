@@ -147,12 +147,18 @@ pub trait Platform {
 
     /// A connection to `host:port`, for mail. Plain sockets unless the platform has its own way
     /// (iOS, where account traffic goes by name). Encryption is the caller's: this is the bytes.
+    /// `timeout` bounds making the connection and, on the returned stream, every read and every
+    /// write: a peer that goes silent gives an error after it, never a hang.
     fn connect(&self, host: &str, port: u16, timeout: Duration) -> Result<Box<dyn Stream>, PlatformError> {
         let addresses = (host, port).to_socket_addrs().map_err(|e| PlatformError::Io(e.kind()))?;
         let mut last = std::io::ErrorKind::NotFound;
         for address in addresses.take(MOST_ADDRESSES) {
             match TcpStream::connect_timeout(&address, timeout) {
-                Ok(stream) => return Ok(Box::new(stream)),
+                Ok(stream) => {
+                    stream.set_read_timeout(Some(timeout)).map_err(|e| PlatformError::Io(e.kind()))?;
+                    stream.set_write_timeout(Some(timeout)).map_err(|e| PlatformError::Io(e.kind()))?;
+                    return Ok(Box::new(stream));
+                }
                 Err(e) => last = e.kind(),
             }
         }
