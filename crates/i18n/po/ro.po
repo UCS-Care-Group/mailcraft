@@ -17650,9 +17650,8 @@ msgstr "are două condiții de același tip, iar serverul ar accepta oricare din
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
-#, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "este un desen de un tip care nu se afișează (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -21137,6 +21136,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "este un desen de un tip care nu se afișează (SVG)"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

@@ -17430,9 +17430,8 @@ msgstr "hij heeft twee voorwaarden van dezelfde soort, en de server zou een van 
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
-#, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "het is een tekening van een soort die niet wordt weergegeven (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -20811,6 +20810,9 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
 
 #, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "het is een tekening van een soort die niet wordt weergegeven (SVG)"
+
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
 #~ msgstr "MailCraft verplaatst of verwijdert nog geen e-mail van een JMAP-account: de volgende Verzenden/ontvangen zou die terugbrengen"
 

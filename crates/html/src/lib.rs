@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
-pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
+pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture, looks_like_svg};
 pub use entities::{escape, unescape};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
@@ -592,6 +592,8 @@ pub(crate) fn is_blank(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{180e}' | '\u{200b}'..='\u{200f}' | '\u{2060}' | '\u{feff}')
 }
 
+#[cfg(test)]
+mod data_svg_tests;
 #[cfg(test)]
 mod data_tests;
 #[cfg(test)]

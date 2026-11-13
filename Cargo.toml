@@ -135,6 +135,10 @@ ed25519-dalek = { version = "2", default-features = false }
 # (which brings BMP, the pictures inside one) for a sender's picture that is a web site's icon
 # alone: everything else names the kinds it decodes (`reading::images::KINDS`).
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico"] }
+# SVG drawings: the pictures of mail that are SVG (#565, `reading::svg`) and the app icon
+# (`cargo xtask icon`). Pure Rust (usvg, tiny-skia). None of its features: no text, so no fonts are
+# looked for or read, and no decoders of the pictures a drawing may hold, which are never loaded.
+resvg = { version = "0.45", default-features = false }
 
 # ui
 egui = "0.37"

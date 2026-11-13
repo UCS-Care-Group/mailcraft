@@ -32,7 +32,7 @@ pub(crate) fn b64(bytes: &[u8]) -> String {
 }
 
 /// The pictures of `html`: the address kept, and the bytes when it is shown.
-fn pictures(html: &str) -> Vec<(String, Option<Picture>)> {
+pub(crate) fn pictures(html: &str) -> Vec<(String, Option<Picture>)> {
     images(&parse(html))
         .into_iter()
         .filter_map(|b| match &b.kind {
@@ -42,7 +42,7 @@ fn pictures(html: &str) -> Vec<(String, Option<Picture>)> {
         .collect()
 }
 
-fn img(src: &str) -> String {
+pub(crate) fn img(src: &str) -> String {
     format!("<p>Before</p><img src=\"{src}\" alt=\"Chart\"><p>After</p>")
 }
 
@@ -105,8 +105,8 @@ fn what_is_not_a_picture_of_ours_is_a_placeholder() {
         format!("data:image/png;base64,{}=AAAA", b64(&PNG)),
         // Not base64 at all.
         "data:image/png,%89PNG".to_string(),
-        // A type that isn't a picture of ours, whatever the bytes.
-        format!("data:image/svg+xml;base64,{}", b64(b"<svg xmlns='http://www.w3.org/2000/svg'><script>x</script></svg>")),
+        // A type that isn't a picture of ours, whatever the bytes (an SVG is one, by its own:
+        // `data_svg_tests.rs`, #565).
         format!("data:text/html;base64,{}", b64(&PNG)),
         format!("data:;base64,{}", b64(&PNG)),
         format!("data:application/octet-stream;base64,{}", b64(&PNG)),

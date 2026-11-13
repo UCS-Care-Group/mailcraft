@@ -16642,9 +16642,8 @@ msgstr "ha due condizioni dello stesso tipo, e il server accetterebbe l'una o l'
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
-#, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "è un disegno di un tipo che non viene mostrato (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -19890,6 +19889,9 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
 
 #, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "è un disegno di un tipo che non viene mostrato (SVG)"
+
 #~ msgid "The server has {count} folders; only the first {max} were read"
 #~ msgstr "Il server ha {count} cartelle; sono state lette solo le prime {max}"
 
