@@ -63,6 +63,20 @@ fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &Account, &EwsSer
     Ok((a, signer, server))
 }
 
+/// The stretch a picked public calendar is read for (#1263): a few months back and a year ahead of
+/// `now`, with the stretch on screen (`from..to`) added when both together stay short enough for
+/// one calendar view. Otherwise the stretch on screen alone, so a month far away is still read
+/// when the owner looks at it and presses Send/Receive.
+pub(crate) fn public_stretch(now: i64, from: i64, to: i64) -> (i64, i64) {
+    const DAY: i64 = 86_400;
+    let wide = (
+        now.saturating_sub(mailcraft_model::PUBLIC_DAYS_BEHIND.saturating_mul(DAY)),
+        now.saturating_add(mailcraft_model::PUBLIC_DAYS_AHEAD.saturating_mul(DAY)),
+    );
+    let both = (from.min(wide.0), to.max(wide.1));
+    if both.1.saturating_sub(both.0) <= mailcraft_model::MAX_PUBLIC_STRETCH_DAYS.saturating_mul(DAY) { both } else { (from, to) }
+}
+
 /// What the directory of `account` should read: its calendars in `from..to`, its address books and
 /// to-do lists whole, and what was changed here since the server last said.
 pub fn ews_directory_request(
@@ -113,6 +127,7 @@ pub fn ews_directory_request(
         let public = a.opened_public.iter().take(mailcraft_model::MAX_PUBLIC_FOLDERS).cloned().collect();
         (public, s.public_folders.get(&account).is_some_and(|listing| listing.asked))
     };
+    let (public_from, public_to) = if public.is_empty() { (0, 0) } else { public_stretch(s.now(), from, to) };
     let changes = super::remote::event_upload(s, account).ok().filter(|upload| !upload.ops.is_empty());
     let contact_changes = super::remote::contact_upload(s, account).filter(|upload| !upload.ops.is_empty());
     let task_changes = super::tasks_remote::task_upload(&s.mailbox, account).ok().filter(|upload| !upload.ops.is_empty());
@@ -131,6 +146,8 @@ pub fn ews_directory_request(
         shared,
         public,
         browse_public,
+        public_from,
+        public_to,
         changes,
         contact_changes,
         task_changes,

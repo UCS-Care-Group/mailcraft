@@ -181,6 +181,12 @@ pub struct EwsDirectoryRequest {
     /// List the calendars and address books of the public folders, for the owner to pick from.
     #[serde(skip_serializing_if = "is_false")]
     pub browse_public: bool,
+    /// The stretch the picked public calendars are read for (Unix seconds, UTC): wider than
+    /// `from..to`, around today (#1263). Zero: `from..to`.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub public_from: i64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub public_to: i64,
     /// The calendar changes made here, first.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub changes: Option<EventsUpload>,
@@ -314,6 +320,8 @@ impl std::fmt::Debug for EwsDirectoryRequest {
             .field("shared", &self.shared.len())
             .field("public", &self.public.len())
             .field("browse_public", &self.browse_public)
+            .field("public_from", &self.public_from)
+            .field("public_to", &self.public_to)
             .field("changes", &self.changes.as_ref().map(|upload| upload.ops.len()))
             .field("contact_changes", &self.contact_changes.as_ref().map(|upload| upload.ops.len()))
             .field("task_changes", &self.task_changes.as_ref().map(|upload| upload.ops.len()))

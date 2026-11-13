@@ -244,3 +244,22 @@ fn a_public_folders_name_is_one_line_and_capped() {
     let long = path_name(&"ä".repeat(500), "x");
     assert_eq!(long.chars().count(), mailcraft_model::MAX_PUBLIC_NAME);
 }
+
+#[test]
+fn a_public_calendar_is_read_for_its_own_stretch_and_the_accounts_for_the_one_on_screen() {
+    let server = PublicServer::new();
+    let public = vec![picked("pf-holidays", "Team / Holidays", PublicFolderKind::Calendar)];
+    let (public_from, public_to) = (1_786_000_000, 1_826_000_000);
+    let result = run(&server, &EwsDirectoryRequest { public, public_from, public_to, from: 1_794_000_000, to: 1_796_000_000, ..request() });
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let events = result.events.iter().find(|d| d.calendar == "pf-holidays").unwrap();
+    assert_eq!((events.from, events.to), (public_from, public_to));
+    let views: Vec<String> = server.asked().into_iter().filter(|body| body.contains("CalendarView")).collect();
+    let start = |at: i64| format!("StartDate=\"{}\"", mailcraft_time::format_iso_utc(at));
+    assert!(views.iter().any(|body| body.contains("pf-holidays") && body.contains(&start(public_from))), "{views:?}");
+    assert!(
+        views.iter().filter(|body| !body.contains("pf-holidays")).all(|body| body.contains(&start(1_794_000_000))),
+        "the account's own calendar is read for the stretch on screen: {views:?}"
+    );
+    nothing_written(&server);
+}

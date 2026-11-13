@@ -58,8 +58,8 @@ use serde::{Deserialize, Serialize};
 pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_ADDRESS_BOOKS, MAX_OPENED_CALENDARS, MAX_PUBLIC_FOLDERS,
-    MAX_PUBLIC_LISTING, MAX_PUBLIC_NAME, Occurrence, OnlineMeeting, OnlineProvider, OpenedAddressBook, OpenedCalendar, Proposal, PublicFolder,
-    PublicFolderKind, Recurrence, Response, ResponseOptions, Rights, ShowAs,
+    MAX_PUBLIC_LISTING, MAX_PUBLIC_NAME, MAX_PUBLIC_STRETCH_DAYS, Occurrence, OnlineMeeting, OnlineProvider, OpenedAddressBook, OpenedCalendar,
+    PUBLIC_DAYS_AHEAD, PUBLIC_DAYS_BEHIND, Proposal, PublicFolder, PublicFolderKind, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactBook, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use dav::DavServer;

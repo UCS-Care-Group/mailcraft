@@ -163,6 +163,16 @@ pub const MAX_PUBLIC_FOLDERS: usize = 20;
 pub const MAX_PUBLIC_LISTING: usize = 300;
 /// The longest name of a public folder kept, with the folders it lies in.
 pub const MAX_PUBLIC_NAME: usize = 240;
+/// How far back from today a public calendar is read at each Send/Receive, in days: a team's
+/// holidays are looked back at, and the stretch on screen alone would leave them out until the
+/// owner pressed Send/Receive with that month in view.
+pub const PUBLIC_DAYS_BEHIND: i64 = 92;
+/// How far ahead of today a public calendar is read at each Send/Receive, in days.
+pub const PUBLIC_DAYS_AHEAD: i64 = 366;
+/// The longest stretch a public calendar is read for at once, in days: the stretch on screen is
+/// added to the one around today only when both together are no longer than this (Exchange
+/// refuses a calendar view of more than two years).
+pub const MAX_PUBLIC_STRETCH_DAYS: i64 = 700;
 
 /// A shared mailbox open under an account whose calendar the account's server lists among the
 /// account's own calendars too (#70: a sharing invitation accepted in Outlook puts it there, under

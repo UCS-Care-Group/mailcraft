@@ -191,3 +191,30 @@ fn an_account_keeps_only_public_folders_that_can_be() {
     let read: Account = serde_json::from_value(file).unwrap();
     assert_eq!(read.opened_public.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), vec!["pf-a"]);
 }
+
+#[test]
+fn a_public_calendar_is_read_months_back_and_a_year_ahead_with_the_stretch_on_screen() {
+    use crate::cmd::ews_directory::public_stretch;
+    const DAY: i64 = 86_400;
+    let now = 1_794_528_000; // 13 November 2026
+    // A month on screen near today: the stretch around today, with the month in it.
+    let (from, to) = public_stretch(now, now - 30 * DAY, now + 20 * DAY);
+    assert_eq!((from, to), (now - 92 * DAY, now + 366 * DAY));
+    // A month on screen a little further back than three months is added to it.
+    let (from, to) = public_stretch(now, now - 200 * DAY, now - 160 * DAY);
+    assert_eq!((from, to), (now - 200 * DAY, now + 366 * DAY));
+    // A month years away is read alone, so a calendar view is never too long for the server.
+    let (from, to) = public_stretch(now, now - 1_200 * DAY, now - 1_160 * DAY);
+    assert_eq!((from, to), (now - 1_200 * DAY, now - 1_160 * DAY));
+
+    // Only a request with a public folder picked carries one.
+    let (mut s, account) = session();
+    let request = crate::cmd::ews_directory::ews_directory_request(&s, account, Some(now), Some(now + DAY), false).unwrap();
+    assert_eq!((request.public_from, request.public_to), (0, 0));
+    s.run("publicFolders.list", &json!({"account": account})).unwrap();
+    crate::cmd::ews_directory::apply_ews_directory(&mut s, &result(account, Some(listing()), false)).unwrap();
+    s.run("publicFolders.open", &json!({"account": account, "id": "pf-holidays"})).unwrap();
+    let request = crate::cmd::ews_directory::ews_directory_request(&s, account, Some(now), Some(now + DAY), false).unwrap();
+    assert!(request.public_from < request.from && request.public_to > request.to, "{request:?}");
+    assert_eq!((request.from, request.to), (now, now + DAY), "the account's own calendar keeps the stretch on screen");
+}

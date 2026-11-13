@@ -22,7 +22,10 @@ Send/Receive walks the public folder tree from its top one level at a time (`Fin
 `Shallow`, within caps on the folders, the depth and the requests) and keeps the folders whose
 class is a calendar or an address book, with the names of the folders they lie in. Those the owner
 ticks are read at each Send/Receive beside the account's own, read-only, listed under Public
-Folders; nothing in them is written. The requests carry no `X-AnchorMailbox` or
+Folders; nothing in them is written. A public calendar is read from three months back to a year
+ahead, with the stretch on screen added when both together stay under two years (a month further
+away is read alone, when it is on screen at a Send/Receive); the account's own calendar is read for
+the stretch on screen. The requests carry no `X-AnchorMailbox` or
 `X-PublicFolderMailbox` routing headers: an organisation's own Exchange Server sends them on to the
 public folder mailbox that holds the folder, and Exchange Online, which wants them, is never
 reached through Exchange Web Services with a password.
