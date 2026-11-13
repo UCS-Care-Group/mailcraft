@@ -87,6 +87,7 @@ detekt {
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.browser)
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)

@@ -6,6 +6,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:name=".MailCraftApplication"
@@ -25,5 +26,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The provider's page sends the owner back to the app's own scheme (RFC 8252 7.1). The
+             scheme is the reverse of a domain the project owns; the path is checked in the app
+             and again by the Rust side, to the letter. Nothing else is registered for it. -->
+        <activity
+            android:name=".RedirectActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="work.mailcraft.android" />
+            </intent-filter>
+        </activity>
+
+        <!-- Attachments are opened by other programs through one-off read-only grants on files
+             in the cache's attachments folder, and the provider is not exported. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

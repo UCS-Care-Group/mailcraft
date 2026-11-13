@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.content.Context
 import java.util.TimeZone
 import uniffi.mailcraft_mobile.HostException
 import uniffi.mailcraft_mobile.NetworkKind
@@ -11,18 +12,30 @@ import uniffi.mailcraft_mobile.RedirectKind
 import uniffi.mailcraft_mobile.SecretStore
 
 /**
- * What the app gives the Rust core. Only the clock is real in this skeleton: there is no
- * sign-in, no notification and no credential store yet, and each of those says so as
- * [HostException.Unsupported] (which the core turns into its own words), never as a crash.
+ * What the app gives the Rust core: the Keystore-sealed credential store, the sign-in page and its
+ * redirect, files, the clock and time zone, the memory budget and the network. Every entry is
+ * [guarded]: whatever the system throws is the binding's own [HostException], never an exception
+ * through UniFFI. Showing and scheduling notifications are for the notification slice and say
+ * [HostException.Unsupported] until then (the channels they will use exist already).
  */
-internal class AndroidPlatform : Platform {
-    override fun secrets(): SecretStore? = null
+internal class AndroidPlatform(
+    context: Context,
+    private val handback: SignInHandback,
+    foreground: () -> android.app.Activity?,
+) : Platform {
+    private val device = DeviceState(context)
+    private val secrets: SecretStore = SecretFiles(
+        java.io.File(context.noBackupFilesDir, "secrets"),
+        AesGcmSealer { KeystoreKey().get() },
+    )
+    private val page = SignInPage(context, handback, foreground)
+    private val files = OpenedFiles(context)
 
-    override fun redirect(): RedirectKind = RedirectKind.CustomScheme(SCHEME)
+    override fun secrets(): SecretStore? = secrets
 
-    override fun openSignInPage(url: String) {
-        throw HostException.Unsupported()
-    }
+    override fun redirect(): RedirectKind = RedirectKind.CustomScheme(Redirect.SCHEME)
+
+    override fun openSignInPage(url: String) = guarded { page.open(url) }
 
     override fun notify(notification: NotificationRecord) {
         throw HostException.Unsupported()
@@ -32,27 +45,17 @@ internal class AndroidPlatform : Platform {
         throw HostException.Unsupported()
     }
 
-    override fun openFile(name: String, bytes: ByteArray) {
-        throw HostException.Unsupported()
-    }
+    override fun openFile(name: String, bytes: ByteArray) = guarded { files.open(name, bytes) }
 
     override fun now(): Long = System.currentTimeMillis() / MILLIS_PER_SECOND
 
-    override fun utcOffsetMinutes(at: Long): Int {
-        val millis = at.coerceIn(-MAX_SECONDS, MAX_SECONDS) * MILLIS_PER_SECOND
-        return TimeZone.getDefault().getOffset(millis) / MILLIS_PER_MINUTE
-    }
+    override fun utcOffsetMinutes(at: Long): Int = guarded { utcOffsetMinutes(TimeZone.getDefault(), at) }
 
-    override fun memoryBudget(): ULong? = null
+    override fun memoryBudget(): ULong? = guarded { device.memoryBudget() }
 
-    override fun network(): NetworkKind = NetworkKind.Unknown
+    override fun network(): NetworkKind = guarded { device.network() }
 
     private companion object {
-        const val SCHEME = "work.mailcraft.android"
         const val MILLIS_PER_SECOND = 1000L
-        const val MILLIS_PER_MINUTE = 60_000
-
-        // About the year 9999 either way, so the multiplication cannot overflow.
-        const val MAX_SECONDS = 253_402_300_799L
     }
 }

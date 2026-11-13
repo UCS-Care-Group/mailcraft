@@ -7,6 +7,7 @@
 mod assets;
 mod docs_log;
 mod i18n;
+mod i18n_kotlin;
 mod ico;
 mod icon;
 mod layers;
