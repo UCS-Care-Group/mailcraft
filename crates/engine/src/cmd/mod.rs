@@ -6,6 +6,8 @@ pub mod account;
 #[cfg(test)]
 mod account_color_tests;
 #[cfg(test)]
+mod account_name_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -71,6 +73,7 @@ mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
+pub mod jmap_up;
 pub mod junk;
 #[cfg(test)]
 mod junk_tests;
@@ -128,6 +131,13 @@ pub mod shared;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;
+pub mod snooze;
+#[cfg(test)]
+mod snooze_review_tests;
+#[cfg(test)]
+mod snooze_servers_tests;
+#[cfg(test)]
+mod snooze_tests;
 pub mod sync_progress;
 pub mod tasks;
 pub mod tasks_remote;
@@ -163,6 +173,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(snooze::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
@@ -222,15 +233,6 @@ pub(crate) fn done() -> CmdResult {
 /// Enabled only with a message selected.
 pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
     if s.sel.messages.is_empty() { Some("select a message first") } else { None }
-}
-
-/// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
-/// which stays where it is until moves and deletions go up (M6).
-/// A mailbox without a JMAP account isn't walked: this runs every frame for the ribbon and menus.
-pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
-    needs_message(s).or_else(|| {
-        (s.mailbox.has_jmap_account() && s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id))).then_some(mailcraft_model::NOT_MOVING_YET)
-    })
 }
 
 /// Enabled only while a message is being written.

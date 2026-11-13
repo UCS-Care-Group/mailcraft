@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-10-28 · **Last updated:** 2026-10-28 · **Change:** major
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
-such an account in the browser build. The desktop app and the command line have no way to reach a
+such an account in the browser build, and takes what you change in its mail up to its server. The desktop app and the command line have no way to reach a
 JMAP server yet: the desktop app leaves such an account out of Send/Receive, and `mailcraft-cli
 sync` refuses it.
 
@@ -21,10 +21,34 @@ sync` refuses it.
   and mail gone from a mailbox small enough to be read whole in a run (no more messages than
   Messages to download per folder, nor than the server takes in one request).
 
-Not yet: nothing you change goes up to the server and nothing is sent from such an account. Moving or
-deleting a message the server has, renaming, moving or deleting one of its mailboxes, and emptying
-a folder that holds the server's mail, are refused with the reason until changes go up, since the
-next Send/Receive would bring them back.
+- **What you change goes up** (#1074): a read mark, a flag, the answered and forwarded marks, a
+  move between two of the server's mailboxes (Delete is a move into its Deleted Items) and a
+  deletion for good. They go with the next Send/Receive, before it reads, and one starts by itself
+  a few seconds after the change once the password or token is at hand. Only the marks you changed
+  are touched; the server's other keywords stay. A change the server refuses is put back to how
+  the server has it and said once, in the status bar and in Send/Receive Progress, and so is a
+  change to a message the server no longer has.
+- **A flag is the server's `$flagged` and nothing else.** A JMAP server keeps no due date and no
+  "complete": a follow-up's due date stays on this computer, and one marked complete is not flagged
+  there. So whether a flag was changed here is told by that one bit. A flag you didn't change since
+  the last Send/Receive follows the server: cleared on another device, it is cleared here with its
+  due date; flagged again there after you marked it complete, it is flagged here. One you changed
+  here goes up, whatever the server said meanwhile. Changed on both sides between two runs, the two
+  can only have gone the same way, and the due date or the "complete" kept here stays.
+- **A move takes the message out of the mailbox it was in and puts it into the other**, and says
+  nothing of any other mailbox (`mailboxIds/<from>` and `mailboxIds/<to>`, never the whole of
+  `mailboxIds`). That way it doesn't undo what another program did to the message meanwhile, and
+  never takes it out of a mailbox this computer didn't know it was in (a server may keep a message
+  in several). The other side of it: a message another program moved on in the meantime, or one
+  that lay in a second mailbox already, ends up in both. The next Send/Receive that reads those
+  mailboxes lists it where the server has it, and it is shown there (in one of them, when the
+  server keeps it in two).
+
+Not yet: nothing is sent from such an account, and what you change in its folders doesn't go up.
+Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the
+server's mail, and moving the server's mail into a folder the server hasn't got (one made here,
+another account's) are refused with the reason, since the next Send/Receive would bring them back.
+What you write in a draft the server has stays on this computer.
 
 ## The password, or the access token
 
