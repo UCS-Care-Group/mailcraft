@@ -10,7 +10,7 @@
 //! read or write once the flag is set.
 
 use std::io::{ErrorKind, Read, Write};
-use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -209,8 +209,7 @@ fn bare(host: &str) -> &str {
 
 /// Whether `host` is this machine: `localhost`, or a loopback address (`127.0.0.1`, `::1`).
 pub(crate) fn is_loopback(host: &str) -> bool {
-    let host = bare(host);
-    host.trim_end_matches('.').eq_ignore_ascii_case("localhost") || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+    mailcraft_model::is_loopback_host(host)
 }
 
 /// The server's host, once it is known that connecting won't expose the password.
@@ -219,9 +218,11 @@ pub(crate) fn checked_host(server: &Server) -> Result<String, NetError> {
     if host.is_empty() || host.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(NetError::Config(said!("the account's server has no usable name")));
     }
-    if server.security == Security::None && !is_loopback(host) {
+    // Encrypt or refuse: no encryption is for a server on this computer alone (a mail bridge, a
+    // test), whether or not a password would go (#836).
+    if server.plain_over_the_network() {
         return Err(NetError::Config(said!(
-            "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS",
+            "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS",
             host
         )));
     }

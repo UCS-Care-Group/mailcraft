@@ -4647,6 +4647,12 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "Per un server di posta gestito dalla tua organizzazione. MailCraft cerca il server partendo dal tuo indirizzo, oppure puoi scriverne l'indirizzo in Impostazioni server. Non viene inviato nulla finché non premi Connetti."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "Per un relay che accetta posta senza password: la tua non gli viene mai inviata."
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -7481,6 +7487,12 @@ msgstr "Le mie attività"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "La mia organizzazione deve prima approvare MailCraft: cosa fare"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "My outgoing server needs no sign-in"
+msgstr "Il mio server in uscita non richiede l'accesso"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -7957,6 +7969,12 @@ msgid "No due date"
 msgstr "Nessuna scadenza"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
+msgstr "Nessuna crittografia è possibile solo per un server su questo computer, come un bridge di posta. MailCraft non invia mai la posta né la password in chiaro sulla rete: scegli TLS o STARTTLS."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -8212,6 +8230,18 @@ msgstr "Non connesso"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Non connesso: il resto di questo messaggio è sul server"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
+msgstr "Non crittografato: solo per un server su questo computer, come un bridge di posta."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not encrypted: only a server on this computer can be reached this way."
+msgstr "Non crittografato: in questo modo si può raggiungere solo un server su questo computer."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -18718,8 +18748,8 @@ msgstr "{host} appartiene al dominio del tuo indirizzo, ma non è il server Auto
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
-msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
-msgstr "{host} è impostato senza crittografia, il che mostrerebbe la password a chiunque sulla rete; scegliere TLS o STARTTLS"
+msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} è impostato senza crittografia, il che mostrerebbe la posta e la password a chiunque sulla rete; scegliere TLS o STARTTLS"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -19888,6 +19918,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+#~ msgstr "{host} è impostato senza crittografia, il che mostrerebbe la password a chiunque sulla rete; scegliere TLS o STARTTLS"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

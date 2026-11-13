@@ -352,6 +352,12 @@ impl ServerFields {
         Some(Value::Object(m))
     }
 
+    /// Whether it is set to use no encryption for a server that isn't on this computer, which is
+    /// never connected to ([`Server::plain_over_the_network`]).
+    fn plain_over_the_network(&self) -> bool {
+        self.server().is_some_and(|server| server.plain_over_the_network())
+    }
+
     /// The server as an account keeps it; `None` when no host was given.
     fn server(&self) -> Option<Server> {
         let host = self.host.trim();
@@ -465,6 +471,9 @@ pub struct AccountSetup {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// The outgoing server takes mail without a sign-in (a relay, #836): it is never shown the
+    /// password. Only for an account that signs in with one.
+    outgoing_without_sign_in: bool,
     /// The servers are shown on the password page.
     settings_open: bool,
     /// The servers are a guess made from the domain: the page says so.
@@ -616,6 +625,7 @@ impl AccountSetup {
             username: String::new(),
             incoming: ServerFields::default(),
             outgoing: ServerFields::default(),
+            outgoing_without_sign_in: false,
             settings_open: false,
             guessed: false,
             found: None,
@@ -704,6 +714,7 @@ impl AccountSetup {
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
+        w.outgoing_without_sign_in = a.outgoing_without_sign_in;
         if let Some(oauth) = &a.oauth {
             w.client_id = line(&oauth.client_id, 200);
             w.tenant = line(&oauth.tenant, 64);
@@ -800,6 +811,9 @@ impl AccountSetup {
             }
             None => {
                 m.insert("auth".into(), json!("password"));
+                if self.outgoing_without_sign_in && self.outgoing.value().is_some() {
+                    m.insert("outgoingWithoutSignIn".into(), json!(true));
+                }
             }
         }
         Some(("account.add", Value::Object(m)))
@@ -846,6 +860,7 @@ impl AccountSetup {
             incoming: self.incoming.server(),
             outgoing: self.outgoing.server(),
             username: self.login(email),
+            outgoing_without_sign_in: self.oauth.is_none() && self.outgoing_without_sign_in && self.outgoing.value().is_some(),
             oauth: self.oauth.clone(),
             ..Default::default()
         })
@@ -871,6 +886,8 @@ impl AccountSetup {
         if self.oauth.is_some() {
             m.insert("clientId".into(), json!(self.client_id.trim()));
             m.insert("tenant".into(), json!(self.tenant.trim()));
+        } else if self.outgoing.value().is_some() {
+            m.insert("outgoingWithoutSignIn".into(), json!(self.outgoing_without_sign_in));
         }
         m
     }
@@ -891,6 +908,13 @@ impl AccountSetup {
         }
         if incoming.port().is_none() || outgoing.port().is_none() {
             return Some(tl!("A port is a number from 1 to 65535").to_string());
+        }
+        // Encrypt or refuse (#836): no encryption is for a server on this computer alone.
+        if incoming.plain_over_the_network() || outgoing.plain_over_the_network() {
+            return Some(
+                tl!("No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS.")
+                    .to_string(),
+            );
         }
         if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
             return Some(
@@ -2445,6 +2469,12 @@ impl AccountSetup {
         field(ui, pass, "username", tl!("User name"), &mut self.username, tl!("Usually the whole address"), LINE);
         server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
         server_row(ui, pass, tl!("Outgoing mail (SMTP)"), "outgoing", &mut self.outgoing, "smtp.example.org", (465, 587));
+        // A relay that takes mail without a sign-in (#836). A token always goes, so an account
+        // that signs in on the provider's page has no such choice.
+        if self.oauth.is_none() && !self.outgoing.host.trim().is_empty() {
+            ui.checkbox(&mut self.outgoing_without_sign_in, tl!("My outgoing server needs no sign-in"))
+                .on_hover_text(tl!("For a relay that takes mail without a password: it is never sent yours."));
+        }
     }
 }
 
@@ -2529,8 +2559,10 @@ fn server_row(ui: &mut Ui, pass: &mut Pass, label: &str, key: &'static str, serv
     caption(ui, label, &pass.t);
     ui.horizontal(|ui| {
         let mut choices = vec![(Security::Tls, "TLS"), (Security::StartTls, "STARTTLS")];
-        // An account that came with an unencrypted server (one on this computer) shows it.
-        if server.security == Security::None {
+        // No encryption is offered for a server on this computer alone (a mail bridge on
+        // 127.0.0.1, #836), and stays in view while it is chosen, so that what is wrong with it
+        // can be seen when the name changes to one on the network.
+        if server.security == Security::None || mailcraft_model::is_loopback_host(&server.host) {
             choices.push((Security::None, tl!("None")));
         }
         let gap = ui.spacing().item_spacing.x;
@@ -2560,6 +2592,15 @@ fn server_row(ui: &mut Ui, pass: &mut Pass, label: &str, key: &'static str, serv
         }
         encryption(ui, key, &mut server.security, &choices, resp.rect.height(), &pass.t);
     });
+    // Said for as long as it is chosen: nothing is encrypted on this connection.
+    if server.security == Security::None {
+        let (text, color) = if server.plain_over_the_network() {
+            (tl!("Not encrypted: only a server on this computer can be reached this way."), pass.t.red)
+        } else {
+            (tl!("Not encrypted: for a server on this computer only, such as a mail bridge."), pass.t.text_dim)
+        };
+        note(ui, text, color);
+    }
 }
 
 /// How the connection to a server is encrypted: a choice as buttons joined in a row, as tall as
@@ -2728,6 +2769,8 @@ mod tests {
     mod help;
     /// Explicit confirmation of personal Outlook.com custom-domain aliases.
     mod legacy_alias;
+    /// No encryption for a server on this computer alone, and a relay without a sign-in (#836).
+    mod plain_servers;
     /// The password's eye (#438).
     mod reveal;
     /// An address at a domain nobody here knows (#761).

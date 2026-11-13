@@ -260,7 +260,9 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   in that set and below the mailbox's UIDNEXT, at most twice its EXISTS plus 1,000 distinct ones;
   more is the command's error and nothing of it is taken in.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
-  over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
+  over TLS (below). An outgoing server the owner marked as needing no sign-in (a relay, #836) is
+  never shown the password, even when it offers a way to sign in; an account that signs in on its
+  provider's page has no such choice. OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
@@ -278,7 +280,15 @@ Watches or changes traffic between MailCraft and its servers.
   the system's certificate store is read and the chain checked against it, and a server that
   leaves out its intermediate is refused. There is no built-in root set to fall back on: where the
   system's verifier can't be set up, every secure connection is refused. An unencrypted connection
-  is allowed only to loopback, for tests.
+  is allowed only to a server on this computer (`localhost`, `127.0.0.0/8`, `::1`): a mail bridge
+  such as a mail bridge, or a test. Server settings offer None for such a server
+  alone and never pick it by themselves; while it is chosen the page says the connection is not
+  encrypted, and a server on the network set to None is refused by the page, by `account.add` and
+  `account.edit` (so for the CLI and agents too) and again before any connection
+  (`Server::plain_over_the_network`, `crates/net/src/transport.rs`), whose name is then only
+  connected to at a loopback address it resolves to. That holds whether or not a password would
+  go: an outgoing relay that needs no sign-in still carries the owner's mail, so one on the network
+  is reached with TLS or STARTTLS like any other server (#836).
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
 - **Provider discovery** asks a DNS-over-HTTPS resolver about the domain alone, never the mailbox
@@ -569,7 +579,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | Principle | How |
 |---|---|
 | Least privilege | Agents get only what the owner grants (Safe, Owner, Never); the Microsoft permissions are only those used, optional ones asked for by themselves; settings, logs and kept pictures are for the owner alone |
-| Fail-safe defaults | Pictures from the web off; an unencrypted connection only to loopback; a missing STARTTLS is an error; an update that doesn't verify is not kept |
+| Fail-safe defaults | Pictures from the web off; an unencrypted connection only to this computer (a mail bridge, a test), whether or not a password goes; a missing STARTTLS is an error; an update that doesn't verify is not kept |
 | Economy of mechanism | No web view, no script or CSS engine: HTML becomes display blocks from a short whitelist (`crates/html/src/style.rs`) |
 | Complete mediation | Every action is a command through one registry, whichever surface asked for it; every picture through one fetcher, checked on every redirect |
 | Separation | The engine does no I/O with servers; the host does it on a background thread and the engine only applies results |

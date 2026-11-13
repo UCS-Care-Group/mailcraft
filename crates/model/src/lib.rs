@@ -70,7 +70,8 @@ pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_NOT_DELETED_YET,
     FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_RULES,
     MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider,
-    ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, preset_category_color,
+    ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, is_loopback_host,
+    preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -184,6 +185,8 @@ mod mailbox_tests;
 mod original_tests;
 #[cfg(test)]
 mod pictures_tests;
+#[cfg(test)]
+mod plain_servers_tests;
 #[cfg(test)]
 mod pop_tests;
 #[cfg(test)]

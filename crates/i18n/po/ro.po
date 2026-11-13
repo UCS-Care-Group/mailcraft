@@ -4891,6 +4891,11 @@ msgid "For a mail server your organisation runs itself. MailCraft looks for the 
 msgstr "Pentru un server de e-mail administrat chiar de organizația dvs. MailCraft caută serverul după adresa dvs. sau puteți scrie adresa lui în Setări server. Nu se trimite nimic până nu apăsați Conectare."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
@@ -7906,6 +7911,11 @@ msgstr "Sarcinile mele"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Organizația mea trebuie întâi să aprobe MailCraft: ce trebuie făcut"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "My outgoing server needs no sign-in"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -8395,6 +8405,11 @@ msgid "No due date"
 msgstr "Fără dată scadentă"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -8662,6 +8677,16 @@ msgstr "Neconectat"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Neconectat: restul acestui mesaj este pe server"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Not encrypted: only a server on this computer can be reached this way."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -19830,8 +19855,8 @@ msgstr "{host} este în domeniul adresei dvs., dar nu este serverul Autodiscover
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
-msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
-msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta parola oricui din rețea; alegeți TLS sau STARTTLS"
+msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta e-mailul și parola oricui din rețea; alegeți TLS sau STARTTLS"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -21137,6 +21162,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+#~ msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta parola oricui din rețea; alegeți TLS sau STARTTLS"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

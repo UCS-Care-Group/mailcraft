@@ -65,8 +65,10 @@ fn shown(text: &str) -> String {
 }
 
 /// Connect to the account's outgoing server, encrypt as it asks, and sign in when there is a
-/// user name, a password, and a server that offers a way. An account that signs in with OAuth
-/// always does, with `secret` as its access token (XOAUTH2).
+/// user name, a password, and a server that offers a way, unless the owner said the server takes
+/// mail without one ([`Account::outgoing_without_sign_in`], a relay): it is then never shown the
+/// password. An account that signs in with OAuth always does, with `secret` as its access token
+/// (XOAUTH2).
 pub(crate) fn open_smtp<'a>(account: &Account, secret: &str) -> Result<Smtp<Stream<'a>>, NetError> {
     open_smtp_with(account, secret, &Patience::default(), None)
 }
@@ -107,7 +109,7 @@ pub(crate) fn open_smtp_with<'a>(
     if account.oauth.is_some() {
         // A server that doesn't take tokens is an error, not a reason to go on unsigned.
         smtp.auth_xoauth2(user, secret)?;
-    } else if !user.is_empty() && !secret.is_empty() && (offered.auth_plain || offered.auth_login) {
+    } else if !account.outgoing_without_sign_in && !user.is_empty() && !secret.is_empty() && (offered.auth_plain || offered.auth_login) {
         smtp.auth(user, secret)?;
     }
     Ok(smtp)

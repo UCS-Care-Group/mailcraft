@@ -392,6 +392,8 @@ pub(crate) struct SmtpWorld {
     pub(crate) password: String,
     /// Offer AUTH PLAIN and LOGIN, and insist on a sign-in before taking mail.
     pub(crate) auth: bool,
+    /// With `auth`: offer a sign-in and take mail without one all the same (a relay).
+    pub(crate) auth_optional: bool,
     /// The access token that signs `user` in (XOAUTH2, insisted on likewise); empty for a server that takes none.
     pub(crate) token: String,
     /// Say STARTTLS is on offer (it isn't: what follows the go-ahead is no handshake).
@@ -1020,7 +1022,7 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
                 continue;
             }
         } else if upper.starts_with("MAIL FROM:") {
-            if (world.auth || !world.token.is_empty()) && !signed_in {
+            if ((world.auth && !world.auth_optional) || !world.token.is_empty()) && !signed_in {
                 "530 5.7.0 sign in first".to_string()
             } else {
                 from = path(&line);

@@ -103,6 +103,8 @@ pub mod picture;
 #[cfg(test)]
 mod picture_tests;
 #[cfg(test)]
+mod plain_servers_tests;
+#[cfg(test)]
 mod protected_moves_tests;
 #[cfg(test)]
 mod quote_tests;
