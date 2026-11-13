@@ -1133,6 +1133,12 @@ msgstr "Altijd afbeeldingen downloaden van {sender}"
 msgid "Always from @{domain}"
 msgstr "Altijd van @{domain}"
 
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Always play"
+msgstr "Altijd afspelen"
+
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
@@ -1223,6 +1229,12 @@ msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
 msgstr[0] "En nog {n} dergelijke koppeling."
 msgstr[1] "En nog {n} dergelijke koppelingen."
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Animations"
+msgstr "Animaties"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -7872,6 +7884,12 @@ msgstr "Afzender nooit blokkeren"
 #, fuzzy
 msgid "Never Block Sender's Domain"
 msgstr "Domein van de afzender nooit blokkeren"
+
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Never play"
+msgstr "Nooit afspelen"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -15779,10 +15797,16 @@ msgid "Use my own working hours"
 msgstr "Mijn eigen werktijden gebruiken"
 
 #. name
-#: crates/ui-egui/src/theme.rs
+#: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Use system setting"
 msgstr "Systeeminstelling gebruiken"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+msgstr "Systeeminstelling gebruiken volgt de animatie-effecten in de instellingen van Windows. Waar MailCraft de systeeminstelling nog niet kan lezen, worden animaties afgespeeld tot u Nooit afspelen kiest."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
