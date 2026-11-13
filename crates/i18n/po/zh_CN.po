@@ -184,8 +184,9 @@ msgstr "+ 条件"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "+ exception"
-msgstr ""
+msgstr "+ 例外"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -344,8 +345,9 @@ msgstr "使用工作或学校账户，通过同事的地址打开其日历。仅
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
-msgstr ""
+msgstr "一个条件（或同类的所有例外合计）最多可查找 20 个词或地址。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -373,8 +375,9 @@ msgstr "和往常一样，会先在原位置旁边保存整个邮箱的副本。
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
-msgstr ""
+msgstr "当 MailCraft 不在最前面时，对此规则在邮件到达时处理的邮件显示桌面通知，即使“文件 › 选项”中已关闭新邮件通知"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -534,8 +537,9 @@ msgstr "规则需要一个名称和要查找的内容。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
-msgstr ""
+msgstr "规则需要执行某项操作：一个动作或一条桌面通知。"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -575,8 +579,9 @@ msgstr "网址、电子邮件地址、电话号码（tel:）或其他地址，�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A word to look for is at most 200 characters."
-msgstr ""
+msgstr "要查找的词最多 200 个字符。"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -955,8 +960,9 @@ msgstr "地址："
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Addresses"
-msgstr ""
+msgstr "地址"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2735,8 +2741,9 @@ msgstr "清除最近的搜索"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Clear categories"
-msgstr ""
+msgstr "清除类别"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2764,8 +2771,9 @@ msgstr "清除搜索 (Esc)"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Clear the flag"
-msgstr ""
+msgstr "清除标记"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3135,8 +3143,9 @@ msgstr "复制到文件夹"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Copy to folder"
-msgstr ""
+msgstr "复制到文件夹"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -4186,8 +4195,9 @@ msgstr "电子邮件"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Each condition and exception needs something to look for."
-msgstr ""
+msgstr "每个条件和例外都需要有要查找的内容。"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4483,8 +4493,9 @@ msgstr "界面中的每项操作都是一条命令：共 {commands} 条，覆盖
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Except if"
-msgstr ""
+msgstr "除非"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5115,8 +5126,9 @@ msgstr "来自发件人"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "From and Sent to take whole addresses, such as someone@example.org."
-msgstr ""
+msgstr "“发件人”和“发送至”需要完整地址，例如 someone@example.org。"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -5544,8 +5556,9 @@ msgstr "有附件"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Has the category"
-msgstr ""
+msgstr "具有类别"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5561,8 +5574,9 @@ msgstr "将回复发送到其他地址"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Header contains"
-msgstr ""
+msgstr "邮件头包含"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6266,18 +6280,21 @@ msgstr "邀请与会者"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Is a meeting invitation or update"
-msgstr ""
+msgstr "是会议邀请或更新"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Is an automatic reply"
-msgstr ""
+msgstr "是自动回复"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Is flagged"
-msgstr ""
+msgstr "已标记"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6437,9 +6454,10 @@ msgstr "其邮件、附件、设置和记住的登录信息也会一并删除；
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Its rule goes too; if its server keeps it, it stays there."
 msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] ""
+msgstr[0] "其 {n} 条本地规则也会一并删除；服务器上的规则仍保留。"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -6557,8 +6575,9 @@ msgstr "仅此日程"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "KB"
-msgstr ""
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -7066,8 +7085,9 @@ msgstr "仅限邮件"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Mail that any one exception holds for is left alone"
-msgstr ""
+msgstr "符合任一例外的邮件不受影响"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -7963,8 +7983,9 @@ msgstr "移至文件夹"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
-msgstr ""
+msgstr "“移至文件夹”和“复制到文件夹”需要一个文件夹；“分类”需要一个类别。"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -7998,23 +8019,27 @@ msgstr "我的任务"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "My address is in Cc"
-msgstr ""
+msgstr "我的地址在“抄送”中"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "My address is in To"
-msgstr ""
+msgstr "我的地址在“收件人”中"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "My address is in To or Cc"
-msgstr ""
+msgstr "我的地址在“收件人”或“抄送”中"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "My address isn't in To"
-msgstr ""
+msgstr "我的地址不在“收件人”中"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8255,8 +8280,9 @@ msgstr "新邮件"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
-msgstr ""
+msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮件到达时不会发出提醒，除非您的某条规则为其显示提醒。"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -10260,13 +10286,15 @@ msgstr "真实姓名"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Received between"
-msgstr ""
+msgstr "接收时间介于"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
-msgstr ""
+msgstr "“接收时间介于”需要一个或两个日期（YYYY-MM-DD），较早的在前。"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
@@ -10310,8 +10338,9 @@ msgstr "最近的邮件"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Recipient contains"
-msgstr ""
+msgstr "收件人包含"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -10587,8 +10616,9 @@ msgstr "移除此条件"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Remove this exception"
-msgstr ""
+msgstr "移除此例外"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11909,8 +11939,9 @@ msgstr "按此窗口显示的内容向 MailCraft 团队发送报告。"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Sensitivity is"
-msgstr ""
+msgstr "敏感度为"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11932,8 +11963,9 @@ msgstr "按原样发送，不包含可运行内容或跟踪内容。图片来自
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Sent only to me"
-msgstr ""
+msgstr "仅发送给我"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -12033,13 +12065,15 @@ msgstr "设置…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
-msgstr ""
+msgstr "多个地址：请用分号（;）分隔。符合其中任意一个即可。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
-msgstr ""
+msgstr "多个文本：请用分号（;）分隔。符合其中任意一个即可。"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12199,8 +12233,9 @@ msgstr "显示共享邮箱的日历"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Show a desktop alert"
-msgstr ""
+msgstr "显示桌面通知"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -12671,13 +12706,15 @@ msgstr "大小"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Size is between"
-msgstr ""
+msgstr "大小介于"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Size is between takes two sizes in KB, the smaller first."
-msgstr ""
+msgstr "“大小介于”需要两个以 KB 为单位的大小，较小的在前。"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -13004,8 +13041,9 @@ msgstr "主题包含"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Subject or body contains"
-msgstr ""
+msgstr "主题或正文包含"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -14219,8 +14257,9 @@ msgstr "MailCraft 无法理解报告服务的回应，报告可能已经送达�
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
-msgstr ""
+msgstr "规则不会处理共享邮箱的邮件：共享邮箱有自己的规则。"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17311,8 +17350,9 @@ msgstr "回复最多可包含 {most} 个字符"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule can't move or copy mail to an Outbox: that would send it"
-msgstr ""
+msgstr "规则无法将邮件移至或复制到发件箱：这会发送邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17570,8 +17610,9 @@ msgstr "日"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "due"
-msgstr ""
+msgstr "到期"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
@@ -17775,8 +17816,9 @@ msgstr "它会在窗口中点击或键入"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it copies mail to more than one folder"
-msgstr ""
+msgstr "它会将邮件复制到多个文件夹"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -17804,8 +17846,9 @@ msgstr "它包含两个同类条件，而服务器只会满足其中任意一个
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two exceptions of one kind that look for different things, and the server takes one"
-msgstr ""
+msgstr "它有两个查找不同内容的同类例外，而服务器只接受一个"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -18318,8 +18361,9 @@ msgstr "邮件中只能插入您自己的日历"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "or"
-msgstr ""
+msgstr "或"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -18419,27 +18463,31 @@ msgstr "请先选择一项约会"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgctxt "sensitivity"
 msgid "Confidential"
-msgstr ""
+msgstr "机密"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgctxt "sensitivity"
 msgid "Normal"
-msgstr ""
+msgstr "普通"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgctxt "sensitivity"
 msgid "Personal"
-msgstr ""
+msgstr "个人"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgctxt "sensitivity"
 msgid "Private"
-msgstr ""
+msgstr "私人"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -18767,18 +18815,21 @@ msgstr "该文件夹已经是空的"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it copies mail to is in another account"
-msgstr ""
+msgstr "邮件要复制到的文件夹属于另一个账户"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it copies mail to is on this computer"
-msgstr ""
+msgstr "邮件要复制到的文件夹位于此计算机上"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it copies mail to isn't on the server"
-msgstr ""
+msgstr "邮件要复制到的文件夹不在服务器上"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -18992,8 +19043,9 @@ msgstr "发件人没有可用的电子邮件地址"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the sender's address is longer than a rule looks for ({n} characters)"
-msgstr ""
+msgstr "发件人地址超过规则可查找的长度（{n} 个字符）"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
@@ -19051,13 +19103,15 @@ msgstr "服务器要求的内容超出命令所含的内容"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear a flag"
-msgstr ""
+msgstr "服务器无法清除标记"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't clear categories"
-msgstr ""
+msgstr "服务器无法清除类别"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -19067,13 +19121,15 @@ msgstr "服务器无法标记邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
-msgstr ""
+msgstr "服务器无法按此顺序保存规则：一条不允许更改的规则使它们没有可放置的位置"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't look at the day mail came"
-msgstr ""
+msgstr "服务器无法查看邮件到达的日期"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -19083,8 +19139,9 @@ msgstr "服务器无法删除单封邮件（不支持 UIDPLUS）"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't show a desktop alert"
-msgstr ""
+msgstr "服务器无法显示桌面通知"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
