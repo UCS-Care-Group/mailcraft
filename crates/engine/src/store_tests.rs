@@ -2179,3 +2179,27 @@ fn content_a_virus_scanner_takes_away_is_told_apart_from_a_failed_write() {
     // Windows says it in so many words.
     assert_eq!(refused_by_scanner(&t.0, &r, &std::io::Error::from_raw_os_error(225)), cfg!(windows));
 }
+
+/// #1311: a virus scanner holding a content file's name for a moment (Bitdefender) doesn't fail
+/// the save: the write is tried again until it lets go.
+#[cfg(windows)]
+#[test]
+fn content_a_scanner_holds_for_a_moment_is_written_when_it_lets_go() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    let t = Temp::new("scanner-holds");
+    let dir = blob_dir(&t.file());
+    let bytes = b"a part a scanner looks at a while";
+    let r = Ref { hash: Digest::of(bytes), len: bytes.len() as u64 };
+    let (sub, file) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir_all(&sub).unwrap();
+    // Something at the name, held with no sharing at all, as a scanner may hold it.
+    fs::write(&file, b"x").unwrap();
+    let held = fs::OpenOptions::new().read(true).share_mode(0).open(&file).unwrap();
+    let scanner = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(700));
+        drop(held);
+    });
+    assert!(put(&dir, &r, bytes).unwrap());
+    scanner.join().unwrap();
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+}

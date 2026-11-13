@@ -1189,16 +1189,25 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
             return Ok(false);
         }
     }
-    // Twice at most: a folder that went missing between making it and writing into it (a sweep, a
-    // tidy-up tool) is made again.
+    // A folder that went missing between making it and writing into it (a sweep, a tidy-up tool)
+    // is made again, once. On Windows a virus scanner looking at a file just written (Bitdefender,
+    // Defender) can refuse it for a few seconds: tried again for up to about 3.5 s (#1311).
     let mut last = None;
-    for _ in 0..2 {
+    let mut missing = 0;
+    for attempt in 1..=8u64 {
         own_dir(&sub)?;
         match write_atomic(&file, bytes) {
             Ok(()) => return Ok(true),
             // Somebody else saving the same content at the same moment is no failure.
             Err(_) if there(&file) => return Ok(false),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => last = Some(e),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound && missing < 1 => {
+                missing += 1;
+                last = Some(e);
+            }
+            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && attempt < 8 => {
+                last = Some(e);
+                std::thread::sleep(Duration::from_millis(100 * attempt));
+            }
             Err(e) => return Err(e),
         }
     }
