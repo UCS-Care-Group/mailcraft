@@ -43,6 +43,8 @@ pub struct Core {
     platform: Arc<dyn Platform>,
     memory_budget: u64,
     language: AtomicU8,
+    /// Set when `shutdown` begins: a call still waiting in the queue is then cancelled and not run.
+    closing: Arc<AtomicBool>,
 }
 
 impl Core {
@@ -64,7 +66,14 @@ impl Core {
         if ready.recv() != Ok(true) {
             return Err(CoreError::Init { message: "the session could not be opened".to_string() });
         }
-        Ok(Arc::new(Core { jobs: Mutex::new(Some(jobs)), events, platform, memory_budget: host.memory_budget(), language: AtomicU8::new(0) }))
+        Ok(Arc::new(Core {
+            jobs: Mutex::new(Some(jobs)),
+            events,
+            platform,
+            memory_budget: host.memory_budget(),
+            language: AtomicU8::new(0),
+            closing: Arc::new(AtomicBool::new(false)),
+        }))
     }
 
     /// Where the sync driver (and anything else on the Rust side) puts events.
@@ -81,10 +90,11 @@ impl Core {
         let reply = Queue::<Result<T, CoreError>>::new();
         let cancel = Arc::new(AtomicBool::new(false));
         let _guard = CancelOnDrop(cancel.clone());
+        let closing = self.closing.clone();
         let job: Job = {
             let reply = reply.clone();
             Box::new(move |session: &mut Session| {
-                let out = if cancel.load(Ordering::Acquire) {
+                let out = if cancel.load(Ordering::Acquire) || closing.load(Ordering::Acquire) {
                     Err(CoreError::Cancelled)
                 } else {
                     catch_unwind(AssertUnwindSafe(|| f(session))).unwrap_or(Err(CoreError::Internal))
@@ -165,6 +175,7 @@ impl Core {
     /// Stop: calls not yet started are cancelled, later calls fail with `Cancelled`, and
     /// `next_event` ends. The session thread ends with its last job.
     pub fn shutdown(&self) {
+        self.closing.store(true, Ordering::Release);
         self.jobs.lock().unwrap_or_else(PoisonError::into_inner).take();
         self.events.close();
     }

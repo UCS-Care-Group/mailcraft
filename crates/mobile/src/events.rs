@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use crate::NotificationRecord;
-use crate::queue::Queue;
+use crate::queue::{Queue, Shed, Weight};
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum Event {
@@ -25,6 +25,20 @@ pub enum Event {
     Notification { notification: NotificationRecord },
     /// The reminders to schedule changed: ask for the schedule again.
     ReminderScheduleChanged,
+}
+
+impl Shed for Event {
+    /// What a full queue keeps: questions, sign-ins, notifications and the reminders' change are
+    /// acted on and go last; a revision is replaced by a newer one; progress by the next.
+    fn weight(&self) -> Weight {
+        match self {
+            Event::SyncProgress { .. } => Weight::Progress,
+            Event::RevChanged { .. } => Weight::Replaced,
+            Event::SignInNeeded { .. } | Event::PermissionQuestion { .. } | Event::Notification { .. } | Event::ReminderScheduleChanged => {
+                Weight::Actionable
+            }
+        }
+    }
 }
 
 /// Where the Rust side puts events: the session thread for `RevChanged`, and the sync driver

@@ -73,14 +73,17 @@ fn a_panic_in_a_job_is_an_error_and_the_core_goes_on() {
 fn a_call_dropped_before_it_starts_never_runs() {
     let core = sample_core();
     let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
+    let (started_tx, started) = std::sync::mpsc::channel::<()>();
     // Hold the session thread.
     let hold = block_on_in_thread(core.clone(), move |c| {
         let _ = block_on(c.call(move |_| {
+            let _ = started_tx.send(());
             let _ = gate_rx.recv();
             Ok(())
         }));
     });
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    // The session thread is inside the job before the call to be dropped is made.
+    started.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
     let ran = Arc::new(AtomicBool::new(false));
     let flag = ran.clone();
     {

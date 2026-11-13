@@ -94,7 +94,8 @@ fn a_platform_that_throws_gets_stand_ins_and_no_panic() {
 #[test]
 fn a_core_over_a_platform_that_throws_still_starts_and_answers() {
     let core = Core::start(Arc::new(Throws), || Session::at(mailcraft_model::Mailbox::default(), now(), 0));
-    // With no memory budget given, the host may refuse the platform; either way, an error and not a panic.
+    // No memory budget given is not a refusal (the host rejects only a budget of 0): it starts.
+    assert!(core.is_ok());
     if let Ok(core) = core {
         assert_eq!(core.network(), NetworkKind::Unknown);
         assert!(block_on(core.folders(0)).is_ok());
