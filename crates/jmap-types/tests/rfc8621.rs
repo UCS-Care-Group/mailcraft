@@ -10,8 +10,8 @@
 mod support;
 
 use mailcraft_jmap_types::{
-    ChangesRequest, CopyRequest, CopyResponse, Email, EmailGetRequest, EmailQueryChangesRequest, EmailQueryRequest, Filter, GetRequest, GetResponse,
-    Mailbox, MailboxChangesResponse, MailboxFilterCondition, MailboxSetRequest, QueryChangesResponse, QueryResponse, SetRequest, SetResponse, Thread,
+    ChangesRequest, Email, EmailGetRequest, EmailQueryChangesRequest, EmailQueryRequest, Filter, GetRequest, GetResponse, Mailbox,
+    MailboxChangesResponse, MailboxFilterCondition, MailboxSetRequest, QueryChangesResponse, QueryResponse, SetRequest, SetResponse, Thread,
     set_error,
 };
 use serde_json::json;
@@ -412,36 +412,9 @@ fn email_set_creates_drafts() {
     assert_eq!(parts[0].kind.as_deref(), Some("text/html"));
 }
 
-/// §4.10: a draft moved to another account, and the two responses of the one call.
+/// §4.10: the implicit Email/set of a draft moved to another account, which destroys the original.
 #[test]
-fn email_copy_to_another_account() {
-    let copy: CopyRequest<Email> = round_trip(
-        r#"{
-          "fromAccountId": "ue150411c",
-          "accountId": "u6c6c41ac",
-          "create": { "k45": { "id": "Md45b47b4877521042cec0938", "mailboxIds": { "75a4c956": true } } },
-          "onSuccessDestroyOriginal": true
-        }"#,
-    );
-    assert_eq!(copy.create["k45"].id.as_deref(), Some("Md45b47b4877521042cec0938"));
-    let copied: CopyResponse<Email> = round_trip(
-        r#"{
-          "fromAccountId": "ue150411c",
-          "accountId": "u6c6c41ac",
-          "oldState": "7ee7e9263a6d",
-          "newState": "5a0d2447ed26",
-          "created": {
-            "k45": {
-              "id": "M138f9954a5cd2423daeafa55",
-              "blobId": "G6b9fb047cba722c48c611e79233d057c6b0b74e8",
-              "threadId": "T2f242ea424a4079a",
-              "size": 11721
-            }
-          },
-          "notCreated": null
-        }"#,
-    );
-    assert!(copied.not_created.is_none());
+fn email_set_response_of_a_copys_destroy() {
     let destroyed: SetResponse<Email> =
         round_trip(r#"{ "accountId": "ue150411c", "oldState": "780842", "newState": "780871", "destroyed": [ "Md45b47b4877521042cec0938" ] }"#);
     assert_eq!(destroyed.destroyed.unwrap().len(), 1);

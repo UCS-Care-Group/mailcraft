@@ -227,7 +227,7 @@ pub struct EmailGetRequest {
 
 /// A FilterCondition of `Email/query` (RFC 8621 §4.4.1).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EmailFilterCondition {
     /// In this mailbox.
     #[serde(default, skip_serializing_if = "Option::is_none")]

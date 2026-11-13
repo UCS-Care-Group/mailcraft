@@ -84,7 +84,7 @@ pub struct MailboxChangesResponse {
 
 /// A FilterCondition of `Mailbox/query` (RFC 8621 §2.3).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MailboxFilterCondition {
     /// The parent (`Some(None)`: the top level).
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::nullable")]

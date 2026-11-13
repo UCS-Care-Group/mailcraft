@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The arguments and responses of the standard methods (RFC 8620 §5): /get, /changes, /set, /copy,
+//! The arguments and responses of the standard methods (RFC 8620 §5): /get, /changes, /set,
 //! /query and /queryChanges, for any type `T` of object and any filter condition `C`.
 
 use std::collections::BTreeMap;
 
+use serde::de::{DeserializeOwned, Error as _};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value};
 
@@ -136,51 +137,6 @@ pub struct SetResponse<T> {
     pub not_destroyed: Option<BTreeMap<Id, SetError>>,
 }
 
-/// The arguments of `Foo/copy` (RFC 8620 §5.4).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopyRequest<T> {
-    /// The account to copy from.
-    pub from_account_id: Id,
-    /// Copy nothing unless the state of the account copied from is this.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub if_from_in_state: Option<String>,
-    /// The account to copy to.
-    pub account_id: Id,
-    /// Copy nothing unless the state of the account copied to is this.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub if_in_state: Option<String>,
-    /// The copies, by creation id: each the id of the original and the properties to change.
-    pub create: BTreeMap<Id, T>,
-    /// Destroy each original once copied (none: false).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub on_success_destroy_original: Option<bool>,
-    /// The `ifInState` of the implicit destroy.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub destroy_from_if_in_state: Option<String>,
-}
-
-/// The response of `Foo/copy` (RFC 8620 §5.4).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopyResponse<T> {
-    /// The account copied from.
-    pub from_account_id: Id,
-    /// The account copied to.
-    pub account_id: Id,
-    /// The state before the call, when the server knows it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub old_state: Option<String>,
-    /// The state after the call.
-    pub new_state: String,
-    /// The copies made, by creation id.
-    #[serde(default = "none", skip_serializing_if = "Option::is_none")]
-    pub created: Option<BTreeMap<Id, T>>,
-    /// Why each copy not made was not, by creation id.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub not_created: Option<BTreeMap<Id, SetError>>,
-}
-
 /// How a FilterOperator joins its conditions (RFC 8620 §5.5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Operator {
@@ -197,6 +153,7 @@ pub enum Operator {
 
 /// A FilterOperator (RFC 8620 §5.5).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, bound(deserialize = "C: DeserializeOwned"))]
 pub struct FilterOperator<C> {
     /// How the conditions join.
     pub operator: Operator,
@@ -205,13 +162,28 @@ pub struct FilterOperator<C> {
 }
 
 /// A /query filter (RFC 8620 §5.5): a FilterOperator or a FilterCondition `C` of the type queried.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+///
+/// An object with an `operator` member is read as a FilterOperator and nothing else, so that a filter the
+/// RFC does not allow (an unknown operator, a bad condition anywhere in it) is an error and never a
+/// condition that matches more than was asked.
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Filter<C> {
     /// Conditions joined.
     Operator(FilterOperator<C>),
     /// One condition.
     Condition(C),
+}
+
+impl<'de, C: DeserializeOwned> Deserialize<'de> for Filter<C> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = Value::deserialize(deserializer)?;
+        if value.get("operator").is_some() {
+            FilterOperator::deserialize(value).map(Filter::Operator).map_err(D::Error::custom)
+        } else {
+            C::deserialize(value).map(Filter::Condition).map_err(D::Error::custom)
+        }
+    }
 }
 
 /// A Comparator (RFC 8620 §5.5), with the `keyword` of RFC 8621 §4.4.2.
@@ -234,7 +206,7 @@ pub struct Comparator {
 
 /// The arguments of `Foo/query` (RFC 8620 §5.5).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", bound(deserialize = "C: DeserializeOwned"))]
 pub struct QueryRequest<C> {
     /// The account.
     pub account_id: Id,
@@ -285,7 +257,7 @@ pub struct QueryResponse {
 
 /// The arguments of `Foo/queryChanges` (RFC 8620 §5.6).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", bound(deserialize = "C: DeserializeOwned"))]
 pub struct QueryChangesRequest<C> {
     /// The account.
     pub account_id: Id,

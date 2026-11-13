@@ -9,8 +9,8 @@
 mod support;
 
 use mailcraft_jmap_types::{
-    ChangesRequest, ChangesResponse, CopyRequest, CopyResponse, Filter, FilterOperator, GetRequest, GetResponse, Operator, QueryChangesRequest,
-    QueryChangesResponse, QueryRequest, QueryResponse, SetRequest, SetResponse,
+    ChangesRequest, ChangesResponse, Filter, FilterOperator, GetRequest, GetResponse, Operator, QueryChangesRequest, QueryChangesResponse,
+    QueryRequest, QueryResponse, SetRequest, SetResponse,
 };
 use serde_json::{Value, json};
 use support::round_trip;
@@ -171,23 +171,9 @@ fn query_changes_response_with_added_null() {
     assert_eq!(serde_json::to_value(&changed).unwrap()["added"], json!([]));
 }
 
+/// The implicit Todo/set of a /copy with `onSuccessDestroyOriginal`, which destroys the original.
 #[test]
-fn copy_and_its_response() {
-    let copy: CopyRequest<Value> =
-        round_trip(r#"{ "fromAccountId": "x", "accountId": "y", "create": { "k5122": { "id": "a" } }, "onSuccessDestroyOriginal": true }"#);
-    assert_eq!(copy.on_success_destroy_original, Some(true));
-    assert_eq!(copy.create["k5122"]["id"], "a");
-    let copied: CopyResponse<Value> = round_trip(
-        r#"{
-          "fromAccountId": "x",
-          "accountId": "y",
-          "created": { "k5122": { "id": "DAf97" } },
-          "oldState": "c1d64ecb038c",
-          "newState": "33844835152b"
-        }"#,
-    );
-    assert_eq!(copied.created.unwrap()["k5122"]["id"], "DAf97");
-    // The implicit Todo/set that destroys the original.
+fn set_response_of_a_copys_destroy() {
     let destroyed: SetResponse<Value> = round_trip(r#"{ "accountId": "x", "oldState": "871903", "newState": "871909", "destroyed": [ "a" ] }"#);
     assert_eq!(destroyed.destroyed.unwrap(), ["a"]);
 }
