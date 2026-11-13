@@ -16526,6 +16526,11 @@ msgid "Sent Items"
 msgstr "Posta inviata"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr "la cartella {id} non è di quell'account"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"

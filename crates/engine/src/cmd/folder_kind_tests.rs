@@ -92,11 +92,38 @@ fn a_kind_is_of_the_account_named_or_in_view() {
 fn an_account_that_is_not_an_id_is_refused() {
     let (mut s, inbox, _) = german();
     let in_view = s.view.folder;
-    for account in [json!("7"), json!(""), json!(-1), json!(1.5), json!(true), json!([7]), json!({}), Value::Null] {
+    for account in [json!("7"), json!(""), json!(0), json!(-1), json!(1.5), json!(true), json!([7]), json!({}), Value::Null] {
+        for params in [json!({"folder": "inbox", "account": account}), json!({"account": account}), json!({"query": "is:unread", "account": account})]
+        {
+            assert!(s.run("mail.list", &params).is_err(), "{params}");
+            assert_eq!(s.view.folder, in_view, "{params}: nothing moved");
+        }
         let params = json!({"folder": "inbox", "account": account});
-        assert!(s.run("mail.list", &params).is_err(), "{params}");
         assert!(s.run("folder.select", &params).is_err(), "{params}");
         assert_eq!(s.view.folder, in_view, "{params}: nothing moved");
+    }
+    // An account that is an id but isn't there is said so, not taken for the account in view and
+    // not reported as a folder the account hasn't got. The words carry the finding here: without
+    // the check the call still fails, with "no Inbox folder", which reads as a different fault.
+    let gone = s.mailbox.accounts.iter().map(|a| a.id).max().unwrap_or(0) + 99;
+    let says_no_account = |e: crate::CmdError| {
+        let text = e.to_string();
+        assert!(text.contains("no account with id"), "{text}");
+    };
+    for params in [json!({"folder": "inbox", "account": gone}), json!({"folder": 1, "account": gone}), json!({"kind": "inbox", "account": gone})] {
+        if params.get("folder").is_some() {
+            says_no_account(s.run("mail.list", &params).expect_err(&format!("{params}")));
+        }
+        says_no_account(s.run("folder.select", &params).expect_err(&format!("{params}")));
+    }
+    assert_eq!(s.view.folder, in_view);
+
+    // `account` says whose folder `folder` means, so on its own it is refused rather than read
+    // and then left unused: the list would come from the account in view with nothing to say so.
+    let real = s.mailbox.accounts.first().map(|a| a.id).unwrap();
+    for params in [json!({"account": real}), json!({"account": real, "query": "is:unread"}), json!({"folder": Value::Null, "account": real})] {
+        let text = s.run("mail.list", &params).expect_err(&format!("{params}")).to_string();
+        assert!(text.contains("`account` says whose folder"), "{params}: {text}");
     }
     // No `account` key at all is the account in view, as before.
     assert_eq!(listed_folder(&mut s, json!({"folder": "inbox"})), inbox);
@@ -145,4 +172,70 @@ fn a_kind_shadows_a_folder_of_that_name_unless_the_account_has_none() {
     assert!(refused.contains("Archive"), "{refused}");
     // Named, that account's own is found.
     assert_eq!(listed_folder(&mut s, json!({"folder": "archive", "account": other})), theirs);
+}
+
+/// Digits that name no folder are an id of the account named, not of any account (#1200): asked
+/// for folder 12 of account 2, an agent must not be handed account 1's folder 12.
+#[test]
+fn digits_are_an_id_of_the_account_named() {
+    let (mut s, inbox, _) = german();
+    let second = s.run("account.add", &json!({"email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let theirs = s.mailbox.folder_of_kind(second, FolderKind::Inbox).unwrap();
+    let in_view = s.view.folder;
+
+    // The Inbox of the first account, by its id, is not the second account's to give.
+    let digits = inbox.to_string();
+    let as_digits = s.run("mail.list", &json!({"folder": digits.clone(), "account": second})).expect_err("not that account's").to_string();
+    assert!(s.run("folder.select", &json!({"folder": digits.clone(), "account": second})).is_err());
+    assert_eq!(s.view.folder, in_view, "and nothing moved");
+
+    // The same id as a number, not as digits in a string: one rule for both, and one wording, so
+    // that an agent isn't told the folder doesn't exist when it is another account's.
+    let as_number = s.run("mail.list", &json!({"folder": inbox, "account": second})).expect_err("a number is an id too").to_string();
+    assert!(as_number.contains("is not that account's"), "{as_number}");
+    assert_eq!(as_number, as_digits, "both spellings of the id say the same");
+    assert!(s.run("folder.select", &json!({"folder": inbox, "account": second})).is_err());
+    assert_eq!(s.view.folder, in_view, "and nothing moved");
+
+    // Named with its own account, or with none, it is still that folder.
+    assert_eq!(listed_folder(&mut s, json!({"folder": digits.clone()})), inbox);
+    s.run("folder.select", &json!({"folder": theirs.to_string(), "account": second})).unwrap();
+    assert_eq!(s.view.folder, theirs, "its own account's id reaches it");
+}
+
+/// A path without `account` is looked for in the account in view before any other (#1200): two
+/// accounts can both have a folder called "Shared Notes", and the one in front of the owner is
+/// the one they mean.
+#[test]
+fn a_path_takes_the_account_in_view_before_another() {
+    let (mut s, inbox, _) = german();
+    let first = s.mailbox.folder(inbox).unwrap().account;
+    let second = s.run("account.add", &json!({"email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    // At the top of each account, so that the two paths read the same: the first account's
+    // Inbox is called "Posteingang" here, the second's "Inbox". The first account's folder is
+    // added first, so it is the one the old walk over every account would have found: a test
+    // that starts with the first account in view would pass either way.
+    let mine = s.mailbox.add_folder(first, None, "Shared Notes").unwrap();
+    let theirs_inbox = s.mailbox.folder_of_kind(second, FolderKind::Inbox).unwrap();
+    let theirs = s.mailbox.add_folder(second, None, "Shared Notes").unwrap();
+    s.mailbox_changed();
+
+    let path_of = |s: &Session, id: Id| s.mailbox.folder_path(id);
+    let (mine_path, theirs_path) = (path_of(&s, mine), path_of(&s, theirs));
+    assert_eq!(mine_path, theirs_path, "the two accounts name the folder the same way");
+
+    let reached = |s: &mut Session, params: Value| {
+        s.run("folder.select", &params).unwrap_or_else(|e| panic!("{params}: {e}"));
+        s.view.folder
+    };
+    // The second account in view first: this is the one the mailbox order gets wrong.
+    s.run("folder.select", &json!({"id": theirs_inbox})).unwrap();
+    assert_eq!(reached(&mut s, json!({"folder": theirs_path.clone()})), theirs, "the account in view, not the first in the mailbox");
+    // `path` takes it the same way as `folder`: the command line's import uses that form.
+    s.run("folder.select", &json!({"id": theirs_inbox})).unwrap();
+    assert_eq!(reached(&mut s, json!({"path": theirs_path.clone()})), theirs, "`path` reads it as `folder` does");
+    assert_eq!(reached(&mut s, json!({"path": mine_path.clone(), "account": first})), mine, "and takes `account` too");
+    assert_eq!(reached(&mut s, json!({"folder": mine_path.clone(), "account": first})), mine, "or the one named");
+    s.run("folder.select", &json!({"id": inbox})).unwrap();
+    assert_eq!(reached(&mut s, json!({"folder": mine_path})), mine, "now the first account is in view");
 }
