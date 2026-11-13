@@ -329,7 +329,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
-        if a.kind == AccountKind::Microsoft && !a.is_shared() {
+        if a.kind.has_offline_window() && !a.is_shared() {
             download_in_full(app, ui, a);
             // How far back mail is kept in full (#143), beside it.
             ui.horizontal(|ui| {
@@ -455,7 +455,7 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     {
         let _ = app.run("file.importFolderTree", json!({}));
     }
-    if tile(ui, "import", tl!("Import a .pst File (preview)"), tl!("The mail of a .pst file, into a folder on this computer"), t) {
+    if tile(ui, "import", tl!("Import a .pst File"), tl!("The mail, contacts, calendar, tasks and notes of a .pst file, onto this computer"), t) {
         let _ = app.run("file.importPst", json!({}));
     }
     if tile(ui, "open", tl!("Open Mailbox File"), tl!("Replace what is open with a .mailcraft file"), t) {
@@ -567,6 +567,29 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    let mut animations = egui::Rect::NOTHING;
+    row(ui, tl!("Animations"), |ui| {
+        let cur = app.ui.animations;
+        let combo = egui::ComboBox::from_id_salt("opt_animations").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for m in crate::motion::Motion::ALL {
+                if ui.selectable_label(m == cur, tl!(m.label())).clicked() {
+                    let _ = app.run("ui.animations", json!({"value": m.code()}));
+                }
+            }
+        });
+        // (Its name for a screen reader: the row's label is painted.)
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Animations"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        animations = combo.response.rect;
+        combo.response.on_hover_text(tl!(
+            "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+        ));
+    });
+    app.hit.add("optionAnimations", 0, animations);
     let mut strong = app.ui.high_contrast;
     if ui.checkbox(&mut strong, tl!("High contrast")).on_hover_text(tl!("Stronger text and edges, in the light or the dark theme.")).changed() {
         let _ = app.run("ui.highContrast", json!({"on": strong}));
@@ -625,6 +648,16 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if ui.checkbox(&mut quote, tl!("Include the original message when replying")).changed() {
         set(app, json!({"quoteOnReply": quote}));
     }
+    let mut lists = prefs.auto_lists;
+    if ui
+        .checkbox(&mut lists, tl!("Automatic bulleted and numbered lists"))
+        .on_hover_text(tl!(
+            "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+        ))
+        .changed()
+    {
+        set(app, json!({"autoLists": lists}));
+    }
     let mut in_window = app.ui.replies_in_window;
     let switch = ui
         .checkbox(&mut in_window, tl!("Open new messages, replies and forwards in a new window"))
@@ -651,7 +684,9 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                         set(app, json!({"syncLimit": n}));
                     }
                 }
-            });
+            })
+            .response
+            .on_hover_text(tl!("For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."));
     });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);
@@ -663,6 +698,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
     crate::sender_images::options(app, ui, t);
+    crate::attachment_preview::options(app, ui);
     section(ui, tl!("Accounts"), t);
     let mut remember = app.ui.remember_sign_in;
     if ui
@@ -676,7 +712,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     // Said in the status bar once; kept in sight here for as long as the session lasts.
     if remember && let Some(trouble) = app.secrets_trouble {
-        ui.label(egui::RichText::new(trouble.notice()).color(t.text_dim));
+        ui.label(egui::RichText::new(crate::store_trouble_notice(trouble)).color(t.text_dim));
     }
     row(ui, tl!("Microsoft application ID"), |ui| {
         // What Microsoft knows this installation by when an account signs in on its page; an
@@ -714,6 +750,8 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    section(ui, tl!("Security"), t);
+    crate::security::options(app, ui, t);
     section(ui, tl!("Calendar"), t);
     let mut twelve = prefs.twelve_hour;
     if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {

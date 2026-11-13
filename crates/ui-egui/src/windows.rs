@@ -152,6 +152,9 @@ pub(crate) struct Open {
     waited: bool,
     /// Open, it was put at its place by its own scale.
     positioned: bool,
+    /// The backend was asked for its window at least once (it can be asked for it only while the
+    /// main window is on screen, #1224).
+    asked: bool,
     /// Its size and place, in the system's pixels, as the system last said.
     seen: Option<window_places::Place>,
 }
@@ -245,6 +248,7 @@ impl Windows {
             start: None,
             waited: false,
             positioned: false,
+            asked: false,
             seen: None,
         });
         self.last
@@ -1126,11 +1130,25 @@ fn placed(window: &Open) -> Option<egui::Rect> {
     window.seen.and_then(|p| p.rect()).or(window.start.and_then(|s| s.rect()))
 }
 
+/// The main window is minimized, or hidden (a pass of it may then run with no event loop to make
+/// a window in).
+fn main_is_hidden(ctx: &egui::Context) -> bool {
+    ctx.input(|i| i.viewport().visible()) == Some(false)
+}
+
 /// A window of the system. `last`: where the last other window of its kind that is open is, for
 /// it to cascade from when it opens. `true` when it is to close.
 fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: Option<egui::Rect>) -> bool {
     let viewport = viewport_of(window.id);
     let kind = window.what.kind();
+    // A window of the system that doesn't exist yet is made by the backend from inside this
+    // frame, which it can't do for a main window that is minimized or hidden: it paints such a
+    // main window outside its event loop, finds no window to make, never runs the callback, and
+    // egui panics (#1224). The window waits, still open, until the main window is on screen.
+    if !window.asked && main_is_hidden(ctx) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        return false;
+    }
     if window.start.is_none() {
         // The host lists the monitors in the frame after a window was asked for: it waits for
         // them one frame, no more (a host that lists none has the system place it).
@@ -1162,8 +1180,12 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         ctx.send_viewport_cmd_to(viewport, egui::ViewportCommand::Focus);
     }
     let mut close = false;
+    window.asked = true;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
+        // eframe gives `raw_input_hook` no say over a window shown like this: where the window
+        // layer's clipboard keys are off, they become cut, copy and paste here (#1217).
+        clipboard_keys(app, &ctx);
         // What was chosen in a text's menu here, before anything reads the input.
         let menus = crate::text_menu::deliver(&ctx);
         let t = Tokens::get(&ctx);
@@ -1187,6 +1209,15 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         crate::text_menu::finish(&ctx, menus);
     });
     close
+}
+
+/// Where the window layer's clipboard keys are off (`Services::clipboard_keys`), the key presses
+/// of this pass become cut, copy and paste.
+pub(crate) fn clipboard_keys(app: &MailApp, ctx: &egui::Context) {
+    if app.services.clipboard_keys {
+        let board = app.services.clipboard.as_deref();
+        ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board));
+    }
 }
 
 /// A movable window inside the main one; `behind`: another of them is the active one (or a
@@ -1428,7 +1459,7 @@ mod tests {
     fn app() -> MailApp {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 
@@ -2364,7 +2395,7 @@ mod tests {
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         // The calendar keeps itself current: what is made here goes to the stand-in at once.
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         let mut harness = window(a);
         harness.run_steps(6);
         assert!(event_named(&harness, "Budget review").is_some(), "the server's calendar came down");
@@ -2604,7 +2635,7 @@ mod tests {
         let server = serve(&mut a);
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         // The stand-in for the server: Maya is busy from one to two and away from four on;
         // Tomás can't be looked up; of Priya it says nothing.
         let asks: Arc<Mutex<Vec<FreeBusyAsk>>> = Default::default();
@@ -2863,6 +2894,10 @@ mod tests {
         assert!(after.exceptions.contains(&mailcraft_time::Date::new(2026, 10, 20).unwrap()) && harness.state().windows.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "window_minimized_tests.rs"]
+mod window_minimized_tests;
 
 #[cfg(test)]
 #[path = "window_identity_tests.rs"]

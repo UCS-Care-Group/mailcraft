@@ -1605,7 +1605,7 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
 
     // Exported as .eml: the files are in it.
     let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
-    let parsed = mailcraft_mime::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
+    let parsed = mailcraft_mime_model::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
     assert_eq!(
         parsed.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>(),
         was.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>()
@@ -1613,7 +1613,7 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
     assert_eq!(parsed.body.text.trim(), was.body.text.trim());
     // A folder as .mbox too.
     let mbox = s.run("file.exportFolder", &json!({"id": was.folder})).unwrap();
-    let all = mailcraft_mime::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+    let all = mailcraft_mime_model::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
     assert_eq!(all.len(), 24);
     assert!(all.iter().all(|m| m.attachments.iter().all(|a| !a.data.is_empty())));
 
@@ -2022,6 +2022,9 @@ mod undo_body;
 #[path = "store_budget_tests.rs"]
 mod budget;
 
+#[path = "store_history_memory_tests.rs"]
+mod history_memory;
+
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
 #[cfg(unix)]
@@ -2156,4 +2159,23 @@ fn a_content_folder_that_is_a_link_is_never_written_through_or_emptied() {
     let bytes = noise(5, 3000);
     assert!(stash(&path, &Digest::of(&bytes), &bytes).is_err());
     assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 1);
+}
+
+#[test]
+fn content_a_virus_scanner_takes_away_is_told_apart_from_a_failed_write() {
+    let t = Temp::new("scanner");
+    let dir = blob_dir(&t.file());
+    let r = Ref { hash: Digest::of(b"a part a scanner dislikes"), len: 25 };
+    let gone = std::io::Error::from(std::io::ErrorKind::NotFound);
+    // The folder went too: that is no scanner, and the save fails.
+    assert!(!refused_by_scanner(&dir, &r, &gone));
+    // The file went and its folder stayed: a scanner took it.
+    let (sub, _) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir_all(&sub).unwrap();
+    assert!(refused_by_scanner(&dir, &r, &gone));
+    // A full disk, or anything else, still fails the save.
+    assert!(!refused_by_scanner(&dir, &r, &std::io::Error::other("no space left")));
+    assert!(!refused_by_scanner(&dir, &r, &std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
+    // Windows says it in so many words.
+    assert_eq!(refused_by_scanner(&t.0, &r, &std::io::Error::from_raw_os_error(225)), cfg!(windows));
 }

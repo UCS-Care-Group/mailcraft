@@ -264,6 +264,34 @@ impl Messages {
         self.remove(&id).map(|m| (id, m))
     }
 
+    /// Put `new` in place of message `id` where this map has `old` itself (the same allocation),
+    /// as another copy of the map (`live`) already did: a message let go of from memory there,
+    /// that a copy kept to undo to holds too. The chunk becomes `live`'s own when it then holds
+    /// what `live`'s holds, and copies that shared the chunk before share the new one after
+    /// (`done`, kept across the copies given it). Whether it was put in place.
+    pub fn put_in_place_of(&mut self, id: Id, old: &Arc<Message>, new: &Arc<Message>, live: &Messages, done: &mut Replaced) -> bool {
+        let key = chunk_of(id);
+        let Some(chunk) = self.chunks.get_mut(&key) else { return false };
+        if let Some((_, _, after)) = done.chunks.iter().find(|(was, before, _)| *was == id && Arc::ptr_eq(before, chunk)) {
+            *chunk = after.clone();
+            self.originals.stale.insert(key);
+            return true;
+        }
+        if !chunk.get(&id).is_some_and(|m| Arc::ptr_eq(m, old)) {
+            return false;
+        }
+        let mut own = Chunk::clone(chunk);
+        own.insert(id, new.clone());
+        let after = match live.chunks.get(&key) {
+            Some(theirs) if same_chunk(&own, theirs) => theirs.clone(),
+            _ => Arc::new(own),
+        };
+        done.chunks.push((id, chunk.clone(), after.clone()));
+        *chunk = after;
+        self.originals.stale.insert(key);
+        true
+    }
+
     /// The messages that differ between `before` and this map, in order of id: in only one of
     /// them, or not the same allocation in both (which may hold the same message: a caller
     /// that cares compares them). The chunks the two share aren't looked into.
@@ -297,6 +325,20 @@ impl Messages {
         }
         out
     }
+}
+
+/// The chunks [`Messages::put_in_place_of`] has replaced in the copies it was given, each with the
+/// message put in place and as the chunk was and became, so that copies sharing one share its
+/// replacement. (One is for one message: the same chunk with another message put in it is
+/// another replacement.)
+#[derive(Default)]
+pub struct Replaced {
+    chunks: Vec<(Id, Arc<Chunk>, Arc<Chunk>)>,
+}
+
+/// Whether two chunks hold the same messages, each the same allocation.
+fn same_chunk(a: &Chunk, b: &Chunk) -> bool {
+    a.len() == b.len() && a.iter().zip(b.iter()).all(|((x, m), (y, n))| x == y && Arc::ptr_eq(m, n))
 }
 
 /// The messages of `chunk` in `range`: none for bounds the wrong way round, as

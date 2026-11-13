@@ -627,7 +627,8 @@ pub struct Quote {
     /// with only the elements and attributes that give it its look), for the HTML part.
     pub html: String,
     /// The original's pictures its HTML shows (`cid:`), sent with a reply so the quote keeps
-    /// them. A forward carries every attachment anyway.
+    /// them (a forward carries every attachment anyway), and those written into it (`data:`),
+    /// each made a part of its own that the quote refers to (#602), sent with both.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub pictures: Vec<Attachment>,
 }
@@ -807,7 +808,7 @@ pub struct Prefs {
     pub twelve_hour: bool,
     pub week_start: Weekday,
     /// The owner chose the clock (`file.options`); else it is the interface language's own
-    /// ([`Prefs::follow_language`]). `None`: settings saved before this was kept.
+    /// ([`Prefs::follow_conventions`]). `None`: settings saved before this was kept.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clock_chosen: Option<bool>,
     /// The same for the first day of the week.
@@ -823,6 +824,9 @@ pub struct Prefs {
     pub default_reminder: Option<u32>,
     /// Put the original message under a reply.
     pub quote_on_reply: bool,
+    /// Typing `* `, `- `, `1. ` or `1) ` at the start of a paragraph of an HTML message starts a
+    /// list (#973; `compose.type` with `autoList`, which only the keyboard sends).
+    pub auto_lists: bool,
     /// Lines of body text under each message in the list (0–3).
     pub preview_lines: u8,
     /// The list has group headings (Today, Yesterday…; `view.groups`). Off: one continuous list.
@@ -904,6 +908,7 @@ impl Default for Prefs {
             mark_read_on_open: true,
             default_reminder: Some(15),
             quote_on_reply: true,
+            auto_lists: true,
             preview_lines: 1,
             show_groups: true,
             one_line: false,
@@ -949,14 +954,14 @@ impl Prefs {
     }
 
     /// The clock and the first day of the week that the owner never chose follow the interface
-    /// language (French: 24-hour, Monday); the ones they chose are kept. Settings saved before
-    /// this was kept count what differs from the old defaults (12-hour, Sunday) as chosen, so
-    /// they behave as they always did.
-    pub fn follow_language(&mut self, lang: mailcraft_i18n::Lang) {
+    /// language in the system's region (`own`, `Dated::conventions`: French, or English in
+    /// Britain: 24-hour, Monday); the ones they chose are kept. Settings saved before this was
+    /// kept count what differs from the old defaults (12-hour, Sunday) as chosen, so they behave
+    /// as they always did.
+    pub fn follow_conventions(&mut self, own: mailcraft_i18n::date::Conventions) {
         let old = Prefs::default();
         let clock = *self.clock_chosen.get_or_insert(self.twelve_hour != old.twelve_hour);
         let week = *self.week_start_chosen.get_or_insert(self.week_start != old.week_start);
-        let own = lang.conventions();
         if !clock {
             self.twelve_hour = own.twelve_hour;
         }
@@ -987,6 +992,22 @@ pub enum WordIndex {
     Building { done: usize, total: usize },
     /// It holds every message as it is.
     Complete,
+}
+
+/// The events and to-dos an import put in, and the calendar it made for them.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ImportedPlans {
+    pub events: Vec<Id>,
+    pub tasks: Vec<Id>,
+    pub notes: Vec<Id>,
+    pub journal: Vec<Id>,
+    pub calendar: Option<Id>,
+}
+
+impl ImportedPlans {
+    fn is_empty(&self) -> bool {
+        self.events.is_empty() && self.tasks.is_empty() && self.notes.is_empty() && self.journal.is_empty() && self.calendar.is_none()
+    }
 }
 
 /// The clock commands read; tests and scripts pin it.
@@ -1046,6 +1067,9 @@ pub struct Session {
     pub clock: Clock,
     /// What the last synchronisation reported, for the status bar.
     pub sync_status: String,
+    /// The sync driver's state: what a front end's background jobs remember between looks
+    /// ([`crate::sync_driver`]). In memory only, never saved.
+    pub driver: crate::sync_driver::Driver,
     /// Send/Receive Progress: the run under way, or the last one, account by account. Kept up
     /// to date by `sync.apply` and `sync.applyGraph`; in memory only, never saved.
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
@@ -1192,6 +1216,10 @@ pub struct Session {
     /// English). What the engine writes for a person is to follow it; commands, their parameters
     /// and what agents read stay English. Never saved in the mailbox file.
     pub interface_language: mailcraft_i18n::Lang,
+    /// The region the system's dates are written for (`GB`; `mailcraft_i18n::date::region_of`
+    /// the regional format's tag), set by the host with the language: English writes the day
+    /// first outside the US (#978). `None`: the language's own way. Never saved.
+    pub date_region: Option<String>,
     /// Whether mail can be moved between Gmail's categories (#911): what
     /// [`crate::gmail::GMAIL_CATEGORY_MOVES`] says, and a test may turn it on. Off, the command
     /// is disabled, the window offers nothing, and no move is put in a request for Gmail's API.
@@ -1264,6 +1292,7 @@ impl Session {
             dirty: false,
             clock,
             sync_status: String::new(),
+            driver: Default::default(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
             ews_run_cut: Default::default(),
@@ -1313,6 +1342,7 @@ impl Session {
             searched_for: None,
             index_words: false,
             interface_language: mailcraft_i18n::Lang::English,
+            date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
@@ -1429,16 +1459,21 @@ impl Session {
         DateTime::from_timestamp(ts, self.offset_at(ts))
     }
 
+    /// What dates are said in: the interface language, written the way of [`Session::date_region`].
+    pub fn dated(&self) -> mailcraft_i18n::date::Dated {
+        mailcraft_i18n::date::Dated::new(self.interface_language, self.date_region.as_deref())
+    }
+
     /// `at`'s time as the interface language says it, on the owner's clock.
     pub fn time_said(&self, at: DateTime) -> String {
-        mailcraft_i18n::date::time(&self.interface_language, at.hour, at.minute, self.prefs.twelve_hour)
+        mailcraft_i18n::date::time(&self.dated(), at.hour, at.minute, self.prefs.twelve_hour)
     }
 
     /// `at`'s date (`Sunday, October 11, 2026`) and time as the interface language says them.
     pub fn date_time_said(&self, at: DateTime) -> String {
         let d = at.date;
         let day = mailcraft_i18n::date::Day { year: d.year, month: d.month, day: d.day, weekday: d.weekday().index() };
-        format!("{} {}", mailcraft_i18n::date::long(&self.interface_language, day), self.time_said(at))
+        format!("{} {}", mailcraft_i18n::date::long(&self.dated(), day), self.time_said(at))
     }
 
     pub fn local_now(&self) -> DateTime {
@@ -2108,12 +2143,33 @@ impl Session {
         beside
     }
 
-    /// Fetch what `r` names from the source.
-    fn fetch(&self, r: &ContentRef) -> Result<Arc<Vec<u8>>, CmdError> {
+    fn content_origin(&self) -> Result<(&std::path::Path, Arc<dyn crate::io::ContentSource>), CmdError> {
         let kept_nowhere = || CmdError::Failed("the mailbox isn't kept in a file, so content outside memory can't be read".into());
         let path = self.path.as_deref().ok_or_else(kept_nowhere)?;
         let source = self.source().ok_or_else(kept_nowhere)?;
+        Ok((path, source))
+    }
+
+    /// Fetch what `r` names from the source.
+    fn fetch(&self, r: &ContentRef) -> Result<Arc<Vec<u8>>, CmdError> {
+        let (path, source) = self.content_origin()?;
         source.fetch(path, r).map_err(CmdError::Failed)
+    }
+
+    /// Prepare an attachment read that the desktop can execute off the UI thread.
+    pub fn attachment_reader(&self, attachment: &Attachment) -> Result<impl Fn() -> Result<Arc<Vec<u8>>, CmdError> + Send + Sync + use<>, CmdError> {
+        let stored = match attachment.kept.filter(|_| attachment.data.is_empty()) {
+            Some(reference) => {
+                let (path, source) = self.content_origin()?;
+                Some((path.to_path_buf(), source, reference))
+            }
+            None => None,
+        };
+        let memory = attachment.data.clone();
+        Ok(move || match &stored {
+            Some((path, source, reference)) => source.fetch(path, reference).map_err(CmdError::Failed),
+            None => Ok(memory.clone()),
+        })
     }
 
     /// The bytes of one part of a message: from memory when they are there, else from where the
@@ -2503,14 +2559,72 @@ impl Session {
     /// content it keeps on disk is kept from the sweep while it is (`store::keep_held`). In a command,
     /// the state the command started from gets it too ([`Session::run`]).
     fn put_message(&mut self, id: Id, m: Message) {
+        self.put_in_place(id, m, false);
+    }
+
+    /// [`Session::put_message`]; `in_steps`: `m` is the message with content let go of, and the
+    /// Undo and Redo steps let go of it too ([`Session::lean_steps`]).
+    fn put_in_place(&mut self, id: Id, m: Message, in_steps: bool) {
         let new = Arc::new(m);
         let Some(old) = self.mailbox.messages.insert(id, new.clone()) else { return };
+        #[cfg(not(target_arch = "wasm32"))]
+        if in_steps {
+            self.lean_steps(id, &old, &new);
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = in_steps;
         if Arc::strong_count(&old) > 1 {
             self.hold(std::iter::once(&old));
         }
         if let Some(swaps) = &mut self.swaps {
             swaps.push(Swap { id, old, new });
         }
+    }
+
+    /// Message `id` was `old` and the budget let go of its content (`new`, which names it on
+    /// disk): the Undo and Redo steps let go of it too, so that what the budget let go of isn't
+    /// kept in memory by up to [`MAX_HISTORY`] steps on each side. A step that holds `old` itself
+    /// gets `new`; one that holds another version of it with content in memory (a step from
+    /// before a flag or a move, which copied the message) gets that version without what of
+    /// its content is on disk as it is ([`crate::store::evictable`]), and keeps it from the
+    /// sweep as a step's message that the mailbox doesn't have ([`Session::hold`]). Nothing a
+    /// step would put back changes but where its content is: an undo brings it in again when
+    /// it is wanted. Copies of the map that shared a chunk still share one.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn lean_steps(&mut self, id: Id, old: &Arc<Message>, new: &Arc<Message>) {
+        if self.history.is_empty() && self.redo.is_empty() {
+            return;
+        }
+        let Some(path) = self.path.clone() else { return };
+        let mut done = mailcraft_model::messages::Replaced::default();
+        // Each version found in a step, as it was and as it is without its content.
+        let mut made: Vec<(Arc<Message>, Arc<Message>)> = vec![(old.clone(), new.clone())];
+        let live = &self.mailbox.messages;
+        // `theirs` without its content: the one made already for that version, else one made now.
+        // (One with nothing to let go of is noted as its own, and not looked at again.)
+        let mut lean_of = |theirs: &Arc<Message>| -> Arc<Message> {
+            if let Some((_, lean)) = made.iter().find(|(was, _)| Arc::ptr_eq(was, theirs)) {
+                return lean.clone();
+            }
+            let lean = if in_memory(theirs) == 0 { None } else { crate::store::evictable(&path, id, theirs) };
+            let lean = lean.map_or_else(|| theirs.clone(), Arc::new);
+            made.push((theirs.clone(), lean.clone()));
+            lean
+        };
+        for step in self.history.iter_mut().chain(self.redo.iter_mut()) {
+            if let Some(theirs) = step.mailbox.messages.get(&id).cloned() {
+                let lean = lean_of(&theirs);
+                if !Arc::ptr_eq(&lean, &theirs) {
+                    step.mailbox.messages.put_in_place_of(id, &theirs, &lean, live, &mut done);
+                }
+            }
+            // What a step noted of a Microsoft, EWS or JMAP account's message, as it was right
+            // after the step, holds its content too.
+            if let Some(theirs) = step.touched.message_mut(id) {
+                *theirs = lean_of(theirs);
+            }
+        }
+        self.hold(made.iter().skip(1).filter(|(was, lean)| !Arc::ptr_eq(was, lean)).map(|(_, lean)| lean));
     }
 
     /// Keep what `messages` keep on disk from the sweep while something holds them.
@@ -2574,7 +2688,7 @@ impl Session {
                 }
                 match lean {
                     Some(lean) => {
-                        self.put_message(id, lean);
+                        self.put_in_place(id, lean, true);
                         self.resident_bytes = self.resident_bytes.saturating_sub(bytes);
                         self.loads += 1;
                     }
@@ -2925,7 +3039,11 @@ impl Session {
         self.graph_listed_short.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
+        // The background fetch's waits and offline flag were the old mailbox's.
+        self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);
+        // What the sync driver remembered is the old mailbox's: its accounts' ids may name others.
+        self.driver.reset();
         self.pst_running = None;
         self.pst_tops.clear();
         self.history.clear();
@@ -2963,6 +3081,7 @@ impl Session {
     /// is without the messages `added`, without the folders `made` that are empty then, and with
     /// the categories as they were (#815). What the owner did meanwhile stays as it is: a folder
     /// of the import that holds mail or a folder of the owner's stays, with them in it.
+    #[cfg(test)]
     pub(crate) fn keep_import_step(
         &mut self,
         label: &'static str,
@@ -2971,7 +3090,20 @@ impl Session {
         made: &[Id],
         categories: Vec<mailcraft_model::Category>,
     ) {
-        if added.is_empty() && contacts.is_empty() && made.is_empty() && categories == self.mailbox.categories {
+        self.keep_import_step_with(label, added, contacts, &ImportedPlans::default(), made, categories);
+    }
+
+    /// As [`Session::keep_import_step`], for an import that brought events and to-dos too.
+    pub(crate) fn keep_import_step_with(
+        &mut self,
+        label: &'static str,
+        added: &[Id],
+        contacts: &[Id],
+        plans: &ImportedPlans,
+        made: &[Id],
+        categories: Vec<mailcraft_model::Category>,
+    ) {
+        if added.is_empty() && contacts.is_empty() && plans.is_empty() && made.is_empty() && categories == self.mailbox.categories {
             return;
         }
         let mut before = self.snapshot(label);
@@ -2981,6 +3113,24 @@ impl Session {
         // (Only the contacts the import put in: the owner's own, put in or changed since, stay.)
         for id in contacts {
             before.mailbox.contacts.remove(id);
+        }
+        for id in &plans.events {
+            before.mailbox.events.remove(id);
+        }
+        for id in &plans.tasks {
+            before.mailbox.tasks.remove(id);
+        }
+        for id in &plans.notes {
+            before.mailbox.notes.remove(id);
+        }
+        for id in &plans.journal {
+            before.mailbox.journal.remove(id);
+        }
+        // A calendar it made goes too, unless the owner has put something in it since.
+        if let Some(id) = plans.calendar
+            && !before.mailbox.events.values().any(|e| e.calendar == id)
+        {
+            before.mailbox.calendars.retain(|c| c.id != id);
         }
         // The folders it made, deepest first (each was made after its parent), that hold nothing
         // once its mail is out: not a message, not a folder.
@@ -3180,6 +3330,8 @@ impl Session {
         gone.extend(now.contacts.keys().filter(|k| !back.contacts.contains_key(*k)).map(|k| format!("contact {k}")));
         gone.extend(now.events.keys().filter(|k| !back.events.contains_key(*k)).map(|k| format!("event {k}")));
         gone.extend(now.tasks.keys().filter(|k| !back.tasks.contains_key(*k)).map(|k| format!("task {k}")));
+        gone.extend(now.notes.keys().filter(|k| !back.notes.contains_key(*k)).map(|k| format!("note {k}")));
+        gone.extend(now.journal.keys().filter(|k| !back.journal.contains_key(*k)).map(|k| format!("journal entry {k}")));
         gone.extend(now.calendars.iter().filter(|c| !back.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
         gone.extend(categories_gone(&now.categories, &back.categories).into_iter().map(|n| format!("category {n}")));
         // An account's own list the undo doesn't keep is taken away whole.
@@ -3219,6 +3371,10 @@ impl Session {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
+            return Some(Class::Settings);
+        }
+        // Public keys imported or removed (#30): the keys Digital signatures are checked with.
+        if step.touched.changed_keys() {
             return Some(Class::Settings);
         }
         None

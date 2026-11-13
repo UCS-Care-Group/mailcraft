@@ -18,7 +18,9 @@
 //! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
 //! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
-//! in another).
+//! in another). The system has no language or regional format unless a line names one
+//! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are
+//! written the way of its region).
 //!
 //! The window has no host: nothing in it can sign in, send or receive. A script that wants to
 //! look at what Add Account says about a sign-in on Microsoft's page gives it a stand-in for
@@ -30,7 +32,9 @@
 //! (`"waits"`, `"approved"`, `"notAdministrator"`, `"declined"`, `"timedOut"`, `"noBrowser"`).
 //! One that is waiting when the line comes is answered by it. With a stand-in host, every
 //! address at a company's own domain is one whose mail Microsoft 365 takes. Nobody is signed
-//! in, no browser is opened and nothing leaves this machine. The same host answers a check for a
+//! in, no browser is opened and nothing leaves this machine. (Except a domain under
+//! `hoster.example`: its mail exchangers are nobody's this program knows, and its DNS names an
+//! Exchange server's Autodiscover, so Add Account finds an Exchange server for it.) The same host answers a check for a
 //! new version (`{"host": {"update": …}}`): `"0.9.0"` (that is the newest release), `"0.9.0
 //! security"` (and it fixes a security problem), `"same"` (the running version), or `"fails"`.
 //! The stand-in host is a copy that updates itself, whose downloads are checked at once (nothing
@@ -38,6 +42,7 @@
 //! turn that off for the computer from the start, and `{"host": {"updates": "didntStart 0.4.2"}}`
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
+//! `{"host": {"ownKeys": true}}` lists two made-up keys of the owner's in File › Options › Security (#30).
 //! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
@@ -114,6 +119,9 @@ static READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new
 
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
+
+/// The end of a domain whose mail a hoster's Exchange server takes (see the header).
+const HOSTER: &str = ".hoster.example";
 
 /// A stand-in for the host's part in signing in with Microsoft: it answers what the script
 /// last told it to, and holds on to what is still waited for. Every id in it is invented.
@@ -221,7 +229,7 @@ impl mailcraft_ui_egui::SecretStore for StandInSecrets {
         let syncing = self.0.lock().map(|host| host.syncing).unwrap_or(false);
         (syncing && key.starts_with("password:")).then(|| "stand-in-password".to_string())
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         Ok(())
     }
     fn delete(&self, _: &str) {}
@@ -434,7 +442,13 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
     let tree = host.clone();
     Services {
         microsoft_client_id: "11111111-2222-3333-4444-555555555555".into(),
-        lookup_mx: Some(Box::new(|_| answered(Ok(vec!["example-org.mail.protection.outlook.com".to_string()])))),
+        discover: Some(Box::new(|domain: String| {
+            let mx = if domain.ends_with(HOSTER) { format!("mxpool{HOSTER}") } else { "example-org.mail.protection.outlook.com".to_string() };
+            answered(Ok(mailcraft_model::provider::Discovered::from_exchangers(vec![mx])))
+        })),
+        lookup_autodiscover: Some(Box::new(|domain: String| {
+            answered(Ok(if domain.ends_with(HOSTER) { vec![format!("autodiscover.de2{HOSTER}")] } else { Vec::new() }))
+        })),
         ews_setup: Some(Box::new(move |_job| {
             let (tx, rx) = channel();
             let Ok(mut host) = setting_up.lock() else { return rx };
@@ -689,12 +703,63 @@ fn main() {
     {
         services.update_start.didnt_start = Some((env!("CARGO_PKG_VERSION").to_string(), kept));
     }
+    // The owner's own keys (#30), when a line says (`{"host": {"ownKeys": true}}`): a smartcard's
+    // certificate and a GnuPG key, made up, and GnuPG trusting nothing.
+    if lines.iter().any(|l| l.pointer("/host/ownKeys").is_some()) {
+        services.own_keys = Some(Box::new(|job| {
+            use mailcraft_model::digital_signature::SignatureFormat;
+            use mailcraft_ui_egui::own_keys::*;
+            let (tx, rx) = std::sync::mpsc::channel();
+            let key = |format, name: &str, address: &str, fingerprint: &str, place| OwnKey {
+                format,
+                name: name.into(),
+                addresses: vec![address.into()],
+                fingerprint: fingerprint.into(),
+                not_after: NOW + 400 * 86_400,
+                expired: false,
+                place,
+                can_sign: true,
+            };
+            let answer = match job {
+                OwnKeysJob::List => OwnKeysAnswer::Listed(Listing {
+                    keys: vec![
+                        key(
+                            SignatureFormat::Smime,
+                            "Bob Example",
+                            "bob@example.org",
+                            "3f:9a:21:c4:5e:07:b8:d2:6a:11:90:fe:33:c7:4d:28:85:e1:0b:76:a9:5c:12:f4:de:60:38:9b:c1:47:2e:af",
+                            KeyPlace::Token("PIV Card".into()),
+                        ),
+                        key(
+                            SignatureFormat::OpenPgp,
+                            "Bob Example <bob@example.org>",
+                            "bob@example.org",
+                            "B218 EB03 0C44 1424 207A A6C0 10C3 5688 F1AD A5A2",
+                            KeyPlace::Gnupg,
+                        ),
+                    ],
+                    gnupg: Gnupg::Found,
+                    smime: SmimePlace::Tokens,
+                    trouble: Vec::new(),
+                }),
+                OwnKeysJob::GnupgValid => OwnKeysAnswer::GnupgValid(Ok(Vec::new())),
+                OwnKeysJob::Import { .. } => OwnKeysAnswer::Imported(Err("The passphrase is wrong.".into())),
+            };
+            let _ = tx.send(answer);
+            rx
+        }));
+    }
+    // The system's language and regional format, when a line says (`{"locale": "en-GB"}`, #978).
+    if let Some(locale) = lines.iter().find_map(|l| l.get("locale").and_then(|v| v.as_str())) {
+        services.system_locale = Some(locale.to_string());
+        services.system_time_locale = Some(locale.to_string());
+    }
     let mut app = MailApp::new(session, services).with_control(rx);
     app.autosave = false;
     // Every frame may be a shot: a password shown with its eye is drawn as dots (#438).
     app.headless_shots = true;
     // (With a host that answers, nothing is to happen by itself: what a shot shows, its script asked for.)
-    app.auto_sync = !stood_in;
+    app.session.driver.set_auto_sync(!stood_in);
     if let Some(overlay) = lines.iter().find_map(|l| l.get("overlayScrollBars").and_then(|v| v.as_bool())) {
         app.overlay_scroll_bars = overlay;
     }

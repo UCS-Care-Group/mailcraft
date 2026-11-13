@@ -26,7 +26,7 @@ const NAME_SIZE: f32 = 12.0;
 const HEADING_SIZE: f32 = 14.667;
 /// Where a top-level name starts, and how much further in each level under it starts. This and
 /// the distances below are from the pane's edges, the line down its left edge included.
-const NAME_LEFT: f32 = 22.0;
+const NAME_LEFT: f32 = 26.0;
 const INDENT: f32 = 9.0;
 /// The deepest level that still moves further in (deeper folders line up with it).
 const MAX_INDENT_DEPTH: usize = 16;
@@ -40,9 +40,10 @@ const COUNT_RIGHT: f32 = 16.0;
 /// The highlight of a row (selected, or under the pointer) stops this short of the pane's edges.
 const HIGHLIGHT_LEFT: f32 = 6.0;
 const HIGHLIGHT_RIGHT: f32 = 4.0;
+/// Inset each row's background so adjacent highlights have a gap without shrinking the hit area.
+const ROW_HIGHLIGHT_INSET: f32 = 1.0;
 /// A line of text is centred by its line box; the eye centres it by its lower-case letters, which
 /// sit this much below the middle of the box.
-const TEXT_RISE: f32 = 1.5;
 /// How round the pane's corner is where it meets the module bar and the ribbon.
 const SHEET_CORNER: u8 = 8;
 /// How wide the strip is that stays when the pane is hidden.
@@ -86,13 +87,22 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
                 let _ = app.run(id, json!({}));
             }
         }
+        // What a .pst file's notes and journal entries will be read in: kept, with no view yet.
+        for (icon, name) in [("notes", tl!("Notes")), ("journal", tl!("Journal"))] {
+            let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::hover());
+            let ink = t.icon.linear_multiply(0.45);
+            icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
+            resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
+        }
     });
 }
 
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox
-/// may come from anywhere, and the pane is laid out again every frame.
+/// may come from anywhere, and the pane is laid out again every frame. As many rows as a mailbox
+/// holds folders (#991: an IMAP account alone may have 10,000), so that none is left out; only
+/// the rows in sight are drawn.
 const MAX_DEPTH: usize = 32;
-const MAX_ROWS: usize = 4000;
+const MAX_ROWS: usize = mailcraft_model::MAX_FOLDERS;
 
 /// The folders of `account` as the pane lists them, depth first, skipping what is under a folded
 /// one: each with its depth and whether it has subfolders.
@@ -215,7 +225,7 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     }
     let open = !app.ui.collapsed_folders.contains(&id);
     let y = r.min.y + text_y;
-    chevron(ui.painter(), pos2(r.min.x + CHEVRON_X, y + 2.0), HEADING_CHEVRON, open, if resp.hovered() { t.accent_text } else { t.text });
+    chevron(ui.painter(), pos2(r.min.x + CHEVRON_X, y), HEADING_CHEVRON, open, if resp.hovered() { t.accent_text } else { t.text });
     // An account's colour (#893): a dot after its name, which leaves room for it.
     let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES);
     let room = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
@@ -399,7 +409,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with((key, f.id)), Sense::click());
     app.hit.add("folder", f.id, r);
-    let row = highlight(r);
+    let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
     if selected {
         ui.painter().rect_filled(row, 6.0, t.accent_soft);
         ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
@@ -418,7 +428,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             let _ = app.execute("ui.toggleFolder", json!({"id": f.id}));
         }
     }
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
     // (Drafts, Junk) in a quiet grey one.
     let mut name_end = r.max.x - COUNT_RIGHT;
@@ -530,7 +540,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with(("gmail", inbox, category.code())), Sense::click());
     app.hit.add(gmail_hit(category), inbox, r);
-    let row = highlight(r);
+    let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
     if selected {
         ui.painter().rect_filled(row, 6.0, t.accent_soft);
         ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
@@ -542,7 +552,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
         ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
     }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     let mut name_end = r.max.x - COUNT_RIGHT;
     if unread > 0 {
         let fill = if selected { t.surface } else { t.accent_soft };
@@ -599,7 +609,7 @@ fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorite
         ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
     }
     let width = (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0);
-    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
+    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
     if resp.on_hover_text(tl!(step.about())).clicked() {
         crate::favorites_sync::step_taken(app, account, step);
     }
@@ -625,7 +635,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
         return;
     }
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     let left = r.min.x + NAME_LEFT;
     let width = (r.max.x - COUNT_RIGHT - left).max(0.0);
     let font = regular(NAME_SIZE);
@@ -830,6 +840,15 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     // A Gmail account's Inbox has Gmail's categories under it, folded with it,
                     // unless they are tabs above its list.
                     let gmail = !gmail_tabs && f.kind == FolderKind::Inbox && mailcraft_engine::gmail::listed_under(&mut app.session, f.id);
+                    // A row out of sight takes its place and is not drawn (#991: thousands of
+                    // folders), but is still known where it is.
+                    let top = ui.cursor().min.y;
+                    let clip = ui.clip_rect();
+                    if !gmail && (top > clip.max.y || top + ROW_H < clip.min.y) {
+                        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+                        app.hit.add("folder", f.id, r);
+                        continue;
+                    }
                     folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !favorite_selected && f.id == current);
                     if gmail && !app.ui.collapsed_folders.contains(&f.id) {
                         for category in GmailCategory::ALL {

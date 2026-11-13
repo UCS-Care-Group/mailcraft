@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
-use mailcraft_mime::rich::{Img, to_html_with};
+use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
@@ -32,7 +32,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
             .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
-            .selection(super::needs_movable),
+            .selection(super::needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
             .pure()
@@ -349,8 +349,9 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// The original under a reply or forward, in HTML: Outlook's header lines (written here, every
 /// value escaped) and the original's look, without anything in it that runs, embeds or tracks
 /// (`mailcraft_html::quotable`): it goes to other people, whose programs might run what ours never
-/// would.
-fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
+/// would. With it, the pictures written into the original (`data:`) that it shows, each to go
+/// as a part of its own ([`Written`]).
+fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
@@ -364,9 +365,84 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
         out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
-    out.push_str(&mailcraft_html::quotable(html));
+    let mut written = Written::of(m);
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
     out.push_str("\r\n</div>");
-    out
+    // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
+    // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
+    // refer to one from before the `<body>` with a picture of his own in it: what goes then is
+    // still a picture of his own message, within the caps.)
+    let mut pictures = written.pictures;
+    pictures.retain(|a: &Attachment| out.contains(&format!("src=\"cid:{}\"", mailcraft_html::escape(&a.content_id))));
+    (out, pictures)
+}
+
+/// The pictures written into the original (#602), as Outlook sends them under a reply or
+/// forward: each a part of its own beside the HTML, which refers to it by its Content-ID.
+struct Written {
+    pictures: Vec<Attachment>,
+    /// Each picture's fingerprint, beside it: the same picture twice is one part.
+    hashes: Vec<u64>,
+    /// The Content-IDs the original's own parts have, in small letters (a sender can plant one).
+    taken: std::collections::HashSet<String>,
+}
+
+impl Written {
+    fn of(m: &Message) -> Written {
+        let taken = m.attachments.iter().map(|a| a.content_id.to_ascii_lowercase()).collect();
+        Written { pictures: Vec::new(), hashes: Vec::new(), taken }
+    }
+
+    /// The Content-ID `picture` goes out under: unique to the picture, naming nothing of the
+    /// owner, and never one the original's parts have; `None` when no such one is left, and the
+    /// picture is left out. Its type is what its own bytes say, else what its address said.
+    fn add(&mut self, mime: &str, picture: &mailcraft_html::Picture) -> Option<String> {
+        let hash = mailcraft_model::sync::fingerprint(picture);
+        let same = self.hashes.iter().zip(&self.pictures).find(|(h, a)| **h == hash && a.data.as_slice() == &picture[..]);
+        if let Some((_, same)) = same {
+            return Some(same.content_id.clone());
+        }
+        let n = self.pictures.len().saturating_add(1);
+        // (Ours differ from each other by `n`; only the original's can be in the way.)
+        let cid = (0..=self.taken.len())
+            .map(|again| match again {
+                0 => format!("quote-{n}.{hash:016x}@mailcraft.invalid"),
+                _ => format!("quote-{n}-{again}.{hash:016x}@mailcraft.invalid"),
+            })
+            .find(|cid| !self.taken.contains(cid))?;
+        let mime = sniffed(picture).unwrap_or(mime);
+        let kind = match mime {
+            "image/jpeg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            _ => "png",
+        };
+        self.hashes.push(hash);
+        self.pictures.push(Attachment {
+            name: format!("picture{n}.{kind}"),
+            mime: mime.to_string(),
+            content_id: cid.clone(),
+            inline: true,
+            data: picture.0.clone(),
+            kept: None,
+        });
+        Some(cid)
+    }
+}
+
+/// A picture's type by how its bytes begin.
+fn sniffed(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if bytes.get(..4) == Some(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        Some("image/webp")
+    } else {
+        None
+    }
 }
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
@@ -434,10 +510,13 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // An original in HTML is carried below with its look; one in plain text is quoted in the body.
     let quote = match &m.body.html {
         Some(html) if quoting => {
-            let html = quoted_html(s, &m, html);
+            let (html, written) = quoted_html(s, &m, html);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
-            // The pictures the quote still shows: not those of what was left out of it.
-            let pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            // The pictures the quote still shows: not those of what was left out of it. (A
+            // forward carries the original's own as its attachments.) And those written into
+            // the original, which go with both (#602).
+            let mut pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            pictures.extend(written);
             Some(Quote { text, html, pictures })
         }
         _ => None,
@@ -478,8 +557,14 @@ fn reply(s: &mut Session, v: &Value) -> CmdResult {
 /// account without one, stays where it is: this never deletes for good.
 fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    if s.mailbox.has_jmap_account() && s.mailbox.stays_on_server(id) {
-        return Err(fail(mailcraft_model::NOT_MOVING_YET));
+    // Mail a JMAP account's server has goes to Deleted Items only when the server has that folder
+    // too: said before the reply is begun, not after.
+    if s.mailbox.has_jmap_account()
+        && let Some(m) = s.mailbox.message(id)
+        && let Some(bin) = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder))
+        && s.mailbox.stays_out_of(id, bin)
+    {
+        return Err(fail(mailcraft_model::ONLY_SERVER_FOLDERS));
     }
     let before = s.rows();
     let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
@@ -703,7 +788,7 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
     // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
     // message (read, answered, flagged, categorised), and every header kept with it but those
     // known to come from the sender or the servers on the way, stay here.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
     let unmarked = Message {
         read: false,
         answered: false,
@@ -712,7 +797,7 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
         headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
         ..Message::clone(&m)
     };
-    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    let bytes = mailcraft_mime_model::write(&unmarked, &opts);
     Ok(Attachment::new(super::file::eml_name(&m), "message/rfc822", bytes))
 }
 
@@ -892,7 +977,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
-        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+        mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
             let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
             if pictures.iter().any(|p| p.id == id) {
                 return Some(id);
@@ -1171,7 +1256,7 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
@@ -1185,10 +1270,10 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
             let own = c.signature_html();
             let html = [
                 before.as_ref().map(|t| to_html_with(t, &img)),
-                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
+                Some(own.map_or_else(|| mailcraft_mime_model::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
                 after.as_ref().map(|t| to_html_with(t, &img)),
             ];
-            Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
+            Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
         BodyFormat::Plain => Body { text: plain, html: None },
     }
@@ -1458,12 +1543,8 @@ fn pop_out(s: &mut Session, _: &Value) -> CmdResult {
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {
     let draft = s.compose.take().and_then(|c| c.draft);
-    // Already gone is fine; one a JMAP account's server has stays (M6), and the answer says so.
+    // Already gone is fine. (One a JMAP account's server has goes there too, with the next run.)
     let deleted = draft.is_some_and(|d| s.mailbox.remove_message(d).is_ok() || s.mailbox.message(d).is_none());
-    // Why it stays in Drafts, for the window to say: the reason the Move menu greys for it.
-    if let Some(d) = draft.filter(|d| !deleted && s.mailbox.stays_on_server(*d)) {
-        return Ok(json!({"draftDeleted": false, "draft": d, "stays": mailcraft_model::NOT_MOVING_YET}));
-    }
     Ok(json!({"draftDeleted": deleted}))
 }
 

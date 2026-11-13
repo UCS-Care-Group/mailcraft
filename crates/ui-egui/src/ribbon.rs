@@ -1083,7 +1083,9 @@ fn help() -> Tab {
                 Item::big("report", "Report a\nProblem", "ui.reportProblem", no()).at(0, 4),
             ],
         )],
-        note: "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands.",
+        note: tl!(
+            "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+        ),
         note_width: 420.0,
     }
 }

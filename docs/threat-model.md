@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-07 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -13,6 +13,7 @@ bug: report it like one.
 |---|---|
 | The owner's correspondence (messages, attachments, drafts) | the `.mailcraft` mailbox file and the folder of message content beside it; the servers |
 | Sign-ins: passwords, OAuth refresh and access tokens | memory for the session (`MailApp::passwords`, `MailApp::tokens`); the operating system's credential store when the owner wants them remembered |
+| The owner's own private keys imported into MailCraft (OpenPGP everywhere; S/MIME on Linux and FreeBSD) | the operating system's credential store, the file as it came and still protected by its passphrase, under `key:openpgp:<fingerprint>` or `key:smime:<sha-256>`; only their public facts in `ui.json` |
 | Contacts, calendars, tasks | the mailbox file; the servers |
 | The owner's privacy: when and whether they read a message, where they are, who they are | everything that leaves the computer |
 
@@ -58,8 +59,12 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
   checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
   placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
-  Pictures on the web only on the owner's say-so, and only `<img>` addresses (no backgrounds,
-  style sheets, fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+  Under a reply or forward, each one the reading pane would show goes as a part of its own beside
+  the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
+  `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
+  a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
+  `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
+  tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
@@ -276,9 +281,23 @@ Watches or changes traffic between MailCraft and its servers.
   is allowed only to loopback, for tests.
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
-- **Provider discovery** asks a DNS-over-HTTPS resolver for the domain's mail exchangers
-  (`mailcraft_net::lookup_mx`): only the domain goes out, never the mailbox name, and only when the
-  owner presses Connect.
+- **Provider discovery** asks a DNS-over-HTTPS resolver about the domain alone, never the mailbox
+  name, and only when the owner presses Connect: for its mail exchangers (`mailcraft_net::lookup_mx`)
+  and, for a domain nobody here knows, for its mail servers' SRV records of RFC 6186
+  (`mailcraft_net::discover`, #1063), the hosts its `_autodiscover._tcp` SRV record names and
+  the host `autodiscover.<domain>` is an alias of (CNAME; `mailcraft_net::autodiscover_hosts`).
+  The Autodiscover hosts only choose a page, and none of them is asked anything for it:
+  Microsoft's is Microsoft 365, signed in on Microsoft's page; cPanel's is IMAP; any other is a
+  question to the owner, an Exchange server or IMAP, with neither the default. IMAP is the servers
+  the RFC 6186 records name, else the guess.
+- **The alias step** ([autodiscover.md](autodiscover.md) specifies it). The Exchange server search
+  (`crates/ews/src/autodiscover.rs`) asks the alias's host too, after the SRV record's targets, at
+  port 443, at most two. It takes the place of MS-OXDISCO §3.1.5.4, the plain-HTTP redirect, which
+  is never taken, so that a domain whose SRV record is only in its own network's DNS is found. An
+  alias isn't the SRV record's word: its host is asked about before anything is sent to it outside
+  the domain, and has the sign-in only after the owner's yes inside it too (AU3-V1, as §3.1.5.4 asks
+  the user, and RFC 9525 §6.1.1 lets a name from the DNS be checked against only once the user has
+  associated it). A forged or stale alias costs a question, never the password.
 - The one thing fetched over plain `http` is a picture the owner asked for, when that is the address
   the message gives; nothing of the owner's travels with it.
 
@@ -369,6 +388,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   body budget allows at a kilobyte each is refused before it uses the memory. Loading keeps at most
   1,000 accounts, 50,000 folders and 1,000 categories, cleans their names, and repairs in time
   linear in the file (`Mailbox::repair`).
+- A `.pst` file's distribution list that keeps its members in a stream of their own
+  ([MS-OXOCNTC] 2.2.2.2.4, `crates/pst/src/list_stream.rs`) is read within the import's caps: at
+  most 4 MB of stream, 4,000 entries looked at and 1,000 members kept, each entry at most 16 KB;
+  a count of members the bytes can't hold refuses the stream before anything is read, nothing is
+  allocated by what the stream says, a length that runs past the end stops the reading there
+  (the members before it are kept and the rest named in the report), and a stream that can't be
+  believed is named and left aside. It has its property tests and is fed by the `pst` fuzz
+  target.
 
 ### Other programs and users on the same computer
 
@@ -406,6 +433,35 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   at the account's next run (the answer was let go of, or MailCraft stopped mid-send) is held as
   one that may have been sent, never sent again until the owner says so (AU3-26). A
   `mailto:` link handed in from outside saves a message with changes to Drafts first (AU2-19).
+- **The owner's own private keys** (#30; File › Options › Security). An imported key never
+  passes through a command: the window reads the file the owner picked and hands it, with a
+  `.p12`'s passphrase typed into the import dialog, to the host in a job, never in a command's
+  params, `ui.json`, a log or an error. The rules are in one place
+  (`crates/engine/src/private_keys.rs`): an OpenPGP key must have a passphrase, and not an empty
+  one (each secret part is tried with an empty passphrase, its key derivation capped); a `.p12`
+  kept by MailCraft must have its private key encrypted in the file, not only under its MAC; the
+  file holds one secret key and nothing else, since the whole file is what is kept; and no RSA
+  private-key operation runs in the process (an OpenPGP key with any RSA part, a subkey for
+  encryption too, is refused, and a `.p12`'s kind is its private key's own PKCS #8 algorithm and
+  curve, its certificate required to match it). What passes is kept as it came, still protected
+  by its passphrase, in the operating system's credential store under `key:openpgp:<fingerprint>`
+  or `key:smime:<sha-256>` (S/MIME only on Linux and FreeBSD: on Windows and macOS a `.p12` goes
+  into the certificate store or the keychain, which keep it themselves), at most 64 of them, and
+  nothing is kept that the page doesn't list; nothing is kept where there is no credential store.
+  `ui.json` holds only their public facts, and removing MailCraft's data deletes them from the
+  store. A key is removed, and an OpenPGP key marked Verified, only by the owner's own click: the
+  commands are never an agent's, and the buttons don't answer input the control channel
+  injected (`MailApp::driven`), so an agent allowed to click can't do either. Marking the owner's
+  own key Verified on import covers only the User IDs that are the mailbox's accounts' addresses.
+- **GnuPG is run, never a shell** (`apps/mailcraft/src/own_keys/gnupg.rs`): `gpgconf
+  --list-components` names `gpg`, and `gpg` lists the owner's secret keys and the User IDs it
+  holds valid, with fixed arguments and no input, for at most 20 seconds and 4 MB of output (a
+  program that runs longer or writes more is stopped and said not to work), and its colon
+  listing read for a few fields with every value bounded. Validity is asked under GnuPG's direct
+  trust model whatever its options say (`--trust-model=direct`), so that a key counts as Verified
+  only by what the owner set on that very key in GnuPG, never through the web of trust, TOFU or
+  `trust-model always`; it is asked at start, by Refresh, and when the window comes back to the
+  front, at most once a minute.
 - **The control channel** (only when started with `--control`) listens on `127.0.0.1` only, and every
   request must carry a key: 32 random bytes from the operating system, written to a key file created
   0600 on Unix and compared in constant time (`apps/mailcraft/src/control_server.rs`,
@@ -571,9 +627,12 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
+| 2026-11-07 | patch | #843: a `.pst` distribution list's stream of members is read within caps |
 | 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
 | 2026-11-07 | patch | AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8, H6: every background job of the window answers only for the mailbox opening it was started under and is called off when another mailbox takes its place; no answer is relabelled with the account open now; a shared mailbox's sign-in is checked against its owner; a message handed to a server is marked as being sent on disk first, and one still marked at the next run is held, not sent again |
 | 2026-11-07 | patch | AU3-02, AU3-03, AU3-18, AU3-19: secrets are read and written by the account itself, an Exchange server account's name holds the certificate it trusts, a mailbox where two accounts share an address reads nothing until confirmed, every entry read is noted for the full wipe, removing an account deletes its entries under every name, and no build but a test's sends a Microsoft sign-in to this computer |
+| 2026-11-05 | minor | #602: under a reply or forward, the pictures written into a message (`data:`) that the reading pane shows go as parts of their own with Content-IDs naming nothing of the owner, within #533's checks and caps; the rest are left out and a `data:` address is never sent on |
 | 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
 | 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |
 | 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |

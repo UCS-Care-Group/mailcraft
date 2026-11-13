@@ -21,7 +21,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     a
 }
 
@@ -205,6 +205,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("junk.add", r#"{"list": "safe", "entry": "a@example.org"}"#, Setup::None),
     ("junk.remove", r#"{"list": "safe", "entry": "a@example.org"}"#, Setup::None),
     ("junk.list", r#"{"list": "safe"}"#, Setup::None),
+    ("keys.import", r#"{"data": "AAAA"}"#, Setup::None),
+    ("keys.remove", r#"{"address": "a@example.org", "fingerprint": "00"}"#, Setup::None),
     ("signature.set", r#"{"name": "x", "text": "y"}"#, Setup::None),
     ("signature.remove", r#"{"name": "Standard"}"#, Setup::None),
     ("signature.rename", r#"{"from": "Standard", "to": "y"}"#, Setup::None),
@@ -227,6 +229,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.updateInstall", "{}", Setup::None),
     ("ui.dismissUpdateNotice", "{}", Setup::None),
     ("ui.dismissSettingsNotice", "{}", Setup::None),
+    ("ui.dismissSoftwareNotice", "{}", Setup::None),
     // What is asked about only now and then (`agent::classify`).
     ("edit.undo", "{}", Setup::Step(false)),
     ("edit.redo", "{}", Setup::Step(true)),

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use egui::FontFamily;
 
-use super::{FALLBACK_FONTS_MAX, SystemFont, font_definitions, font_definitions_with, is_font};
+use super::{FALLBACK_FACES, FALLBACK_FONTS_MAX, GEORGIAN_FACES, SystemFont, font_definitions, font_definitions_with, is_font, with_extra_face};
 
 /// A font that is certainly one: the bundled Inter, standing in for a system's face.
 const A_FONT: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
@@ -201,8 +201,78 @@ fn has_glyphs(fonts: egui::FontDefinitions, chars: &[char]) -> bool {
     all
 }
 
+/// Noto Sans Georgian, which the browser build fetches (#1010): Mkhedruli and Mtavruli.
+const NOTO_GEORGIAN: &[u8] = include_bytes!("../../../assets/fonts/NotoSansGeorgian-Regular.ttf");
+
+/// "Georgia" in lower case and in capitals (Mtavruli, as the Launcher writes a heading).
+const GEORGIAN: [char; 6] = ['ს', 'ა', 'ქ', 'ა', 'რ', 'თ'];
+const MTAVRULI: [char; 4] = ['Ს', 'Ა', 'Ქ', 'Რ'];
+
+/// Georgian is a script of its own among the fallbacks (#1010): the bundled fonts draw it as empty
+/// boxes, and any face of this system's Georgian group, found in a fonts folder, draws it, behind
+/// every other font and without changing what they draw.
+#[test]
+fn a_georgian_face_is_a_fallback_of_its_own() {
+    assert!(FALLBACK_FACES.contains(&GEORGIAN_FACES));
+    assert!(!GEORGIAN_FACES.is_empty());
+    let none = font_definitions_with(&SystemFont::none());
+    assert!(!has_glyphs(none.clone(), &GEORGIAN));
+    for (i, name) in GEORGIAN_FACES.iter().enumerate() {
+        let dir = FontsDir::new(&format!("georgian{i}"));
+        dir.put(name, NOTO_GEORGIAN);
+        let system = SystemFont::none().with_fallbacks_from(&dir.dirs(), FALLBACK_FACES);
+        assert_eq!(system.fallback_count(), 1, "{name}");
+        let fonts = font_definitions_with(&system);
+        assert!(has_glyphs(fonts.clone(), &GEORGIAN), "{name}");
+        assert!(has_glyphs(fonts.clone(), &MTAVRULI), "{name}");
+        for (family, faces) in &fonts.families {
+            assert_eq!(&faces[..faces.len() - 1], none.families[family].as_slice(), "{family:?}");
+        }
+    }
+}
+
+/// The browser's face goes last in every family, text with it draws, and bytes that are no font
+/// (a server's home page for a missing file) are refused instead of reaching egui.
+#[test]
+fn the_browsers_georgian_face_is_added_last_to_every_family() {
+    let none = font_definitions_with(&SystemFont::none());
+    assert!(is_font(NOTO_GEORGIAN));
+    let fonts = with_extra_face(none.clone(), "NotoSansGeorgian", NOTO_GEORGIAN.to_vec()).expect("a font");
+    for (family, faces) in &fonts.families {
+        assert_eq!(faces.last().map(String::as_str), Some("NotoSansGeorgian"), "{family:?}");
+        assert_eq!(&faces[..faces.len() - 1], none.families[family].as_slice(), "{family:?}");
+    }
+    assert!(has_glyphs(fonts.clone(), &GEORGIAN));
+    assert!(has_glyphs(fonts.clone(), &MTAVRULI));
+    // A second time changes nothing.
+    let again = with_extra_face(fonts.clone(), "NotoSansGeorgian", NOTO_GEORGIAN.to_vec()).expect("a font");
+    assert_eq!(again.families, fonts.families);
+    assert!(with_extra_face(none, "NotoSansGeorgian", b"<!DOCTYPE html><html></html>".to_vec()).is_none());
+}
+
+/// Flatpak exposes host fonts in addition to the fonts in its runtime.
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_font_search_includes_flatpak_host_fonts() {
+    let dirs = super::font_dirs();
+    for path in ["/run/host/user-fonts", "/run/host/local-fonts", "/run/host/fonts"] {
+        assert!(dirs.contains(&PathBuf::from(path)), "missing font directory {path}");
+    }
+}
+
+/// A host can have just the upstream variable CJK collection installed.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+#[test]
+fn the_variable_noto_collection_is_a_system_fallback() {
+    let dir = FontsDir::new("variable-noto");
+    dir.put("noto/NotoSansCJK-VF.otf.ttc", &collection(A_FONT));
+    let system = SystemFont::none().with_fallbacks_from(&dir.dirs(), super::FALLBACK_FACES);
+    assert_eq!(system.fallback_count(), 1);
+    draws(font_definitions_with(&system));
+}
+
 /// What this system has, whatever that is, goes behind the other fonts and draws text in other
-/// scripts: with real glyphs, where it has a face for Chinese or Hebrew.
+/// scripts: with real glyphs, where it has a face for Chinese, Japanese or Hebrew.
 #[test]
 fn the_fallbacks_of_this_system_draw() {
     // The bundled fonts alone draw Chinese and Hebrew as empty boxes, which the check sees.
@@ -224,6 +294,9 @@ fn the_fallbacks_of_this_system_draw() {
         };
         if super::FALLBACK_FACES.first().is_some_and(|chinese| has(chinese)) {
             assert!(has_glyphs(fonts.clone(), &['斯', '洛', '票']), "Chinese is drawn with {found:?}");
+        }
+        if has(&["NotoSansCJK-Regular.ttc"]) {
+            assert!(has_glyphs(fonts.clone(), &['山', '田', 'の', 'ラ']), "Japanese is drawn with {found:?}");
         }
         if has(&["NotoSansHebrew-Regular.ttf", "DejaVuSans.ttf", "ArialHB.ttc", "arial.ttf"]) {
             assert!(has_glyphs(fonts, &['ש', 'ל', 'ו', 'ם']), "Hebrew is drawn with {found:?}");

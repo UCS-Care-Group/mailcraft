@@ -125,6 +125,8 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let picked = app.session.sel.messages.len();
+    let preview_message = if picked == 1 { app.session.sel.focus() } else { None };
+    crate::attachment_preview::follow_message(app, ui.ctx().viewport_id(), preview_message);
     // What showing it needs (its body, the pictures in it, a calendar part) is brought into
     // memory first, when the mailbox keeps it on disk; the message then shows whole in this
     // very frame. (One that can't be read says so in its text, once.)
@@ -236,6 +238,9 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // header too wide for a narrow pane must not make the text run out of sight with it.
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+        if crate::attachment_preview::show(app, ui, m.id) {
+            return;
+        }
         view::page(app, place, ui).show(ui, |ui| {
             // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
             egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
@@ -255,10 +260,10 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
     } else if app.jmap_refused.contains(&m.account) {
         // Its server turned the account's sign-in down: nothing downloads until it is given again.
         tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.")
-    } else if app.fetching.offline && !app.session.mailbox.within_window(m, app.session.now()) {
+    } else if app.session.driver.fetch.offline && !app.session.mailbox.within_window(m, app.session.now()) {
         // Older than its mail to keep offline (#143): only its headers and preview are kept here.
         tl!("Not connected: the rest of this message is on the server")
-    } else if app.fetching.offline {
+    } else if app.session.driver.fetch.offline {
         tl!("This message isn't on this computer yet. It will download when you're online.")
     } else if app.opened_after_batch(m.id) {
         tl!("This message downloads once the messages being downloaded now are here.")
@@ -331,29 +336,67 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
 
 /// The carried original as a message to show: the original's sender, date and place (what its
 /// pictures are allowed by), with the quote's HTML for a body and the pictures the quote takes
-/// along. Kept from frame to frame while the quote stays the same.
+/// along. Kept from frame to frame while the quote stays the same, for each message being
+/// written (the windows of several share the context), and let go of with it.
 fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let c = app.session.compose.as_ref()?;
     let quote = c.quote.as_ref()?;
-    let key = egui::Id::unique("mailcraft-compose-quote");
-    let kept: Option<Arc<Message>> = ctx.data(|d| d.get_temp(key));
+    let key = quotes_key();
+    let mut kept: Vec<(u64, Arc<Message>)> = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
-    let pictures = if quote.pictures.is_empty() { &c.attachments } else { &quote.pictures };
-    let same = |m: &Arc<Message>| {
-        m.body.html.as_deref() == Some(quote.html.as_str()) && m.id == source.map_or(0, |s| s.id) && m.attachments.len() == pictures.len()
+    // The quote's own pictures (those the original showed, for an answer; those written into it,
+    // #602), and, but for an answer, the message's attachments: a forward carries the original's
+    // itself, its pictures among them, and so does one opened again as a draft (a picture its
+    // HTML calls by a Content-ID written otherwise, `cid:logo%40…`, stays among them).
+    let answer = matches!(c.mode, mailcraft_engine::ComposeMode::Reply | mailcraft_engine::ComposeMode::ReplyAll);
+    let forward = !answer || quote.pictures.is_empty();
+    let attached: &[mailcraft_model::Attachment] = if forward { &c.attachments } else { &[] };
+    let pictures = || quote.pictures.iter().chain(attached);
+    // The same pictures: the same parts, by their ids and their very bytes, in the same order.
+    let same_part = |a: &mailcraft_model::Attachment, b: &mailcraft_model::Attachment| {
+        a.content_id == b.content_id && a.name == b.name && Arc::ptr_eq(&a.data, &b.data)
     };
-    if let Some(m) = kept.filter(same) {
-        return Some(m);
+    let same = |m: &Arc<Message>| {
+        m.body.html.as_deref() == Some(quote.html.as_str())
+            && m.id == source.map_or(0, |s| s.id)
+            && m.attachments.len() == quote.pictures.len().saturating_add(attached.len())
+            && m.attachments.iter().zip(pictures()).all(|(a, b)| same_part(a, b))
+    };
+    if let Some((_, m)) = kept.iter().find(|(id, m)| *id == c.id && same(m)) {
+        return Some(m.clone());
     }
     let mut m = source.map(|s| (**s).clone()).unwrap_or_default();
     m.body = mailcraft_model::Body { text: quote.text.clone(), html: Some(quote.html.clone()) };
-    // A forward carries the original's attachments itself, its pictures among them.
-    m.attachments = pictures.clone();
+    m.attachments = pictures().cloned().collect();
     // Its body is the quote's, whole: nothing of it waits on disk.
     m.kept = None;
     let m = Arc::new(m);
-    ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+    // This one's old quote goes (what is kept for a message no longer being written went at the
+    // start of the frame, [`let_go_of_quotes`]).
+    kept.retain(|(id, _)| *id != c.id);
+    kept.push((c.id, m.clone()));
+    ctx.data_mut(|d| d.insert_temp(key, kept));
     Some(m)
+}
+
+/// Where the carried originals are kept, in the context the windows share.
+fn quotes_key() -> egui::Id {
+    egui::Id::unique("mailcraft-compose-quote")
+}
+
+/// The carried originals of messages no longer being written go, with their pictures' bytes:
+/// once a frame, so a window that closes lets go of its own even when no other is open.
+fn let_go_of_quotes(app: &MailApp, ctx: &egui::Context) {
+    let key = quotes_key();
+    ctx.data_mut(|d| {
+        let Some(kept) = d.get_temp::<Vec<(u64, Arc<Message>)>>(key) else { return };
+        let left: Vec<(u64, Arc<Message>)> = kept.into_iter().filter(|(id, _)| app.session.all_composing().any(|open| open.id == *id)).collect();
+        if left.is_empty() {
+            d.remove::<Vec<(u64, Arc<Message>)>>(key);
+        } else {
+            d.insert_temp(key, left);
+        }
+    });
 }
 
 /// `m` shown read-only through the display blocks, as at `place` ([`Place::Preview`]): its own
@@ -362,8 +405,10 @@ pub(crate) fn show_plain_view(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, 
     view::show(app, ui, m, place, Access::Blocked);
 }
 
-/// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]).
+/// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]), and the
+/// quoted originals of messages no longer being written are let go of.
 pub(crate) fn tick(app: &mut MailApp, ctx: &egui::Context) {
+    let_go_of_quotes(app, ctx);
     remote::tick(app, ctx);
 }
 
@@ -380,20 +425,6 @@ pub(crate) const ACTIONS: [(&str, &str, &str); 4] = [
     ("forward", "Forward", "mail.forward"),
     ("delete", "Delete", "mail.delete"),
 ];
-
-/// The widths the sender's name and address get in `room` (what is left of the row after the
-/// tag), given the widths they would like. Both fit when they can; else the address is
-/// shortened first, down to 60% of the room, and the name gets the rest, shortened in turn
-/// (#630). The two never add up to more than `room`.
-pub(crate) fn header_widths(room: f32, name: f32, address: f32) -> (f32, f32) {
-    let room = room.max(0.0);
-    let (name, address) = (name.max(0.0), address.max(0.0));
-    if name + address <= room {
-        return (name, address);
-    }
-    let address_w = address.min((room * 0.6).max(room - name));
-    ((room - address_w).min(name).max(0.0), address_w)
-}
 
 /// Whether the date goes on a line of its own: the pane is too narrow to give the sender a
 /// useful row beside it.
@@ -451,58 +482,70 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                 let date_label = |fields: &mut select::Fields, ui: &mut Ui| {
                     fields.add(ui, select::Field::Date, egui::Label::new(egui::RichText::new(when.clone()).font(regular(11.5)).color(t.text_dim)));
                 };
-                let sender_row = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui, room: f32| {
-                    // From outside the organisation: a quiet tag after the address, which
-                    // keeps its room.
+                let sender = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui| {
+                    const ADDRESS_GAP: f32 = 4.0;
+                    const TAG_GAP: f32 = 6.0;
+                    let room = ui.available_width();
                     let external = warnings::external(app, m);
-                    let tag_w = if external { warnings::external_tag_width(ui, &t) } else { 0.0 };
-                    let address_text = format!("<{}>", m.from.email);
-                    let name_text = m.from.display();
-                    let name_nat = ui.painter().layout_no_wrap(name_text.to_string(), semibold(13.0), t.text).size().x;
-                    let address_nat = if m.from.name.is_empty() {
-                        0.0
-                    } else {
-                        ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x
-                    };
-                    let gap = ui.spacing().item_spacing.x;
-                    let (name_w, address_w) = header_widths(room - tag_w - gap, name_nat, address_nat);
+                    let tag_room = if external { warnings::external_tag_width(ui, &t) + TAG_GAP } else { 0.0 };
+                    let has_address = !m.from.name.is_empty();
                     let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
-                    let name =
-                        egui::RichText::new(name_text.to_string()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
-                    ui.scope(|ui| {
-                        ui.set_max_width(name_w);
-                        fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                    let name = egui::RichText::new(m.from.display().to_string()).font(semibold(13.0)).color(if looks_like_address {
+                        t.orange
+                    } else {
+                        t.text
                     });
-                    if !m.from.name.is_empty() {
-                        let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
+                    let address_text = format!("<{}>", m.from.email);
+                    let name_width = ui.painter().layout_no_wrap(m.from.display().to_string(), semibold(13.0), t.text).size().x;
+                    let address_width = ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x;
+                    let address_on_own_line = has_address && name_width + ADDRESS_GAP + address_width + tag_room > room;
+
+                    let name_label = |fields: &mut select::Fields, ui: &mut Ui, width: f32| {
                         ui.scope(|ui| {
-                            ui.set_max_width(address_w);
-                            fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                            ui.set_max_width(width.max(0.0));
+                            fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
                         });
-                    }
-                    if external {
-                        ui.add_space(6.0);
-                        let tag = warnings::external_tag(ui, &t);
-                        if place == Place::Pane {
-                            app.hit.add("externalTag", m.id, tag.rect);
+                    };
+                    let address_and_tag = |fields: &mut select::Fields, ui: &mut Ui| {
+                        if has_address {
+                            let width = (ui.available_width() - tag_room).max(0.0);
+                            ui.scope(|ui| {
+                                ui.set_max_width(width);
+                                let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
+                                fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                            });
                         }
+                        if external {
+                            ui.add_space(TAG_GAP);
+                            let tag = warnings::external_tag(ui, &t);
+                            if place == Place::Pane {
+                                app.hit.add("externalTag", m.id, tag.rect);
+                            }
+                        }
+                    };
+
+                    if address_on_own_line {
+                        name_label(fields, ui, room);
+                        ui.horizontal(|ui| address_and_tag(fields, ui));
+                    } else {
+                        ui.horizontal(|ui| {
+                            name_label(fields, ui, if has_address { name_width } else { room - tag_room });
+                            if has_address {
+                                ui.add_space(ADDRESS_GAP);
+                            }
+                            address_and_tag(fields, ui);
+                        });
                     }
                 };
                 if on_own_line {
-                    ui.horizontal(|ui| {
-                        let room = ui.available_width();
-                        sender_row(app, &mut fields, ui, room);
-                    });
+                    sender(app, &mut fields, ui);
                     date_label(&mut fields, ui);
                 } else {
                     ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                             ui.add_space(8.0);
                             date_label(&mut fields, ui);
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                let room = ui.available_width();
-                                sender_row(app, &mut fields, ui, room);
-                            });
+                            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| sender(app, &mut fields, ui));
                         });
                     });
                 }
@@ -638,8 +681,9 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
             let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
             let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
-            if resp.hovered() {
-                ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
+            let selected = crate::attachment_preview::selected(app, ui.ctx().viewport_id(), m.id, index);
+            if selected || resp.hovered() {
+                ui.painter().rect_filled(main_rect.shrink(1.0), left, if selected { t.pressed } else { t.hover });
             }
             if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
                 ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
@@ -672,9 +716,18 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 drop.on_hover_text(why);
                 continue;
             }
-            let resp = resp.on_hover_text(crate::i18n::fmt(tl!("Double-click to open {name}; right-click to save it"), &[("name", &shown)]));
+            let can_preview = crate::attachment_preview::single_click_allowed(app, m.id, index);
+            let hint = if can_preview {
+                tl!("Click to preview {name}; double-click to open it")
+            } else {
+                tl!("Double-click to open {name}; right-click to save it")
+            };
+            let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", &shown)]));
             if resp.double_clicked() {
+                crate::attachment_preview::cancel_click(app);
                 let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
+            } else if can_preview && resp.clicked() {
+                crate::attachment_preview::queue_click(app, ui.ctx(), m.id, index);
             }
             resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
             // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
@@ -684,6 +737,7 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
         }
     });
+    crate::attachment_preview::finish_click(app, ui.ctx(), m.id);
 }
 
 /// The key of attachment `index` of message `id` in the hit map (`attachment` for the chip,
@@ -695,6 +749,12 @@ pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
 /// An attachment's menu, the same from a right-click on its chip and from the chip's `▾` (#785).
 /// Each entry is greyed when its command can't run, and the command keeps its own refusals.
 pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
+    if crate::attachment_preview::available(app, id, index) && ui.button(tl!("Preview Attachment")).clicked() {
+        if let Err(error) = crate::attachment_preview::open(app, ui.ctx().viewport_id(), id, index) {
+            app.status(error);
+        }
+        ui.close();
+    }
     crate::widgets::mi(ui, app, "Open", "mail.openAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": id, "index": index}));
     crate::widgets::mi(ui, app, "Save All Attachments…", "mail.saveAllAttachments", json!({"id": id}));

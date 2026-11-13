@@ -143,7 +143,7 @@ impl MailApp {
         }
         // Nothing of the window waiting is ever written.
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.opening = Some(opening);
         app
     }
@@ -174,7 +174,7 @@ pub(crate) fn logic(app: &mut MailApp, ctx: &egui::Context) {
     }
     if o.held.is_none() {
         // The bytes read move on, and the screen comes after a moment.
-        ctx.request_repaint_after(Duration::from_millis(100));
+        crate::software::repaint_after(ctx, Duration::from_millis(100));
     }
 }
 
@@ -349,6 +349,9 @@ fn arrive(app: &mut MailApp, arrival: Arrival) {
     next.styled = app.styled;
     next.fonts_frames = app.fonts_frames;
     next.applied_theme = app.applied_theme;
+    // What the styles had before animations were stopped while the mailbox was read (#1183): the
+    // window that takes over gives it back when they play again.
+    next.motion = std::mem::take(&mut app.motion);
     *app = next;
     for what in o.queued {
         app.open_from_system(&what);
@@ -555,7 +558,7 @@ pub(crate) fn poll_ahead(app: &mut MailApp, ctx: &egui::Context) {
     let Some(ahead) = &app.reading_ahead else { return };
     let read = match ahead.rx.try_recv() {
         Err(TryRecvError::Empty) => {
-            ctx.request_repaint_after(Duration::from_millis(200));
+            crate::software::repaint_after(ctx, Duration::from_millis(200));
             return;
         }
         Ok(read) => read,

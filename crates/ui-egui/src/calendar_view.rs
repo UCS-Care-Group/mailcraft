@@ -1032,6 +1032,30 @@ pub(crate) fn week_number(first: Date) -> u8 {
     (0..7).map(|i| first.add_days(i)).find(|day| day.weekday() == Weekday::Mon).unwrap_or(first).iso_week()
 }
 
+/// The width of a place for one digit of a week's number in `font`: that of its widest digit.
+/// The digits of the interface's face are not all as wide as one another, so a number written as
+/// one piece of text starts and ends where its own digits put it, and a column of them wavers
+/// (#1009).
+fn digit_place(p: &egui::Painter, font: &FontId) -> f32 {
+    ('0'..='9').map(|digit| p.layout_no_wrap(digit.to_string(), font.clone(), Color32::WHITE).size().x).fold(0.0, f32::max)
+}
+
+/// Where the digits of a week's number go: each with the middle of its place, `place` wide, the
+/// last one's place ending at `right`. The units of every week are then under one another, and
+/// the tens too.
+fn week_number_places(number: u8, right: f32, place: f32) -> impl Iterator<Item = (char, f32)> {
+    let digits = number.to_string();
+    let count = digits.chars().count();
+    digits.chars().enumerate().map(move |(i, digit)| (digit, right - (count.saturating_sub(i) as f32 - 0.5) * place)).collect::<Vec<_>>().into_iter()
+}
+
+/// Write a week's number in a column of its own: its last digit's place ends at `right`.
+fn paint_week_number(p: &egui::Painter, number: u8, right: f32, y: f32, place: f32, font: &FontId, color: Color32) {
+    for (digit, x) in week_number_places(number, right, place) {
+        p.text(pos2(x, y), Align2::CENTER_CENTER, digit, font.clone(), color);
+    }
+}
+
 /// The date navigator: `months` small months one under the other, from the one the calendar
 /// shows (the arrows over them go a month back and on). Days on which something happens are
 /// bold; the days the calendar shows have a band behind them. A click on a day goes there, a
@@ -1142,8 +1166,9 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
                 p.rect_filled(margin.shrink2(vec2(2.0, 2.0)), 4.0, t.hover);
             }
             if numbers {
-                let number = week_number(day_of(0)).to_string();
-                p.text(pos2(margin.max.x - 5.0, margin.center().y), Align2::RIGHT_CENTER, number, regular(9.5), t.text_dim);
+                let font = regular(9.5);
+                let place = digit_place(&p, &font);
+                paint_week_number(&p, week_number(day_of(0)), margin.max.x - 5.0, margin.center().y, place, &font, t.text_dim);
             }
             if resp.on_hover_text(tl!("Show this week")).clicked() {
                 let _ = app.run("view.goToDate", json!({"date": week_first.iso()}));
@@ -1859,8 +1884,8 @@ fn paint_line(p: &Painter, pos: egui::Pos2, width: f32, text: &str, font: FontId
 }
 
 /// The small marks of an event (private, meeting, repeats, its categories), right to left from
-/// `right`. Returns where the text beside them has to stop.
-fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, left: f32, y: f32) -> f32 {
+/// `right`. Returns where the text beside them has to stop, at or beyond `text_end` when it fits.
+fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, text_end: f32, y: f32) -> f32 {
     let mut x = right;
     // How much it matters comes first (a red mark for high, a blue arrow down for low, in their
     // own colours whatever the item's), then that it is held online.
@@ -1869,7 +1894,7 @@ fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, left: f32, y: 
         Importance::Low => Some("importanceLow"),
         Importance::Normal => None,
     };
-    if let Some(icon) = importance.filter(|_| x - 13.0 > left + 28.0) {
+    if let Some(icon) = importance.filter(|_| x - 14.0 >= text_end) {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, y), vec2(12.0, 12.0)), icon, look.dim, look.dim);
         x -= 14.0;
     }
@@ -1879,13 +1904,13 @@ fn paint_marks(p: &Painter, item: &Item, look: &Look, right: f32, left: f32, y: 
         (item.ev.is_meeting(), "meeting"),
         (item.ev.recurrence.is_some(), "recurrence"),
     ] {
-        if on && x - 13.0 > left + 28.0 {
+        if on && x - 14.0 >= text_end {
             icons::paint(p, Rect::from_center_size(pos2(x - 6.0, y), vec2(12.0, 12.0)), icon, look.dim, look.dim);
             x -= 14.0;
         }
     }
     for color in &item.tags {
-        if x - 10.0 > left + 28.0 {
+        if x - 11.0 >= text_end {
             p.rect_filled(Rect::from_center_size(pos2(x - 5.0, y), vec2(8.0, 8.0)), 2.0, *color);
             x -= 11.0;
         }
@@ -1914,7 +1939,7 @@ fn paint_block(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, s
     if rect.height() < 32.0 {
         // One line: the title, and the place after it when it fits.
         let y = rect.center().y;
-        let stop = paint_marks(&p, item, &look, right, left, y);
+        let stop = paint_marks(&p, item, &look, right, left + 28.0, y);
         let used = paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, strike);
         if !place.is_empty() && stop - left - used > 48.0 {
             paint_clipped(&p, pos2(left + used + 8.0, y), stop - left - used - 8.0, place, regular(10.5), look.dim);
@@ -1922,7 +1947,7 @@ fn paint_block(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, s
         return;
     }
     let y = rect.min.y + 11.0;
-    let stop = paint_marks(&p, item, &look, right, left, y);
+    let stop = paint_marks(&p, item, &look, right, left + 28.0, y);
     paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, strike);
     paint_clipped(&p, pos2(left, y + 15.0), right - left, &item.times(twelve), regular(10.5), look.dim);
     if !place.is_empty() && rect.height() >= 46.0 {
@@ -1952,7 +1977,7 @@ fn paint_bar(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, sta
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
     let y = rect.center().y;
     let mut left = rect.min.x + EDGE_W + 5.0;
-    let stop = paint_marks(&p, item, &look, rect.max.x - 4.0, left, y);
+    let stop = paint_marks(&p, item, &look, rect.max.x - 4.0, left + 28.0, y);
     // A timed event that runs over days says when it starts.
     if !item.ev.all_day && starts {
         left += paint_clipped(&p, pos2(left, y), stop - left, &crate::dates::clock(item.occ.start, twelve), regular(10.5), look.dim) + 5.0;
@@ -1964,8 +1989,8 @@ fn paint_bar(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, sta
     }
 }
 
-/// A timed event in a month cell: a chip tinted like its block in the hours, with the same
-/// edge on its left, then the time and the title.
+/// A timed event in a month cell. Its title stays visible in narrow columns; the time
+/// appears beside it when both can fit and stays available in the tooltip.
 fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, selected: bool, hovered: bool) {
     let look = look(&item.ev, item.color, item.edge, t, hovered, item.dim);
     p.rect_filled(rect, 3.0, look.fill);
@@ -1982,8 +2007,20 @@ fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, se
     let p = p.with_clip_rect(rect.intersect(p.clip_rect()));
     let y = rect.center().y;
     let mut left = rect.min.x + EDGE_W + 5.0;
-    let stop = paint_marks(&p, item, &look, rect.max.x - 3.0, left + 40.0, y);
-    left += paint_clipped(&p, pos2(left, y), stop - left, &crate::dates::clock(item.occ.start, twelve), regular(10.5), look.dim) + 5.0;
+    let right = rect.max.x - 3.0;
+    let time = crate::dates::clock(item.occ.start, twelve);
+    let time_font = regular(10.5);
+    let time_width = p.layout_no_wrap(time.clone(), time_font.clone(), look.dim).size().x;
+    // Reserve title space before placing any marks, with or without the time.
+    const TITLE_ROOM: f32 = 48.0;
+    let time_room = time_width + 5.0;
+    let show_time = right - left >= time_room + TITLE_ROOM;
+    let title_left = left + if show_time { time_room } else { 0.0 };
+    let stop = paint_marks(&p, item, &look, right, title_left + TITLE_ROOM, y);
+    if show_time {
+        paint_clipped(&p, pos2(left, y), time_width, &time, time_font, look.dim);
+        left = title_left;
+    }
     paint_line(&p, pos2(left, y), stop - left, item.title(), semibold(11.5), look.ink, item.ev.cancelled);
 }
 
@@ -4038,6 +4075,11 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
 
 // ---- month ----
 
+/// The Month view: the weeks from `from` to `to` one under the other (six at most), each day a
+/// cell with its number and what happens on it, items of several days as bars across their
+/// days, and what doesn't fit said as more. With week numbers on, a column left of the weeks
+/// has each week's number, and a click on one shows that week. Side by side, every pane of
+/// `panes` has the weeks for its own calendars.
 fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: Date, items: &[Item], panes: &[PaneView]) {
     let t = Tokens::get(ui.ctx());
     // Coming back to a time grid scrolls it to the working day again.
@@ -4117,8 +4159,10 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
             if resp.hovered() {
                 p.rect_filled(cell, 0.0, t.hover);
             }
-            let at = pos2(cell.center().x, cell.min.y + NUM_H / 2.0 + 1.0);
-            p.text(at, Align2::CENTER_CENTER, week_number(first).to_string(), regular(10.5), t.text_dim);
+            // Two places in the middle of the column, so that a week below ten stands with the units.
+            let font = regular(10.5);
+            let place = digit_place(&p, &font);
+            paint_week_number(&p, week_number(first), cell.center().x + place, cell.min.y + NUM_H / 2.0 + 1.0, place, &font, t.text_dim);
             p.hline(cell.x_range(), cell.max.y - 0.5, Stroke::new(1.0, t.border));
             if resp.on_hover_text(tl!("Show this week")).clicked() {
                 let _ = app.run("view.goToDate", json!({"date": first.iso()}));
@@ -4761,7 +4805,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         let before = rig.at("Design review");
 
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         let button = rig.app.hit.rect("calendarConnect", account).expect("the line is shown");
         // The calendar is all there, under the line.
@@ -4774,7 +4818,7 @@ mod tests {
         assert_eq!(rig.selected(), (None, None), "the click went to the button, not to the calendar under it");
 
         // Connected: the line goes.
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         assert_eq!(rig.at("Design review"), before);
@@ -6576,6 +6620,11 @@ mod tests {
         assert_eq!((week_number(day(10, 11)), week_number(day(10, 12)), week_number(day(10, 10))), (42, 42, 42));
         assert_eq!((week_number(day(12, 27)), week_number(d(2027, 1, 3)), week_number(d(2025, 12, 28))), (53, 1, 1));
         let _ = (week_number(d(1, 1, 1)), week_number(d(9999, 12, 31)));
+        // Its digits each have a place of one width, the last ending at the right edge, so that
+        // the numbers of a column line up whatever their digits (#1009).
+        let places = |number| week_number_places(number, 100.0, 6.0).collect::<Vec<_>>();
+        assert_eq!((places(20), places(17)), (vec![('2', 91.0), ('0', 97.0)], vec![('1', 91.0), ('7', 97.0)]));
+        assert_eq!((places(7), places(0), places(255).len()), (vec![('7', 97.0)], vec![('0', 97.0)], 3));
     }
 
     #[test]
@@ -6776,7 +6825,7 @@ mod tests {
         use egui_kittest::kittest::Queryable as _;
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         // Whose meeting it is, and what was answered so far.
@@ -7495,7 +7544,7 @@ mod tests {
         let team = rig.app.session.mailbox.calendars.iter().find(|c| c.name == "Team").map(|c| c.id).unwrap();
         let mut app = MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
@@ -7638,7 +7687,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarExtras", account).is_none());
         // The sign-in covers the calendar and not the mailbox's categories and working hours:
         // one line under the list of calendars, and no bar across the calendar.
-        rig.app.calendar.extras_missing.insert(account);
+        rig.app.session.driver.calendar.extras_missing.insert(account);
         rig.frames(2);
         let line = rig.app.hit.rect("calendarExtras", account).expect("the line");
         let last_row = rig.app.hit.rect("calendar", own).unwrap();
@@ -7660,10 +7709,10 @@ mod tests {
         assert_eq!(rig.selected(), (None, None));
         let _ = rig.app.execute("ui.cancelSignIn", json!({}));
         // A calendar that can't be read at all says so across the top, and the line keeps quiet.
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarExtras", account).is_none() && rig.app.hit.rect("calendarConnect", account).is_some());
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert_eq!(rig.at("Design review"), before, "the line takes nothing from the calendar");
         // With the extras there, the line goes.

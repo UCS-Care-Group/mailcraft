@@ -4,7 +4,7 @@
 
 use proptest::prelude::*;
 
-use crate::{Cap, Error, MAX_RTF_DEPTH, crc32, decompress_rtf, rtf_text};
+use crate::{Cap, Error, MAX_RTF_DEPTH, crc32, decompress_rtf, rtf_html, rtf_text};
 
 /// [MS-OXRTFCP] 3.1.1: a simple compressed RTF.
 const EXAMPLE_1: [u8; 49] = [
@@ -295,5 +295,59 @@ proptest! {
     fn rtf_with_valid_start_is_bounded(body in "[\\\\{}a-z0-9 '*-]{0,600}", max in 0usize..300) {
         let rtf = format!("{{\\rtf1 {body}");
         if let Ok((t, _)) = rtf_text(rtf.as_bytes(), max) { prop_assert!(t.len() <= max.saturating_add(4)); }
+    }
+}
+
+/// The document of [MS-OXRTFEX] 2.1.3.1.3's kind: tags in groups, what isn't HTML suppressed.
+const ENCAPSULATED: &[u8] =
+    b"{\\rtf1\\ansi\\ansicpg1252\\fromhtml1 \\deff0{\\fonttbl{\\f0\\fswiss Arial;}{\\f1\\fcharset204 Cyr;}}{\\colortbl;\\red0;}\
+{\\*\\htmltag64 <p>}{\\htmlrtf \\f1 \\htmlrtf0 caf\\'e9 {\\*\\htmltag <b>}{\\htmlrtf \\b \\htmlrtf0 bold{\\*\\htmltag </b>}}\
+\\htmlrtf \\par \\htmlrtf0 {\\*\\htmltag &amp;}\\htmlrtf &\\htmlrtf0 \\u8364?{\\*\\mhtmltag <skipped>}{\\*\\other no}{\\*\\htmltag </p>}}}";
+
+#[test]
+fn encapsulated_html_comes_out_as_it_was() {
+    let (html, cut) = rtf_html(ENCAPSULATED, 1 << 16).unwrap().unwrap();
+    assert!(!cut);
+    assert_eq!(html, "<p>caf\u{439} <b>bold</b>&amp;\u{20AC}</p>");
+}
+
+#[test]
+fn a_tag_is_kept_even_where_the_text_round_it_is_suppressed() {
+    let rtf = b"{\\rtf1\\fromhtml1 \\htmlrtf {\\*\\htmltag <i>}gone\\htmlrtf0 kept}";
+    assert_eq!(rtf_html(rtf, 100).unwrap().unwrap().0, "<i>kept");
+}
+
+#[test]
+fn only_a_document_that_says_so_is_html() {
+    assert_eq!(rtf_html(b"{\\rtf1\\ansi plain}", 100).unwrap(), None);
+    assert_eq!(rtf_html(b"{\\rtf1\\fromtext hello}", 100).unwrap(), None);
+    assert_eq!(rtf_html(b"{\\rtf1 text\\fromhtml1 }", 100).unwrap(), None, "past a token that isn't a control word");
+    assert_eq!(rtf_html(b"{\\rtf1\\a\\b\\c\\d\\e\\f\\g\\h\\i\\j\\fromhtml1 }", 100).unwrap(), None, "past the first ten tokens");
+    assert_eq!(rtf_html(b"not rich text", 100).unwrap(), None);
+}
+
+#[test]
+fn encapsulated_html_is_capped_and_a_deep_nest_refused() {
+    let mut rtf = b"{\\rtf1\\fromhtml1 ".to_vec();
+    rtf.extend(std::iter::repeat_n(b'x', 1000));
+    let (html, cut) = rtf_html(&rtf, 10).unwrap().unwrap();
+    assert!(cut && html.len() <= 10);
+    let mut deep = b"{\\rtf1\\fromhtml1 ".to_vec();
+    deep.extend(std::iter::repeat_n(b'{', MAX_RTF_DEPTH + 2));
+    assert!(rtf_html(&deep, 100).is_err());
+}
+
+#[test]
+fn the_text_of_encapsulated_html_is_still_what_it_shows() {
+    let rtf = b"{\\rtf1\\fromhtml1 {\\*\\htmltag <p>}\\htmlrtf x\\htmlrtf0 hello}";
+    assert_eq!(rtf_text(rtf, 100).unwrap().0, "xhello");
+}
+
+proptest! {
+    #[test]
+    fn any_bytes_read_as_html_never_panic(data in proptest::collection::vec(any::<u8>(), 0..2000)) {
+        let mut rtf = b"{\\rtf1\\fromhtml1 ".to_vec();
+        rtf.extend_from_slice(&data);
+        let _ = rtf_html(&rtf, 1 << 12);
     }
 }

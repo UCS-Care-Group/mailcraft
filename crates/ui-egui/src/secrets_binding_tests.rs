@@ -29,7 +29,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.into(), secret.into());
         Ok(())
     }
@@ -67,7 +67,7 @@ fn exchange(id: u64, email: &str, trusted: &str) -> Account {
         kind: AccountKind::Exchange,
         email: email.into(),
         name: email.into(),
-        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new() }),
+        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new(), parents: false }),
         ..Default::default()
     }
 }

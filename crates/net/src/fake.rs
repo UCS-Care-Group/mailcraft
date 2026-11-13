@@ -299,6 +299,8 @@ pub(crate) struct ImapWorld {
     pub(crate) sasl_ir: bool,
     /// Offer the password-based PLAIN mechanism.
     pub(crate) plain: bool,
+    /// Say a password isn't taken on this connection (`LOGINDISABLED`, RFC 3501 §6.2.3).
+    pub(crate) login_disabled: bool,
     /// A real TLS server for STARTTLS tests; none keeps the existing broken-handshake peer.
     pub(crate) starttls_upgrade: Option<StartTls>,
     pub(crate) mailboxes: Vec<FakeMailbox>,
@@ -345,6 +347,8 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail_categories: Vec<(String, u32, String)>,
     /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
     pub(crate) gmail_finds_deleted: bool,
+    /// Don't know STATUS: answer BAD to it, as a very old server would.
+    pub(crate) no_status: bool,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
     /// Every line received.
@@ -362,7 +366,8 @@ impl ImapWorld {
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}")
+        let no_login = if self.login_disabled { " LOGINDISABLED" } else { "" };
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{no_login}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -686,6 +691,26 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         );
                         reply.extend(format!("* OK [UIDVALIDITY {}] UIDs valid\r\n* OK [UIDNEXT {next}] next\r\n", mailbox.uid_validity).bytes());
                         reply.extend(format!("{tag} OK [{}] done\r\n", if read_only { "READ-ONLY" } else { "READ-WRITE" }).bytes());
+                    }
+                    None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
+                }
+            }
+            // What a mailbox holds, without opening it (RFC 3501 §6.3.10).
+            "STATUS" if !world.no_status => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                match world.mailboxes.iter().find(|m| m.raw == name && !m.flags.contains("\\Noselect")) {
+                    Some(mailbox) => {
+                        let next = mailbox.next_uid.max(mailbox.messages.iter().map(|m| m.uid).max().unwrap_or(0) + 1);
+                        let unseen = mailbox.messages.iter().filter(|m| !m.has("\\Seen")).count();
+                        reply.extend(
+                            format!(
+                                "* STATUS {} (MESSAGES {} UIDNEXT {next} UIDVALIDITY {} UNSEEN {unseen})\r\n{tag} OK done\r\n",
+                                quote(&mailbox.raw),
+                                mailbox.messages.len(),
+                                mailbox.uid_validity
+                            )
+                            .bytes(),
+                        );
                     }
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
                 }
