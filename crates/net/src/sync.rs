@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::{
-    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
@@ -656,6 +656,20 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
             return None;
         }
     };
+    // The Inbox before anything else, as a Graph account's is: its new mail is on screen before
+    // the folders are listed, and before the rest of the account is looked at (#276).
+    let states = States::of(request);
+    // A local folder takes the news of one server mailbox only.
+    let mut claimed: HashSet<Id> = HashSet::new();
+    let inbox_read = match inbox_first(run, &mut imap, &states, &owed, host) {
+        Ok(read) => {
+            if let Some(read) = read {
+                claimed.insert(read);
+            }
+            read.is_some()
+        }
+        Err(()) => return None,
+    };
     let (mailboxes, dropped) = match imap.list_counted() {
         Ok(list) => list,
         Err(e) => {
@@ -699,10 +713,18 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     }
     // From here on the server is only read: the run can be called off in the middle of a command.
     imap.get_mut().watch(Some(run.cancel));
-    // A local folder takes the news of one server mailbox only.
-    let mut claimed: HashSet<Id> = HashSet::new();
-    let states = States::of(request);
     let count = plan.len().min(MAX_FOLDERS);
+    // A folder this run changed on the server is read: a message it moved away or deleted is
+    // marked, not gone, and no count shows that (#276).
+    let touched: HashSet<&str> = request
+        .ops
+        .iter()
+        .flat_map(|op| match op {
+            RemoteOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
+            op => vec![op.mailbox()],
+        })
+        .chain(request.places.iter().map(|place| place.to.as_str()))
+        .collect();
     // What the server says of every folder but the Inbox, asked of all in a few round trips, so
     // that a folder that hasn't changed isn't opened (#276).
     let statuses = match folder_statuses(run, &mut imap, &plan) {
@@ -715,7 +737,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         }
         let remote = kinds::remote_name(mailbox);
         // A folder without a name couldn't be told from one that only exists here.
-        if remote.is_empty() {
+        if remote.is_empty() || (inbox_read && kind == FolderKind::Inbox) {
             continue;
         }
         let state = states.get(&remote, kind).filter(|state| claimed.insert(state.id));
@@ -725,6 +747,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         if let (Some(state), Some(status)) = (state, status)
             && unchanged(state, status, request.max_per_folder)
             && arrived.is_empty()
+            && !touched.contains(remote.as_str())
         {
             log::debug!("a folder is passed over: its counts are the same");
             run.out.timings.skipped = run.out.timings.skipped.saturating_add(1);
@@ -738,6 +761,42 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         }
     }
     Some(imap)
+}
+
+/// The Inbox, read before the folders are listed (#276): `Ok(Some(id))` with the local folder
+/// that took its news, `Ok(None)` when it was left to the run's own turn, `Err` when the connection
+/// is gone (said in the run). Only for an account the mailbox has an Inbox of, and only when
+/// nothing is to be sent or pushed first: what the Inbox says is read after what was changed here
+/// has gone up, so that it shows it; a run that has such changes goes in its own order, and so
+/// does one called off or one that only tells the server what changed.
+fn inbox_first(run: &mut Run, imap: &mut Imap<Stream<'_>>, states: &States<'_>, owed: &[Id], host: Host) -> Result<Option<Id>, ()> {
+    let request = run.request;
+    if !owed.is_empty() || !request.ops.is_empty() || !request.places.is_empty() || !request.gmail_moves.is_empty() || request.push_only {
+        return Ok(None);
+    }
+    // One that follows the server's INBOX already: what is known of it is what the server said.
+    let Some(state) = states.following("INBOX") else { return Ok(None) };
+    if run.cancelled() {
+        return Ok(None);
+    }
+    let mailbox = Mailbox { name: "INBOX".into(), raw: "INBOX".into(), delimiter: None, flags: Vec::new() };
+    let folder = FolderSync {
+        mailbox: &mailbox,
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        state: Some(state),
+        max_new: request.max_per_folder as usize,
+        arrived: &[],
+        place: (1, 1),
+        gmail: host.gmail,
+        status: None,
+    };
+    if !folder.run(imap, run) {
+        return Err(());
+    }
+    // Its mail goes to the window now, not with the listing that comes next.
+    run.hand_over_in(imap, SyncStep::new(SyncStage::Checking, &label("INBOX"), 1, 1));
+    Ok(Some(state.id))
 }
 
 /// What the server's STATUS says of each folder of the plan that may be passed over, by the name
@@ -895,6 +954,11 @@ impl<'a> States<'a> {
             }
         }
         states
+    }
+
+    /// The folder that follows the mailbox `remote` already.
+    fn following(&self, remote: &str) -> Option<&'a FolderState> {
+        self.by_remote.get(remote).copied()
     }
 
     /// The folder that follows `remote` already, else a standard one of `kind` that follows none.
@@ -1418,6 +1482,10 @@ mod many_folders_tests;
 #[cfg(test)]
 #[path = "sync_skip_tests.rs"]
 mod skip_tests;
+
+#[cfg(test)]
+#[path = "sync_inbox_first_tests.rs"]
+mod inbox_first_tests;
 
 #[cfg(test)]
 mod tests {
