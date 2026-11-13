@@ -7,6 +7,8 @@ package work.mailcraft.android
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import kotlinx.coroutines.Dispatchers
 
 /** Invented people and mail (example.org), so that screenshots never hold anything real. */
 internal object ShellShots {
@@ -90,9 +92,11 @@ internal object ShellShots {
 
     @Composable
     fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed, with: ShellData = data) {
-        MailCraftTheme {
-            Surface {
-                AppShell(EnglishTexts, with, actions, initialNav = nav, initialDrawer = drawer)
+        CompositionLocalProvider(LocalDecoder provides Dispatchers.Unconfined) {
+            MailCraftTheme {
+                Surface {
+                    AppShell(EnglishTexts, with, actions, initialNav = nav, initialDrawer = drawer)
+                }
             }
         }
     }

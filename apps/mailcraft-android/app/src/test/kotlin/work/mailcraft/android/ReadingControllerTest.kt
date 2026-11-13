@@ -51,7 +51,7 @@ class ReadingControllerTest {
         source.parts["cid:logo"] = B.png
         val cache = PictureCache(dir)
         val store = MemoryPicturePrefs(prefs)
-        return Rig(source, cache, store, ReadingController(source, cache, store, CoroutineScope(Dispatchers.Unconfined)))
+        return Rig(source, cache, store, ReadingController(source, cache, store, CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined))
     }
 
     @Test
@@ -172,7 +172,7 @@ class ReadingControllerTest {
         val r = rig(null)
         r.c.open(7uL, 360, dark = false)
         assertEquals(LoadState.Failed, r.c.ui.value.load)
-        r.c.close()
+        r.c.close(7uL)
         assertNull(r.c.ui.value.id)
         assertNull(r.c.ui.value.opened)
     }
@@ -186,5 +186,27 @@ class ReadingControllerTest {
         r.c.prefsChanged()
         assertNotNull(r.c.ui.value.pictures[banner])
         assertFalse(r.c.ui.value.offersPictures)
+    }
+
+    @Test
+    fun leavingTheMessageStopsEveryDownloadNotYetStartedAndKeepsNothingThatWasOnItsWay() {
+        val r = rig()
+        // The owner leaves while the first picture is coming.
+        r.source.onDownload = { r.c.close(7uL) }
+        r.c.open(7uL, 360, dark = false)
+        r.c.allow(AllowScope.Message)
+        assertEquals(listOf(banner), r.source.downloads)
+        assertEquals(0, r.cache.usage().first)
+        assertNull(r.c.ui.value.id)
+        assertTrue(r.c.ui.value.pictures.isEmpty())
+    }
+
+    @Test
+    fun closingAMessageThatIsNoLongerOpenChangesNothing() {
+        val r = rig()
+        r.c.open(7uL, 360, dark = false)
+        r.c.close(99uL)
+        assertEquals(7uL, r.c.ui.value.id)
+        assertEquals(LoadState.Ready, r.c.ui.value.load)
     }
 }

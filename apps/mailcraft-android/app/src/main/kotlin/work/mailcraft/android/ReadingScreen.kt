@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,12 +50,14 @@ private const val RGB_MASK = 0xFFFFFF
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
     val onOpen: (ULong, Int, Boolean) -> Unit,
+    /** Message [id] is no longer on screen: pictures still on their way are let go of. */
+    val onClose: (ULong) -> Unit,
     val onAllow: (AllowScope) -> Unit,
     val onDownloadNow: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
 ) {
     companion object {
-        val None = ReadingActions({ _, _, _ -> }, {}, {}, { LinkResult.Ignored })
+        val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
     }
 }
 
@@ -88,6 +91,7 @@ internal fun ReadingPane(
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val bodyWidth = maxWidth - Gutter * 2
             LaunchedEffect(id, bodyWidth.value.toInt(), dark) { actions.onOpen(id, bodyWidth.value.toInt(), dark) }
+            DisposableEffect(id) { onDispose { actions.onClose(id) } }
             val opened = ui.opened
             when {
                 ui.load == LoadState.Failed -> Centered(texts.t("The message could not be read."))

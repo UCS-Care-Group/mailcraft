@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +36,7 @@ internal fun initialsOf(label: String): String {
  */
 @Composable
 internal fun SenderAvatar(row: InboxRow, state: AvatarState) {
-    val decoded = state.picture?.let { bytes -> remember(bytes) { decode(bytes) } }
+    val decoded = rememberDecoded(state.picture)
     Box(
         modifier = Modifier
             .size(AvatarSize)

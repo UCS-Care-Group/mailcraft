@@ -3,13 +3,16 @@
 package work.mailcraft.android
 
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 /**
  * The reading pane's logic, apart from any screen: which message is open, what the owner allowed
@@ -24,6 +27,8 @@ internal class ReadingController(
     private val cache: PictureCache,
     private val prefsStore: PicturePrefsStore,
     private val scope: CoroutineScope,
+    /** Where the picture cache's files are read and written: never the main thread. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val state = MutableStateFlow(ReadingUi())
 
@@ -44,7 +49,10 @@ internal class ReadingController(
     /** Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed). */
     fun open(id: ULong, widthDp: Int, dark: Boolean) {
         val mine = generation.incrementAndGet()
-        state.update { if (it.id == id) it else ReadingUi(id = id) }
+        // (Pictures that were on their way for an earlier look are asked for again by this one.)
+        state.update {
+            if (it.id == id) it.copy(pictures = it.pictures.filterValues { v -> v !is PictureState.Pending }) else ReadingUi(id = id)
+        }
         scope.launch {
             val opened = source.open(id, widthDp, dark)
             if (mine != generation.get()) return@launch
@@ -60,8 +68,13 @@ internal class ReadingController(
         }
     }
 
-    /** The owner left the message. Pictures still on their way are let go of when they arrive. */
-    fun close() {
+    /**
+     * The owner left message [id] (back, another tab or folder, or the selection cleared). What is still
+     * on its way is not asked for any more, and what arrives is dropped and not kept. When another message
+     * has been opened since, nothing changes.
+     */
+    fun close(id: ULong) {
+        if (state.value.id != id) return
         generation.incrementAndGet()
         state.value = ReadingUi()
     }
@@ -142,28 +155,44 @@ internal class ReadingController(
 
     /** What is kept is shown at once; else data saving holds it for a tap; else it is downloaded. */
     private suspend fun loadWeb(mine: Int, id: ULong, url: String, holds: Boolean) {
-        val kept = cache.get(url)
+        if (mine != generation.get()) return
+        val kept = withContext(io) { cache.get(url) }
         val state = when {
             kept != null -> PictureState.Ready(kept)
             holds -> PictureState.Waiting
-            else -> download(id, url)
+            else -> download(mine, id, url)
         }
-        put(mine, url, state)
+        if (state != null) put(mine, url, state)
     }
 
-    private suspend fun download(id: ULong, url: String): PictureState {
-        if (!budget.take(id)) return PictureState.LeftOut
-        return when (val got = flights.withPermit { source.download(url) }) {
-            is Fetched.Got -> {
+    /** The picture's state, or null when the owner left the message first (nothing is asked, nothing is kept). */
+    private suspend fun download(mine: Int, id: ULong, url: String): PictureState? {
+        if (mine != generation.get()) return null
+        // Checked again with the permit in hand: a download queued behind others may be a long wait.
+        var leftOut = false
+        val got = flights.withPermit {
+            when {
+                mine != generation.get() -> null
+                !budget.take(id) -> {
+                    leftOut = true
+                    null
+                }
+                else -> source.download(url)
+            }
+        }
+        return when {
+            leftOut -> PictureState.LeftOut
+            got == null || mine != generation.get() -> null
+            got is Fetched.Got -> {
                 budget.add(id, got.bytes.size)
                 if (looksLikeAPicture(got.bytes)) {
-                    cache.put(url, got.bytes)
+                    withContext(io) { cache.put(url, got.bytes) }
                     PictureState.Ready(got.bytes)
                 } else {
                     PictureState.Failed
                 }
             }
-            is Fetched.Refused -> PictureState.Failed
+            else -> PictureState.Failed
         }
     }
 

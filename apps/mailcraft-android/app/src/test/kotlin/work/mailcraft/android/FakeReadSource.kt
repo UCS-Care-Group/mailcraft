@@ -14,6 +14,10 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     var dataSaver = false
     var factsAnswer: MessageFacts? = MessageFacts("ada@example.org", junk = false, vouched = true, known = true)
 
+    /** The facts of particular messages, where they differ from [factsAnswer]. */
+    val factsById = mutableMapOf<ULong, MessageFacts?>()
+    var onDownload: suspend () -> Unit = {}
+
     /** What a download of an address gives; a missing address is refused. */
     val web = mutableMapOf<String, ByteArray>()
     val senderWeb = mutableMapOf<String, ByteArray>()
@@ -26,11 +30,12 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     override suspend fun part(id: ULong, reference: String): ByteArray? = parts[reference]
 
     override suspend fun download(url: String): Fetched {
+        onDownload()
         downloads += url
         return web[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("it is no longer there (404)")
     }
 
-    override suspend fun facts(id: ULong): MessageFacts? = factsAnswer
+    override suspend fun facts(id: ULong): MessageFacts? = if (id in factsById) factsById[id] else factsAnswer
 
     override fun senderPlaces(address: String): List<String> =
         listOf("https://gravatar.example/avatar/${address.hashCode()}", "https://favicon.example/${address.substringAfter('@')}")

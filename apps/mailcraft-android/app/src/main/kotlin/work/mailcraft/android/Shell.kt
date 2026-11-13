@@ -56,8 +56,8 @@ internal data class ShellData(
     val reading: ReadingUi = ReadingUi(),
     /** What the owner said about pictures, and what is kept of them. */
     val pictures: PicturesUi = PicturesUi(),
-    /** Senders' pictures by address, when sender images are on (null when off). */
-    val avatars: Map<String, ByteArray?>? = null,
+    /** Senders' pictures by row id, when sender images are on (null when off). */
+    val avatars: Map<ULong, ByteArray>? = null,
 )
 
 /** What the shell asks of the app. */

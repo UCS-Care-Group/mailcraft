@@ -4,8 +4,14 @@ package work.mailcraft.android
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** A picture decoded to at most [MAX_SIDE] pixels a side, with the size it really has. */
 internal class Decoded(val bitmap: ImageBitmap, val width: Int, val height: Int)
@@ -19,6 +25,18 @@ internal fun sampleSize(width: Int, height: Int): Int {
     var sample = 1
     while (maxOf(width, height) / sample > MAX_SIDE) sample *= 2
     return sample
+}
+
+/** Where pictures are decoded: off the main thread. (A test of what is drawn puts it on its own thread.) */
+internal val LocalDecoder = staticCompositionLocalOf<CoroutineDispatcher> { Dispatchers.Default }
+
+/** [bytes] decoded off the main thread: null until it is done (and for what is no picture the phone can draw). */
+@Composable
+internal fun rememberDecoded(bytes: ByteArray?): Decoded? {
+    val dispatcher = LocalDecoder.current
+    return produceState<Decoded?>(null, bytes, dispatcher) {
+        value = if (bytes == null) null else withContext(dispatcher) { decode(bytes) }
+    }.value
 }
 
 /** [bytes] as a picture, or null when they are not one the phone can draw within the caps. */

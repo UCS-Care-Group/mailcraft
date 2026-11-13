@@ -72,8 +72,8 @@ internal class MailListContext(
     val swipe: SwipeConfig,
     val accounts: List<AccountItem>,
     val categories: List<CategoryItem>,
-    /** Senders' pictures by address (null: sender images are off and rows have no avatar). */
-    val avatars: Map<String, ByteArray?>? = null,
+    /** Senders' pictures by row id, for the rows whose own message may show one (null: sender images are off and rows have no avatar). */
+    val avatars: Map<ULong, ByteArray>? = null,
 )
 
 /**
@@ -175,7 +175,7 @@ private fun LazyItemScope.ListedRow(
                 onMenu = onMenu,
                 onOpen = { actions.onOpen(row) },
             ),
-            avatar = context.avatars?.let { AvatarState(it[PictureAddresses.sender(row.address).orEmpty()]) },
+            avatar = context.avatars?.let { AvatarState(it[row.id]) },
         )
         HorizontalDivider(modifier = Modifier.fillMaxWidth())
     }

@@ -6,6 +6,8 @@ package work.mailcraft.android
 
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import kotlinx.coroutines.Dispatchers
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -37,9 +39,12 @@ internal object ReadingShots {
 
     @Composable
     fun Pane(ui: ReadingUi) {
-        MailCraftTheme {
-            Surface {
-                ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
+        // (The pictures are decoded where the drawing is, so that the shot has them.)
+        CompositionLocalProvider(LocalDecoder provides Dispatchers.Unconfined) {
+            MailCraftTheme {
+                Surface {
+                    ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
+                }
             }
         }
     }
@@ -217,7 +222,7 @@ class PicturesScreenshotTest {
     @Test
     fun rowsWithSenderImagesLight100() = shoot("sender_images_rows_light_100", false, 1f) {
         ShellShots.Shell(
-            with = ShellShots.data.copy(avatars = mapOf("ada@example.org" to B.png, "bo@example.org" to null)).withRows(),
+            with = ShellShots.data.copy(avatars = ShellShots.rows.filterIndexed { i, _ -> i % 2 == 0 }.associate { it.id to B.png }).withRows(),
         )
     }
 }

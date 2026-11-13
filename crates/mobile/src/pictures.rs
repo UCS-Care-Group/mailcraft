@@ -110,10 +110,12 @@ impl Core {
     /// message `id`: nothing the sender wrote but their address.
     pub async fn sender_facts(&self, id: u64) -> Result<SenderFacts, CoreError> {
         self.call(move |s| {
-            let m = s.loaded_message_where(id, |_| false).map_err(|_| failed(s.interface_language.t("the message could not be read")))?;
+            // (From the mailbox's own entry: the facts need the sender, the folder, the account and the
+            // headers that are kept with the entry, never the body, which may be in the content folder.)
+            let m = s.mailbox.messages.get(&id).ok_or_else(|| failed(s.interface_language.t("the message could not be read")))?;
             let address = text::clip(&m.from.email, MAX_ADDRESS);
             let junk = s.mailbox.in_junk(m.folder);
-            let vouched = auth_results::vouched(s.mailbox.account(m.account), &m);
+            let vouched = auth_results::vouched(s.mailbox.account(m.account), m);
             let known = s.knows(&address.trim().to_lowercase());
             Ok(SenderFacts { address, junk, vouched, known })
         })

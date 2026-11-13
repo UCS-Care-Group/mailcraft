@@ -72,7 +72,12 @@ internal class CoreReadSource(
     override suspend fun open(id: ULong, widthDp: Int, dark: Boolean): OpenedMessage? = withContext(dispatcher) {
         try {
             val view = core.message(id, widthDp.coerceIn(MIN_WIDTH, MAX_WIDTH).toFloat(), dark)
-            val facts = core.senderFacts(id).toFacts()
+            // What the rules need of the sender: when the core cannot say, the safe answer (Junk E-mail, not vouched).
+            val facts = try {
+                core.senderFacts(id).toFacts()
+            } catch (_: CoreException) {
+                MessageFacts(view.from.address, junk = true, vouched = false, known = false)
+            }
             OpenedMessage(view, facts, linksOf(view.blocks))
         } catch (_: CoreException) {
             null

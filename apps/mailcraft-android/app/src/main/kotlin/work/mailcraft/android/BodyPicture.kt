@@ -67,7 +67,7 @@ internal fun PictureBlock(block: BlockView, kind: BlockKindView.Image, env: Body
     } else {
         Modifier.semantics { contentDescription = alt }
     }
-    val decoded = (state as? PictureState.Ready)?.let { ready -> remember(ready.bytes) { decode(ready.bytes) } }
+    val decoded = rememberDecoded((state as? PictureState.Ready)?.bytes)
     Box(modifier = tap.then(described)) {
         if (decoded != null) {
             ShownPicture(decoded, ref, room, alt)
