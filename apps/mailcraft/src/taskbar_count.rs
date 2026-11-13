@@ -13,11 +13,18 @@ pub struct Icons {
     dot: bool,
     #[cfg(target_os = "windows")]
     said_dot: bool,
-    /// The window the dot was put on. It is taken off that same window: a compose or reminder
-    /// window is another window of this process, and clearing whichever is in front can leave
-    /// the dot on the one that received it.
+    /// The main window, learned while it is in front (`GetForegroundWindow` then is that window).
+    /// The dot is only ever put on this handle, and taken off it: a compose or reminder window
+    /// is another window of this process, and searching for one would mark the wrong button.
     #[cfg(target_os = "windows")]
-    marked: Option<winsafe::HWND>,
+    main: Option<winsafe::HWND>,
+    /// The icon, built once. winsafe 0.0.29 has no `CreateIconIndirect`, so the bytes are loaded
+    /// through a file that is removed as soon as the icon exists.
+    #[cfg(target_os = "windows")]
+    icon: Option<winsafe::guard::DestroyIconGuard>,
+    /// When a failed call may be tried again. A broken shell is not asked on every frame.
+    #[cfg(target_os = "windows")]
+    retry_at: Option<std::time::Instant>,
 }
 
 impl Icons {
@@ -27,26 +34,31 @@ impl Icons {
             #[cfg(target_os = "windows")]
             said_dot: false,
             #[cfg(target_os = "windows")]
-            marked: None,
+            main: None,
+            #[cfg(target_os = "windows")]
+            icon: None,
+            #[cfg(target_os = "windows")]
+            retry_at: None,
         }
     }
 
-    /// Show the red dot when `count` is not 0, and take it off when it is. Windows only:
-    /// elsewhere the taskbar button is not the window's to mark. A refusal is said once and
-    /// tried again.
-    pub fn apply(&mut self, frame: &eframe::Frame, count: u32) {
+    /// Show the red dot when `count` is not 0, and take it off when it is. `in_front` is the main
+    /// window. `words` is what a screen reader hears for the overlay. Windows only: elsewhere the
+    /// taskbar button is not the window's to mark. A refusal is said once and tried again after
+    /// a few seconds.
+    pub fn apply(&mut self, count: u32, in_front: bool, words: &str) {
         let want = count > 0;
         #[cfg(target_os = "windows")]
-        self.hand_dot(frame, want);
+        self.hand_dot(want, in_front, words);
         #[cfg(not(target_os = "windows"))]
         {
-            let _ = frame;
+            let _ = (in_front, words);
             self.dot = want;
         }
     }
 }
 
-/// A failure is said once. The next frame tries again.
+/// A failure is said once.
 #[cfg(target_os = "windows")]
 fn note(said: &mut bool, err: &str) {
     if !*said {
@@ -55,93 +67,85 @@ fn note(said: &mut bool, err: &str) {
     }
 }
 
+/// How long a failed call waits before the shell is asked again.
+#[cfg(target_os = "windows")]
+const RETRY: std::time::Duration = std::time::Duration::from_secs(3);
+
 #[cfg(target_os = "windows")]
 impl Icons {
-    fn hand_dot(&mut self, frame: &eframe::Frame, want: bool) {
-        if self.dot == want {
+    fn remember_main(&mut self) {
+        let Some(hwnd) = winsafe::HWND::GetForegroundWindow() else { return };
+        let (_, owner) = hwnd.GetWindowThreadProcessId();
+        if owner == std::process::id() {
+            self.main = Some(hwnd);
+        }
+    }
+
+    fn hand_dot(&mut self, want: bool, in_front: bool, words: &str) {
+        if in_front {
+            self.remember_main();
+        }
+        if self.dot == want && self.retry_at.is_none() {
             return;
         }
-        match overlay(frame, want, self.marked.as_ref()) {
-            Ok(marked) => {
+        if self.retry_at.is_some_and(|at| std::time::Instant::now() < at) {
+            return;
+        }
+        let Some(hwnd) = self.main.take().filter(|hwnd| hwnd.IsWindow()) else { return };
+        match self.set_overlay(&hwnd, want, words) {
+            Ok(()) => {
+                self.main = Some(hwnd);
                 self.dot = want;
-                self.marked = marked;
+                self.retry_at = None;
             }
-            Err(e) => note(&mut self.said_dot, &e),
+            Err(e) => {
+                self.main = Some(hwnd);
+                self.retry_at = Some(std::time::Instant::now() + RETRY);
+                note(&mut self.said_dot, &e);
+            }
         }
     }
-}
 
-/// The red dot, or nothing, on the taskbar button. Windows puts an overlay at the button's
-/// lower corner. Putting the dot on returns the window it was put on; taking it off returns
-/// nothing, and uses `marked` when that window still exists.
-#[cfg(target_os = "windows")]
-fn overlay(frame: &eframe::Frame, on: bool, marked: Option<&winsafe::HWND>) -> Result<Option<winsafe::HWND>, String> {
-    let _ = frame;
-    if on {
-        let hwnd = our_window().ok_or_else(|| "the window isn't on the taskbar yet".to_string())?;
-        set_overlay(&hwnd, true)?;
-        return Ok(Some(hwnd));
-    }
-    let fallback;
-    let hwnd = if let Some(hwnd) = marked.filter(|hwnd| hwnd.IsWindow()) {
-        hwnd
-    } else {
-        fallback = our_window().ok_or_else(|| "the window isn't on the taskbar yet".to_string())?;
-        &fallback
-    };
-    set_overlay(hwnd, false)?;
-    Ok(None)
-}
-
-/// The red dot, or nothing, on `hwnd`'s taskbar button.
-#[cfg(target_os = "windows")]
-fn set_overlay(hwnd: &winsafe::HWND, on: bool) -> Result<(), String> {
-    use winsafe::prelude::*;
-    let list = winsafe::CoCreateInstance::<winsafe::ITaskbarList3>(
-        &winsafe::co::CLSID::TaskbarList,
-        None::<&winsafe::IUnknown>,
-        winsafe::co::CLSCTX::INPROC_SERVER,
-    )
-    .map_err(|e| e.to_string())?;
-    list.HrInit().map_err(|e| e.to_string())?;
-    if !on {
-        return list.SetOverlayIcon(hwnd, None, "").map_err(|e| e.to_string());
-    }
-    let path = dot_file()?;
-    let icon = winsafe::HINSTANCE::NULL
-        .LoadImageIcon(winsafe::IdOicStr::from_str(&path), winsafe::SIZE { cx: 16, cy: 16 }, winsafe::co::LR::LOADFROMFILE)
+    /// The red dot, or nothing, on the main window's taskbar button.
+    fn set_overlay(&mut self, hwnd: &winsafe::HWND, on: bool, words: &str) -> Result<(), String> {
+        use winsafe::prelude::*;
+        let list = winsafe::CoCreateInstance::<winsafe::ITaskbarList3>(
+            &winsafe::co::CLSID::TaskbarList,
+            None::<&winsafe::IUnknown>,
+            winsafe::co::CLSCTX::INPROC_SERVER,
+        )
         .map_err(|e| e.to_string())?;
-    list.SetOverlayIcon(hwnd, Some(&icon), "New mail").map_err(|e| e.to_string())
-}
-
-/// This process's window, the one the taskbar button belongs to.
-#[cfg(target_os = "windows")]
-fn our_window() -> Option<winsafe::HWND> {
-    let pid = std::process::id();
-    let mut found = None;
-    let _ = winsafe::EnumWindows(|hwnd: winsafe::HWND| {
-        let (_, owner) = hwnd.GetWindowThreadProcessId();
-        let titled = hwnd.GetWindowText().ok().is_some_and(|text| !text.is_empty());
-        if owner == pid && hwnd.IsWindowVisible() && titled {
-            found = Some(hwnd);
-            return false;
+        list.HrInit().map_err(|e| e.to_string())?;
+        if !on {
+            return list.SetOverlayIcon(hwnd, None, "").map_err(|e| e.to_string());
         }
-        true
-    });
-    found
+        if self.icon.is_none() {
+            self.icon = Some(load_icon()?);
+        }
+        let Some(icon) = self.icon.as_ref() else {
+            return Err("the dot's icon couldn't be made".to_string());
+        };
+        list.SetOverlayIcon(hwnd, Some(icon), words).map_err(|e| e.to_string())
+    }
 }
 
-/// Where the dot's icon was written, once.
+/// The icon, loaded from a file that exists only for that load. The name is not a fixed one, and
+/// the file is removed once the icon is in memory.
 #[cfg(target_os = "windows")]
-fn dot_file() -> Result<String, String> {
-    static PATH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    if let Some(path) = PATH.get() {
-        return Ok(path.clone());
-    }
-    let path = std::env::temp_dir().join("mailcraft-taskbar-dot.ico");
-    std::fs::write(&path, dot_icon()).map_err(|e| e.to_string())?;
-    let path = path.to_str().ok_or_else(|| "the dot's icon couldn't be kept".to_string())?.to_string();
-    Ok(PATH.get_or_init(|| path).clone())
+fn load_icon() -> Result<winsafe::guard::DestroyIconGuard, String> {
+    use std::io::Write;
+    use winsafe::prelude::*;
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let path = std::env::temp_dir().join(format!("mailcraft-dot-{}-{nanos}.ico", std::process::id()));
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
+    file.write_all(&dot_icon()).map_err(|e| e.to_string())?;
+    drop(file);
+    let text = path.to_str().ok_or_else(|| "the dot's icon couldn't be kept".to_string())?;
+    let icon = winsafe::HINSTANCE::NULL
+        .LoadImageIcon(winsafe::IdOicStr::from_str(text), winsafe::SIZE { cx: 16, cy: 16 }, winsafe::co::LR::LOADFROMFILE)
+        .map_err(|e| e.to_string());
+    let _ = std::fs::remove_file(&path);
+    icon
 }
 
 /// A 16×16 icon: a red dot on a clear square. The corner pixels are clear.

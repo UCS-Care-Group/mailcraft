@@ -29,29 +29,8 @@ use std::collections::VecDeque;
 use mailcraft_engine::arrivals::{self, Arrival, InboxMark};
 use mailcraft_engine::cmd::view::Reminder;
 use mailcraft_model::Id;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{Value, json};
-
-/// Whether the taskbar icon shows a red dot. `true` and the older `"dot"` and `"count"` do; `false`
-/// and `"off"` do not. Anything else is refused. A settings file from before the checkbox is read
-/// the same way.
-pub fn taskbar_dot_from(value: &Value) -> Option<bool> {
-    match value {
-        Value::Bool(on) => Some(*on),
-        Value::String(text) => match text.as_str() {
-            "dot" | "count" => Some(true),
-            "off" => Some(false),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-/// [`taskbar_dot_from`] for the settings file.
-pub fn de_taskbar_dot<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
-    let value = Value::deserialize(deserializer)?;
-    taskbar_dot_from(&value).ok_or_else(|| serde::de::Error::custom("`taskbarCount` is true or false"))
-}
 
 use crate::MailApp;
 
@@ -284,7 +263,7 @@ fn busy(app: &MailApp) -> bool {
 ///
 /// The keyboard flag can stay on after the window was minimized, so a minimized window
 /// is not being looked at.
-fn in_front(ctx: &egui::Context) -> bool {
+pub(crate) fn in_front(ctx: &egui::Context) -> bool {
     ctx.input(|i| {
         let window = i.viewport();
         let focused = window.focused.unwrap_or(i.focused);
@@ -388,7 +367,7 @@ pub fn inspect(app: &MailApp, p: &Value) -> Value {
         "newMail": app.ui.alert_new_mail,
         "reminders": app.ui.alert_reminders,
         "taskbar": app.ui.taskbar_dot,
-        "count": app.alerts.badge,
+        "dotFor": app.alerts.badge,
         "available": app.services.alert.is_some() && trouble.is_none(),
         "trouble": trouble.map(AlertTrouble::code),
         "shown": shown,
@@ -414,7 +393,7 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::To
         if ui
             .checkbox(&mut dot, tl!("Show a red dot on the taskbar icon when new mail arrives"))
             .on_hover_text(tl!(
-                "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+                "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
             ))
             .changed()
         {

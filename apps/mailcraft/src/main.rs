@@ -202,8 +202,8 @@ impl eframe::App for App {
         }
         self.0.logic(ctx);
         // New mail since the window was last in front, as a red dot on the taskbar icon (Windows).
-        let badge = self.0.taskbar_badge();
-        self.taskbar().apply(frame, badge);
+        let (badge, in_front, words) = self.0.taskbar_overlay(ctx);
+        self.taskbar().apply(badge, in_front, &words);
         // Another mailbox file opened in the window (or File › New): the lock follows it (#517).
         if let Some(guard) = &self.4
             && !self.0.is_opening()

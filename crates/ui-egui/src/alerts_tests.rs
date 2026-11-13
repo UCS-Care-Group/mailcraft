@@ -309,13 +309,11 @@ fn the_taskbar_dot_is_a_switch() {
     assert_eq!(app.execute("ui.desktopAlerts", json!({"taskbar": true})).unwrap()["taskbar"], true);
     assert!(app.ui.taskbar_dot);
     assert!(app.execute("ui.desktopAlerts", json!({"taskbar": "both"})).is_err());
-    // A settings file from the count, the dot or off.
-    let count: crate::UiState = serde_json::from_value(json!({"taskbarCount": "count"})).unwrap();
-    let dot: crate::UiState = serde_json::from_value(json!({"taskbarCount": "dot"})).unwrap();
-    let off: crate::UiState = serde_json::from_value(json!({"taskbarCount": "off"})).unwrap();
-    let old_off: crate::UiState = serde_json::from_value(json!({"taskbarCount": false})).unwrap();
-    assert!(count.taskbar_dot && dot.taskbar_dot);
-    assert!(!off.taskbar_dot && !old_off.taskbar_dot);
+    let on: crate::UiState = serde_json::from_value(json!({"taskbarDot": true})).unwrap();
+    let off: crate::UiState = serde_json::from_value(json!({"taskbarDot": false})).unwrap();
+    let missing: crate::UiState = serde_json::from_value(json!({})).unwrap();
+    assert!(on.taskbar_dot && missing.taskbar_dot);
+    assert!(!off.taskbar_dot);
 }
 
 #[test]

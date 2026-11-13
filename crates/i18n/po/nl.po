@@ -4875,7 +4875,7 @@ msgstr "Voor een account dat zich aanmeldt met Microsoft: de mappen die u onder 
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
-msgid "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+msgid "For mail that arrived in every Inbox since the main window was last in front. Not Junk, and not mail that was already here. Looking at the main window clears it."
 msgstr ""
 
 #. interface

@@ -908,10 +908,9 @@ pub struct UiState {
     /// Show a desktop alert for each reminder as it falls due: on unless the owner turns it off.
     pub alert_reminders: bool,
     /// File › Options › Desktop alerts: a red dot on the taskbar icon for new mail in every Inbox
-    /// since the window was last in front (not Junk, not a first download). On unless the owner
-    /// turns it off. A settings file from before the checkbox is read as on when it asked for a
-    /// count or a dot, and as off when it asked for nothing; a missing value is on.
-    #[serde(rename = "taskbarCount", default = "default_taskbar_dot", deserialize_with = "alerts::de_taskbar_dot")]
+    /// since the main window was last in front (not Junk, not a first download). On unless the
+    /// owner turns it off. Kept as `taskbarDot`. A settings file without the key is on.
+    #[serde(rename = "taskbarDot", default = "default_taskbar_dot")]
     pub taskbar_dot: bool,
     /// The filters Advanced Search's Add filters puts in its panel (#329).
     pub advanced_filters: advanced_search::Filters,
@@ -1966,11 +1965,17 @@ impl MailApp {
         }
     }
 
-    /// How many new messages the taskbar dot stands for: new mail in every Inbox since the window
-    /// was last in front, or 0 when the dot is off or the window is in front ([`alerts`]). The
-    /// icon shows the dot whenever this is not 0.
+    /// How many new messages the taskbar dot stands for: new mail in every Inbox since the main
+    /// window was last in front, or 0 when the dot is off or that window is in front ([`alerts`]).
+    /// The icon shows the dot whenever this is not 0.
     pub fn taskbar_badge(&self) -> u32 {
         self.alerts.badge
+    }
+
+    /// What the taskbar overlay needs this frame: the count, whether the main window is in front,
+    /// and the words a screen reader hears for the dot.
+    pub fn taskbar_overlay(&self, ctx: &egui::Context) -> (u32, bool, String) {
+        (self.taskbar_badge(), alerts::in_front(ctx), tl!("New mail").to_string())
     }
 
     /// Preferences to save between runs: the UI state plus the engine's preferences and view.
@@ -2610,12 +2615,8 @@ impl MailApp {
                 let (Some(mail), Some(reminders)) = (flag(mail, self.ui.alert_new_mail), flag(reminders, self.ui.alert_reminders)) else {
                     return Some(Err(tl!("`newMail` and `reminders` are true or false").to_string()));
                 };
-                let taskbar = match taskbar {
-                    None => self.ui.taskbar_dot,
-                    Some(value) => match alerts::taskbar_dot_from(value) {
-                        Some(on) => on,
-                        None => return Some(Err(tl!("`taskbar` is true or false").to_string())),
-                    },
+                let Some(taskbar) = flag(taskbar, self.ui.taskbar_dot) else {
+                    return Some(Err(tl!("`taskbar` is true or false").to_string()));
                 };
                 (self.ui.alert_new_mail, self.ui.alert_reminders, self.ui.taskbar_dot) = (mail, reminders, taskbar);
                 if !taskbar {
