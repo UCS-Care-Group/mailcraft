@@ -502,6 +502,7 @@ const SETTINGS: &[&str] = &[
     "rules.fromMessage",
     "rules.move",
     "rules.keepOnServer",
+    "rules.edit",
     // Junk E-mail Options (#504): what the lists send to Junk E-mail or let through.
     "junk.blockSender",
     "junk.neverBlockSender",
@@ -1551,6 +1552,21 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     rule_words(s, r)
                 ),
                 None => "keep a rule that isn't there on a server".to_string(),
+            }
+        }
+        "rules.edit" => {
+            let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            match r {
+                Some(r) => {
+                    let addresses = s.mailbox.rule_reads_addresses(r);
+                    let when = r.conditions.iter().map(|c| plain(&c.describe_as(addresses))).collect::<Vec<_>>().join(" and ");
+                    let mut then: Vec<String> = r.actions.iter().map(|a| plain(&a.describe())).collect();
+                    if let Some(server) = r.server.as_ref().filter(|s| !s.unknown.is_empty()) {
+                        then.push(format!("and more that MailCraft can't show ({})", some(&server.unknown, 6)));
+                    }
+                    format!("edit the rule {}: when {when}: {}", quoted(&r.name), then.join(", "))
+                }
+                None => "edit a rule that isn't there".to_string(),
             }
         }
         "rules.enable" | "rules.remove" => {

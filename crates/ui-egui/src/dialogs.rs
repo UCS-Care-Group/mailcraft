@@ -1396,6 +1396,8 @@ pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnO
         .default_width(width)
         .min_width(width)
         .max_width(width)
+        .default_height(500.0)
+        .min_height(400.0)
         .show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
             add(ui);

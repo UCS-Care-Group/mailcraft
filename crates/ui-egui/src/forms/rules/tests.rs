@@ -105,8 +105,8 @@ fn add_waits_for_what_a_rule_needs() {
     assert!(f.ready());
     f.name = " ".into();
     assert!(!f.ready());
-    // On an empty mailbox the builder is unfolded: there is nothing else to show.
-    assert!(RulesForm::new(&Session::empty(), &json!({})).open);
+    // On an empty mailbox the builder is collapsed by default.
+    assert!(!RulesForm::new(&Session::empty(), &json!({})).open);
 }
 
 #[test]

@@ -75,7 +75,13 @@ impl Form {
             Form::Task(f) => f.title(),
             Form::Account(f) => f.title(),
             Form::Categories(_) => tl!("Categories").to_string(),
-            Form::Rules(_) => tl!("Rules").to_string(),
+            Form::Rules(f) => {
+                if f.is_editing() {
+                    tl!("Edit Rule").to_string()
+                } else {
+                    tl!("Rules").to_string()
+                }
+            }
             Form::Junk(_) => tl!("Junk E-mail Options").to_string(),
         }
     }
@@ -4352,7 +4358,7 @@ mod task_place_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 pub(crate) mod rules {
-    use egui::{Align2, Rect, Sense, Ui, pos2, vec2};
+    use egui::{Sense, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, server_cannot, server_cannot_draft};
     use mailcraft_model::{Action, FolderKind, Id, Importance, Keep, Mailbox, Rule};
@@ -4440,6 +4446,20 @@ pub(crate) mod rules {
         }
     }
 
+    impl Cond {
+        /// Create a `Cond` from a `Condition`, for editing.
+        pub fn from_condition(c: &mailcraft_model::Condition, _addresses_only: bool) -> Self {
+            match c {
+                mailcraft_model::Condition::FromContains(t) => Cond { kind: When::From, text: t.clone(), importance: Importance::High },
+                mailcraft_model::Condition::ToContains(t) => Cond { kind: When::To, text: t.clone(), importance: Importance::High },
+                mailcraft_model::Condition::SubjectContains(t) => Cond { kind: When::Subject, text: t.clone(), importance: Importance::High },
+                mailcraft_model::Condition::BodyContains(t) => Cond { kind: When::Body, text: t.clone(), importance: Importance::High },
+                mailcraft_model::Condition::HasAttachment => Cond { kind: When::Attachment, text: String::new(), importance: Importance::High },
+                mailcraft_model::Condition::Importance(i) => Cond { kind: When::Importance, text: String::new(), importance: *i },
+            }
+        }
+    }
+
     /// What an action does.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum Do {
@@ -4493,6 +4513,25 @@ pub(crate) mod rules {
                 }
             }
         });
+    }
+
+    impl Act {
+        /// Create an `Act` from an `Action`, for editing.
+        pub fn from_action(a: &mailcraft_model::Action, _mb: &mailcraft_model::Mailbox) -> Self {
+            match a {
+                mailcraft_model::Action::MoveTo(folder) => {
+                    let folder = *folder;
+                    Act { kind: Do::Move, folder, category: String::new(), importance: Importance::High }
+                }
+                mailcraft_model::Action::Categorize(name) => {
+                    Act { kind: Do::Categorize, folder: 0, category: name.clone(), importance: Importance::High }
+                }
+                mailcraft_model::Action::Flag => Act { kind: Do::Flag, folder: 0, category: String::new(), importance: Importance::High },
+                mailcraft_model::Action::MarkRead => Act { kind: Do::MarkRead, folder: 0, category: String::new(), importance: Importance::High },
+                mailcraft_model::Action::SetImportance(i) => Act { kind: Do::SetImportance, folder: 0, category: String::new(), importance: *i },
+                mailcraft_model::Action::Delete => Act { kind: Do::Delete, folder: 0, category: String::new(), importance: Importance::High },
+            }
+        }
     }
 
     /// The button at the right end of a builder row that takes the row out. `true` when it was
@@ -4660,8 +4699,8 @@ pub(crate) mod rules {
             if ui.add_enabled(!fixed, egui::Checkbox::without_text(&mut on)).on_hover_text(tip).on_disabled_hover_text(tip).changed() {
                 *run = Some(("rules.enable", json!({"id": r.id, "value": on})));
             }
-            // Four buttons to the right, the same in every row, so that they stand in a column.
-            let buttons = 4.0 * BUTTON + 4.0 * ui.spacing().item_spacing.x;
+            // Five buttons to the right, the same in every row, so that they stand in a column.
+            let buttons = 5.0 * BUTTON + 5.0 * ui.spacing().item_spacing.x;
             let width = (ui.available_width() - buttons).max(40.0);
             let (rect, resp) = ui.allocate_exact_size(vec2(width, 54.0), Sense::hover());
             let words = if r.known() {
@@ -4710,6 +4749,10 @@ pub(crate) mod rules {
                     });
                 }
             }
+            let can_edit = !fixed && r.known();
+            if icon_button(ui, "edit", tl!("Edit this rule"), 14.0, can_edit).clicked() && can_edit {
+                *run = Some(("ui.dialog", json!({"name": "rules", "edit": r.id})));
+            }
             if icon_button(ui, "delete", tl!("Delete this rule"), 14.0, !fixed).clicked() && !fixed {
                 *run = Some(("rules.remove", json!({"id": r.id})));
             }
@@ -4723,6 +4766,8 @@ pub(crate) mod rules {
         account: Id,
         /// The New rule builder is unfolded.
         open: bool,
+        /// The rule being edited, or 0 if creating a new one.
+        editing: Id,
         name: String,
         conds: Vec<Cond>,
         acts: Vec<Act>,
@@ -4746,16 +4791,36 @@ pub(crate) mod rules {
     }
 
     impl RulesForm {
-        /// The dialog, with the builder unfolded when there are no rules yet. With a `folder`, as
+        /// The dialog, with the builder collapsed by default. With a `folder`, as
         /// Always Move Messages From This Sender opens it, the builder is unfolded and filled in to
         /// move the mail of the selected message's sender (or message `id`'s) there.
+        /// With `params["edit"]`, opens the builder with that rule's current values for editing.
         pub fn new(s: &Session, params: &Value) -> RulesForm {
             let first_category = s.mailbox.every_category().into_iter().next().map(|c| c.name).unwrap_or_default();
-            let mut f = RulesForm { open: s.mailbox.rules.is_empty(), first_category, focus: true, ..Default::default() };
+            let mut f = RulesForm { open: false, first_category, focus: true, ..Default::default() };
             f.choose(&s.mailbox, account_in_view(s));
             f.reset();
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
                 f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
+            }
+            // Edit an existing rule if requested
+            #[allow(clippy::collapsible_if)]
+            if let Some(edit_id) = params.get("edit").and_then(Value::as_u64) {
+                if let Some(rule) = s.mailbox.rules.iter().find(|r| r.id == edit_id) {
+                    if rule.known() {
+                        f.editing = rule.id;
+                        f.name = rule.name.clone();
+                        let addresses = s.mailbox.rule_reads_addresses(rule);
+                        f.conds = rule.conditions.iter().map(|c| Cond::from_condition(c, addresses)).collect();
+                        f.acts = rule.actions.iter().map(|a| Act::from_action(a, &s.mailbox)).collect();
+                        f.stop = rule.stop;
+                        f.server = rule.keep == Keep::Server;
+                        f.account = rule.account;
+                        f.choose(&s.mailbox, rule.account);
+                        f.open = true;
+                        f.focus = true;
+                    }
+                }
             }
             f
         }
@@ -4811,6 +4876,8 @@ pub(crate) mod rules {
             self.then_run = false;
             self.conds = vec![Cond::default()];
             self.acts = vec![self.fresh_action()];
+            self.editing = 0;
+            self.open = false; // Collapse builder after reset
         }
 
         fn fresh_action(&self) -> Act {
@@ -4847,10 +4914,21 @@ pub(crate) mod rules {
                     params["server"] = json!(false);
                 }
             }
-            ("rules.add", params)
+            // If editing, include the rule id and use rules.edit
+            if self.editing != 0 {
+                params["id"] = json!(self.editing);
+                ("rules.edit", params)
+            } else {
+                ("rules.add", params)
+            }
         }
 
-        /// Whether Add can run: the rule has a name, every text condition a text, every move a
+        /// Whether editing an existing rule.
+        pub fn is_editing(&self) -> bool {
+            self.editing != 0
+        }
+
+        /// Whether Add/Edit can run: the rule has a name, every text condition a text, every move a
         /// folder and every Categorize a category.
         fn ready(&self) -> bool {
             let conds = self.conds.iter().all(|c| !c.kind.takes_text() || !c.text.trim().is_empty());
@@ -4952,23 +5030,17 @@ pub(crate) mod rules {
                     }
                 });
                 ui.separator();
-                // The builder folds away under its heading.
-                let (head, head_resp) = ui.allocate_exact_size(vec2(ui.available_width().max(40.0), 24.0), Sense::click());
-                if head_resp.hovered() {
-                    ui.painter().rect_filled(head, 4.0, t.hover);
+                // New Rule button: opens the builder for creating a new rule.
+                // When editing, this button resets first.
+                if ui.button(tl!("New Rule")).clicked() {
+                    if self.is_editing() {
+                        self.reset();
+                    }
+                    self.open = true;
+                    self.focus = true;
                 }
-                crate::icons::paint(
-                    ui.painter(),
-                    Rect::from_center_size(pos2(head.min.x + 10.0, head.center().y), vec2(12.0, 12.0)),
-                    if self.open { "expanded" } else { "collapsed" },
-                    t.icon,
-                    t.accent,
-                );
-                ui.painter().text(pos2(head.min.x + 24.0, head.center().y), Align2::LEFT_CENTER, tl!("New rule"), semibold(12.5), t.text);
-                if head_resp.clicked() {
-                    self.open = !self.open;
-                    self.focus = self.open;
-                }
+                // The builder.
+                // Show builder only when explicitly opened via "New Rule" button
                 if self.open {
                     add = self.builder(ui, &mut pass, &categories, place.as_ref(), held);
                 }
@@ -4982,12 +5054,13 @@ pub(crate) mod rules {
                 run = Some(self.command());
             }
             if let Some((command, params)) = run {
+                let opened_dialog = command == "ui.dialog";
                 match app.execute(command, params) {
                     Ok(v) => {
                         self.error.clear();
                         // The count is of the last run; it goes when the rules change.
                         self.ran = v.get("matched").and_then(Value::as_u64).filter(|_| command == "rules.run");
-                        if add {
+                        if add || command == "rules.edit" {
                             // Then the new rule alone over the mail already in the folder, as the
                             // menu that opened it says and Outlook offers.
                             let made = v.get("id").and_then(Value::as_u64);
@@ -5001,6 +5074,10 @@ pub(crate) mod rules {
                         }
                     }
                     Err(e) => self.error = e,
+                }
+                // If a dialog was opened, close this form so the new dialog shows
+                if opened_dialog {
+                    return true;
                 }
             }
             error(ui, &self.error);
@@ -5166,7 +5243,12 @@ pub(crate) mod rules {
                 });
             }
             row(ui, "", |ui| {
-                add = ui.add_enabled(ready, egui::Button::new(tl!("Add Rule")).min_size(vec2(84.0, 24.0))).clicked();
+                add = ui
+                    .add_enabled(
+                        ready,
+                        egui::Button::new(if self.is_editing() { tl!("Edit Rule") } else { tl!("Add Rule") }).min_size(vec2(84.0, 24.0)),
+                    )
+                    .clicked();
                 if !ready {
                     ui.label(egui::RichText::new(tl!("A rule needs a name, and something to look for.")).color(t.text_dim).size(11.5));
                 }

@@ -22,6 +22,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
             r#"{"name": string, "conditions": [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions": [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
+        CommandSpec::new("rules.edit", "Edit Rule", "Home › Move", edit).params(
+            r#"{"id": number, "name"?: string, "conditions"?: [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions"?: [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "server"?: bool (for a rule kept on a Microsoft account's server: whether to keep it on this computer instead)} — edit a rule's name, conditions and actions. A server rule is changed there under the same permission as making one (#566); one with unknown parts is switched on or off, moved or deleted only, never rewritten. Answers {"id"}"#,
+        ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
         CommandSpec::new("rules.list", "Manage Rules", "Home › Move", list).pure().params(
@@ -553,4 +556,83 @@ fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
         r.refused.clear();
     }
     Ok(json!({"id": id, "account": account, "keep": "server"}))
+}
+
+fn edit(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let i = changeable(s, id)?;
+    let rule = s.mailbox.rules.get(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
+
+    // Reject editing server rules with unknown parts
+    if rule.on_server() && !rule.known() {
+        return Err(fail("this rule has parts the server knows but MailCraft doesn't: it can be switched on or off, moved or deleted only"));
+    }
+
+    let mut rule = rule.clone();
+
+    // Update fields from params
+    if let Some(name) = v.get("name").and_then(Value::as_str) {
+        rule.name = clean_name(name).ok_or_else(|| bad("`name` is empty"))?;
+    }
+
+    if let Some(conds) = v.get("conditions").and_then(Value::as_array) {
+        let conds: Vec<Condition> = conds.iter().take(20).map(condition).collect::<Result<Vec<_>, _>>()?;
+        if conds.is_empty() {
+            return Err(bad("conditions must have at least one condition"));
+        }
+        rule.conditions = conds;
+    }
+
+    if let Some(acts) = v.get("actions").and_then(Value::as_array) {
+        let acts: Vec<Action> = acts.iter().take(20).map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
+        if acts.is_empty() {
+            return Err(bad("actions must have at least one action"));
+        }
+        rule.actions = acts;
+    }
+
+    if let Some(_stop) = v.get("stop") {
+        rule.stop = p::opt_bool(v, "stop")?.unwrap_or(rule.stop);
+    }
+
+    // Check if server location is being changed
+    if let Some(should_be_server) = v.get("server") {
+        let should_be_server = !should_be_server.as_bool().unwrap_or(false);
+        let account = rule.account;
+
+        // Only allow changing server setting if the rule isn't already on server
+        // or if it was already on server and we're moving it here
+        if should_be_server && rule.on_server() {
+            // Moving from server to here
+            if let Some(r) = s.mailbox.rules.get_mut(i) {
+                r.keep = Keep::Here;
+                r.server = None;
+                r.refused.clear();
+            }
+            return Ok(json!({"id": id}));
+        } else if !should_be_server && !rule.on_server() {
+            // Trying to keep on server but currently here - validate and update
+            if account == 0 {
+                return Err(bad("say which account's server is to keep it (`account`)"));
+            }
+
+            if let Some(why) = server_cannot(&s.mailbox, &rule, account) {
+                return Err(CmdError::Failed(why.said().to_string()));
+            }
+
+            if let Some(r) = s.mailbox.rules.get_mut(i) {
+                r.account = account;
+                r.keep = Keep::Server;
+                r.refused.clear();
+            }
+            return Ok(json!({"id": id}));
+        }
+    }
+
+    // Update rule in place
+    if let Some(r) = s.mailbox.rules.get_mut(i) {
+        *r = rule;
+    }
+
+    Ok(json!({"id": id}))
 }

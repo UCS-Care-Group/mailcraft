@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Mailbox, Message};
+use mailcraft_model::{Action, Condition, FlagStatus, FolderKind, Id, Importance, Keep, Mailbox, Message};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -724,6 +724,22 @@ fn rules_and_accounts() {
     assert!(s.mailbox.messages.values().any(|m| m.subject.contains("invoice") && m.importance == Importance::High));
     run(&mut s, "rules.enable", json!({"id": id, "value": false}));
     run(&mut s, "rules.remove", json!({"id": id}));
+
+    // Test rules.edit
+    let id = run(&mut s, "rules.add", json!({"name": "Invoices", "conditions": [{"type": "subjectContains", "value": "invoice"}], "actions": [{"type": "setImportance", "value": "high"}]}))["id"].as_u64().unwrap();
+    assert_eq!(run(&mut s, "rules.edit", json!({"id": id, "name": "Invoices Updated"})), json!({"id": id}));
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().name, "Invoices Updated");
+    assert_eq!(run(&mut s, "rules.edit", json!({"id": id, "conditions": [{"type": "fromContains", "value": "test"}]})), json!({"id": id}));
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().conditions.len(), 1);
+    assert!(matches!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().conditions[0], Condition::FromContains(_)));
+    assert_eq!(run(&mut s, "rules.edit", json!({"id": id, "actions": [{"type": "delete"}]})), json!({"id": id}));
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().actions.len(), 1);
+    assert!(matches!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().actions[0], Action::Delete));
+    assert_eq!(run(&mut s, "rules.edit", json!({"id": id, "stop": true})), json!({"id": id}));
+    assert!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().stop);
+    assert_eq!(run(&mut s, "rules.edit", json!({"id": id, "stop": false, "server": false})), json!({"id": id}));
+    assert!(!s.mailbox.rules.iter().find(|r| r.id == id).unwrap().stop);
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().keep, Keep::Here);
 
     assert!(matches!(s.run("sync.request", &json!({})), Err(CmdError::Disabled(_))));
     let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example", "port": 587, "security": "starttls"}}))["id"].as_u64().unwrap();

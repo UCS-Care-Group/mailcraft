@@ -199,6 +199,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("rules.fromMessage", "{}", Setup::None),
     ("rules.move", r#"{"id": $rule}"#, Setup::None),
     ("rules.keepOnServer", r#"{"id": $rule}"#, Setup::None),
+    ("rules.edit", r#"{"id": $rule}"#, Setup::None),
     ("junk.blockSender", "{}", Setup::None),
     ("junk.neverBlockSender", "{}", Setup::None),
     ("junk.neverBlockDomain", "{}", Setup::None),

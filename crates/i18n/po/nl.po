@@ -4114,6 +4114,11 @@ msgstr "Gebeurtenis bewerken"
 msgid "Edit Message"
 msgstr "Bericht bewerken"
 
+#. command label, interface
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs
+msgid "Edit Rule"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -4137,6 +4142,11 @@ msgstr "Taak bewerken"
 #, fuzzy
 msgid "Edit signature as text"
 msgstr "Handtekening bewerken als tekst"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Edit this rule"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
@@ -7954,6 +7964,11 @@ msgstr "Nieuw postvak"
 msgid "New Meeting"
 msgstr "Nieuwe vergadering"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "New Rule"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -7995,12 +8010,6 @@ msgstr "Nieuw bericht"
 #, fuzzy
 msgid "New messages"
 msgstr "Nieuwe berichten"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "New rule"
-msgstr "Nieuwe regel"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -18985,6 +18994,11 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verzend het daarna opnieuw"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule has parts the server knows but MailCraft doesn't: it can be switched on or off, moved or deleted only"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
@@ -20635,6 +20649,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "New rule"
+#~ msgstr "Nieuwe regel"
 
 #, fuzzy
 #~ msgid "The signer's certificate isn't in the message."
