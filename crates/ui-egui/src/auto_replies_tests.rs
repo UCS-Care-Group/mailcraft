@@ -34,7 +34,7 @@ fn tokens(refresh: &str) -> Tokens {
 fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     let added = app.execute("account.add", json!({"email": OWNER, "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap();
     let owner = added["id"].as_u64().unwrap();
     app.tokens.insert(owner, tokens("ref-1"));

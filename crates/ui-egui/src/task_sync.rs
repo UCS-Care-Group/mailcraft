@@ -64,8 +64,7 @@ impl MailApp {
     /// say ([`mailcraft_engine::Session::tasks_due`]); this starts the job on the host.
     pub fn tasks_tick_at(&mut self, now: f64) -> bool {
         self.tasks_ask_tick();
-        let facts =
-            TasksFacts { enabled: self.auto_sync && self.services.graph_tasks.is_some(), running: self.tasks.rx.is_some(), busy: self.job_busy() };
+        let facts = TasksFacts { reachable: self.services.graph_tasks.is_some(), running: self.tasks.rx.is_some(), busy: self.job_busy() };
         let tokens = &self.tokens;
         let due = self.session.tasks_due(&facts, |account| tokens.get(&account).map(|t| t.refresh.clone()), now);
         for account in due {
@@ -80,7 +79,10 @@ impl MailApp {
         self.tasks_tick_at(now_ms());
         if self.tasks.rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
-        } else if self.services.graph_tasks.is_some() && self.auto_sync && !tasks_remote::task_accounts(&self.session.mailbox).is_empty() {
+        } else if self.services.graph_tasks.is_some()
+            && self.session.driver.auto_sync()
+            && !tasks_remote::task_accounts(&self.session.mailbox).is_empty()
+        {
             ctx.request_repaint_after(std::time::Duration::from_secs(5));
         }
     }

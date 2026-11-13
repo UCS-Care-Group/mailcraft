@@ -384,12 +384,29 @@ pub struct Driver {
     pub tasks: TasksDriver,
     /// The rules kept on the server.
     pub rules: RulesDriver,
+    /// The host turned automatic checking off (a host that starts jobs only when asked, a test).
+    /// A setting of the host, not of a mailbox: it outlives [`Driver::reset`].
+    auto_sync_off: bool,
 }
 
 impl Driver {
     /// Another mailbox took the place of the open one: everything the driver remembered is the
     /// old mailbox's (its accounts' ids may name other accounts here), so none of it is kept.
+    /// What the host set is not the mailbox's, and stays.
     pub fn reset(&mut self) {
-        *self = Driver::default();
+        let auto_sync_off = self.auto_sync_off;
+        *self = Driver { auto_sync_off, ..Driver::default() };
+    }
+
+    /// Whether jobs start by themselves: on unless the host turned it off ([`Driver::set_auto_sync`]).
+    pub fn auto_sync(&self) -> bool {
+        !self.auto_sync_off
+    }
+
+    /// The host says whether jobs start by themselves (every kind: the calendar's, the to-dos',
+    /// the rules', the automatic replies', and the Send/Receive the host starts on a clock). What
+    /// the owner asked for goes either way.
+    pub fn set_auto_sync(&mut self, on: bool) {
+        self.auto_sync_off = !on;
     }
 }

@@ -102,8 +102,7 @@ impl MailApp {
     /// frame. (Public for a host's tests, which have no window.)
     pub fn rules_tick_at(&mut self, now: f64) -> bool {
         self.rules_ask_tick();
-        let facts =
-            RulesFacts { enabled: self.auto_sync && self.services.graph_rules.is_some(), running: self.rules.rx.is_some(), busy: self.job_busy() };
+        let facts = RulesFacts { reachable: self.services.graph_rules.is_some(), running: self.rules.rx.is_some(), busy: self.job_busy() };
         let tokens = &self.tokens;
         let due = self.session.rules_due(&facts, |account| tokens.get(&account).map(|t| t.refresh.clone()), now);
         for plan in due {
@@ -118,7 +117,10 @@ impl MailApp {
         self.rules_tick_at(now_ms());
         if self.rules.rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
-        } else if self.services.graph_rules.is_some() && self.auto_sync && !rules_remote::rule_accounts(&self.session.mailbox).is_empty() {
+        } else if self.services.graph_rules.is_some()
+            && self.session.driver.auto_sync()
+            && !rules_remote::rule_accounts(&self.session.mailbox).is_empty()
+        {
             ctx.request_repaint_after(std::time::Duration::from_secs(5));
         }
     }

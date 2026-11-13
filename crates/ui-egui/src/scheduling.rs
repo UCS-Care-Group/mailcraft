@@ -880,7 +880,7 @@ mod tests {
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         assert!(app.calendar_tick_at(true, now_ms()));
         app.poll_calendar();
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         let calendar = app.session.mailbox.calendars.iter().find(|c| c.origin.account == account).map(|c| c.id).expect("the server's calendar");
         let asked: Asked = Default::default();
         let seen = asked.clone();
@@ -1014,7 +1014,7 @@ mod tests {
         assert!(app.free_busy(calendar, &people, day.add_days(3)).note.contains("can't ask a server"));
         app.services.free_busy = host;
         // While the account's calendar is being seen to, the question waits its turn.
-        app.auto_sync = true;
+        app.session.driver.set_auto_sync(true);
         app.session.driver.calendar.due = true;
         app.execute("view.calendar", json!({})).unwrap();
         assert!(app.calendar_tick_at(true, now_ms() + 400_000.0));

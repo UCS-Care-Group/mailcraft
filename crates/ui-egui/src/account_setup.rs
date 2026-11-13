@@ -2749,7 +2749,8 @@ mod tests {
         let mailbox = if sample { mailcraft_engine::sample::mailbox(NOW, 0) } else { mailcraft_model::Mailbox::with_local_account("", "") };
         let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
         // Nothing happens by itself: what a test sees synchronised, it or the wizard asked for.
-        (app.autosave, app.auto_sync) = (false, false);
+        app.autosave = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 

@@ -90,8 +90,8 @@ impl TasksDriver {
 /// What the host says of itself when it asks whether the to-dos are due.
 #[derive(Clone, Copy, Debug)]
 pub struct TasksFacts {
-    /// Automatic checking is on and the host has a way to reach the to-dos' server.
-    pub enabled: bool,
+    /// The host has a way to reach the to-dos' server.
+    pub reachable: bool,
     /// A to-do job is in flight already.
     pub running: bool,
     /// What else is at work.
@@ -128,7 +128,7 @@ impl Session {
     pub fn tasks_due(&mut self, facts: &TasksFacts, refresh: impl Fn(Id) -> Option<String>, now: f64) -> Vec<Id> {
         let mut due = Vec::new();
         // One thing at a time: the calendar's job, a Send/Receive and a sign-in go first.
-        if !facts.enabled || facts.running || facts.busy.blocks(Start::Tasks) {
+        if !facts.reachable || !self.driver.auto_sync() || self.prefs.offline || facts.running || facts.busy.blocks(Start::Tasks) {
             return due;
         }
         for account in tasks_remote::task_accounts(&self.mailbox) {

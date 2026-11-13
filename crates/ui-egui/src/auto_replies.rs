@@ -279,7 +279,7 @@ impl MailApp {
         if let Some((account, change)) = self.auto_replies.waiting.take() {
             return self.start_auto_replies_job(account, Some(change), now);
         }
-        if !self.auto_sync {
+        if !self.session.driver.auto_sync() {
             return false;
         }
         for account in reply_accounts(&self.session.mailbox) {

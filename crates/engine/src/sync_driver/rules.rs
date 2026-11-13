@@ -98,8 +98,8 @@ impl RulesDriver {
 /// What the host says of itself when it asks whether the rules are due.
 #[derive(Clone, Copy, Debug)]
 pub struct RulesFacts {
-    /// Automatic checking is on and the host has a way to reach the rules' server.
-    pub enabled: bool,
+    /// The host has a way to reach the rules' server.
+    pub reachable: bool,
     /// A rules job is in flight already.
     pub running: bool,
     /// What else is at work.
@@ -156,7 +156,7 @@ impl Session {
         let mut due = Vec::new();
         // One thing at a time: the calendar's job, the to-dos', the automatic replies', a
         // Send/Receive and a sign-in go first (the jobs renew the same sign-in).
-        if !facts.enabled || facts.running || facts.busy.blocks(Start::Rules) {
+        if !facts.reachable || !self.driver.auto_sync() || self.prefs.offline || facts.running || facts.busy.blocks(Start::Rules) {
             return due;
         }
         for account in rules_remote::rule_accounts(&self.mailbox) {
