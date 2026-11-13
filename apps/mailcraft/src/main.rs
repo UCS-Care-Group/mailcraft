@@ -1294,6 +1294,7 @@ fn services(
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
         open_page: Some(Box::new(open_in_browser)),
+        open_page_waiting: Some(std::sync::Arc::new(open_in_browser)),
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
