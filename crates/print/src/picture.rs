@@ -4,7 +4,7 @@
 //! compressed. Only what the reading pane shows is printed: a PNG, JPEG, GIF or WebP by its own
 //! bytes, no larger than [`MAX_PICTURE_BYTES`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, RandomState};
 use std::io::{Cursor, Write};
 
@@ -44,6 +44,10 @@ pub(crate) struct Pictures {
     pub list: Vec<Picture>,
     by_place: HashMap<(usize, usize), Option<usize>>,
     by_hash: HashMap<u64, Option<usize>>,
+    /// The hash of the bytes at each place, so that bytes are hashed once in a print.
+    hashed: HashMap<(usize, usize), u64>,
+    /// The places the document being laid out had no room for: not looked at again in it.
+    no_room: HashSet<(usize, usize)>,
     key: RandomState,
     /// What this print has taken, and what the document being laid out has.
     job: (usize, u64),
@@ -52,7 +56,16 @@ pub(crate) struct Pictures {
 
 impl Default for Pictures {
     fn default() -> Pictures {
-        Pictures { list: Vec::new(), by_place: HashMap::new(), by_hash: HashMap::new(), key: RandomState::new(), job: (0, 0), doc: (0, 0) }
+        Pictures {
+            list: Vec::new(),
+            by_place: HashMap::new(),
+            by_hash: HashMap::new(),
+            hashed: HashMap::new(),
+            no_room: HashSet::new(),
+            key: RandomState::new(),
+            job: (0, 0),
+            doc: (0, 0),
+        }
     }
 }
 
@@ -61,38 +74,53 @@ impl Pictures {
     /// use up the others'.
     pub fn start_doc(&mut self) {
         self.doc = (0, 0);
+        self.no_room.clear();
     }
 
     /// The picture of `bytes`, decoded and kept, with its size in pixels; `None` when it isn't a
     /// picture this prints, or when the caps are reached.
     pub fn add(&mut self, bytes: &[u8]) -> Option<(usize, u32, u32)> {
         let place = (bytes.as_ptr() as usize, bytes.len());
-        let known = match self.by_place.get(&place) {
-            Some(known) => *known,
-            None => {
-                let index = if bytes.len() > MAX_PICTURE_BYTES {
-                    None
-                } else {
-                    let key = self.key.hash_one(bytes);
-                    match self.by_hash.get(&key) {
-                        Some(known) => *known,
-                        None => {
-                            let index = self.decode_new(bytes);
-                            self.by_hash.insert(key, index);
-                            index
-                        }
-                    }
-                };
-                self.by_place.insert(place, index);
-                index
-            }
+        if let Some(known) = self.by_place.get(&place) {
+            return self.found(*known);
+        }
+        if self.no_room.contains(&place) {
+            return None;
+        }
+        let key = if bytes.len() > MAX_PICTURE_BYTES {
+            None
+        } else {
+            let key = &self.key;
+            Some(*self.hashed.entry(place).or_insert_with(|| key.hash_one(bytes)))
         };
-        known.and_then(|i| self.list.get(i).map(|p| (i, p.width, p.height)))
+        if let Some(known) = key.and_then(|k| self.by_hash.get(&k).copied()) {
+            self.by_place.insert(place, known);
+            return self.found(known);
+        }
+        let index = match key.map(|_| self.decode_new(bytes)) {
+            // No room left in this document or print: not kept, so that another document with
+            // room of its own has it decoded then.
+            Some(Err(Refused::NoRoom)) => {
+                self.no_room.insert(place);
+                return None;
+            }
+            Some(Ok(i)) => Some(i),
+            Some(Err(Refused::Bad)) | None => None,
+        };
+        if let Some(k) = key {
+            self.by_hash.insert(k, index);
+        }
+        self.by_place.insert(place, index);
+        self.found(index)
     }
 
-    fn decode_new(&mut self, bytes: &[u8]) -> Option<usize> {
+    fn found(&self, index: Option<usize>) -> Option<(usize, u32, u32)> {
+        index.and_then(|i| self.list.get(i).map(|p| (i, p.width, p.height)))
+    }
+
+    fn decode_new(&mut self, bytes: &[u8]) -> Result<usize, Refused> {
         if self.list.len() >= MAX_JOB_PICTURES || self.doc.0 >= MAX_DOC_PICTURES {
-            return None;
+            return Err(Refused::NoRoom);
         }
         let room = MAX_DOC_PIXELS.saturating_sub(self.doc.1).min(MAX_JOB_PIXELS.saturating_sub(self.job.1));
         let p = decode(bytes, room)?;
@@ -100,34 +128,45 @@ impl Pictures {
         self.doc = (self.doc.0 + 1, self.doc.1.saturating_add(pixels));
         self.job = (self.job.0 + 1, self.job.1.saturating_add(pixels));
         self.list.push(p);
-        Some(self.list.len() - 1)
+        Ok(self.list.len() - 1)
     }
 }
 
+/// Why a picture isn't printed.
+enum Refused {
+    /// It isn't a picture this prints, or is too large for any print.
+    Bad,
+    /// The document or the print has no room left for it.
+    NoRoom,
+}
+
 /// `bytes` as a picture, when it is one of [`KINDS`] of at most `room` pixels.
-fn decode(bytes: &[u8], room: u64) -> Option<Picture> {
-    let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok()?;
-    let format = reader.format()?;
+fn decode(bytes: &[u8], room: u64) -> Result<Picture, Refused> {
+    let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|_| Refused::Bad)?;
+    let format = reader.format().ok_or(Refused::Bad)?;
     if !KINDS.contains(&format) {
-        return None;
+        return Err(Refused::Bad);
     }
-    let (width, height) = reader.into_dimensions().ok()?;
+    let (width, height) = reader.into_dimensions().map_err(|_| Refused::Bad)?;
     let pixels = u64::from(width) * u64::from(height);
-    if width == 0 || height == 0 || pixels > MAX_PIXELS || pixels > room {
-        return None;
+    if width == 0 || height == 0 || pixels > MAX_PIXELS {
+        return Err(Refused::Bad);
+    }
+    if pixels > room {
+        return Err(Refused::NoRoom);
     }
     if format == ImageFormat::Jpeg
         && let Some(gray) = passes_through(bytes)
     {
-        return Some(Picture { width, height, data: Data::Jpeg { bytes: bytes.to_vec(), gray } });
+        return Ok(Picture { width, height, data: Data::Jpeg { bytes: bytes.to_vec(), gray } });
     }
-    let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok()?;
+    let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|_| Refused::Bad)?;
     let mut limits = Limits::default();
     limits.max_image_width = Some(width);
     limits.max_image_height = Some(height);
     limits.max_alloc = Some(pixels.saturating_mul(8).saturating_add(1 << 20));
     reader.limits(limits);
-    let rgba = reader.decode().ok()?.to_rgba8();
+    let rgba = reader.decode().map_err(|_| Refused::Bad)?.to_rgba8();
     let mut rgb = Vec::with_capacity(usize::try_from(pixels.saturating_mul(3)).unwrap_or(0));
     let mut alpha = Vec::with_capacity(usize::try_from(pixels).unwrap_or(0));
     for px in rgba.pixels() {
@@ -136,7 +175,7 @@ fn decode(bytes: &[u8], room: u64) -> Option<Picture> {
         alpha.push(a);
     }
     let alpha = alpha.iter().any(|a| *a != 255).then(|| deflate(&alpha));
-    Some(Picture { width, height, data: Data::Raw { rgb: deflate(&rgb), alpha } })
+    Ok(Picture { width, height, data: Data::Raw { rgb: deflate(&rgb), alpha } })
 }
 
 /// Whether a JPEG can go into the PDF as it is, and whether it is grey: its frame has one

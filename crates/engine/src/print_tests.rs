@@ -147,8 +147,13 @@ fn the_system_s_faces_are_used_unless_the_host_names_others() {
     assert!(s.print_fonts().unwrap().fallbacks.is_empty());
     s.print_fallbacks = None;
     let system = s.print_fonts().unwrap().fallbacks.len();
-    assert_eq!(
-        system,
-        crate::system_fonts::fallback_paths().iter().filter(|p| mailcraft_print::Face::new(std::fs::read(p).unwrap(), 0).is_some()).count()
-    );
+    assert!(system <= crate::system_fonts::fallback_paths().len());
+    // A group whose first file isn't a face it prints with takes the next file of the group.
+    let junk = std::env::temp_dir().join("mailcraft-print-not-a-font.ttf");
+    std::fs::write(&junk, b"not a font").unwrap();
+    let inter = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/fonts/Inter-Regular.ttf");
+    assert_eq!(crate::print::fallback_faces(&[vec![junk.clone(), inter.clone()]]).len(), 1);
+    assert_eq!(crate::print::fallback_faces(&[vec![junk.clone()]]).len(), 0);
+    assert_eq!(crate::print::fallback_faces(&[vec![inter.clone()], vec![inter]]).len(), 1, "one file, once");
+    let _ = std::fs::remove_file(junk);
 }

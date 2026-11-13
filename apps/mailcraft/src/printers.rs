@@ -60,13 +60,25 @@ fn output(program: &str, args: &[&str]) -> Ran {
         return Ran::Failed;
     };
     // Read as it comes, so that a long answer never fills the pipe and holds the program up.
-    let reader = child.stdout.take().map(|mut out| {
-        std::thread::spawn(move || {
-            let mut text = Vec::new();
-            let _ = (&mut out).take(1 << 20).read_to_end(&mut text);
-            text
-        })
-    });
+    let reader = match child.stdout.take() {
+        Some(mut out) => {
+            let spawned = std::thread::Builder::new().name(format!("{program} output")).spawn(move || {
+                let mut text = Vec::new();
+                let _ = (&mut out).take(1 << 20).read_to_end(&mut text);
+                text
+            });
+            match spawned {
+                Ok(reader) => Some(reader),
+                // No thread for its answer: the program is stopped, never left running.
+                Err(_) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Ran::Failed;
+                }
+            }
+        }
+        None => None,
+    };
     let deadline = Instant::now() + WAIT;
     let status = loop {
         match child.try_wait() {

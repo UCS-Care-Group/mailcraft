@@ -124,8 +124,8 @@ impl Session {
         let mut docs = Vec::new();
         let mut room = MAX_PRINT_PICTURE_BYTES;
         for id in self.print_ids(&request.ids)? {
-            // The body and the pictures it shows in place; its other attachments stay where they are.
-            let m = self.loaded_for_reply(id)?;
+            // The body alone: each picture it shows is fetched by itself, once it is known to fit.
+            let m = self.loaded_message_where(id, |_| false)?;
             docs.push(print_doc(self, &m, &request.labels, &mut room));
         }
         Ok(docs)
@@ -164,32 +164,22 @@ impl Session {
     /// ([`Session::print_fallbacks`], else [`crate::system_fonts::fallback_paths`]). They are
     /// read and checked once and kept for the next print, while the files are the same.
     pub fn print_fonts(&self) -> Result<mailcraft_print::Fonts, CmdError> {
-        static KEPT: Mutex<Option<(Vec<std::path::PathBuf>, mailcraft_print::Fonts)>> = Mutex::new(None);
-        let paths: Vec<std::path::PathBuf> = match &self.print_fallbacks {
-            Some(paths) => paths.clone(),
+        static KEPT: Mutex<Option<(Vec<Vec<std::path::PathBuf>>, mailcraft_print::Fonts)>> = Mutex::new(None);
+        // A group for each script, its files best first: the host's are one file each.
+        let groups: Vec<Vec<std::path::PathBuf>> = match &self.print_fallbacks {
+            Some(paths) => paths.iter().map(|p| vec![p.clone()]).collect(),
             None => crate::system_fonts::fallback_paths(),
         };
-        let paths: Vec<std::path::PathBuf> = paths.into_iter().take(mailcraft_print::MAX_FACES.saturating_sub(4)).collect();
         if let Ok(kept) = KEPT.lock()
             && let Some((known, fonts)) = kept.as_ref()
-            && *known == paths
+            && *known == groups
         {
             return Ok(fonts.clone());
         }
-        let mut fallbacks = Vec::new();
-        #[cfg(not(target_arch = "wasm32"))]
-        for path in &paths {
-            let Ok(meta) = std::fs::metadata(path) else { continue };
-            if meta.len() > mailcraft_print::MAX_FACE_BYTES as u64 {
-                continue;
-            }
-            if let Some(face) = std::fs::read(path).ok().and_then(|bytes| Face::new(bytes, 0)) {
-                fallbacks.push(face);
-            }
-        }
+        let fallbacks = fallback_faces(&groups);
         let fonts = mailcraft_print::bundled(fallbacks).ok_or_else(|| fail("the font to print in can't be read"))?;
         if let Ok(mut kept) = KEPT.lock() {
-            *kept = Some((paths, fonts.clone()));
+            *kept = Some((groups, fonts.clone()));
         }
         Ok(fonts)
     }
@@ -208,6 +198,36 @@ impl Session {
         let (bytes, pages) = render(&docs, &fonts, &options).map_err(fail)?;
         Ok((bytes, pages, docs.len()))
     }
+}
+
+/// The faces of `groups` (a group for each script, its files best first): the first file of each
+/// that is a face this prints with, a file an earlier group took covering its group too, at most
+/// as many as a print takes beside the bundled faces.
+pub(crate) fn fallback_faces(groups: &[Vec<std::path::PathBuf>]) -> Vec<Face> {
+    let mut faces: Vec<Face> = Vec::new();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut taken: Vec<&std::path::PathBuf> = Vec::new();
+        for group in groups {
+            if faces.len() >= mailcraft_print::MAX_FACES.saturating_sub(4) {
+                break;
+            }
+            if group.iter().any(|p| taken.contains(&p)) {
+                continue;
+            }
+            for path in group {
+                let fits = std::fs::metadata(path).is_ok_and(|m| m.len() <= mailcraft_print::MAX_FACE_BYTES as u64);
+                if let Some(face) = fits.then(|| std::fs::read(path).ok()).flatten().and_then(|bytes| Face::new(bytes, 0)) {
+                    faces.push(face);
+                    taken.push(path);
+                    break;
+                }
+            }
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = groups;
+    faces
 }
 
 /// `docs` laid out once as a PDF, with its page count; what is said when that can't be done.
@@ -233,15 +253,21 @@ fn print_doc(s: &Session, m: &Message, labels: &Labels, room: &mut usize) -> Doc
         }
         let Some(index) = mailcraft_model::shown::cid_part(m, src) else { continue };
         let bytes = by_place.entry(index).or_insert_with(|| {
-            let a = m.attachments.get(index).filter(|a| a.is_loaded())?;
-            let len = a.data.len();
+            // Judged by its size and kind before a byte of it is read; one that can't be read is
+            // left out, not the print.
+            let a = m.attachments.get(index)?;
+            let len = a.size();
             let fits = len <= mailcraft_print::MAX_PICTURE_BYTES && taken.saturating_add(len) <= MAX_MESSAGE_PICTURE_BYTES && len <= *room;
-            if !fits || !mailcraft_model::shown::is_picture(&a.data) {
+            if !fits || !mailcraft_model::shown::is_picture_part(a) {
                 return None;
             }
-            taken += len;
-            *room -= len;
-            Some(a.data.clone())
+            let data = if a.is_loaded() { a.data.clone() } else { s.content(m.id, crate::Part::Attachment(index)).ok()? };
+            if data.len() > len.max(mailcraft_print::MAX_PICTURE_BYTES) || !mailcraft_model::shown::is_picture(&data) {
+                return None;
+            }
+            taken += data.len();
+            *room = room.saturating_sub(data.len());
+            Some(data)
         });
         if let Some(bytes) = bytes {
             pictures.insert(src.to_string(), bytes.clone());

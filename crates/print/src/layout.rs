@@ -1109,7 +1109,15 @@ fn lay_table(ctx: &mut Ctx, table: &Table, align: Align, width: f32, depth: usiz
         .collect();
     let grid = grid(table);
     let rows = grid.len();
+    let (mut seen, mut laid) = (out.len(), 0.0);
     for (r, row) in grid.iter().enumerate() {
+        // A table at the top level stops where the pages left end, as a paragraph does: what is
+        // laid of it so far is charged once the table is done, by the caller.
+        laid += out.iter().skip(seen).map(|s| s.height).sum::<f32>();
+        seen = out.len();
+        if depth == 0 && laid > ctx.budget {
+            break;
+        }
         let mut cells: Vec<(f32, f32, [f32; 4], Vec<Slab>, &Cell)> = Vec::new();
         for (col, span, cell) in row {
             let x = starts.get(*col).copied().unwrap_or(x0);

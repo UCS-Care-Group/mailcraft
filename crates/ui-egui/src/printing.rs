@@ -315,10 +315,6 @@ impl PrintDialog {
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
         let mut done = self.pick_up(app);
-        let laid = self.current().cloned();
-        if self.busy() {
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
-        }
         let can_print = app.services.print.is_some() && !self.printers.is_empty();
         egui::Grid::new("printDialog").num_columns(2).spacing(vec2(16.0, 8.0)).show(ui, |ui| {
             ui.label(tl!("Printer"));
@@ -374,6 +370,11 @@ impl PrintDialog {
                 ui.end_row();
             }
         });
+        // Read after the paper is chosen: a change of it in this frame never prints the other's.
+        let laid = self.current().cloned();
+        if self.busy() {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
+        }
         ui.add_space(2.0);
         match &laid {
             None => {

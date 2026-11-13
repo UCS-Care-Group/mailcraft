@@ -178,34 +178,34 @@ pub fn fallback_dirs() -> Vec<std::path::PathBuf> {
     font_dirs()
 }
 
-/// The files of the fallback faces a print draws other scripts in: for each group of
-/// [`FALLBACK_FACES`], the first that is there and not too large to print with, each file once,
-/// best first. Looked for once and kept for the life of the program.
+/// The files of the fallback faces a print may draw other scripts in: for each group of
+/// [`FALLBACK_FACES`], the files of it that are there and not too large to print with, best
+/// first (a print takes the first of each group it can read, [`crate::Session::print_fonts`]).
+/// Looked for once and kept for the life of the program.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn fallback_paths() -> Vec<std::path::PathBuf> {
-    static FOUND: std::sync::OnceLock<Vec<std::path::PathBuf>> = std::sync::OnceLock::new();
+pub fn fallback_paths() -> Vec<Vec<std::path::PathBuf>> {
+    static FOUND: std::sync::OnceLock<Vec<Vec<std::path::PathBuf>>> = std::sync::OnceLock::new();
     FOUND
         .get_or_init(|| {
             let found = find_font_files(&fallback_dirs(), FALLBACK_FACES);
-            let mut out: Vec<std::path::PathBuf> = Vec::new();
-            for group in FALLBACK_FACES {
-                let path = group
-                    .iter()
-                    .filter_map(|name| found.get(&name.to_lowercase()))
-                    .find(|path| std::fs::metadata(path).is_ok_and(|m| m.len() > 0 && m.len() <= PRINT_FACE_BYTES));
-                if let Some(path) = path
-                    && !out.contains(path)
-                {
-                    out.push(path.clone());
-                }
-            }
-            out
+            FALLBACK_FACES
+                .iter()
+                .map(|group| {
+                    group
+                        .iter()
+                        .filter_map(|name| found.get(&name.to_lowercase()))
+                        .filter(|path| std::fs::metadata(path).is_ok_and(|m| m.len() > 0 && m.len() <= PRINT_FACE_BYTES))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .filter(|group| !group.is_empty())
+                .collect()
         })
         .clone()
 }
 
 /// None in the browser.
 #[cfg(target_arch = "wasm32")]
-pub fn fallback_paths() -> Vec<std::path::PathBuf> {
+pub fn fallback_paths() -> Vec<Vec<std::path::PathBuf>> {
     Vec::new()
 }
