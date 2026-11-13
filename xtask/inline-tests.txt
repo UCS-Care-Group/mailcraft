@@ -13,7 +13,6 @@ apps/mailcraft/src/picture_cache.rs
 apps/mailcraft/src/secrets.rs
 apps/mailcraft/src/updater.rs
 crates/charset/src/lib.rs
-crates/control-key/src/lib.rs
 crates/engine/src/agent.rs
 crates/engine/src/cmd/calendar_extra.rs
 crates/engine/src/cmd/calendar/invitation.rs
@@ -50,7 +49,6 @@ crates/mime/src/lib.rs
 crates/mime/src/mailto.rs
 crates/mime/src/mbox.rs
 crates/mime/src/media.rs
-crates/mime/src/parse.rs
 crates/mime/src/transfer.rs
 crates/mime/src/words.rs
 crates/mime/src/write.rs

@@ -28,7 +28,6 @@
 //! Calendar Connection, `ui.checkCalendar`): the host makes, reads, changes and deletes one
 //! test appointment a year ahead and reports what the server answered at each step.
 
-use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::Module;
@@ -36,111 +35,43 @@ use mailcraft_engine::cmd::remote;
 use mailcraft_model::Id;
 use mailcraft_model::remote::{EventsUpload, EventsUploaded, id_tag};
 use mailcraft_model::sync::Tokens;
-use mailcraft_time::{DateTime, Timestamp};
+use mailcraft_time::Timestamp;
 use serde_json::{Value, json};
 
 use crate::{CalendarCheckRequest, CalendarCheckResult, GraphRequest, GraphResult, MailApp, now_ms};
 
-/// How often the calendar is asked for while it is in front of the owner, and otherwise
-/// (milliseconds).
-const IN_FRONT_MS: f64 = 30_000.0;
-const BEHIND_MS: f64 = 300_000.0;
-/// How long a change made here waits before it goes: not at all. It is on the server at once,
-/// as it is in Outlook. (A moment here would let a change be taken back with Undo before the
-/// server hears of it, and let a second change to the same event go with the first.)
-const QUIET_MS: f64 = 0.0;
-/// How long the server is left alone after a job that came to nothing: this long after the
-/// first, twice as long after each one more, and never longer than the second.
-const FIRST_RETRY_MS: f64 = 30_000.0;
-const LONGEST_RETRY_MS: f64 = 600_000.0;
-/// How often the calendar is asked for while a change that was just sent is yet to be seen on
-/// the server (milliseconds).
-const RECHECK_MS: f64 = 10_000.0;
-/// How many days either side of the days on screen are asked for.
-const MARGIN_DAYS: i64 = 7;
-/// The wide stretch a Send/Receive brings down, as the host has it: a month back, a year ahead
-/// (seconds).
-const WIDE_BEHIND: i64 = 31 * 86_400;
-const WIDE_AHEAD: i64 = 366 * 86_400;
-/// Most calendars of one account that a job asks for, and takes in.
-const MAX_ASKED: usize = 20;
+// How often the calendar is asked for, how long a change waits, how long the server is left alone
+// after a job that came to nothing, the stretch asked for and what is remembered between looks are
+// the engine's ([`mailcraft_engine::sync_driver::calendar`]); this keeps the jobs on the host.
+pub(crate) use mailcraft_engine::sync_driver::consent_wait;
+use mailcraft_engine::sync_driver::{CalendarDriver, MAX_ASKED, Pacing, Start, WIDE_AHEAD, WIDE_BEHIND};
 
-/// What the log says a calendar job waits for when the sign-in lacks a permission: a shared
-/// mailbox's calendars wait for the one to read shared mailboxes' calendars (asked for by itself,
-/// #70), an account's own for Connect calendar and contacts. (No address: the account's id is
-/// said beside it.)
-pub(crate) fn consent_wait(shared: bool) -> &'static str {
-    if shared {
-        "waiting for the owner's permission to read shared mailboxes' calendars"
-    } else {
-        "waiting for the owner's permission (Connect calendar and contacts)"
-    }
-}
-/// How often the working hours the mailbox has set are asked for (milliseconds): they change
-/// when the owner changes them in the mailbox's settings, which is seldom.
-const SETTINGS_MS: f64 = 3_600_000.0;
-
-/// What the app remembers of keeping the calendar current.
+/// The calendar's jobs on the host, in the window: the handles only. What is remembered of
+/// keeping the calendar current is in the session ([`mailcraft_engine::Session::driver`]).
 #[derive(Default)]
 pub(crate) struct CalendarSync {
     /// The job in flight: the account, whether it carried changes, when it started
     /// (milliseconds), and the answer to come.
     pub(crate) rx: Option<(Id, bool, f64, u64, Receiver<GraphResult>)>,
-    /// When each account's calendar was last asked for (milliseconds).
-    pub(crate) checked: HashMap<Id, f64>,
-    /// How many jobs in a row came to nothing for an account, and when the last one did.
-    pub(crate) failures: HashMap<Id, (u32, f64)>,
-    /// How many changes of an account were ready to go at the last look, and since when.
-    waiting: HashMap<Id, (usize, f64)>,
-    /// What an account's server was last told, and when: the very same again right away would
-    /// mean that the telling doesn't settle anything, and is left for later.
-    sent: HashMap<Id, (EventsUpload, f64)>,
-    /// The accounts whose next job was asked for by the owner (a Send/Receive).
-    pub(crate) by_hand: std::collections::HashSet<Id>,
-    /// Whether the job in flight brings the wide stretch with the contacts.
-    directory: bool,
-    /// Ask at once: the window came back to the front, or the owner switched to the calendar.
-    pub(crate) due: bool,
-    /// Whether the window had the focus and the calendar was in front at the last look.
-    focused: bool,
-    in_front: bool,
-    /// The stretch of each account's calendar that was last asked for.
-    shown: HashMap<Id, (Timestamp, Timestamp)>,
-    /// The accounts whose sign-in covers everything but an optional extra (the category list).
-    pub(crate) extras_missing: std::collections::HashSet<Id>,
-    /// A recurring item that was opened, and what the owner said was meant: one occurrence (its
-    /// day) or the series. What is saved from its form is saved for that.
-    pub(crate) opened: Option<(Id, Option<mailcraft_time::Date>)>,
-    /// When each account's mailbox was last asked for its working hours (milliseconds).
-    pub(crate) settings_asked: HashMap<Id, f64>,
-    /// The state of the mailbox at which the waiting changes were last looked over for ones
-    /// that can't be sent any more.
-    settled_rev: Option<u64>,
-    /// The state of the mailbox at which every shared mailbox was last given a calendar to tick.
-    shared_rev: Option<u64>,
-    /// The shared mailboxes whose calendar changes that make the server send mail wait for the
-    /// owner's permission to send from them (#70): until it is given, or the owner asks again
-    /// with a Send/Receive, those changes are not handed to the host.
-    pub(crate) send_waits: std::collections::HashSet<Id>,
-    /// The calendars that changes are held back for, for want of rights, and how many were
-    /// told to the owner (#70): said again only when that changes.
-    held_told: HashMap<Id, usize>,
     /// A check of an account's calendar connection that the host is making.
     check_rx: Option<(Id, u64, Receiver<CalendarCheckResult>)>,
-    /// What the last check of the calendar connection came to, as its report says it.
-    pub(crate) last_check: Vec<String>,
 }
 
 impl CalendarSync {
     /// Another mailbox took the place of the open one: the job and the check in flight are let
     /// go of (AU3-V8).
     pub(crate) fn forget_jobs(&mut self) {
-        (self.rx, self.check_rx, self.directory) = (None, None, false);
-        self.by_hand.clear();
+        (self.rx, self.check_rx) = (None, None);
     }
 }
 
 impl MailApp {
+    /// Let go of the calendar's job and check in flight, and of what the driver knew of them.
+    pub(crate) fn forget_calendar_jobs(&mut self) {
+        self.calendar.forget_jobs();
+        self.session.driver.calendar.forget_jobs();
+    }
+
     /// Whether a calendar job is in flight.
     pub fn calendar_syncing(&self) -> bool {
         self.calendar.rx.is_some()
@@ -158,7 +89,7 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         } else if !self.calendar_accounts().is_empty() {
             // Nothing is happening: look again in a while, sooner when a change waits to go.
-            let waits = self.calendar.waiting.values().any(|(n, _)| *n > 0);
+            let waits = self.session.driver.calendar.book.any_waiting();
             ctx.request_repaint_after(std::time::Duration::from_secs(if waits { 1 } else { 5 }));
         }
     }
@@ -173,10 +104,7 @@ impl MailApp {
     /// A Send/Receive the owner asked for was started for `account`: its calendar and contacts
     /// are asked for in the job that follows the round, the days on screen at least.
     pub(crate) fn calendar_after_round(&mut self, account: Id) {
-        self.calendar.checked.remove(&account);
-        self.calendar.by_hand.insert(account);
-        // (What waited for the permission to send from a shared mailbox is tried again.)
-        self.calendar.send_waits.remove(&account);
+        self.session.driver.calendar.after_round(account);
     }
 
     /// The accounts whose calendar is kept in step now: those whose calendar a Microsoft server
@@ -189,37 +117,31 @@ impl MailApp {
 
     /// The accounts whose calendar a Microsoft server keeps.
     fn microsoft_accounts(&self) -> Vec<Id> {
-        let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);
-        self.session.mailbox.accounts.iter().filter(microsoft).map(|a| a.id).collect()
+        self.session.microsoft_calendar_accounts()
     }
 
     /// [`calendar_tick`](Self::calendar_tick) at `now` (milliseconds), with the window in front
     /// or not. Whether a job was started. (Public for a host's tests, which have no window.)
     pub fn calendar_tick_at(&mut self, focused: bool, now: f64) -> bool {
         // A shared mailbox has a calendar to tick from the moment it is there (#70).
-        if self.calendar.shared_rev != Some(self.session.rev()) {
+        if self.session.driver.calendar.shared_pending(self.session.rev()) {
             remote::ensure_shared_calendars(&mut self.session);
-            self.calendar.shared_rev = Some(self.session.rev());
+            self.session.driver.calendar.shared_done(self.session.rev());
         }
         let in_front = self.session.view.module == Module::Calendar && !self.ui.backstage;
-        let came_back = (focused && !self.calendar.focused) || (in_front && !self.calendar.in_front);
-        (self.calendar.focused, self.calendar.in_front) = (focused, in_front);
-        if came_back && focused && in_front {
-            self.calendar.due = true;
-        }
+        self.session.driver.calendar.looked(focused, in_front);
         if !self.auto_sync || self.services.graph.is_none() {
             return false;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.sync_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty()
-        {
+        if self.job_busy().blocks(Start::Calendar) {
             return false;
         }
         // What waits and can't be sent any more is given up before anything is sent: with a
         // word to the owner, never silently. (Looked at once for each state of the mailbox.)
-        if self.calendar.settled_rev != Some(self.session.rev()) {
+        if self.session.driver.calendar.settle_pending(self.session.rev()) {
             let dropped = remote::settle_changes(&mut self.session);
-            self.calendar.settled_rev = Some(self.session.rev());
+            self.session.driver.calendar.settled(self.session.rev());
             self.tell_dropped(&dropped);
         }
         // A calendar ticked in a shared mailbox that the owner's permission is missing for: asked.
@@ -227,39 +149,22 @@ impl MailApp {
         for account in self.calendar_accounts() {
             // What is ready to go, and for how long it has been: a change gets a quiet moment.
             let ready = remote::events_waiting(&self.session, account).due;
-            let since = match self.calendar.waiting.get(&account) {
-                Some((seen, since)) if *seen == ready => *since,
-                _ => {
-                    self.calendar.waiting.insert(account, (ready, now));
-                    now
-                }
-            };
             // (What exactly would go: nothing, when a change was changed back; and not the very
             // same as a moment ago, which would go round in circles.)
-            let changes = if ready > 0 && now - since >= QUIET_MS { self.calendar_changes(account) } else { None };
-            let again = |(sent, at): &(EventsUpload, f64)| changes.as_ref() == Some(sent) && now - at < FIRST_RETRY_MS;
-            let push = changes.is_some() && !self.calendar.sent.get(&account).is_some_and(again);
+            let changes = if self.session.driver.calendar.quiet_over(account, ready, now) { self.session.calendar_changes(account) } else { None };
+            let push = self.session.driver.calendar.push_wanted(account, changes.as_ref(), now);
             // A change that was just sent and isn't seen on the server yet: asked for again soon.
             let unseen = remote::recheck_due(&self.session, account);
-            let every = match (unseen, in_front) {
-                (true, _) => RECHECK_MS,
-                (false, true) => IN_FRONT_MS,
-                (false, false) => BEHIND_MS,
-            };
-            let asked = self.calendar.checked.get(&account).copied();
-            // Other days came into view (a series shows there by its rule until the server has
-            // said which of its days are really there): they are asked for without waiting.
-            let elsewhere = in_front && self.calendar.shown.get(&account).is_some_and(|shown| *shown != self.calendar_window());
+            // Other days came into view: they are asked for without waiting.
+            let elsewhere = self.session.driver.calendar.elsewhere(account, in_front, self.calendar_window());
             // The wide stretch with the contacts, every quarter of an hour: after the mail.
             let wide = self.directory_due(account, now);
-            let refresh = ((self.calendar.due || elsewhere) && in_front) || asked.is_none_or(|at| now - at >= every) || wide;
+            let refresh = self.session.driver.calendar.refresh_due(account, in_front, unseen, elsewhere, wide, now);
             if !(push || refresh) || self.graph_consent_needed.contains(&account) || self.shared_calendars_blocked(account) {
                 continue;
             }
             // A server that didn't answer the last time is given longer each time.
-            let (failures, at) = self.calendar.failures.get(&account).copied().unwrap_or((0, 0.0));
-            let patience = (FIRST_RETRY_MS * f64::from(1u32 << failures.saturating_sub(1).min(8))).min(LONGEST_RETRY_MS);
-            if failures > 0 && now - at < patience {
+            if !self.session.driver.calendar.book.patient(&Pacing::CALENDAR, account, now) {
                 continue;
             }
             if self.start_calendar_job(account, push, now) {
@@ -267,36 +172,25 @@ impl MailApp {
             }
         }
         // Nobody to ask: the wish to ask at once doesn't outlive the look.
-        self.calendar.due = false;
+        self.session.driver.calendar.due = false;
         false
     }
 
     /// Whether the wide stretch of `account`'s calendar and its contacts are due: every quarter
     /// of an hour, and at start-up.
     fn directory_due(&self, account: Id, now: f64) -> bool {
-        self.graph_checked.get(&account).is_none_or(|at| now - at > 900_000.0)
+        CalendarDriver::directory_due(self.graph_checked.get(&account).copied(), now)
     }
 
     /// The stretch of the calendar a refresh asks for: the days on screen and a week either
     /// side, as instants.
     pub(crate) fn calendar_window(&self) -> (Timestamp, Timestamp) {
-        let (from, to) = mailcraft_engine::cmd::view::calendar_range(&self.session);
-        let instant = |day: mailcraft_time::Date| {
-            let midnight = DateTime::at_midnight(day);
-            midnight.to_timestamp(self.session.offset_at(midnight.to_timestamp(0)))
-        };
-        let (from, to) = (instant(from.add_days(-MARGIN_DAYS)), instant(to.add_days(MARGIN_DAYS + 1)));
-        (from, to.max(from.saturating_add(mailcraft_time::DAY)))
+        self.session.calendar_window()
     }
 
     /// What of the calendar waits to go to `account`'s server now; `None` when nothing does.
     pub(crate) fn calendar_changes(&self, account: Id) -> Option<EventsUpload> {
-        let mut upload = remote::event_upload(&self.session, account).ok()?;
-        // What makes the server send mail from a shared mailbox waits for the owner's permission.
-        if self.calendar.send_waits.contains(&account) {
-            upload.ops.retain(|op| !op.mails_others());
-        }
-        Some(upload).filter(|upload| !upload.ops.is_empty())
+        self.session.calendar_changes(account)
     }
 
     /// Tell the owner of changes to `account`'s calendars that are held back because the account
@@ -304,11 +198,7 @@ impl MailApp {
     /// are not sent and not dropped, and each calendar is told once for as long as it stays so.
     pub(crate) fn tell_held_for_rights(&mut self, account: Id) {
         let held = remote::held_for_rights(&self.session.mailbox, account);
-        self.calendar.held_told.retain(|calendar, _| held.iter().any(|(id, ..)| id == calendar));
-        for (calendar, name, n) in held {
-            if self.calendar.held_told.insert(calendar, n) == Some(n) {
-                continue;
-            }
+        for (name, n) in self.session.driver.calendar.tell_held(held) {
             let said = crate::i18n::fmt(
                 tl!(
                     "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
@@ -337,19 +227,14 @@ impl MailApp {
         if self.services.graph.is_none() {
             return Err(tl!("This build can't reach the account's calendar.").to_string());
         }
-        let busy = self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty();
+        let busy = self.job_busy().blocks(Start::CalendarAround);
         if busy || self.calendar_changes(account).is_some() {
             return Err(tl!("The calendar is being updated already.").to_string());
         }
         if self.graph_consent_needed.contains(&account) {
             return Err(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts").to_string());
         }
-        let instant = |day: mailcraft_time::Date| {
-            let midnight = DateTime::at_midnight(day);
-            midnight.to_timestamp(self.session.offset_at(midnight.to_timestamp(0)))
-        };
-        let from = instant(day.add_days(-1));
-        let round = (from, instant(day.add_days(2)).max(from.saturating_add(mailcraft_time::DAY)));
+        let round = self.session.days_as_instants(day.add_days(-1), day.add_days(2));
         if self.calendar_job(account, false, now_ms(), Some(round)) {
             Ok(())
         } else {
@@ -375,7 +260,7 @@ impl MailApp {
             return false;
         }
         // The Favorites as Outlook has them ride along when they are due ([`crate::favorites_sync`]).
-        let by_hand = self.calendar.by_hand.remove(&account);
+        let by_hand = self.session.driver.calendar.by_hand.remove(&account);
         let favorites = !shared && round.is_none() && self.favorites_ask(account, now, by_hand);
         // (A token that is known not to be good for them is not handed on when one that is can
         // be had; without a way of getting another, the one there is has to do.)
@@ -383,10 +268,10 @@ impl MailApp {
         let changes = if push { self.calendar_changes(account) } else { None };
         let carried = changes.is_some();
         if let Some(changes) = &changes {
-            self.calendar.sent.insert(account, (changes.clone(), now));
+            self.session.driver.calendar.sent_changes(account, changes, now);
         }
         // The working hours the mailbox has set come along once an hour (and after "Connect").
-        let settings = !shared && round.is_none() && self.calendar.settings_asked.get(&account).is_none_or(|at| now - at >= SETTINGS_MS);
+        let settings = !shared && round.is_none() && self.session.driver.calendar.settings_due(account, now);
         let stretch = round.unwrap_or_else(|| self.calendar_window());
         // The wide stretch and the contacts, with a job for the days on screen when they are due.
         let directory = round.is_none() && self.directory_due(account, now);
@@ -400,7 +285,7 @@ impl MailApp {
             // (The wide stretch is counted from this session's clock, as its asks are.)
             calendar: Some(if directory { (self.session.now() - WIDE_BEHIND, self.session.now() + WIDE_AHEAD) } else { stretch }),
             changes,
-            asks: self.calendar_asks(account, directory, Some(stretch)),
+            asks: self.session.calendar_asks(account, directory, Some(stretch)),
             settings,
             favorites,
             favorites_scopes: favorites,
@@ -409,16 +294,9 @@ impl MailApp {
             cancel: Default::default(),
         };
         let Some(graph) = self.services.graph.as_ref().filter(|_| !self.offline()) else { return false };
-        if settings {
-            self.calendar.settings_asked.insert(account, now);
-        }
-        self.calendar.directory = directory;
+        let own_days = round.is_none().then(|| self.calendar_window());
+        self.session.driver.calendar.started(account, now, own_days, directory, settings);
         self.calendar.rx = Some((account, carried, now, self.session.openings(), graph(ask)));
-        if round.is_none() {
-            self.calendar.checked.insert(account, now);
-            self.calendar.shown.insert(account, self.calendar_window());
-            self.calendar.due = false;
-        }
         true
     }
 
@@ -431,7 +309,7 @@ impl MailApp {
         // their ids and addresses, and the answer is nobody's (AU3-V8).
         if *opening != self.session.openings() {
             log::info!("calendar: the answer is for a mailbox that is no longer open; let go of");
-            self.calendar.forget_jobs();
+            self.forget_calendar_jobs();
             return;
         }
         let mut result = match rx.try_recv() {
@@ -498,22 +376,15 @@ impl MailApp {
             }
         }
         // (A part that couldn't be had is among the errors: then the next job asks again.)
-        if std::mem::take(&mut self.calendar.directory) && taken && errors.is_empty() {
+        if std::mem::take(&mut self.session.driver.calendar.directory) && taken && errors.is_empty() {
             self.graph_checked.insert(account, now_ms());
         }
         // Something went up: what the server has now is asked for again soon, should this
         // answer have been cut short.
         let went = result.uploaded.as_ref().is_some_and(|uploaded| !uploaded.outcomes.is_empty());
         let nothing = !taken || (carried && !went);
-        match (nothing, self.calendar.failures.get(&account).copied()) {
-            (true, earlier) => {
-                self.calendar.failures.insert(account, (earlier.map_or(0, |(n, _)| n).saturating_add(1), started));
-            }
-            (false, _) => {
-                self.calendar.failures.remove(&account);
-            }
-        }
-        self.note_sync_problems(account, &errors, false);
+        self.session.driver.calendar.answered(account, nothing, started);
+        self.note_problems_from("calendar", account, &errors, None, false);
     }
 
     /// A Graph token that a job obtained: kept for the session, and its refresh token is the
@@ -689,7 +560,7 @@ impl MailApp {
         let Some(oauth) = owner.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
             return Err(tl!("This account doesn't sign in with Microsoft").to_string());
         };
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() {
+        if self.job_busy().blocks(Start::CalendarCheck) {
             return Err(tl!("The calendar is being updated: try again in a moment.").to_string());
         }
         let account = owner.id;
@@ -716,7 +587,7 @@ impl MailApp {
 
     /// What the last check of the calendar connection came to, line by line.
     pub fn calendar_check_report(&self) -> &[String] {
-        &self.calendar.last_check
+        &self.session.driver.calendar.last_check
     }
 
     /// The host is done checking the calendar connection: keep its token, show what the server
@@ -797,7 +668,7 @@ impl MailApp {
             "calendar check, account {account}: {}",
             if result.ok { "everything arrived as it was sent" } else { "not everything arrived as it was sent" }
         );
-        self.calendar.last_check = lines.clone();
+        self.session.driver.calendar.last_check = lines.clone();
         self.status(if result.ok {
             tl!("The calendar connection works")
         } else {
@@ -805,7 +676,7 @@ impl MailApp {
         });
         self.dialog = Some(crate::dialogs::Dialog::Report { name: "calendarCheck", title: tl!("Calendar Connection Check").to_string(), lines });
         // The calendar is looked at again at once, when it is in front.
-        self.calendar.due = true;
+        self.session.driver.calendar.due = true;
     }
 
     /// [`take_in_calendar`](Self::take_in_calendar) for the Microsoft Graph part of a
@@ -819,43 +690,9 @@ impl MailApp {
     ) -> bool {
         let taken = self.take_in_calendar(account, uploaded, events, errors);
         if taken {
-            self.calendar.checked.insert(account, now_ms());
+            self.session.driver.calendar.book.started(account, now_ms());
         }
         taken
-    }
-
-    /// The calendars of `account` that a job brings down, each with the series the mailbox
-    /// expects in the stretch (for the host to ask about by name when the stretch brings nothing
-    /// of them): the main one, the others that are shown, and any that holds something which was
-    /// sent and is yet to be seen there. The stretch is the wide one of a
-    /// Send/Receive (`directory`: a month back, a year ahead), or else `stretch`.
-    pub(crate) fn calendar_asks(
-        &self,
-        account: Id,
-        directory: bool,
-        stretch: Option<(Timestamp, Timestamp)>,
-    ) -> Vec<mailcraft_model::remote::CalendarAsk> {
-        let now = self.session.now();
-        let Some((from, to)) = (if directory { Some((now - WIDE_BEHIND, now + WIDE_AHEAD)) } else { stretch }) else { return Vec::new() };
-        // (And one that holds something which was sent and is yet to be seen on the server,
-        // shown or not: an appointment that was just put into a calendar that isn't ticked.)
-        let unseen = remote::unverified_calendars(&self.session, account);
-        // A shared mailbox's calendars are read once they are ticked, and not before (#70).
-        let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
-        let followed = |c: &&mailcraft_model::Calendar| {
-            c.origin.account == account && if shared { c.visible } else { c.origin.id.is_empty() || c.visible || directory || unseen.contains(&c.id) }
-        };
-        let mut asks: Vec<mailcraft_model::remote::CalendarAsk> = Vec::new();
-        // (Those the owner opened by address first: they count within the same cap, #70.)
-        let mut ordered: Vec<&mailcraft_model::Calendar> = self.session.mailbox.calendars.iter().filter(followed).collect();
-        ordered.sort_by_key(|c| !c.origin.id.starts_with(mailcraft_model::remote::OPENED_PREFIX));
-        for calendar in ordered.into_iter().take(MAX_ASKED) {
-            if !asks.iter().any(|ask| ask.calendar == calendar.origin.id) {
-                let series = remote::expected_series(&self.session, account, &calendar.origin.id, from, to);
-                asks.push(mailcraft_model::remote::CalendarAsk { calendar: calendar.origin.id.clone(), series });
-            }
-        }
-        asks
     }
 
     /// Take in the list of the account's calendars and the mailbox's categories that came with
@@ -879,12 +716,12 @@ impl MailApp {
         }
         if let Some(list) = categories {
             // They came: the sign-in covers them.
-            self.calendar.extras_missing.remove(&account);
+            self.session.driver.calendar.extras_missing.remove(&account);
             if let Err(e) = remote::apply_categories(&mut self.session, list) {
                 errors.push(crate::i18n::fmt(tl!("The categories couldn't be taken in: {error}"), &[("error", &e.to_string())]));
             }
         } else if extras_missing {
-            self.calendar.extras_missing.insert(account);
+            self.session.driver.calendar.extras_missing.insert(account);
         }
     }
 
@@ -892,7 +729,7 @@ impl MailApp {
     /// now on, unless the owner would rather have the ones of the local options. That they
     /// could be read says that the sign-in covers the optional extras.
     pub(crate) fn take_in_mailbox_hours(&mut self, account: Id, hours: &mailcraft_engine::cmd::calendar_settings::MailboxHours) {
-        self.calendar.extras_missing.remove(&account);
+        self.session.driver.calendar.extras_missing.remove(&account);
         if let Err(e) = mailcraft_engine::cmd::calendar_settings::apply_mailbox_hours(&mut self.session, account, Some(hours)) {
             // (Hours that aren't hours: the ones that were kept stay.)
             log::debug!("the mailbox's working hours were not taken in: {e}");
@@ -911,18 +748,14 @@ impl MailApp {
     /// and contacts" would add it. Quieter than [`graph_consent_needed`](Self::graph_consent_needed):
     /// nothing is disconnected.
     pub fn graph_extras_missing(&self, account: Id) -> bool {
-        self.calendar.extras_missing.contains(&account)
+        self.session.driver.calendar.extras_missing.contains(&account)
     }
 
     /// The owner gave Microsoft Graph its permissions for `account` ("Connect calendar and
     /// contacts"): what was held back for the lack of them goes at once.
     pub(crate) fn calendar_connected(&mut self, account: Id) {
         remote::retry_event_changes(&mut self.session, account);
-        self.calendar.failures.remove(&account);
-        self.calendar.checked.remove(&account);
-        self.calendar.sent.remove(&account);
-        // And what the new permissions may cover is asked for with the next look.
-        self.calendar.settings_asked.remove(&account);
+        self.session.driver.calendar.connected(account);
     }
 }
 
@@ -1779,7 +1612,7 @@ mod tests {
         assert!(crate::dialogs::confirmation(&app, "ui.openWindow", &json!({"event": id})).is_some_and(|ask| ask.title == "Open Recurring Item"));
         answer(&mut app, "Just This One", "");
         assert!(matches!(app.dialog, Some(Dialog::Form(_))) || app.windows.of_event(id).is_some(), "the form opens once the question is answered");
-        assert_eq!(app.calendar.opened, Some((id, Some(day(21)))));
+        assert_eq!(app.session.driver.calendar.opened, Some((id, Some(day(21)))));
         app.dialog = None;
         // The form saves as forms do: asked first when there is a question, and here there is
         // always something to say (which of the series), whatever is selected by now.
@@ -1787,7 +1620,7 @@ mod tests {
         let fields = json!({"id": id, "title": "Stand-up (long)", "start": "2026-10-05T13:30", "end": "2026-10-05T15:00"});
         assert!(crate::dialogs::confirmation(&app, "calendar.edit", &fields).is_some());
         let saved = app.run("calendar.edit", fields).unwrap();
-        assert_eq!((saved["occurrence"].as_str(), asked(&app), app.calendar.opened), (Some("2026-10-21"), None, None));
+        assert_eq!((saved["occurrence"].as_str(), asked(&app), app.session.driver.calendar.opened), (Some("2026-10-21"), None, None));
         let long = titled(&app, "Stand-up (long)");
         assert_eq!((long.len(), long[0].start.date, long[0].duration_minutes()), (1, day(21), 90));
         // A script that says which is meant is asked nothing.

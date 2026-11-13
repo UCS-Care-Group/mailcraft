@@ -3340,8 +3340,8 @@ mod event {
         fn run(&mut self, app: &mut MailApp, command: &'static str, params: Value, after: After) -> Verdict {
             // The command says itself which of a series is meant: what the main window noted of
             // that when the item was opened is used up, and is not applied to anything later.
-            if self.scope.is_some() && app.calendar.opened.is_some_and(|(event, _)| Some(event) == self.id) {
-                app.calendar.opened = None;
+            if self.scope.is_some() && app.session.driver.calendar.opened.is_some_and(|(event, _)| Some(event) == self.id) {
+                app.session.driver.calendar.opened = None;
             }
             let seq = app.ran.0;
             let asks = crate::dialogs::confirmation(app, command, &params).is_some();

@@ -280,7 +280,7 @@ fn a_file_that_is_no_picture_is_listed_while_the_body_is_kept_outside() {
          --B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n\
          --B\r\nContent-Type: application/zip; name=tool.zip\r\nContent-Disposition: attachment; filename=tool.zip\r\nContent-ID: <t9@a.example>\r\nContent-Transfer-Encoding: base64\r\n\r\nUEsDBHYyNw==\r\n--B--\r\n"
     );
-    let parsed = mailcraft_mime::parse(eml.as_bytes());
+    let parsed = mailcraft_mime_model::parse(eml.as_bytes());
     let mut mb = mailbox(24);
     let id = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
     let mut m = Message::clone(mb.message(id).unwrap());
