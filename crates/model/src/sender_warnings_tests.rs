@@ -761,6 +761,8 @@ fn a_brand_name_is_not_said_for_a_list_or_a_correspondent() {
     let mut m = from("Maya via PayPal Users", "list@groups.example");
     m.headers = vec![("List-Id".into(), "<paypal-users.groups.example>".into())];
     assert!(!kinds(&m).contains(&"brandName"));
+    // A name that says "via" without the list's headers is no list's: it can't hide a brand.
+    assert!(kinds(&from("PayPal via Billing", "service@billing-alerts.example")).contains(&"brandName"));
     // A domain the owner corresponds with.
     assert!(!kinds(&from("Microsoft partners at Harbor Works", "lin.zhao@harborworks.example")).contains(&"brandName"));
 }
@@ -841,7 +843,8 @@ fn a_machine_made_name_is_told_from_words() {
 
 #[test]
 fn a_made_up_or_impossible_domain_is_a_caution() {
-    for sender in ["x@k7x9q2w8.example", "x@shop-.example", "x@-shop.example", "x@mail.shop.123"] {
+    // A domain that isn't one at all, too.
+    for sender in ["x@k7x9q2w8.example", "x@shop-.example", "x@-shop.example", "x@mail.shop.123", "x@shop..example", "x@shop example.org"] {
         let found = warnings(&from("Someone", sender));
         assert!(found.iter().any(|w| matches!(w, Warning::MadeUpDomain { .. })), "{sender}");
         assert_eq!(banner_level(&found), Some(Level::Caution), "{sender}");

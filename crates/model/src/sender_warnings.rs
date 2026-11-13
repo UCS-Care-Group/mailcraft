@@ -387,11 +387,11 @@ const MACHINE_SWITCHES: usize = 4;
 /// so knowing somebody there counts for nothing): each word of the name, as it reads, against
 /// [`brands::BRANDS`]; a brand whose name is also an ordinary word only when it opens a name of
 /// two words at most ("Apple", "Apple Support", not "Apple Valley Farm"). Not for a list's
-/// "<member> via <list>".
+/// "<member> via <list>" (a list's, by its `List-Id` or `List-Post`: a name alone may say "via").
 fn brand_name(facts: &Facts, m: &Message, domain: &str) -> Option<Warning> {
     let seen = as_seen(&m.from.name, MAX_NAME_CHARS);
     let mine = registrable(domain);
-    if via_list(&seen) || facts.domains.contains(mine) && !provider::is_mail_provider(mine) {
+    if via_list(&seen) && from_list(m) || facts.domains.contains(mine) && !provider::is_mail_provider(mine) {
         return None;
     }
     let words: Vec<&str> = seen.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).take(MAX_NAME_WORDS).collect();
@@ -531,7 +531,7 @@ fn name_hides(facts: &Facts, m: &Message) -> Option<Warning> {
     // A list writes its members' names as "Maya Okafor via Lumen Team": the name is the
     // member's, the address the list's.
     let via = via_list(&as_seen(&m.from.name, MAX_NAME_CHARS));
-    let list = m.headers.iter().take(MAX_HEADERS_READ).any(|(h, _)| h.eq_ignore_ascii_case("List-Id") || h.eq_ignore_ascii_case("List-Post"));
+    let list = from_list(m);
     if !(via && list)
         && let Some(other) = addresses_in(&m.from.name).into_iter().find(|a| *a != address)
     {
@@ -542,6 +542,11 @@ fn name_hides(facts: &Facts, m: &Message) -> Option<Warning> {
     }
     let (theirs, own) = facts.people.get(&name_key(&m.from.name)?)?;
     (!theirs.contains(&address)).then_some(Warning::NameHidesAddress { name, reason: if *own { NameReason::OwnName } else { NameReason::KnownName } })
+}
+
+/// Whether `m` came through a mailing list: it has a `List-Id` or `List-Post` header.
+fn from_list(m: &Message) -> bool {
+    m.headers.iter().take(MAX_HEADERS_READ).any(|(h, _)| h.eq_ignore_ascii_case("List-Id") || h.eq_ignore_ascii_case("List-Post"))
 }
 
 /// Whether `name` (as it reads) is a list's for one of its members: "<anything> via <list>".
@@ -775,6 +780,11 @@ pub fn check<'a>(
         out.extend(brand_lookalike(facts, domain));
         out.extend(domain_in_name(m, domain));
         out.extend(made_up(facts, domain));
+    } else if let Some((_, raw)) = m.from.email.trim().rsplit_once('@')
+        && !raw.trim().is_empty()
+    {
+        // A domain that isn't one at all (`shop..example`, a space in it) can't exist either.
+        out.push(Warning::MadeUpDomain { domain: detail(raw) });
     }
     if let Some(links) = links {
         out.extend(link_mismatches(links));
