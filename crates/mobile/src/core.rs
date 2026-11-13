@@ -60,9 +60,9 @@ impl Core {
         std::thread::Builder::new()
             .name("mailcraft-session".to_string())
             .spawn(move || run_session(make, inbox, &sink, &ready_tx))
-            .map_err(|_| CoreError::Init { message: "a thread for the session could not be started".to_string() })?;
+            .map_err(|_| CoreError::Init { reason: "a thread for the session could not be started".to_string() })?;
         if ready.recv() != Ok(true) {
-            return Err(CoreError::Init { message: "the session could not be opened".to_string() });
+            return Err(CoreError::Init { reason: "the session could not be opened".to_string() });
         }
         Ok(Arc::new(Core { jobs: Mutex::new(Some(jobs)), events, platform, memory_budget: host.memory_budget(), language: AtomicU8::new(0) }))
     }
@@ -139,15 +139,15 @@ impl Core {
     /// JSON. A command that fails leaves the mailbox as it was.
     pub async fn execute(&self, id: String, params_json: String) -> Result<String, CoreError> {
         if id.len() > MAX_COMMAND_ID {
-            return Err(CoreError::BadRequest { message: "the command's id is too long".to_string() });
+            return Err(CoreError::BadRequest { reason: "the command's id is too long".to_string() });
         }
         if params_json.len() > MAX_PARAMS_BYTES {
-            return Err(CoreError::BadRequest { message: "the parameters are too long".to_string() });
+            return Err(CoreError::BadRequest { reason: "the parameters are too long".to_string() });
         }
         let params: Value = if params_json.trim().is_empty() {
             Value::Object(serde_json::Map::new())
         } else {
-            serde_json::from_str(&params_json).map_err(|_| CoreError::BadRequest { message: "the parameters are not JSON".to_string() })?
+            serde_json::from_str(&params_json).map_err(|_| CoreError::BadRequest { reason: "the parameters are not JSON".to_string() })?
         };
         self.call(move |session| {
             let result = session.run(&id, &params)?;

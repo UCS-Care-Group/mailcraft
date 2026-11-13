@@ -23,7 +23,7 @@ use crate::text::{
 use crate::{Core, CoreError};
 
 fn bad(message: &str) -> CoreError {
-    CoreError::BadRequest { message: message.to_string() }
+    CoreError::BadRequest { reason: message.to_string() }
 }
 
 fn rgb(c: mailcraft_model::Rgb) -> u32 {

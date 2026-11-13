@@ -28,6 +28,11 @@ log = { workspace = true }
 # with must come from the same version as this crate.
 uniffi = { version = "=0.32.2", default-features = false }
 
+# Android's TLS verifier asks the JVM, so it is set up through one JNI entry (`android_jni.rs`).
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22.4"
+rustls-platform-verifier = { workspace = true }
+
 [dev-dependencies]
 mailcraft-engine = { workspace = true, features = ["test-support"] }
 

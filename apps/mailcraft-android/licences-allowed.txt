@@ -1,0 +1,15 @@
+# The licences that may ship in the Android app (`cargo xtask mobile`). A licence name from an
+# artifact's POM is allowed when one of its words is listed here; an artifact offered under several
+# licences passes when one of them is. Permissive licences only: no GPL, LGPL, AGPL, EPL or MPL.
+allow apache
+allow mit
+allow bsd
+allow isc
+allow cc0
+allow zlib
+
+# Artifacts whose POM names no licence, each checked by hand (`unlisted group:name licence`).
+# Guava's empty placeholder that androidx.concurrent pulls in: Apache-2.0, as Guava.
+unlisted com.google.guava:listenablefuture Apache-2.0
+# rustls-platform-verifier's Kotlin component: MIT OR Apache-2.0, as the crate.
+unlisted org.rustls:rustls-platform-verifier MIT OR Apache-2.0

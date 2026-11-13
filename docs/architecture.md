@@ -41,6 +41,14 @@ egui, eframe, winit or rfd.
 | apps | `mailcraft` | Desktop app (eframe + wgpu; logging, window geometry, native dialogs, Send/Receive thread, control server; leaving, `quit.rs`: unsaved work asks first on every platform, then on macOS the process ends through `-[NSApplication terminate:]` (`quit_macos.rs`, MailCraft's own) rather than by closing the window, which can crash AppKit, and the macOS menu bar (`menubar.rs`, `muda`; its table of command ids is `ui-egui`'s `menubar`) has Quit (⌘Q) asking like the close button) |
 | apps | `mailcraft-cli` | `info`, `folders`, `list`, `show`, `import`, `export`, `convert`, `run`, `sync`, `commands`, `parity`, `mcp` |
 | apps | `mailcraft-web` | Browser build (eframe web runner, WebGPU with WebGL2 fallback; browser storage, file picker, downloads) |
+| apps | `mailcraft-android` | Android app: a Gradle project (Kotlin, Jetpack Compose, minSdk 29) over the Rust library of `crates/mobile`, which `cargo-ndk` builds for arm64-v8a and x86_64; UniFFI's Kotlin bindings are generated from it at build time. Not a Cargo member; `cargo xtask mobile` builds, lints (Android Lint and detekt, both as errors) and tests it, and checks the licences of what ships and that no Google Play Services or Firebase is in it |
+
+Languages: the program is Rust. Kotlin is allowed only under `apps/mailcraft-android` and Swift only
+under `apps/mailcraft-ios`, for the interface and the platform layer (what the system gives the program:
+credential store, browser, files, notifications, clock). They never parse anything that comes from
+outside: messages, server answers and files are read by Rust, which gives the apps typed records and
+display blocks. Their lint is part of the build and enforces never-crash (no `!!`, no `lateinit` where it
+can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`).
 
 ## Data flow
 

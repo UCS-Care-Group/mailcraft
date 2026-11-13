@@ -30,6 +30,6 @@ pub(crate) fn check() -> Result<(), CoreError> {
     if !cfg!(target_os = "android") || READY.load(Ordering::Acquire) {
         Ok(())
     } else {
-        Err(CoreError::Init { message: "the system's certificate check isn't set up".to_string() })
+        Err(CoreError::Init { reason: "the system's certificate check isn't set up".to_string() })
     }
 }

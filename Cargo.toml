@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
+# The phone apps are Gradle (and Xcode) projects, not crates: they only hold the generator of the
+# bindings (its own lock file).
+exclude = ["apps/mailcraft-android"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]

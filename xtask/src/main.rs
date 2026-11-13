@@ -10,6 +10,7 @@ mod i18n;
 mod ico;
 mod icon;
 mod layers;
+mod mobile;
 mod parity;
 mod release_key;
 mod release_notes;
@@ -32,6 +33,7 @@ commands:
   layers          enforce the crate dependency layering (docs/architecture.md)
   workflows       no job of .github/workflows that holds signing material builds or runs what was built;
                   no `permissions: read-all`; curl only with `--proto =https` (docs/releasing.md)
+  mobile          build, lint and test the Android app (needs the Android SDK, NDK, cargo-ndk); not part of `ci`
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
   ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, workflows, layers, wasm, deny, i18n --check,
@@ -66,6 +68,7 @@ fn main() -> ExitCode {
         Some("test-files") => test_files::run(&root()),
         Some("layers") => cmd_layers(),
         Some("workflows") => workflows::run(&root()),
+        Some("mobile") => mobile::run(&root()),
         Some("wasm") => cmd_wasm(),
         Some("deny") => cmd_deny(),
         Some("ci") => cmd_ci(),

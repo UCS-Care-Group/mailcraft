@@ -21,6 +21,8 @@
 uniffi::setup_scaffolding!();
 
 pub mod android;
+#[cfg(target_os = "android")]
+mod android_jni;
 pub mod blocks;
 mod core;
 mod error;

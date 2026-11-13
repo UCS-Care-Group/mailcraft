@@ -17,11 +17,11 @@ use crate::{Core, CoreError};
 const MAX_PICTURE_BYTES: usize = 20 * 1024 * 1024;
 
 fn bad(message: &str) -> CoreError {
-    CoreError::BadRequest { message: message.to_string() }
+    CoreError::BadRequest { reason: message.to_string() }
 }
 
 fn failed(message: &str) -> CoreError {
-    CoreError::Failed { message: message.to_string() }
+    CoreError::Failed { reason: message.to_string() }
 }
 
 /// The attachment a `cid:` address names: by its content id, as the reading pane finds it.
