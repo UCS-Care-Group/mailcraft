@@ -23,9 +23,9 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{JmapChange, JmapChangeDone, JmapMailResult, JmapOutcome};
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 
-use super::{Outcome, Run, Stop, refusal};
+use super::{Outcome, Run, Stop, arguments, get, refusal};
 use crate::{HttpExchange, Id, Redactor};
 
 /// Most changes one run takes up; the rest are not answered, and come with the next request.
@@ -181,7 +181,7 @@ impl<H: HttpExchange> Run<'_, H> {
             }
             asked = asked.saturating_add(chunk.len());
             let got = match self.check() {
-                Ok(()) => self.one_call("Email/set", Value::Object(set_arguments(self.account(), &chunk)), SET_BYTES).await,
+                Ok(()) => self.one_call("Email/set", set_arguments(self.account(), &chunk), SET_BYTES).await,
                 Err(stop) => Err(stop),
             };
             let answer = match got {
@@ -228,8 +228,8 @@ impl<H: HttpExchange> Run<'_, H> {
             // takes in a `set`: a look for more would be refused as too large, at every run.)
             for looked_for in silent.chunks(get_at_once) {
                 let ids: Vec<&str> = looked_for.iter().map(|(_, id)| id.as_str()).collect();
-                let looked = match self.check() {
-                    Ok(()) => self.one_call("Email/get", json!({"accountId": self.account(), "ids": ids, "properties": ["id"]}), SET_BYTES).await,
+                let looked = match self.check().and_then(|()| Ok(arguments(&get(self.account(), Some(&ids), &["id"]))?)) {
+                    Ok(args) => self.one_call("Email/get", args, SET_BYTES).await,
                     Err(stop) => Err(stop),
                 };
                 match looked {
