@@ -619,41 +619,16 @@ impl Delivered {
     }
 }
 
-/// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
-/// and `refresh:<address>`.
-pub trait SecretStore: Send + Sync {
-    fn get(&self, key: &str) -> Option<String>;
-    fn set(&self, key: &str, secret: &str) -> Result<(), String>;
-    fn delete(&self, key: &str);
-    /// Why the store itself couldn't be used the last time something was asked of it (none is
-    /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
-    /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
-    /// itself, only a background thread does, [`secret_read`].)
-    fn take_trouble(&self) -> Option<StoreTrouble> {
-        None
-    }
-}
+pub use mailcraft_host::{SecretError, SecretStore, StoreTrouble};
 
-/// Why the system's credential store couldn't keep or give back a sign-in
-/// ([`SecretStore::take_trouble`]). Then nothing is remembered between runs: the owner is asked
-/// at each start, as on a system without a store, and is told why once a session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StoreTrouble {
-    /// No store answered: on Linux, no Secret Service (GNOME Keyring, KWallet) is running.
-    Unavailable,
-    /// The store is locked, or unlocking it was refused.
-    Locked,
-}
-
-impl StoreTrouble {
-    /// What the owner is told: in the status bar once, and under the switch in File › Options.
-    pub fn notice(self) -> String {
-        let why = match self {
-            StoreTrouble::Unavailable => tl!("No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"),
-            StoreTrouble::Locked => tl!("The system's credential store is locked, or unlocking it was refused"),
-        };
-        i18n::fmt(tl!("{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."), &[("why", why)])
-    }
+/// What the owner is told when the system's credential store couldn't keep or give back a
+/// sign-in: in the status bar once, and under the switch in File › Options.
+pub fn store_trouble_notice(trouble: StoreTrouble) -> String {
+    let why = match trouble {
+        StoreTrouble::Unavailable => tl!("No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"),
+        StoreTrouble::Locked => tl!("The system's credential store is locked, or unlocking it was refused"),
+    };
+    i18n::fmt(tl!("{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."), &[("why", why)])
 }
 
 /// The pictures from the web that the host keeps on disk between runs
@@ -3067,7 +3042,7 @@ impl MailApp {
     fn note_secret_trouble(&mut self, trouble: StoreTrouble) {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
-            self.status(trouble.notice());
+            self.status(store_trouble_notice(trouble));
         }
     }
 
