@@ -283,11 +283,13 @@ Watches or changes traffic between MailCraft and its servers.
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
 - **Provider discovery** asks a DNS-over-HTTPS resolver about the domain alone, never the mailbox
   name, and only when the owner presses Connect: for its mail exchangers (`mailcraft_net::lookup_mx`)
-  and, for a domain nobody here knows, for the hosts its `_autodiscover._tcp` SRV record names and
+  and, for a domain nobody here knows, for its mail servers' SRV records of RFC 6186
+  (`mailcraft_net::discover`, #1063), the hosts its `_autodiscover._tcp` SRV record names and
   the host `autodiscover.<domain>` is an alias of (CNAME; `mailcraft_net::autodiscover_hosts`).
-  Those hosts only choose a page, and none of them is asked anything for it: Microsoft's is
-  Microsoft 365, signed in on Microsoft's page; cPanel's is the IMAP guess; any other is a question
-  to the owner, an Exchange server or IMAP, with neither the default.
+  The Autodiscover hosts only choose a page, and none of them is asked anything for it:
+  Microsoft's is Microsoft 365, signed in on Microsoft's page; cPanel's is IMAP; any other is a
+  question to the owner, an Exchange server or IMAP, with neither the default. IMAP is the servers
+  the RFC 6186 records name, else the guess.
 - **The alias step** ([autodiscover.md](autodiscover.md) specifies it). The Exchange server search
   (`crates/ews/src/autodiscover.rs`) asks the alias's host too, after the SRV record's targets, at
   port 443, at most two. It takes the place of MS-OXDISCO §3.1.5.4, the plain-HTTP redirect, which

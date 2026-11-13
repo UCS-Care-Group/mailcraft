@@ -358,7 +358,7 @@ impl MailApp {
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
             self.rules.failures.insert(account, (n.saturating_add(1), started));
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("rules", account, &errors, None, false);
     }
 
     /// Ask the owner, once, when a job had a rule to send and the sign-in doesn't cover

@@ -134,9 +134,13 @@ there by rule 2 as well. They only choose the page that is shown, and none of th
 anything for it:
 
 - Microsoft's: a Microsoft 365 account, signed in on Microsoft's page.
-- cPanel's IMAP settings: the guessed IMAP servers.
+- cPanel's IMAP settings: IMAP.
 - Any other: the owner is asked whether it is an Exchange server or IMAP, with neither answer the
   default.
+
+IMAP, there and when the domain names no Autodiscover host, is the servers the domain's own SRV
+records of RFC 6186 name (#1063), else the servers guessed from the domain, for the owner to
+check.
 
 ## Revision history
 

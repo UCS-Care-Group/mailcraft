@@ -41,6 +41,8 @@ mod desktop_icons;
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
+mod diagnostics_problem_tests;
+#[cfg(test)]
 mod ews_mail_flow;
 mod ews_runner;
 mod ews_setup;
@@ -1135,7 +1137,7 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 if graph::send_unsure(&e) {
                     out.unsure.push(message.id);
                 }
-                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim()));
+                out.errors.push(format!("Couldn't send \"{}\" through Microsoft: {e}", message.subject.trim().replace(['"', '\\'], "'")));
             }
         }
     }
@@ -1775,8 +1777,8 @@ fn services(
         graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
             background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
         })),
-        lookup_mx: Some(Box::new(move |domain| {
-            background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
+        discover: Some(Box::new(move |domain| {
+            background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))
         })),
         lookup_autodiscover: Some(Box::new(move |domain| {
             background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))
@@ -2185,6 +2187,13 @@ fn main() -> eframe::Result {
             // The mailbox is read on a thread of its own, so that the window is there at once
             // (#519): it shows the opening screen meanwhile, and is made as it always was once
             // the mailbox is there (`build`).
+            // Drawing by the processor (a software rasteriser) is said once and slows the window's
+            // own repaints down (#software-render); the adapter is known now.
+            let software = cc.wgpu_render_state.as_ref().is_some_and(|s| s.adapter.get_info().device_type == eframe::wgpu::DeviceType::Cpu);
+            if software {
+                log::warn!("graphics: drawing with a software rasteriser, expect high processor use");
+            }
+            mailcraft_ui_egui::software::set_software(software);
             let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
             let reading = progress.clone();
             // The certification authorities this computer trusts, for checking Digital
@@ -2263,6 +2272,7 @@ fn main() -> eframe::Result {
                     None => app.fresh_prefs(),
                 }
                 app.settings_unread = settings_unread;
+                app.software_drawing = software;
                 app.ui.window = restored;
                 app.integrated_titlebar = cfg!(target_os = "macos");
                 for f in files {

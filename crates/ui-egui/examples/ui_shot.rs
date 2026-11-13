@@ -229,7 +229,7 @@ impl mailcraft_ui_egui::SecretStore for StandInSecrets {
         let syncing = self.0.lock().map(|host| host.syncing).unwrap_or(false);
         (syncing && key.starts_with("password:")).then(|| "stand-in-password".to_string())
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         Ok(())
     }
     fn delete(&self, _: &str) {}
@@ -442,11 +442,9 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
     let tree = host.clone();
     Services {
         microsoft_client_id: "11111111-2222-3333-4444-555555555555".into(),
-        lookup_mx: Some(Box::new(|domain: String| {
-            if domain.ends_with(HOSTER) {
-                return answered(Ok(vec![format!("mxpool{HOSTER}")]));
-            }
-            answered(Ok(vec!["example-org.mail.protection.outlook.com".to_string()]))
+        discover: Some(Box::new(|domain: String| {
+            let mx = if domain.ends_with(HOSTER) { format!("mxpool{HOSTER}") } else { "example-org.mail.protection.outlook.com".to_string() };
+            answered(Ok(mailcraft_model::provider::Discovered::from_exchangers(vec![mx])))
         })),
         lookup_autodiscover: Some(Box::new(|domain: String| {
             answered(Ok(if domain.ends_with(HOSTER) { vec![format!("autodiscover.de2{HOSTER}")] } else { Vec::new() }))

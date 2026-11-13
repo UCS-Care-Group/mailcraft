@@ -312,3 +312,40 @@ fn a_search_again_still_out_is_dropped_when_the_exchange_page_is_left() {
     h.run_steps(3);
     assert_eq!(page(&h), Some(Page::ExchangeOrImap));
 }
+
+#[test]
+fn imap_after_the_question_takes_the_servers_the_domain_s_own_records_name() {
+    use mailcraft_model::provider::{FoundServer, Via};
+    let mut a = app(false);
+    checks(&mut a, None);
+    // The domain names an Autodiscover host and, in its RFC 6186 records, its IMAP and SMTP servers.
+    let server = |host: &str, port, security| Some(FoundServer { server: Server { host: host.into(), port, security }, via: Via::Srv });
+    let discovered = Discovered {
+        exchangers: vec![HOSTED_MX.into()],
+        incoming: server("imap.lumen.example", 993, Security::Tls),
+        outgoing: server("smtp.lumen.example", 465, Security::Tls),
+    };
+    discoveries(&mut a, Some(Ok(discovered)));
+    autodiscovers(&mut a, Some(Ok(vec![HOSTED_AUTODISCOVER])));
+    let mut h = open(a, json!({}));
+    connect(&mut h, "noor@lumen.example");
+    // Asked first: the Autodiscover host may be an Exchange server's.
+    assert_eq!(page(&h), Some(Page::ExchangeOrImap));
+    click(&mut h, Kind::Other.title());
+    assert_eq!(page(&h), Some(Page::Password));
+    let w = wizard(&h).unwrap();
+    // The records' servers, said to be found, and not the guess.
+    assert_eq!((w.found, w.guessed), (Some(Via::Srv), false));
+    assert_eq!((w.incoming.host.as_str(), w.outgoing.host.as_str()), ("imap.lumen.example", "smtp.lumen.example"));
+    // Without an Autodiscover host the records' servers are taken as before, with no question.
+    let mut a = app(false);
+    checks(&mut a, None);
+    let discovered =
+        Discovered { exchangers: vec![HOSTED_MX.into()], incoming: server("imap.lumen.example", 993, Security::Tls), ..Default::default() };
+    discoveries(&mut a, Some(Ok(discovered)));
+    autodiscovers(&mut a, Some(Ok(vec![])));
+    let mut h = open(a, json!({}));
+    connect(&mut h, "noor@lumen.example");
+    assert_eq!(page(&h), Some(Page::Password));
+    assert_eq!(wizard(&h).and_then(|w| w.found), Some(Via::Srv));
+}

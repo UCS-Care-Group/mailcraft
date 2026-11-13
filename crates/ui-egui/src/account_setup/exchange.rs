@@ -246,19 +246,19 @@ impl AccountSetup {
         }
     }
 
-    /// It isn't an Exchange server after all: the servers guessed from the domain, as they were
-    /// before anything was found, with the page that says they are a guess.
+    /// It isn't an Exchange server after all: the servers the domain's own records name (#1063),
+    /// or else those guessed from the domain, as they were before anything was found, with the
+    /// page that says where they came from.
     fn imap_instead(&mut self, app: &mut MailApp) {
         self.forget_password();
-        let preset = self.preset_command(None, None).and_then(|(command, params)| app.execute(command, params).ok()).map(|v| Preset::read(&v));
-        let Some(preset) = preset else {
+        if self.preset_command(None, None).is_none() {
             self.error = self.not_an_address();
             return;
-        };
+        }
         self.exchange = Exchange::default();
-        self.take(preset);
-        (self.guessed, self.settings_open, self.picked) = (true, true, false);
-        self.go(Page::Password);
+        self.picked = false;
+        // (What the domain's own records name, when the lookup found them (#1063); else the guess.)
+        self.imap_from_discovered(app);
     }
 
     /// What keeps the page's fields from being used, in the interface language; nothing when they can.

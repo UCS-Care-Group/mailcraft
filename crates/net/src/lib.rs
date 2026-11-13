@@ -29,6 +29,8 @@ mod anchors;
 #[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
+mod discover;
+#[cfg(not(target_arch = "wasm32"))]
 mod dns;
 #[cfg(not(target_arch = "wasm32"))]
 mod dns_srv;
@@ -103,6 +105,7 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
+    pub use crate::discover::{discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{
         AutodiscoverTargets, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets, autodiscover_targets_at,

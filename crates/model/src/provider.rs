@@ -297,6 +297,78 @@ pub fn by_name(name: &str) -> Option<Preset> {
     }
 }
 
+/// Where a host with sockets found a server for a domain nobody here knows (#1063): what the
+/// owner is told it came from, and what `account.preset` answers as `via`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Via {
+    /// The domain's own DNS: an `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp` or
+    /// `_submission._tcp` SRV record (RFC 6186).
+    Srv,
+}
+
+impl Via {
+    pub fn code(self) -> &'static str {
+        match self {
+            Via::Srv => "srv",
+        }
+    }
+
+    pub fn parse(code: &str) -> Option<Via> {
+        match code.trim() {
+            "srv" => Some(Via::Srv),
+            _ => None,
+        }
+    }
+}
+
+/// A server a host found, and where.
+#[derive(Clone, PartialEq, Eq)]
+pub struct FoundServer {
+    pub server: Server,
+    pub via: Via,
+}
+
+/// The host is the organisation's own: not for a log.
+impl std::fmt::Debug for FoundServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FoundServer")
+            .field("port", &self.server.port)
+            .field("security", &self.server.security)
+            .field("via", &self.via)
+            .finish_non_exhaustive()
+    }
+}
+
+/// What a host with sockets found out about a domain nobody here knows, once the owner pressed
+/// Connect: its mail exchangers (by which [`by_mx`] may know whose it is), and, when they say
+/// nothing, the servers the domain's own records name, for the owner to confirm.
+/// Nothing here was looked up by the model: `mailcraft_net::discover` fills it in.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct Discovered {
+    /// The domain's mail exchangers, best first; empty when it has none or they couldn't be had.
+    pub exchangers: Vec<String>,
+    pub incoming: Option<FoundServer>,
+    pub outgoing: Option<FoundServer>,
+}
+
+/// The hosts are the organisation's own: not for a log.
+impl std::fmt::Debug for Discovered {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Discovered")
+            .field("exchangers", &self.exchangers.len())
+            .field("incoming", &self.incoming)
+            .field("outgoing", &self.outgoing)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Discovered {
+    /// The mail exchangers alone: nothing else was found, or asked.
+    pub fn from_exchangers(exchangers: Vec<String>) -> Discovered {
+        Discovered { exchangers, ..Default::default() }
+    }
+}
+
 /// The usual names at a domain nobody here has heard of, for the owner to correct.
 pub fn guess(domain: &str) -> Preset {
     let domain = domain.trim().to_ascii_lowercase();
