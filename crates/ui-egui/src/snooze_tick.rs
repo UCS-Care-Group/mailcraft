@@ -15,6 +15,11 @@ impl MailApp {
     /// Bring back the snoozed mail that is due: at the first call, and then once a minute (a
     /// clock put back starts the minute again). Cheap in between, and when nothing is snoozed.
     pub(crate) fn snooze_tick(&mut self) {
+        // A mailbox still opening has no snoozes yet: the first look waits for it, so mail that
+        // came due while MailCraft was closed is back as soon as it has opened.
+        if self.opening.is_some() {
+            return;
+        }
         let now = self.session.now();
         if self.snooze_last != 0 && now >= self.snooze_last && now - self.snooze_last < EVERY {
             return;
