@@ -571,7 +571,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         m.original = read.original;
     }
     m.parts_removed = false;
-    (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
+    (m.headers, m.header_block, m.fresh_stamps) = (read.headers, read.header_block, read.fresh_stamps);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
         mailcraft_model::auth_results::forget_stamps(m);

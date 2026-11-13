@@ -1820,7 +1820,7 @@ fn merge_flags(mb: &mut Mailbox, id: Id, theirs: RemoteFlags) -> bool {
 /// The Message-ID a message was sent with, when a server gave it another on the way and kept the
 /// first in a header of its own (Microsoft's do that to mail sent through them).
 fn original_id(m: &Message) -> Option<&str> {
-    let value = m.headers.iter().find(|(name, _)| name.eq_ignore_ascii_case("X-Microsoft-Original-Message-ID")).map(|(_, value)| value.as_str())?;
+    let value = m.header("X-Microsoft-Original-Message-ID")?;
     Some(value.trim().trim_start_matches('<').trim_end_matches('>').trim()).filter(|id| !id.is_empty())
 }
 
@@ -1846,8 +1846,7 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
     let waiting = |id: &Id| mb.message(*id).filter(|m| m.folder == folder && m.uid == 0 && m.synced.is_some());
     // A copy put there from elsewhere is known by its marker alone: mail that merely looks like
     // it may be the server's own (#451).
-    let carries =
-        |m: &Message| theirs.headers.iter().any(|(name, value)| name.eq_ignore_ascii_case(mailcraft_mime::PLACE_HEADER) && *value == m.placed);
+    let carries = |m: &Message| theirs.header_values(mailcraft_mime::PLACE_HEADER).any(|value| value == m.placed);
     let by_id = expected.iter().position(|id| waiting(id).is_some_and(|m| if m.placed.is_empty() { same_id(m) } else { carries(m) }));
     let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| m.placed.is_empty() && same_mail(m, theirs))))?;
     let id = expected.swap_remove(at);

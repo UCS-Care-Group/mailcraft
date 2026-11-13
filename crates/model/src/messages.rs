@@ -413,14 +413,45 @@ impl IntoIterator for Messages {
     }
 }
 
+/// Each message with every header line it kept in its `headers`, and no header block: as a
+/// MailCraft from before the two were kept apart reads a mailbox file (`crate::headers`). One
+/// message is copied at a time.
 impl Serialize for Messages {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_map(self.iter())
+        serializer.collect_map(self.iter().map(|(id, m)| (id, Whole(m))))
     }
 }
 
+/// A message as [`Messages`] writes it.
+struct Whole<'a>(&'a Message);
+
+impl Serialize for Whole<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.0.header_block.data.is_empty() {
+            return self.0.serialize(serializer);
+        }
+        let mut whole = self.0.clone();
+        whole.join_headers();
+        whole.serialize(serializer)
+    }
+}
+
+/// The header lines nothing reads by name go to each message's block ([`Message::split_headers`]).
 impl<'de> Deserialize<'de> for Messages {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        BTreeMap::<Id, Arc<Message>>::deserialize(deserializer).map(Messages::from)
+        BTreeMap::<Id, Arc<Message>>::deserialize(deserializer).map(Messages::read)
+    }
+}
+
+impl Messages {
+    /// The messages of a file, read: the header lines nothing reads by name go to each one's
+    /// block ([`Message::split_headers`]).
+    pub(crate) fn read(mut map: BTreeMap<Id, Arc<Message>>) -> Messages {
+        for m in map.values_mut() {
+            if m.headers.iter().any(|(name, value)| !crate::headers::is_working(name, value)) {
+                Arc::make_mut(m).split_headers();
+            }
+        }
+        Messages::from(map)
     }
 }
