@@ -391,6 +391,7 @@ const SAFE: &[&str] = &[
     "ui.closeDialog",
     "ui.theme",
     "ui.highContrast",
+    "ui.animations",
     "ui.accent",
     "ui.lightMessages",
     "ui.language",

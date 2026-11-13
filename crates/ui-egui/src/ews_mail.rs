@@ -142,7 +142,7 @@ impl MailApp {
             self.sync_refused |= piece.auth_refused;
             // New mail may be waiting to be fetched whole: the background looks again.
             if !piece.pages.is_empty() {
-                self.fetching.wake();
+                self.session.driver.fetch.wake();
             }
             let untrusted = !piece.untrusted.is_empty();
             // The server answered with its folders or its mail: it took the password (#802).

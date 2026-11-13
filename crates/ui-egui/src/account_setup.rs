@@ -447,6 +447,9 @@ pub struct AccountSetup {
     email: String,
     /// The owner's name, as recipients see it.
     name: String,
+    /// For the settings of an account: the name the folder pane calls it by, empty while that is
+    /// its address (#1017).
+    account_name: String,
     /// Advanced options are shown.
     advanced: bool,
     /// Skip detection and ask for the kind of account.
@@ -600,6 +603,7 @@ impl AccountSetup {
             page,
             email: String::new(),
             name: String::new(),
+            account_name: String::new(),
             advanced: false,
             manual: false,
             picked: false,
@@ -694,6 +698,9 @@ impl AccountSetup {
         let mut w = AccountSetup::blank(Page::Settings);
         w.email = line(&a.email, LINE);
         w.name = line(&a.display_name, LINE);
+        if !a.named_by_address() {
+            w.account_name = line(&a.name, LINE);
+        }
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
@@ -855,6 +862,7 @@ impl AccountSetup {
     /// The fields Account Settings can change, as `account.edit` takes them.
     fn fields(&self) -> Map<String, Value> {
         let mut m = object(json!({
+            "name": self.account_name.trim(),
             "displayName": self.name.trim(),
             "username": self.username.trim(),
             "incoming": self.incoming.value(),
@@ -2322,6 +2330,9 @@ impl AccountSetup {
                     note(ui, tl!("MailCraft's Google Desktop registration is not yet configured for this build."), t.orange);
                 }
             }
+            let address = shown(self.email.trim(), 120);
+            field(ui, pass, "accountName", tl!("Account name"), &mut self.account_name, &address, LINE);
+            note(ui, tl!("Shown in the folder pane, such as Work or Home. Leave it empty to show the address."), t.text_dim);
             field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
             if asks {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
@@ -2698,6 +2709,8 @@ mod tests {
     use crate::{Services, SignInRequest};
     use egui::Key;
 
+    /// The account's name in the folder pane (#1017).
+    mod account_name;
     /// An Exchange server found from the domain's Autodiscover records.
     mod autodiscover;
     /// Servers found in the domain's own records, and the question before a password goes

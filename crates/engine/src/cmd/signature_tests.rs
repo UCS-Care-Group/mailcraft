@@ -150,9 +150,9 @@ fn a_signature_with_a_logo_goes_out_with_the_picture_inside_the_message() {
     // The plain-text part has the words, and the picture said in words.
     assert!(m.body.text.starts_with("Hello\n\n[Lumen Studio logo]Avery Quinn\nLumen Studio"), "{:?}", m.body.text);
     // On the wire the picture is part of the HTML, and it reads back.
-    let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+    let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
     assert!(String::from_utf8_lossy(&bytes).contains("multipart/related"));
-    let back = mailcraft_mime::parse(&bytes);
+    let back = mailcraft_mime_model::parse(&bytes);
     let read = back.attachments.iter().find(|a| a.content_id == pic.content_id).expect("the picture reads back");
     assert_eq!(read.data, pic.data);
 }
@@ -305,7 +305,7 @@ fn a_signature_made_from_details_has_working_links_and_follows_them_until_edited
     let sig = s.mailbox.signature("Card").unwrap();
     assert_eq!(sig.layout, mailcraft_model::signature::Layout::PictureLeft);
     assert_eq!(sig.body().pictures().len(), 1);
-    let html = mailcraft_mime::rich::signature_html(sig, &|p| format!("p{}", p.id));
+    let html = mailcraft_mime_model::rich::signature_html(sig, &|p| format!("p{}", p.id));
     for link in ["href=\"tel:+442079460000\"", "href=\"tel:07700900000\"", "href=\"mailto:avery@lumen.example\"", "href=\"https://lumen.example\""] {
         assert!(html.contains(link), "{link} in {html}");
     }
