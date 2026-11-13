@@ -322,6 +322,21 @@ pub(super) struct Taken {
     pub(super) added: usize,
     pub(super) updated: usize,
     pub(super) removed: usize,
+    /// The server ids of folders whose deletion the server refused as its own (#1069): marked so
+    /// once the listing has brought them back.
+    pub(super) own: Vec<String>,
+}
+
+/// Mark the folders of `account` whose server ids are in `own` as the server's own (#1069).
+pub(super) fn mark_own(mb: &mut Mailbox, account: Id, own: &[String]) {
+    if own.is_empty() {
+        return;
+    }
+    for f in mb.folders.iter_mut().filter(|f| f.account == account) {
+        if let Some(server) = f.server.as_mut().filter(|s| own.contains(&s.id)) {
+            server.well_known = true;
+        }
+    }
 }
 
 /// Take in what a Graph run brought back: what became of the changes sent, then the listing.
@@ -329,6 +344,13 @@ pub(super) struct Taken {
 /// reached it yet. The undo history stays: undoing a change that reached the server is another
 /// change, which the next run sends (R3.5, [`crate::undo`]).
 pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
+    let mut taken = apply_graph_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let account = result.account;
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Microsoft {
@@ -393,6 +415,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_said.extend(refused);
     if let Some(listing) = &result.listing {
         take_listing(&mut s.mailbox, account, listing, &mut taken);
+        mark_own(&mut s.mailbox, account, &taken.own);
         errors.extend(graph_down::gone_with_folders(s, account, listing));
         if listing.complete {
             s.graph_listed_short.remove(&account);
@@ -542,9 +565,13 @@ pub(super) fn change_done(
             taken.pushed += 1;
             None
         }
-        (FolderChange::Delete { id, .. }, ChangeOutcome::Refused { why }) => {
-            // The server keeps it: the listing brings it back here.
+        (FolderChange::Delete { id, .. }, ChangeOutcome::Refused { why } | ChangeOutcome::OwnFolder { why }) => {
+            // The server keeps it: the listing brings it back here (marked as the server's own
+            // when that is why, #1069: `taken.own`).
             mb.queued.retain(|q| !matches!(q, Queued::DeleteFolder { account: a, id: queued, .. } if *a == account && queued == id));
+            if matches!(outcome, ChangeOutcome::OwnFolder { .. }) && taken.own.len() < MAX_FOLDER_CHANGES {
+                taken.own.push(id.clone());
+            }
             Some(format!("Couldn't delete a folder on the server: {why}"))
         }
         (FolderChange::Create { folder, name, .. }, ChangeOutcome::Done { folder: there }) => {
@@ -575,7 +602,7 @@ pub(super) fn change_done(
             taken.pushed += 1;
             None
         }
-        (FolderChange::Create { name, .. }, ChangeOutcome::Refused { why }) => {
+        (FolderChange::Create { name, .. }, ChangeOutcome::Refused { why } | ChangeOutcome::OwnFolder { why }) => {
             Some(format!("Couldn't make the folder \"{}\" on the server: {why}", shown(name)))
         }
         (FolderChange::Rename { folder, .. } | FolderChange::Move { folder, .. }, ChangeOutcome::Done { folder: there }) => {
@@ -588,12 +615,29 @@ pub(super) fn change_done(
             taken.pushed += 1;
             None
         }
-        (FolderChange::Rename { folder, .. } | FolderChange::Move { folder, .. }, ChangeOutcome::Refused { why }) => {
-            // Put back to how the server has it, and said once.
+        (
+            FolderChange::Rename { folder, .. } | FolderChange::Move { folder, .. },
+            ChangeOutcome::Refused { why } | ChangeOutcome::OwnFolder { why },
+        ) => {
+            // Put back to how the server has it, its place and its name (a move into Deleted Items
+            // may have numbered it; a rename sent before the move is the server's name by now),
+            // and said once (#1069). Only one the server says is its own (`OwnFolder`, its own
+            // code for it) is marked so, and isn't offered for renaming, moving or deleting
+            // again: a bare refusal (a 403 may pass) leaves it the owner's.
             let server = mb.folder(*folder).filter(|f| f.account == account)?.server.clone()?;
             let back = if server.parent.is_empty() { None } else { mb.folder_by_server(account, &server.parent) };
             let f = mb.folder_mut(*folder).ok()?;
-            let was = shown(&f.name);
+            if matches!(outcome, ChangeOutcome::OwnFolder { .. })
+                && let Some(kept) = f.server.as_mut()
+            {
+                kept.well_known = true;
+            }
+            // (A refused rename is said by the name asked for; a refused move by the folder's own.)
+            let asked = shown(&f.name);
+            if f.kind == FolderKind::Custom {
+                f.name = server.name.clone();
+            }
+            let was = if matches!(change, FolderChange::Rename { .. }) { asked } else { shown(&f.name) };
             let said = match change {
                 FolderChange::Rename { .. } => {
                     f.name = server.name.clone();
@@ -806,3 +850,7 @@ mod sweep_tests;
 #[cfg(test)]
 #[path = "graph_inbox_first_tests.rs"]
 mod inbox_first_tests;
+
+#[cfg(test)]
+#[path = "graph_own_folder_tests.rs"]
+mod own_folder_tests;

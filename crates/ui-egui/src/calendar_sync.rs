@@ -39,23 +39,15 @@ use mailcraft_model::sync::Tokens;
 use mailcraft_time::{DateTime, Timestamp};
 use serde_json::{Value, json};
 
+use mailcraft_engine::sync_driver::{CALENDAR_DIRECTORY_MS, CALENDAR_SETTINGS_MS, Pacing, calendar_every_ms};
+
 use crate::{CalendarCheckRequest, CalendarCheckResult, GraphRequest, GraphResult, MailApp, now_ms};
 
-/// How often the calendar is asked for while it is in front of the owner, and otherwise
-/// (milliseconds).
-const IN_FRONT_MS: f64 = 30_000.0;
-const BEHIND_MS: f64 = 300_000.0;
-/// How long a change made here waits before it goes: not at all. It is on the server at once,
-/// as it is in Outlook. (A moment here would let a change be taken back with Undo before the
-/// server hears of it, and let a second change to the same event go with the first.)
-const QUIET_MS: f64 = 0.0;
-/// How long the server is left alone after a job that came to nothing: this long after the
-/// first, twice as long after each one more, and never longer than the second.
-const FIRST_RETRY_MS: f64 = 30_000.0;
-const LONGEST_RETRY_MS: f64 = 600_000.0;
-/// How often the calendar is asked for while a change that was just sent is yet to be seen on
-/// the server (milliseconds).
-const RECHECK_MS: f64 = 10_000.0;
+// How often the calendar is asked for (in front of the owner, behind, while a change just sent
+// isn't seen yet), how long a change waits (not at all: it is on the server at once, as it is in
+// Outlook; a moment here would let a change be taken back with Undo before the server hears of
+// it, and let a second change to the same event go with the first) and how long the server is
+// left alone after a job that came to nothing are the engine's ([`Pacing::CALENDAR`]).
 /// How many days either side of the days on screen are asked for.
 const MARGIN_DAYS: i64 = 7;
 /// The wide stretch a Send/Receive brings down, as the host has it: a month back, a year ahead
@@ -76,9 +68,6 @@ pub(crate) fn consent_wait(shared: bool) -> &'static str {
         "waiting for the owner's permission (Connect calendar and contacts)"
     }
 }
-/// How often the working hours the mailbox has set are asked for (milliseconds): they change
-/// when the owner changes them in the mailbox's settings, which is seldom.
-const SETTINGS_MS: f64 = 3_600_000.0;
 
 /// What the app remembers of keeping the calendar current.
 #[derive(Default)]
@@ -236,16 +225,12 @@ impl MailApp {
             };
             // (What exactly would go: nothing, when a change was changed back; and not the very
             // same as a moment ago, which would go round in circles.)
-            let changes = if ready > 0 && now - since >= QUIET_MS { self.calendar_changes(account) } else { None };
-            let again = |(sent, at): &(EventsUpload, f64)| changes.as_ref() == Some(sent) && now - at < FIRST_RETRY_MS;
+            let changes = if ready > 0 && now - since >= Pacing::CALENDAR.quiet_ms { self.calendar_changes(account) } else { None };
+            let again = |(sent, at): &(EventsUpload, f64)| changes.as_ref() == Some(sent) && now - at < Pacing::CALENDAR.first_retry_ms;
             let push = changes.is_some() && !self.calendar.sent.get(&account).is_some_and(again);
             // A change that was just sent and isn't seen on the server yet: asked for again soon.
             let unseen = remote::recheck_due(&self.session, account);
-            let every = match (unseen, in_front) {
-                (true, _) => RECHECK_MS,
-                (false, true) => IN_FRONT_MS,
-                (false, false) => BEHIND_MS,
-            };
+            let every = calendar_every_ms(unseen, in_front);
             let asked = self.calendar.checked.get(&account).copied();
             // Other days came into view (a series shows there by its rule until the server has
             // said which of its days are really there): they are asked for without waiting.
@@ -258,8 +243,7 @@ impl MailApp {
             }
             // A server that didn't answer the last time is given longer each time.
             let (failures, at) = self.calendar.failures.get(&account).copied().unwrap_or((0, 0.0));
-            let patience = (FIRST_RETRY_MS * f64::from(1u32 << failures.saturating_sub(1).min(8))).min(LONGEST_RETRY_MS);
-            if failures > 0 && now - at < patience {
+            if failures > 0 && now - at < Pacing::CALENDAR.patience_ms(failures) {
                 continue;
             }
             if self.start_calendar_job(account, push, now) {
@@ -274,7 +258,7 @@ impl MailApp {
     /// Whether the wide stretch of `account`'s calendar and its contacts are due: every quarter
     /// of an hour, and at start-up.
     fn directory_due(&self, account: Id, now: f64) -> bool {
-        self.graph_checked.get(&account).is_none_or(|at| now - at > 900_000.0)
+        self.graph_checked.get(&account).is_none_or(|at| now - at > CALENDAR_DIRECTORY_MS)
     }
 
     /// The stretch of the calendar a refresh asks for: the days on screen and a week either
@@ -386,7 +370,7 @@ impl MailApp {
             self.calendar.sent.insert(account, (changes.clone(), now));
         }
         // The working hours the mailbox has set come along once an hour (and after "Connect").
-        let settings = !shared && round.is_none() && self.calendar.settings_asked.get(&account).is_none_or(|at| now - at >= SETTINGS_MS);
+        let settings = !shared && round.is_none() && self.calendar.settings_asked.get(&account).is_none_or(|at| now - at >= CALENDAR_SETTINGS_MS);
         let stretch = round.unwrap_or_else(|| self.calendar_window());
         // The wide stretch and the contacts, with a job for the days on screen when they are due.
         let directory = round.is_none() && self.directory_due(account, now);
@@ -397,7 +381,8 @@ impl MailApp {
             access,
             outbox: Vec::new(),
             directory,
-            calendar: Some(stretch),
+            // (The wide stretch is counted from this session's clock, as its asks are.)
+            calendar: Some(if directory { (self.session.now() - WIDE_BEHIND, self.session.now() + WIDE_AHEAD) } else { stretch }),
             changes,
             asks: self.calendar_asks(account, directory, Some(stretch)),
             settings,
@@ -512,7 +497,7 @@ impl MailApp {
                 self.calendar.failures.remove(&account);
             }
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("calendar", account, &errors, None, false);
     }
 
     /// A Graph token that a job obtained: kept for the session, and its refresh token is the

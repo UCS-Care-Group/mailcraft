@@ -36,10 +36,8 @@ use serde_json::{Value, json};
 
 use crate::{GraphResult, MailApp, now_ms};
 
-/// How often an account's Favorites are read at most (milliseconds), and for how long the
-/// server is left alone after it said the sign-in doesn't cover them.
-const EVERY_MS: f64 = 900_000.0;
-const DAY_MS: f64 = 86_400_000.0;
+// How often an account's Favorites are read at most, and for how long the server is left alone
+// after it said the sign-in doesn't cover them, is the engine's ([`mailcraft_engine::sync_driver`]).
 /// What a sign-in for the Favorites says when it is not the owner's to turn into a yes: an
 /// administrator of the organisation has to approve it first; the organisation doesn't have it
 /// at all; this kind of account has no such permission. The host answers a
@@ -140,6 +138,9 @@ pub(crate) struct FavoritesSync {
     /// The accounts whose Graph token in memory is known not to be good for reading them (it
     /// was asked for without those permissions): a job that wants them gets a new one.
     uncovered: HashSet<Id>,
+    /// The accounts whose sign-in has a token that covers Outlook's Favorites, or whose owner
+    /// took the offer to show them.
+    connected: HashSet<Id>,
     /// The accounts whose Favorites are read at the next chance, whatever the clock says: the
     /// owner asked.
     due: HashSet<Id>,
@@ -215,9 +216,8 @@ impl MailApp {
     fn favorites_are_due(&self, account: Id, now: f64, asked_for: bool) -> bool {
         let owner = self.favorites.due.contains(&account);
         // Told that the sign-in doesn't cover them: not again that day, unless the owner asks.
-        let refused = self.favorites.missing.get(&account).is_some_and(|at| (0.0..DAY_MS).contains(&(now - at)));
-        let due = owner || asked_for || self.favorites.asked.get(&account).is_none_or(|at| now - at >= EVERY_MS || now < *at);
-        due && (owner || !refused)
+        let refused_at = self.favorites.missing.get(&account).copied();
+        mailcraft_engine::sync_driver::favorites_due(owner, asked_for, self.favorites.asked.get(&account).copied(), refused_at, now)
     }
 
     /// Whether a Graph job for `account` that starts at `now` reads the Favorites (and so asks
@@ -260,6 +260,7 @@ impl MailApp {
     pub(crate) fn take_in_favorites(&mut self, account: Id, result: &mut GraphResult) {
         match result.favorites_covered {
             Some(true) => {
+                self.favorites.connected.insert(account);
                 self.favorites.uncovered.remove(&account);
             }
             Some(false) => {
@@ -289,8 +290,22 @@ impl MailApp {
             FavoritesOutcome::NotPermitted => {
                 self.favorites.missing.insert(account, now);
                 self.favorites.uncovered.insert(account);
-                // (What the owner was told when he asked stays said.)
-                if !matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) {
+                if self.favorites.connected.contains(&account) || matches!(why, NEEDS_APPROVAL | REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT) {
+                    // (What the owner was told when he asked stays said.)
+                    if !(matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) && why.trim().is_empty()) {
+                        let by = match why {
+                            REFUSED_BY_ORGANISATION | REFUSED_FOR_ACCOUNT => why,
+                            _ => {
+                                if self.directory(account) == Directory::Personal {
+                                    REFUSED_FOR_ACCOUNT
+                                } else {
+                                    NEEDS_APPROVAL
+                                }
+                            }
+                        };
+                        self.favorites_refused(account, by);
+                    }
+                } else if !matches!(self.favorites_note_of(account), Some(Note::Refused(_) | Note::Approval)) {
                     self.favorites.notes.insert(account, Note::Offer);
                 }
             }
@@ -364,6 +379,7 @@ impl MailApp {
         kept.missing.remove(&account);
         kept.notes.remove(&account);
         kept.uncovered.remove(&account);
+        kept.connected.remove(&account);
         kept.due.remove(&account);
         kept.directories.remove(&account);
         kept.tenants.remove(&account);
@@ -372,6 +388,7 @@ impl MailApp {
     /// The sign-in for the Favorites of `account` came back with tokens that are good for
     /// them: nothing stands in the way any more, and they are read at once.
     pub(crate) fn favorites_connected(&mut self, account: Id) {
+        self.favorites.connected.insert(account);
         self.favorites.notes.remove(&account);
         self.favorites.uncovered.remove(&account);
         self.favorites_due(account);

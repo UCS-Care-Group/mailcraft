@@ -112,6 +112,12 @@ msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Out
 msgstr "'{subject}' gönderilmiş olabilir: Gönderilmiş Öğeler'e bakın. Giden Kutusu'nda tutuluyor."
 
 #. what a command says
+#: crates/engine/src/cmd/snooze.rs
+#, fuzzy
+msgid "'{subject}' stays in the Snoozed folder: the server would not move it back, so it is no longer snoozed."
+msgstr "'{subject}' Ertelenenler klasöründe kalıyor: sunucu onu geri taşımadı, bu yüzden artık ertelenmiş sayılmıyor."
+
+#. what a command says
 #: crates/engine/src/undo.rs
 #, fuzzy
 msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
@@ -142,7 +148,7 @@ msgid "(no recipients)"
 msgstr "(alıcı yok)"
 
 #. interface, what a command says, why a mail server couldn't be used
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(konu yok)"
@@ -302,6 +308,12 @@ msgstr "@{login}: {prs} birleştirilmiş PR, {commits} işleme, +{added} / −{d
 #, fuzzy
 msgid "A .pst file is being imported: try again when it is done"
 msgstr "Bir .pst dosyası içe aktarılıyor: bitince yeniden deneyin"
+
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+#, fuzzy
+msgid "A JMAP account's mail can't be snoozed yet."
+msgstr "Bir JMAP hesabının postası henüz ertelenemiyor."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -664,6 +676,12 @@ msgstr ""
 #, fuzzy
 msgid "Account Settings"
 msgstr "Hesap Ayarları"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Account name"
+msgstr "Hesap adı"
 
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -1129,11 +1147,23 @@ msgstr "{sender} kişisinin resimlerini her zaman indir"
 msgid "Always from @{domain}"
 msgstr "Her zaman @{domain} adresinden"
 
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Always play"
+msgstr "Her zaman oynat"
+
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An Agent Is Asking"
 msgstr "Bir Aracı Soruyor"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "An Exchange server or IMAP?"
+msgstr "Exchange sunucusu mu, IMAP mi?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1220,6 +1250,12 @@ msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
 msgstr[0] "Ve {n} tane daha benzer bağlantı."
 msgstr[1] "Ve {n} tane daha benzer bağlantı."
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Animations"
+msgstr "Animasyonlar"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1616,6 +1652,12 @@ msgid "Asking the server…"
 msgstr "Sunucuya soruluyor…"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Asking your domain's DNS…"
+msgstr "Etki alanınızın DNS'i sorgulanıyor…"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
@@ -1890,6 +1932,12 @@ msgstr "Otomatik yanıtlar: okunuyor…"
 #, fuzzy
 msgid "Automatic replies: your organisation doesn't let MailCraft change them"
 msgstr "Otomatik yanıtlar: kuruluşunuz MailCraft'ın bunları değiştirmesine izin vermiyor"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Automatic setup (Autodiscover)"
+msgstr "Otomatik kurulum (Autodiscover)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -2985,6 +3033,12 @@ msgstr "Tanılamaları Kopyala"
 msgid "Copy Event"
 msgstr "Etkinliği Kopyala"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Öğeleri Kopyala"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3032,6 +3086,12 @@ msgstr "Tümünü kopyala"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Sorunları kopyala"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "Seçili öğeleri şu klasöre kopyala:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -3740,6 +3800,12 @@ msgstr "Ayarlar Bildirimini Kapat"
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "Dismiss Software Drawing Notice"
+msgstr "Yazılım Çizim Uyarısını Kapat"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Dismiss Update Notice"
 msgstr "Güncelleme Bildirimini Kapat"
 
@@ -3816,7 +3882,7 @@ msgid "Don't ask again for this account"
 msgstr "Bu hesap için bir daha sorma"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Don't send"
 msgstr "Gönderme"
@@ -4549,6 +4615,12 @@ msgstr "Bu kişilerden ikiden azı hâlâ burada, bu yüzden birleştirilecek bi
 msgid "File"
 msgstr "Dosya"
 
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "File > Options"
+msgstr "Dosya > Seçenekler"
+
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
@@ -4954,6 +5026,12 @@ msgstr[1] "{n} kişiye iletildi"
 #, fuzzy
 msgid "Forward…"
 msgstr "İlet…"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."
+msgstr "Etki alanınızın DNS'inde bulundu. Oturum açma bilgileriniz, ancak onay verirseniz etki alanınız dışındaki bir sunucuya gönderilir."
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -5588,7 +5666,7 @@ msgid "Hold Unsent Mail"
 msgstr "Gönderilmemiş Postayı Tut"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Giriş"
@@ -5676,6 +5754,18 @@ msgstr "O sayfa yönetici onayı gerektiğini söylüyorsa"
 #, fuzzy
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
 msgstr "Bunu yapmazsanız ona hiçbir şey gönderilmez ve arama başka yerlerde sürer ya da sona erer."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "If you don't, nothing is sent, and you can change the servers in Server settings."
+msgstr "Aksi hâlde hiçbir şey gönderilmez ve sunucuları Sunucu ayarları'ndan değiştirebilirsiniz."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."
+msgstr "Devam ederseniz kullanıcı adınız ve parolanız {hosts} adresine gönderilir. Yalnızca sağlayıcınıza ait olduğunu biliyorsanız devam edin."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6483,6 +6573,12 @@ msgstr "Bu sürümü tut"
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Beklemeye devam edin; MailCraft sunucuya ulaşabildiğinde geçiş kendiliğinden ilerler. Ya da sunucuya artık ulaşılamıyorsa (örneğin kuruluşunuz IMAP'i kapattıysa) onlar olmadan geçin:"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Keep {address}"
+msgstr "{address} adresini koru"
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -6963,17 +7059,17 @@ msgstr "MailCraft bu sunucuda henüz bu şekilde oturum açamıyor (Kerberos ist
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft, Microsoft'un onay sayfası için tarayıcınızı açamadı. Bunun yerine iletiyi kopyalayın: içindeki bağlantı aynı sayfayı açar."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
+msgstr "MailCraft bir JMAP hesabının klasörlerini henüz silmiyor: sonraki Gönder/Al onları geri getirirdi"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
 msgstr "MailCraft bu adresin ayarlarını bilmiyor. Aşağıdaki sunucular yalnızca etki alanından yapılmış bir tahmindir: bağlanmadan önce sağlayıcınızla veya yöneticinizle denetleyin."
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
-msgstr "MailCraft bir JMAP hesabının postasını henüz taşımıyor veya silmiyor: sonraki Gönder/Al onu geri getirir"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -6986,6 +7082,12 @@ msgstr "MailCraft bir JMAP hesabının klasörlerini henüz yeniden adlandırmı
 #, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
 msgstr "MailCraft henüz POP'u desteklemiyor. Bunun yerine sağlayıcınızın IMAP sunucusunu kullanın (genellikle imap.<etki alanınız>, bağlantı noktası 993)."
+
+#. interface
+#: crates/ui-egui/src/software.rs
+#, fuzzy
+msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
+msgstr "MailCraft ekran kartı olmadan çizim yapıyor; bu, işlemciyi çok meşgul eder. Ekran kartı sürücüsünü kurmak veya güncellemek genellikle bunu düzeltir."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -7034,6 +7136,12 @@ msgstr "MailCraft dosyayı, hâlâ parolasıyla korunarak sistemin kimlik bilgis
 #, fuzzy
 msgid "MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open."
 msgstr "MailCraft bu hesabın kurallarını bu bilgisayarda tutar: kural, MailCraft açıkken çalışır."
+
+#. what a command says
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
+#, fuzzy
+msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
+msgstr "MailCraft bir JMAP hesabının postasını yalnızca sunucusundaki klasörler arasında taşır: sonraki Gönder/Al onu geri getirirdi"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -7088,6 +7196,12 @@ msgstr "MailCraft okumayı bitmeden durdurdu."
 #, fuzzy
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
 msgstr "MailCraft .pst dosyasını okumayı bitmeden durdurdu: içeri girenler korundu"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "MailCraft tries the usual places for your address."
+msgstr "MailCraft adresiniz için olağan yerlere bakar."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7696,6 +7810,12 @@ msgid "Move Folder"
 msgstr "Klasörü Taşı"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Öğeleri Taşı"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7724,6 +7844,12 @@ msgstr "Yalnızca Randevuları Taşı"
 #, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
 msgstr "Eklerini açmak veya kaydetmek için iletiyi bir klasöre taşıyın"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "Seçili öğeleri şu klasöre taşı:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7886,6 +8012,12 @@ msgstr "Göndereni Asla Engelleme"
 #, fuzzy
 msgid "Never Block Sender's Domain"
 msgstr "Gönderenin Etki Alanını Asla Engelleme"
+
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Never play"
+msgstr "Hiç oynatma"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -8316,7 +8448,7 @@ msgid "No file manager could be started to show the folder."
 msgstr "Klasörü göstermek için hiçbir dosya yöneticisi başlatılamadı."
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
 msgstr "Hiçbir klasör eşleşmiyor"
@@ -8526,6 +8658,12 @@ msgid "Not allowed by your organisation"
 msgstr "Kuruluşunuz tarafından izin verilmiyor"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Not an Exchange server? Set it up with IMAP"
+msgstr "Exchange sunucusu değil mi? IMAP ile kurun"
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Not an address"
@@ -8566,6 +8704,12 @@ msgstr "Bağlı değil: bu iletinin geri kalanı sunucuda"
 #, fuzzy
 msgid "Not every layout checked."
 msgstr "Her yerleşim denetlenmedi."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
+msgstr "Her sunucu bulunamadı: geri kalanı yalnızca etki alanından yapılan bir tahmin. Bağlanmadan önce sağlayıcınıza veya yöneticinize danışın."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8730,7 +8874,7 @@ msgid "Numbering"
 msgstr "Numaralandırma"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "Tamam"
@@ -8908,6 +9052,12 @@ msgstr "Yalnızca düzenlediğiniz bir toplantıda Bir Saat Bul bulunur"
 #, fuzzy
 msgid "Only confirm if you know these servers."
 msgstr "Yalnızca bu sunucuları biliyorsanız onaylayın."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
+msgstr "Özel etki alanınızdaki adresi yalnızca iki adres de aynı Microsoft posta kutusunun diğer adlarıysa koruyun."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -10597,6 +10747,18 @@ msgstr "Güncellemek için yeniden başlat"
 msgid "Restart to update is the owner's click."
 msgstr "Güncellemek için yeniden başlatma sahibin tıklamasıdır."
 
+#. command label
+#: crates/engine/src/cmd/snooze.rs
+#, fuzzy
+msgid "Return Now"
+msgstr "Şimdi Döndür"
+
+#. command label
+#: crates/engine/src/cmd/snooze.rs
+#, fuzzy
+msgid "Return Snoozed Mail"
+msgstr "Ertelenen Postayı Döndür"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -11180,6 +11342,12 @@ msgid "Search Suggestions"
 msgstr "Arama Önerileri"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Search again"
+msgstr "Yeniden ara"
+
+#. interface
 #: crates/ui-egui/src/pick_item.rs
 #, fuzzy
 msgid "Search by subject or sender"
@@ -11198,7 +11366,7 @@ msgid "Search contacts"
 msgstr "Kişilerde ara"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search folders"
 msgstr "Klasörlerde ara"
@@ -11348,7 +11516,7 @@ msgid "Send & Receive"
 msgstr "Gönder ve Al"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Gönder / Al"
@@ -11436,7 +11604,7 @@ msgid "Send from a Shared Mailbox"
 msgstr "Paylaşılan Posta Kutusundan Gönder"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Send my sign-in"
 msgstr "Oturum açmamı gönder"
@@ -11506,6 +11674,12 @@ msgstr "Gönder şunlara yazar: {people}."
 #, fuzzy
 msgid "Send your answer to the organizer? You can write a note to go with it."
 msgstr "Yanıtınız düzenleyiciye gönderilsin mi? Beraberinde bir not yazabilirsiniz."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Send your password to another server?"
+msgstr "Parolanız başka bir sunucuya gönderilsin mi?"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12080,6 +12254,12 @@ msgid "Shown beside the account's name, and on its mail where mail of several ac
 msgstr "Hesabın adının yanında ve birkaç hesabın postası birlikte listelendiğinde onun postasında gösterilir."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
+msgstr "Klasör bölmesinde görünür, örneğin İş veya Ev. Adresi göstermek için boş bırakın."
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Shows the signature as it was designed again, as long as its text is unchanged"
@@ -12417,8 +12597,8 @@ msgstr "En küçük üstte"
 msgid "Smartcard {label}"
 msgstr "Akıllı kart {label}"
 
-#. interface
-#: crates/ui-egui/src/reminders.rs
+#. command label, interface
+#: crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Snooze"
 msgstr "Ertele"
@@ -12428,6 +12608,12 @@ msgstr "Ertele"
 #, fuzzy
 msgid "Snooze Reminders"
 msgstr "Anımsatıcıları Ertele"
+
+#. what a command says
+#: crates/engine/src/cmd/snooze.rs
+#, fuzzy
+msgid "Snoozed"
+msgstr "Ertelenenler"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -12796,7 +12982,7 @@ msgid "Tables"
 msgstr "Tablolar"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Etiketler"
@@ -13118,6 +13304,12 @@ msgstr "Şu"
 #, fuzzy
 msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ".pst dosyasında içe aktarılacak {what} var; hiçbir şey içe aktarılmadı"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
+msgstr "{domain} etki alanının DNS kayıtları, posta sunucusu olarak {hosts} adresini gösteriyor; bu, adresinizin kendi etki alanında değil."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -13504,10 +13696,16 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr "Tanılama bilgileri kaydedilmedi, bu yüzden GitHub sayfası açılmadı. Tekrar deneyin veya Tanılamayı ekle işaretini kaldırın."
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
-msgid "The draft stays in Drafts. {why}"
-msgstr "Taslak Taslaklar'da kalır. {why}"
+msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
+msgstr "{domain} etki alanı, Exchange'in otomatik kurulumu (Autodiscover) için bir sunucu gösteriyor, yani bu bir Exchange sunucusu hesabına benziyor. Parolanızı yazıp Bağlan'a basın: MailCraft sunucuyu arar ve hesabı denetler. O zamana kadar hiçbir şey gönderilmez."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
+msgstr "{domain} etki alanı, otomatik kurulum (Autodiscover) için bir sunucu gösteriyor. Exchange sunucuları bu yolla bulunur ve bazı barındırma sağlayıcıları bunu IMAP postaları için de kullanır. Sizinki hangisi? Bulmak için yalnızca DNS'e soruldu, sunucunun kendisine hiç sorulmadı."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14112,6 +14310,12 @@ msgid "The server's name"
 msgstr "Sunucunun adı"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
+msgstr "Aşağıdaki sunucular {domain} etki alanının DNS kayıtlarında (SRV kayıtları) bulundu. Bağlanmadan önce bunları denetleyin."
+
+#. interface
 #: crates/ui-egui/src/settings_notice.rs
 #, fuzzy
 msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. It couldn't be renamed, so it was left as it is and won't be overwritten."
@@ -14608,6 +14812,12 @@ msgstr "Bu sürüm resim indiremiyor"
 #, fuzzy
 msgid "This build can't download pictures: they stay placeholders."
 msgstr "Bu sürüm resim indiremiyor: yer tutucu olarak kalırlar."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "This build can't look anything up. Type the server's address in Server settings."
+msgstr "Bu sürüm hiçbir sorgu yapamıyor. Sunucunun adresini Sunucu ayarları'na yazın."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -15828,10 +16038,16 @@ msgid "Use my own working hours"
 msgstr "Kendi çalışma saatlerimi kullan"
 
 #. name
-#: crates/ui-egui/src/theme.rs
+#: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Use system setting"
 msgstr "Sistem ayarını kullan"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+msgstr "Sistem ayarını kullan, Windows ayarlarındaki Animasyon efektleri'ni izler. MailCraft sistem ayarını henüz okuyamadığı yerlerde, siz Hiç oynatma'yı seçene kadar animasyonlar oynar."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16534,6 +16750,24 @@ msgid "Your certificates and keys"
 msgstr "Sertifikalarınız ve anahtarlarınız"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
+msgstr "Etki alanınızın DNS'ine sorulamadı. Ağ bağlantısını denetleyip yeniden arayın."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
+msgstr "Etki alanınızın DNS'i otomatik kurulum için bir sunucu göstermiyor. MailCraft yine de adresiniz için olağan yerlere bakar."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
+msgstr "Etki alanınızın DNS'i autodiscover adını {host} adresine yönlendiriyor, ancak Exchange'in otomatik kurulum kaydında onu göstermiyor. Bu, kuruluşunuzun posta sunucusu yerine bir web sunucusu olabilir."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Your keychain keeps the certificate and its private key, and macOS asks you before MailCraft uses it."
@@ -16924,6 +17158,12 @@ msgid "a list holds {n} entries at most"
 msgstr "bir liste en fazla {n} girdi tutar"
 
 #. what a command says
+#: crates/model/src/mailbox_snooze.rs
+#, fuzzy
+msgid "a message being written or waiting to be sent can't be snoozed"
+msgstr "yazılmakta olan veya gönderilmeyi bekleyen bir ileti ertelenemez"
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "a message is saved in the background by the window's own timer alone"
@@ -16994,6 +17234,12 @@ msgstr "paylaşılan posta kutusu, üzerinden açıldığı hesabın yaptığı 
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
 msgstr "bir paylaşılan posta kutusu başka birini açamaz: üzerinden açıldığı hesabı adlandırın"
+
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+#, fuzzy
+msgid "a shared mailbox has no Snoozed folder"
+msgstr "paylaşılan posta kutusunun Ertelenenler klasörü yok"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -17831,6 +18077,12 @@ msgstr "{folder} klasörü yok"
 msgid "nobody else is invited to this appointment"
 msgstr "bu randevuya başka kimse davet edilmedi"
 
+#. what a command says
+#: crates/engine/src/cmd/snooze.rs
+#, fuzzy
+msgid "none of these messages is snoozed"
+msgstr "bu iletilerin hiçbiri ertelenmiş değil"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -18588,6 +18840,12 @@ msgid "the server accepted a password that was not sent"
 msgstr "sunucu, gönderilmeyen bir parolayı kabul etti"
 
 #. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+msgstr "sunucu ile MailCraft ortak bir şifreleme bulamadı; çoğu zaman sunucu yalnızca MailCraft'ın kullanmadığı eski şifrelemeyi (CBC paketleri) sunar ve yöneticisi AES-GCM paketlerini açabilir"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
@@ -18713,7 +18971,7 @@ msgstr "sunucu oturumu bitirdi: {reason}"
 msgid "the server greeted with a refusal: {reason}"
 msgstr "sunucu bir ret ile karşıladı: {reason}"
 
-#. why a command can't run
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
@@ -18730,6 +18988,12 @@ msgstr "sunucu parolayla oturum açma yolu sunmuyor"
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "sunucu erişim belirteciyle oturum açma yolu sunmuyor"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites"
+msgstr "sunucu yalnızca MailCraft'ın kullanmadığı eski şifrelemeyi (CBC paketleri) sunuyor; yöneticisi AES-GCM paketlerini açabilir"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -19162,6 +19426,12 @@ msgstr "bu iletinin aranacak gönderen adresi yok"
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "bu iletinin aranacak konusu yok"
+
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+#, fuzzy
+msgid "this message is in the Snoozed folder already"
+msgstr "bu ileti zaten Ertelenenler klasöründe"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -20828,4 +21098,12 @@ msgstr "“{subject}” indirilemeyecek kadar büyüktü: burada yalnızca başl
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "“{subject}” sunucusunda bulunamadı, bu yüzden ek olarak iletilemez"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
+#~ msgstr "MailCraft bir JMAP hesabının postasını henüz taşımıyor veya silmiyor: sonraki Gönder/Al onu geri getirir"
+
+#, fuzzy
+#~ msgid "The draft stays in Drafts. {why}"
+#~ msgstr "Taslak Taslaklar'da kalır. {why}"
 

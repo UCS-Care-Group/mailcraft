@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-07 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -281,9 +281,23 @@ Watches or changes traffic between MailCraft and its servers.
   is allowed only to loopback, for tests.
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
-- **Provider discovery** asks a DNS-over-HTTPS resolver for the domain's mail exchangers
-  (`mailcraft_net::lookup_mx`): only the domain goes out, never the mailbox name, and only when the
-  owner presses Connect.
+- **Provider discovery** asks a DNS-over-HTTPS resolver about the domain alone, never the mailbox
+  name, and only when the owner presses Connect: for its mail exchangers (`mailcraft_net::lookup_mx`)
+  and, for a domain nobody here knows, for its mail servers' SRV records of RFC 6186
+  (`mailcraft_net::discover`, #1063), the hosts its `_autodiscover._tcp` SRV record names and
+  the host `autodiscover.<domain>` is an alias of (CNAME; `mailcraft_net::autodiscover_hosts`).
+  The Autodiscover hosts only choose a page, and none of them is asked anything for it:
+  Microsoft's is Microsoft 365, signed in on Microsoft's page; cPanel's is IMAP; any other is a
+  question to the owner, an Exchange server or IMAP, with neither the default. IMAP is the servers
+  the RFC 6186 records name, else the guess.
+- **The alias step** ([autodiscover.md](autodiscover.md) specifies it). The Exchange server search
+  (`crates/ews/src/autodiscover.rs`) asks the alias's host too, after the SRV record's targets, at
+  port 443, at most two. It takes the place of MS-OXDISCO §3.1.5.4, the plain-HTTP redirect, which
+  is never taken, so that a domain whose SRV record is only in its own network's DNS is found. An
+  alias isn't the SRV record's word: its host is asked about before anything is sent to it outside
+  the domain, and has the sign-in only after the owner's yes inside it too (AU3-V1, as §3.1.5.4 asks
+  the user, and RFC 9525 §6.1.1 lets a name from the DNS be checked against only once the user has
+  associated it). A forged or stale alias costs a question, never the password.
 - The one thing fetched over plain `http` is a picture the owner asked for, when that is the address
   the message gives; nothing of the owner's travels with it.
 
@@ -613,9 +627,12 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
+| 2026-11-07 | patch | #843: a `.pst` distribution list's stream of members is read within caps |
 | 2026-11-07 | patch | AU3-11, AU3-12, AU3-13, AU3-14, AU3-15, AU3-V5: on Exchange Online only its own verdict above the hop where it took the mail in is read (with its id or none), only for mail it says came in, and a failure there without that word; a copy MailCraft puts on a server leaves every verdict behind; Safe Senders don't take mail its server failed out of Junk; a meeting a server keeps is changed only by its organizer's own message; links are judged in every look a message has, and a message with more looks than are checked says so; a part is shown in place only as a picture an `<img>` asks for |
 | 2026-11-07 | patch | AU3-08, AU3-09, AU3-10, AU3-21, AU3-26, AU3-V8, H6: every background job of the window answers only for the mailbox opening it was started under and is called off when another mailbox takes its place; no answer is relabelled with the account open now; a shared mailbox's sign-in is checked against its owner; a message handed to a server is marked as being sent on disk first, and one still marked at the next run is held, not sent again |
 | 2026-11-07 | patch | AU3-02, AU3-03, AU3-18, AU3-19: secrets are read and written by the account itself, an Exchange server account's name holds the certificate it trusts, a mailbox where two accounts share an address reads nothing until confirmed, every entry read is noted for the full wipe, removing an account deletes its entries under every name, and no build but a test's sends a Microsoft sign-in to this computer |
+| 2026-11-05 | minor | #602: under a reply or forward, the pictures written into a message (`data:`) that the reading pane shows go as parts of their own with Content-IDs naming nothing of the owner, within #533's checks and caps; the rest are left out and a `data:` address is never sent on |
 | 2026-11-05 | patch | #781 review: an Exchange stamp already in a mailbox file, which a move from another account may have carried in before, vouches for nothing; only one read by this version is believed |
 | 2026-11-04 | patch | #473 follow-up: only a Microsoft or an Exchange server account's copy goes to Deleted Items on undo; on any other account the copy is removed and Delete is asked. An undo that puts back the accounts and takes messages, drafts or contacts away is asked once, naming both, and a yes covers both; the owner's yes holds for the step and the items asked about only, not for one done or downloaded meanwhile |
 | 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |

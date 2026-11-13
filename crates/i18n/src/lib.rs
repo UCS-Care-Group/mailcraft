@@ -62,6 +62,7 @@ pub enum Lang {
     Spanish,
     Italian,
     Dutch,
+    Romanian,
     Turkish,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
@@ -70,7 +71,8 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 8] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Turkish, Lang::Pseudo];
+    pub const ALL: [Lang; 9] =
+        [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Turkish, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -81,6 +83,7 @@ impl Lang {
             Lang::Spanish => "es",
             Lang::Italian => "it",
             Lang::Dutch => "nl",
+            Lang::Romanian => "ro",
             Lang::Turkish => "tr",
             Lang::Pseudo => "pseudo",
         }
@@ -101,6 +104,7 @@ impl Lang {
             "es" => Some(Lang::Spanish),
             "it" => Some(Lang::Italian),
             "nl" => Some(Lang::Dutch),
+            "ro" => Some(Lang::Romanian),
             "tr" => Some(Lang::Turkish),
             _ => None,
         }
@@ -115,6 +119,7 @@ impl Lang {
             Lang::Spanish => "Español",
             Lang::Italian => "Italiano",
             Lang::Dutch => "Nederlands",
+            Lang::Romanian => "Română",
             Lang::Turkish => "Türkçe",
             Lang::Pseudo => "Pseudo",
         }
@@ -122,7 +127,7 @@ impl Lang {
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Turkish)
+        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Turkish)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -416,6 +421,7 @@ mod tests {
                 "Español (versión preliminar)",
                 "Italiano (anteprima)",
                 "Nederlands (voorbeeld)",
+                "Română (previzualizare)",
                 "Türkçe (önizleme)",
             ]
         );
@@ -426,6 +432,8 @@ mod tests {
         assert_eq!(Lang::from_pref("auto", Some("nl-NL")), Lang::Dutch);
         assert_eq!(Lang::from_pref("auto", Some("tr-TR")), Lang::Turkish);
         assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
+        assert_eq!(Lang::from_pref("auto", Some("ro_RO.UTF-8")), Lang::Romanian);
+        assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
         assert_eq!(Lang::from_pref("tr", None), Lang::Turkish);
     }
 
