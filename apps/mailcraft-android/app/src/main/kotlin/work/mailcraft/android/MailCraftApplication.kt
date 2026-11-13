@@ -27,7 +27,7 @@ class MailCraftApplication : Application() {
             Started.Ready(Core(AndroidPlatform()))
         } catch (_: CoreException) {
             Started.Failed
-        } catch (_: UnsatisfiedLinkError) {
+        } catch (_: LinkageError) {
             Started.Failed
         } catch (_: RuntimeException) {
             Started.Failed
