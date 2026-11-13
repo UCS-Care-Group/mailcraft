@@ -98,6 +98,7 @@ mod shared_calendar_flow;
 mod shared_send_flow;
 mod single_instance;
 mod system_locale;
+mod system_motion;
 #[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
@@ -1048,6 +1049,7 @@ fn services(
     let tree_ctx = ctx.clone();
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
+    let autodiscover_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
@@ -1133,6 +1135,9 @@ fn services(
         })),
         discover: Some(Box::new(move |domain| {
             background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))
+        })),
+        lookup_autodiscover: Some(Box::new(move |domain| {
+            background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))
         })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).
@@ -1236,6 +1241,7 @@ fn services(
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
         open_page: Some(Box::new(open_in_browser)),
+        open_page_waiting: Some(std::sync::Arc::new(open_in_browser)),
         clipboard: clipboard::board(),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
@@ -1265,6 +1271,8 @@ fn services(
         system_locale: system_locale::system_locale(),
         // And its regional format, whose region English dates are written for (#978).
         system_time_locale: system_locale::system_time_locale(),
+        // Whether the system plays animations, for Options › Animations (#1183).
+        animations_enabled: system_motion::reader(),
         ..Default::default()
     }
 }

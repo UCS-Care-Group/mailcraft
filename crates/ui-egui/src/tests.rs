@@ -2055,14 +2055,12 @@ fn copy_diagnostics_takes_the_hosts_report_or_says_what_it_can() {
     assert!(text.starts_with("the host's report") && text.contains("Send/Receive timings"), "{text}");
 }
 
-/// Discard on a draft a JMAP account's server has keeps it in Drafts (M6), and the status bar says
-/// why, in the words the Move menu greys with; a draft that went says nothing.
+/// Discard says nothing in the status bar, whether the draft went or was gone already: a draft a
+/// JMAP account's server has goes as any other, and there too with the next run (M6).
 #[test]
-fn discarding_a_draft_that_stays_says_why() {
-    let why = mailcraft_model::NOT_MOVING_YET;
-    let said = crate::feedback("compose.discard", &json!({"draftDeleted": false, "draft": 4, "stays": why})).unwrap();
-    assert!(said.starts_with("The draft stays in Drafts.") && said.ends_with(why), "{said}");
+fn discarding_a_draft_says_nothing() {
     assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": true})), None);
+    assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": false})), None);
 }
 
 #[test]
@@ -2335,6 +2333,12 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let kept = a.session.mailbox.add_message(kept).unwrap();
     let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
     assert_eq!(ask.text, "This message will be permanently deleted.");
+    // One its server has goes there too (M6), and the question says so.
+    let server = mailcraft_model::sync::ServerMessage { id: "E1".into(), folder: "M1".into(), ..Default::default() };
+    let theirs = mailcraft_model::Message { folder: inbox, subject: "Theirs".into(), server: Some(server), ..Default::default() };
+    let theirs = a.session.mailbox.add_message(theirs).unwrap();
+    let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [theirs]})).unwrap();
+    assert_eq!(ask.text, "This message will be permanently deleted. It is removed from the mail server too, and that can't be undone.");
 }
 
 /// A noisy PNG far over a signature picture's cap.
