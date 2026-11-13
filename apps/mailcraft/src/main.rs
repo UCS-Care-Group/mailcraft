@@ -83,7 +83,6 @@ mod opened_files;
 #[cfg(test)]
 mod opened_flow;
 mod own_keys;
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod picture_cache;
 mod quit;
 #[cfg(target_os = "macos")]
@@ -1535,7 +1534,6 @@ fn main() -> eframe::Result {
     }
     // Under Wayland the window layer's clipboard can't see a picture or HTML (in the Flatpak it
     // has no clipboard of its own at all): the clipboard keys are handled by `mailcraft_ui_egui::paste_keys` (#1217).
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     let clipboard_keys = mailcraft_ui_egui::paste_keys::wayland_session(
         std::env::var("WAYLAND_SOCKET").ok().as_deref(),

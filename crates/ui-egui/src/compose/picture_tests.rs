@@ -99,6 +99,18 @@ fn a_browsers_copy_image_pastes_the_picture_not_its_address() {
     paste(&mut h);
     assert_eq!(pictures(&h), 1, "{:?}", plain(&h));
     assert!(plain(&h).contains("Look:"), "{:?}", plain(&h));
+    // A table, a rule or a second picture beside it is the HTML's too (a signature, a letterhead,
+    // a row of photos): nothing of it is lost to the one picture on the clipboard.
+    for html in [
+        r#"<img src="https://pics.example/logo.png"><table><tr><td>Jane Doe, Sales</td></tr></table>"#,
+        r#"<img src="https://pics.example/a.png"><hr><p></p>"#,
+        r#"<img src="https://pics.example/a.png"><img src="https://pics.example/b.png">"#,
+    ] {
+        *board.0.borrow_mut() = (Some(png(40)), Some(html.into()));
+        paste(&mut h);
+        assert_eq!(pictures(&h), 1, "{html}: {:?}", plain(&h));
+    }
+    assert!(plain(&h).contains("Jane Doe"), "{:?}", plain(&h));
 }
 
 #[test]

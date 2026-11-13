@@ -865,7 +865,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                             // or when the HTML is that picture alone: a browser's Copy Image puts an
                             // `<img>` of its web address beside the picture itself, which would paste
                             // as a link and a caption (#1217).
-                            let alone = html.as_deref().is_some_and(pictures_only);
+                            let alone = html.as_deref().is_some_and(pictures_only) && board.is_some_and(|b| b.has_image());
                             let image = (alone || (text.is_empty() && (which == Which::Signature || html.is_none())))
                                 .then(|| board.and_then(|b| b.image()))
                                 .flatten();
@@ -1210,9 +1210,17 @@ mod tests {
 #[path = "wide_picture_tests.rs"]
 mod wide_picture_tests;
 
-/// The HTML holds pictures and nothing else that reads (a browser's Copy Image, #1217).
+/// The HTML is one picture and nothing else that reads (a browser's Copy Image, #1217). A table
+/// or a rule (whose words `Block::text` doesn't hold) or a second picture is more than the one
+/// picture the clipboard has beside it.
 fn pictures_only(html: &str) -> bool {
+    use mailcraft_html::BlockKind;
     let blocks = mailcraft_html::parse_text(html);
-    let picture = |b: &mailcraft_html::Block| matches!(b.kind, mailcraft_html::BlockKind::Image { .. });
-    blocks.iter().any(picture) && blocks.iter().all(|b| picture(b) || b.text().trim().is_empty())
+    let pictures = blocks.iter().filter(|b| matches!(b.kind, BlockKind::Image { .. })).count();
+    pictures == 1
+        && blocks.iter().all(|b| match b.kind {
+            BlockKind::Image { .. } => true,
+            BlockKind::Table(_) | BlockKind::Rule => false,
+            _ => b.text().trim().is_empty(),
+        })
 }

@@ -90,6 +90,8 @@ impl RichClipboard for Board {
                 Ok((_, bytes)) => return html_of(&decode_html(&bytes)),
                 // Nothing of that kind offered: `arboard` may still have some.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
                 Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
             }
         }
@@ -113,6 +115,8 @@ impl RichClipboard for Board {
             match wayland.load_mime(&IMAGE_MIMES, MAX_PICTURE_BYTES) {
                 Ok((_, bytes)) => return png_fits(&bytes).then_some(bytes),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
                 Err(e) => log::debug!("the Wayland clipboard gave no picture: {e}"),
             }
         }
