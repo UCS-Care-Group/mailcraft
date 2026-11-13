@@ -4,7 +4,59 @@
 
 use super::*;
 use ksni::Tray as _;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
+
+fn guarded_service(stopped: &Arc<AtomicUsize>) -> ShutdownOnDrop<Arc<AtomicUsize>> {
+    ShutdownOnDrop {
+        handle: stopped.clone(),
+        shutdown: |count| {
+            count.fetch_add(1, Ordering::Relaxed);
+        },
+    }
+}
+
+#[test]
+fn a_handle_delivered_after_an_empty_poll_is_shutdown_when_the_receiver_goes() {
+    let stopped = Arc::new(AtomicUsize::new(0));
+    let (tx, arriving) = channel();
+    let (checked, wait_for_check) = channel();
+    let (sent, wait_for_send) = channel();
+    let handle = guarded_service(&stopped);
+    let sender = std::thread::spawn(move || {
+        wait_for_check.recv().unwrap();
+        assert!(tx.send(Ok::<_, String>(handle)).is_ok());
+        sent.send(()).unwrap();
+    });
+    assert!(matches!(arriving.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty)));
+    checked.send(()).unwrap();
+    wait_for_send.recv().unwrap();
+    assert_eq!(stopped.load(Ordering::Relaxed), 0);
+    // Reproduce the old drop race: the send succeeded after try_recv, before receiver drop.
+    drop(arriving);
+    sender.join().unwrap();
+    assert_eq!(stopped.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn a_handle_sent_after_receiver_drop_is_shutdown_even_if_the_send_error_is_ignored() {
+    let stopped = Arc::new(AtomicUsize::new(0));
+    let (tx, arriving) = channel();
+    drop(arriving);
+    let _ = tx.send(Ok::<_, String>(guarded_service(&stopped)));
+    assert_eq!(stopped.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn an_installed_handle_is_owned_until_drop_and_shutdown_once() {
+    let stopped = Arc::new(AtomicUsize::new(0));
+    let (tx, arriving) = channel();
+    assert!(tx.send(Ok::<_, String>(guarded_service(&stopped))).is_ok());
+    let installed = arriving.try_recv().unwrap().unwrap();
+    drop(arriving);
+    assert_eq!(stopped.load(Ordering::Relaxed), 0);
+    drop(installed);
+    assert_eq!(stopped.load(Ordering::Relaxed), 1);
+}
 
 #[test]
 fn watcher_loss_during_spawn_remains_offline_after_success() {

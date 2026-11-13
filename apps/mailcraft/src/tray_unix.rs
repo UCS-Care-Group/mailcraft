@@ -12,9 +12,24 @@ use ksni::blocking::TrayMethods;
 use super::{QUIT, SHOW, SYNC, Signals};
 use mailcraft_ui_egui::i18n::{self, Lang};
 
+/// Own the shutdown obligation before handing a service across the startup channel. Dropping
+/// an installed handle, a queued result, or a failed send all shuts the service down.
+struct ShutdownOnDrop<T> {
+    handle: T,
+    shutdown: fn(&T),
+}
+
+impl<T> Drop for ShutdownOnDrop<T> {
+    fn drop(&mut self) {
+        (self.shutdown)(&self.handle);
+    }
+}
+
+type TrayHandle = ShutdownOnDrop<ksni::blocking::Handle<Item>>;
+
 pub struct Backend {
-    arriving: Receiver<Result<ksni::blocking::Handle<Item>, String>>,
-    handle: Option<ksni::blocking::Handle<Item>>,
+    arriving: Receiver<Result<TrayHandle, String>>,
+    handle: Option<TrayHandle>,
     lang: Lang,
     #[cfg(test)]
     stand_in: bool,
@@ -26,12 +41,18 @@ impl Backend {
         let wake = signals.clone();
         // Connecting to a desktop that is slow or absent must never hold the window up.
         if let Err(e) = std::thread::Builder::new().name("system-tray".into()).spawn(move || {
-            let result = start_item(signals.clone(), |item| item.spawn().map_err(|e| e.to_string()));
-            if let Err(unsent) = tx.send(result)
-                && let Ok(handle) = unsent.0
-            {
-                handle.shutdown();
-            }
+            let result = start_item(signals.clone(), |item| {
+                item.spawn()
+                    .map(|handle| ShutdownOnDrop {
+                        handle,
+                        shutdown: |h| {
+                            h.shutdown();
+                        },
+                    })
+                    .map_err(|e| e.to_string())
+            });
+            // If the receiver is already gone, SendError drops the guarded handle here.
+            let _ = tx.send(result);
             signals.ctx.request_repaint();
         }) {
             log::warn!("system tray couldn't start: {e}");
@@ -56,7 +77,7 @@ impl Backend {
         if self.lang != i18n::current() {
             self.lang = i18n::current();
             if let Some(handle) = &self.handle {
-                handle.update(|_| ());
+                handle.handle.update(|_| ());
             }
         }
     }
@@ -66,7 +87,7 @@ impl Backend {
         if self.stand_in {
             return true;
         }
-        self.handle.as_ref().is_some_and(|h| !h.is_closed())
+        self.handle.as_ref().is_some_and(|h| !h.handle.is_closed())
     }
 
     #[cfg(test)]
@@ -85,18 +106,6 @@ fn start_item<T>(signals: Arc<Signals>, spawn: impl FnOnce(Item) -> Result<T, St
         signals.online(false);
     }
     result
-}
-
-impl Drop for Backend {
-    fn drop(&mut self) {
-        if let Some(handle) = &self.handle {
-            handle.shutdown();
-        }
-        // An icon that came up but was never polled in goes too, rather than staying in the tray.
-        if let Ok(Ok(handle)) = self.arriving.try_recv() {
-            handle.shutdown();
-        }
-    }
 }
 
 pub(super) struct Item {
