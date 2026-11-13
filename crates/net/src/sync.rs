@@ -18,11 +18,11 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::{
-    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
-use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
+use mailcraft_proto::imap::{Fetched, FolderStatus, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
 
 use crate::push::push;
@@ -703,6 +703,23 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     let mut claimed: HashSet<Id> = HashSet::new();
     let states = States::of(request);
     let count = plan.len().min(MAX_FOLDERS);
+    // A folder this run changed on the server is read: a message it moved away or deleted is
+    // marked, not gone, and no count shows that (#276).
+    let touched: HashSet<&str> = request
+        .ops
+        .iter()
+        .flat_map(|op| match op {
+            RemoteOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
+            op => vec![op.mailbox()],
+        })
+        .chain(request.places.iter().map(|place| place.to.as_str()))
+        .collect();
+    // What the server says of every folder but the Inbox, asked of all in a few round trips, so
+    // that a folder that hasn't changed isn't opened (#276).
+    let statuses = match folder_statuses(run, &mut imap, &plan) {
+        Ok(statuses) => statuses,
+        Err(()) => return None,
+    };
     for (at, (mailbox, kind)) in plan.into_iter().take(MAX_FOLDERS).enumerate() {
         if run.cancelled() {
             break;
@@ -715,13 +732,64 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         let state = states.get(&remote, kind).filter(|state| claimed.insert(state.id));
         let arrived = arrived.get(&remote).map_or(&[][..], Vec::as_slice);
         let gmail = host.gmail && kind == FolderKind::Inbox;
-        let folder = FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count), gmail };
+        let status = statuses.get(&remote).copied();
+        if let (Some(state), Some(status)) = (state, status)
+            && unchanged(state, status, request.max_per_folder)
+            && arrived.is_empty()
+            && !touched.contains(remote.as_str())
+        {
+            log::debug!("a folder is passed over: its counts are the same");
+            run.out.timings.skipped = run.out.timings.skipped.saturating_add(1);
+            continue;
+        }
+        let folder =
+            FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count), gmail, status };
         if !folder.run(&mut imap, run) {
             // The connection is gone: the other mailboxes wait for the next run.
             return None;
         }
     }
     Some(imap)
+}
+
+/// What the server's STATUS says of each folder of the plan that may be passed over, by the name
+/// it is read as (#276). The Inbox is never asked (it is read every run, and is where mail
+/// comes), nor is a folder that can't be opened. A folder the server doesn't answer for is
+/// absent, and is read. `Err` when the connection is gone (said in the run).
+fn folder_statuses(run: &mut Run, imap: &mut Imap<Stream<'_>>, plan: &[(&Mailbox, FolderKind)]) -> Result<HashMap<String, FolderStatus>, ()> {
+    let asked: Vec<(String, &str)> = plan
+        .iter()
+        .take(MAX_FOLDERS)
+        .filter(|(mailbox, kind)| *kind != FolderKind::Inbox && !mailbox.has_flag("\\Noselect"))
+        .map(|(mailbox, _)| (kinds::remote_name(mailbox), mailbox.raw.as_str()))
+        .filter(|(remote, _)| !remote.is_empty())
+        .collect();
+    if asked.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let raws: Vec<&str> = asked.iter().map(|(_, raw)| *raw).collect();
+    let answers = match imap.status_many(&raws) {
+        Ok(answers) => answers,
+        Err(e) => {
+            run.failed(said!("Couldn't read the list of folders"), &e.into());
+            return Err(());
+        }
+    };
+    run.note(imap);
+    Ok(asked.into_iter().zip(answers).filter_map(|((remote, _), status)| Some((remote, status?))).collect())
+}
+
+/// Whether a folder, last read whole when the server said `state.status` of it, is as it was
+/// when `now` is what it says (#276): the same numbering and the same counts, no message of it
+/// waiting to be read again, and the same limit on how many to have here. A flag changed from
+/// another program that no count shows is not seen until the reading in full that is due now and
+/// then ([`FolderState::status`]).
+fn unchanged(state: &FolderState, now: FolderStatus, limit: u32) -> bool {
+    let Some(was) = state.status else { return false };
+    state.again.is_empty()
+        && state.uid_validity != 0
+        && state.uid_validity == now.uid_validity
+        && (was.messages, was.uid_next, was.unseen, was.limit) == (now.messages, now.uid_next, now.unseen, limit)
 }
 
 /// Tell Gmail's API of the moves between Gmail's categories made here ([`SyncRequest::gmail_moves`],
@@ -950,6 +1018,9 @@ struct FolderSync<'a> {
     place: (usize, usize),
     /// It is a Gmail account's Inbox: Gmail's categories and ids of its messages are read too (#911).
     gmail: bool,
+    /// What the server said of the mailbox just before it is read, for what a reading in whole
+    /// is kept with (#276).
+    status: Option<FolderStatus>,
 }
 
 impl FolderSync<'_> {
@@ -1031,6 +1102,7 @@ impl FolderSync<'_> {
                 _ => known.iter().copied().filter(|uid| !present.contains_key(uid)).collect(),
             },
             complete: false,
+            status: None,
             refetched: Vec::new(),
             refetch_done: Vec::new(),
             refetch_too_large: Vec::new(),
@@ -1128,6 +1200,16 @@ impl FolderSync<'_> {
         };
         // Everything wanted came: the folder is read whole (an empty one at its first reading).
         delta.complete = alive && missed.is_none();
+        // What the server said of it is kept with a reading that came to the end, if the folder
+        // was the one that was asked about.
+        delta.status =
+            self.status.filter(|status| delta.complete && status.uid_validity == selected.uid_validity).map(|status| mailcraft_model::ImapStatus {
+                messages: status.messages,
+                uid_next: status.uid_next,
+                unseen: status.unseen,
+                limit: u32::try_from(self.max_new).unwrap_or(u32::MAX),
+                at: 0,
+            });
         if let Some(sorted) = sorted {
             delta.gmail = sorted
                 .into_iter()
@@ -1344,6 +1426,10 @@ mod size_tests;
 #[cfg(test)]
 #[path = "sync_many_folders_tests.rs"]
 mod many_folders_tests;
+
+#[cfg(test)]
+#[path = "sync_skip_tests.rs"]
+mod skip_tests;
 
 #[cfg(test)]
 mod tests {

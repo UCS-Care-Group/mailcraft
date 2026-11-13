@@ -94,7 +94,7 @@ impl MailApp {
     pub(crate) fn inbox_check_tick(&mut self) -> Option<Id> {
         self.take_in_given_way();
         let now = self.session.now();
-        if !self.auto_sync || self.session.prefs.sync_minutes == 0 || self.services.graph.is_none() {
+        if !self.session.driver.auto_sync() || self.session.prefs.sync_minutes == 0 || self.services.graph.is_none() {
             self.inbox_check.queue.clear();
             return None;
         }
