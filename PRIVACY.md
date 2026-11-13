@@ -199,20 +199,21 @@ report, and a script or an AI agent can fill the window but never send it.
 ## The phone apps
 
 MailCraft for Android (and, after it, for iPhone and iPad) is the same program on a smaller
-screen, and everything above holds for it unless this section says otherwise. There is still no
+screen, and everything above holds for it unless this section says otherwise. There is no iPhone
+or iPad app yet: what is said of iPhone below is for when that app is released. There is still no
 MailCraft account and no MailCraft server that sees your mail: nothing goes through a server of
 the project, and notifications are raised on the phone itself. Parts of the phone apps that are
 not in a release yet are marked "when the app is released".
 
 - **Signing in.** You sign in on Microsoft's page, in a browser tab the system opens (Custom Tabs
-  on Android, the system's own sign-in session on iPhone); the app never shows you a page
+  on Android; on iPhone, when that app is released, the system's own sign-in session); the app never shows you a page
   of its own for your password and never sees it. The page sends you back through a link on a
   scheme only MailCraft registers (`work.mailcraft.android` on Android), and the app checks that
   link, to the letter, before it believes it. What is asked of your account, and why, is
   [Permissions asked of a Microsoft account](#permissions-asked-of-a-microsoft-account). The phone
   apps do not use your phone's own calendar or contacts and ask for no permission to them.
-- **Secrets.** A sign-in token is sealed with a key held in the Android Keystore (the iOS
-  Keychain on iPhone), which the system keeps outside the app's own files, and the
+- **Secrets.** A sign-in token is sealed with a key held in the Android Keystore (on iPhone,
+  when that app is released, the Keychain), which the system keeps outside the app's own files, and the
   sealed file sits in the app's own folder that is left out of backups. Nothing secret goes into
   the mailbox file, the settings, a log, a link or a command. Access tokens are never stored.
 - **Your mailbox** is kept in the app's own folder on the phone, which Android does not copy to a
@@ -220,14 +221,19 @@ not in a release yet are marked "when the app is released".
   mailbox is fetched again from your provider when you set up a new phone. Uninstalling the app
   removes everything it kept.
 - **Connections.** Every connection that carries your mail, a sign-in or anything of yours is
-  encrypted: the Android app allows no unencrypted traffic at all (a network security config and
-  the manifest say so), and trusts only the system's own certificate authorities. The only
-  permissions the Android app asks of the phone are to use the network and to see whether it is
-  connected, how it is metered and whether Data Saver is on, and, when the app is released, to
-  show notifications. The phone's proxy settings are ignored.
+  encrypted (TLS). The one exception is as on the desktop: a picture you allowed whose address
+  in the message is plain `http` is fetched over plain `http`, and nothing of yours travels with
+  that request but the address. The Android app's network security config and manifest allow no
+  unencrypted traffic for the phone's own web stack (links open in the browser, which is the
+  system's), and the app trusts only the system's own certificate authorities. As built today,
+  the only permissions the Android app asks of the phone are to use the network and to see
+  whether it is connected, how it is metered and whether Data Saver is on. The release adds
+  more, and this section lists them then: notifications, exact alarms for reminders, and what
+  the background checks bring (to run after a restart and to keep the phone awake for a moment).
+  The phone's proxy settings are ignored.
 - **Background checks, when the app is released.** Android runs a check about every 15 minutes
-  (WorkManager) when there is a network, and iPhone whenever the system grants one
-  (BGAppRefreshTask); the app also checks when you open it and when you pull the list down. A check
+  (WorkManager) when there is a network, and iPhone, when that app is released, whenever the
+  system grants one (BGAppRefreshTask); the app also checks when you open it and when you pull the list down. A check
   asks your own provider (Microsoft) for the headers of each account's Inbox and for changes to
   its calendar and To Do tasks. The bodies of new mail within how long you keep mail offline come
   only on a connection that is not metered. Pictures, sender images and other folders come only
@@ -237,8 +243,9 @@ not in a release yet are marked "when the app is released".
   mail.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
-  as the account's setting says). A switch in Settings shows "New mail" and nothing else, and the
-  lock screen follows the system's own privacy setting for notifications. Reminders for meetings
+  as the account's setting says). A switch in Settings shows "New mail" and nothing else, and on a lock
+  screen the system hides private content from, a public version that says only "New mail"
+  stands in for the notification. Reminders for meetings
   and tasks are notifications raised on the phone from what the last check brought. Nothing about
   a notification goes to a server of the project, or to Google's or Apple's push services: no
   push token is made and none is sent.
@@ -254,6 +261,8 @@ not in a release yet are marked "when the app is released".
   only for the senders in the part of the list on screen, only for people you know or whose mail's
   pictures you allow, never for mail in Junk E-mail, from the same three services and telling each
   the same thing (a hash of the address to Gravatar, the sender's site domain to the other two).
+  While Data Saver is on and the connection is metered, only pictures already in the cache are
+  shown and nothing is asked.
 - **Reading width and dark mode.** A message is laid out at your phone's real width and in its
   light or dark state, so a message can show another picture for a dark window or a narrow width
   and, once you allow its pictures, its server can tell from the address asked for that the window
@@ -268,8 +277,9 @@ not in a release yet are marked "when the app is released".
   reporting, and none of Google Play services or Firebase in the Android app.
 - **Opening and sharing.** An attachment you open goes to the app you choose through a one-off,
   read-only grant on a temporary copy in the app's cache folder, which is cleared when the app next
-  starts; Save uses the system's file picker, so the app needs no storage permission. Links open
-  in your browser, and only `http`, `https`, `mailto` and `tel` links are followed.
+  starts; Save uses the system's file picker, so the app needs no storage permission. Web links
+  open in your browser, `mailto` links in the composer, and `tel` links in the dialer, which
+  shows the number and does not dial; only `http`, `https`, `mailto` and `tel` links are followed.
 
 ## Scripts and agents
 
