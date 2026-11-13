@@ -308,4 +308,40 @@ class AccountsTest {
             assertTrue(it.explanation(EnglishTexts).contains("Microsoft's page"))
         }
     }
+
+    @Test
+    fun aSignInAgainThatWorksDropsWhatWasKnownOfTheAccountSoItIsAskedAgain() {
+        val api = FakeApi()
+        val rig = Rig(api)
+        rig.controller.signInNeeded(7u)
+        rig.actions.onSignInAgain(ada)
+        rig.actions.onSignIn()
+        assertEquals(AddAccountState.Done(7u), rig.ui.add)
+        assertTrue(rig.ui.statuses.isEmpty())
+        // The page asks again when it is shown, and now says what the core says.
+        api.states[PermissionKind.Tasks] = PermissionStatus.Allowed
+        rig.actions.onShown(listOf(ada))
+        assertEquals(PermissionStatus.Allowed, rig.ui.statuses[StatusKey(7u, PermissionKind.Tasks)])
+    }
+
+    @Test
+    fun aSignInAgainDoesNotReplaceASignInThatIsWaiting() {
+        val api = FakeApi().apply { gate = CompletableDeferred() }
+        val rig = Rig(api)
+        rig.actions.onEmail("ada@example.org")
+        rig.actions.onSignIn()
+        rig.actions.onSignInAgain(ada)
+        assertEquals(AddAccountState.Waiting("ada@example.org"), rig.ui.add)
+    }
+
+    @Test
+    fun aPermissionThatCouldNotBeCheckedIsAskedAgainTheNextTimeThePageIsShown() {
+        val api = FakeApi().apply { states[PermissionKind.Tasks] = PermissionStatus.Unknown }
+        val rig = Rig(api)
+        rig.actions.onShown(listOf(ada))
+        assertEquals(PermissionStatus.Unknown, rig.ui.statuses[StatusKey(7u, PermissionKind.Tasks)])
+        api.states[PermissionKind.Tasks] = PermissionStatus.Allowed
+        rig.actions.onShown(listOf(ada))
+        assertEquals(PermissionStatus.Allowed, rig.ui.statuses[StatusKey(7u, PermissionKind.Tasks)])
+    }
 }

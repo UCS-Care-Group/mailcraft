@@ -11,4 +11,9 @@ workspace = true
 [dependencies]
 # The engine's own memory cap, which the device's budget is held against.
 mailcraft-engine = { workspace = true }
+mailcraft-model = { workspace = true }
 mailcraft-time = { workspace = true }
+
+# Signing in on the provider's page (`signin`): the OAuth client has no browser build.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+mailcraft-net = { workspace = true }

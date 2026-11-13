@@ -42,6 +42,8 @@ pub struct Core {
     jobs: Mutex<Option<Sender<Job>>>,
     events: Arc<Queue<Event>>,
     pub(crate) platform: Arc<dyn Platform>,
+    /// The same platform as the host sees it: what the sign-in code of `mailcraft-host` is given.
+    pub(crate) native: Arc<Native>,
     /// The sign-in that is open, and where its redirect lands (`accounts.rs`).
     pub(crate) signins: SignIns,
     memory_budget: u64,
@@ -55,7 +57,8 @@ impl Core {
     /// host that opens a mailbox itself.
     pub fn start(platform: Arc<dyn Platform>, make: impl FnOnce() -> Session + Send + 'static) -> Result<Arc<Core>, CoreError> {
         android::check()?;
-        let host = mailcraft_host::init(Arc::new(Native { inner: platform.clone() }))?;
+        let native = Arc::new(Native { inner: platform.clone() });
+        let host = mailcraft_host::init(native.clone())?;
         // What the device can spare caps what the session keeps of mail content.
         // (A device that says nothing leaves the setting as it was: the engine's own cap stands.)
         if let Some(device) = host.platform().memory_budget() {
@@ -78,6 +81,7 @@ impl Core {
             jobs: Mutex::new(Some(jobs)),
             events,
             platform,
+            native,
             signins: SignIns::default(),
             memory_budget: host.memory_budget(),
             language: AtomicU8::new(0),

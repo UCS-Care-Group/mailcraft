@@ -66,7 +66,11 @@ internal class AccountsController(
         scope.launch {
             val result = api.signIn(email)
             val link = if (result is SignInResult.NeedsApproval) api.approvalLink(email) else null
-            if (result is SignInResult.SignedIn) changed()
+            if (result is SignInResult.SignedIn) {
+                // The sign-in is new: what was known of this account's permissions is asked again.
+                ui.update { state -> state.copy(statuses = state.statuses.filterKeys { it.account != result.account }) }
+                changed()
+            }
             ui.update { state ->
                 // (The owner may have left the screen meanwhile: what is there is left as it is.)
                 if (state.add is AddAccountState.Waiting) state.copy(add = afterSignIn(email, result, link)) else state
@@ -84,7 +88,10 @@ internal class AccountsController(
 
     private fun leaveAdd() = ui.update { it.copy(add = AddAccountState.Form()) }
 
-    private fun signInAgain(account: AccountItem) = ui.update { it.copy(add = AddAccountState.Form(account.email)) }
+    /** The form for an account the owner has, its address as the hint; a sign-in that waits is left as it is. */
+    private fun signInAgain(account: AccountItem) = ui.update { state ->
+        if (state.add is AddAccountState.Waiting) state else state.copy(add = AddAccountState.Form(account.email))
+    }
 
     /** Puts the question for a permission to the owner (an event from the core, or the owner's own tap). */
     fun askFor(account: ULong, permission: PermissionKind) = ui.update { state ->
@@ -137,7 +144,9 @@ internal class AccountsController(
         shown.forEach { account ->
             PermissionKind.entries.forEach { kind ->
                 val key = StatusKey(account.id, kind)
-                if (ui.value.statuses[key] == null) setStatus(account.id, kind)
+                // (Not known yet, or couldn't be told the last time.)
+                val known = ui.value.statuses[key]
+                if (known == null || known == PermissionStatus.Unknown) setStatus(account.id, kind)
             }
         }
     }

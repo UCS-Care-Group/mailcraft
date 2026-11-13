@@ -406,8 +406,9 @@ fn a_sign_in_that_brings_no_refresh_token_or_no_address_makes_no_account() {
     let rig =
         Rig::new(&TokenServer::start(|_| (200, r#"{"token_type":"Bearer","expires_in":3599,"access_token":"a","refresh_token":"r"}"#.to_string())));
     rig.page_comes_back_with(CODE_BACK);
-    // (No address from Microsoft and no usable hint.)
+    // (No address from Microsoft: a hint is only for the page, never taken for who signed in.)
     assert!(matches!(rig.sign_in("not an address\u{7}"), SignInOutcome::Failed { .. }));
+    assert!(matches!(rig.sign_in(ADA), SignInOutcome::Failed { .. }));
     assert_eq!((rig.accounts().len(), rig.secrets_kept()), (0, 0));
 }
 
@@ -570,4 +571,22 @@ fn junk_in_every_account_call_is_an_answer_and_never_a_panic() {
         assert!(block_on(rig.core.permission_state(id, Permission::SharedMail)).is_err());
     }
     rig.core.cancel_sign_in();
+}
+
+#[test]
+fn a_new_refresh_token_in_a_check_replaces_the_kept_one_only_when_it_is_the_accounts_own() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let point = |s: &TokenServer| {
+        *rig.core.signins.server.lock().unwrap() =
+            Some((format!("http://127.0.0.1:{0}/authorize", s.port), format!("http://127.0.0.1:{0}/token", s.port)));
+    };
+    point(&TokenServer::start(|_| (200, tokens_for(ADA, "Ada", "rotated-refresh-token"))));
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::Allowed);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-refresh-token"));
+    // An answer that names somebody else is not the account's to keep.
+    point(&TokenServer::start(|_| (200, tokens_for("bob@lumen.example", "Bob", "bobs-refresh-token"))));
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::SharedMail)).unwrap(), PermissionState::Allowed);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-refresh-token"));
 }

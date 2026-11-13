@@ -3201,6 +3201,8 @@ name = "mailcraft-host"
 version = "0.12.0"
 dependencies = [
  "mailcraft-engine",
+ "mailcraft-model",
+ "mailcraft-net",
  "mailcraft-time",
 ]
 
@@ -3287,7 +3289,6 @@ dependencies = [
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-model",
- "mailcraft-net",
  "mailcraft-time",
  "rustls-platform-verifier",
  "serde",

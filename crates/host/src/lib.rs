@@ -9,11 +9,20 @@
 pub mod init;
 #[cfg(test)]
 mod init_tests;
+pub mod keys;
+#[cfg(test)]
+mod keys_tests;
 pub mod platform;
 pub mod secrets;
 #[cfg(test)]
 mod secrets_tests;
+// Signing in on the provider's page needs the OAuth client, which the browser build has no sockets for.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod signin;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod signin_tests;
 
 pub use init::{Host, InitError, init, memory_budget};
+pub use keys::{legacy_secret_key, microsoft_secret_key, secret_key};
 pub use platform::{NetworkState, Notification, NotificationKind, Platform, PlatformError, Redirect, Stream};
 pub use secrets::{SecretError, SecretStore, StoreTrouble};

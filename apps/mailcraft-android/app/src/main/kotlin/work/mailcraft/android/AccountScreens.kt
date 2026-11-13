@@ -178,7 +178,11 @@ internal fun AccountsPage(texts: Texts, accounts: List<AccountItem>, ui: Account
                 overflow = TextOverflow.Ellipsis,
             )
             PermissionKind.entries.forEach { kind ->
-                PermissionRow(texts, account, kind, ui.statuses[StatusKey(account.id, kind)] ?: PermissionStatus.Checking, actions)
+                PermissionRow(texts, account, kind, ui.statuses[StatusKey(account.id, kind)] ?: PermissionStatus.Checking, actions) {
+                    // Add Account opens with the address as its hint.
+                    actions.onSignInAgain(account)
+                    onAdd()
+                }
             }
             TextButton(onClick = { actions.onRemoveAsk(account) }) { Text(texts.t("Remove account")) }
         }
@@ -188,7 +192,14 @@ internal fun AccountsPage(texts: Texts, accounts: List<AccountItem>, ui: Account
 }
 
 @Composable
-private fun PermissionRow(texts: Texts, account: AccountItem, kind: PermissionKind, status: PermissionStatus, actions: AccountActions) {
+private fun PermissionRow(
+    texts: Texts,
+    account: AccountItem,
+    kind: PermissionKind,
+    status: PermissionStatus,
+    actions: AccountActions,
+    onSignInAgain: () -> Unit,
+) {
     Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(kind.label(texts), style = MaterialTheme.typography.bodyLarge)
@@ -196,7 +207,7 @@ private fun PermissionRow(texts: Texts, account: AccountItem, kind: PermissionKi
         }
         when (status) {
             PermissionStatus.NotAllowed -> TextButton(onClick = { actions.onAsk(account, kind) }) { Text(texts.t("Allow")) }
-            PermissionStatus.SignInNeeded -> TextButton(onClick = { actions.onSignInAgain(account) }) { Text(texts.t("Sign in again")) }
+            PermissionStatus.SignInNeeded -> TextButton(onClick = onSignInAgain) { Text(texts.t("Sign in again")) }
             else -> Unit
         }
     }

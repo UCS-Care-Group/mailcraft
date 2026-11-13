@@ -12,23 +12,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import java.io.File
 import uniffi.mailcraft_mobile.Core
-import uniffi.mailcraft_mobile.Event
 
 /**
  * The one window. An AppCompat activity, because that is what carries the per-app language to
@@ -64,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 @Composable
 internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
     when (started) {
-        is Started.Ready -> CoreShell(started.core, version, chosenLanguage, onLanguage)
+        is Started.Ready -> CoreShell(started.core, started.hub, version, chosenLanguage, onLanguage)
         Started.Failed -> Centered(stringResource(R.string.start_failed))
     }
 }
@@ -88,15 +82,19 @@ private suspend fun loadMail(core: Core, outlined: Outlined?, folder: FolderItem
 }
 
 @Composable
-private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
-    val context = LocalContext.current
+private fun CoreShell(
+    core: Core,
+    hub: AccountsHub,
+    version: String,
+    chosenLanguage: String,
+    onLanguage: (String) -> Unit,
+) {
     val texts = remember(core) { CoreTexts(core) }
-    val store = remember(context) { MailboxFile(File(context.noBackupFilesDir, "mailbox")) }
-    // Bumped when the mailbox's accounts changed: the outline is read again.
-    var reload by remember { mutableIntStateOf(0) }
-    val outlined by produceState<Outlined?>(null, core, reload) {
-        if (reload == 0) store.restore(core)
-        value = Outlined(loadOutline(core))
+    // The mailbox is opened once, when the application starts (`AccountsHub`), and not by a window.
+    val restored by hub.restored.collectAsState()
+    val reload by hub.reloads.collectAsState()
+    val outlined by produceState<Outlined?>(null, core, restored, reload) {
+        value = if (restored) Outlined(loadOutline(core)) else null
     }
     var picked by rememberSaveable { mutableStateOf<Long?>(null) }
     val folder = chosenFolder(outlined?.outline, picked)
@@ -104,10 +102,8 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         value = loadMail(core, outlined, folder)
     }
     val accounts = outlined?.outline?.accounts.orEmpty()
-    val controller = rememberAccountsController(core, texts, accounts) {
-        store.keep(core)
-        reload++
-    }
+    SideEffect { hub.showing(accounts) }
+    val controller = hub.controller
     val accountsUi by controller.ui.collectAsState()
     AppShell(
         texts = texts,
@@ -128,47 +124,8 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     )
 }
 
-/**
- * The controller of the account screens over [core], and the loop that hands it what the core asks of
- * the owner (a permission question, a sign-in that is over). [changed] runs after the accounts changed.
- */
-@Composable
-private fun rememberAccountsController(
-    core: Core,
-    texts: Texts,
-    accounts: List<AccountItem>,
-    changed: suspend () -> Unit,
-): AccountsController {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val latest by rememberUpdatedState(accounts)
-    val onChanged by rememberUpdatedState(changed)
-    val handback = (context.applicationContext as? MailCraftApplication)?.handback ?: SignInHandback()
-    val controller = remember(core) {
-        AccountsController(
-            api = CoreAccounts(core, handback),
-            scope = scope,
-            texts = texts,
-            accounts = { latest },
-            changed = { onChanged() },
-            copy = { text -> copyToClipboard(context, text) },
-        )
-    }
-    // (Revision changes and the rest of the stream are for the screens that read them.)
-    LaunchedEffect(core, controller) {
-        while (true) {
-            when (val event = core.nextEvent() ?: break) {
-                is Event.PermissionQuestion -> controller.askFor(event.account, PermissionKind.of(event.permission))
-                is Event.SignInNeeded -> controller.signInNeeded(event.account)
-                else -> Unit
-            }
-        }
-    }
-    return controller
-}
-
 /** Puts a plain text on the clipboard; what can't be is left. */
-private fun copyToClipboard(context: Context, text: String) {
+internal fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText("", text))
 }
