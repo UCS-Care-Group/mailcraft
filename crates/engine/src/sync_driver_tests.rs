@@ -98,3 +98,13 @@ fn the_favorites_are_due_as_the_window_had_it() {
     assert!(favorites_due(false, false, None, Some(now - FAVORITES_REFUSED_MS), now));
     assert!(favorites_due(false, false, None, Some(now + 1.0), now));
 }
+
+#[test]
+fn the_calendar_is_asked_for_as_often_as_it_was() {
+    assert_eq!(calendar_every_ms(true, true), 10_000.0);
+    assert_eq!(calendar_every_ms(true, false), 10_000.0);
+    assert_eq!(calendar_every_ms(false, true), 30_000.0);
+    assert_eq!(calendar_every_ms(false, false), 300_000.0);
+    let c = Pacing::CALENDAR;
+    assert_eq!((c.quiet_ms, c.patience_ms(1), c.patience_ms(2), c.patience_ms(9)), (0.0, 30_000.0, 60_000.0, 600_000.0));
+}
