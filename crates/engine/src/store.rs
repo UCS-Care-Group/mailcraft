@@ -1831,7 +1831,9 @@ fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Pa
     let fp = item.fp;
     let parsed = match key.0 {
         Coll::Message => {
-            let m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
+            let mut m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
+            // What nothing reads by name goes to the message's block (`mailcraft_model::headers`).
+            m.split_headers();
             let refs = item.refs();
             let wire = if refs.is_empty() { None } else { Some(load_limit::read_json::<WireParts>(refs, budget).map_err(damaged)?) };
             Parsed::Message(Arc::new(m), wire)
@@ -3039,6 +3041,8 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
     } else if !m.has_original() {
         lean.original = None;
     }
+    // Every header line in `headers`, as the file has always had them.
+    lean.join_headers();
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
     let fp = index::put_fp((Coll::Message, id), &json, &refs).map_err(io_error)?;
