@@ -1076,3 +1076,114 @@ fn the_answer_of_grommunio_is_read_for_its_ews_address_and_a_server_name() {
     assert_eq!(found.external, None);
     assert_eq!(found.server.as_deref(), Some("mail.example.org"));
 }
+
+// ---- the alias of autodiscover.<domain> ----
+
+/// A whole search with the SRV record's targets and the alias's hosts, where every question
+/// counts among `yes` (then no): what came of it, and what the owner was asked.
+fn aliased(standin: &AutodiscoverStandIn, srv: &[&str], aliases: &[&str], yes: &[bool]) -> (Outcome, Vec<(String, ConsentReason)>) {
+    let srv: Vec<(&str, u16)> = srv.iter().map(|host| (*host, 443)).collect();
+    aliased_at(standin, &srv, aliases, yes)
+}
+
+/// [`aliased`], with the port the SRV record gives each target.
+fn aliased_at(standin: &AutodiscoverStandIn, srv: &[(&str, u16)], aliases: &[&str], yes: &[bool]) -> (Outcome, Vec<(String, ConsentReason)>) {
+    let mut machine = search("ada@example.org");
+    let mut asked = Vec::new();
+    for _ in 0..400 {
+        match machine.step() {
+            Step::Request(request) => {
+                let result = block_on(standin.exchange(&request)).unwrap();
+                machine.response(result);
+            }
+            Step::LookupSrv(_) => machine.srv_and_aliases(
+                Some(srv.iter().map(|(host, port)| ((*host).to_owned(), *port)).collect()),
+                aliases.iter().map(|host| (*host).to_owned()).collect(),
+            ),
+            Step::NeedsYes(consent) => {
+                asked.push((consent.host().to_owned(), consent.reason()));
+                if yes.get(asked.len() - 1).copied().unwrap_or(false) {
+                    machine.agree();
+                } else {
+                    machine.decline();
+                }
+            }
+            Step::Done(outcome) => return (outcome, asked),
+        }
+    }
+    panic!("the search never ended");
+}
+
+#[test]
+fn an_alias_s_host_in_the_domain_has_the_sign_in_only_after_a_yes_unlike_an_srv_target() {
+    let standin = || {
+        AutodiscoverStandIn::new()
+            .route("example.org", Route::Status(404))
+            .route("autodiscover.example.org", Route::Unreachable)
+            .route("autodiscover.web.example.org", good())
+    };
+    // Named by the alias alone: asked, and nothing sent on a no.
+    let no = standin();
+    let (_, asked) = aliased(&no, &[], &["autodiscover.web.example.org"], &[false]);
+    assert_eq!(
+        asked,
+        [("autodiscover.web.example.org".to_owned(), ConsentReason::Alias)],
+        "asked as the alias's host, which the domain's DNS did name"
+    );
+    assert!(no.hosts_asked().contains(&"autodiscover.web.example.org".to_owned()));
+    assert!(no.hosts_sent_credentials().is_empty());
+    let yes = standin();
+    let (outcome, _) = aliased(&yes, &[], &["autodiscover.web.example.org"], &[true]);
+    assert!(matches!(outcome, Outcome::Found(_)), "{outcome:?}");
+    assert_eq!(yes.hosts_sent_credentials(), ["autodiscover.web.example.org"]);
+    // Named by the SRV record as well: the SRV record's word stands, and nobody is asked.
+    let both = standin();
+    let (outcome, asked) = aliased(&both, &["autodiscover.web.example.org"], &["autodiscover.web.example.org"], &[]);
+    assert!(matches!(outcome, Outcome::Found(_)) && asked.is_empty(), "{outcome:?} {asked:?}");
+}
+
+#[test]
+fn an_alias_s_host_that_the_srv_record_names_at_another_port_is_asked_at_443_too() {
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("autodiscover.hoster.example", Route::Unreachable);
+    let _ = aliased_at(&standin, &[("autodiscover.hoster.example", 8443)], &["autodiscover.hoster.example"], &[true, true]);
+    let urls: Vec<String> = standin.state().seen.iter().map(|seen| seen.url.clone()).collect();
+    assert!(urls.iter().any(|u| u == "https://autodiscover.hoster.example:8443/autodiscover/autodiscover.xml"), "{urls:?}");
+    assert!(urls.iter().any(|u| u == "https://autodiscover.hoster.example/autodiscover/autodiscover.xml"), "{urls:?}");
+    // At 443 in the SRV record too: one place, asked once.
+    let once = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("autodiscover.hoster.example", Route::Unreachable);
+    let _ = aliased_at(&once, &[("autodiscover.hoster.example", 443)], &["autodiscover.hoster.example"], &[true, true]);
+    let asked = once.state().seen.iter().filter(|seen| seen.url == "https://autodiscover.hoster.example/autodiscover/autodiscover.xml").count();
+    assert_eq!(asked, 1);
+}
+
+#[test]
+fn the_alias_s_host_is_asked_after_as_many_srv_targets_as_are_taken() {
+    let standin = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("ad1.example.org", Route::Unreachable)
+        .route("ad2.example.org", Route::Unreachable)
+        .route("ad3.example.org", Route::Unreachable)
+        .route("autodiscover.hoster.example", good());
+    let (outcome, asked) =
+        aliased(&standin, &["ad1.example.org", "ad2.example.org", "ad3.example.org"], &["autodiscover.hoster.example"], &[true, true]);
+    assert!(matches!(outcome, Outcome::Found(_)), "{outcome:?}");
+    let hosts = standin.hosts_asked();
+    let at = |host: &str| hosts.iter().position(|h| h == host).unwrap();
+    assert!(at("ad3.example.org") < at("autodiscover.hoster.example"), "{hosts:?}");
+    // Outside the domain: asked about before anything was sent there.
+    assert_eq!(asked.first(), Some(&("autodiscover.hoster.example".to_owned(), ConsentReason::Alias)), "asked about as the alias's host");
+    // An alias alone is somewhere to ask: the step doesn't fail for want of an SRV record.
+    let alone = AutodiscoverStandIn::new()
+        .route("example.org", Route::Status(404))
+        .route("autodiscover.example.org", Route::Unreachable)
+        .route("autodiscover.hoster.example", good());
+    let (outcome, _) = aliased(&alone, &[], &["autodiscover.hoster.example"], &[true, true]);
+    assert!(matches!(outcome, Outcome::Found(_)), "{outcome:?}");
+}

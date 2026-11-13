@@ -53,6 +53,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("proto", Class::Layer(3)),
     // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
     ("jmap", Class::Layer(3)),
+    // JMAP's request, response and object types for serde (#1236): no I/O and no workspace crate, reusable outside the client.
+    ("jmap-types", Class::Standalone),
     ("dav", Class::Layer(3)),
     // Assuan and gpg-agent over any stream, beside `proto`: no sockets, so it builds for the browser too (which never uses it).
     ("assuan", Class::Layer(3)),
@@ -61,6 +63,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("net", Class::Layer(3)),
     ("engine", Class::Layer(4)),
     ("mcp", Class::Layer(5)),
+    // Host services (credential store, platform entries) below the window, over engine and net.
+    ("host", Class::Layer(5)),
     ("ui-egui", Class::Layer(6)),
     ("testkit", Class::Testkit),
     // apps and tooling
