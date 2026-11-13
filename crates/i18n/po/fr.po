@@ -10850,6 +10850,12 @@ msgstr "Sélectionnez d'abord du texte"
 msgid "Select the message before previewing its attachment."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Sélectionnez au plus {n} messages pour vous désabonner."
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -14998,6 +15004,24 @@ msgstr "Message non enregistré"
 msgid "Unsubscribe"
 msgstr "Se désabonner"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Se désabonner de leurs listes"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Se désabonner des messages sélectionnés"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+msgstr "Se désabonner de {lists} listes : {click} en un clic (le serveur de chaque liste reçoit l'adresse qu'elle a donnée, rien d'autre, une à la fois), {mail} par un message de votre compte, via votre Boîte d'envoi. {pages} se désabonnent sur leur propre page : ouvrez chacun de ces messages pour le faire là-bas. Le courrier que votre serveur ne garantit pas, ou qui a un avertissement sur son expéditeur, est laissé de côté."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -15009,6 +15033,12 @@ msgstr "Désabonnez-vous sur la page de la liste, dans votre navigateur."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Désabonné."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Désabonnement : {click} en un clic, {mail} par e-mail, {pages} à faire sur leur page, {left} laissés de côté."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -18248,6 +18278,12 @@ msgstr "ce compte n'a pas de dossier {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "ce compte n'est pas autorisé à l'enregistrer"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "cette version ne peut pas se désabonner en un clic"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs

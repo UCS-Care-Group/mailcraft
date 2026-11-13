@@ -157,6 +157,7 @@ const SAFE: &[&str] = &[
     "mail.flag",
     // How a message can be unsubscribed from ("send": true is asked about, `classify`).
     "mail.unsubscribe",
+    "mail.unsubscribeMany",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -430,6 +431,7 @@ const SEND: &[&str] = &[
     "ui.downloadPictures",
     // Unsubscribes from a list: one click reaches its server, by mail writes to it.
     "ui.unsubscribe",
+    "ui.unsubscribeMany",
     "ui.retryPictures",
     "ui.joinMeeting",
     "ui.reportProblem",
@@ -776,7 +778,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
-        "mail.unsubscribe" if sends => Access::Owner(Class::Send),
+        "mail.unsubscribe" | "mail.unsubscribeMany" if sends => Access::Owner(Class::Send),
         // A command that closes the message being written, or puts another in its place, saves
         // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
         // away. When the owner wrote in it, the window asks them every time either way, saved or
@@ -1407,6 +1409,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
             let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
             format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
+        }
+        "mail.unsubscribeMany" | "ui.unsubscribeMany" => {
+            let named = taken(params);
+            let ids = if named.is_empty() { s.sel.messages.clone() } else { named };
+            format!("unsubscribe from the lists of {}, each by its server or by mail", messages_text(s, &ids))
         }
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             let who = invitees(s, params);

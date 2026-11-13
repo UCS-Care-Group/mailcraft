@@ -10,6 +10,7 @@
 //! server doesn't vouch for, and mail with a sender warning): a message that can't be
 //! unsubscribed from shows nothing.
 
+use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::Receiver;
 
 use egui::{Sense, Ui, vec2};
@@ -36,30 +37,57 @@ pub(crate) enum Outcome {
     Failed(String),
 }
 
-/// The one-click unsubscribe on its way, and what came of the last one.
+/// The most outcomes kept (one a message), and the most one-click requests waiting their turn.
+const MAX_KEPT: usize = 1_000;
+
+/// The one-click unsubscribes on their way, one at a time, and what came of each.
 #[derive(Default)]
 pub(crate) struct Unsubscribing {
     /// The message, and the list server's answer to come.
     flying: Option<(u64, Receiver<Result<(), String>>)>,
-    /// The message, and what came of it.
-    said: Option<(u64, Outcome)>,
+    /// The one-click requests of a selection waiting their turn: the message, the address.
+    waiting: VecDeque<(u64, String)>,
+    /// What came of unsubscribing, by message.
+    said: HashMap<u64, Outcome>,
 }
 
-/// The answer of a one-click unsubscribe, once it has come.
-fn poll(app: &mut MailApp) {
-    let Some((id, rx)) = &app.unsubscribing.flying else { return };
-    let id = *id;
-    let answer = match rx.try_recv() {
-        Ok(answer) => answer,
-        Err(std::sync::mpsc::TryRecvError::Empty) => return,
-        Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("the request was lost").to_string()),
-    };
-    app.unsubscribing.flying = None;
-    let said = match answer {
-        Ok(()) => Outcome::Accepted,
-        Err(why) => Outcome::Failed(why),
-    };
-    app.unsubscribing.said = Some((id, said));
+impl Unsubscribing {
+    /// Whether a request for `id` is on its way or waiting its turn.
+    fn busy_with(&self, id: u64) -> bool {
+        self.flying.as_ref().is_some_and(|(m, _)| *m == id) || self.waiting.iter().any(|(m, _)| *m == id)
+    }
+
+    fn busy(&self) -> bool {
+        self.flying.is_some() || !self.waiting.is_empty()
+    }
+
+    fn say(&mut self, id: u64, outcome: Outcome) {
+        if self.said.len() >= MAX_KEPT && !self.said.contains_key(&id) {
+            self.said.clear();
+        }
+        self.said.insert(id, outcome);
+    }
+}
+
+/// The answer of the one-click unsubscribe on its way, once it has come; then the next waiting.
+pub(crate) fn poll(app: &mut MailApp) {
+    if let Some((id, rx)) = &app.unsubscribing.flying {
+        let id = *id;
+        let answer = match rx.try_recv() {
+            Ok(answer) => answer,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("the request was lost").to_string()),
+        };
+        app.unsubscribing.flying = None;
+        app.unsubscribing.say(id, if let Err(why) = answer { Outcome::Failed(why) } else { Outcome::Accepted });
+    }
+    // One at a time: each list's server is asked once, and none waits on another's slowness long.
+    if let Some((id, url)) = app.unsubscribing.waiting.pop_front() {
+        match &app.services.unsubscribe {
+            Some(post) => app.unsubscribing.flying = Some((id, post(url))),
+            None => app.unsubscribing.say(id, Outcome::Failed(tl!("this build can't unsubscribe in one click").to_string())),
+        }
+    }
 }
 
 /// Whether the engine would offer `m` a way to unsubscribe (its server vouches for it, and it has
@@ -73,8 +101,8 @@ pub(crate) fn offered(app: &mut MailApp, m: &Message) -> bool {
 /// The bar above a message from a mailing list: Unsubscribe, how it is going, or what came of it.
 pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: &Tokens) {
     poll(app);
-    let flying = app.unsubscribing.flying.as_ref().is_some_and(|(id, _)| *id == m.id);
-    let said = app.unsubscribing.said.as_ref().filter(|(id, _)| *id == m.id).map(|(_, said)| said.clone());
+    let flying = app.unsubscribing.busy_with(m.id);
+    let said = app.unsubscribing.said.get(&m.id).cloned();
     if !flying && said.is_none() && !offered(app, m) {
         return;
     }
@@ -174,7 +202,91 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<crate::dialogs::Quest
 
 /// `ui.unsubscribe`: the window commands of this module (`UI_COMMANDS` lists them).
 pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
-    (id == "ui.unsubscribe").then(|| unsubscribe(app, p))
+    match id {
+        "ui.unsubscribe" => Some(unsubscribe(app, p)),
+        "ui.unsubscribeMany" => Some(many(app, p)),
+        _ => None,
+    }
+}
+
+/// The messages a `ui.unsubscribeMany` is about: `ids`, else the selected ones.
+fn chosen(app: &MailApp, p: &Value) -> Vec<u64> {
+    match p.get("ids").and_then(Value::as_array) {
+        Some(ids) => ids.iter().filter_map(Value::as_u64).collect(),
+        None => app.session.sel.messages.clone(),
+    }
+}
+
+/// The question asked before `ui.unsubscribeMany`: how many lists, which way each goes, and
+/// that a web page is opened one message at a time. `None` when none of them says how.
+pub(crate) fn question_many(app: &MailApp, p: &Value) -> Option<crate::dialogs::Question> {
+    let mut seen = std::collections::HashSet::new();
+    let (mut click, mut mail, mut pages) = (0usize, 0usize, 0usize);
+    for id in chosen(app, p) {
+        let Some(m) = app.session.mailbox.messages.get(&id) else { continue };
+        if !seen.insert(m.from.email.trim().to_lowercase()) {
+            continue;
+        }
+        match way(m) {
+            Some(Way::OneClick { .. }) => click += 1,
+            Some(Way::Mail { .. }) => mail += 1,
+            Some(Way::Page { .. }) => pages += 1,
+            None => {}
+        }
+    }
+    if click + mail + pages == 0 {
+        return None;
+    }
+    let n = |count: usize| count.to_string();
+    let text = crate::i18n::fmt(
+        tl!(
+            "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+        ),
+        &[("lists", &n(click + mail + pages)), ("click", &n(click)), ("mail", &n(mail)), ("pages", &n(pages))],
+    );
+    Some(crate::dialogs::Question::new(tl!("Unsubscribe"), text, tl!("Unsubscribe"), Value::Null))
+}
+
+/// `ui.unsubscribeMany`: each sender of the messages once, as the engine says
+/// (`mail.unsubscribeMany`): the requests by mail to the Outbox at once, one click each in turn,
+/// pages left to their messages' bars. What came of it is said in the status bar, and on each
+/// message's bar.
+fn many(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    poll(app);
+    if app.unsubscribing.busy() {
+        return Err(tl!("An unsubscribe is already on its way.").to_string());
+    }
+    let ids = chosen(app, p);
+    if ids.is_empty() {
+        return Err(tl!("Select a message first").to_string());
+    }
+    let told = app.session.run("mail.unsubscribeMany", &json!({"ids": ids, "send": true})).map_err(|e| e.to_string())?;
+    let (mut click, mut mail, mut pages) = (0usize, 0usize, 0usize);
+    for sender in told.get("senders").and_then(Value::as_array).into_iter().flatten() {
+        let Some(id) = sender.get("message").and_then(Value::as_u64) else { continue };
+        match sender.get("way").and_then(Value::as_str) {
+            Some("oneClick") if app.unsubscribing.waiting.len() < MAX_KEPT => {
+                let url = sender.get("url").and_then(Value::as_str).unwrap_or_default().to_string();
+                app.unsubscribing.said.remove(&id);
+                app.unsubscribing.waiting.push_back((id, url));
+                click += 1;
+            }
+            Some("mail") => {
+                app.unsubscribing.say(id, Outcome::Queued);
+                mail += 1;
+            }
+            Some("page") => pages += 1,
+            _ => {}
+        }
+    }
+    let left_out = told.get("leftOut").and_then(Value::as_array).map_or(0, Vec::len);
+    poll(app);
+    let n = |count: usize| count.to_string();
+    app.status(crate::i18n::fmt(
+        tl!("Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."),
+        &[("click", &n(click)), ("mail", &n(mail)), ("pages", &n(pages)), ("left", &n(left_out))],
+    ));
+    Ok(json!({"oneClick": click, "mail": mail, "pages": pages, "leftOut": left_out}))
 }
 
 fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
@@ -183,7 +295,7 @@ fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         None | Some(Value::Null) => app.session.sel.focus().ok_or_else(|| tl!("Select a message first").to_string())?,
         Some(id) => id.as_u64().ok_or_else(|| "`message` is a message's id".to_string())?,
     };
-    if app.unsubscribing.flying.is_some() {
+    if app.unsubscribing.busy() {
         return Err(tl!("An unsubscribe is already on its way.").to_string());
     }
     let told = app.session.run("mail.unsubscribe", &json!({"id": id})).map_err(|e| e.to_string())?;
@@ -192,12 +304,12 @@ fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         Some("oneClick") => {
             let Some(post) = &app.services.unsubscribe else { return Err(tl!("This build can't unsubscribe in one click.").to_string()) };
             app.unsubscribing.flying = Some((id, post(url)));
-            app.unsubscribing.said = None;
+            app.unsubscribing.said.remove(&id);
             Ok(json!({"message": id, "way": "oneClick", "started": true}))
         }
         Some("mail") => {
             app.session.run("mail.unsubscribe", &json!({"id": id, "send": true})).map_err(|e| e.to_string())?;
-            app.unsubscribing.said = Some((id, Outcome::Queued));
+            app.unsubscribing.say(id, Outcome::Queued);
             Ok(json!({"message": id, "way": "mail", "sent": true}))
         }
         Some("page") => {
@@ -206,7 +318,7 @@ fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
             }
             let Some(ctx) = app.ctx.clone() else { return Err(tl!("The window isn't up yet.").to_string()) };
             ctx.open_url(egui::OpenUrl::new_tab(url.clone()));
-            app.unsubscribing.said = Some((id, Outcome::Opened));
+            app.unsubscribing.say(id, Outcome::Opened);
             Ok(json!({"message": id, "way": "page", "url": url}))
         }
         _ => Err(tl!("This message doesn't say how to unsubscribe from it.").to_string()),

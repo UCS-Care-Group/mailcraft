@@ -125,3 +125,74 @@ fn a_message_with_a_sender_warning_offers_nothing() {
     }
     assert!(run(&mut s, id, json!({})).is_err_and(|e| e.contains("warning")));
 }
+
+/// A session with Avery's account, whose Inbox has a message from each of `senders`: its
+/// address, its `List-Unsubscribe`, whether its server vouched for it, and its date.
+fn inbox(senders: &[(&str, &str, bool, i64)]) -> (Session, Vec<Id>) {
+    let (mut s, _) = with(&[]);
+    let account = s.mailbox.accounts.first().map(|a| a.id).unwrap();
+    let new = senders
+        .iter()
+        .enumerate()
+        .map(|(n, (from, list, vouched, date))| {
+            let domain = from.rsplit_once('@').map_or("", |(_, d)| d);
+            let mut headers = vec![("List-Unsubscribe".to_string(), (*list).to_string())];
+            if *vouched {
+                headers.push(("Authentication-Results".into(), format!("mx.lumen.example; dmarc=pass header.from={domain}")));
+            }
+            Message {
+                uid: n as u32 + 10,
+                from: Address::new("", *from),
+                subject: format!("issue {n}"),
+                message_id: format!("{n}@{domain}"),
+                date: *date,
+                headers,
+                ..Default::default()
+            }
+        })
+        .collect();
+    let result = SyncResult {
+        account,
+        folders: vec![FolderDelta {
+            id: None,
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 7,
+            uid_seen: 50,
+            new,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    s.run("sync.apply", &json!({"result": result})).unwrap();
+    let ids = (0..senders.len()).map(|n| s.mailbox.messages.values().find(|m| m.subject == format!("issue {n}")).map(|m| m.id).unwrap()).collect();
+    (s, ids)
+}
+
+#[test]
+fn many_messages_give_each_sender_once_and_say_what_is_left_out() {
+    let (mut s, ids) = inbox(&[
+        ("letter@news.example", "<https://news.example/u/old>", true, 100),
+        ("letter@news.example", "<https://news.example/u/new>", true, 200),
+        ("deals@shop.example", "<mailto:leave@shop.example?subject=leave>", true, 150),
+        ("club@club.example", "<https://club.example/leave>", true, 120),
+        ("spoof@bank.example", "<https://bank.example/u>", false, 130),
+    ]);
+    let said = s.run("mail.unsubscribeMany", &json!({"ids": ids})).unwrap();
+    let senders = said["senders"].as_array().unwrap();
+    assert_eq!(senders.len(), 3, "{said}");
+    // The newest message stands for its sender.
+    let news = senders.iter().find(|x| x["sender"] == "letter@news.example").unwrap();
+    assert_eq!((news["message"].as_u64(), news["url"].as_str()), (Some(ids[1]), Some("https://news.example/u/new")));
+    let left = said["leftOut"].as_array().unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0]["sender"], "spoof@bank.example");
+    assert_eq!(said["sent"], 0, "nothing is sent without \"send\"");
+    // With "send", the request by mail goes to the Outbox; one click and pages are the window's.
+    let said = s.run("mail.unsubscribeMany", &json!({"ids": ids, "send": true})).unwrap();
+    assert_eq!(said["sent"], 1);
+    let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id).unwrap();
+    assert_eq!(s.mailbox.messages_in(outbox).map(|m| m.subject.clone()).collect::<Vec<_>>(), ["leave"]);
+    // Named wrongly, refused.
+    assert!(s.run("mail.unsubscribeMany", &json!({"ids": "all"})).is_err());
+}

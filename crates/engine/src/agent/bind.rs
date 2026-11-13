@@ -86,6 +86,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.downloadPictures"
         | "ui.unsubscribe"
         | "mail.unsubscribe"
+        | "ui.unsubscribeMany"
+        | "mail.unsubscribeMany"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
         "folder.empty" | "folder.delete" => FolderContent,

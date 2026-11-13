@@ -10901,6 +10901,12 @@ msgstr "Selezionare prima del testo"
 msgid "Select the message before previewing its attachment."
 msgstr "Seleziona il messaggio prima di aprire l’anteprima dell’allegato."
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Selezioni al massimo {n} messaggi da cui disiscriversi."
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -15096,6 +15102,24 @@ msgstr "Messaggio non salvato"
 msgid "Unsubscribe"
 msgstr "Disiscriviti"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Disiscriviti dalle loro liste"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Disiscriviti dai messaggi selezionati"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+msgstr "Disiscriversi da {lists} liste: {click} con un clic (il server di ogni lista riceve l'indirizzo che ha dato, nient'altro, una alla volta), {mail} con un messaggio del suo account tramite la sua Posta in uscita. {pages} disiscrivono dalla propria pagina: apra ciascuno di quei messaggi per farlo lì. La posta che il suo server non garantisce, o con un avviso sul mittente, viene tralasciata."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -15107,6 +15131,12 @@ msgstr "Si disiscriva sulla pagina della lista, nel suo browser."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Disiscrizione fatta."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Disiscrizione: {click} con un clic, {mail} per posta, {pages} da fare sulla loro pagina, {left} tralasciati."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -18352,6 +18382,12 @@ msgstr "questo account non ha una cartella {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "questo account non è autorizzato a salvarlo"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "questa versione non può disiscriversi con un clic"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs

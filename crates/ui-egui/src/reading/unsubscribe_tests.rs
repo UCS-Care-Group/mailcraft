@@ -87,7 +87,7 @@ fn a_refusal_from_the_list_is_said() {
     let _ = host(&mut app, Err("the list's server answered 500".into()));
     app.execute("ui.unsubscribe", json!({"message": id})).unwrap();
     poll(&mut app);
-    assert!(matches!(&app.unsubscribing.said, Some((m, Outcome::Failed(why))) if *m == id && why.contains("500")));
+    assert!(matches!(app.unsubscribing.said.get(&id), Some(Outcome::Failed(why)) if why.contains("500")));
     // The bar says so, and offers to try again.
     let mut harness = window(app, (1280.0, 900.0));
     select(&mut harness, id);
@@ -146,4 +146,46 @@ fn the_question_says_what_each_way_does() {
     let (app, id) = list_app(&[("Authentication-Results", PASSED)]);
     assert!(question(&app, &json!({"message": id})).is_none());
     let _ = Way::Page { url: String::new() }.kind();
+}
+
+/// [`list_app`] with one more vouched message from `from`, unsubscribing as `list` says; its id.
+fn add(app: &mut MailApp, from: &str, list: &str) -> u64 {
+    let inbox = app.session.mailbox.inbox().unwrap();
+    let domain = from.rsplit_once('@').map_or("", |(_, d)| d);
+    let m = Message {
+        folder: inbox,
+        from: Address::new("", from),
+        subject: format!("From {domain}"),
+        uid: 2,
+        date: NOW - 7_200,
+        headers: vec![
+            ("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={domain}")),
+            ("List-Unsubscribe".into(), list.into()),
+            ("List-Unsubscribe-Post".into(), "List-Unsubscribe=One-Click".into()),
+        ],
+        ..Message::default()
+    };
+    app.session.mailbox.add_message(m).unwrap()
+}
+
+#[test]
+fn a_selection_unsubscribes_each_list_once_one_click_at_a_time() {
+    let (mut app, first) = list_app(&ONE_CLICK);
+    let second = add(&mut app, "deals@shop.example", "<https://shop.example/leave>");
+    let page = add(&mut app, "club@club.example", "<http://club.example/leave>");
+    let asked = host(&mut app, Ok(()));
+    let ids = json!([first, second, page]);
+    let q = super::question_many(&app, &json!({"ids": ids})).unwrap();
+    assert!(q.text.contains("3 lists") && q.text.contains("2 in one click"), "{}", q.text);
+    let said = app.execute("ui.unsubscribeMany", json!({"ids": ids})).unwrap();
+    assert_eq!((said["oneClick"].as_u64(), said["pages"].as_u64()), (Some(2), Some(1)));
+    // One at a time: the first is on its way, the second waits its turn.
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    for _ in 0..4 {
+        poll(&mut app);
+    }
+    assert_eq!(asked.lock().unwrap().len(), 2);
+    assert_eq!((app.unsubscribing.said.get(&first), app.unsubscribing.said.get(&second)), (Some(&Outcome::Accepted), Some(&Outcome::Accepted)));
+    // The page is its message's to open, on its own bar.
+    assert_eq!(app.unsubscribing.said.get(&page), None);
 }

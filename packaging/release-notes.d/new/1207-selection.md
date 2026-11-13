@@ -1,0 +1,1 @@
+- Unsubscribe from the lists of several messages at once: select them, right-click and choose Unsubscribe from Their Lists. Each sender is handled once, after one question; web pages are never opened in bulk, and mail with a warning about its sender is left out ([#1207](https://github.com/GITHUB_REPOSITORY/issues/1207)).

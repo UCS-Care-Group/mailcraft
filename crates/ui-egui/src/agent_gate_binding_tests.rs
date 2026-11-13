@@ -131,6 +131,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
     ("ui.unsubscribe", "{}", Setup::None),
+    ("ui.unsubscribeMany", "{}", Setup::None),
+    ("mail.unsubscribeMany", r#"{"send": true}"#, Setup::None),
     ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),

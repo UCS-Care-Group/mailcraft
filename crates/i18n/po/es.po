@@ -10850,6 +10850,12 @@ msgstr "Seleccione primero algo de texto"
 msgid "Select the message before previewing its attachment."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Seleccione como máximo {n} mensajes para darse de baja."
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -14998,6 +15004,24 @@ msgstr "Mensaje sin guardar"
 msgid "Unsubscribe"
 msgstr "Darse de baja"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Darse de baja de sus listas"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Darse de baja de los mensajes seleccionados"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+msgstr "Darse de baja de {lists} listas: {click} con un clic (el servidor de cada lista recibe la dirección que dio, nada más, una a una), {mail} con un mensaje de su cuenta a través de su Bandeja de salida. {pages} dan de baja en su propia página: abra cada uno de esos mensajes para hacerlo allí. El correo que su servidor no garantiza, o con una advertencia sobre su remitente, se deja de lado."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -15009,6 +15033,12 @@ msgstr "Dese de baja en la página de la lista, en su navegador."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Baja realizada."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Dando de baja: {click} con un clic, {mail} por correo, {pages} por hacer en su página, {left} dejados de lado."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -18248,6 +18278,12 @@ msgstr "esta cuenta no tiene carpeta {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "esta cuenta no tiene permiso para guardarlo"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "esta versión no puede darse de baja con un clic"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs

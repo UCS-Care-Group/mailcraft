@@ -11386,6 +11386,12 @@ msgstr "Selecteer eerst tekst"
 msgid "Select the message before previewing its attachment."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Selecteer hoogstens {n} berichten om af te melden."
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -15796,6 +15802,24 @@ msgstr "Niet-opgeslagen bericht"
 msgid "Unsubscribe"
 msgstr "Afmelden"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Afmelden bij hun lijsten"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Afmelden bij de geselecteerde berichten"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+msgstr "Afmelden bij {lists} lijsten: {click} met één klik (de server van elke lijst krijgt het adres dat die gaf, verder niets, één tegelijk), {mail} met een bericht van uw account via uw Postvak UIT. {pages} melden af op een eigen pagina: open elk van die berichten om het daar te doen. E-mail waar uw server niet voor instaat, of met een waarschuwing over de afzender, wordt overgeslagen."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -15807,6 +15831,12 @@ msgstr "Meld u af op de pagina van de lijst in uw browser."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Afgemeld."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Afmelden: {click} met één klik, {mail} per e-mail, {pages} te doen op hun pagina, {left} overgeslagen."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19195,6 +19225,12 @@ msgstr "dit account heeft geen map {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "dit account mag het niet opslaan"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "deze versie kan niet met één klik afmelden"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs

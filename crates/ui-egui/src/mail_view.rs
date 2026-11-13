@@ -1261,8 +1261,16 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Add Sender to Contacts", "people.fromMessage", json!({}));
         mi(ui, app, "Find Related Messages", "mail.findRelated", json!({}));
         mi(ui, app, "Messages from Sender", "mail.findFromSender", json!({"id": id}));
-        // Only when it can be done: the bar above the message says the same (#1207).
-        if crate::reading::unsubscribe::offered(app, m) {
+        // Only when it can be done: the bar above the message says the same (#1207). With several
+        // messages selected, each sender of theirs once.
+        let picked = app.session.sel.messages.clone();
+        if picked.len() > 1 {
+            let lists =
+                picked.iter().take(500).any(|i| app.session.mailbox.messages.get(i).is_some_and(|m| mailcraft_model::unsubscribe::way(m).is_some()));
+            if lists {
+                mi(ui, app, "Unsubscribe from Their Lists", "ui.unsubscribeMany", json!({}));
+            }
+        } else if crate::reading::unsubscribe::offered(app, m) {
             mi(ui, app, "Unsubscribe", "ui.unsubscribe", json!({"message": id}));
         }
         mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
