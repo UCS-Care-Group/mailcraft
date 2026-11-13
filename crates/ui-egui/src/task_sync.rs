@@ -23,79 +23,18 @@
 //! ([`crate::favorites_sync::NEEDS_APPROVAL`]…).
 
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::tasks_remote;
-use mailcraft_model::remote_tasks::{TasksDownload, TasksUpload, TasksUploaded};
-use mailcraft_model::{Account, Id, LocalTasks};
+use mailcraft_engine::sync_driver::{JobBook, Pacing, SETTLING_TRIES};
+use mailcraft_model::{Id, LocalTasks};
 use serde_json::json;
 
 use crate::dialogs::{Dialog, Question};
-use crate::{MailApp, Tokens, now_ms};
+use crate::{MailApp, now_ms};
 
-/// How often an account's to-dos are read when nothing is waiting to go, and how long a change
-/// is left to settle before it goes (milliseconds), and the wait after a job that failed.
-const REFRESH_MS: f64 = 5.0 * 60_000.0;
-const QUIET_MS: f64 = 3_000.0;
-const FIRST_RETRY_MS: f64 = 30_000.0;
-const LONGEST_RETRY_MS: f64 = 15.0 * 60_000.0;
-/// How many times a job tries again, quietly, when the to-dos are refused right after the owner
-/// allowed them (#491): a permission given a moment ago can be refused until Microsoft has taken
-/// it in everywhere. With [`FIRST_RETRY_MS`] doubling, the last try is some minutes after.
-const SETTLING_TRIES: u32 = 3;
-
-/// What the host is asked to do for one account's to-dos ([`crate::Services::graph_tasks`]).
-pub struct TasksJob {
-    pub account: Account,
-    /// The account's sign-in settings, with the application id filled in.
-    pub oauth: mailcraft_model::OAuth,
-    /// The account's refresh token: the job gets its own token for the to-dos with it.
-    pub refresh: String,
-    /// What the server is to be told first.
-    pub upload: TasksUpload,
-    /// The zone the calendar is shown in ([`mailcraft_engine::Session::zone`]): a to-do's start
-    /// and due dates are days there, read from and sent to the server as its midnights (#809).
-    pub zone: mailcraft_time::Zone,
-    pub cancel: Arc<AtomicBool>,
-}
-
-/// What a [`TasksJob`] came to. Never an error as a whole: every trouble is a line in the answer.
-#[derive(Default)]
-pub struct TasksResult {
-    pub account: Id,
-    /// The refresh token is the account's newest.
-    pub tokens: Option<Tokens>,
-    /// The sign-in doesn't cover `Tasks.ReadWrite`: the owner is to be asked.
-    pub consent_needed: bool,
-    /// The sign-in itself is no longer taken.
-    pub sign_in_refused: bool,
-    /// The server said this account may not use its to-dos.
-    pub denied: bool,
-    pub uploaded: Option<TasksUploaded>,
-    pub download: Option<TasksDownload>,
-    pub errors: Vec<String>,
-}
-
-/// Where an account's permission for its to-dos stands.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Permission {
-    /// A job read them with it.
-    Given,
-    /// A job found the sign-in doesn't cover it: the owner is to be asked.
-    Needed,
-    /// The owner is being asked: the question, or Microsoft's page.
-    Asking,
-    /// The question went away unanswered: not asked again by itself.
-    Declined,
-    /// Asked, and no: why, in a few words.
-    Refused(String),
-    /// Microsoft no longer took the sign-in the job had (its refresh token's [`fingerprint`]),
-    /// for mail either (#520). Ask again (File › Info) is one way back; a new sign-in for mail is
-    /// the other, and the next look runs a job again by itself.
-    SignInOver(u64),
-}
+pub(crate) use mailcraft_engine::sync_driver::{Permission, fingerprint};
+pub use mailcraft_host::tasks::{TasksJob, TasksResult};
 
 /// What a to-do job was started for: the mailbox opening ([`mailcraft_engine::Session::openings`])
 /// and the account as it was, whose address the answer is taken in for (AU3-08).
@@ -110,9 +49,9 @@ pub struct TaskSync {
     /// The job under way: for which account, since when, the [`fingerprint`] of the refresh
     /// token it was given, and the answer to come.
     rx: Option<(Id, f64, u64, Begun, Receiver<TasksResult>)>,
-    /// When each account's to-dos were last asked for, and the failures since the last answer.
-    checked: HashMap<Id, f64>,
-    failures: HashMap<Id, (u32, f64)>,
+    /// When each account's to-dos were last asked for, the failures since the last answer, and
+    /// the changes waiting (the engine's bookkeeping: [`JobBook`]).
+    book: JobBook,
     /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
     /// job that came to nothing waits from when it ended, however long it ran (#661).
     pub(crate) clock: f64,
@@ -120,8 +59,6 @@ pub struct TaskSync {
     /// The owner allowed the to-dos on Microsoft's page: how many refusals are still taken for
     /// Microsoft not having taken it in yet, rather than for a no.
     settling: HashMap<Id, u32>,
-    /// How many changes were waiting the last time, and since when.
-    waiting: HashMap<Id, (usize, f64)>,
     /// The question about the to-dos that exist only here is on screen.
     pub(crate) offer_open: bool,
     /// How many changes wait per account, worked out for the mailbox as of this revision (every
@@ -139,13 +76,8 @@ impl TaskSync {
 impl MailApp {
     /// Whether the to-dos of `account` wait for the owner's permission, or for a new sign-in.
     fn tasks_blocked(&self, account: Id) -> bool {
-        match self.tasks.perm.get(&account) {
-            Some(Permission::Needed | Permission::Asking | Permission::Declined | Permission::Refused(_)) => true,
-            Some(Permission::SignInOver(over)) => {
-                !self.tokens.get(&account).is_some_and(|t| !t.refresh.is_empty() && fingerprint(&t.refresh) != *over)
-            }
-            _ => false,
-        }
+        let refresh = self.tokens.get(&account).map(|t| t.refresh.as_str());
+        Permission::blocks(self.tasks.perm.get(&account), refresh)
     }
 
     /// Look whether any account's to-dos are due, and start a job when they are. Called every
@@ -188,21 +120,7 @@ impl MailApp {
                     n
                 }
             };
-            let since = match self.tasks.waiting.get(&account) {
-                Some((seen, since)) if *seen == ready => *since,
-                _ => {
-                    self.tasks.waiting.insert(account, (ready, now));
-                    now
-                }
-            };
-            let pushes = ready > 0 && now - since >= QUIET_MS;
-            let asked = self.tasks.checked.get(&account).copied();
-            if !(pushes || asked.is_none_or(|at| now - at >= REFRESH_MS)) {
-                continue;
-            }
-            let (failures, at) = self.tasks.failures.get(&account).copied().unwrap_or((0, 0.0));
-            let patience = (FIRST_RETRY_MS * f64::from(1u32 << failures.saturating_sub(1).min(8))).min(LONGEST_RETRY_MS);
-            if failures > 0 && now - at < patience {
+            if !self.tasks.book.due(&Pacing::TASKS, account, ready, now) {
                 continue;
             }
             if self.start_tasks_job(account, now) {
@@ -241,7 +159,7 @@ impl MailApp {
         // A delete that goes out can't be undone: the task would come back here, gone there (#706).
         tasks_remote::mark_sent(&mut self.session, deletes);
         self.tasks.rx = Some((account, now, given, begun, rx));
-        self.tasks.checked.insert(account, now);
+        self.tasks.book.started(account, now);
         true
     }
 
@@ -288,9 +206,8 @@ impl MailApp {
         if result.consent_needed && settling > 0 {
             log::info!("tasks, account {account}: refused just after the owner allowed them; trying again ({settling} more)");
             self.tasks.settling.insert(account, settling - 1);
-            let (n, _) = self.tasks.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.tasks.failures.insert(account, (n.saturating_add(1), self.tasks.clock.max(started)));
-            self.tasks.checked.remove(&account);
+            self.tasks.book.failed(account, self.tasks.clock.max(started));
+            self.tasks.book.forget_checked(account);
         } else if result.consent_needed {
             log::info!("tasks, account {account}: the sign-in doesn't cover to-dos; the owner is to be asked");
             if !matches!(self.tasks.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_))) {
@@ -332,14 +249,11 @@ impl MailApp {
             }
         }
         if worked && errors.is_empty() {
-            self.tasks.failures.remove(&account);
-        } else if !worked || !errors.is_empty() {
-            let (n, _) = self.tasks.failures.get(&account).copied().unwrap_or((0, 0.0));
-            if !result.consent_needed && !result.sign_in_refused {
-                self.tasks.failures.insert(account, (n.saturating_add(1), self.tasks.clock.max(started)));
-            }
+            self.tasks.book.worked(account);
+        } else if !result.consent_needed && !result.sign_in_refused {
+            self.tasks.book.failed(account, self.tasks.clock.max(started));
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("tasks", account, &errors, None, false);
     }
 
     /// Ask the owner, once, when a job found the sign-in doesn't cover to-dos: a question first,
@@ -488,8 +402,8 @@ impl MailApp {
     pub(crate) fn tasks_allowed(&mut self, account: Id) {
         self.tasks.perm.remove(&account);
         self.tasks.settling.insert(account, SETTLING_TRIES);
-        self.tasks.failures.remove(&account);
-        self.tasks.checked.remove(&account);
+        self.tasks.book.worked(account);
+        self.tasks.book.forget_checked(account);
     }
 
     /// The to-dos' part of File › Info's line about keeping in step with Outlook.
@@ -524,13 +438,4 @@ impl MailApp {
             None => (tl!("Tasks: not asked yet").to_string(), false),
         })
     }
-}
-
-/// A refresh token, told apart from another without being kept: whether the account has signed
-/// in again since a job's was refused.
-pub(crate) fn fingerprint(refresh: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    refresh.hash(&mut hasher);
-    hasher.finish()
 }

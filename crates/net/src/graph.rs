@@ -2262,4 +2262,6 @@ mod shared_calendar_move_tests;
 #[cfg(test)]
 mod standin_tests;
 #[cfg(test)]
+mod standin_todo_tests;
+#[cfg(test)]
 mod tests;

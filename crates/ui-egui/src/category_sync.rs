@@ -383,7 +383,7 @@ impl MailApp {
                 self.category_sync.checked.remove(&account);
             }
         }
-        self.note_sync_problems(account, &errors, false);
+        self.note_problems_from("categories", account, &errors, None, false);
     }
 
     /// Ask the owner, once, when a job found the sign-in doesn't cover changing the list: the one
