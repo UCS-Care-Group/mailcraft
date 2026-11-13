@@ -162,3 +162,40 @@ fn a_heading_activated_without_the_pointer_toggles() {
     w.run_steps(4);
     assert!(!collapsed(&w, &group));
 }
+
+/// A heading is a switch only where the groups collapse (#929). With the groups turned off there
+/// are none; under categories a message is listed under each of its own, and during a search
+/// every group shows whole. A click there would send a command the engine refuses, so the
+/// heading is drawn and left alone. Pinned and "No category" carry no category of their own and
+/// would otherwise still look clickable under categories.
+#[test]
+fn a_heading_is_no_switch_where_the_groups_do_not_collapse() {
+    let mut w = window();
+    let (group, _) = a_group(&mut w);
+    let switch =
+        |w: &Window, name: &str| w.query_all(egui_kittest::kittest::By::new().role(egui::accesskit::Role::Button).label(name)).next().is_some();
+    assert!(switch(&w, &group), "a switch to begin with");
+
+    // Arranged by categories, including the headings that are no category: Pinned, No category.
+    w.state_mut().execute("view.sort", json!({"by": "categories"})).unwrap();
+    w.run_steps(3);
+    let headings: Vec<String> = w.state_mut().session.rows().iter().filter_map(|r| r.group.clone()).collect();
+    assert!(headings.iter().any(|h| h == "Pinned"), "the sample's Inbox has a pinned message: {headings:?}");
+    for h in &headings {
+        assert!(!switch(&w, h), "{h} is no switch under categories");
+    }
+
+    // While something is searched for, every group shows whole.
+    w.state_mut().execute("view.sort", json!({"by": "date"})).unwrap();
+    w.state_mut().execute("view.search", json!({"query": "is:unread"})).unwrap();
+    w.run_steps(3);
+    let searched: Vec<String> = w.state_mut().session.rows().iter().filter_map(|r| r.group.clone()).collect();
+    for h in &searched {
+        assert!(!switch(&w, h), "{h} is no switch during a search");
+    }
+
+    // And a switch again once the search ends.
+    w.state_mut().execute("view.clearSearch", json!({})).unwrap();
+    w.run_steps(3);
+    assert!(switch(&w, &group), "a switch again");
+}

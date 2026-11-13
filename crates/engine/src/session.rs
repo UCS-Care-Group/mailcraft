@@ -2930,10 +2930,16 @@ impl Session {
     /// work that looks for a folded row, so that a folder with nothing collapsed, a search, or a
     /// list arranged by categories costs nothing.
     pub(crate) fn folds_now(&self) -> bool {
-        self.prefs.show_groups
-            && self.view.sort != crate::SortBy::Categories
-            && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
-            && self.prefs.collapsed_in(self.view.folder).next().is_some()
+        self.groups_collapse() && self.prefs.collapsed_in(self.view.folder).next().is_some()
+    }
+
+    /// Whether the groups of the list in view collapse at all (#929): with the groups turned off
+    /// there are no headings, arranged by categories a message is listed under each of its
+    /// categories, and while something is searched for every group shows whole. The window asks
+    /// this before it makes a heading a switch, so that a heading never takes a click the engine
+    /// would refuse.
+    pub fn groups_collapse(&self) -> bool {
+        self.prefs.show_groups && self.view.sort != crate::SortBy::Categories && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
     }
 
     /// Whether the selection ends on a collapsed group's row of the message list (#929). Such a

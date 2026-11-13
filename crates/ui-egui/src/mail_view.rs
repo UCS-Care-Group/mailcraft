@@ -228,8 +228,11 @@ fn group_name(group: &str, category: bool) -> &str {
 #[allow(clippy::too_many_arguments)]
 fn group_heading(app: &mut MailApp, ui: &mut Ui, row: &Row, group: &str, gr: Rect, drawn: &Drawn, focus: Option<(Id, u16)>, t: &Tokens) {
     let name = group_name(group, row.category);
-    // A category's heading doesn't collapse: a message is listed under each of its categories.
-    if row.category {
+    // A heading is a switch only where the groups collapse (#929): with them turned off, under
+    // categories (a message is listed under each of its own) and during a search, a click would
+    // send a command the engine refuses, so the heading is drawn and left alone. Pinned and
+    // "No category" carry no category of their own and would otherwise look clickable there.
+    if row.category || !app.session.groups_collapse() {
         paint_clipped(ui.painter(), pos2(gr.min.x + 16.0, gr.center().y + 3.0), gr.width() - 22.0, name, semibold(GROUP_TEXT), t.group_label);
         return;
     }

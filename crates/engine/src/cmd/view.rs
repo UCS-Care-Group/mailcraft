@@ -301,13 +301,14 @@ fn named_group(s: &mut Session, v: &Value) -> Result<String, crate::CmdError> {
         }
         return Ok(group.to_string());
     }
-    let focus = s.sel.focus().ok_or_else(|| bad("select a message in a group first, or name the `group`"))?;
-    // Listed under an open conversation, a row is shown under that conversation's heading and not
-    // under its own date's (#503): the group the owner sees it in is the conversation's, and that
-    // is the one Left collapses.
+    // The group is the row's, not the selected message's: a conversation is listed under the
+    // heading of the message on top of it, which needn't be the one selected (a newer reply came,
+    // #503), and a row under an open conversation is shown under that conversation's heading.
+    // Taking the selected message's own date would collapse a group the owner isn't looking at.
     let rows = s.rows();
-    let under = rows.iter().find(|r| r.id == focus && r.under.is_some()).and_then(|r| r.under);
-    crate::list::heading_of(s, under.unwrap_or(focus)).ok_or_else(|| bad("the message selected is in no group"))
+    let at = s.sel.focus_in(&rows).ok_or_else(|| bad("select a message in a group first, or name the `group`"))?;
+    let row = rows.get(at).ok_or_else(|| bad("select a message in a group first, or name the `group`"))?;
+    crate::list::heading_of(s, row.under.unwrap_or(row.id)).ok_or_else(|| bad("the message selected is in no group"))
 }
 
 /// What `view.collapseGroup` and `view.expandGroup` answer: the folder and its collapsed groups.

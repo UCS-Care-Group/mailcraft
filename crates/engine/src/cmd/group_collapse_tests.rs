@@ -850,3 +850,31 @@ fn the_groups_of_a_folder_that_is_gone_are_let_go_of() {
     assert!(s.prefs.collapsed_groups.is_empty(), "another file carries none of them: {:?}", s.prefs.collapsed_groups);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The group Left collapses is the row's, not the selected message's (#929). In conversation
+/// view a row is headed by the message on top of it, which needn't be the one selected: a reply
+/// comes in and the conversation moves to Today while the message picked is still last month's.
+/// Collapsing the older message's group would fold a group the owner isn't looking at and leave
+/// the row where it is.
+#[test]
+fn the_group_is_the_rows_even_when_another_message_heads_it() {
+    let (mut s, _) = inbox();
+    run(&mut s, "view.conversations", json!({"value": true}));
+    let rows = s.rows().to_vec();
+    let at = rows.iter().position(|r| r.conversation()).expect("a conversation in the Inbox");
+    let (head, older) = (rows[at].id, *rows[at].members.iter().find(|m| **m != rows[at].id).expect("more than one message"));
+
+    // The message picked is moved well back, so its own heading is another group's.
+    let day = 24 * 60 * 60;
+    let moved = s.mailbox.message(head).unwrap().received - 40 * day;
+    std::sync::Arc::make_mut(s.mailbox.messages.get_mut(&older).unwrap()).received = moved;
+    s.mailbox_changed();
+    let shown = crate::list::heading_of(&s, head).expect("the row's own heading");
+    assert_ne!(crate::list::heading_of(&s, older), Some(shown.clone()), "the two messages are in different groups now");
+
+    // Picked by its own id while the conversation is closed: the row stays the conversation's.
+    run(&mut s, "mail.select", json!({"id": older}));
+    assert_eq!(s.sel.focus(), Some(older));
+    run(&mut s, "view.collapseGroup", json!({}));
+    assert!(s.prefs.is_collapsed(s.view.folder, &shown), "the group the row is in: {:?}", s.prefs.collapsed_groups);
+}
