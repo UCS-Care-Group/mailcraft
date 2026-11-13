@@ -7,6 +7,9 @@
 
 use std::collections::HashMap;
 
+pub mod auto_replies;
+#[cfg(test)]
+mod auto_replies_tests;
 pub mod calendar;
 pub mod calendar_plan;
 #[cfg(test)]
@@ -37,6 +40,7 @@ pub mod tasks;
 #[cfg(test)]
 mod tasks_tests;
 
+pub use auto_replies::{AutoRepliesDriver, RepliesAnswer, RepliesCame, RepliesFacts, RepliesLook, RepliesPlan, Trouble as RepliesTrouble};
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
@@ -243,6 +247,11 @@ pub enum Permission {
     Declined,
     /// Asked, and no: why, in a few words.
     Refused(String),
+    /// Changing it was tried with the permission, and the server said no: the organisation keeps
+    /// it. Asking again wouldn't change that, so the owner isn't asked, and a change is still
+    /// handed to the server, which says so again. (Only the automatic replies keep it: to-dos and
+    /// rules take that answer as a [`Permission::Refused`].)
+    Denied,
     /// The provider no longer took the sign-in the job had (its refresh token's [`fingerprint`]),
     /// for mail either. Asking again is one way back; a new sign-in for mail is the other, and the
     /// next look runs a job again by itself.
@@ -267,14 +276,18 @@ fn answered_by_owner(perm: &HashMap<Id, Permission>, account: Id) -> bool {
 }
 
 /// A question that went away unanswered is not asked again by itself: when none is on screen
-/// (`still`), every account being asked about is `Declined`.
-fn unanswered(perm: &mut HashMap<Id, Permission>, still: bool) {
+/// (`still`), every account being asked about is `Declined`: which accounts that was, lowest first.
+fn unanswered(perm: &mut HashMap<Id, Permission>, still: bool) -> Vec<Id> {
     if still {
-        return;
+        return Vec::new();
     }
-    for p in perm.values_mut().filter(|p| **p == Permission::Asking) {
+    let mut declined = Vec::new();
+    for (account, p) in perm.iter_mut().filter(|(_, p)| **p == Permission::Asking) {
         *p = Permission::Declined;
+        declined.push(*account);
     }
+    declined.sort_unstable();
+    declined
 }
 
 /// The account the owner is next to be asked about, the lowest first.
@@ -384,6 +397,8 @@ pub struct Driver {
     pub tasks: TasksDriver,
     /// The rules kept on the server.
     pub rules: RulesDriver,
+    /// The automatic replies kept in step with the mailbox's settings.
+    pub auto_replies: AutoRepliesDriver,
     /// The host turned automatic checking off (a host that starts jobs only when asked, a test).
     /// A setting of the host, not of a mailbox: it outlives [`Driver::reset`].
     auto_sync_off: bool,

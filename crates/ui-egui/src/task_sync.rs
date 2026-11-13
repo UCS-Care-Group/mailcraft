@@ -378,7 +378,7 @@ impl MailApp {
             Some(Permission::Given) => (tl!("Tasks: kept in step with Microsoft To Do").to_string(), false),
             Some(Permission::Needed) => (tl!("Tasks: waiting for your permission").to_string(), true),
             Some(Permission::Asking) => (tl!("Tasks: asking for your permission…").to_string(), false),
-            Some(Permission::Declined) => (tl!("Tasks: kept on this computer only (not allowed yet)").to_string(), true),
+            Some(Permission::Declined | Permission::Denied) => (tl!("Tasks: kept on this computer only (not allowed yet)").to_string(), true),
             Some(Permission::Refused(why)) => {
                 (crate::i18n::fmt(tl!("Tasks: not allowed ({why})"), &[("why", crate::forms::kit::shown(why, 90).as_str())]), true)
             }

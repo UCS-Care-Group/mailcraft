@@ -165,12 +165,12 @@ fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
     assert!(app.dialog.is_none());
     assert_eq!(sign_ins.lock().unwrap().len(), 1);
     // And back: a yes for the rules is one for the automatic replies.
-    app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
+    app.session.driver.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
     app.ask_rules_again(owner);
     app.dialog = None;
     app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
-    assert_eq!(app.auto_replies.perm.get(&owner), None);
+    assert_eq!(app.session.driver.auto_replies.perm.get(&owner), None);
 }
 
 /// Working offline, nothing of the rules goes to the server or is read from it, and the owner

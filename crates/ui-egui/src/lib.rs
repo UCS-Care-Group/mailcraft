@@ -2303,7 +2303,7 @@ impl MailApp {
             self.graph_tokens.remove(&account);
             self.session.driver.calendar.checked.remove(&account);
             self.session.driver.calendar.consent_needed.remove(&account);
-            self.auto_replies.trouble.remove(&account);
+            self.session.driver.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
