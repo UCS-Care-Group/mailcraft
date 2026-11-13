@@ -9,10 +9,14 @@
 pub mod init;
 #[cfg(test)]
 mod init_tests;
+pub mod jobs;
 pub mod platform;
 pub mod secrets;
 #[cfg(test)]
 mod secrets_tests;
+pub mod tasks;
+#[cfg(test)]
+mod tasks_tests;
 
 pub use init::{Host, InitError, init, memory_budget};
 pub use platform::{NetworkState, Notification, NotificationKind, Platform, PlatformError, Redirect, Stream};
