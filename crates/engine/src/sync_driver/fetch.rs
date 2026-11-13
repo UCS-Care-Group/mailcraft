@@ -54,11 +54,6 @@ impl FetchProgress {
         FetchProgress { done: all.saturating_sub(waiting), all, large: get("large"), waiting }
     }
 
-    /// Nothing to say: nothing is left to fetch in the background.
-    pub fn is_none(&self) -> bool {
-        self.waiting == 0
-    }
-
     /// How many of those still to come can be fetched in the background.
     pub fn background(&self) -> u64 {
         self.waiting.saturating_sub(self.large)

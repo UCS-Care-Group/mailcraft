@@ -70,8 +70,8 @@ fn the_background_rests_when_there_was_nothing_and_wakes_when_asked() {
 fn progress_is_read_from_what_the_engine_said_and_junk_says_nothing() {
     let p = FetchProgress::of(&json!({"waiting": 30, "large": 5, "all": 100}));
     assert_eq!((p.done, p.all, p.large, p.background()), (70, 100, 5, 25));
-    assert!(!p.is_none());
-    assert!(FetchProgress::of(&json!({})).is_none() && FetchProgress::of(&json!("junk")).is_none());
+    assert_eq!(FetchProgress::of(&json!({})).waiting, 0);
+    assert_eq!(FetchProgress::of(&json!("junk")).all, 0);
     let odd = FetchProgress::of(&json!({"waiting": 9, "large": 99, "all": 3}));
     assert_eq!((odd.done, odd.background()), (0, 0), "never below zero");
 }

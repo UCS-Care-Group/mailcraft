@@ -84,8 +84,6 @@ fn a_server_that_does_not_answer_is_given_longer_each_time_and_an_answer_ends_it
     d.answered(1, false, 200.0);
     assert!(d.book.patient(&p, 1, 200.0));
     d.answered(1, true, 300.0);
-    d.ask_afresh(1);
-    assert!(d.book.patient(&p, 1, 300.0) && d.due);
 }
 
 #[test]

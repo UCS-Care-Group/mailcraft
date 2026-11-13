@@ -433,8 +433,8 @@ impl MailApp {
         }
         match take_in_fetch(&mut self.session, result) {
             Ok(said) => {
-                let FetchProgress { done, all, large, .. } = FetchProgress::of(&said);
                 let progress = FetchProgress::of(&said);
+                let (done, all, large) = (progress.done, progress.all, progress.large);
                 self.fetching.progress = match (progress.background(), large) {
                     (0, 0) => String::new(),
                     (0, large) => crate::i18n::fmt(tl!("{large} large messages download when opened"), &[("large", &large.to_string())]),

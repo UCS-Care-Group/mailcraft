@@ -213,13 +213,6 @@ impl CalendarDriver {
         self.settings_asked.remove(&account);
     }
 
-    /// Forget the calendar's look and failures for `account`, and ask at once.
-    pub fn ask_afresh(&mut self, account: Id) {
-        self.book.forget_failures(account);
-        self.book.forget_checked(account);
-        self.due = true;
-    }
-
     /// The calendars held back for want of rights are `held` (id, name, how many): which of them
     /// are to be told to the owner now, each once for as long as it stays so.
     pub fn tell_held(&mut self, held: Vec<(Id, String, usize)>) -> Vec<(String, usize)> {

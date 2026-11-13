@@ -104,10 +104,7 @@ impl MailApp {
     /// A Send/Receive the owner asked for was started for `account`: its calendar and contacts
     /// are asked for in the job that follows the round, the days on screen at least.
     pub(crate) fn calendar_after_round(&mut self, account: Id) {
-        self.session.driver.calendar.book.forget_checked(account);
-        self.session.driver.calendar.by_hand.insert(account);
-        // (What waited for the permission to send from a shared mailbox is tried again.)
-        self.session.driver.calendar.send_waits.remove(&account);
+        self.session.driver.calendar.after_round(account);
     }
 
     /// The accounts whose calendar is kept in step now: those whose calendar a Microsoft server
