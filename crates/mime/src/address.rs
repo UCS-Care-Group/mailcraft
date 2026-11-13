@@ -164,7 +164,7 @@ pub(crate) fn parse_list(s: &str) -> Vec<Address> {
             ' ' | '\t' | '\r' | '\n' => parts.space(),
             c => {
                 match c {
-                    '[' => in_literal = true,
+                    '[' if parts.raw.ends_with('@') => in_literal = true,
                     ']' => in_literal = false,
                     _ => {}
                 }
@@ -278,6 +278,8 @@ mod tests {
     fn a_domain_literal_keeps_its_colons() {
         assert_eq!(parse_list("ada@[IPv6:2001:db8::1]"), [a("", "ada@[IPv6:2001:db8::1]")]);
         assert_eq!(parse_list("Team: ada@[IPv6:2001:db8::1];"), [a("", "ada@[IPv6:2001:db8::1]")]);
+        assert_eq!(parse_list("[EXT Team: ada@example.org;"), [a("", "ada@example.org")]);
+        assert_eq!(parse_list("[EXT] Team: ada@[IPv6:::1];"), [a("", "ada@[IPv6:::1]")]);
         let list = parse_list("ada@[IPv6:2001:db8::1], Bob <bob@[IPv6:::1]>");
         assert_eq!(parse_list(&format_list(&list)), list);
         assert_eq!(format_list(&list), "<ada@[IPv6:2001:db8::1]>, Bob <bob@[IPv6:::1]>");
