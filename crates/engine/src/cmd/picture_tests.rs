@@ -264,12 +264,12 @@ fn a_picture_goes_out_as_an_inline_part_the_html_refers_to_by_content_id() {
     assert!(m.body.text.starts_with("Hello[Sales \"Q3\"] world"), "{:?}", m.body.text);
     assert!(!m.body.text.contains(OBJECT));
     // On the wire: multipart/related, the cid matching, no header made of the name.
-    let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+    let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
     let wire = String::from_utf8_lossy(&bytes).to_string();
     assert!(wire.contains("multipart/related"), "{wire}");
     assert!(wire.contains(&format!("Content-ID: <{}>", pic.content_id)));
     assert!(!wire.lines().any(|l| l.starts_with("Bcc:") && l.contains("evil")), "{wire}");
-    let back = mailcraft_mime::parse(&bytes);
+    let back = mailcraft_mime_model::parse(&bytes);
     let read = back.attachments.iter().find(|a| a.content_id == pic.content_id).expect("the picture reads back");
     assert_eq!(read.data, pic.data);
     assert!(back.body.html.unwrap().contains(&format!("cid:{}", pic.content_id)));
@@ -415,6 +415,6 @@ fn a_microsoft_account_sends_the_picture_up_as_an_inline_attachment() {
     let up = super::graph_send::sends(&s, account).into_iter().find(|up| up.message == id).expect("queued to send");
     let m = up.draft.is_none().then_some(up.mime).flatten().map(|m| *m).unwrap_or_else(|| s.mailbox.message(id).unwrap().clone());
     assert!(m.attachments.iter().any(|a| a.inline && a.content_id.starts_with("pic-")));
-    let wire = String::from_utf8_lossy(&mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default())).to_string();
+    let wire = String::from_utf8_lossy(&mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default())).to_string();
     assert!(wire.contains("multipart/related") && wire.contains("Content-ID: <pic-"), "{wire}");
 }

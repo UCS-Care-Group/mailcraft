@@ -5,7 +5,7 @@ name: Fuzz
 
 on:
   pull_request:
-    paths: [fuzz/**, crates/assuan/**, crates/dav/**, crates/charset/**, crates/engine/**, crates/ews/**, crates/html/**, crates/i18n/**, crates/ical/**, crates/jmap/**, crates/link/**, crates/mime/**, crates/model/**, crates/proto/**, crates/openpgp/**, crates/pst/**, crates/smime/**, crates/vcard/**]
+    paths: [fuzz/**, crates/assuan/**, crates/ber/**, crates/dav/**, crates/charset/**, crates/engine/**, crates/ews/**, crates/html/**, crates/i18n/**, crates/ical/**, crates/jmap/**, crates/link/**, crates/mime/**, crates/mime-model/**, crates/model/**, crates/proto/**, crates/openpgp/**, crates/pst/**, crates/smime/**, crates/vcard/**]
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:

@@ -7675,7 +7675,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarExtras", account).is_none());
         // The sign-in covers the calendar and not the mailbox's categories and working hours:
         // one line under the list of calendars, and no bar across the calendar.
-        rig.app.calendar.extras_missing.insert(account);
+        rig.app.session.driver.calendar.extras_missing.insert(account);
         rig.frames(2);
         let line = rig.app.hit.rect("calendarExtras", account).expect("the line");
         let last_row = rig.app.hit.rect("calendar", own).unwrap();
