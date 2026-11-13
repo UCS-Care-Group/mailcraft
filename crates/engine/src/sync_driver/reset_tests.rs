@@ -33,6 +33,11 @@ fn busy(driver: &mut Driver) {
     driver.tasks.perm.insert(7, super::Permission::Needed);
     driver.tasks.settling.insert(7, 2);
     driver.tasks.book.started(7, 5.0);
+    driver.rules.perm.insert(7, super::Permission::Needed);
+    driver.rules.settling.insert(7, 2);
+    driver.rules.read.insert(7);
+    driver.rules.unreadable.insert(8);
+    driver.rules.book.started(7, 5.0);
 }
 
 #[test]

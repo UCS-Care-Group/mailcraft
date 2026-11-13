@@ -30,6 +30,9 @@ pub mod offline;
 mod offline_tests;
 #[cfg(test)]
 mod reset_tests;
+pub mod rules;
+#[cfg(test)]
+mod rules_tests;
 pub mod tasks;
 #[cfg(test)]
 mod tasks_tests;
@@ -40,6 +43,7 @@ pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, 
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
 pub use tasks::{TasksCame, TasksDriver, TasksFacts};
 
 use mailcraft_model::Id;
@@ -59,6 +63,8 @@ pub struct Pacing {
 
 impl Pacing {
     /// The To Do job's: read every few minutes, a change goes after three quiet seconds.
+    /// The rules are kept as the to-dos are.
+    pub const RULES: Pacing = Pacing::TASKS;
     pub const TASKS: Pacing = Pacing { refresh_ms: 5.0 * 60_000.0, quiet_ms: 3_000.0, first_retry_ms: 30_000.0, longest_retry_ms: 15.0 * 60_000.0 };
 
     /// The calendar's: a change goes at once (it is on the server as soon as it is in Outlook), a
@@ -279,6 +285,8 @@ pub struct Driver {
     pub fetch: FetchDriver,
     /// Tasks kept in step with Microsoft To Do.
     pub tasks: TasksDriver,
+    /// The rules kept on the server.
+    pub rules: RulesDriver,
 }
 
 impl Driver {
