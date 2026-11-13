@@ -34,6 +34,12 @@ pub struct EwsServer {
     /// of the settings leaves it as it is, and it is never checked as one.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub hierarchy: String,
+    /// The folder list has been read whole since the folder above each folder is asked for: until
+    /// it has, `hierarchy` isn't gone on from, and the next run reads the list afresh. (A version
+    /// before asked for no parents, and Exchange gave none: every folder was at the top, and a
+    /// list that goes on from where it was would never bring them.) Not a setting.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub parents: bool,
 }
 
 /// The address, the name and the fingerprint stay out of debug output, which may reach a log.
@@ -44,6 +50,7 @@ impl std::fmt::Debug for EwsServer {
             .field("username", &!self.username.is_empty())
             .field("trusted", &!self.trusted.is_empty())
             .field("hierarchy", &!self.hierarchy.is_empty())
+            .field("parents", &self.parents)
             .finish()
     }
 }

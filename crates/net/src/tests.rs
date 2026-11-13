@@ -673,9 +673,9 @@ fn the_outbox_is_sent_in_one_session() {
         ..Default::default()
     };
     // What the message is on the wire, were its Bcc line left out.
-    let written = mailcraft_mime::write(
+    let written = mailcraft_mime_model::write(
         &lunch,
-        &mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(SENT_AT) },
+        &mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(SENT_AT) },
     );
     request.outbox = vec![
         lunch,
