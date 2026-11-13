@@ -1004,7 +1004,7 @@ pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
     if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
         let one = params.get("scope").and_then(Value::as_str) == Some("occurrence");
         let day = params.get("occurrence").and_then(Value::as_str).and_then(mailcraft_time::Date::parse_iso).filter(|_| one);
-        app.calendar.opened = params.get("scope").is_some().then_some((event, day));
+        app.session.driver.calendar.opened = params.get("scope").is_some().then_some((event, day));
     }
     let opened = if command == "ui.openWindow" { app.run_or_else(command, params.clone()) } else { app.run(command, params.clone()) };
     if opened.is_err() && command == "ui.openWindow" {
@@ -1083,7 +1083,7 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
     // What the form of an item saves that was opened as one occurrence (or as the series) is
     // meant for that, whatever is selected by now: [`as_opened`] says so when the command is
     // run, so it has to be run that way (and is then asked nothing).
-    let opened = app.calendar.opened.filter(|(event, _)| *event == e.id && from_form(id, params));
+    let opened = app.session.driver.calendar.opened.filter(|(event, _)| *event == e.id && from_form(id, params));
     let day = match opened {
         Some((_, said)) => said.or(day).or(Some(e.start.date)),
         None => day,
@@ -1197,15 +1197,15 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
     // Opened anew, with nothing said of which is meant: what was said the last time no longer
     // holds. (What is said now, when the question is asked, is noted by [`go_ahead`].)
     if (id == "ui.openWindow" || input_dialog(id, &params) == Some("editEvent")) && params.get("scope").is_none() {
-        app.calendar.opened = None;
+        app.session.driver.calendar.opened = None;
         return params;
     }
-    let Some((event, day)) = app.calendar.opened.filter(|_| from_form(id, &params)) else { return params };
+    let Some((event, day)) = app.session.driver.calendar.opened.filter(|_| from_form(id, &params)) else { return params };
     if params.get("id").and_then(Value::as_u64).or(app.session.sel.event) != Some(event) {
         return params;
     }
     // Said once, used once: the next time the item is opened, the owner is asked again.
-    app.calendar.opened = None;
+    app.session.driver.calendar.opened = None;
     let mut params = params;
     if let Some(map) = params.as_object_mut() {
         match day {

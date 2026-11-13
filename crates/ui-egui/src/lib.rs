@@ -156,6 +156,7 @@ pub mod opening;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
+pub mod paste_keys;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
@@ -491,6 +492,10 @@ pub struct Services {
     /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
     /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
+    /// Desktop, under Wayland: the window layer's clipboard shortcuts are off, so Ctrl+X, Ctrl+C
+    /// and Ctrl+V arrive as key presses and are turned into cut, copy and paste here
+    /// ([`paste_keys`]), in the main window and in the windows of their own alike (#1217).
+    pub clipboard_keys: bool,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
@@ -571,6 +576,10 @@ pub trait RichClipboard {
     /// The picture on the clipboard as PNG, when what is on it is a picture.
     fn image(&self) -> Option<Vec<u8>> {
         None
+    }
+    /// Whether the clipboard holds a picture, without reading it where that is cheaper.
+    fn has_image(&self) -> bool {
+        self.image().is_some()
     }
     /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
     /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V
@@ -1508,8 +1517,6 @@ pub struct MailApp {
     graph_after_sign_in: Option<Id>,
     /// Messages of Microsoft accounts being fetched whole ([`graph_fetch`]).
     pub(crate) fetching: graph_fetch::Fetching,
-    /// Mail outside its window taken back to its headers and preview (#143, [`keep_offline`]).
-    pub(crate) thinning: keep_offline::Thinning,
     /// Pages of a search on the server being asked for ([`server_search`]).
     pub(crate) server_searching: server_search::ServerSearching,
     /// When each account's calendar and contacts were last brought down (milliseconds).
@@ -1518,8 +1525,6 @@ pub struct MailApp {
     graph_consent_needed: std::collections::HashSet<Id>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
-    /// Keeping the Favorites of the folder pane the ones Outlook shows ([`favorites_sync`]).
-    favorites: favorites_sync::FavoritesSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
     favorites_next: bool,
     /// The next sign-in for Microsoft Graph asks for reading shared mailboxes too, for this
@@ -1826,12 +1831,10 @@ impl MailApp {
             graph_pieces_taken: 0,
             graph_after_sign_in: None,
             fetching: Default::default(),
-            thinning: Default::default(),
             server_searching: Default::default(),
             graph_checked: Default::default(),
             graph_consent_needed: Default::default(),
             calendar: Default::default(),
-            favorites: Default::default(),
             favorites_next: false,
             shared_next: None,
             shared_send_next: false,
@@ -3538,6 +3541,7 @@ impl MailApp {
             // forgotten.
             self.clear_jobs_on_replace();
             self.fetching.forget();
+            self.session.driver.fetch.forget();
             self.forget_graph_switch();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
@@ -3722,7 +3726,7 @@ impl MailApp {
                 self.graph_pieces_taken = self.graph_pieces_taken.saturating_add(1);
                 // New mail may be waiting to be fetched whole: the background looks again.
                 if !piece.pages.is_empty() {
-                    self.fetching.wake();
+                    self.session.driver.fetch.wake();
                 }
                 // A shared mailbox the server won't open for the owner (#70).
                 if let Some(why) = piece.refused {

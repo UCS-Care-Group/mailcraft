@@ -5,7 +5,7 @@
 //! to import, and goes through File › Options › Security in the window). No I/O; the file is
 //! hostile: sizes and counts are capped, and nothing here panics on any bytes.
 
-use mailcraft_model::ber;
+use mailcraft_ber as ber;
 use mailcraft_time::Timestamp;
 
 use crate::cert::{Cert, MAX_CERT_BYTES, printable};

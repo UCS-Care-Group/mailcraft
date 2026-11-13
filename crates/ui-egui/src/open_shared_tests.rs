@@ -77,7 +77,7 @@ fn listed(owner: Id, calendars: Vec<RemoteCalendar>, refused: Vec<OpenedRefusal>
 /// Start the account's next calendar job and take in its answer.
 fn job(app: &mut MailApp) {
     // (A job that brought no events counts as a failure, which waits: not what these look at.)
-    app.calendar.failures.clear();
+    app.session.driver.calendar.book.forget_all_failures();
     assert!(app.calendar_tick_at(true, 1.0e9), "a calendar job was started");
     app.poll_calendar();
 }
@@ -190,7 +190,7 @@ fn a_person_the_server_lists_as_well_is_offered_for_removal_once() {
         ..Default::default()
     };
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar(), server_has_it.clone()], vec![]));
-    app.calendar.checked.clear();
+    app.session.driver.calendar.book.forget_all_checked();
     app.graph_checked.remove(&owner);
     job(&mut app);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("offered") };
@@ -249,7 +249,7 @@ fn ops_copy() -> RemoteCalendar {
 /// The account's list comes again with the next job.
 fn list_again(app: &mut MailApp, owner: Id, answers: &Answers, calendars: Vec<RemoteCalendar>) {
     answers.lock().unwrap().push_back(listed(owner, calendars, vec![]));
-    app.calendar.checked.clear();
+    app.session.driver.calendar.book.forget_all_checked();
     app.graph_checked.remove(&owner);
     job(app);
 }
@@ -288,7 +288,7 @@ fn a_shared_mailboxs_calendar_the_server_lists_too_is_offered_to_be_hidden_once(
 
     // Shown again: the account's list is read at once, and the copy is back; nothing is asked.
     app.run("calendar.hideListedCopy", json!({"address": OPS, "hide": false})).unwrap();
-    assert!(app.calendar.due && !app.calendar.checked.contains_key(&owner));
+    assert!(app.session.driver.calendar.due && app.session.driver.calendar.book.checked(owner).is_none());
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), ops_copy()], vec![]));
     job(&mut app);
     assert!(has_copy(&app) && app.dialog.is_none());

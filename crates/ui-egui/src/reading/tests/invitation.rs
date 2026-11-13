@@ -585,7 +585,7 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     app.services.graph = None;
     assert!(app.calendar_job_around(account, day).is_err());
     // Asking as it did left alone when the days on screen were last asked for.
-    assert!(!app.calendar.checked.contains_key(&account));
+    assert!(app.session.driver.calendar.book.checked(account).is_none());
 }
 
 #[test]
