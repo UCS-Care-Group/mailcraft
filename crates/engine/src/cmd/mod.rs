@@ -127,6 +127,9 @@ pub mod search_server;
 #[cfg(test)]
 mod search_suggest_tests;
 pub mod send_receive;
+pub mod senders;
+#[cfg(test)]
+mod senders_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]
@@ -200,6 +203,7 @@ pub fn registry() -> Registry {
     v.extend(offline::specs());
     v.extend(send_receive::specs());
     v.extend(signature::specs());
+    v.extend(senders::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());

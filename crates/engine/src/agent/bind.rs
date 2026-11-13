@@ -103,6 +103,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.graphSwitch"
         | "account.addSharedMailbox"
         | "account.removeSharedMailbox"
+        | "account.setSenderAddresses"
         | "account.thinOffline"
         | "ui.keepOffline"
         | "ui.connectMicrosoft"

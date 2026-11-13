@@ -402,6 +402,20 @@ fn existing_gmail_account_converts_only_after_explicit_same_identity_sign_in() {
 }
 
 #[test]
+fn conversion_waits_for_unsaved_sender_addresses() {
+    // A switch closes the dialog without saving: sender addresses typed and not saved would go.
+    let (mut a, id, _store) = existing_google_password_account();
+    let requested = sign_ins(&mut a, None);
+    let mut w = AccountSetup::open(&a, &json!({"id":id})).unwrap();
+    w.senders.as_mut().unwrap().rows.push(senders::Row { email: "alias@example.org".into(), ..Default::default() });
+    assert!(!w.act(&mut a, Action::ConvertToGoogle));
+    assert_eq!(w.page, Page::Settings);
+    assert!(w.error.contains("Save or discard"), "{}", w.error);
+    assert!(requested.lock().unwrap().is_empty());
+    assert!(a.session.mailbox.account(id).unwrap().oauth.is_none());
+}
+
+#[test]
 fn conversion_waits_for_an_unsaved_colour() {
     // A switch closes the dialog without saving: a colour picked and not saved would go (#893).
     let (mut a, id, _store) = existing_google_password_account();

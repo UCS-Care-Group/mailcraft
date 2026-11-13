@@ -12,6 +12,9 @@ use crate::{MailApp, icons};
 pub(crate) mod editor;
 #[cfg(test)]
 mod font_tests;
+pub(crate) mod from_list;
+#[cfg(test)]
+mod from_list_tests;
 #[cfg(test)]
 mod picture_tests;
 #[cfg(test)]
@@ -170,6 +173,8 @@ struct Shown {
     dirty: bool,
     draft: bool,
     account: u64,
+    /// The account's sender address it is from (#797); empty for its own.
+    from: String,
     to: String,
     cc: String,
     bcc: String,
@@ -188,6 +193,7 @@ impl Shown {
             dirty: c.dirty,
             draft: c.draft.is_some(),
             account: c.account,
+            from: c.from.clone(),
             to: c.to.clone(),
             cc: c.cc.clone(),
             bcc: c.bcc.clone(),
@@ -375,23 +381,32 @@ fn send_beside(app: &mut MailApp, ui: &mut Ui) {
 fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
     let t = Tokens::get(ui.ctx());
     let top = ui.cursor().min.y;
-    // From, when there is a choice.
-    if app.session.mailbox.accounts.len() > 1 {
+    // From, when there is a choice: another account, or another address of one (#797).
+    let choice = from_list::has_choice(&app.session.mailbox);
+    if choice {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
         ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, tl!("From"), regular(12.0), t.text_dim);
-        let current = app.session.mailbox.account(c.account).map(|a| a.address().full()).unwrap_or_default();
+        let current = from_list::current(&app.session.mailbox, c.account, &c.from);
         let pick = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 4.0), pos2(r.max.x - 12.0, r.max.y - 4.0));
         let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
         }
         paint_clipped(ui.painter(), pos2(pick.min.x, pick.center().y), pick.width(), &format!("{current} ▾"), regular(13.0), t.text);
-        // (In the order of the folder pane, #702.)
-        let accounts: Vec<(u64, String)> = app.session.mailbox.accounts_in_order().into_iter().map(|a| (a.id, a.address().full())).collect();
+        // (In the order of the folder pane, #702; an account's other addresses under its own.)
+        let choices = from_list::choices(&app.session.mailbox);
         egui::Popup::menu(&resp).show(|ui| {
-            for (id, label) in accounts {
-                if ui.selectable_label(id == c.account, label).clicked() {
-                    let _ = app.execute("compose.set", json!({"account": id}));
+            for choice in choices {
+                let picked = ui
+                    .horizontal(|ui| {
+                        if !choice.from.is_empty() {
+                            ui.add_space(14.0);
+                        }
+                        ui.selectable_label(from_list::is_current(&choice, c.account, &c.from), &choice.label).clicked()
+                    })
+                    .inner;
+                if picked {
+                    let _ = app.execute("compose.set", json!({"account": choice.account, "from": choice.from}));
                     ui.close();
                 }
             }
@@ -417,8 +432,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
     if bcc_link(app) {
         // A quiet way to get the Bcc line.
         let last = ui.min_rect();
-        let br =
-            Rect::from_min_size(pos2(last.max.x - 52.0, top + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }), vec2(40.0, 22.0));
+        let br = Rect::from_min_size(pos2(last.max.x - 52.0, top + if choice { 34.0 } else { 4.0 }), vec2(40.0, 22.0));
         let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
         ui.painter().text(br.center(), Align2::CENTER_CENTER, tl!("Bcc"), regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
         if resp.clicked()

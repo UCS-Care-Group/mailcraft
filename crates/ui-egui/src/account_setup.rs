@@ -21,6 +21,7 @@
 
 mod exchange;
 mod help;
+mod senders;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
@@ -526,6 +527,8 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of an IMAP account: the other addresses it sends from (#797).
+    senders: Option<senders::Senders>,
     /// For the settings of an account: its colour as it was and as the swatch has it now (#893).
     color: Option<(Option<Rgb>, Option<Rgb>)>,
     /// For the settings of a Gmail account: whether Gmail's categories are shown under its Inbox,
@@ -645,6 +648,7 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            senders: None,
             color: None,
             gmail: None,
             graph: false,
@@ -717,6 +721,7 @@ impl AccountSetup {
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
         }
+        w.senders = senders::Senders::of(a);
         if a.is_gmail() {
             let (show, primary) = (!a.hide_gmail_categories, a.alert_primary_only);
             w.gmail = Some(GmailSwitches { show: (show, show), primary_only: (primary, primary) });
@@ -1570,13 +1575,14 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
-    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
-    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
-    /// until this holds.
+    /// Whether Account Settings has nothing unsaved: its fields, a new password, the colour and
+    /// the sender addresses as they were. A Google switch or reconnect closes the dialog without
+    /// saving, so it waits until this holds.
     fn unchanged(&self) -> bool {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
+            && !self.senders.as_ref().is_some_and(senders::Senders::changed)
     }
 
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
@@ -1586,6 +1592,13 @@ impl AccountSetup {
             return false;
         }
         let Some(id) = self.edit.as_ref().map(|e| e.id) else { return true };
+        // The sender addresses are checked before anything is saved: a refusal of theirs after
+        // `account.edit` would leave the server settings changed with the dialog still open.
+        let signatures: Vec<String> = app.session.mailbox.signatures.iter().map(|x| x.name.clone()).collect();
+        if let Some(problem) = self.senders.as_ref().and_then(|x| x.problem(self.email.trim(), &signatures)) {
+            self.error = problem;
+            return false;
+        }
         if let Some((command, params)) = self.edit_command()
             && let Err(e) = app.execute(command, params)
         {
@@ -1598,6 +1611,15 @@ impl AccountSetup {
                 return false;
             }
             self.ask_conversation = Some((ask, ask));
+        }
+        if let Some((command, params)) = self.senders.as_ref().and_then(|x| x.command(id)) {
+            if let Err(e) = app.execute(command, params) {
+                self.error = e;
+                return false;
+            }
+            if let Some(x) = self.senders.as_mut() {
+                x.saved();
+            }
         }
         if let Some((_, color)) = self.color.filter(|(was, color)| was != color) {
             if let Err(e) = app.execute("account.edit", json!({"id": id, "color": color.map(Rgb::hex)})) {
@@ -2288,6 +2310,7 @@ impl AccountSetup {
         // the scrollable body instead (where keyboard focus can still reach it).
         let footer_google_action = ui.available_width() >= 390.0;
         let (mut convert, mut reconnect) = (false, false);
+        let signatures: Vec<String> = app.session.mailbox.signatures.iter().map(|x| x.name.clone()).collect();
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
@@ -2367,6 +2390,9 @@ impl AccountSetup {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
+            if let Some(senders) = self.senders.as_mut() {
+                senders.show(ui, &t, &signatures);
             }
             if let Some((_, color)) = self.color.as_mut() {
                 caption(ui, tl!("Colour"), &t);
@@ -2691,6 +2717,8 @@ mod delete_question_tests;
 mod exchange_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod senders_tests;
 
 #[cfg(test)]
 mod tests {

@@ -152,6 +152,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.graphSwitch", r#"{"account": $account}"#, Setup::None),
     ("account.addSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.removeSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
+    ("account.setSenderAddresses", r#"{"id": $account, "addresses": [{"email": "help@example.org"}]}"#, Setup::None),
     ("account.thinOffline", r#"{"account": $account}"#, Setup::None),
     ("ui.keepOffline", "{}", Setup::None),
     ("ui.connectMicrosoft", "{}", Setup::None),

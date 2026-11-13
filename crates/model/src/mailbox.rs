@@ -402,6 +402,10 @@ pub struct Account {
     /// Empty for every other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub listed_twice: Vec<crate::ListedTwice>,
+    /// Its other sender addresses (#797; [`crate::senders`]): used only by an account that takes
+    /// them ([`Account::takes_sender_addresses`]). Empty in a file from before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub sender_addresses: Vec<crate::SenderAddress>,
     /// For a [`AccountKind::Jmap`] account: where its server's session resource is and how the
     /// secret is sent ([`JmapServer`]). Plain settings: the secret is never kept here. `None` for
     /// every other account, and in a file from before there were any.
@@ -3551,6 +3555,7 @@ impl Mailbox {
         }
         for a in &mut self.accounts {
             a.clamp_opened_calendars();
+            a.clamp_sender_addresses();
             if a.id == 0 || !sane(&a.id) || !seen.insert(a.id) {
                 let old = a.id;
                 a.id = self.next_id;

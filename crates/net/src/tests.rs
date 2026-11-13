@@ -2572,3 +2572,7 @@ mod gmail_sync;
 
 #[path = "protected_sync_tests.rs"]
 mod protected_sync;
+
+// (Sending from an account's other addresses, #797: its own file, with these helpers.)
+#[path = "sender_address_tests.rs"]
+mod sender_address_tests;

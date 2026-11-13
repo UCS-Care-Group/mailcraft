@@ -652,6 +652,10 @@ pub struct Compose {
     pub draft: Option<Id>,
     /// The account it is sent from.
     pub account: Id,
+    /// Which of the account's sender addresses it is from (#797), as the account keeps it; empty
+    /// for the account's own address.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub from: String,
     pub to: String,
     pub cc: String,
     pub bcc: String,
