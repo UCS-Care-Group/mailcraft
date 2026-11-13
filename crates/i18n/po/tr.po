@@ -315,14 +315,14 @@ msgstr "Bir .pst dosyası içe aktarılıyor: bitince yeniden deneyin"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "Bir JMAP hesabının postası henüz ertelenemiyor."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Bir takvim değişikliği henüz gönderilemedi ve yeniden denenecek: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "Paylaşılan bir posta kutusunun takviminde yapılan değişiklik reddedildi: bu hesap onu düzenleyemiyor olabilir. Bir kez daha denenecek, ardından geri alınacak."
@@ -2427,8 +2427,8 @@ msgstr "Değiştirildi: başka bir imza seçtiğinizde veya bu sayfadan ayrıld�
 msgid "Change…"
 msgstr "Değiştir…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Takvimi değiştirmek izninizi gerektiriyor: Dosya › Bilgi › Takvim ve kişileri bağla"
@@ -13443,8 +13443,8 @@ msgstr "{name} takvimi yalnızca okunabilir: sahibi bu hesabın onu değiştirme
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "{name} takvimi yalnızca sahibi meşgulken gösterilir: bu hesap onu değiştiremez."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Takvim değişiklikleri alınamadı: {error}"
@@ -13479,8 +13479,8 @@ msgstr "Takvim bağlantısı çalışıyor"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "Takvim bağlantısı çalışıyor: gönderilen ulaştı ve sunucuda gönderildiği gibi duruyor."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Takvim alınamadı: {error}"
@@ -13557,8 +13557,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Paylaşılan posta kutusunun takvimleri bekliyor: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Kategoriler alınamadı: {error}"
@@ -13635,8 +13635,8 @@ msgstr "{id} kişisi iki kez adlandırılmış."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "Kişi formu kapatıldı: anahtarı eklemek için yeniden açın"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Kişiler alınamadı: {error}"
@@ -13847,8 +13847,8 @@ msgstr "Anahtar bu bilgisayardan kaldırıldı."
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "Bağlantı panoda: kuruluşunuzun yöneticisine gönderin"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "Takvim listesi alınamadı: {error}"
@@ -14099,14 +14099,14 @@ msgstr "Rapor hizmetinin yanıtı MailCraft'ın anladığı bir yanıt değildi,
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "Sunucudaki kurallar okunamadı: iş beklenmedik şekilde durdu"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "Sunucudaki kurallar alınamadı: {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Gönderilen kurallar kaydedilemedi: {error}"
@@ -14363,8 +14363,8 @@ msgstr "Paylaşılan posta kutusunun \"{name}\" takvimi yalnızca sahibi meşgul
 msgid "The shared mailbox's e-mail address"
 msgstr "Paylaşılan posta kutusunun e-posta adresi"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "Bu paylaşılan posta kutusunun üzerinden açıldığı hesabın oturum açması reddedildi: Gönder/Al ile yeniden oturum açın"
@@ -14471,14 +14471,14 @@ msgstr "Metin bulunamadı."
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "Yapılacaklar eşitlenemedi: iş beklenmedik şekilde durdu"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "Yapılacaklar alınamadı: {error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "Gönderilen yapılacaklar kaydedilemedi: {error}"
@@ -14681,14 +14681,14 @@ msgstr "Bu hesabın Microsoft ile oturum açması yok"
 msgid "This account is no longer in the mailbox."
 msgstr "Bu hesap artık posta kutusunda değil."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Bu hesap sunucudaki kurallarını değiştiremez"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "Bu hesap yapılacaklarını Microsoft Graph üzerinden kullanamaz"
@@ -18899,8 +18899,8 @@ msgstr "sunucu bağlantıyı kapattı"
 msgid "the server continued a cancelled password authentication"
 msgstr "sunucu iptal edilmiş bir parola kimlik doğrulamasını sürdürdü"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "sunucuya ulaşılamadı"
@@ -20299,8 +20299,8 @@ msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay 
 msgstr[0] "{n} IMAP sunucusunu bekleyen değişiklik ona ulaşmayacak; yedek kopyada kalacak."
 msgstr[1] "{n} IMAP sunucusunu bekleyen değişiklik ona ulaşmayacak; yedek kopyada kalacaklar."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{name} takvimine yapılan {n} değişiklik burada tutuluyor, gönderilmiyor: bu hesap artık onu değiştiremiyor olabilir. Yeniden değiştirebilirse gönderilirler."

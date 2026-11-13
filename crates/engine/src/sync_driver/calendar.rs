@@ -86,6 +86,13 @@ pub struct CalendarDriver {
     held_told: HashMap<Id, usize>,
     /// What the last check of the calendar connection came to, as its report says it.
     pub last_check: Vec<String>,
+    /// The accounts whose sign-in the owner is still to allow sending, calendar and contacts
+    /// through Microsoft for ("Connect calendar and contacts").
+    pub consent_needed: HashSet<Id>,
+    /// When each account's Graph run last had the wide stretch and the contacts (milliseconds).
+    pub checked: HashMap<Id, f64>,
+    /// Where each shared mailbox's calendars stand with the owner's permission to read them.
+    pub shared_perm: HashMap<Id, super::SharedPermission>,
 }
 
 impl CalendarDriver {
@@ -158,6 +165,11 @@ impl CalendarDriver {
     /// its days are really there), and are asked for without waiting.
     pub fn elsewhere(&self, account: Id, in_front: bool, window: (Timestamp, Timestamp)) -> bool {
         in_front && self.shown.get(&account).is_some_and(|shown| *shown != window)
+    }
+
+    /// Whether the wide stretch of `account`'s calendar and its contacts are due at `now`.
+    pub fn directory_is_due(&self, account: Id, now: f64) -> bool {
+        Self::directory_due(self.checked.get(&account).copied(), now)
     }
 
     /// Whether the wide stretch of an account's calendar and its contacts are due (`asked`: when
@@ -269,7 +281,9 @@ impl Session {
     /// Send/Receive (`directory`: a month back, a year ahead), or else `stretch`.
     pub fn calendar_asks(&self, account: Id, directory: bool, stretch: Option<(Timestamp, Timestamp)>) -> Vec<CalendarAsk> {
         let now = self.now();
-        let Some((from, to)) = (if directory { Some((now - WIDE_BEHIND, now + WIDE_AHEAD)) } else { stretch }) else { return Vec::new() };
+        let Some((from, to)) = (if directory { Some((now.saturating_sub(WIDE_BEHIND), now.saturating_add(WIDE_AHEAD))) } else { stretch }) else {
+            return Vec::new();
+        };
         // (And one that holds something which was sent and is yet to be seen on the server,
         // shown or not: an appointment that was just put into a calendar that isn't ticked.)
         let unseen = remote::unverified_calendars(self, account);
